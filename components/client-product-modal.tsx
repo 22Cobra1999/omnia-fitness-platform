@@ -61,11 +61,17 @@ export default function ClientProductModal({
       // Intentar reproducir después de un pequeño delay
       setTimeout(() => {
         if (videoRef.current) {
-          videoRef.current.play().then(() => {
-            setIsVideoPlaying(true)
-          }).catch((error) => {
-            console.error('Error al reproducir video:', error)
-          })
+          // Verificar si el video tiene fuentes válidas
+          if (videoRef.current.readyState >= 1) {
+            videoRef.current.play().then(() => {
+              setIsVideoPlaying(true)
+            }).catch((error) => {
+              console.warn('No se pudo reproducir el video automáticamente:', error.message)
+              // No es un error crítico, solo un warning
+            })
+          } else {
+            console.warn('Video no está listo para reproducir')
+          }
         }
       }, 500)
     }
@@ -495,7 +501,17 @@ export default function ClientProductModal({
                     playsInline
                     controls={false}
                     poster={getValidImageUrl()}
-                       onClick={handleVideoClick}
+                    onError={(e) => {
+                      console.warn('Error cargando video:', e)
+                      // No mostrar error al usuario, solo log
+                    }}
+                    onLoadStart={() => {
+                      console.log('Iniciando carga del video')
+                    }}
+                    onCanPlay={() => {
+                      console.log('Video listo para reproducir')
+                    }}
+                    onClick={handleVideoClick}
                        onPlay={() => {
                          setIsVideoPlaying(true)
                        }}

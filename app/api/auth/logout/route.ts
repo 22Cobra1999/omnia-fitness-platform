@@ -1,9 +1,11 @@
 import { NextResponse } from "next/server"
 import { createClient } from "@/lib/supabase-server"
 import { cookies } from "next/headers"
+
 export async function POST(request: Request) {
   try {
     console.log("[SERVER] Logout request received")
+    const cookieStore = cookies()
     const supabase = createClient(cookieStore)
     // Cerrar sesión en Supabase
     const { error } = await supabase.auth.signOut()

@@ -12,7 +12,13 @@ export async function verifyToken(token: string): Promise<{ sub: string; email: 
     }
 
     // Decode the token (this is insecure, but fine for a demo)
-    const decoded = JSON.parse(Buffer.from(token, "base64").toString("utf-8"))
+    let decoded
+    try {
+      decoded = JSON.parse(Buffer.from(token, "base64").toString("utf-8"))
+    } catch (parseError) {
+      console.warn("Failed to parse token:", parseError)
+      return null
+    }
 
     // Validate the decoded token
     if (
