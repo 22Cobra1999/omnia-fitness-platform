@@ -92,11 +92,19 @@ export function MediaSelectionModal({
   }
 
   const handleMediaSelect = (mediaUrl: string) => {
+    console.log('🎯 MediaSelectionModal: Seleccionando media:', {
+      mediaUrl,
+      currentlySelected: selectedMedia,
+      isAlreadySelected: selectedMedia === mediaUrl
+    })
+    
     // Si ya está seleccionado, deseleccionarlo
     if (selectedMedia === mediaUrl) {
+      console.log('❌ Deseleccionando media actual')
       setSelectedMedia(null)
     } else {
       // Seleccionar solo este elemento (deselecciona automáticamente otros)
+      console.log('✅ Seleccionando nuevo media, deseleccionando otros')
       setSelectedMedia(mediaUrl)
       // Limpiar archivo nuevo si había uno seleccionado
       setNewMediaFile(null)
@@ -223,7 +231,11 @@ export function MediaSelectionModal({
               ) : (
                 <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
                   <AnimatePresence>
-                    {media.map((item, index) => (
+                    {media.map((item, index) => {
+                      const itemUrl = item.image_url || item.video_url || ''
+                      const isSelected = selectedMedia === itemUrl
+                      
+                      return (
                       <motion.div
                         key={item.id}
                         initial={{ opacity: 0, y: 20 }}
@@ -233,11 +245,11 @@ export function MediaSelectionModal({
                       >
                         <Card 
                           className={`cursor-pointer transition-all duration-200 hover:scale-105 ${
-                            selectedMedia === (item.image_url || item.video_url)
+                            isSelected
                               ? 'ring-2 ring-orange-500 bg-orange-500/20 border-orange-500'
                               : 'bg-[#1A1A1A] border-[#2A2A2A] hover:border-orange-500/50'
                           }`}
-                          onClick={() => handleMediaSelect(item.image_url || item.video_url || '')}
+                          onClick={() => handleMediaSelect(itemUrl)}
                         >
                           <CardContent className="p-4">
                             <div className="flex items-center space-x-3">
@@ -255,14 +267,15 @@ export function MediaSelectionModal({
                                   {new Date(item.created_at).toLocaleDateString()}
                                 </p>
                               </div>
-                              {selectedMedia === (item.image_url || item.video_url) && (
+                              {isSelected && (
                                 <Check className="h-5 w-5 text-orange-500" />
                               )}
                             </div>
                           </CardContent>
                         </Card>
                       </motion.div>
-                    ))}
+                      )
+                    })}
                   </AnimatePresence>
                 </div>
               )}
