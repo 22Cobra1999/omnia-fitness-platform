@@ -53,9 +53,13 @@ export function MediaSelectionModal({
   const [newMediaFile, setNewMediaFile] = useState<File | null>(null)
   const [uploading, setUploading] = useState(false)
 
-  // Cargar media del coach
+  // Cargar media del coach y limpiar selección
   useEffect(() => {
     if (isOpen) {
+      // Limpiar selecciones previas
+      setSelectedMedia(null)
+      setNewMediaFile(null)
+      setError(null)
       loadCoachMedia()
     }
   }, [isOpen, mediaType])
@@ -88,14 +92,23 @@ export function MediaSelectionModal({
   }
 
   const handleMediaSelect = (mediaUrl: string) => {
-    setSelectedMedia(mediaUrl)
+    // Si ya está seleccionado, deseleccionarlo
+    if (selectedMedia === mediaUrl) {
+      setSelectedMedia(null)
+    } else {
+      // Seleccionar solo este elemento (deselecciona automáticamente otros)
+      setSelectedMedia(mediaUrl)
+      // Limpiar archivo nuevo si había uno seleccionado
+      setNewMediaFile(null)
+    }
   }
 
   const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0]
     if (file) {
       setNewMediaFile(file)
-      setSelectedMedia(null) // Deseleccionar media existente
+      // Deseleccionar media existente cuando se selecciona un archivo nuevo
+      setSelectedMedia(null)
     }
   }
 
@@ -174,6 +187,9 @@ export function MediaSelectionModal({
           <DialogTitle className="text-white text-xl font-semibold">
             Seleccionar {getMediaTypeLabel(mediaType)} de Portada
           </DialogTitle>
+          <p className="text-gray-400 text-sm mt-2">
+            Selecciona solo una {getMediaTypeLabel(mediaType).toLowerCase()} para usar como portada de tu producto
+          </p>
         </DialogHeader>
 
         <div className="space-y-6">
@@ -218,7 +234,7 @@ export function MediaSelectionModal({
                         <Card 
                           className={`cursor-pointer transition-all duration-200 hover:scale-105 ${
                             selectedMedia === (item.image_url || item.video_url)
-                              ? 'ring-2 ring-orange-500 bg-orange-500/10'
+                              ? 'ring-2 ring-orange-500 bg-orange-500/20 border-orange-500'
                               : 'bg-[#1A1A1A] border-[#2A2A2A] hover:border-orange-500/50'
                           }`}
                           onClick={() => handleMediaSelect(item.image_url || item.video_url || '')}
@@ -253,7 +269,11 @@ export function MediaSelectionModal({
             </TabsContent>
 
             <TabsContent value="upload" className="space-y-4">
-              <div className="border-2 border-dashed border-gray-600 rounded-lg p-8 text-center">
+              <div className={`border-2 border-dashed rounded-lg p-8 text-center transition-all duration-200 ${
+                newMediaFile 
+                  ? 'border-orange-500 bg-orange-500/10' 
+                  : 'border-gray-600 hover:border-orange-500/50'
+              }`}>
                 <input
                   type="file"
                   accept={mediaType === 'image' ? 'image/*' : 'video/mp4,video/webm,video/quicktime'}
@@ -272,7 +292,15 @@ export function MediaSelectionModal({
                     <p className="text-white text-sm">
                       {newMediaFile ? `Archivo seleccionado: ${newMediaFile.name}` : `Seleccionar ${getMediaTypeLabel(mediaType).toLowerCase()}`}
                     </p>
-                    <p className="text-gray-400 text-xs">Click para cambiar</p>
+                    <p className="text-gray-400 text-xs">
+                      {newMediaFile ? 'Click para cambiar' : 'Click para seleccionar'}
+                    </p>
+                    {newMediaFile && (
+                      <div className="flex items-center space-x-2 text-orange-500 text-sm">
+                        <Check className="h-4 w-4" />
+                        <span>Archivo listo para subir</span>
+                      </div>
+                    )}
                     {mediaType === 'video' && (
                       <p className="text-gray-400 text-xs">Máx. 3 min, 50MB</p>
                     )}
