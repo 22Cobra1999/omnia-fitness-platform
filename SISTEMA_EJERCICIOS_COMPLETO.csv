@@ -1,0 +1,122 @@
+SISTEMA DE EJERCICIOS - DOCUMENTACIÓN COMPLETA DE TABLAS
+,,,,,
+,,,,,
+TABLA: ejercicios_detalles,,,,,
+DESCRIPCIÓN: Almacena la información detallada de cada ejercicio incluyendo organización temporal (semana día período bloque orden),,,,,,
+PROPÓSITO: Tabla principal que contiene todos los ejercicios con su información básica y organización temporal,,,,,
+,,,,,
+COLUMNA,TIPO_DATO,ES_NULLABLE,VALOR_DEFAULT,COMENTARIOS
+id,integer,NO,nextval('ejercicios_detalles_id_seq'::regclass),Clave primaria
+activity_id,integer,NO,null,ID de la actividad a la que pertenece
+nombre_ejercicio,text,NO,null,Nombre del ejercicio
+tipo,text,NO,null,Tipo de ejercicio (Fuerza Cardio Flexibilidad etc)
+descripcion,text,YES,null,Descripción detallada del ejercicio
+equipo,text,YES,null,Equipo necesario para el ejercicio
+body_parts,text,YES,null,Partes del cuerpo que trabaja
+calorias,integer,YES,null,Calorías estimadas del ejercicio
+intensidad,text,YES,null,Nivel de intensidad (Principiante Intermedio Avanzado)
+video_url,text,YES,null,URL del video del ejercicio
+semana,integer,YES,null,Semana del programa (1 2 3 etc)
+dia,integer,YES,null,Día de la semana (1-7)
+periodo,integer,YES,null,Período del programa (para replicación)
+bloque,integer,YES,null,Bloque dentro del período
+orden,integer,YES,null,Orden de ejecución del ejercicio
+created_at,timestamp with time zone,YES,now(),Fecha de creación
+updated_at,timestamp with time zone,YES,now(),Fecha de última actualización
+,,,,,
+,,,,,
+TABLA: intensidades,,,,,
+DESCRIPCIÓN: Almacena diferentes niveles de intensidad para cada ejercicio con sus detalles específicos,,,,,
+PROPÓSITO: Permite tener múltiples intensidades por ejercicio (Principiante Intermedio Avanzado) con diferentes series y repeticiones,,,,,
+,,,,,
+COLUMNA,TIPO_DATO,ES_NULLABLE,VALOR_DEFAULT,COMENTARIOS
+id,integer,NO,nextval('intensidades_id_seq'::regclass),Clave primaria
+ejercicio_id,integer,NO,null,ID del ejercicio (FK a ejercicios_detalles)
+nombre,text,NO,null,Nombre de la intensidad (Principiante Intermedio Avanzado)
+intensidad,text,NO,null,Nivel de intensidad
+detalle_series,jsonb,YES,null,Detalles de series en formato JSON (peso-repeticiones-series)
+calorias,numeric,YES,null,Calorías específicas para esta intensidad
+created_at,timestamp with time zone,YES,now(),Fecha de creación
+updated_at,timestamp with time zone,YES,now(),Fecha de última actualización
+,,,,,
+,,,,,
+TABLA: periodos_asignados,,,,,
+DESCRIPCIÓN: Gestiona los períodos de replicación de actividades para múltiples fases,,,,,
+PROPÓSITO: Permite replicar actividades en múltiples períodos sin duplicar ejercicios,,,,,
+,,,,,
+COLUMNA,TIPO_DATO,ES_NULLABLE,VALOR_DEFAULT,COMENTARIOS
+id,integer,NO,nextval('periodos_asignados_id_seq'::regclass),Clave primaria
+activity_id,integer,NO,null,ID de la actividad (FK a activities)
+numero_periodo,integer,NO,null,Número del período (1 2 3 etc)
+fecha_inicio,date,NO,null,Fecha de inicio del período
+fecha_fin,date,NO,null,Fecha de fin del período
+created_at,timestamp with time zone,YES,now(),Fecha de creación
+updated_at,timestamp with time zone,YES,now(),Fecha de última actualización
+created_by,uuid,YES,null,ID del usuario que creó el período
+,,,,,
+,,,,,
+TABLA: ejecuciones_ejercicio,,,,,
+DESCRIPCIÓN: Registra el progreso individual de cada cliente en cada ejercicio,,,,,
+PROPÓSITO: Tracking del progreso de cada cliente por ejercicio y período,,,,,
+,,,,,
+COLUMNA,TIPO_DATO,ES_NULLABLE,VALOR_DEFAULT,COMENTARIOS
+id,integer,NO,nextval('ejecuciones_ejercicio_id_seq'::regclass),Clave primaria
+periodo_id,integer,NO,null,ID del período (FK a periodos_asignados)
+ejercicio_id,integer,NO,null,ID del ejercicio (FK a ejercicios_detalles)
+client_id,uuid,YES,null,ID del cliente (FK a auth.users)
+intensidad_aplicada,text,NO,null,Intensidad aplicada para este cliente
+completado,boolean,YES,false,Si el ejercicio fue completado
+nota_cliente,text,YES,null,Nota o comentario del cliente
+nota_coach,text,YES,null,Nota o comentario del coach
+created_at,timestamp with time zone,YES,now(),Fecha de creación
+updated_at,timestamp with time zone,YES,now(),Fecha de última actualización
+completed_at,timestamp with time zone,YES,null,Fecha de completado
+,,,,,
+,,,,,
+FLUJO DEL SISTEMA,,,,,
+,,,,,
+1. Coach crea producto → ejercicios_detalles + intensidades,,,,,
+2. Coach configura períodos → periodos_asignados,,,,,
+3. Cliente ejecuta ejercicios → ejecuciones_ejercicio,,,,,
+,,,,,
+RELACIONES,,,,,
+,,,,,
+ejercicios_detalles.activity_id → activities.id,,,,,
+intensidades.ejercicio_id → ejercicios_detalles.id,,,,,
+periodos_asignados.activity_id → activities.id,,,,,
+ejecuciones_ejercicio.periodo_id → periodos_asignados.id,,,,,
+ejecuciones_ejercicio.ejercicio_id → ejercicios_detalles.id,,,,,
+ejecuciones_ejercicio.client_id → auth.users.id,,,,,
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+

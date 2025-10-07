@@ -1,0 +1,78 @@
+TABLA,DESCRIPCION,COLUMNA,TIPO_DATO,ES_NULLABLE,VALOR_DEFAULT,COMENTARIOS
+ejercicios_detalles,Almacena la información detallada de cada ejercicio incluyendo organización temporal,id,integer,NO,nextval('ejercicios_detalles_id_seq'::regclass),Clave primaria
+ejercicios_detalles,Almacena la información detallada de cada ejercicio incluyendo organización temporal,activity_id,integer,NO,null,ID de la actividad a la que pertenece
+ejercicios_detalles,Almacena la información detallada de cada ejercicio incluyendo organización temporal,nombre_ejercicio,text,NO,null,Nombre del ejercicio
+ejercicios_detalles,Almacena la información detallada de cada ejercicio incluyendo organización temporal,tipo,text,NO,null,Tipo de ejercicio (Fuerza Cardio etc)
+ejercicios_detalles,Almacena la información detallada de cada ejercicio incluyendo organización temporal,descripcion,text,YES,null,Descripción detallada del ejercicio
+ejercicios_detalles,Almacena la información detallada de cada ejercicio incluyendo organización temporal,equipo,text,YES,null,Equipo necesario para el ejercicio
+ejercicios_detalles,Almacena la información detallada de cada ejercicio incluyendo organización temporal,body_parts,text,YES,null,Partes del cuerpo que trabaja
+ejercicios_detalles,Almacena la información detallada de cada ejercicio incluyendo organización temporal,calorias,integer,YES,null,Calorías estimadas del ejercicio
+ejercicios_detalles,Almacena la información detallada de cada ejercicio incluyendo organización temporal,intensidad,text,YES,null,Nivel de intensidad (Principiante Intermedio Avanzado)
+ejercicios_detalles,Almacena la información detallada de cada ejercicio incluyendo organización temporal,video_url,text,YES,null,URL del video del ejercicio
+ejercicios_detalles,Almacena la información detallada de cada ejercicio incluyendo organización temporal,semana,integer,YES,null,Semana del programa (1 2 3 etc)
+ejercicios_detalles,Almacena la información detallada de cada ejercicio incluyendo organización temporal,dia,integer,YES,null,Día de la semana (1-7)
+ejercicios_detalles,Almacena la información detallada de cada ejercicio incluyendo organización temporal,periodo,integer,YES,null,Período del programa (para replicación)
+ejercicios_detalles,Almacena la información detallada de cada ejercicio incluyendo organización temporal,bloque,integer,YES,null,Bloque dentro del período
+ejercicios_detalles,Almacena la información detallada de cada ejercicio incluyendo organización temporal,orden,integer,YES,null,Orden de ejecución del ejercicio
+ejercicios_detalles,Almacena la información detallada de cada ejercicio incluyendo organización temporal,created_at,timestamp with time zone,YES,now(),Fecha de creación
+ejercicios_detalles,Almacena la información detallada de cada ejercicio incluyendo organización temporal,updated_at,timestamp with time zone,YES,now(),Fecha de última actualización
+intensidades,Almacena diferentes niveles de intensidad para cada ejercicio con sus detalles específicos,id,integer,NO,nextval('intensidades_id_seq'::regclass),Clave primaria
+intensidades,Almacena diferentes niveles de intensidad para cada ejercicio con sus detalles específicos,ejercicio_id,integer,NO,null,ID del ejercicio (FK a ejercicios_detalles)
+intensidades,Almacena diferentes niveles de intensidad para cada ejercicio con sus detalles específicos,nombre,text,NO,null,Nombre de la intensidad (Principiante Intermedio Avanzado)
+intensidades,Almacena diferentes niveles de intensidad para cada ejercicio con sus detalles específicos,intensidad,text,NO,null,Nivel de intensidad
+intensidades,Almacena diferentes niveles de intensidad para cada ejercicio con sus detalles específicos,detalle_series,jsonb,YES,null,Detalles de series en formato JSON (peso-repeticiones-series)
+intensidades,Almacena diferentes niveles de intensidad para cada ejercicio con sus detalles específicos,calorias,numeric,YES,null,Calorías específicas para esta intensidad
+intensidades,Almacena diferentes niveles de intensidad para cada ejercicio con sus detalles específicos,created_at,timestamp with time zone,YES,now(),Fecha de creación
+intensidades,Almacena diferentes niveles de intensidad para cada ejercicio con sus detalles específicos,updated_at,timestamp with time zone,YES,now(),Fecha de última actualización
+periodos_asignados,Gestiona los períodos de replicación de actividades para múltiples fases,id,integer,NO,nextval('periodos_asignados_id_seq'::regclass),Clave primaria
+periodos_asignados,Gestiona los períodos de replicación de actividades para múltiples fases,activity_id,integer,NO,null,ID de la actividad (FK a activities)
+periodos_asignados,Gestiona los períodos de replicación de actividades para múltiples fases,numero_periodo,integer,NO,null,Número del período (1 2 3 etc)
+periodos_asignados,Gestiona los períodos de replicación de actividades para múltiples fases,fecha_inicio,date,NO,null,Fecha de inicio del período
+periodos_asignados,Gestiona los períodos de replicación de actividades para múltiples fases,fecha_fin,date,NO,null,Fecha de fin del período
+periodos_asignados,Gestiona los períodos de replicación de actividades para múltiples fases,created_at,timestamp with time zone,YES,now(),Fecha de creación
+periodos_asignados,Gestiona los períodos de replicación de actividades para múltiples fases,updated_at,timestamp with time zone,YES,now(),Fecha de última actualización
+periodos_asignados,Gestiona los períodos de replicación de actividades para múltiples fases,created_by,uuid,YES,null,ID del usuario que creó el período
+ejecuciones_ejercicio,Registra el progreso individual de cada cliente en cada ejercicio,id,integer,NO,nextval('ejecuciones_ejercicio_id_seq'::regclass),Clave primaria
+ejecuciones_ejercicio,Registra el progreso individual de cada cliente en cada ejercicio,periodo_id,integer,NO,null,ID del período (FK a periodos_asignados)
+ejecuciones_ejercicio,Registra el progreso individual de cada cliente en cada ejercicio,ejercicio_id,integer,NO,null,ID del ejercicio (FK a ejercicios_detalles)
+ejecuciones_ejercicio,Registra el progreso individual de cada cliente en cada ejercicio,client_id,uuid,YES,null,ID del cliente (FK a auth.users)
+ejecuciones_ejercicio,Registra el progreso individual de cada cliente en cada ejercicio,intensidad_aplicada,text,NO,null,Intensidad aplicada para este cliente
+ejecuciones_ejercicio,Registra el progreso individual de cada cliente en cada ejercicio,completado,boolean,YES,false,Si el ejercicio fue completado
+ejecuciones_ejercicio,Registra el progreso individual de cada cliente en cada ejercicio,nota_cliente,text,YES,null,Nota o comentario del cliente
+ejecuciones_ejercicio,Registra el progreso individual de cada cliente en cada ejercicio,nota_coach,text,YES,null,Nota o comentario del coach
+ejecuciones_ejercicio,Registra el progreso individual de cada cliente en cada ejercicio,created_at,timestamp with time zone,YES,now(),Fecha de creación
+ejecuciones_ejercicio,Registra el progreso individual de cada cliente en cada ejercicio,updated_at,timestamp with time zone,YES,now(),Fecha de última actualización
+ejecuciones_ejercicio,Registra el progreso individual de cada cliente en cada ejercicio,completed_at,timestamp with time zone,YES,null,Fecha de completado
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+

@@ -1,0 +1,5 @@
+Semana,Día,Nombre de la Actividad,Descripción,Duración (min),Tipo de Ejercicio,Nivel de Intensidad,Equipo Necesario,Detalle de Series (peso-repeticiones-series),Partes del Cuerpo,Calorías,video_url
+1,Lunes,Press de Banca,Ejercicio principal para pecho,45,Fuerza,Principiante,"Barra, Banco","(80-8-4);(85-6-3);(90-4-2)","Pecho;Hombros;Tríceps",350,
+2,Lunes,Sentadillas,Ejercicio fundamental para piernas,60,Fuerza,Principiante,"Barra, Rack","(100-6-4);(110-5-3);(120-3-2)","Piernas;Glúteos",420,
+3,Lunes,Remo con Barra,Ejercicio para espalda,50,Fuerza,Principiante,"Barra, Discos","(70-8-4);(75-6-3);(80-5-2)","Espalda;Bíceps",280,
+4,Lunes,Press Militar,Ejercicio para hombros,40,Fuerza,Principiante,"Barra, Rack","(60-6-4);(65-5-3);(70-4-2)","Hombros;Tríceps",200,

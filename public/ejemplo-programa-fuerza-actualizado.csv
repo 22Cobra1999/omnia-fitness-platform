@@ -1,0 +1,42 @@
+Semana,Día,Nombre de la Actividad,Descripción,Duración (min),Tipo de Ejercicio,Nivel de Intensidad,Equipo Necesario,1RM,Detalle de Series (peso-repeticiones-series),Partes del Cuerpo,Calorías,video_url
+1,Lunes,Press de Banca,Ejercicio principal para pecho,45,Fuerza,Alto,Barra;Banco,100,"(80-8-4);(85-6-3);(90-4-2)",Pecho;Hombros;Tríceps,350,
+2,Lunes,Sentadillas,Ejercicio fundamental para piernas,60,Fuerza,Alto,Barra;Rack,120,"(100-6-4);(110-5-3);(120-3-2)",Piernas;Glúteos,420,
+3,Lunes,Remo con Barra,Ejercicio para espalda,50,Fuerza,Medio,Barra;Discos,90,"(70-8-4);(75-6-3);(80-5-2)",Espalda;Bíceps,280,
+4,Lunes,Press Militar,Ejercicio para hombros,40,Fuerza,Medio,Barra;Rack,80,"(60-6-4);(65-5-3);(70-4-2)",Hombros;Tríceps,200,
+1,Martes,Deadlift,Ejercicio fundamental para cadena posterior,55,Fuerza,Alto,Barra;Discos,150,"(120-5-4);(130-4-3);(140-3-2)",Espalda;Glúteos;Piernas,450,
+2,Martes,Press Inclinado,Ejercicio para pecho superior,45,Fuerza,Medio,Barra;Banco Inclinado,95,"(75-8-4);(80-6-3);(85-5-2)",Pecho;Hombros,320,
+3,Martes,Peso Muerto Rumano,Ejercicio para isquiotibiales,50,Fuerza,Medio,Barra;Discos,110,"(85-8-4);(90-6-3);(95-5-2)",Isquiotibiales;Glúteos,300,
+4,Martes,Elevaciones Laterales,Ejercicio para deltoides,35,Fuerza,Bajo,Mancuernas,25,"(15-12-3);(17-10-3);(20-8-2)",Hombros,180,
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+

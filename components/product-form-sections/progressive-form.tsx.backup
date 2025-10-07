@@ -1,0 +1,437 @@
+"use client"
+
+import React, { useState } from 'react'
+import { motion } from 'framer-motion'
+import { Input } from '@/components/ui/input'
+import { Textarea } from '@/components/ui/textarea'
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
+import { Button } from '@/components/ui/button'
+import { Upload, FileText, X, ChevronRight, ChevronLeft } from 'lucide-react'
+import CalendarScheduleManager from '@/components/calendar-schedule-manager'
+
+interface ProgressiveFormProps {
+  onOpenMediaModal: (type: 'image' | 'video') => void
+  hasLocalVideo?: boolean
+  videoFileName?: string
+  onClearVideo?: () => void
+  generalForm: {
+    name: string
+    description: string
+    price: string
+    image: File | { url: string } | null
+    videoUrl: string
+  }
+  setGeneralForm: (form: any) => void
+  specificForm: {
+    duration: string
+    capacity: string
+    workshopType: string
+    startDate: string
+    endDate: string
+    level: string
+    availabilityType: string
+    stockQuantity: string
+    sessionsPerClient: string
+    documentType: string
+    pages: string
+  }
+  setSpecificForm: (form: any) => void
+  // Props para el CalendarScheduleManager
+  initialSchedule?: any[]
+  onScheduleChange?: (schedule: any[]) => void
+}
+
+function ProgressiveForm({
+  onOpenMediaModal,
+  hasLocalVideo = false,
+  videoFileName,
+  onClearVideo,
+  generalForm,
+  setGeneralForm,
+  specificForm,
+  setSpecificForm,
+  initialSchedule = [],
+  onScheduleChange
+}: ProgressiveFormProps) {
+  const [currentStep, setCurrentStep] = useState(0)
+  const [selectedCategory, setSelectedCategory] = useState<'fitness' | 'nutricion' | null>(null)
+
+  const nextStep = () => {
+    if (currentStep < 3) {
+      setCurrentStep(currentStep + 1)
+    }
+  }
+
+  const prevStep = () => {
+    if (currentStep > 0) {
+      setCurrentStep(currentStep - 1)
+    }
+  }
+
+  return (
+    <div className="w-full max-w-7xl mx-auto">
+      {/* Card principal */}
+      <div className="bg-[#0F0F0F] p-8 space-y-8">
+        
+        {/* Paso 0: Selección de categoría */}
+        {currentStep === 0 && (
+          <div>
+            <div className="text-center -mt-8">
+              <h2 className="text-3xl font-bold text-white">Selecciona la categoría</h2>
+            </div>
+
+            <div className="flex gap-8 justify-center mt-32">
+              <div 
+                className={`w-48 h-48 rounded-3xl cursor-pointer transition-all duration-300 flex flex-col items-center justify-center ${
+                  selectedCategory === 'fitness' 
+                    ? 'bg-[#FF7939] text-white shadow-2xl shadow-[#FF7939]/30' 
+                    : 'bg-transparent text-[#FFB366] hover:bg-white/5'
+                }`}
+                onClick={() => {
+                  setSelectedCategory('fitness')
+                  setCurrentStep(1)
+                }}
+              >
+                <div className="mb-6">
+                  <svg className="w-16 h-16" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M13 10V3L4 14h7v7l9-11h-7z" />
+                  </svg>
+                </div>
+                <h3 className="text-2xl font-bold mb-2">Fitness</h3>
+                <p className="text-center text-base px-4 text-white">Entrenamientos y rutinas de ejercicio</p>
+              </div>
+
+              <div 
+                className={`w-48 h-48 rounded-3xl cursor-pointer transition-all duration-300 flex flex-col items-center justify-center ${
+                  selectedCategory === 'nutricion' 
+                    ? 'bg-[#FF7939] text-white shadow-2xl shadow-[#FF7939]/30' 
+                    : 'bg-transparent text-[#FFB366] hover:bg-white/5'
+                }`}
+                onClick={() => {
+                  setSelectedCategory('nutricion')
+                  setCurrentStep(1)
+                }}
+              >
+                <div className="mb-6">
+                  <svg className="w-16 h-16" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M8 2v6M10 2v6M12 2v6M10 8v14M18 2c0-1-1-1-2 0v4c0 1 1 1 2 0V2zM17 6v16" />
+                  </svg>
+                </div>
+                <h3 className="text-2xl font-bold mb-2">Nutrición</h3>
+                <p className="text-center text-base px-4 text-white">Planes alimenticios y dietas</p>
+              </div>
+            </div>
+
+          </div>
+        )}
+
+        {/* Paso 1: Información básica */}
+        {currentStep === 1 && (
+          <motion.div 
+            key="general"
+            initial={{ opacity: 0, x: 20 }}
+            animate={{ opacity: 1, x: 0 }}
+            exit={{ opacity: 0, x: -20 }}
+            className="space-y-8"
+          >
+            {/* Título del programa */}
+            <div className="space-y-4">
+              <h2 className="text-3xl font-bold text-white text-center">
+                {generalForm.name || "Programa de Fuerza y Resistencia"}
+              </h2>
+              <p className="text-gray-400 text-center text-lg">
+                {generalForm.description || "Describe tu programa de manera clara y atractiva..."}
+              </p>
+            </div>
+
+            {/* Media */}
+            <div className="grid grid-cols-2 gap-8">
+              {/* Imagen */}
+              <div>
+                <div 
+                  onClick={() => onOpenMediaModal('image')}
+                  className="relative border-2 border-dashed border-[#2A2A2A] rounded-xl overflow-hidden hover:border-[#FF7939] transition-all duration-300 cursor-pointer group bg-[#1A1A1A] h-64"
+                >
+                  {generalForm.image ? (
+                    <div className="relative h-full">
+                      {/* Imagen de fondo */}
+                      <div className="absolute inset-0 bg-gradient-to-br from-[#1A1A1A] to-[#2A2A2A] flex items-center justify-center">
+                        <div className="w-16 h-16 bg-[#FF7939] rounded-xl flex items-center justify-center shadow-lg">
+                          <FileText className="text-white h-8 w-8" />
+                        </div>
+                      </div>
+                      
+                      {/* Etiqueta PROGRAMA en esquina superior izquierda */}
+                      <div className="absolute top-3 left-3">
+                        <span className="bg-green-500 text-white text-xs font-bold px-3 py-1 rounded-full">
+                          PROGRAMA
+                        </span>
+                      </div>
+                      
+                      {/* Botón Preview en esquina superior derecha */}
+                      <div className="absolute top-3 right-3">
+                        <button className="bg-[#FF7939] text-white text-xs font-bold px-3 py-1 rounded-full flex items-center gap-1 hover:bg-[#FF6B35] transition-colors">
+                          <svg className="w-3 h-3" fill="currentColor" viewBox="0 0 20 20">
+                            <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zM9.555 7.168A1 1 0 008 8v4a1 1 0 001.555.832l3-2a1 1 0 000-1.664l-3-2z" clipRule="evenodd" />
+                          </svg>
+                          Preview
+                        </button>
+                      </div>
+                      
+                      {/* Título del producto en el pie */}
+                      <div className="absolute bottom-0 left-0 right-0 bg-gradient-to-t from-black/80 to-transparent p-4">
+                        <h3 className="text-white text-lg font-semibold leading-tight">
+                          {generalForm.name || "Programa de fuerza y resistencia"}
+                        </h3>
+                      </div>
+                      
+                      {/* Botón de calendario en esquina inferior derecha */}
+                      <div className="absolute bottom-3 right-3">
+                        <button className="bg-black/50 hover:bg-black/70 text-white p-2 rounded-full transition-colors">
+                          <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" />
+                          </svg>
+                        </button>
+                      </div>
+                      
+                      {/* Botón de eliminar */}
+                      <button
+                        onClick={(e) => {
+                          e.stopPropagation()
+                          setGeneralForm({ ...generalForm, image: null })
+                        }}
+                        className="absolute top-2 right-2 bg-black/50 hover:bg-black/70 text-white p-2 rounded-full transition-colors"
+                      >
+                        <X className="h-4 w-4" />
+                      </button>
+                    </div>
+                  ) : (
+                    <div className="h-full flex flex-col items-center justify-center p-6">
+                      <Upload className="h-12 w-12 text-gray-400 group-hover:text-[#FF7939] transition-colors mb-4" />
+                      <p className="text-gray-400 text-sm">Subir imagen</p>
+                    </div>
+                  )}
+                </div>
+              </div>
+
+              {/* Video */}
+              <div>
+                <div 
+                  onClick={() => onOpenMediaModal('video')}
+                  className="relative border-2 border-dashed border-[#2A2A2A] rounded-xl overflow-hidden hover:border-[#FF7939] transition-all duration-300 cursor-pointer group bg-[#1A1A1A] h-64"
+                >
+                  {hasLocalVideo || generalForm.videoUrl ? (
+                    <div className="relative h-full">
+                      {/* Video de fondo */}
+                      <div className="absolute inset-0 bg-gradient-to-br from-[#1A1A1A] to-[#2A2A2A] flex items-center justify-center">
+                        <div className="w-16 h-16 bg-[#FF7939] rounded-xl flex items-center justify-center shadow-lg">
+                          <svg className="w-8 h-8 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 10l4.553-2.276A1 1 0 0121 8.618v6.764a1 1 0 01-1.447.894L15 14" />
+                          </svg>
+                        </div>
+                      </div>
+                      
+                      {/* Etiqueta PROGRAMA en esquina superior izquierda */}
+                      <div className="absolute top-3 left-3">
+                        <span className="bg-green-500 text-white text-xs font-bold px-3 py-1 rounded-full">
+                          PROGRAMA
+                        </span>
+                      </div>
+                      
+                      {/* Botón Preview en esquina superior derecha */}
+                      <div className="absolute top-3 right-3">
+                        <button className="bg-[#FF7939] text-white text-xs font-bold px-3 py-1 rounded-full flex items-center gap-1 hover:bg-[#FF6B35] transition-colors">
+                          <svg className="w-3 h-3" fill="currentColor" viewBox="0 0 20 20">
+                            <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zM9.555 7.168A1 1 0 008 8v4a1 1 0 001.555.832l3-2a1 1 0 000-1.664l-3-2z" clipRule="evenodd" />
+                          </svg>
+                          Preview
+                        </button>
+                      </div>
+                      
+                      {/* Título del producto en el pie */}
+                      <div className="absolute bottom-0 left-0 right-0 bg-gradient-to-t from-black/80 to-transparent p-4">
+                        <h3 className="text-white text-lg font-semibold leading-tight">
+                          {generalForm.name || "Programa de fuerza y resistencia"}
+                        </h3>
+                      </div>
+                      
+                      {/* Botón de calendario en esquina inferior derecha */}
+                      <div className="absolute bottom-3 right-3">
+                        <button className="bg-black/50 hover:bg-black/70 text-white p-2 rounded-full transition-colors">
+                          <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" />
+                          </svg>
+                        </button>
+                      </div>
+                      
+                      {/* Botón de eliminar */}
+                      <button
+                        onClick={(e) => {
+                          e.stopPropagation()
+                          onClearVideo?.()
+                        }}
+                        className="absolute top-2 right-2 bg-black/50 hover:bg-black/70 text-white p-2 rounded-full transition-colors"
+                      >
+                        <X className="h-4 w-4" />
+                      </button>
+                    </div>
+                  ) : (
+                    <div className="h-full flex flex-col items-center justify-center p-6">
+                      <Upload className="h-12 w-12 text-gray-400 group-hover:text-[#FF7939] transition-colors mb-4" />
+                      <p className="text-gray-400 text-sm">Subir video</p>
+                    </div>
+                  )}
+                </div>
+              </div>
+            </div>
+
+            {/* Información básica */}
+            <div className="space-y-8">
+              <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
+                <div className="space-y-3">
+                  <label className="text-white text-sm font-medium">Nombre del programa</label>
+                  <Input
+                    value={generalForm.name}
+                    onChange={(e) => setGeneralForm({ ...generalForm, name: e.target.value })}
+                    placeholder="Ej: Programa de Fuerza"
+                    className="bg-[#1A1A1A] border-[#2A2A2A] text-white placeholder-gray-500 focus:border-[#FF7939] focus:ring-0 h-12 rounded-xl"
+                  />
+                </div>
+                
+                <div className="space-y-3">
+                  <label className="text-white text-sm font-medium">Precio ($)</label>
+                  <Input
+                    type="number"
+                    value={generalForm.price}
+                    onChange={(e) => setGeneralForm({ ...generalForm, price: e.target.value })}
+                    placeholder="0"
+                    className="bg-[#1A1A1A] border-[#2A2A2A] text-white placeholder-gray-500 focus:border-[#FF7939] focus:ring-0 h-12 rounded-xl"
+                  />
+                </div>
+
+                <div className="space-y-3">
+                  <label className="text-white text-sm font-medium">Nivel de dificultad</label>
+                  <Select
+                    value={specificForm.level}
+                    onValueChange={(value) => setSpecificForm({ ...specificForm, level: value })}
+                  >
+                    <SelectTrigger className="bg-[#1A1A1A] border-[#2A2A2A] text-white focus:border-[#FF7939] focus:ring-0 h-12 rounded-xl">
+                      <SelectValue placeholder="Selecciona el nivel" />
+                    </SelectTrigger>
+                    <SelectContent className="bg-[#1A1A1A] border-[#2A2A2A]">
+                      <SelectItem value="beginner" className="text-white hover:bg-[#2A2A2A]">Principiante</SelectItem>
+                      <SelectItem value="intermediate" className="text-white hover:bg-[#2A2A2A]">Intermedio</SelectItem>
+                      <SelectItem value="advanced" className="text-white hover:bg-[#2A2A2A]">Avanzado</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+              </div>
+
+              <div className="space-y-3">
+                <label className="text-white text-sm font-medium">Descripción</label>
+                <Textarea
+                  value={generalForm.description}
+                  onChange={(e) => setGeneralForm({ ...generalForm, description: e.target.value })}
+                  placeholder="Describe tu programa de manera clara y atractiva..."
+                  className="bg-[#1A1A1A] border-[#2A2A2A] text-white placeholder-gray-500 focus:border-[#FF7939] focus:ring-0 min-h-[120px] rounded-xl resize-none"
+                />
+              </div>
+            </div>
+          </div>
+          </motion.div>
+        )}
+
+        {/* Paso 2: Fechas y disponibilidad */}
+        {currentStep === 2 && (
+          <div className="space-y-8">
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+              <div className="space-y-3">
+                <label className="text-white text-sm font-medium">Fecha de inicio</label>
+                <Input
+                  type="date"
+                  value={specificForm.startDate}
+                  onChange={(e) => setSpecificForm({ ...specificForm, startDate: e.target.value })}
+                  className="bg-[#1A1A1A] border-[#2A2A2A] text-white focus:border-[#FF7939] focus:ring-0 h-12 rounded-xl"
+                />
+              </div>
+
+              <div className="space-y-3">
+                <label className="text-white text-sm font-medium">Fecha de fin</label>
+                <Input
+                  type="date"
+                  value={specificForm.endDate}
+                  onChange={(e) => setSpecificForm({ ...specificForm, endDate: e.target.value })}
+                  className="bg-[#1A1A1A] border-[#2A2A2A] text-white focus:border-[#FF7939] focus:ring-0 h-12 rounded-xl"
+                />
+              </div>
+            </div>
+
+            {/* Opciones de disponibilidad */}
+            <div className="space-y-3">
+              <label className="text-white text-sm font-medium">Disponibilidad</label>
+              <div className="flex gap-3">
+                <button
+                  onClick={() => setSpecificForm({ ...specificForm, availabilityType: 'unlimited' })}
+                  className={`flex-1 px-6 py-3 rounded-xl font-medium text-sm transition-all duration-300 ${
+                    specificForm.availabilityType === 'unlimited'
+                      ? 'bg-[#FF7939] text-white shadow-lg shadow-[#FF7939]/20'
+                      : 'bg-[#1A1A1A] text-gray-400 hover:text-white hover:bg-[#2A2A2A] border border-[#2A2A2A]'
+                  }`}
+                >
+                  Ilimitado
+                </button>
+                <button
+                  onClick={() => setSpecificForm({ ...specificForm, availabilityType: 'stock' })}
+                  className={`flex-1 px-6 py-3 rounded-xl font-medium text-sm transition-all duration-300 ${
+                    specificForm.availabilityType === 'stock'
+                      ? 'bg-[#FF7939] text-white shadow-lg shadow-[#FF7939]/20'
+                      : 'bg-[#1A1A1A] text-gray-400 hover:text-white hover:bg-[#2A2A2A] border border-[#2A2A2A]'
+                  }`}
+                >
+                  Stock
+                </button>
+                <button
+                  onClick={() => setSpecificForm({ ...specificForm, availabilityType: 'consult' })}
+                  className={`flex-1 px-6 py-3 rounded-xl font-medium text-sm transition-all duration-300 ${
+                    specificForm.availabilityType === 'consult'
+                      ? 'bg-[#FF7939] text-white shadow-lg shadow-[#FF7939]/20'
+                      : 'bg-[#1A1A1A] text-gray-400 hover:text-white hover:bg-[#2A2A2A] border border-[#2A2A2A]'
+                  }`}
+                >
+                  Consultar disponibilidad
+                </button>
+              </div>
+            </div>
+
+            {/* Campo de stock si está seleccionado */}
+            {specificForm.availabilityType === 'stock' && (
+              <div className="space-y-3">
+                <label className="text-white text-sm font-medium">Cantidad en stock</label>
+                <Input
+                  type="number"
+                  value={specificForm.stockQuantity}
+                  onChange={(e) => setSpecificForm({ ...specificForm, stockQuantity: e.target.value })}
+                  placeholder="Ej: 50"
+                  className="bg-[#1A1A1A] border-[#2A2A2A] text-white placeholder-gray-500 focus:border-[#FF7939] focus:ring-0 h-12 rounded-xl"
+                />
+              </div>
+            )}
+          </div>
+        )}
+
+        {/* Paso 3: Ejercicios */}
+        {currentStep === 3 && (
+          <div className="space-y-6">
+            <CalendarScheduleManager
+              initialSchedule={initialSchedule}
+              onScheduleChange={onScheduleChange}
+            />
+          </div>
+        )}
+
+      </div>
+    </div>
+  )
+}
+
+export default ProgressiveForm

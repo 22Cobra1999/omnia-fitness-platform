@@ -1,0 +1,88 @@
+<svg width="240" height="100" viewBox="0 0 240 100" xmlns="http://www.w3.org/2000/svg">
+  <defs>
+    <!-- Gradiente principal para el efecto 3D inflado -->
+    <linearGradient id="bubblyGradient" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" style="stop-color:#ff6b35;stop-opacity:1" />
+      <stop offset="30%" style="stop-color:#ff8c42;stop-opacity:1" />
+      <stop offset="70%" style="stop-color:#ff6b35;stop-opacity:1" />
+      <stop offset="100%" style="stop-color:#ff5722;stop-opacity:1" />
+    </linearGradient>
+    
+    <!-- Gradiente para sombras profundas -->
+    <radialGradient id="deepShadow" cx="50%" cy="50%" r="50%">
+      <stop offset="0%" style="stop-color:#000000;stop-opacity:0.4" />
+      <stop offset="100%" style="stop-color:#000000;stop-opacity:0.1" />
+    </radialGradient>
+    
+    <!-- Gradiente para brillo superior -->
+    <linearGradient id="highlightGradient" x1="0%" y1="0%" x2="0%" y2="100%">
+      <stop offset="0%" style="stop-color:#ffffff;stop-opacity:0.6" />
+      <stop offset="50%" style="stop-color:#ffffff;stop-opacity:0.2" />
+      <stop offset="100%" style="stop-color:#ffffff;stop-opacity:0" />
+    </linearGradient>
+    
+    <!-- Filtro para sombra suave y difusa -->
+    <filter id="bubblyShadow" x="-30%" y="-30%" width="160%" height="160%">
+      <feDropShadow dx="4" dy="4" stdDeviation="3" flood-color="#000000" flood-opacity="0.4"/>
+      <feDropShadow dx="2" dy="2" stdDeviation="1" flood-color="#000000" flood-opacity="0.2"/>
+    </filter>
+    
+    <!-- Filtro para efecto de brillo interno -->
+    <filter id="innerGlow" x="-50%" y="-50%" width="200%" height="200%">
+      <feGaussianBlur stdDeviation="1.5" result="coloredBlur"/>
+      <feMerge> 
+        <feMergeNode in="coloredBlur"/>
+        <feMergeNode in="SourceGraphic"/>
+      </feMerge>
+    </filter>
+    
+    <!-- Filtro para efecto de profundidad -->
+    <filter id="depthEffect" x="-20%" y="-20%" width="140%" height="140%">
+      <feOffset dx="2" dy="2" in="SourceAlpha"/>
+      <feGaussianBlur stdDeviation="1"/>
+      <feComponentTransfer>
+        <feFuncA type="linear" slope="0.3"/>
+      </feComponentTransfer>
+      <feMerge>
+        <feMergeNode/>
+        <feMergeNode in="SourceGraphic"/>
+      </feMerge>
+    </filter>
+  </defs>
+  
+  <!-- Sombra base principal -->
+  <text x="120" y="65" text-anchor="middle" font-family="Arial Black, Arial, sans-serif" font-size="36" font-weight="900" 
+        fill="url(#deepShadow)" filter="url(#bubblyShadow)" opacity="0.7">
+    OMNIA
+  </text>
+  
+  <!-- Sombra secundaria para profundidad -->
+  <text x="120" y="65" text-anchor="middle" font-family="Arial Black, Arial, sans-serif" font-size="36" font-weight="900" 
+        fill="url(#deepShadow)" opacity="0.4" transform="translate(1,1)">
+    OMNIA
+  </text>
+  
+  <!-- Texto principal con efecto 3D burbujeante -->
+  <text x="120" y="65" text-anchor="middle" font-family="Arial Black, Arial, sans-serif" font-size="36" font-weight="900" 
+        fill="url(#bubblyGradient)" filter="url(#innerGlow)">
+    OMNIA
+  </text>
+  
+  <!-- Efecto de brillo superior -->
+  <text x="120" y="65" text-anchor="middle" font-family="Arial Black, Arial, sans-serif" font-size="36" font-weight="900" 
+        fill="url(#highlightGradient)" opacity="0.8" transform="translate(0,-1)">
+    OMNIA
+  </text>
+  
+  <!-- Efecto de profundidad interna -->
+  <text x="120" y="65" text-anchor="middle" font-family="Arial Black, Arial, sans-serif" font-size="36" font-weight="900" 
+        fill="url(#bubblyGradient)" opacity="0.3" transform="translate(0,1)">
+    OMNIA
+  </text>
+  
+  <!-- Efecto de contorno para definición -->
+  <text x="120" y="65" text-anchor="middle" font-family="Arial Black, Arial, sans-serif" font-size="36" font-weight="900" 
+        fill="none" stroke="#ff5722" stroke-width="0.5" opacity="0.6">
+    OMNIA
+  </text>
+</svg>
