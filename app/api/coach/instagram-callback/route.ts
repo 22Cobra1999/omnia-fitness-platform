@@ -10,7 +10,7 @@ export async function GET(request: NextRequest) {
     const error_reason = searchParams.get('error_reason')
     const error_description = searchParams.get('error_description')
     // console.log('🔍 Instagram OAuth Callback - Params:', { hasCode: !!code, hasState: !!state })
-    })
+    
     // Si hay un error en la autorización
     if (error) {
       console.error('❌ Instagram OAuth Callback - Authorization error:', {
