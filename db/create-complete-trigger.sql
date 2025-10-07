@@ -180,3 +180,4 @@ WHERE trigger_name = 'trigger_generate_periods_and_executions';
 
 
 
+

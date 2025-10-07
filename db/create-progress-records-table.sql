@@ -96,3 +96,4 @@ CREATE POLICY "Users can delete their own exercises" ON user_exercises
 
 
 
+

@@ -82,3 +82,4 @@ WHERE event_object_table = 'ejercicios_detalles';
 
 
 
+

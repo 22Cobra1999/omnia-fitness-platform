@@ -249,7 +249,10 @@ export function MediaSelectionModal({
                               ? 'ring-2 ring-orange-500 bg-orange-500/20 border-orange-500'
                               : 'bg-[#1A1A1A] border-[#2A2A2A] hover:border-orange-500/50'
                           }`}
-                          onClick={() => handleMediaSelect(itemUrl)}
+                          onClick={(e) => {
+                            e.stopPropagation()
+                            handleMediaSelect(itemUrl)
+                          }}
                         >
                           <CardContent className="p-4">
                             <div className="flex items-center space-x-3">

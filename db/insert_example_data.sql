@@ -128,3 +128,4 @@ SELECT 'Client Progress' as tabla, activity_id, client_id, date, exercises_done 
 
 
 
+

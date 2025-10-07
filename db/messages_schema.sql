@@ -296,3 +296,4 @@ COMMENT ON COLUMN messages.message_type IS 'Tipo de mensaje: text, image, file, 
 
 
 
+

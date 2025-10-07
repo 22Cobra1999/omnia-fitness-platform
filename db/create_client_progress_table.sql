@@ -66,3 +66,4 @@ CREATE TRIGGER trigger_update_client_progress_updated_at
 
 
 
+
