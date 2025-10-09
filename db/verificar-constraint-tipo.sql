@@ -40,3 +40,8 @@ AND conrelid = 'ejercicios_detalles'::regclass;
 
 
 
+
+
+
+
+

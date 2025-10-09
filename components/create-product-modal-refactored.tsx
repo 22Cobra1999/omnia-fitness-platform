@@ -9,6 +9,7 @@ import ActivityCard from "@/components/ActivityCard"
 import { WorkshopScheduleManager } from "@/components/workshop-schedule-manager"
 import { VideoSelectionModal } from "@/components/video-selection-modal"
 import { MediaSelectionModal } from "@/components/media-selection-modal"
+import { WorkshopSimpleScheduler } from "@/components/workshop-simple-scheduler"
 import { CSVManagerEnhanced } from "@/components/csv-manager-enhanced"
 import CalendarScheduleManager from "@/components/calendar-schedule-manager"
 import { ModalHeader } from "@/components/product-form-sections/modal-header"
@@ -34,7 +35,7 @@ export default function CreateProductModal({ isOpen, onClose, editingProduct }: 
   const [selectedType, setSelectedType] = useState<ProductType | null>(null)
   const [selectedProgramType, setSelectedProgramType] = useState<ProgramSubType | null>(null)
   const [productCategory, setProductCategory] = useState<'fitness' | 'nutricion'>('fitness')
-  const [currentStep, setCurrentStep] = useState<'type' | 'programType' | 'general' | 'specific' | 'activities' | 'weeklyPlan' | 'preview'>('type')
+  const [currentStep, setCurrentStep] = useState<'type' | 'programType' | 'general' | 'specific' | 'workshopMaterial' | 'workshopSchedule' | 'activities' | 'weeklyPlan' | 'preview'>('type')
   
   // Estado para selección de videos
   const [isVideoModalOpen, setIsVideoModalOpen] = useState(false)
@@ -63,6 +64,24 @@ export default function CreateProductModal({ isOpen, onClose, editingProduct }: 
     ejerciciosTotales: 0,
     ejerciciosUnicos: 0
   })
+  
+  // Estado para taller - Material opcional (Paso 4)
+  const [workshopMaterial, setWorkshopMaterial] = useState({
+    hasPdf: false,
+    pdfFile: null as File | null,
+    pdfUrl: null as string | null
+  })
+  
+  // Estado para taller - Fechas y horarios (Paso 5)
+  const [workshopSchedule, setWorkshopSchedule] = useState<Array<{
+    title?: string
+    description?: string
+    date: string
+    startTime: string
+    endTime: string
+    duration: number
+    isPrimary?: boolean
+  }>>([])
   
   // Estado para confirmación de cierre
   const [showCloseConfirmation, setShowCloseConfirmation] = useState(false)
@@ -194,31 +213,61 @@ export default function CreateProductModal({ isOpen, onClose, editingProduct }: 
     setPersistentCsvFileName('')
     setPersistentCsvLoadedFromFile(false)
     setPersistentCalendarSchedule([])
+    // ✅ Limpiar también archivos pendientes
+    setPendingImageFile(null)
+    setPendingVideoFile(null)
+    console.log('🧹 Archivos pendientes limpiados al cerrar modal')
   }
 
   // Función para obtener el número del paso actual
   const getStepNumber = (step: string) => {
-    const stepMap: { [key: string]: number } = {
-      'type': 1,
-      'programType': 2,
-      'general': 3,
-      'activities': 4,
-      'weeklyPlan': 5,
-      'preview': 6
+    if (selectedType === 'workshop') {
+      const workshopStepMap: { [key: string]: number } = {
+        'type': 1,
+        'programType': 2,
+        'general': 3,
+        'workshopMaterial': 4,
+        'workshopSchedule': 5,
+        'preview': 6
+      }
+      return workshopStepMap[step] || 1
+    } else {
+      const programStepMap: { [key: string]: number } = {
+        'type': 1,
+        'programType': 2,
+        'general': 3,
+        'activities': 4,
+        'weeklyPlan': 5,
+        'preview': 6
+      }
+      return programStepMap[step] || 1
     }
-    return stepMap[step] || 1
   }
 
   // Función para navegar a un paso específico
   const goToStep = (stepNumber: number) => {
-    const stepMap: { [key: number]: string } = {
-      1: 'type',
-      2: 'programType', 
-      3: 'general',
-      4: 'activities',
-      5: 'weeklyPlan',
-      6: 'preview'
+    let stepMap: { [key: number]: string }
+    
+    if (selectedType === 'workshop') {
+      stepMap = {
+        1: 'type',
+        2: 'programType', 
+        3: 'general',
+        4: 'workshopMaterial',
+        5: 'workshopSchedule',
+        6: 'preview'
+      }
+    } else {
+      stepMap = {
+        1: 'type',
+        2: 'programType', 
+        3: 'general',
+        4: 'activities',
+        5: 'weeklyPlan',
+        6: 'preview'
+      }
     }
+    
     const targetStep = stepMap[stepNumber]
     if (targetStep) {
       // Validar que se puede navegar a ese paso
@@ -298,6 +347,10 @@ export default function CreateProductModal({ isOpen, onClose, editingProduct }: 
   const [csvFileName, setCsvFileName] = useState<string>('')
   const [showCSVConfirmDialog, setShowCSVConfirmDialog] = useState(false)
   const [pendingCSVFile, setPendingCSVFile] = useState<File | null>(null)
+  
+  // ✅ NUEVO: Estados para archivos pendientes de subida
+  const [pendingImageFile, setPendingImageFile] = useState<File | null>(null)
+  const [pendingVideoFile, setPendingVideoFile] = useState<File | null>(null)
 
   // Funciones para manejar selección de videos
   const handleRowSelection = (rowIndex: number) => {
@@ -348,6 +401,8 @@ export default function CreateProductModal({ isOpen, onClose, editingProduct }: 
     console.log('🎯 CREATE-PRODUCT-MODAL: Media seleccionada:', { 
       mediaUrl, 
       mediaType, 
+      isNewFile: !!mediaFile,
+      isTemporaryUrl: mediaUrl.startsWith('blob:'),
       mediaFile: mediaFile ? {
         name: mediaFile.name,
         size: mediaFile.size,
@@ -360,15 +415,29 @@ export default function CreateProductModal({ isOpen, onClose, editingProduct }: 
         const newForm = { ...prev, image: { url: mediaUrl } }
         return newForm
       })
-      // Imagen guardada en generalForm
+      // ✅ Si es un archivo nuevo, guardarlo para subirlo después
+      if (mediaFile) {
+        setPendingImageFile(mediaFile)
+        console.log('💾 CREATE-PRODUCT-MODAL: Imagen guardada en memoria (se subirá al actualizar)')
+      } else {
+        setPendingImageFile(null)
+        console.log('🔗 CREATE-PRODUCT-MODAL: Usando imagen existente (ya en Storage)')
+      }
     } else {
       console.log('🎬 CREATE-PRODUCT-MODAL: Guardando video en generalForm')
       setGeneralForm(prev => ({ ...prev, videoUrl: mediaUrl }))
+      // ✅ Si es un archivo nuevo, guardarlo para subirlo después
+      if (mediaFile) {
+        setPendingVideoFile(mediaFile)
+        console.log('💾 CREATE-PRODUCT-MODAL: Video guardado en memoria (se subirá al actualizar)')
+      } else {
+        setPendingVideoFile(null)
+        console.log('🔗 CREATE-PRODUCT-MODAL: Usando video existente (ya en Storage)')
+      }
       setVideoFile(mediaFile || null)
       setHasLocalVideo(true)
-      // Video guardado en generalForm
     }
-    console.log('✅ CREATE-PRODUCT-MODAL: Media guardada correctamente')
+    console.log('✅ CREATE-PRODUCT-MODAL: Media guardada correctamente en estado local')
     setIsMediaModalOpen(false)
   }
 
@@ -425,6 +494,74 @@ export default function CreateProductModal({ isOpen, onClose, editingProduct }: 
       setValidationErrors([])
       setFieldErrors({})
 
+      // ✅ SUBIR ARCHIVOS PENDIENTES ANTES DE CREAR/ACTUALIZAR EL PRODUCTO
+      let finalImageUrl = generalForm.image?.url || null
+      let finalVideoUrl = generalForm.videoUrl || null
+      
+      // Subir imagen pendiente si existe
+      if (pendingImageFile) {
+        console.log('📤 Subiendo imagen pendiente antes de guardar producto:', pendingImageFile.name)
+        try {
+          const formData = new FormData()
+          formData.append('file', pendingImageFile)
+          formData.append('mediaType', 'image')
+          formData.append('category', 'product')
+          
+          const uploadResponse = await fetch('/api/upload-organized', {
+            method: 'POST',
+            body: formData
+          })
+          
+          if (uploadResponse.ok) {
+            const uploadResult = await uploadResponse.json()
+            if (uploadResult.success) {
+              finalImageUrl = uploadResult.url
+              console.log('✅ Imagen subida exitosamente:', finalImageUrl)
+            }
+          } else {
+            console.error('❌ Error subiendo imagen')
+            alert('Error al subir la imagen')
+            return
+          }
+        } catch (uploadError) {
+          console.error('❌ Error en upload de imagen:', uploadError)
+          alert('Error al subir la imagen')
+          return
+        }
+      }
+      
+      // Subir video pendiente si existe
+      if (pendingVideoFile) {
+        console.log('📤 Subiendo video pendiente antes de guardar producto:', pendingVideoFile.name)
+        try {
+          const formData = new FormData()
+          formData.append('file', pendingVideoFile)
+          formData.append('mediaType', 'video')
+          formData.append('category', 'product')
+          
+          const uploadResponse = await fetch('/api/upload-organized', {
+            method: 'POST',
+            body: formData
+          })
+          
+          if (uploadResponse.ok) {
+            const uploadResult = await uploadResponse.json()
+            if (uploadResult.success) {
+              finalVideoUrl = uploadResult.url
+              console.log('✅ Video subido exitosamente:', finalVideoUrl)
+            }
+          } else {
+            console.error('❌ Error subiendo video')
+            alert('Error al subir el video')
+            return
+          }
+        } catch (uploadError) {
+          console.error('❌ Error en upload de video:', uploadError)
+          alert('Error al subir el video')
+          return
+        }
+      }
+
       // Calcular valores dinámicos
       const totalSessions = persistentCalendarSchedule.length || 1
       const totalExercises = persistentCsvData.length || 0
@@ -456,32 +593,37 @@ export default function CreateProductModal({ isOpen, onClose, editingProduct }: 
 
       // Preparar datos del producto - VERSIÓN ULTRA SIMPLE
       const productData = {
-        title: generalForm.name,
+        name: generalForm.name, // ✅ Corregido: name en lugar de title
         description: generalForm.description,
         price: parseFloat(generalForm.price),
-        type: selectedType || 'program',
+        modality: selectedType || 'program', // ✅ Corregido: modality en lugar de type
         categoria: productCategory,
-        difficulty: specificForm.level || 'beginner',
-        capacity: capacity,
-        modality: generalForm.modality || 'online',
+        level: specificForm.level || 'beginner', // ✅ Corregido: level en lugar de difficulty
+        capacity: capacity, // ✅ capacity guarda el stock (no stockQuantity)
+        type: generalForm.modality || 'online', // ✅ Corregido: type en lugar de modality
         is_public: generalForm.is_public !== false,
-        stockQuantity: generalForm.stockQuantity || null,
+        // stockQuantity no existe - capacity es el campo que guarda el stock
         coach_id: user.id,
-        // Incluir media del formulario
-        image_url: generalForm.image?.url || null,
-        video_url: generalForm.videoUrl || null,
+        // ✅ Usar las URLs finales (subidas o existentes)
+        image_url: finalImageUrl,
+        video_url: finalVideoUrl,
         // Enviar todos los ejercicios (existentes + nuevos del CSV)
         csvData: persistentCsvData || [],
         // Incluir planificación semanal
         weeklySchedule: persistentCalendarSchedule || null,
         periods: periods,
-        editingProductId: editingProduct?.id
+        editingProductId: editingProduct?.id,
+        // ✅ INCLUIR DATOS DE TALLERES
+        workshopSchedule: selectedType === 'workshop' ? workshopSchedule : null,
+        workshopMaterial: selectedType === 'workshop' ? workshopMaterial : null
       }
       
       console.log('📦 Datos preparados para la API:', {
-        title: productData.title,
+        name: productData.name,
         description: productData.description,
         price: productData.price,
+        modality: productData.modality,
+        level: productData.level,
         type: productData.type,
         categoria: productData.categoria,
         coach_id: productData.coach_id,
@@ -494,12 +636,27 @@ export default function CreateProductModal({ isOpen, onClose, editingProduct }: 
         csvDataLength: productData.csvData.length,
         periods: productData.periods,
         editingProductId: productData.editingProductId,
-        isEditing: !!editingProduct
+        isEditing: !!editingProduct,
+        // ✅ DATOS DE TALLERES
+        workshopScheduleLength: productData.workshopSchedule?.length || 0,
+        workshopSchedule: productData.workshopSchedule,
+        workshopMaterial: productData.workshopMaterial,
+        isWorkshop: selectedType === 'workshop'
       })
+      
+      // Log específico para talleres
+      if (selectedType === 'workshop') {
+        console.log('🎯 TALLER DETECTADO - Datos del workshop:')
+        console.log('  📝 workshopSchedule:', JSON.stringify(productData.workshopSchedule, null, 2))
+      }
 
-      // Llamar a la API de creación
+      // Llamar a la API de creación o actualización
+      const isEditing = !!editingProduct
       console.log('📤 Enviando datos a la API:', {
-        endpoint: '/api/create-product-simple',
+        endpoint: '/api/products',
+        method: isEditing ? 'PUT' : 'POST',
+        isEditing,
+        editingProductId: productData.editingProductId,
         dataSize: JSON.stringify(productData).length,
         hasImage: !!productData.image_url,
         hasVideo: !!productData.video_url,
@@ -507,8 +664,8 @@ export default function CreateProductModal({ isOpen, onClose, editingProduct }: 
         video_url: productData.video_url
       })
       
-      const response = await fetch('/api/create-product-simple', {
-        method: 'POST',
+      const response = await fetch('/api/products', {
+        method: isEditing ? 'PUT' : 'POST', // ✅ PUT para edición, POST para creación
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(productData)
       })
@@ -522,8 +679,13 @@ export default function CreateProductModal({ isOpen, onClose, editingProduct }: 
       })
 
       if (result.success) {
-        console.log('✅ PRODUCTO PUBLICADO EXITOSAMENTE')
+        console.log(isEditing ? '✅ PRODUCTO ACTUALIZADO EXITOSAMENTE' : '✅ PRODUCTO PUBLICADO EXITOSAMENTE')
         console.log('🎉 ID del producto:', result.product?.id)
+        
+        // ✅ Limpiar archivos pendientes después de publicar
+        setPendingImageFile(null)
+        setPendingVideoFile(null)
+        console.log('🧹 Archivos pendientes limpiados')
         
         // Guardar videos de ejercicios si hay datos CSV con videos
         if (persistentCsvData && persistentCsvData.length > 0) {
@@ -559,16 +721,69 @@ export default function CreateProductModal({ isOpen, onClose, editingProduct }: 
         }
         
         onClose()
-        // Solo recargar si es un producto nuevo, no si es una edición
-        if (!editingProduct) {
-          window.location.reload()
-        }
+        // ✅ Recargar SIEMPRE para refrescar la lista de productos
+        window.location.reload()
       } else {
         console.error('❌ ERROR AL PUBLICAR PRODUCTO:', result.error)
       }
     } catch (error) {
       console.error('Error al publicar producto:', error)
       alert('Error al publicar el producto')
+    }
+  }
+
+  // ✅ Función para cargar datos de talleres desde el backend
+  const loadWorkshopData = async (activityId: number) => {
+    try {
+      console.log('📡 Cargando datos de taller desde el backend para activityId:', activityId)
+      
+      // Cargar datos desde la tabla taller_detalles
+      const response = await fetch(`/api/taller-detalles?actividad_id=${activityId}`)
+      if (!response.ok) {
+        throw new Error('Error al cargar datos del taller')
+      }
+      
+      const { success, data: tallerDetalles } = await response.json()
+      console.log('📊 Datos del taller cargados desde taller_detalles:', tallerDetalles)
+      
+      if (success && Array.isArray(tallerDetalles)) {
+        // Convertir a formato esperado por el componente
+        const sessions: Array<{
+          title?: string
+          description?: string
+          date: string
+          startTime: string
+          endTime: string
+          duration: number
+          isPrimary?: boolean
+        }> = []
+        
+        // Procesar cada tema de taller
+        tallerDetalles.forEach((tema: any) => {
+          console.log('🎯 Procesando tema:', tema.nombre)
+          
+          // Procesar horarios originales
+          if (tema.originales?.fechas_horarios && Array.isArray(tema.originales.fechas_horarios)) {
+            tema.originales.fechas_horarios.forEach((horario: any) => {
+              sessions.push({
+                title: tema.nombre,
+                description: tema.descripcion || '',
+                date: horario.fecha,
+                startTime: horario.hora_inicio,
+                endTime: horario.hora_fin,
+                duration: 2, // Duración calculada por diferencia de horas
+                isPrimary: true
+              })
+            })
+          }
+        })
+        
+        console.log('✅ Sesiones procesadas desde taller_detalles:', sessions)
+        setWorkshopSchedule(sessions)
+      }
+      
+    } catch (error) {
+      console.error('❌ Error cargando datos del taller:', error)
     }
   }
 
@@ -662,6 +877,12 @@ export default function CreateProductModal({ isOpen, onClose, editingProduct }: 
         console.log('🔄 Cargando ejercicios existentes para producto:', editingProduct.id)
         // Los ejercicios se cargarán automáticamente en el CSVManagerEnhanced
       }
+
+      // ✅ Cargar datos de talleres si es un workshop
+      if (productType === 'workshop' && editingProduct.id) {
+        console.log('🔄 Cargando datos de taller para producto:', editingProduct.id)
+        loadWorkshopData(editingProduct.id)
+      }
     }
   }, [editingProduct])
 
@@ -726,17 +947,42 @@ export default function CreateProductModal({ isOpen, onClose, editingProduct }: 
       }
       
       console.log('✅ Paso 3 → Siguiente: Todos los campos completados')
-      // Saltar paso 4 eliminado y ir directamente a actividades
-      console.log('📝 Saltando paso 4 eliminado - Ir directamente a actividades (paso 5)')
-      setCurrentStep('activities')
+      // Para taller, ir a material PDF; para programa, ir a actividades
+      if (selectedType === 'workshop') {
+        setCurrentStep('workshopMaterial')
+      } else {
+        setCurrentStep('activities')
+      }
     } else if (currentStep === 'specific') {
       console.log('✅ Paso 4 → 5: Saltando paso eliminado')
-      setCurrentStep('activities')
+      // Para taller, ir a material opcional; para programa, ir a actividades
+      if (selectedType === 'workshop') {
+        setCurrentStep('workshopMaterial')
+      } else {
+        setCurrentStep('activities')
+      }
+    } else if (currentStep === 'workshopMaterial') {
+      console.log('✅ Taller - Paso 4 → 5: Material completado')
+      setCurrentStep('workshopSchedule')
+    } else if (currentStep === 'workshopSchedule') {
+      // Validar que hay al menos una sesión programada
+      if (workshopSchedule.length === 0) {
+        alert('Debes programar al menos una sesión del taller')
+        return
+      }
+      // Validar que todas las sesiones tienen fecha
+      const hasEmptyDates = workshopSchedule.some(session => !session.date)
+      if (hasEmptyDates) {
+        alert('Todas las sesiones deben tener una fecha asignada')
+        return
+      }
+      console.log('✅ Taller - Paso 5 → 6: Horarios completados')
+      setCurrentStep('preview')
     } else if (currentStep === 'activities') {
-       console.log('✅ Paso 5 → 6: Actividades completadas')
+       console.log('✅ Programa - Paso 5 → 6: Actividades completadas')
        setCurrentStep('weeklyPlan')
      } else if (currentStep === 'weeklyPlan') {
-       console.log('✅ Paso 6 → 7: Plan semanal completado')
+       console.log('✅ Programa - Paso 6 → 7: Plan semanal completado')
        setCurrentStep('preview')
      }
   }
@@ -750,12 +996,21 @@ export default function CreateProductModal({ isOpen, onClose, editingProduct }: 
       } else {
         setCurrentStep('type')
       }
+     } else if (currentStep === 'workshopMaterial') {
+       setCurrentStep('specific')
+     } else if (currentStep === 'workshopSchedule') {
+       setCurrentStep('workshopMaterial')
      } else if (currentStep === 'activities') {
-       setCurrentStep('general')
+       setCurrentStep('specific')
      } else if (currentStep === 'weeklyPlan') {
        setCurrentStep('activities')
      } else if (currentStep === 'preview') {
-       setCurrentStep('weeklyPlan')
+       // Para taller, volver a horarios; para programa, volver a plan semanal
+       if (selectedType === 'workshop') {
+         setCurrentStep('workshopSchedule')
+       } else {
+         setCurrentStep('weeklyPlan')
+       }
      }
   }
 
@@ -772,6 +1027,45 @@ export default function CreateProductModal({ isOpen, onClose, editingProduct }: 
     setSelectedProgramType(type)
     setProductCategory(type === 'fitness' ? 'fitness' : 'nutricion')
     setCurrentStep('general')
+  }
+
+  // Funciones para manejar el material del taller
+  const handleWorkshopMaterialToggle = (hasPdf: boolean) => {
+    setWorkshopMaterial(prev => ({
+      ...prev,
+      hasPdf,
+      pdfFile: hasPdf ? prev.pdfFile : null,
+      pdfUrl: hasPdf ? prev.pdfUrl : null
+    }))
+  }
+
+  const handleWorkshopPdfUpload = (file: File) => {
+    setWorkshopMaterial(prev => ({
+      ...prev,
+      pdfFile: file,
+      pdfUrl: URL.createObjectURL(file)
+    }))
+  }
+
+  // Funciones para manejar los horarios del taller
+  const addWorkshopSession = () => {
+    const newSession = {
+      date: '',
+      startTime: '10:00',
+      endTime: '12:00',
+      duration: 2
+    }
+    setWorkshopSchedule(prev => [...prev, newSession])
+  }
+
+  const removeWorkshopSession = (index: number) => {
+    setWorkshopSchedule(prev => prev.filter((_, i) => i !== index))
+  }
+
+  const updateWorkshopSession = (index: number, field: string, value: string | number) => {
+    setWorkshopSchedule(prev => prev.map((session, i) => 
+      i === index ? { ...session, [field]: value } : session
+    ))
   }
 
   // Funciones CSV
@@ -922,10 +1216,17 @@ export default function CreateProductModal({ isOpen, onClose, editingProduct }: 
             { step: 1, key: 'type' },
             { step: 2, key: 'programType' },
             { step: 3, key: 'general' },
-            { step: 4, key: 'activities' },
-            { step: 5, key: 'weeklyPlan' },
+            { step: 4, key: selectedType === 'workshop' ? 'workshopMaterial' : 'activities' },
+            { step: 5, key: selectedType === 'workshop' ? 'workshopSchedule' : 'weeklyPlan' },
             { step: 6, key: 'preview' }
-          ].map(({ step, key }, index) => {
+          ].filter(({ key }) => {
+            // Filtrar pasos según el tipo de producto
+            if (selectedType === 'workshop') {
+              return ['type', 'programType', 'general', 'workshopMaterial', 'workshopSchedule', 'preview'].includes(key)
+            } else {
+              return ['type', 'programType', 'general', 'activities', 'weeklyPlan', 'preview'].includes(key)
+            }
+          }).map(({ step, key }, index) => {
             const isActive = currentStep === key
             const isCompleted = getStepNumber(currentStep) > step
             
@@ -965,16 +1266,7 @@ export default function CreateProductModal({ isOpen, onClose, editingProduct }: 
           </Button>
         </div>
 
-        {/* Header - Solo mostrar cuando no esté en el paso de selección de tipo, programType, general, activities, weeklyPlan ni preview */}
-        {currentStep !== 'type' && currentStep !== 'programType' && currentStep !== 'general' && currentStep !== 'activities' && currentStep !== 'weeklyPlan' && currentStep !== 'preview' && (
-              <ModalHeader 
-                currentStep={currentStep} 
-                onBack={handleBack} 
-                onClose={handleClose}
-                editingProduct={editingProduct}
-                onDelete={handleDeleteProduct}
-              />
-            )}
+        {/* Header - Ocultado completamente */}
 
           {/* Content */}
           <div className="p-6">
@@ -1123,8 +1415,136 @@ export default function CreateProductModal({ isOpen, onClose, editingProduct }: 
               </motion.div>
             )}
 
-            {/* Paso 4 eliminado - se salta directamente del paso 3 al paso 5 */}
+            {/* Paso 4: Material Opcional para Taller */}
+            {currentStep === 'workshopMaterial' && (
+              <motion.div
+                key="workshopMaterial"
+                initial={{ opacity: 0, x: 20 }}
+                animate={{ opacity: 1, x: 0 }}
+                exit={{ opacity: 0, x: -20 }}
+                className="space-y-6"
+              >
+                {/* Título del paso */}
+                <div className="text-center mb-6">
+                  <h3 className="text-xl font-semibold text-white mb-2">Material para Participantes</h3>
+                  <p className="text-gray-400">Adjunta opcionalmente un archivo PDF para los asistentes</p>
+                </div>
 
+                <div className="bg-gray-800 rounded-lg p-6 space-y-6">
+                  {/* Toggle para PDF */}
+                  <div className="space-y-4">
+                    <label className="text-white font-medium">¿Quieres adjuntar un PDF?</label>
+                    <div className="flex gap-4">
+                      <button
+                        onClick={() => handleWorkshopMaterialToggle(true)}
+                        className={`px-4 py-2 rounded-lg font-medium transition-colors ${
+                          workshopMaterial.hasPdf 
+                            ? 'bg-[#FF7939] text-white' 
+                            : 'bg-gray-700 text-gray-300 hover:bg-gray-600'
+                        }`}
+                      >
+                        Sí
+                      </button>
+                      <button
+                        onClick={() => handleWorkshopMaterialToggle(false)}
+                        className={`px-4 py-2 rounded-lg font-medium transition-colors ${
+                          !workshopMaterial.hasPdf 
+                            ? 'bg-[#FF7939] text-white' 
+                            : 'bg-gray-700 text-gray-300 hover:bg-gray-600'
+                        }`}
+                      >
+                        No
+                      </button>
+                    </div>
+                  </div>
+
+                  {/* Upload de PDF si se selecciona Sí */}
+                  {workshopMaterial.hasPdf && (
+                    <div className="space-y-4">
+                      <label className="text-white font-medium">Subir archivo PDF</label>
+                      <div className="border-2 border-dashed border-gray-600 rounded-lg p-6 text-center">
+                        <input
+                          type="file"
+                          accept=".pdf"
+                          onChange={(e) => {
+                            const file = e.target.files?.[0]
+                            if (file) handleWorkshopPdfUpload(file)
+                          }}
+                          className="hidden"
+                          id="workshop-pdf-upload"
+                        />
+                        <label
+                          htmlFor="workshop-pdf-upload"
+                          className="cursor-pointer flex flex-col items-center space-y-2"
+                        >
+                          <Upload className="w-8 h-8 text-gray-400" />
+                          <span className="text-gray-300">Haz clic para subir PDF</span>
+                          <span className="text-sm text-gray-500">o arrastra el archivo aquí</span>
+                        </label>
+                      </div>
+                      
+                      {workshopMaterial.pdfFile && (
+                        <div className="bg-gray-700 rounded-lg p-3 flex items-center justify-between">
+                          <div className="flex items-center space-x-3">
+                            <FileText className="w-5 h-5 text-[#FF7939]" />
+                            <span className="text-white">{workshopMaterial.pdfFile.name}</span>
+                          </div>
+                          <button
+                            onClick={() => handleWorkshopMaterialToggle(false)}
+                            className="text-red-400 hover:text-red-300"
+                          >
+                            <X className="w-4 h-4" />
+                          </button>
+                        </div>
+                      )}
+                    </div>
+                  )}
+                </div>
+
+                {/* Botón de continuar */}
+                <div className="flex justify-end">
+                  <button
+                    onClick={handleNext}
+                    className="w-12 h-12 bg-[#FF7939] hover:bg-[#FF6B35] rounded-full flex items-center justify-center transition-all duration-200 hover:scale-105"
+                  >
+                    <ChevronRight className="h-5 w-5 text-white" />
+                  </button>
+                </div>
+              </motion.div>
+            )}
+
+        {/* Paso 5: Horarios del Taller con Calendario */}
+        {currentStep === 'workshopSchedule' && (
+          <motion.div
+            key="workshopSchedule"
+            initial={{ opacity: 0, x: 20 }}
+            animate={{ opacity: 1, x: 0 }}
+            exit={{ opacity: 0, x: -20 }}
+            className="space-y-4"
+          >
+            {/* Componente de calendario - Sin títulos */}
+            <WorkshopSimpleScheduler 
+              sessions={workshopSchedule}
+              onSessionsChange={(newSessions) => {
+                console.log('🔄 Actualizando workshopSchedule:', newSessions)
+                console.log('🔢 Total de sesiones:', newSessions.length)
+                setWorkshopSchedule(newSessions)
+              }}
+            />
+
+            {/* Botón de continuar */}
+            <div className="flex justify-end">
+              <button
+                onClick={handleNext}
+                className="w-12 h-12 bg-[#FF7939] hover:bg-[#FF6B35] rounded-full flex items-center justify-center transition-all duration-200 hover:scale-105"
+              >
+                <ChevronRight className="h-5 w-5 text-white" />
+              </button>
+            </div>
+          </motion.div>
+        )}
+
+            {/* Paso de Actividades para Programas */}
             {currentStep === 'activities' && (
               <motion.div
                 key="activities"
@@ -1348,7 +1768,7 @@ export default function CreateProductModal({ isOpen, onClose, editingProduct }: 
                       onClick={handlePublishProduct}
                       className="bg-[#FF7939] hover:bg-[#FF6B35] text-black font-bold px-8 py-3 rounded-lg text-lg transition-all duration-200"
                     >
-                      Publicar Producto
+                      {editingProduct ? 'Actualizar Producto' : 'Publicar Producto'}
                     </Button>
                   </div>
                 </div>

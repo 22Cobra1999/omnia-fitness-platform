@@ -21,6 +21,7 @@ import { MessagesIcon } from "@/components/messages-icon"
 import { CoachCalendarView } from "@/components/coach/coach-calendar-view"
 import ProductsManagementScreen from "@/components/mobile/products-management-screen"
 import { OmniaLogoText } from "@/components/omnia-logo"
+import { useCoachStorageInitialization } from "@/hooks/use-coach-storage-initialization"
 
 
 export default function MobileApp() {
@@ -32,6 +33,9 @@ export default function MobileApp() {
   
   // Manejo de errores globales
   useErrorHandler()
+  
+  // ✅ Inicialización automática de storage para coaches
+  const { initialized: storageInitialized, loading: storageLoading } = useCoachStorageInitialization()
 
   // Manejar parámetro tab de la URL
   useEffect(() => {

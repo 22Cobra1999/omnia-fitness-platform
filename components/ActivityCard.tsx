@@ -19,6 +19,16 @@ const ActivityCard: React.FC<ActivityCardProps> = ({
 }) => {
   // Obtener estadísticas reales del producto
   const { stats, loading } = useProductStats(activity.id)
+  
+  // ✅ Logs para debugging
+  console.log('🎯 ActivityCard: Renderizando para actividad:', {
+    id: activity.id,
+    title: activity.title,
+    categoria: activity.categoria,
+    type: activity.type,
+    loading,
+    stats
+  })
   const getValidImageUrl = (activity: Activity) => {
     // Try different possible image sources
     const imageUrl = activity.media?.image_url || 
@@ -37,6 +47,79 @@ const ActivityCard: React.FC<ActivityCardProps> = ({
       return 'NUEVO'
     }
     return `${rating.toFixed(1)} (${totalReviews || 0})`
+  }
+
+  const getCategoryBadge = (categoria?: string) => {
+    switch (categoria?.toLowerCase()) {
+      case 'fitness':
+        return 'FITNESS'
+      case 'nutrition':
+      case 'nutricion':
+        return 'NUTRICION'
+      default:
+        return 'FITNESS' // Default a FITNESS
+    }
+  }
+
+  const getTypeBadge = (type?: string) => {
+    switch (type?.toLowerCase()) {
+      case 'program':
+      case 'programa':
+        return 'PROGRAM'
+      case 'workshop':
+      case 'taller':
+        return 'WORKSHOP'
+      case 'document':
+      case 'documento':
+        return 'DOCUMENT'
+      default:
+        return 'PROGRAM' // Default a PROGRAM
+    }
+  }
+
+  const formatPrice = (price?: number | null) => {
+    if (!price) return '$0'
+    
+    // Convertir a string y dividir por punto para manejar decimales
+    const priceStr = price.toString()
+    const parts = priceStr.split('.')
+    
+    // Si tiene parte decimal, usar coma como separador decimal
+    if (parts.length === 2) {
+      const integerPart = parseInt(parts[0]).toLocaleString('es-ES')
+      const decimalPart = parts[1].padEnd(2, '0').substring(0, 2)
+      
+      // Si los decimales son 00, no mostrarlos
+      if (decimalPart === '00') {
+        return `$${integerPart}`
+      } else {
+        return `$${integerPart},${decimalPart}`
+      }
+    } else {
+      // Solo parte entera, no agregar decimales
+      const integerPart = parseInt(parts[0]).toLocaleString('es-ES')
+      return `$${integerPart}`
+    }
+  }
+
+  const getProductTypeBadge = (type?: string) => {
+    switch (type?.toLowerCase()) {
+      case 'fitness':
+        return 'FITNESS'
+      case 'nutricion':
+        return 'NUTRICION'
+      case 'program':
+      case 'programa':
+        return 'PROGRAM'
+      case 'workshop':
+      case 'taller':
+        return 'WORKSHOP'
+      case 'document':
+      case 'documento':
+        return 'DOCUMENT'
+      default:
+        return 'ACTIVIDAD'
+    }
   }
 
   const getDifficultyLabel = (difficulty?: string) => {
@@ -138,15 +221,13 @@ const ActivityCard: React.FC<ActivityCardProps> = ({
             height={200}
             className="object-cover w-full h-full"
           />
-          {/* Badge en los pies de la imagen */}
-          <div className="absolute bottom-3 left-3 right-3 flex items-center justify-between">
-            <span className="bg-[#FF7939] text-white text-xs px-2 py-1 rounded-full font-medium">
-              {activity.type?.toUpperCase() || 'ACTIVIDAD'}
-            </span>
+          {/* Badge en la esquina inferior izquierda - Rating */}
+          <div className="absolute bottom-3 left-3">
             <span className="bg-black/80 text-white text-xs px-2 py-1 rounded-full">
               {getRatingDisplay(activity.program_rating, activity.total_program_reviews)}
             </span>
           </div>
+          
         </div>
 
         {/* Activity Info */}
@@ -190,6 +271,28 @@ const ActivityCard: React.FC<ActivityCardProps> = ({
               Ejercicios: {loading ? '...' : stats.uniqueExercises}
             </span>
           </div>
+          
+          {/* ✅ Logs de debugging para las estadísticas mostradas */}
+          {console.log('📊 ActivityCard: Mostrando estadísticas:', {
+            actividad: activity.id,
+            titulo: activity.title,
+            loading,
+            totalSessions: stats.totalSessions,
+            uniqueExercises: stats.uniqueExercises,
+            statsCompleto: stats
+          })}
+
+          {/* Badges de Categoría y Tipo */}
+          <div className="flex gap-1 mb-3 ml-1">
+            {/* Badge de Categoría */}
+            <span className="bg-[#FF7939] text-white text-[10px] px-1.5 py-0.5 rounded-full font-medium">
+              {getCategoryBadge(activity.categoria)}
+            </span>
+            {/* Badge de Tipo */}
+            <span className="bg-gray-700 text-white text-[10px] px-1.5 py-0.5 rounded-full font-medium">
+              {getTypeBadge(activity.type)}
+            </span>
+          </div>
 
           {/* Cupos disponibles - Solo si hay capacidad limitada */}
           {activity.capacity && 
@@ -203,9 +306,9 @@ const ActivityCard: React.FC<ActivityCardProps> = ({
           )}
 
           {/* Precio - Sección definida */}
-          <div className="mt-auto pt-3 border-t border-gray-700">
+          <div className="mt-auto pt-3 border-t border-gray-700 text-center">
             <span className="text-[#FF7939] font-bold text-xl">
-              ${activity.price || 0}.00
+              {formatPrice(activity.price)}
             </span>
           </div>
         </div>

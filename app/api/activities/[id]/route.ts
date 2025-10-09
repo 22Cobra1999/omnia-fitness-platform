@@ -2,9 +2,10 @@ import { type NextRequest, NextResponse } from "next/server"
 import { createRouteHandlerClient } from "@supabase/auth-helpers-nextjs"
 import { cookies } from "next/headers"
 import { getSupabaseAdmin } from "@/lib/db"
-export async function PUT(request: NextRequest, { params }: { params: { id: string } }) {
+export async function PUT(request: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   try {
-    const activityId = params.id
+    const resolvedParams = await params
+    const activityId = resolvedParams.id
     // console.log("🔄 PUT /api/activities/[id] - Actualizando actividad:", activityId)
     const data = await request.json()
     console.log("📋 Datos recibidos para actualización:", {
@@ -66,7 +67,25 @@ export async function PUT(request: NextRequest, { params }: { params: { id: stri
     const tagsToDelete: string[] = [] // Assuming tags are identified by tag_value for deletion
     let changesDetected = false
     // Process activities fields
-    const baseFields = ["title", "description", "type", "difficulty", "price", "is_public"]
+    const baseFields = [
+      "title", 
+      "description", 
+      "rich_description",
+      "type", 
+      "difficulty", 
+      "price", 
+      "is_public",
+      "duration",
+      "calories",
+      "program_duration",
+      "availability_type",
+      // Campos específicos para Workshop/Taller
+      "session_type",
+      "available_slots",
+      "available_times",
+      "workshop_type",
+      "workshop_schedule_blocks"
+    ]
     for (const field of baseFields) {
       if (data[field] !== undefined && data[field] !== existingFormattedActivity[field]) {
         baseUpdateData[field] = data[field]
@@ -74,10 +93,8 @@ export async function PUT(request: NextRequest, { params }: { params: { id: stri
       }
     }
     // Process activity_availability fields
+    // NOTA: session_type, available_slots, availability_type ahora están en la tabla activities
     const availabilityFields = [
-      "availability_type",
-      "session_type",
-      "available_slots",
       "available_days",
       "available_hours",
     ]
@@ -248,18 +265,18 @@ export async function PUT(request: NextRequest, { params }: { params: { id: stri
     )
   }
 }
-export async function GET(request: NextRequest, { params }: { params: { id: string } }) {
+export async function GET(request: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   try {
-    const activityId = params.id
+    const resolvedParams = await params
+    const activityId = resolvedParams.id
     // console.log("🔍 GET /api/activities/[id] - Obteniendo actividad:", activityId)
     const cookieStore = await cookies()
     const supabase = createRouteHandlerClient({ cookies: () => cookieStore })
     const { data: activity, error } = await supabase
-      .from("activities") // Corrected table name
+      .from("activities")
       .select(
         `
         *,
-        availability:activity_availability (*),
         consultation_info:activity_consultation_info (*),
         media:activity_media (*),
         tags:activity_tags (*),
@@ -281,7 +298,6 @@ export async function GET(request: NextRequest, { params }: { params: { id: stri
     // Flatten the nested objects if they are arrays
     const formattedActivity: any = {
       ...activity,
-      availability: activity.availability ? activity.availability[0] : null,
       consultation_info: activity.consultation_info ? activity.consultation_info[0] : null,
       // program_info no existe en el nuevo esquema
       program_info: null,

@@ -81,6 +81,9 @@ export async function POST(request: NextRequest) {
       available_times,
       consultation_type,
       program_duration,
+      // Campos específicos para Workshop/Taller
+      workshop_type,
+      workshop_schedule_blocks,
       // Campos anidados (formato original)
       media,
       program_info,
@@ -102,11 +105,22 @@ export async function POST(request: NextRequest) {
     const activityInsert = {
       title,
       description,
+      rich_description: rich_description || null,
       price: price ? parseFloat(String(price)) : 0,
       coach_id,
       type: type || 'fitness_program',
       difficulty: difficulty || 'Principiante',
       is_public: is_public !== false, // default true si no se especifica
+      duration: duration || null,
+      calories: calories || null,
+      program_duration: program_duration || null,
+      availability_type: availability_type || 'immediate_purchase',
+      // Campos específicos para Workshop/Taller
+      session_type: session_type || null,
+      available_slots: available_slots || null,
+      available_times: available_times || null,
+      workshop_type: workshop_type || null,
+      workshop_schedule_blocks: workshop_schedule_blocks || null,
       created_at: new Date().toISOString(),
       updated_at: new Date().toISOString(),
     }

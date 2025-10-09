@@ -21,10 +21,19 @@ export async function GET(request: NextRequest) {
     if (userProfile.role !== 'coach') {
       return NextResponse.json({ error: 'Solo los coaches pueden acceder a su media' }, { status: 403 })
     }
-    // Obtener el tipo de media solicitado
+    // Obtener parámetros de la consulta
     const { searchParams } = new URL(request.url)
     const mediaType = searchParams.get('type') // 'image' o 'video'
-    if (!mediaType || !['image', 'video'].includes(mediaType)) {
+    const allMedia = searchParams.get('all') === 'true' // ✅ Nuevo parámetro para obtener TODOS los archivos
+    
+    console.log('📁 Coach-Media API: Parámetros recibidos:', {
+      mediaType,
+      allMedia,
+      url: request.url
+    })
+    
+    // ✅ Si no es 'all' y no tiene tipo válido, devolver error
+    if (!allMedia && (!mediaType || !['image', 'video'].includes(mediaType))) {
       return NextResponse.json({ error: 'Tipo de media inválido' }, { status: 400 })
     }
     // Obtener primero los activity_ids del coach
@@ -57,11 +66,17 @@ export async function GET(request: NextRequest) {
         video_url
       `)
       .in('activity_id', activityIds)
-    // Filtrar por tipo de media
-    if (mediaType === 'image') {
-      query = query.not('image_url', 'is', null).neq('image_url', '')
+    
+    // ✅ Solo filtrar por tipo si NO es 'all'
+    if (!allMedia) {
+      if (mediaType === 'image') {
+        query = query.not('image_url', 'is', null).neq('image_url', '')
+      } else {
+        query = query.not('video_url', 'is', null).neq('video_url', '')
+      }
     } else {
-      query = query.not('video_url', 'is', null).neq('video_url', '')
+      // ✅ Para 'all', filtrar solo los que tienen al menos una URL (imagen O video)
+      query = query.or('image_url.not.is.null,video_url.not.is.null')
     }
     // Ejecutar la consulta
     const { data: mediaData, error: mediaError } = await query
@@ -74,26 +89,67 @@ export async function GET(request: NextRequest) {
       }, { status: 500 })
     }
     // Formatear la respuesta
-    const formattedMedia = mediaData?.map(item => {
-      const mediaUrl = mediaType === 'image' ? item.image_url : item.video_url
-      const filename = mediaUrl ? mediaUrl.split('/').pop()?.split('?')[0] || 'archivo' : 'archivo'
-      // Buscar el título de la actividad
+    const formattedMediaArray: any[] = []
+    
+    mediaData?.forEach(item => {
       const activity = coachActivities.find(act => act.id === item.activity_id)
-      return {
-        id: item.id,
-        activity_id: item.activity_id,
-        image_url: item.image_url,
-        video_url: item.video_url,
-        activity_title: activity?.title || 'Sin título',
-        created_at: new Date().toISOString(), // Usar fecha actual como fallback
-        filename: filename,
-        media_type: mediaType as 'image' | 'video'
+      
+      if (allMedia) {
+        // ✅ Para 'all', devolver AMBOS archivos si existen (imagen Y video)
+        if (item.image_url && item.image_url.trim() !== '') {
+          const imageFilename = item.image_url.split('/').pop()?.split('?')[0] || 'archivo'
+          formattedMediaArray.push({
+            id: `${item.id}-image`, // ID único para imagen
+            activity_id: item.activity_id,
+            image_url: item.image_url,
+            video_url: null,
+            activity_title: activity?.title || 'Sin título',
+            created_at: new Date().toISOString(),
+            filename: imageFilename,
+            media_type: 'image'
+          })
+        }
+        
+        if (item.video_url && item.video_url.trim() !== '') {
+          const videoFilename = item.video_url.split('/').pop()?.split('?')[0] || 'archivo'
+          formattedMediaArray.push({
+            id: `${item.id}-video`, // ID único para video
+            activity_id: item.activity_id,
+            image_url: null,
+            video_url: item.video_url,
+            activity_title: activity?.title || 'Sin título',
+            created_at: new Date().toISOString(),
+            filename: videoFilename,
+            media_type: 'video'
+          })
+        }
+      } else {
+        // ✅ Para tipo específico, devolver solo el tipo solicitado
+        const actualMediaType = mediaType as 'image' | 'video'
+        const mediaUrl = mediaType === 'image' ? item.image_url : item.video_url
+        const filename = mediaUrl ? mediaUrl.split('/').pop()?.split('?')[0] || 'archivo' : 'archivo'
+        
+        formattedMediaArray.push({
+          id: item.id,
+          activity_id: item.activity_id,
+          image_url: item.image_url,
+          video_url: item.video_url,
+          activity_title: activity?.title || 'Sin título',
+          created_at: new Date().toISOString(),
+          filename: filename,
+          media_type: actualMediaType
+        })
       }
-    }) || []
-    // console.log(`✅ Media ${mediaType} obtenido:`, formattedMedia.length, 'elementos')
-    // // console.log('📊 Actividades del coach:', coachActivities.length)
-    // // console.log('📊 Media encontrado:', mediaData?.length || 0)
-    // // console.log('📊 Media formateado:', formattedMedia.length)
+    })
+    
+    const formattedMedia = formattedMediaArray
+    console.log(`✅ Coach-Media API: ${allMedia ? 'TODOS los archivos' : mediaType} obtenido:`, {
+      totalArchivos: formattedMedia.length,
+      actividadesDelCoach: coachActivities.length,
+      mediaEncontrado: mediaData?.length || 0,
+      archivosFormateados: formattedMedia.length,
+      tiposEncontrados: formattedMedia.map(item => item.media_type)
+    })
     return NextResponse.json({
       success: true,
       media: formattedMedia,

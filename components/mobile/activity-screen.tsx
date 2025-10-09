@@ -47,6 +47,7 @@ import { PurchaseActivityModal } from "@/components/purchase-activity-modal"
 import { ActivitySurveyModal } from "@/components/activity-survey-modal"
 import { PurchasedActivityCard } from "@/components/activities/purchased-activity-card"
 import TodayScreen from "@/components/TodayScreen"
+import { WorkshopClientView } from "@/components/client/workshop-client-view"
 import type { Activity, Enrollment } from "@/types/activity" // Import updated types
 
 interface Coach {
@@ -98,6 +99,12 @@ export function ActivityScreen() {
     // usage.onClick(activityId, { where: "PurchasedActivityCard" }) // Removido - variable no definida
     setSelectedActivityId(activityId)
     setShowTodayScreen(true)
+  }
+
+  // Obtener el tipo de actividad seleccionada
+  const getSelectedActivityType = () => {
+    const enrollment = enrollments.find(e => e.activity_id.toString() === selectedActivityId)
+    return enrollment?.activity?.type || null
   }
 
   // Efecto para manejar navegación desde el calendario
@@ -526,7 +533,7 @@ export function ActivityScreen() {
           difficulty,
           price,
           coach_id,
-          media:activity_media!activity_media_activity_id_fkey (image_url, video_url, vimeo_id),
+          media:activity_media!activity_media_activity_id_fkey (image_url, video_url),
           coaches:coaches!activities_coach_id_fkey (id, full_name, specialization)
         )
       `,
@@ -1338,12 +1345,32 @@ export function ActivityScreen() {
 
             // Si se está mostrando el TodayScreen, renderizarlo en pantalla completa
             if (showTodayScreen && selectedActivityId) {
+              const activityType = getSelectedActivityType()
+              const selectedEnrollment = enrollments.find(e => e.activity_id.toString() === selectedActivityId)
+              const isWorkshop = activityType?.toLowerCase().includes('workshop')
+              
               return (
                 <div className="fixed inset-0 z-50 bg-black">
-                  {(() => {
-                    const activityIdString = selectedActivityId?.toString() || ""
-                    return <TodayScreen activityId={activityIdString} onBack={handleBackToActivities} />
-                  })()}
+                  {isWorkshop ? (
+                    <div className="h-full overflow-y-auto">
+                      <div className="fixed top-4 left-4 z-20">
+                        <button 
+                          onClick={handleBackToActivities}
+                          className="bg-black/40 backdrop-blur-md px-4 py-2 rounded-lg text-white flex items-center gap-2 border border-white/10 hover:bg-black/60 transition-colors"
+                        >
+                          ← Volver
+                        </button>
+                      </div>
+                      <WorkshopClientView 
+                        activityId={parseInt(selectedActivityId)}
+                        activityTitle={selectedEnrollment?.activity?.title || "Taller"}
+                        activityDescription={selectedEnrollment?.activity?.description}
+                        activityImageUrl={selectedEnrollment?.activity?.media?.image_url || selectedEnrollment?.activity?.image_url}
+                      />
+                    </div>
+                  ) : (
+                    <TodayScreen activityId={selectedActivityId} onBack={handleBackToActivities} />
+                  )}
                 </div>
               )
             }

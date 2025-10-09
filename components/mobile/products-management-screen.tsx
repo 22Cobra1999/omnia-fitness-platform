@@ -112,7 +112,7 @@ export default function ProductsManagementScreen({ onTabChange }: ProductsManage
       setLoading(true)
       
       const controller = new AbortController()
-      const timeoutId = setTimeout(() => controller.abort(), 10000) // 10 segundos timeout
+      const timeoutId = setTimeout(() => controller.abort(), 30000) // 30 segundos timeout
       
       const response = await fetch(API_ENDPOINTS.PRODUCTS, {
         signal: controller.signal,
@@ -426,8 +426,8 @@ export default function ProductsManagementScreen({ onTabChange }: ProductsManage
         duration: product.type === 'workshop' ? '60' : undefined
       },
       consultation_info: null,
-      exercisesCount: product.type === 'program' ? 40 : undefined,
-      totalSessions: product.type === 'program' ? 28 : product.sessions_per_client,
+      exercisesCount: undefined, // ✅ Se obtendrá dinámicamente via useProductStats
+      totalSessions: undefined, // ✅ Se obtendrá dinámicamente via useProductStats
       modality: 'online',
       workshop_type: product.type === 'workshop' ? 'Individual' : undefined,
       sessions_per_client: product.sessions_per_client,
@@ -437,6 +437,7 @@ export default function ProductsManagementScreen({ onTabChange }: ProductsManage
       // Campos adicionales requeridos por Activity
       coach_id: product.coach_id,
       is_public: product.is_public,
+      categoria: product.categoria || 'fitness', // ✅ Agregar categoria con valor por defecto
       created_at: product.created_at,
       updated_at: product.updated_at,
       tags: [],

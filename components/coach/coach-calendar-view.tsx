@@ -54,6 +54,9 @@ import { Input } from "@/components/ui/input"
 import { Badge } from "@/components/ui/badge"
 import { useToast } from "@/components/ui/use-toast"
 import { motion, AnimatePresence } from "framer-motion"
+import { CoachCalendarMonthly } from "./coach-calendar-monthly"
+import { createClient } from '@/lib/supabase-browser'
+import { useAuth } from '../../contexts/auth-context'
 
 type CalendarView = "month" | "week" | "day" | "agenda"
 type EventType = "session" | "consultation" | "workshop" | "assessment" | "followup"
@@ -85,13 +88,31 @@ interface QuickEvent {
 
 export function CoachCalendarView() {
   const { toast } = useToast()
+  const { user } = useAuth()
+  const supabase = createClient()
   const [currentDate, setCurrentDate] = useState(new Date())
-  const [view, setView] = useState<CalendarView>("agenda")
+  const [view, setView] = useState<CalendarView>("month")
   const [selectedEvent, setSelectedEvent] = useState<Event | null>(null)
   const [isEventModalOpen, setIsEventModalOpen] = useState(false)
   const [isQuickEventModalOpen, setIsQuickEventModalOpen] = useState(false)
   const [searchTerm, setSearchTerm] = useState("")
   const [selectedFilter, setSelectedFilter] = useState<EventType | "all">("all")
+  const [loading, setLoading] = useState(true)
+  const [isUpcomingCollapsed, setIsUpcomingCollapsed] = useState(false)
+
+  // Función para manejar el clic en una actividad
+  const handleActivityClick = (activityId: string) => {
+    console.log('🎯 [CoachCalendarView] Navegando a actividad:', activityId)
+    
+    // Guardar el activityId en localStorage para que otros componentes lo lean
+    if (typeof window !== 'undefined') {
+      localStorage.setItem('selectedActivityFromCalendar', activityId)
+      console.log('💾 [CoachCalendarView] ActivityId guardado en localStorage:', activityId)
+    }
+    
+    // Aquí podrías agregar navegación a una vista de detalles de la actividad
+    // Por ejemplo: router.push(`/activity/${activityId}`)
+  }
 
   // Quick event templates
   const quickEvents: QuickEvent[] = [
@@ -102,73 +123,103 @@ export function CoachCalendarView() {
     { title: "Taller Grupal", duration: 90, type: "workshop", color: "bg-pink-500" },
   ]
 
-  // Eventos de ejemplo mejorados
-  const [events, setEvents] = useState<Event[]>([
-    {
-      id: "1",
-      title: "Entrenamiento Personal",
-      clientName: "Carlos Rodríguez",
-      clientId: "client-1",
-      start: parseISO(`${format(new Date(), "yyyy-MM-dd")}T10:00:00`),
-      end: parseISO(`${format(new Date(), "yyyy-MM-dd")}T11:00:00`),
-      type: "session",
-      color: "bg-green-500",
-      status: "confirmed",
-      notes: "Enfoque en fuerza y resistencia",
-      location: "Gimnasio Central",
-      isOnline: false,
-      productId: "program-1",
-      productName: "Programa Fitness Pro",
-      price: 50
-    },
-    {
-      id: "2",
-      title: "Evaluación Física",
-      clientName: "María López",
-      clientId: "client-2",
-      start: parseISO(`${format(addDays(new Date(), 1), "yyyy-MM-dd")}T15:00:00`),
-      end: parseISO(`${format(addDays(new Date(), 1), "yyyy-MM-dd")}T15:45:00`),
-      type: "assessment",
-      color: "bg-blue-500",
-      status: "confirmed",
-      notes: "Primera evaluación completa",
-      location: "Online",
-      isOnline: true,
-      price: 35
-    },
-    {
-      id: "3",
-      title: "Sesión de Nutrición",
-      clientName: "Juan Pérez",
-      clientId: "client-3",
-      start: parseISO(`${format(addDays(new Date(), 2), "yyyy-MM-dd")}T09:00:00`),
-      end: parseISO(`${format(addDays(new Date(), 2), "yyyy-MM-dd")}T09:30:00`),
-      type: "consultation",
-      color: "bg-purple-500",
-      status: "pending",
-      notes: "Plan de alimentación personalizado",
-      location: "Online",
-      isOnline: true,
-      price: 40
-    },
-    {
-      id: "4",
-      title: "Taller de Yoga",
-      clientName: "Grupo A",
-      clientId: "group-1",
-      start: parseISO(`${format(addDays(new Date(), 3), "yyyy-MM-dd")}T18:00:00`),
-      end: parseISO(`${format(addDays(new Date(), 3), "yyyy-MM-dd")}T19:30:00`),
-      type: "workshop",
-      color: "bg-pink-500",
-      status: "confirmed",
-      notes: "Yoga para principiantes",
-      location: "Estudio Zen",
-      isOnline: false,
-      productId: "workshop-1",
-      productName: "Taller de Yoga",
-      price: 25
+  // Eventos reales desde la base de datos
+  const [events, setEvents] = useState<Event[]>([])
+
+  // Función para cargar eventos reales desde taller_detalles
+  const loadRealEvents = async () => {
+    if (!user) return
+
+    try {
+      setLoading(true)
+      console.log('📅 [CoachCalendarView] Cargando eventos reales del coach')
+
+      // Obtener actividades del coach
+      const { data: activities, error: activitiesError } = await supabase
+        .from('activities')
+        .select('id, title, type')
+        .eq('coach_id', user.id)
+
+      if (activitiesError) {
+        console.error('❌ [CoachCalendarView] Error obteniendo actividades:', activitiesError)
+        return
+      }
+
+      if (!activities || activities.length === 0) {
+        console.log('⚠️ [CoachCalendarView] No se encontraron actividades del coach')
+        setEvents([])
+        return
+      }
+
+      const activityIds = activities.map(a => a.id)
+
+      // Obtener detalles de talleres
+      const { data: tallerDetalles, error: tallerError } = await supabase
+        .from('taller_detalles')
+        .select('*')
+        .in('actividad_id', activityIds)
+
+      if (tallerError) {
+        console.error('❌ [CoachCalendarView] Error obteniendo detalles de talleres:', tallerError)
+        setEvents([])
+        return
+      }
+
+      // Convertir datos de taller_detalles a eventos
+      const realEvents: Event[] = []
+
+      if (tallerDetalles && tallerDetalles.length > 0) {
+        tallerDetalles.forEach(taller => {
+          const actividad = activities.find(a => a.id === taller.actividad_id)
+          if (!actividad) return
+
+          // Procesar horarios originales
+          if (taller.originales?.fechas_horarios && Array.isArray(taller.originales.fechas_horarios)) {
+            taller.originales.fechas_horarios.forEach((horario: any, index: number) => {
+              const startTime = parseISO(`${horario.fecha}T${horario.hora_inicio}:00`)
+              const endTime = parseISO(`${horario.fecha}T${horario.hora_fin}:00`)
+              
+              realEvents.push({
+                id: `original-${taller.id}-${index}`,
+                title: taller.nombre || actividad.title,
+                clientName: `Grupo ${taller.nombre || 'Taller'}`,
+                clientId: `taller-${taller.id}`,
+                start: startTime,
+                end: endTime,
+                type: "workshop",
+                color: "bg-pink-500",
+                status: "confirmed",
+                notes: taller.descripcion || `Taller: ${taller.nombre}`,
+                location: "Estudio",
+                isOnline: false,
+                productId: actividad.id.toString(),
+                productName: actividad.title,
+                price: 0
+              })
+            })
+          }
+
+        })
+      }
+
+      // Ordenar eventos por fecha
+      realEvents.sort((a, b) => a.start.getTime() - b.start.getTime())
+      
+      setEvents(realEvents)
+      console.log('✅ [CoachCalendarView] Eventos cargados:', realEvents.length)
+
+    } catch (error) {
+      console.error('❌ [CoachCalendarView] Error cargando eventos:', error)
+      setEvents([])
+    } finally {
+      setLoading(false)
     }
-  ])
+  }
+
+  // Cargar eventos cuando se monta el componente
+  useEffect(() => {
+    loadRealEvents()
+  }, [user?.id])
 
   // Filtrar eventos
   const filteredEvents = events.filter(event => {
@@ -272,74 +323,7 @@ export function CoachCalendarView() {
   }
 
   const renderMonthView = () => {
-    const monthStart = startOfMonth(currentDate)
-    const monthEnd = endOfMonth(currentDate)
-    const startDate = startOfWeek(monthStart)
-    const endDate = endOfWeek(monthEnd)
-
-    const days = eachDayOfInterval({ start: startDate, end: endDate })
-
-    return (
-      <div className="bg-[#1A1A1A] rounded-2xl p-4 border border-gray-800">
-        <div className="grid grid-cols-7 gap-1 mb-2">
-          {["Dom", "Lun", "Mar", "Mié", "Jue", "Vie", "Sáb"].map((day) => (
-            <div key={day} className="text-center text-gray-400 text-xs font-medium py-2">
-              {day}
-            </div>
-          ))}
-        </div>
-        <div className="grid grid-cols-7 gap-1">
-          {days.map((day) => {
-            const dayEvents = filteredEvents.filter((event) => isSameDay(event.start, day))
-            const isCurrentMonth = isSameMonth(day, currentDate)
-            const isTodayDate = isToday(day)
-
-            return (
-              <div
-                key={day.toString()}
-                className={`min-h-[100px] p-2 border border-gray-800 rounded-lg cursor-pointer transition-colors hover:bg-gray-800/50 ${
-                  isCurrentMonth ? "bg-[#2A2A2A]" : "bg-[#1A1A1A] opacity-50"
-                } ${isTodayDate ? "ring-2 ring-orange-500" : ""}`}
-                onClick={() => {
-                  setCurrentDate(day)
-                  setView("day")
-                }}
-              >
-                <div className={`text-sm font-medium mb-2 ${
-                  isTodayDate ? "text-orange-500" : "text-gray-300"
-                }`}>
-                  {format(day, "d")}
-                </div>
-                <div className="space-y-1">
-                  {dayEvents.slice(0, 3).map((event) => (
-                    <div
-                      key={event.id}
-                      className={`${event.color} text-white text-xs p-1 rounded truncate cursor-pointer hover:opacity-80`}
-                      title={`${event.title} - ${event.clientName}`}
-                      onClick={(e) => {
-                        e.stopPropagation()
-                        handleEventClick(event)
-                      }}
-                    >
-                      <div className="flex items-center justify-between">
-                        <span>{format(event.start, "HH:mm")}</span>
-                        <div className={`w-2 h-2 rounded-full ${getStatusColor(event.status)}`}></div>
-                      </div>
-                      <div className="truncate">{event.title}</div>
-                    </div>
-                  ))}
-                  {dayEvents.length > 3 && (
-                    <div className="text-xs text-gray-400 text-center">
-                      +{dayEvents.length - 3} más
-                    </div>
-                  )}
-                </div>
-              </div>
-            )
-          })}
-        </div>
-      </div>
-    )
+    return <CoachCalendarMonthly onActivityClick={handleActivityClick} />
   }
 
   const renderWeekView = () => {
@@ -547,94 +531,68 @@ export function CoachCalendarView() {
 
   return (
     <div className="flex flex-col h-full bg-[#0A0A0A] text-white p-2 space-y-3">
-      {/* Header móvil simplificado */}
-      <div className="bg-[#1A1A1A] rounded-xl p-3 border border-gray-800">
-        <div className="flex items-center justify-between mb-3">
-          <h1 className="text-lg font-bold">Mi Calendario</h1>
-          <Button
-            onClick={() => setIsQuickEventModalOpen(true)}
-            className="bg-orange-500 hover:bg-orange-600 text-sm px-3 py-1"
-            size="sm"
-          >
-            <Plus className="w-4 h-4" />
-          </Button>
+      {/* Sección Próximamente - Compacta y Colapsable */}
+      <div className="bg-[#1A1A1A] rounded-xl border border-gray-800">
+        <div 
+          className="flex items-center justify-between p-2 cursor-pointer hover:bg-[#2A2A2A] transition-colors"
+          onClick={() => setIsUpcomingCollapsed(!isUpcomingCollapsed)}
+        >
+          <div className="flex items-center gap-2">
+            <h1 className="text-sm font-medium">Próximamente</h1>
+            {upcomingEvents.length > 0 && (
+              <span className="bg-[#FF7939] text-white text-xs px-1.5 py-0.5 rounded-full">
+                {upcomingEvents.length}
+              </span>
+            )}
+          </div>
+          <div className={`transition-transform ${isUpcomingCollapsed ? 'rotate-180' : ''}`}>
+            <svg className="w-4 h-4 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
+            </svg>
+          </div>
         </div>
 
-        {/* Estadísticas móviles - 2x2 grid */}
-        <div className="grid grid-cols-2 gap-2">
-          <div className="bg-[#2A2A2A] rounded-lg p-2 text-center">
-            <div className="text-lg font-bold text-orange-500">{todayEvents.length}</div>
-            <div className="text-xs text-gray-400">Hoy</div>
+        {/* Lista compacta de próximas actividades - Colapsable */}
+        {!isUpcomingCollapsed && (
+          <div className="px-2 pb-2">
+            {loading ? (
+              <div className="text-center text-gray-400 text-xs py-2">
+                Cargando...
+              </div>
+            ) : upcomingEvents.length > 0 ? (
+              <div className="space-y-1">
+                {upcomingEvents.slice(0, 3).map((event) => (
+                  <div
+                    key={event.id}
+                    onClick={() => handleEventClick(event)}
+                    className="bg-[#2A2A2A] rounded p-2 cursor-pointer hover:bg-[#3A3A3A] transition-colors"
+                  >
+                    <div className="flex items-center justify-between">
+                      <div className="flex-1 min-w-0">
+                        <div className="text-white font-medium text-xs truncate">
+                          {event.title}
+                        </div>
+                        <div className="text-gray-400 text-xs">
+                          {format(event.start, "dd/MM", { locale: es })} • {format(event.start, "HH:mm")}-{format(event.end, "HH:mm")}
+                        </div>
+                      </div>
+                      <div className={`w-2 h-2 rounded-full ${getStatusColor(event.status)} ml-2`}></div>
+                    </div>
+                  </div>
+                ))}
+                {upcomingEvents.length > 3 && (
+                  <div className="text-center text-gray-500 text-xs py-1">
+                    +{upcomingEvents.length - 3} más
+                  </div>
+                )}
+              </div>
+            ) : (
+              <div className="text-center text-gray-400 text-xs py-2">
+                No hay actividades próximas
+              </div>
+            )}
           </div>
-          <div className="bg-[#2A2A2A] rounded-lg p-2 text-center">
-            <div className="text-lg font-bold text-green-500">{completedToday}</div>
-            <div className="text-xs text-gray-400">Completados</div>
-          </div>
-          <div className="bg-[#2A2A2A] rounded-lg p-2 text-center">
-            <div className="text-lg font-bold text-blue-500">{upcomingEvents.length}</div>
-            <div className="text-xs text-gray-400">Próximos</div>
-          </div>
-          <div className="bg-[#2A2A2A] rounded-lg p-2 text-center">
-            <div className="text-lg font-bold text-purple-500">
-              ${filteredEvents.reduce((sum, event) => sum + (event.price || 0), 0)}
-            </div>
-            <div className="text-xs text-gray-400">Ingresos</div>
-          </div>
-        </div>
-      </div>
-
-      {/* Controles móviles simplificados */}
-      <div className="bg-[#1A1A1A] rounded-xl p-3 border border-gray-800">
-        {/* Navegación temporal móvil */}
-        <div className="flex items-center justify-between mb-3">
-          <div className="flex items-center space-x-2">
-            <Button onClick={navigatePrevious} variant="outline" size="sm" className="p-2">
-              <ChevronLeft className="w-4 h-4" />
-            </Button>
-            <Button onClick={navigateToday} variant="outline" size="sm" className="px-3">
-              <CalendarIcon className="w-4 h-4 mr-1" />
-              Hoy
-            </Button>
-            <Button onClick={navigateNext} variant="outline" size="sm" className="p-2">
-              <ChevronRight className="w-4 h-4" />
-            </Button>
-          </div>
-          <h2 className="text-sm font-medium text-center flex-1 mx-2">
-            {view === "month" && format(currentDate, "MMM yyyy", { locale: es })}
-            {view === "week" &&
-              `${format(startOfWeek(currentDate), "d MMM", { locale: es })} - ${format(endOfWeek(currentDate), "d MMM", { locale: es })}`}
-            {view === "day" && format(currentDate, "d MMM", { locale: es })}
-            {view === "agenda" && "Próximos"}
-          </h2>
-        </div>
-
-        {/* Vistas móviles - solo las más importantes */}
-        <div className="flex space-x-1">
-          <Button
-            onClick={() => setView("agenda")}
-            variant={view === "agenda" ? "default" : "outline"}
-            size="sm"
-            className="flex-1 text-xs"
-          >
-            Lista
-          </Button>
-          <Button
-            onClick={() => setView("week")}
-            variant={view === "week" ? "default" : "outline"}
-            size="sm"
-            className="flex-1 text-xs"
-          >
-            Semana
-          </Button>
-          <Button
-            onClick={() => setView("day")}
-            variant={view === "day" ? "default" : "outline"}
-            size="sm"
-            className="flex-1 text-xs"
-          >
-            Día
-          </Button>
-        </div>
+        )}
       </div>
 
       {/* Contenido del calendario */}

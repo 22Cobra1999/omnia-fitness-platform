@@ -157,3 +157,8 @@ ORDER BY total_compras DESC, ingresos_totales DESC;
 
 
 
+
+
+
+
+

@@ -7,7 +7,10 @@
     "dev": "next dev",
     "dev:mobile": "next dev -H 0.0.0.0 -p 3000",
     "lint": "next lint",
-    "start": "next start"
+    "start": "next start",
+    "verify:setup": "tsx scripts/verify-supabase-setup.ts",
+    "migrate:storage": "tsx scripts/migrate-storage-to-coach-folders.ts",
+    "migrate:storage:dry": "DRY_RUN=true tsx scripts/migrate-storage-to-coach-folders.ts"
   },
   "dependencies": {
     "@emotion/is-prop-valid": "latest",
@@ -96,6 +99,7 @@
     "eslint-config-next": "15.5.2",
     "postcss": "^8.5",
     "tailwindcss": "^3.4.17",
+    "tsx": "^4.7.0",
     "typescript": "^5"
   }
 }

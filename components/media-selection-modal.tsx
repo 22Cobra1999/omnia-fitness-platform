@@ -56,10 +56,13 @@ export function MediaSelectionModal({
   // Cargar media del coach y limpiar selección
   useEffect(() => {
     if (isOpen) {
+      console.log('🔄 MediaSelectionModal: Abriendo modal, limpiando estado')
       // Limpiar selecciones previas
       setSelectedMedia(null)
       setNewMediaFile(null)
       setError(null)
+      // Forzar re-render limpiando también el array de media
+      setMedia([])
       loadCoachMedia()
     }
   }, [isOpen, mediaType])
@@ -68,19 +71,48 @@ export function MediaSelectionModal({
     setLoading(true)
     setError(null)
     try {
-      const response = await fetch(`/api/coach-media?type=${mediaType}`)
+      console.log('🔄 MediaSelectionModal: Cargando TODOS los archivos del coach (activity_media)')
+      
+      // ✅ Cargar TODOS los archivos de activity_media del coach (sin filtrar por tipo)
+      const response = await fetch('/api/coach-media?all=true')
       const data = await response.json()
       
-          //   status: response.status, 
-          //   ok: response.ok, 
-          //   error: data.error,
-          //   details: data.details
-          // })
+      console.log('📁 MediaSelectionModal: Respuesta del servidor:', {
+        status: response.status, 
+        ok: response.ok, 
+        mediaCount: data.media?.length || 0,
+        error: data.error,
+        details: data.details
+      })
       
       if (response.ok) {
-        setMedia(data.media || [])
+        // ✅ Filtrar en el frontend según el tipo que necesitamos
+        const filteredMedia = data.media?.filter((item: any) => {
+          if (mediaType === 'image') {
+            return item.image_url && item.image_url.trim() !== ''
+          } else if (mediaType === 'video') {
+            return item.video_url && item.video_url.trim() !== ''
+          }
+          return false
+        }) || []
+        
+        console.log('🎯 MediaSelectionModal: Media filtrada:', {
+          tipoSolicitado: mediaType,
+          totalArchivos: data.media?.length || 0,
+          archivosFiltrados: filteredMedia.length,
+          archivos: filteredMedia.map((item: any) => ({
+            id: item.id,
+            filename: item.filename,
+            media_type: item.media_type,
+            image_url: item.image_url,
+            video_url: item.video_url,
+            esCorrupto: item.video_url?.includes('/images/') ? '⚠️ VIDEO_URL apunta a imagen' : '✅'
+          }))
+        })
+        
+        setMedia(filteredMedia)
       } else {
-        console.error(`❌ Error cargando ${mediaType}s:`, data.error, data.details)
+        console.error(`❌ Error cargando archivos del coach:`, data.error, data.details)
         setError(data.error || 'Error desconocido')
       }
     } catch (error) {
@@ -91,21 +123,22 @@ export function MediaSelectionModal({
     }
   }
 
-  const handleMediaSelect = (mediaUrl: string) => {
+  const handleMediaSelect = (mediaId: string) => {
     console.log('🎯 MediaSelectionModal: Seleccionando media:', {
-      mediaUrl,
+      mediaId,
       currentlySelected: selectedMedia,
-      isAlreadySelected: selectedMedia === mediaUrl
+      isAlreadySelected: selectedMedia === mediaId,
+      allMediaIds: media.map(m => m.id)
     })
     
     // Si ya está seleccionado, deseleccionarlo
-    if (selectedMedia === mediaUrl) {
+    if (selectedMedia === mediaId) {
       console.log('❌ Deseleccionando media actual')
       setSelectedMedia(null)
     } else {
       // Seleccionar solo este elemento (deselecciona automáticamente otros)
       console.log('✅ Seleccionando nuevo media, deseleccionando otros')
-      setSelectedMedia(mediaUrl)
+      setSelectedMedia(mediaId)
       // Limpiar archivo nuevo si había uno seleccionado
       setNewMediaFile(null)
     }
@@ -123,52 +156,49 @@ export function MediaSelectionModal({
   const handleConfirm = async () => {
     
     if (selectedMedia) {
-      onMediaSelected(selectedMedia, mediaType)
-      onClose()
+      // ✅ Buscar el item por ID y obtener su URL según el mediaType solicitado
+      const selectedItem = media.find(item => item.id === selectedMedia)
+      
+      // ✅ Elegir la URL correcta según el tipo de media solicitado
+      const mediaUrl = selectedItem 
+        ? (mediaType === 'image' ? selectedItem.image_url : selectedItem.video_url)
+        : null
+      
+      console.log('🎯 MediaSelectionModal: Confirmando selección:', {
+        selectedId: selectedMedia,
+        mediaType,
+        mediaUrl,
+        selectedItem: {
+          id: selectedItem?.id,
+          image_url: selectedItem?.image_url,
+          video_url: selectedItem?.video_url
+        }
+      })
+      
+      if (mediaUrl) {
+        onMediaSelected(mediaUrl, mediaType)
+        onClose()
+      } else {
+        console.error('❌ No se pudo encontrar la URL para el ID seleccionado')
+      }
     } else if (newMediaFile) {
-      console.log('📁 MediaSelectionModal: Subiendo nuevo archivo', {
+      console.log('📁 MediaSelectionModal: Archivo seleccionado (NO subido aún)', {
         name: newMediaFile.name,
         size: newMediaFile.size,
         type: newMediaFile.type,
         mediaType
       })
       
-      setUploading(true)
-      try {
-        // Subir archivo real a Supabase Storage
-        const formData = new FormData()
-        formData.append('file', newMediaFile)
-        formData.append('mediaType', mediaType)
-        formData.append('category', 'product') // Categoría para productos/actividades
-
-        const response = await fetch('/api/upload-organized', {
-          method: 'POST',
-          body: formData
-        })
-
-        
-        if (!response.ok) {
-          const errorData = await response.json()
-          console.error('❌ MEDIA-SELECTION: Error en response:', errorData)
-          throw new Error(errorData.error || 'Error al subir el archivo')
-        }
-
-        const result = await response.json()
-        
-        if (result.success) {
-          // Usar la URL real de Supabase Storage
-          onMediaSelected(result.url, mediaType, newMediaFile)
-          onClose()
-        } else {
-          console.error('❌ MEDIA-SELECTION: Resultado no exitoso:', result)
-          throw new Error(result.error || 'Error al subir el archivo')
-        }
-      } catch (error) {
-        console.error('❌ MEDIA-SELECTION: Error subiendo archivo:', error)
-        setError(error instanceof Error ? error.message : 'Error al subir el archivo')
-      } finally {
-        setUploading(false)
-      }
+      // ✅ NO subir todavía - solo crear una URL temporal local
+      // El archivo se subirá cuando se apriete "Actualizar Producto"
+      const temporaryUrl = URL.createObjectURL(newMediaFile)
+      
+      console.log('🎯 MediaSelectionModal: URL temporal creada (archivo en memoria):', temporaryUrl)
+      console.log('⏳ MediaSelectionModal: El archivo se subirá cuando se actualice el producto')
+      
+      // Pasar el archivo Y la URL temporal al padre
+      onMediaSelected(temporaryUrl, mediaType, newMediaFile)
+      onClose()
     }
   }
 
@@ -233,7 +263,16 @@ export function MediaSelectionModal({
                   <AnimatePresence>
                     {media.map((item, index) => {
                       const itemUrl = item.image_url || item.video_url || ''
-                      const isSelected = selectedMedia === itemUrl
+                      const itemId = item.id // ✅ Usar ID único en lugar de URL
+                      const isSelected = selectedMedia === itemId // ✅ Comparar por ID único
+                      
+                      // Debug log para ver el estado de cada item
+                      console.log(`🔍 MediaSelectionModal: Item ${index}:`, {
+                        itemId,
+                        itemUrl,
+                        selectedMedia,
+                        isSelected
+                      })
                       
                       return (
                       <motion.div
@@ -251,7 +290,7 @@ export function MediaSelectionModal({
                           }`}
                           onClick={(e) => {
                             e.stopPropagation()
-                            handleMediaSelect(itemUrl)
+                            handleMediaSelect(itemId) // ✅ Pasar ID único en lugar de URL
                           }}
                         >
                           <CardContent className="p-4">

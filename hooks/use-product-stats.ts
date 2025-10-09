@@ -7,6 +7,7 @@ interface ProductStats {
   totalExercises: number
   totalWeeks: number
   totalPeriods: number
+  uniqueExercises: number
 }
 
 export function useProductStats(activityId: number | string): { stats: ProductStats; loading: boolean } {
@@ -14,7 +15,8 @@ export function useProductStats(activityId: number | string): { stats: ProductSt
     totalSessions: 0,
     totalExercises: 0,
     totalWeeks: 0,
-    totalPeriods: 0
+    totalPeriods: 0,
+    uniqueExercises: 0
   })
   
   const [loading, setLoading] = useState(true)
@@ -28,34 +30,56 @@ export function useProductStats(activityId: number | string): { stats: ProductSt
 
       try {
         setLoading(true)
+        console.log('📊 useProductStats: Obteniendo estadísticas para actividad:', activityId)
 
-        // Simular carga de estadísticas
-        await new Promise(resolve => setTimeout(resolve, 100))
+        // ✅ Obtener datos reales de la API
+        const response = await fetch(`/api/get-product-planning?actividad_id=${activityId}`)
+        
+        if (!response.ok) {
+          throw new Error(`Error ${response.status}: ${response.statusText}`)
+        }
 
-        // Valores por defecto para la actividad 78
-        if (activityId === 78) {
-          setStats({
-            totalSessions: 8, // 8 sesiones por período
-            totalExercises: 24, // 24 ejercicios totales
-            totalWeeks: 2, // 2 semanas por período
-            totalPeriods: 3, // 3 períodos
+        const data = await response.json()
+        console.log('📊 useProductStats: Datos obtenidos de la API:', data)
+        console.log('🔍 useProductStats: data.success:', data.success)
+        console.log('🔍 useProductStats: data.data:', data.data)
+
+        if (data.success && data.data) {
+          const newStats = {
+            totalSessions: data.data.totalSessions || 0,
+            totalExercises: data.data.uniqueExercises?.length || 0,
+            totalWeeks: data.data.semanas || 0,
+            totalPeriods: data.data.periods || 0,
+            uniqueExercises: data.data.uniqueExercises?.length || 0
+          }
+          
+          console.log('✅ useProductStats: Estadísticas que se van a establecer:', newStats)
+          setStats(newStats)
+          
+          console.log('✅ useProductStats: Estadísticas actualizadas:', {
+            totalSessions: data.data.totalSessions,
+            uniqueExercises: data.data.uniqueExercises?.length,
+            semanas: data.data.semanas,
+            periods: data.data.periods
           })
         } else {
-          // Valores por defecto para otras actividades
+          console.log('⚠️ useProductStats: No hay datos de planificación disponibles')
           setStats({
             totalSessions: 0,
             totalExercises: 0,
             totalWeeks: 0,
             totalPeriods: 0,
+            uniqueExercises: 0
           })
         }
       } catch (error) {
-        console.error('Error fetching product stats:', error)
+        console.error('❌ useProductStats: Error obteniendo estadísticas:', error)
         setStats({
           totalSessions: 0,
           totalExercises: 0,
           totalWeeks: 0,
           totalPeriods: 0,
+          uniqueExercises: 0
         })
       } finally {
         setLoading(false)

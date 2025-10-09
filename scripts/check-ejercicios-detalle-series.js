@@ -98,3 +98,8 @@ checkEjerciciosDetalleSeries().catch(console.error);
 
 
 
+
+
+
+
+
