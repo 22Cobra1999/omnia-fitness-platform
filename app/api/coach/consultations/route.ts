@@ -137,19 +137,27 @@ export async function PUT(request: NextRequest) {
       return NextResponse.json({ error: 'Solo los coaches pueden actualizar consultas' }, { status: 403 })
     }
 
-    // console.log('✅ Consultas recibidas para actualizar:', consultations)
+    console.log('✅ Consultas recibidas para actualizar:', consultations)
 
-    // Actualizar datos reales en la base de datos (columnas de consultas no existen aún)
-    // Por ahora solo retornamos éxito sin actualizar
-    console.log('⚠️ Columnas de consultas no existen aún en la tabla coaches')
-    const updateError = null
+    // Actualizar datos reales en la base de datos
+    const { error: updateError } = await supabase
+      .from('coaches')
+      .update({
+        cafe_enabled: consultations.cafe?.active || false,
+        meet_30_enabled: consultations.meet30?.active || false,
+        meet_1_enabled: consultations.meet60?.active || false,
+        cafe: consultations.cafe?.price || 0,
+        meet_30: consultations.meet30?.price || 0,
+        meet_1: consultations.meet60?.price || 0
+      })
+      .eq('id', user.id)
 
     if (updateError) {
       console.error('Error actualizando consultas:', updateError)
       return NextResponse.json({ error: 'Error al actualizar consultas' }, { status: 500 })
     }
 
-    // console.log('✅ Consultas actualizadas correctamente en la base de datos')
+    console.log('✅ Consultas actualizadas correctamente en la base de datos')
 
     return NextResponse.json({ 
       success: true, 
