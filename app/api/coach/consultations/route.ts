@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createRouteHandlerClient } from '@/lib/supabase-server'
+import { cookies } from 'next/headers'
 
 export async function GET() {
   try {
@@ -103,8 +104,7 @@ export async function PUT(request: NextRequest) {
   try {
     // console.log('🔍 PUT /api/coach/consultations iniciado')
     
-    const cookieStore = cookies()
-    const supabase = await createClientWithCookies(cookieStore)
+    const supabase = await createRouteHandlerClient()
     
     // Verificar autenticación
     const { data: { user }, error: authError } = await supabase.auth.getUser()
