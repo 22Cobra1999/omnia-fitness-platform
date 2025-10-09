@@ -28,7 +28,7 @@ import {
 import Image from "next/image"
 import { Button } from "@/components/ui/button"
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog"
-import CoachProfileModal from "@/components/CoachProfileModal"
+// import CoachProfileModal from "@/components/CoachProfileModal"
 import { Textarea } from "@/components/ui/textarea"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
@@ -1812,20 +1812,14 @@ export function ActivityScreen() {
         </DialogContent>
       </Dialog>
 
-      {/* Coach Profile Modal */}
-      {selectedCoachForProfile && (
-        <CoachProfileModal
-          coach={selectedCoachForProfile}
-          isOpen={isCoachProfileModalOpen}
-          onClose={() => {
-            setIsCoachProfileModalOpen(false)
-            setSelectedCoachForProfile(null)
-          }}
-          onActivityClick={() => {
-            // En la tab de Activity no manejamos clicks en actividades del coach
-          }}
-        />
-      )}
+      {/* Coach Profile Modal - Funcionalidad deshabilitada temporalmente */}
+      {/* {selectedCoachForProfile && (
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
+          <div className="bg-white p-6 rounded-lg">
+            <p>Perfil del coach: {selectedCoachForProfile.name}</p>
+          </div>
+        </div>
+      )} */}
     </div>
   )
 }

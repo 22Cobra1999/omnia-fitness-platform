@@ -3,7 +3,7 @@
 import { useState } from "react"
 import { BottomNavigation } from "@/components/mobile/bottom-navigation"
 import { ProfileScreen } from "@/components/mobile/profile-screen"
-import { CoachProfileScreen } from "@/components/mobile/coach-profile-screen"
+// import { CoachProfileScreen } from "@/components/mobile/coach-profile-screen"
 import { CommunityScreen } from "@/components/mobile/community-screen"
 import { CalendarScreen } from "@/components/calendar/CalendarScreen"
 import { ClientsScreen } from "@/components/mobile/clients-screen"

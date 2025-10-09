@@ -1,12 +1,11 @@
 "use client"
 
-import { useState, useEffect } from "react"
+import { useState, useEffect, Suspense } from "react"
 import { useSearchParams } from "next/navigation"
 import ErrorBoundary from "@/components/ErrorBoundary"
 import { useErrorHandler } from "@/hooks/use-error-handler"
 import { BottomNavigation } from "@/components/mobile/bottom-navigation"
 import ProfileScreen from "@/components/mobile/profile-screen"
-import { CoachProfileScreen } from "@/components/mobile/coach-profile-screen"
 import { CommunityScreen } from "@/components/mobile/community-screen"
 import { CalendarScreen } from "@/components/calendar/CalendarScreen"
 import { ClientsScreen } from "@/components/mobile/clients-screen"
@@ -18,7 +17,6 @@ import { SignInPopup } from "@/components/auth/sign-in-popup"
 import { WelcomePopup } from "@/components/welcome-popup"
 import { SettingsIcon } from "@/components/settings-icon"
 import { MessagesIcon } from "@/components/messages-icon"
-import { CoachCalendarView } from "@/components/coach/coach-calendar-view"
 import ProductsManagementScreen from "@/components/mobile/products-management-screen"
 import { OmniaLogoText } from "@/components/omnia-logo"
 import { useCoachStorageInitialization } from "@/hooks/use-coach-storage-initialization"
@@ -131,18 +129,10 @@ export default function MobileApp() {
       case "community":
         return <CommunityScreen />
       case "calendar":
-        // Si el usuario es coach, mostrar el calendario especial para coaches
-        if (userRole === "coach" || user?.level === "coach") {
-          return <CoachCalendarView />
-        }
-        // Si no es coach, mostrar el calendario normal
+        // Calendario universal para coaches y clientes
         return <CalendarScreen onTabChange={setActiveTab} />
       case "profile":
-        // Si el usuario es coach, mostrar el perfil de coach
-        if (userRole === "coach" || user?.level === "coach") {
-          return <CoachProfileScreen />
-        }
-        // Si no es coach, mostrar el perfil normal de cliente
+        // Perfil universal para coaches y clientes
         return <ProfileScreen />
       default:
         return <CommunityScreen />

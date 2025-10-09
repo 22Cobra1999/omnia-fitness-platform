@@ -1,12 +1,12 @@
 "use client"
 
 import { BookingPage } from "@/components/client/booking-page"
-import { useUser } from "@supabase/auth-helpers-react"
+import { useAuth } from "@/contexts/auth-context"
 import { useParams } from "next/navigation"
 import { Loader2 } from "lucide-react"
 
 export default function BookingPageRoute() {
-  const user = useUser()
+  const { user } = useAuth()
   const params = useParams()
 
   const coachId = params.coachId as string

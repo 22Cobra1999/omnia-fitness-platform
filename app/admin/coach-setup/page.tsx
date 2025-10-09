@@ -1,10 +1,12 @@
-import { RunCoachMigration } from "@/components/admin/run-coach-migration"
+"use client"
 
 export default function CoachSetupPage() {
   return (
-    <div className="container mx-auto py-8">
-      <h1 className="text-2xl font-bold mb-6">Configuración de Coach</h1>
-      <RunCoachMigration />
+    <div className="flex items-center justify-center min-h-screen bg-black">
+      <div className="text-center">
+        <h1 className="text-2xl font-bold mb-4 text-white">Coach Setup</h1>
+        <p className="text-gray-400">Funcionalidad administrativa en desarrollo</p>
+      </div>
     </div>
   )
 }

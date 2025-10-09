@@ -1,11 +1,12 @@
 "use client"
 
-import { createClient } from "@/utils/supabase/server"
-import { redirect } from "next/navigation"
+import { useAuth } from "@/contexts/auth-context"
+import { useRouter } from "next/navigation"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { PullToRefresh } from "@/components/pull-to-refresh"
 import { ClientActivitiesTabs } from "@/components/client-activities-tabs"
-import { CalendarScreen } from "@/components/calendar/CalendarScreen" // Declare the variable before using it
+import { CalendarScreen } from "@/components/calendar/CalendarScreen"
+import { useEffect } from "react"
 
 interface DailyActivity {
   activity_id_out: number
@@ -17,14 +18,17 @@ interface DailyActivity {
 }
 
 export default function MyProgramsPage() {
-  const supabase = createClient()
+  const { user } = useAuth()
+  const router = useRouter()
 
-  const {
-    data: { user },
-  } = supabase.auth.getUser()
+  useEffect(() => {
+    if (!user) {
+      router.push("/")
+    }
+  }, [user, router])
 
   if (!user) {
-    return redirect("/login")
+    return <div className="flex items-center justify-center min-h-screen">Cargando...</div>
   }
 
   return (

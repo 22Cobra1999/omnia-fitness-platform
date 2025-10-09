@@ -9,7 +9,7 @@ import { Button } from "@/components/ui/button"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { MoreHorizontal, Play, BookmarkPlus, PlusCircle, Folder, ShoppingCart } from "lucide-react"
 import Image from "next/image"
-import { CoachPublication } from "@/components/coach-publication"
+// import { CoachPublication } from "@/components/coach-publication"
 import { TopClientContribution } from "@/components/top-client-contribution"
 import { OmniaPublication } from "@/components/omnia-publication"
 import { LiveSession } from "@/components/live-session"
@@ -527,7 +527,7 @@ function PostContent({
 }) {
   switch (post.type) {
     case "coach":
-      return <CoachPublication post={post} />
+      return <OmniaPublication post={post} />
     case "topClient":
       return <TopClientContribution post={post} />
     case "omnia":
