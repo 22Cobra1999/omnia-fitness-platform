@@ -136,14 +136,8 @@ export function CSVManagerEnhanced({
 
   // Cargar catálogo de ejercicios existentes del coach al entrar en modo "existentes"
   useEffect(() => {
-    const loadCatalog = async () => {
-      try {
-        const res = await fetch('/api/existing-exercises')
-        const json = await res.json()
-        if (res.ok) setExistingCatalog(json.exercises || [])
-      } catch {}
-    }
-    if (mode === 'existentes') loadCatalog()
+    // API eliminada durante limpieza - modo existentes deshabilitado temporalmente
+    setExistingCatalog([])
   }, [mode])
 
   // Persistir borrador al cambiar
@@ -154,47 +148,9 @@ export function CSVManagerEnhanced({
   }, [csvData, activityId])
 
   const loadExistingData = async () => {
-    if (!activityId || activityId <= 0) {
-      console.log('🚫 No cargando datos existentes - activityId inválido:', activityId)
-      return
-    }
-    console.log('🔄 Cargando datos existentes para activityId:', activityId)
-    setLoadingExisting(true)
-    try {
-      const response = await fetch(`/api/activity-exercises/${activityId}`)
-      const result = await response.json()
-      
-      if (result.success) {
-        console.log('✅ Datos existentes cargados:', result.data.length, 'ejercicios')
-        
-        // Debug específico para P-R-S en datos existentes
-        
-        setExistingData(result.data)
-        
-        // Notificar al padre que se cargaron datos existentes
-        // Solo sobrescribir si no hay datos persistentes con videos
-        if (parentSetCsvData) {
-          console.log('📤 Notificando al padre sobre datos existentes:', result.data.length, 'ejercicios')
-          
-          // Verificar si hay datos persistentes con videos
-          const hasPersistentVideos = parentCsvData && parentCsvData.some((row: any) => row.video_url)
-          
-          if (hasPersistentVideos) {
-            console.log('🎥 Manteniendo datos persistentes con videos, no sobrescribiendo')
-            // No sobrescribir, mantener los datos persistentes
-          } else {
-            console.log('📝 No hay videos persistentes, cargando datos existentes')
-            parentSetCsvData(result.data)
-          }
-        }
-      } else {
-        console.log('❌ Error cargando datos existentes:', result.error)
-      }
-    } catch (error) {
-      console.error('❌ Error cargando datos existentes:', error)
-    } finally {
-      setLoadingExisting(false)
-    }
+    // API eliminada durante limpieza - función deshabilitada
+    setExistingData([])
+    setLoadingExisting(false)
   }
 
   const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
