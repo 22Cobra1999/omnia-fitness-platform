@@ -446,6 +446,11 @@ Cada uno tiene sus propios TABs en el bottom navigation.
 #### Messages
 - `/api/messages/conversations` - GET - Conversaciones
 
+#### Product Planning (para edición)
+- `/api/get-product-planning` - GET - Carga planificación de ejercicios guardados
+- `/api/activity-exercises/[id]` - GET - Carga ejercicios de una actividad
+- `/api/existing-exercises` - GET - Catálogo de ejercicios del coach
+
 ---
 
 ### 🗑️ APIs PARA ELIMINAR (NO SE USAN)
@@ -593,12 +598,12 @@ Estos son resúmenes de sesiones de desarrollo que ya no son necesarios una vez 
 
 ### Estado Actual:
 - **APIs totales**: ~255 archivos
-- **APIs en uso**: ~20
-- **APIs para eliminar**: ~235 (92%)
-- **Archivos .md**: ~40+
-- **Archivos .md necesarios**: 1-2
-- **Scripts**: 72
-- **Scripts necesarios**: ~5-10
+- **APIs en uso**: 26 (después de restaurar 3 necesarias)
+- **APIs eliminadas**: ~229 (90%)
+- **Archivos .md eliminados**: ~40
+- **Archivos .md mantenidos**: 2 (README.md + ANALISIS_COMPLETO_APP.md)
+- **Scripts eliminados**: ~48
+- **Scripts mantenidos**: 24
 
 ### Ahorro estimado:
 - **Espacio en disco**: 70-80% reducción
