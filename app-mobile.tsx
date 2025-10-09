@@ -23,6 +23,7 @@ import ProductsManagementScreen from "@/components/mobile/products-management-sc
 import { OmniaLogoText } from "@/components/omnia-logo"
 import { useCoachStorageInitialization } from "@/hooks/use-coach-storage-initialization"
 import { UsageReportButton } from "@/components/usage-report-button"
+import { AutoUsageTracker } from "@/components/auto-usage-tracker"
 import { trackComponent } from "@/lib/usage-tracker"
 
 
@@ -154,6 +155,9 @@ export default function MobileApp() {
 
   return (
     <ErrorBoundary>
+      {/* Auto Usage Tracker - Solo en desarrollo */}
+      {process.env.NODE_ENV === 'development' && <AutoUsageTracker />}
+      
       <div className="flex flex-col h-screen bg-black">
       {/* Header fijo */}
       <div className="fixed top-0 left-0 right-0 z-50 bg-black rounded-b-[32px] px-5 py-3 flex justify-between items-center">
