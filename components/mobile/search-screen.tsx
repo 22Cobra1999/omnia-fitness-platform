@@ -12,6 +12,7 @@ import {
   X,
 } from "lucide-react"
 import Image from "next/image"
+import { trackComponent, trackAPI } from "@/lib/usage-tracker"
 // import { useCachedCoaches, type Coach } from "@/hooks/use-cached-coaches"
 
 // Definir tipo Coach localmente
@@ -56,6 +57,11 @@ type Account = {
 const FALLBACK_ACTIVITIES: Activity[] = []
 
 export function SearchScreen() {
+  // Rastrear uso del componente
+  useEffect(() => {
+    trackComponent('SearchScreen')
+  }, [])
+
   const [selectedActivity, setSelectedActivity] = useState<Activity | null>(null)
   const [activities, setActivities] = useState<Activity[]>([])
   const [isLoadingActivities, setIsLoadingActivities] = useState(false)
@@ -89,6 +95,7 @@ export function SearchScreen() {
     try {
       setIsLoading(true)
       setError(null)
+      trackAPI('/api/search-coaches', 'GET')
       const response = await fetch('/api/search-coaches')
       if (!response.ok) throw new Error('Failed to fetch coaches')
       const coaches = await response.json()
@@ -105,6 +112,7 @@ export function SearchScreen() {
     try {
       setIsLoadingActivities(true)
       setActivitiesError(null)
+      trackAPI('/api/activities/search', 'GET')
       const response = await fetch('/api/activities/search')
       if (!response.ok) throw new Error('Failed to fetch activities')
       const activities = await response.json()

@@ -22,9 +22,15 @@ import { CoachCalendarView } from "@/components/coach/coach-calendar-view"
 import ProductsManagementScreen from "@/components/mobile/products-management-screen"
 import { OmniaLogoText } from "@/components/omnia-logo"
 import { useCoachStorageInitialization } from "@/hooks/use-coach-storage-initialization"
+import { UsageReportButton } from "@/components/usage-report-button"
+import { trackComponent } from "@/lib/usage-tracker"
 
 
 export default function MobileApp() {
+  // Rastrear componente principal
+  useEffect(() => {
+    trackComponent('MobileApp')
+  }, [])
   const { isAuthenticated, user, loading, showWelcomeMessage, setShowWelcomeMessage } = useAuth()
   const { isAuthPopupOpen, authPopupDefaultTab, hideAuthPopup, showAuthPopup } = usePopup()
   const [activeTab, setActiveTab] = useState("community")
@@ -175,6 +181,9 @@ export default function MobileApp() {
 
       {/* Welcome Popup */}
       <WelcomePopup isOpen={showWelcomeMessage} onClose={hideWelcomeMessage} />
+      
+      {/* Usage Report Button - Solo en desarrollo */}
+      {process.env.NODE_ENV === 'development' && <UsageReportButton />}
       </div>
     </ErrorBoundary>
   )
