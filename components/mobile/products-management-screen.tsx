@@ -235,7 +235,7 @@ export default function ProductsManagementScreen({ onTabChange }: ProductsManage
   // Guardar consultas del coach en Supabase
   const saveConsultations = async () => {
     try {
-      const response = await fetch('API_ENDPOINTS.COACH_CONSULTATIONS', {
+      const response = await fetch(API_ENDPOINTS.COACH_CONSULTATIONS, {
         method: 'PUT',
         headers: {
           'Content-Type': 'application/json',
@@ -308,7 +308,7 @@ export default function ProductsManagementScreen({ onTabChange }: ProductsManage
     
     // Guardar en la base de datos
     try {
-      const response = await fetch('API_ENDPOINTS.COACH_CONSULTATIONS', {
+      const response = await fetch(API_ENDPOINTS.COACH_CONSULTATIONS, {
         method: 'PUT',
         headers: {
           'Content-Type': 'application/json',
@@ -344,7 +344,7 @@ export default function ProductsManagementScreen({ onTabChange }: ProductsManage
     
     // Guardar en la base de datos
     try {
-      const response = await fetch('API_ENDPOINTS.COACH_CONSULTATIONS', {
+      const response = await fetch(API_ENDPOINTS.COACH_CONSULTATIONS, {
         method: 'PUT',
         headers: {
           'Content-Type': 'application/json',
