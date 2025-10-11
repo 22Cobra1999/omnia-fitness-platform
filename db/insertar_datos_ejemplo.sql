@@ -134,3 +134,4 @@ SELECT 'Progreso Cliente' as tabla, actividad_id, cliente_id, fecha, ejercicios_
 
 
 
+

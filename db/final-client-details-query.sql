@@ -144,3 +144,4 @@ WHERE ueo.user_id = 'CLIENT_ID_AQUI' -- Cambiar por ID real;
 
 
 
+

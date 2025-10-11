@@ -92,3 +92,4 @@ COMMENT ON COLUMN user_exercise_progress.date_4 IS 'Fecha de la cuarta marca';
 
 
 
+

@@ -77,3 +77,4 @@ ON exercise_planning(activity_id, week_number);
 
 
 
+

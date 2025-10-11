@@ -66,3 +66,4 @@ WHERE tablename IN ('periodos', 'planificacion_ejercicios', 'progreso_cliente');
 
 
 
+
