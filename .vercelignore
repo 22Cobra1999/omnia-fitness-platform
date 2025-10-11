@@ -1,0 +1,20 @@
+# Figma exports
+figma-export/
+.playwright-mcp/
+
+# Scripts
+scripts/cleanup-*.sh
+scripts/export-for-figma.js
+scripts/fix-broken-imports.sh
+
+# Documentation
+*.md
+!README.md
+
+# Logs
+dev.log
+*.log
+
+# Development
+.DS_Store
+
