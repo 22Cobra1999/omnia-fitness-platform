@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { createRouteHandlerClient } from '@/lib/supabase-server'
+import { createRouteHandlerClient } from '@/lib/supabase/supabase-server'
 
 export async function GET(request: NextRequest) {
   try {
@@ -27,7 +27,7 @@ export async function GET(request: NextRequest) {
       (products || []).map(async (product) => {
         const { data: media } = await supabase
           .from('activity_media')
-          .select('id, image_url, video_url, pdf_url')
+          .select('id, image_url, video_url, pdf_url, bunny_video_id, bunny_library_id, video_thumbnail_url')
           .eq('activity_id', product.id)
           .single()
         
@@ -90,14 +90,14 @@ export async function POST(request: NextRequest) {
         description: body.description,
         price: body.price,
         type: body.modality, // Usar type en lugar de modality
+        categoria: body.categoria || 'fitness', // ✅ GUARDAR CATEGORIA (fitness o nutricion)
         difficulty: body.level, // Usar difficulty en lugar de level
         is_public: body.is_public,
         capacity: body.capacity,
         // stockQuantity no existe en la tabla activities
         coach_id: user.id,
         // ✅ CAMPOS ESPECÍFICOS PARA TALLERES
-        workshop_type: body.modality === 'workshop' ? 'general' : null,
-        workshop_schedule_blocks: body.workshopSchedule ? JSON.stringify(body.workshopSchedule) : null
+        workshop_type: body.workshop_type || (body.modality === 'workshop' ? 'general' : null)
       })
       .select()
       .single()
@@ -106,18 +106,7 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: productError.message }, { status: 500 })
     }
     
-    // ✅ DEBUG: Ver qué datos llegan
-    console.log('🔍 DEBUG POST - Verificando datos del taller:')
-    console.log('  - body.modality:', body.modality)
-    console.log('  - body.workshopSchedule:', body.workshopSchedule)
-    console.log('  - Es array?:', Array.isArray(body.workshopSchedule))
-    console.log('  - Longitud:', body.workshopSchedule?.length)
-    
-    // ✅ Si es un taller, crear registros en taller_detalles
     if (body.modality === 'workshop' && body.workshopSchedule && Array.isArray(body.workshopSchedule)) {
-      console.log('📝 Creando temas de taller en taller_detalles')
-      console.log('📊 workshopSchedule recibido:', JSON.stringify(body.workshopSchedule, null, 2))
-      console.log('🔢 Número de sesiones:', body.workshopSchedule.length)
       
       // Agrupar sesiones por tema
       const topicGroups = new Map()
@@ -148,15 +137,7 @@ export async function POST(request: NextRequest) {
         }
       }
       
-      console.log('📊 Temas agrupados:', Array.from(topicGroups.entries()))
-      
-      // Crear un registro por cada tema
       for (const [topicTitle, topicData] of topicGroups) {
-        console.log(`\n🎯 Procesando tema: ${topicTitle}`)
-        console.log(`  - Horarios originales: ${topicData.originales.length}`)
-        console.log(`  - Horarios secundarios: ${topicData.secundarios.length}`)
-        
-        // Crear JSONs con la nueva estructura
         const originalesJson = {
           fechas_horarios: topicData.originales
         }
@@ -164,11 +145,6 @@ export async function POST(request: NextRequest) {
         const secundariosJson = {
           fechas_horarios: topicData.secundarios
         }
-        
-        console.log('📅 JSONs creados:', {
-          originales: originalesJson,
-          secundarios: secundariosJson
-        })
         
         // Insertar en taller_detalles
         const { error: topicError } = await supabase
@@ -184,7 +160,6 @@ export async function POST(request: NextRequest) {
         if (topicError) {
           console.error('❌ Error creando tema en taller_detalles:', topicError)
         } else {
-          console.log('✅ Tema creado en taller_detalles:', topicData.nombre)
         }
       }
     }
@@ -218,20 +193,6 @@ export async function PUT(request: NextRequest) {
       return NextResponse.json({ error: 'ID de producto requerido para actualización' }, { status: 400 })
     }
     
-    console.log('🔄 Actualizando producto:', {
-      productId: body.editingProductId,
-      name: body.name,
-      hasImage: !!body.image_url,
-      hasVideo: !!body.video_url,
-      image_url: body.image_url,
-      video_url: body.video_url,
-      allBodyKeys: Object.keys(body),
-      // ✅ DATOS DE TALLERES
-      isWorkshop: body.modality === 'workshop',
-      workshopScheduleLength: body.workshopSchedule?.length || 0,
-      workshopSchedule: body.workshopSchedule,
-      workshopMaterial: body.workshopMaterial
-    })
     
     // Actualizar producto en activities
     const { data: product, error: productError } = await supabase
@@ -241,12 +202,12 @@ export async function PUT(request: NextRequest) {
         description: body.description,
         price: body.price,
         type: body.modality,
+        categoria: body.categoria || 'fitness', // ✅ ACTUALIZAR CATEGORIA
         difficulty: body.level,
         is_public: body.is_public,
         capacity: body.capacity,
         // ✅ CAMPOS ESPECÍFICOS PARA TALLERES
-        workshop_type: body.modality === 'workshop' ? 'general' : null,
-        workshop_schedule_blocks: body.workshopSchedule ? JSON.stringify(body.workshopSchedule) : null
+        workshop_type: body.workshop_type || (body.modality === 'workshop' ? 'general' : null)
       })
       .eq('id', body.editingProductId)
       .eq('coach_id', user.id) // Seguridad: solo el coach dueño puede actualizar
@@ -258,10 +219,7 @@ export async function PUT(request: NextRequest) {
       return NextResponse.json({ error: productError.message }, { status: 500 })
     }
     
-    // Actualizar media en activity_media si se proporcionaron nuevas URLs
     if (body.image_url || body.video_url) {
-      console.log('🔄 Actualizando/creando media para actividad:', body.editingProductId)
-      
       // Verificar si ya existe un registro de media para esta actividad
       const { data: existingMedia, error: checkError } = await supabase
         .from('activity_media')
@@ -273,53 +231,54 @@ export async function PUT(request: NextRequest) {
         console.error('⚠️ Error verificando media existente:', checkError)
       }
       
+      // Preparar datos de actualización
+      const mediaUpdate: any = {
+        image_url: body.image_url || null,
+        video_url: body.video_url || null
+      }
+      
+      if (body.video_url) {
+        const isBunnyVideo = body.video_url.includes('b-cdn.net') || 
+                             body.video_url.includes('mediadelivery.net')
+        
+        if (isBunnyVideo) {
+          const embedMatch = body.video_url.match(/mediadelivery\.net\/embed\/([a-f0-9-]+)/)
+          const cdnMatch = body.video_url.match(/b-cdn\.net\/([a-f0-9-]+)\//)
+          const playlistMatch = body.video_url.match(/mediadelivery\.net\/([a-f0-9-]+)\//)
+          const bunnyVideoId = embedMatch?.[1] || cdnMatch?.[1] || playlistMatch?.[1]
+          
+          if (bunnyVideoId) {
+            mediaUpdate.bunny_video_id = bunnyVideoId
+            mediaUpdate.bunny_library_id = parseInt(process.env.BUNNY_STREAM_LIBRARY_ID || '0')
+          }
+        }
+      }
+      
       if (existingMedia) {
         // Actualizar registro existente
         const { error: updateError } = await supabase
           .from('activity_media')
-          .update({
-            image_url: body.image_url || null,
-            video_url: body.video_url || null
-          })
+          .update(mediaUpdate)
           .eq('activity_id', body.editingProductId)
         
         if (updateError) {
-          console.error('⚠️ Error actualizando media:', updateError)
-        } else {
-          console.log('✅ Media actualizada correctamente')
+          console.error('❌ Error actualizando media:', updateError)
         }
       } else {
-        // Crear nuevo registro
         const { error: insertError } = await supabase
           .from('activity_media')
           .insert({
             activity_id: body.editingProductId,
-            image_url: body.image_url || null,
-            video_url: body.video_url || null
+            ...mediaUpdate
           })
         
         if (insertError) {
-          console.error('⚠️ Error insertando media:', insertError)
-        } else {
-          console.log('✅ Media insertada correctamente')
+          console.error('❌ Error insertando media:', insertError)
         }
       }
     }
     
-    console.log('✅ Producto actualizado:', product.id)
-    
-    // ✅ DEBUG: Ver qué datos llegan
-    console.log('🔍 DEBUG - Verificando datos del taller:')
-    console.log('  - body.modality:', body.modality)
-    console.log('  - body.workshopSchedule:', body.workshopSchedule)
-    console.log('  - Es array?:', Array.isArray(body.workshopSchedule))
-    console.log('  - Longitud:', body.workshopSchedule?.length)
-    
-    // ✅ Si es un taller, actualizar registros en taller_detalles
     if (body.modality === 'workshop' && body.workshopSchedule && Array.isArray(body.workshopSchedule)) {
-      console.log('📝 Actualizando temas de taller en taller_detalles')
-      console.log('📊 workshopSchedule recibido:', JSON.stringify(body.workshopSchedule, null, 2))
-      console.log('🔢 Número de sesiones:', body.workshopSchedule.length)
       
       // Primero, eliminar temas existentes para este taller
       const { error: deleteError } = await supabase
@@ -328,9 +287,7 @@ export async function PUT(request: NextRequest) {
         .eq('actividad_id', body.editingProductId)
       
       if (deleteError) {
-        console.error('⚠️ Error eliminando temas antiguos:', deleteError)
-      } else {
-        console.log('🗑️ Temas antiguos eliminados correctamente')
+        console.error('❌ Error eliminando temas:', deleteError)
       }
       
       // Agrupar sesiones por tema
@@ -362,15 +319,7 @@ export async function PUT(request: NextRequest) {
         }
       }
       
-      console.log(`📊 Total de temas encontrados: ${topicGroups.size}`)
-      
-      // Crear un registro por cada tema
       for (const [topicTitle, topicData] of topicGroups) {
-        console.log(`🔄 Procesando tema: "${topicTitle}"`)
-        console.log(`  - Horarios originales: ${topicData.originales.length}`)
-        console.log(`  - Horarios secundarios: ${topicData.secundarios.length}`)
-        
-        // Crear JSONs con la nueva estructura
         const originalesJson = {
           fechas_horarios: topicData.originales
         }
@@ -378,11 +327,6 @@ export async function PUT(request: NextRequest) {
         const secundariosJson = {
           fechas_horarios: topicData.secundarios
         }
-        
-        console.log('📅 JSONs creados:', {
-          originales: originalesJson,
-          secundarios: secundariosJson
-        })
         
         // Insertar en taller_detalles
         const topicInsert = {
@@ -392,8 +336,6 @@ export async function PUT(request: NextRequest) {
           horarios: horariosJson
         }
         
-        console.log('💾 Insertando tema en taller_detalles:', JSON.stringify(topicInsert, null, 2))
-        
         const { error: topicError } = await supabase
           .from('taller_detalles')
           .insert(topicInsert)
@@ -401,7 +343,6 @@ export async function PUT(request: NextRequest) {
         if (topicError) {
           console.error('❌ Error creando tema en taller_detalles:', topicError)
         } else {
-          console.log('✅ Tema creado en taller_detalles:', topicData.nombre)
         }
       }
     }
