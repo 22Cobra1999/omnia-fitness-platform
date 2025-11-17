@@ -3,7 +3,9 @@
 import { useState, useEffect } from 'react';
 import { useAuth } from '@/contexts/auth-context';
 import { createClient } from '@/lib/supabase/supabase-client';
-import { CheckCircle2, XCircle, ExternalLink, Loader2, DollarSign, TrendingUp, Clock, CheckCircle } from 'lucide-react';
+import { CheckCircle2, XCircle, ExternalLink, Loader2, DollarSign, TrendingUp, Clock, CheckCircle, User, Mail, Unlink, AlertCircle } from 'lucide-react';
+import { ConfirmationModal } from '@/components/ui/confirmation-modal';
+import { toast } from 'sonner';
 
 interface MercadoPagoCredentials {
   oauth_authorized: boolean;
@@ -18,6 +20,15 @@ interface PaymentStats {
   pendingPayments: number;
 }
 
+interface MercadoPagoUserInfo {
+  id: number;
+  nickname: string;
+  email: string;
+  first_name?: string;
+  last_name?: string;
+  country_id?: string;
+}
+
 export function MercadoPagoConnection() {
   const { user } = useAuth();
   const [credentials, setCredentials] = useState<MercadoPagoCredentials | null>(null);
@@ -25,6 +36,10 @@ export function MercadoPagoConnection() {
   const [connecting, setConnecting] = useState(false);
   const [paymentStats, setPaymentStats] = useState<PaymentStats | null>(null);
   const [loadingStats, setLoadingStats] = useState(false);
+  const [userInfo, setUserInfo] = useState<MercadoPagoUserInfo | null>(null);
+  const [loadingUserInfo, setLoadingUserInfo] = useState(false);
+  const [showDisconnectModal, setShowDisconnectModal] = useState(false);
+  const [disconnecting, setDisconnecting] = useState(false);
   const supabase = createClient();
 
   useEffect(() => {
@@ -33,10 +48,11 @@ export function MercadoPagoConnection() {
     }
   }, [user?.id]);
 
-  // Cargar estadísticas de pagos cuando esté conectado
+  // Cargar estadísticas de pagos y info del usuario cuando esté conectado
   useEffect(() => {
     if (credentials?.oauth_authorized && credentials.mercadopago_user_id) {
       loadPaymentStats();
+      loadUserInfo();
     }
   }, [credentials?.oauth_authorized, credentials?.mercadopago_user_id]);
 
@@ -167,6 +183,26 @@ export function MercadoPagoConnection() {
     }
   };
 
+  const loadUserInfo = async () => {
+    if (!user?.id) return;
+
+    try {
+      setLoadingUserInfo(true);
+      const response = await fetch('/api/mercadopago/user-info');
+      const result = await response.json();
+
+      if (response.ok && result.success) {
+        setUserInfo(result.user);
+      } else {
+        console.error('Error cargando info de usuario:', result.error);
+      }
+    } catch (error) {
+      console.error('Error cargando info de usuario:', error);
+    } finally {
+      setLoadingUserInfo(false);
+    }
+  };
+
   const handleConnect = async () => {
     if (!user?.id) return;
 
@@ -177,6 +213,34 @@ export function MercadoPagoConnection() {
     } catch (error) {
       console.error('Error al conectar:', error);
       setConnecting(false);
+    }
+  };
+
+  const handleDisconnect = async () => {
+    if (!user?.id) return;
+
+    setDisconnecting(true);
+    try {
+      const response = await fetch('/api/mercadopago/disconnect', {
+        method: 'POST',
+      });
+
+      const result = await response.json();
+
+      if (response.ok && result.success) {
+        toast.success('Cuenta desvinculada correctamente');
+        setCredentials({ oauth_authorized: false, mercadopago_user_id: null, oauth_authorized_at: null });
+        setUserInfo(null);
+        setPaymentStats(null);
+        setShowDisconnectModal(false);
+      } else {
+        toast.error(result.error || 'Error al desvincular cuenta');
+      }
+    } catch (error) {
+      console.error('Error al desvincular:', error);
+      toast.error('Error al desvincular cuenta');
+    } finally {
+      setDisconnecting(false);
     }
   };
 
@@ -213,28 +277,78 @@ export function MercadoPagoConnection() {
       <div className="space-y-4">
         {/* Estado de Conexión */}
         {isConnected ? (
-          <div className="space-y-3">
-            <div className="p-3 bg-green-500/10 border border-green-500/20 rounded-xl">
-              <div className="flex items-center gap-2 mb-2">
-                <CheckCircle2 className="w-5 h-5 text-green-400" />
-                <span className="text-sm font-medium text-green-400">
-                  Conectado correctamente
-                </span>
+          <div className="space-y-4">
+            {/* Información de la Cuenta Conectada */}
+            <div className="p-4 bg-gradient-to-r from-green-500/10 to-blue-500/10 border border-green-500/20 rounded-xl">
+              <div className="flex items-start justify-between mb-3">
+                <div className="flex items-center gap-2">
+                  <CheckCircle2 className="w-5 h-5 text-green-400" />
+                  <span className="text-sm font-semibold text-green-400">
+                    Cuenta Conectada
+                  </span>
+                </div>
               </div>
-              {credentials.mercadopago_user_id && (
-                <p className="text-xs text-gray-400">
-                  ID: {credentials.mercadopago_user_id}
-                </p>
+              
+              {loadingUserInfo ? (
+                <div className="flex items-center gap-2 py-2">
+                  <Loader2 className="w-4 h-4 animate-spin text-gray-400" />
+                  <span className="text-xs text-gray-400">Cargando información...</span>
+                </div>
+              ) : userInfo ? (
+                <div className="space-y-2">
+                  <div className="flex items-center gap-2">
+                    <User className="w-4 h-4 text-gray-400" />
+                    <span className="text-sm text-white font-medium">
+                      {userInfo.first_name && userInfo.last_name 
+                        ? `${userInfo.first_name} ${userInfo.last_name}`
+                        : userInfo.nickname || 'Usuario de Mercado Pago'}
+                    </span>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <Mail className="w-4 h-4 text-gray-400" />
+                    <span className="text-sm text-gray-300">{userInfo.email}</span>
+                  </div>
+                  {credentials.mercadopago_user_id && (
+                    <div className="mt-2 pt-2 border-t border-gray-700">
+                      <p className="text-xs text-gray-400">
+                        ID de Mercado Pago: <span className="text-gray-300 font-mono">{credentials.mercadopago_user_id}</span>
+                      </p>
+                      {credentials.oauth_authorized_at && (
+                        <p className="text-xs text-gray-400 mt-1">
+                          Conectado el {new Date(credentials.oauth_authorized_at).toLocaleDateString('es-AR', { 
+                            day: '2-digit', 
+                            month: '2-digit', 
+                            year: 'numeric' 
+                          })}
+                        </p>
+                      )}
+                    </div>
+                  )}
+                </div>
+              ) : (
+                <div className="space-y-1">
+                  {credentials.mercadopago_user_id && (
+                    <p className="text-xs text-gray-400">
+                      ID: {credentials.mercadopago_user_id}
+                    </p>
+                  )}
+                  {credentials.oauth_authorized_at && (
+                    <p className="text-xs text-gray-400">
+                      Conectado el {new Date(credentials.oauth_authorized_at).toLocaleDateString('es-AR')}
+                    </p>
+                  )}
+                </div>
               )}
-              {credentials.oauth_authorized_at && (
-                <p className="text-xs text-gray-400 mt-1">
-                  Conectado el {new Date(credentials.oauth_authorized_at).toLocaleDateString('es-AR')}
-                </p>
-              )}
+
+              {/* Botón de Desvincular */}
+              <button
+                onClick={() => setShowDisconnectModal(true)}
+                className="mt-3 w-full flex items-center justify-center gap-2 px-3 py-2 bg-red-500/10 hover:bg-red-500/20 border border-red-500/30 rounded-lg transition-colors text-red-400 text-sm font-medium"
+              >
+                <Unlink className="w-4 h-4" />
+                Desvincular Cuenta
+              </button>
             </div>
-            <p className="text-sm text-gray-400">
-              Ya puedes recibir pagos de tus actividades. Los pagos se dividirán automáticamente entre OMNIA y tu cuenta.
-            </p>
 
             {/* Estadísticas de Cobros */}
             {loadingStats ? (
@@ -243,6 +357,7 @@ export function MercadoPagoConnection() {
               </div>
             ) : paymentStats && (
               <div className="space-y-3">
+                <h4 className="text-sm font-semibold text-gray-300">Resumen de Cobros</h4>
                 <div className="grid grid-cols-2 gap-3">
                   <div className="p-3 bg-white/5 rounded-xl">
                     <div className="flex items-center gap-2 mb-1">
@@ -270,24 +385,24 @@ export function MercadoPagoConnection() {
                     </p>
                   </div>
                 </div>
-
-                {/* Información de Verificación */}
-                <div className="p-3 bg-blue-500/10 border border-blue-500/20 rounded-xl">
-                  <div className="flex items-start gap-2">
-                    <CheckCircle className="w-4 h-4 text-blue-400 mt-0.5" />
-                    <div className="flex-1">
-                      <p className="text-xs font-medium text-blue-400 mb-1">
-                        Verificación de Pagos
-                      </p>
-                      <p className="text-xs text-gray-400">
-                        Los pagos se verifican automáticamente mediante webhooks de Mercado Pago. 
-                        Recibirás notificaciones en tiempo real cuando se procesen tus cobros.
-                      </p>
-                    </div>
-                  </div>
-                </div>
               </div>
             )}
+
+            {/* Información de Verificación */}
+            <div className="p-3 bg-blue-500/10 border border-blue-500/20 rounded-xl">
+              <div className="flex items-start gap-2">
+                <CheckCircle className="w-4 h-4 text-blue-400 mt-0.5" />
+                <div className="flex-1">
+                  <p className="text-xs font-medium text-blue-400 mb-1">
+                    Verificación de Pagos
+                  </p>
+                  <p className="text-xs text-gray-400">
+                    Los pagos se verifican automáticamente mediante webhooks de Mercado Pago. 
+                    Recibirás notificaciones en tiempo real cuando se procesen tus cobros.
+                  </p>
+                </div>
+              </div>
+            </div>
           </div>
         ) : (
           <div className="space-y-3">
@@ -329,6 +444,18 @@ export function MercadoPagoConnection() {
           </div>
         )}
       </div>
+
+      {/* Modal de Confirmación de Desvinculación */}
+      <ConfirmationModal
+        isOpen={showDisconnectModal}
+        onClose={() => !disconnecting && setShowDisconnectModal(false)}
+        onConfirm={handleDisconnect}
+        title="Desvincular Cuenta de Mercado Pago"
+        description="¿Estás seguro de que deseas desvincular tu cuenta de Mercado Pago? Podrás volver a vincularla en cualquier momento usando el mismo proceso de inicio de sesión."
+        confirmText={disconnecting ? "Desvinculando..." : "Desvincular"}
+        cancelText="Cancelar"
+        variant="destructive"
+      />
     </div>
   );
 }
