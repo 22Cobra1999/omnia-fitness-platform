@@ -1,0 +1,61 @@
+import { NextRequest, NextResponse } from 'next/server';
+import { createRouteHandlerClient } from '@/lib/supabase/supabase-server';
+
+/**
+ * Endpoint para iniciar el flujo OAuth de Mercado Pago
+ * Redirige al coach a Mercado Pago para autorizar a OMNIA
+ */
+export async function GET(request: NextRequest) {
+  try {
+    const { searchParams } = new URL(request.url);
+    const coachId = searchParams.get('coach_id');
+
+    if (!coachId) {
+      return NextResponse.json({ error: 'coach_id es requerido' }, { status: 400 });
+    }
+
+    const supabase = await createRouteHandlerClient();
+    const { data: { session }, error: sessionError } = await supabase.auth.getSession();
+
+    if (sessionError || !session) {
+      return NextResponse.json({ error: 'No autorizado' }, { status: 401 });
+    }
+
+    // Verificar que el coach_id coincida con el usuario autenticado
+    if (session.user.id !== coachId) {
+      return NextResponse.json({ error: 'No autorizado para este coach' }, { status: 403 });
+    }
+
+    const clientId = process.env.MERCADOPAGO_CLIENT_ID;
+    const redirectUri = process.env.NEXT_PUBLIC_MERCADOPAGO_REDIRECT_URI || 
+                       `${process.env.NEXT_PUBLIC_APP_URL}/api/mercadopago/oauth/callback`;
+
+    if (!clientId) {
+      return NextResponse.json({ error: 'MERCADOPAGO_CLIENT_ID no configurado' }, { status: 500 });
+    }
+
+    // Construir URL de autorización de Mercado Pago
+    const authUrl = new URL('https://auth.mercadopago.com.ar/authorization');
+    authUrl.searchParams.set('client_id', clientId);
+    authUrl.searchParams.set('response_type', 'code');
+    authUrl.searchParams.set('platform_id', 'mp');
+    authUrl.searchParams.set('redirect_uri', redirectUri);
+    authUrl.searchParams.set('state', coachId); // Pasar coach_id en el state
+
+    // Redirigir a Mercado Pago
+    return NextResponse.redirect(authUrl.toString());
+
+  } catch (error: any) {
+    console.error('Error en OAuth authorize:', error);
+    return NextResponse.json({ 
+      error: 'Error interno del servidor',
+      details: error.message 
+    }, { status: 500 });
+  }
+}
+
+
+
+
+
+

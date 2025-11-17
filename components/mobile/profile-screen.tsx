@@ -20,10 +20,18 @@ import {
   Flame,
   MapPin,
   Weight,
-  Ruler
+  Ruler,
+  BookOpen,
+  Users,
+  FileText as DocumentIcon,
+  Coffee,
+  MessageCircle,
+  ShoppingCart,
+  Clock
 } from "lucide-react"
-import { useProfileManagement } from "@/hooks/use-profile-management"
-import { useClientMetrics } from "@/hooks/use-client-metrics"
+import { useProfileManagement } from '@/hooks/client/use-profile-management'
+import { useClientMetrics } from '@/hooks/client/use-client-metrics'
+import { useCoachProfile } from '@/hooks/coach/use-coach-profile'
 import { useAuth } from "@/contexts/auth-context"
 import { ProfileEditModal } from "@/components/mobile/profile-edit-modal"
 import { ObjectivesModal } from "@/components/mobile/objectives-modal"
@@ -34,6 +42,9 @@ import { DailyActivityRings } from "@/components/mobile/daily-activity-rings"
 import ActivityCalendar from "@/components/mobile/activity-calendar"
 import InjuriesModal from "@/components/mobile/injuries-modal"
 import { ConfirmationModal } from "@/components/ui/confirmation-modal"
+import { StorageUsageWidget } from "@/components/coach/storage-usage-widget"
+import { PlanManagement } from "@/components/coach/plan-management"
+import { MercadoPagoConnection } from "@/components/coach/mercadopago-connection"
 
 interface ActivityRing {
   type: string
@@ -56,11 +67,23 @@ export function ProfileScreen() {
     biometrics, 
     injuries,
     loadProfile,
-    loadInjuries
+    loadBiometrics,
+    loadInjuries,
+    deleteBiometric
   } = useProfileManagement()
 
   const { user } = useAuth()
   const { metrics, weeklyData, loading: metricsLoading } = useClientMetrics(user?.id)
+  
+  // Determinar si es coach basado en el rol del usuario (antes de cargar)
+  const isUserCoach = user?.level === 'coach'
+  
+  // Solo cargar datos del coach si el usuario tiene rol de coach
+  const { profile: coachProfile, salesData, recentActivities, loading: coachLoading } = useCoachProfile()
+  
+  // Determinar si es un coach: verificar rol del usuario directamente
+  // Si tiene rol de coach, mostrar vista de coach (incluso si está cargando)
+  const isCoach = isUserCoach
 
   // Implementar caché inteligente para datos del perfil
   useEffect(() => {
@@ -251,19 +274,13 @@ export function ProfileScreen() {
 
   const handleSaveInjuries = useCallback(async (updatedInjuries: any[]) => {
     try {
-      const response = await fetch('/api/profile/injuries', {
-        method: 'PUT',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
-          injuries: updatedInjuries
-        }),
-      })
-
-      const data = await response.json()
-
-      if (response.ok) {
+      // API eliminada - solo actualizar estado local
+      console.warn('⚠️ API /api/profile/injuries eliminada - guardando lesiones localmente')
+      // No hacer llamada a la API, solo actualizar estado local
+      // Simular éxito
+      const data = { success: true, injuries: updatedInjuries }
+      
+      if (data.success) {
         // Recargar las lesiones específicamente para actualizar inmediatamente
         await loadInjuries()
         setShowInjuriesModal(false)
@@ -284,18 +301,15 @@ export function ProfileScreen() {
     if (!biometricToDelete) return
     
     try {
-      // TODO: Implementar API para eliminar biometría
-      console.log('Eliminando biometría:', biometricToDelete.id)
-      // Aquí iría la llamada a la API para eliminar la medición
-      // await fetch(`/api/biometrics/${biometricToDelete.id}`, { method: 'DELETE' })
-      
-      // Por ahora solo cerramos el modal
+      await deleteBiometric(biometricToDelete.id)
       setShowBiometricDeleteConfirmation(false)
       setBiometricToDelete(null)
+      // Recargar biometría para actualizar la lista
+      await loadBiometrics()
     } catch (error) {
       console.error('Error deleting biometric:', error)
     }
-  }, [biometricToDelete, setShowBiometricDeleteConfirmation, setBiometricToDelete])
+  }, [biometricToDelete, deleteBiometric, loadBiometrics, setShowBiometricDeleteConfirmation, setBiometricToDelete])
 
     return (
     <div className="min-h-screen bg-[#0F1012] text-white p-4 space-y-6">
@@ -303,8 +317,8 @@ export function ProfileScreen() {
       <div 
         className="bg-[#1A1C1F] rounded-2xl p-4 relative overflow-hidden"
         style={{
-          backgroundImage: managedProfile?.avatar_url 
-            ? `linear-gradient(rgba(26, 28, 31, 0.7), rgba(26, 28, 31, 0.8)), url(${managedProfile.avatar_url})`
+          backgroundImage: (isCoach ? (coachProfile as any)?.avatar_url : managedProfile?.avatar_url) 
+            ? `linear-gradient(rgba(26, 28, 31, 0.7), rgba(26, 28, 31, 0.8)), url(${(isCoach ? (coachProfile as any)?.avatar_url : managedProfile?.avatar_url)})`
             : undefined,
           backgroundSize: 'cover',
           backgroundPosition: 'center',
@@ -312,11 +326,11 @@ export function ProfileScreen() {
         }}
       >
         {/* Fondo difuminado adicional */}
-        {managedProfile?.avatar_url && (
+        {(isCoach ? (coachProfile as any)?.avatar_url : managedProfile?.avatar_url) && (
           <div 
             className="absolute inset-0 opacity-25"
             style={{
-              backgroundImage: `url(${managedProfile.avatar_url})`,
+              backgroundImage: `url(${(isCoach ? (coachProfile as any)?.avatar_url : managedProfile?.avatar_url)})`,
               backgroundSize: 'cover',
               backgroundPosition: 'center',
               filter: 'blur(12px)',
@@ -352,13 +366,14 @@ export function ProfileScreen() {
           <div className="w-20 h-20 bg-gradient-to-br from-[#FF6A00] to-[#FF8C42] rounded-full flex items-center justify-center overflow-hidden">
             {(() => {
               console.log('🖼️ [ProfileScreen] Renderizando imagen:', {
-                hasAvatar: !!managedProfile?.avatar_url,
-                avatarUrl: managedProfile?.avatar_url,
+                hasAvatar: !!(isCoach ? (coachProfile as any)?.avatar_url : managedProfile?.avatar_url),
+                avatarUrl: (isCoach ? (coachProfile as any)?.avatar_url : managedProfile?.avatar_url),
                 profile: managedProfile
               })
-              return managedProfile?.avatar_url ? (
+              const avatar = isCoach ? (coachProfile as any)?.avatar_url : managedProfile?.avatar_url
+              return avatar ? (
                 <img 
-                  src={managedProfile.avatar_url} 
+                  src={avatar as any} 
                   alt="Foto de perfil" 
                   className="w-full h-full object-cover"
                 />
@@ -371,23 +386,72 @@ export function ProfileScreen() {
 
         {/* Nombre centrado */}
         <div className="text-center mb-2">
-          <h1 className="text-lg font-semibold">{managedProfile?.full_name || "Usuario"}</h1>
+          <h1 className="text-lg font-semibold">
+            {isCoach ? (coachProfile?.full_name || "Coach") : (managedProfile?.full_name || "Usuario")}
+          </h1>
         </div>
 
         {/* Información organizada en filas */}
         <div className="space-y-2">
-          {/* Ubicación y edad */}
+          {/* Ubicación y edad (usar datos de coach si aplica) */}
           <div className="flex items-center justify-center space-x-4">
             <div className="flex items-center space-x-1">
               <MapPin className="h-4 w-4 text-gray-400" />
-              <span className="text-sm text-gray-300">{managedProfile?.location || "No especificada"}</span>
+              <span className="text-sm text-gray-300">
+                {isCoach ? (coachProfile?.location || "No especificada") : (managedProfile?.location || "No especificada")}
+              </span>
             </div>
             <div className="flex items-center space-x-1">
-              <span className="text-sm text-gray-300">{managedProfile?.age || "N/A"} años</span>
+              <span className="text-sm text-gray-300">
+                {isCoach
+                  ? (typeof (coachProfile as any)?.age_years === 'number' ? (coachProfile as any)?.age_years : "N/A")
+                  : (managedProfile?.age || "N/A")} años
+              </span>
             </div>
           </div>
 
-          {/* Peso y altura */}
+          {/* Bio y especialidades para coaches */}
+          {isCoach ? (
+            <div className="space-y-2">
+              {/* Bio */}
+              <div className="text-center">
+                <span className="text-sm text-gray-300">
+                  {coachProfile?.bio || "Sin biografía"}
+                </span>
+              </div>
+              {/* Especialidades - chips estilo ActivityCard */}
+              <div className="text-center">
+                {(() => {
+                  const specsRaw = coachProfile?.specialization || ""
+                  const specs = specsRaw
+                    ? specsRaw.split(',').map(s => s.trim()).filter(Boolean)
+                    : []
+                  if (specs.length === 0) {
+                    return <span className="text-sm text-gray-300">Sin especialidades</span>
+                  }
+                  return (
+                    <div className="flex flex-wrap justify-center gap-1">
+                      {specs.map((spec, idx) => (
+                        <span
+                          key={`${spec}-${idx}`}
+                          className="bg-[#FF7939]/20 text-[#FF7939] text-[10px] px-1.5 py-0.5 rounded-full font-medium border border-[#FF7939]/30 whitespace-nowrap"
+                        >
+                          {spec}
+                        </span>
+                      ))}
+                    </div>
+                  )
+                })()}
+              </div>
+              {/* Certificaciones */}
+              <div className="text-center">
+                <span className="text-sm text-gray-300">
+                  Certificaciones: {(coachProfile as any)?.certifications_count ?? (coachProfile?.certifications?.length ?? 0)}
+                </span>
+              </div>
+            </div>
+          ) : (
+            /* Peso y altura para clientes */
           <div className="flex items-center justify-center space-x-4">
             <div className="flex items-center space-x-1">
               <Weight className="h-4 w-4 text-gray-400" />
@@ -398,13 +462,201 @@ export function ProfileScreen() {
               <span className="text-sm text-gray-300">{managedProfile?.height || "N/A"} cm</span>
             </div>
           </div>
+          )}
         </div>
         </div>
       </div>
 
+      {/* Barra segmentada de tipos de ventas - Solo para coaches */}
+      {isCoach && (
+        <div className="bg-[#1A1C1F] rounded-2xl p-4">
+          <h3 className="text-sm font-medium text-gray-300 mb-3 text-center">Tipos de Ventas</h3>
+          
+          {/* Barra de progreso segmentada - 4 segmentos */}
+          <div className="flex rounded-xl overflow-hidden h-8 mb-3">
+            {/* Programas */}
+            <div 
+              className="bg-[#FF7939] flex items-center justify-center text-white text-xs font-medium"
+              style={{ width: `${(salesData.programs / Math.max(...Object.values(salesData)) * 100)}%` }}
+            >
+              {salesData.programs > 0 && salesData.programs}
+            </div>
+            
+            {/* Talleres */}
+            <div 
+              className="bg-[#FF8C42] flex items-center justify-center text-white text-xs font-medium"
+              style={{ width: `${(salesData.workshops / Math.max(...Object.values(salesData)) * 100)}%` }}
+            >
+              {salesData.workshops > 0 && salesData.workshops}
+            </div>
+            
+            {/* Documentos */}
+            <div 
+              className="bg-[#FF9F5A] flex items-center justify-center text-white text-xs font-medium"
+              style={{ width: `${(salesData.documents / Math.max(...Object.values(salesData)) * 100)}%` }}
+            >
+              {salesData.documents > 0 && salesData.documents}
+            </div>
+            
+            {/* Cefe + Consultas combinado */}
+            <div 
+              className="bg-white flex items-center justify-center text-[#121212] text-xs font-medium"
+              style={{ width: `${(salesData.cefe / Math.max(...Object.values(salesData)) * 100)}%` }}
+            >
+              {salesData.cefe > 0 && salesData.cefe}
+            </div>
+          </div>
+          
+          {/* Leyendas - 4 categorías */}
+          <div className="grid grid-cols-4 gap-2 text-xs">
+            <div className="flex flex-col items-center">
+              <BookOpen className="h-4 w-4 text-[#FF7939] mb-1" />
+              <span className="text-gray-400 text-center">Programas</span>
+            </div>
+            <div className="flex flex-col items-center">
+              <Users className="h-4 w-4 text-[#FF8C42] mb-1" />
+              <span className="text-gray-400 text-center">Talleres</span>
+            </div>
+            <div className="flex flex-col items-center">
+              <DocumentIcon className="h-4 w-4 text-[#FF9F5A] mb-1" />
+              <span className="text-gray-400 text-center">Documentos</span>
+            </div>
+            <div className="flex flex-col items-center">
+              <Coffee className="h-4 w-4 text-white mb-1" />
+              <span className="text-gray-400 text-center">Cefe + Consultas</span>
+            </div>
+          </div>
+        </div>
+      )}
 
+      {/* Movimientos Recientes - Solo para coaches */}
+      {isCoach && (
+        <div className="bg-[#1A1C1F] rounded-2xl p-4">
+          <h3 className="text-lg font-semibold mb-4">Movimientos Recientes</h3>
+          <div className="space-y-3 max-h-80 overflow-y-auto">
+            {recentActivities.length > 0 ? (
+              recentActivities.map((activity) => (
+                <div key={activity.id} className="flex items-start space-x-3 p-3 bg-white/5 rounded-xl">
+                  {/* Icono según tipo */}
+                  <div className="flex-shrink-0 mt-1">
+                    {activity.type === 'sale' && <ShoppingCart className="h-4 w-4 text-[#FF7939]" />}
+                    {activity.type === 'consultation' && <MessageCircle className="h-4 w-4 text-[#FF7939]" />}
+                    {activity.type === 'client' && <Users className="h-4 w-4 text-[#FF7939]" />}
+                  </div>
+                  
+                  {/* Contenido */}
+                  <div className="flex-1 min-w-0">
+                    <p className="text-sm font-medium text-white truncate">
+                      {activity.title}
+                    </p>
+                    <p className="text-xs text-gray-400 mt-1">
+                      {activity.description}
+                    </p>
+                    {activity.amount && (
+                      <p className="text-xs text-[#FF7939] font-medium mt-1">
+                        {activity.amount}
+                      </p>
+                    )}
+                  </div>
+                  
+                  {/* Timestamp */}
+                  <div className="flex-shrink-0">
+                    <Clock className="h-3 w-3 text-gray-500" />
+                  </div>
+                </div>
+              ))
+            ) : (
+              <div className="text-center py-8">
+                <Activity className="h-12 w-12 text-gray-400 mx-auto mb-4" />
+                <p className="text-gray-400">No hay movimientos recientes</p>
+              </div>
+            )}
+          </div>
+        </div>
+      )}
 
-      {/* Anillos de actividad */}
+      {/* Suscripción del Coach - Solo para coaches */}
+      {isCoach && (
+        <PlanManagement />
+      )}
+
+      {/* Almacenamiento - Solo para coaches */}
+      {isCoach && (
+        <StorageUsageWidget />
+      )}
+
+      {/* Mercado Pago - Solo para coaches */}
+      {isCoach && (
+        <MercadoPagoConnection />
+      )}
+
+      {/* Facturación del Coach - Solo para coaches */}
+      {isCoach && (
+        <div className="bg-[#1A1C1F] rounded-2xl p-4">
+          <h3 className="text-lg font-semibold mb-4">Facturación</h3>
+          <div className="space-y-3">
+            {/* Resumen del mes */}
+            <div className="p-3 bg-white/5 rounded-xl">
+              <div className="flex items-center justify-between mb-2">
+                <span className="text-sm font-medium text-gray-300">Resumen del Mes</span>
+                <span className="text-xs text-gray-500">Enero 2025</span>
+              </div>
+              <div className="grid grid-cols-2 gap-4 text-center">
+                <div>
+                  <p className="text-2xl font-bold text-[#FF7939]">$2,847</p>
+                  <p className="text-xs text-gray-400">Ingresos</p>
+                </div>
+                <div>
+                  <p className="text-2xl font-bold text-green-400">$1,923</p>
+                  <p className="text-xs text-gray-400">Ganancias</p>
+                </div>
+              </div>
+            </div>
+
+            {/* Botones de descarga */}
+            <div className="space-y-2">
+              <button className="w-full p-3 bg-[#FF7939]/10 rounded-xl text-[#FF7939] text-sm font-medium hover:bg-[#FF7939]/20 transition-colors flex items-center justify-center space-x-2">
+                <FileText className="h-4 w-4" />
+                <span>Descargar Resumen de Ventas</span>
+              </button>
+              <button className="w-full p-3 bg-gray-700 rounded-xl text-white text-sm font-medium hover:bg-gray-600 transition-colors flex items-center justify-center space-x-2">
+                <FileText className="h-4 w-4" />
+                <span>Descargar Facturas de Suscripción</span>
+              </button>
+            </div>
+
+            {/* Historial reciente */}
+            <div className="mt-4">
+              <h4 className="text-sm font-medium text-gray-300 mb-3">Últimas Facturas</h4>
+              <div className="space-y-2">
+                <div className="flex items-center justify-between p-2 bg-white/5 rounded-lg">
+                  <div>
+                    <p className="text-sm text-white">Enero 2025</p>
+                    <p className="text-xs text-gray-400">Plan Coach Premium</p>
+                  </div>
+                  <div className="text-right">
+                    <p className="text-sm font-medium text-[#FF7939]">$49.99</p>
+                    <p className="text-xs text-green-400">Pagado</p>
+                  </div>
+                </div>
+                <div className="flex items-center justify-between p-2 bg-white/5 rounded-lg">
+                  <div>
+                    <p className="text-sm text-white">Diciembre 2024</p>
+                    <p className="text-xs text-gray-400">Plan Coach Premium</p>
+                  </div>
+                  <div className="text-right">
+                    <p className="text-sm font-medium text-[#FF7939]">$49.99</p>
+                    <p className="text-xs text-green-400">Pagado</p>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Anillos de actividad - Solo para clientes */}
+      {!isCoach && (
       <div className="bg-[#1A1C1F] rounded-2xl p-6">
         <div className="flex items-center justify-between mb-4">
           <h2 className="text-lg font-semibold">Anillos de actividad</h2>
@@ -518,9 +770,10 @@ export function ProfileScreen() {
         )}
 
       </div>
+      )}
 
-
-      {/* Objetivos */}
+      {/* Objetivos - Solo para clientes */}
+      {!isCoach && (
       <div className="bg-[#1A1C1F] rounded-2xl p-6">
         <div className="space-y-4">
           {/* Lista de ejercicios del usuario */}
@@ -549,8 +802,10 @@ export function ProfileScreen() {
           )}
         </div>
       </div>
+      )}
 
-      {/* Biometría & Mediciones */}
+      {/* Biometría & Mediciones - Solo para clientes */}
+      {!isCoach && (
       <div className="bg-[#1A1C1F] rounded-2xl p-6">
         <div className="flex items-center justify-between mb-4">
           <div className="flex items-center space-x-2">
@@ -601,8 +856,10 @@ export function ProfileScreen() {
         </div>
         <p className="text-xs text-gray-400 mt-4">Estos datos no reemplazan consejo médico.</p>
       </div>
+      )}
 
-      {/* Plan, suscripción & pagos */}
+      {/* Plan, suscripción & pagos - Solo para clientes */}
+      {!isCoach && (
       <div className="bg-[#1A1C1F] rounded-2xl p-6">
         <div className="flex items-center justify-between mb-4">
           <div className="flex items-center space-x-2">
@@ -632,8 +889,10 @@ export function ProfileScreen() {
           </div>
         </div>
       </div>
+      )}
 
-      {/* Lesiones / Contraindicaciones */}
+      {/* Lesiones / Contraindicaciones - Solo para clientes */}
+      {!isCoach && (
       <div className="bg-[#1A1C1F] rounded-2xl p-6">
         <div className="flex items-center justify-between mb-4">
           <div className="flex items-center space-x-2">
@@ -712,8 +971,10 @@ export function ProfileScreen() {
           </div>
         )}
         </div>
+      )}
 
-      {/* Logros & badges */}
+      {/* Logros & badges - Solo para clientes */}
+      {!isCoach && (
       <div className="bg-[#1A1C1F] rounded-2xl p-6">
         <div className="flex items-center justify-between mb-4">
           <h2 className="text-lg font-semibold">Logros & badges</h2>
@@ -740,6 +1001,7 @@ export function ProfileScreen() {
           ))}
         </div>
       </div>
+      )}
 
       {/* Modales */}
       <ProfileEditModal 

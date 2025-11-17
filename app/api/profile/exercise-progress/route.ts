@@ -1,236 +1,465 @@
-import { NextRequest, NextResponse } from 'next/server'
-import { createRouteHandlerClient } from '@/lib/supabase-server'
-import { cookies } from 'next/headers'
+import { NextRequest, NextResponse } from 'next/server';
+import { createRouteHandlerClient } from '@/lib/supabase/supabase-server';
+
+/**
+ * GET /api/profile/exercise-progress
+ * Obtiene el progreso de ejercicios del usuario autenticado
+ */
 export async function GET(request: NextRequest) {
   try {
-    const supabase = await createRouteHandlerClient()
+    const supabase = await createRouteHandlerClient();
+    
     // Verificar autenticación
-    const { data: { user }, error: authError } = await supabase.auth.getUser()
+    const { data: { user }, error: authError } = await supabase.auth.getUser();
+    
     if (authError || !user) {
-      return NextResponse.json({ error: 'No autorizado' }, { status: 401 })
+      return NextResponse.json(
+        { error: 'No autenticado' },
+        { status: 401 }
+      );
     }
-    // Obtener objetivos de ejercicios del usuario
-    const { data: exercises, error: exercisesError } = await supabase
+
+    // Consultar objetivos de ejercicios del usuario desde user_exercise_objectives
+    const { data: objectives, error: objectivesError } = await supabase
       .from('user_exercise_objectives')
-      .select('*')
+      .select('id, exercise_title, unit, current_value, objective, created_at, updated_at')
       .eq('user_id', user.id)
-      .order('created_at', { ascending: false })
-    if (exercisesError) {
-      console.error('Error fetching exercises:', exercisesError)
-      return NextResponse.json({ 
-        error: 'Error al obtener ejercicios', 
-        details: exercisesError.message,
-        code: exercisesError.code 
-      }, { status: 500 })
+      .order('created_at', { ascending: false });
+
+    // Si hay error con user_exercise_objectives, intentar con user_exercise_progress como fallback
+    if (objectivesError) {
+      // Si la tabla no existe, intentar con user_exercise_progress
+      if (objectivesError.code === '42P01' || objectivesError.message?.includes('does not exist')) {
+        console.log('Tabla user_exercise_objectives no existe, usando user_exercise_progress como fallback');
+        
+        const { data: exercises, error: progressError } = await supabase
+          .from('user_exercise_progress')
+          .select('id, exercise_title, unit, value_1, date_1, created_at, updated_at')
+          .eq('user_id', user.id)
+          .order('created_at', { ascending: false });
+
+        if (progressError) {
+          if (progressError.code === '42P01' || progressError.message?.includes('does not exist')) {
+            return NextResponse.json({
+              exercises: []
+            });
+          }
+          
+          console.error('Error consultando ejercicios:', progressError);
+          return NextResponse.json(
+            { 
+              error: 'Error al consultar ejercicios',
+              details: progressError.message,
+              code: progressError.code
+            },
+            { status: 500 }
+          );
+        }
+
+        // Transformar datos de user_exercise_progress
+        const formattedExercises = (exercises || []).map(exercise => ({
+          id: exercise.id,
+          exercise_title: exercise.exercise_title,
+          unit: exercise.unit,
+          current_value: exercise.value_1 ? parseFloat(exercise.value_1.toString()) : undefined,
+          objective: undefined,
+          created_at: exercise.created_at,
+          updated_at: exercise.updated_at || exercise.date_1
+        }));
+
+        return NextResponse.json({
+          exercises: formattedExercises
+        });
+      }
+      
+      console.error('Error consultando objetivos:', objectivesError);
+      return NextResponse.json(
+        { 
+          error: 'Error al consultar objetivos',
+          details: objectivesError.message,
+          code: objectivesError.code
+        },
+        { status: 500 }
+      );
     }
+
+    // Transformar los datos de user_exercise_objectives al formato esperado por el componente
+    const formattedExercises = (objectives || []).map(exercise => ({
+      id: exercise.id,
+      exercise_title: exercise.exercise_title,
+      unit: exercise.unit,
+      current_value: exercise.current_value ? parseFloat(exercise.current_value.toString()) : undefined,
+      objective: exercise.objective ? parseFloat(exercise.objective.toString()) : undefined,
+      created_at: exercise.created_at,
+      updated_at: exercise.updated_at
+    }));
+
     return NextResponse.json({
-      success: true,
-      exercises: exercises || []
-    })
-  } catch (error) {
-    console.error('Error in exercise progress get:', error)
-    return NextResponse.json({ error: 'Error interno del servidor' }, { status: 500 })
+      exercises: formattedExercises
+    });
+
+  } catch (error: any) {
+    console.error('Error en GET /api/profile/exercise-progress:', error);
+    return NextResponse.json(
+      {
+        error: 'Error interno del servidor',
+        details: error.message
+      },
+      { status: 500 }
+    );
   }
 }
+
+/**
+ * POST /api/profile/exercise-progress
+ * Crea o actualiza el progreso de un ejercicio
+ */
 export async function POST(request: NextRequest) {
   try {
-    const supabase = await createRouteHandlerClient()
+    const supabase = await createRouteHandlerClient();
+    
     // Verificar autenticación
-    const { data: { user }, error: authError } = await supabase.auth.getUser()
+    const { data: { user }, error: authError } = await supabase.auth.getUser();
+    
     if (authError || !user) {
-      return NextResponse.json({ error: 'No autorizado' }, { status: 401 })
+      return NextResponse.json(
+        { error: 'No autenticado' },
+        { status: 401 }
+      );
     }
-    const body = await request.json()
-    const { exercise_title, unit, value, exercise_id } = body
-    if ((!exercise_title && !exercise_id) || value === undefined) {
-      return NextResponse.json({ error: 'Faltan campos requeridos' }, { status: 400 })
+
+    const body = await request.json();
+    const { exercise_title, unit, current_value, objective } = body;
+
+    if (!exercise_title || !unit) {
+      return NextResponse.json(
+        { error: 'exercise_title y unit son requeridos' },
+        { status: 400 }
+      );
     }
-    // Si se proporciona exercise_id, buscar por ID, sino por título
-    let existingExercise
-    if (exercise_id) {
-      const { data } = await supabase
-        .from('user_exercise_objectives')
-        .select('*')
-        .eq('user_id', user.id)
-        .eq('id', exercise_id)
-        .single()
-      existingExercise = data
-    } else {
-      const { data } = await supabase
-        .from('user_exercise_objectives')
-        .select('*')
+
+    // Intentar usar user_exercise_objectives primero
+    let useObjectivesTable = true;
+    let existing = null;
+    
+    // Buscar si ya existe un objetivo con ese título para este usuario
+    const { data: existingObjective, error: checkError } = await supabase
+      .from('user_exercise_objectives')
+      .select('id, current_value, objective')
+      .eq('user_id', user.id)
+      .eq('exercise_title', exercise_title)
+      .maybeSingle();
+
+    if (checkError && checkError.code === '42P01') {
+      // Tabla no existe, usar user_exercise_progress como fallback
+      useObjectivesTable = false;
+      const { data: existingProgress } = await supabase
+        .from('user_exercise_progress')
+        .select('id, value_1')
         .eq('user_id', user.id)
         .eq('exercise_title', exercise_title)
-        .single()
-      existingExercise = data
+        .maybeSingle();
+      existing = existingProgress;
+    } else if (!checkError && existingObjective) {
+      existing = existingObjective;
     }
-    if (existingExercise) {
-      // Actualizar valor actual del ejercicio existente
-      const updateData = {
-        current_value: parseFloat(value),
-        updated_at: new Date().toISOString()
+
+    if (existing) {
+      // Actualizar objetivo existente
+      if (useObjectivesTable) {
+        const updateData: any = {
+          updated_at: new Date().toISOString()
+        };
+        
+        if (current_value !== undefined) updateData.current_value = parseFloat(current_value.toString());
+        if (objective !== undefined) updateData.objective = parseFloat(objective.toString());
+        if (unit !== undefined) updateData.unit = unit;
+
+        const { data: updated, error: updateError } = await supabase
+          .from('user_exercise_objectives')
+          .update(updateData)
+          .eq('id', existing.id)
+          .select()
+          .single();
+
+        if (updateError) {
+          console.error('Error actualizando objetivo:', updateError);
+          return NextResponse.json(
+            { error: 'Error al actualizar objetivo', details: updateError.message },
+            { status: 500 }
+          );
+        }
+
+        return NextResponse.json({
+          success: true,
+          exercise: {
+            id: updated.id,
+            exercise_title: updated.exercise_title,
+            unit: updated.unit,
+            current_value: updated.current_value ? parseFloat(updated.current_value.toString()) : undefined,
+            objective: updated.objective ? parseFloat(updated.objective.toString()) : undefined,
+            created_at: updated.created_at,
+            updated_at: updated.updated_at
+          }
+        });
+      } else {
+        // Fallback a user_exercise_progress
+        const updateData: any = {
+          value_1: current_value,
+          date_1: new Date().toISOString(),
+          updated_at: new Date().toISOString()
+        };
+
+        const { data: updated, error: updateError } = await supabase
+          .from('user_exercise_progress')
+          .update(updateData)
+          .eq('id', existing.id)
+          .select()
+          .single();
+
+        if (updateError) {
+          console.error('Error actualizando ejercicio:', updateError);
+          return NextResponse.json(
+            { error: 'Error al actualizar ejercicio', details: updateError.message },
+            { status: 500 }
+          );
+        }
+
+        return NextResponse.json({
+          success: true,
+          exercise: {
+            id: updated.id,
+            exercise_title: updated.exercise_title,
+            unit: updated.unit,
+            current_value: updated.value_1 ? parseFloat(updated.value_1.toString()) : undefined,
+            objective: undefined,
+            created_at: updated.created_at,
+            updated_at: updated.updated_at
+          }
+        });
       }
-      const { data: updatedExercise, error: updateError } = await supabase
-        .from('user_exercise_objectives')
-        .update(updateData)
-        .eq('id', existingExercise.id)
-        .select()
-        .single()
-      if (updateError) {
-        console.error('Error updating exercise:', updateError)
-        return NextResponse.json({ error: 'Error al actualizar ejercicio' }, { status: 500 })
-      }
-      return NextResponse.json({
-        success: true,
-        exercise: updatedExercise
-      })
     } else {
-      // Crear nuevo ejercicio
-      const { data: newExercise, error: createError } = await supabase
-        .from('user_exercise_objectives')
-        .insert({
-          user_id: user.id,
-          exercise_title,
-          unit,
-          current_value: parseFloat(value),
-          created_at: new Date().toISOString()
-        })
-        .select()
-        .single()
-      if (createError) {
-        console.error('Error creating exercise:', createError)
-        return NextResponse.json({ 
-          error: 'Error al crear ejercicio', 
-          details: createError.message,
-          code: createError.code 
-        }, { status: 500 })
+      // Crear nuevo objetivo
+      if (useObjectivesTable) {
+        const { data: created, error: insertError } = await supabase
+          .from('user_exercise_objectives')
+          .insert({
+            user_id: user.id,
+            exercise_title,
+            unit,
+            current_value: current_value ? parseFloat(current_value.toString()) : null,
+            objective: objective ? parseFloat(objective.toString()) : null
+          })
+          .select()
+          .single();
+
+        if (insertError) {
+          console.error('Error creando objetivo:', insertError);
+          return NextResponse.json(
+            { error: 'Error al crear objetivo', details: insertError.message },
+            { status: 500 }
+          );
+        }
+
+        return NextResponse.json({
+          success: true,
+          exercise: {
+            id: created.id,
+            exercise_title: created.exercise_title,
+            unit: created.unit,
+            current_value: created.current_value ? parseFloat(created.current_value.toString()) : undefined,
+            objective: created.objective ? parseFloat(created.objective.toString()) : undefined,
+            created_at: created.created_at,
+            updated_at: created.updated_at
+          }
+        });
+      } else {
+        // Fallback a user_exercise_progress
+        const { data: created, error: insertError } = await supabase
+          .from('user_exercise_progress')
+          .insert({
+            user_id: user.id,
+            exercise_title,
+            unit,
+            value_1: current_value,
+            date_1: new Date().toISOString()
+          })
+          .select()
+          .single();
+
+        if (insertError) {
+          console.error('Error creando ejercicio:', insertError);
+          return NextResponse.json(
+            { error: 'Error al crear ejercicio', details: insertError.message },
+            { status: 500 }
+          );
+        }
+
+        return NextResponse.json({
+          success: true,
+          exercise: {
+            id: created.id,
+            exercise_title: created.exercise_title,
+            unit: created.unit,
+            current_value: created.value_1 ? parseFloat(created.value_1.toString()) : undefined,
+            objective: undefined,
+            created_at: created.created_at,
+            updated_at: created.updated_at
+          }
+        });
       }
-      return NextResponse.json({
-        success: true,
-        exercise: newExercise
-      })
     }
-  } catch (error) {
-    console.error('Error in exercise progress post:', error)
-    return NextResponse.json({ error: 'Error interno del servidor' }, { status: 500 })
+
+  } catch (error: any) {
+    console.error('Error en POST /api/profile/exercise-progress:', error);
+    return NextResponse.json(
+      {
+        error: 'Error interno del servidor',
+        details: error.message
+      },
+      { status: 500 }
+    );
   }
 }
+
+/**
+ * PUT /api/profile/exercise-progress
+ * Actualiza un objetivo de ejercicio existente
+ */
 export async function PUT(request: NextRequest) {
   try {
-    const supabase = await createRouteHandlerClient()
+    const supabase = await createRouteHandlerClient();
+    
     // Verificar autenticación
-    const { data: { user }, error: authError } = await supabase.auth.getUser()
+    const { data: { user }, error: authError } = await supabase.auth.getUser();
+    
     if (authError || !user) {
-      console.error('Auth error in PUT:', authError)
-      return NextResponse.json({ error: 'No autorizado' }, { status: 401 })
+      return NextResponse.json(
+        { error: 'No autenticado' },
+        { status: 401 }
+      );
     }
-    const body = await request.json()
-    const { id, value_index, value, exercise_title, objective } = body
-    console.log('PUT request body:', { id, value_index, value, exercise_title, objective, valueType: typeof value })
+
+    const body = await request.json();
+    const { id, exercise_title, unit, current_value, objective } = body;
+
     if (!id) {
-      console.error('Missing required fields:', { id, value_index, value, exercise_title })
-      return NextResponse.json({ error: 'ID de ejercicio requerido' }, { status: 400 })
+      return NextResponse.json(
+        { error: 'id es requerido' },
+        { status: 400 }
+      );
     }
-    // Si se está editando el título o el objetivo
-    if (exercise_title || objective !== undefined) {
+
+    // Intentar actualizar en user_exercise_objectives primero
+    let useObjectivesTable = true;
+    
+    // Verificar si existe en user_exercise_objectives
+    const { data: existingObjective, error: checkError } = await supabase
+      .from('user_exercise_objectives')
+      .select('id')
+      .eq('id', id)
+      .eq('user_id', user.id)
+      .single();
+
+    if (checkError && checkError.code === '42P01') {
+      // Tabla no existe, usar user_exercise_progress como fallback
+      useObjectivesTable = false;
+    } else if (checkError || !existingObjective) {
+      // No encontrado en user_exercise_objectives, intentar user_exercise_progress
+      useObjectivesTable = false;
+    }
+
+    if (useObjectivesTable) {
+      // Actualizar en user_exercise_objectives
       const updateData: any = {
         updated_at: new Date().toISOString()
-      }
-      if (exercise_title) {
-        updateData.exercise_title = exercise_title.trim()
-      }
-      if (objective !== undefined) {
-        updateData.objective = objective ? parseFloat(objective) : null
-      }
-      const { data: updatedExercise, error: updateError } = await supabase
+      };
+      
+      if (exercise_title !== undefined) updateData.exercise_title = exercise_title;
+      if (unit !== undefined) updateData.unit = unit;
+      if (current_value !== undefined) updateData.current_value = parseFloat(current_value.toString());
+      if (objective !== undefined) updateData.objective = parseFloat(objective.toString());
+
+      const { data: updated, error: updateError } = await supabase
         .from('user_exercise_objectives')
         .update(updateData)
         .eq('id', id)
         .eq('user_id', user.id)
         .select()
-        .single()
+        .single();
+
       if (updateError) {
-        console.error('Error updating exercise:', updateError)
-        return NextResponse.json({ 
-          error: 'Error al actualizar ejercicio', 
-          details: updateError.message,
-          code: updateError.code 
-        }, { status: 500 })
+        console.error('Error actualizando objetivo:', updateError);
+        return NextResponse.json(
+          { error: 'Error al actualizar objetivo', details: updateError.message },
+          { status: 500 }
+        );
       }
-      console.log('Successfully updated exercise:', updatedExercise)
+
       return NextResponse.json({
         success: true,
-        exercise: updatedExercise
-      })
-    }
-    // Para la nueva estructura, solo manejamos actualización de current_value
-    if (value !== undefined && value !== null) {
-      const numericValue = parseFloat(value)
-      if (isNaN(numericValue)) {
-        console.error('Invalid numeric value:', value)
-        return NextResponse.json({ error: 'Valor numérico inválido' }, { status: 400 })
-      }
-      const updateData = {
-        current_value: numericValue,
+        exercise: {
+          id: updated.id,
+          exercise_title: updated.exercise_title,
+          unit: updated.unit,
+          current_value: updated.current_value ? parseFloat(updated.current_value.toString()) : undefined,
+          objective: updated.objective ? parseFloat(updated.objective.toString()) : undefined,
+          created_at: updated.created_at,
+          updated_at: updated.updated_at
+        }
+      });
+    } else {
+      // Fallback: actualizar en user_exercise_progress
+      const updateData: any = {
         updated_at: new Date().toISOString()
+      };
+      
+      if (exercise_title !== undefined) updateData.exercise_title = exercise_title;
+      if (unit !== undefined) updateData.unit = unit;
+      if (current_value !== undefined) {
+        updateData.value_1 = parseFloat(current_value.toString());
+        updateData.date_1 = new Date().toISOString();
       }
-      console.log('Update data:', updateData)
-      const { data: updatedExercise, error: updateError } = await supabase
-        .from('user_exercise_objectives')
+
+      const { data: updated, error: updateError } = await supabase
+        .from('user_exercise_progress')
         .update(updateData)
         .eq('id', id)
         .eq('user_id', user.id)
         .select()
-        .single()
+        .single();
+
       if (updateError) {
-        console.error('Error updating exercise value:', updateError)
-        return NextResponse.json({ 
-          error: 'Error al actualizar valor', 
-          details: updateError.message,
-          code: updateError.code 
-        }, { status: 500 })
+        console.error('Error actualizando ejercicio:', updateError);
+        return NextResponse.json(
+          { error: 'Error al actualizar ejercicio', details: updateError.message },
+          { status: 500 }
+        );
       }
-      console.log('Successfully updated exercise:', updatedExercise)
+
       return NextResponse.json({
         success: true,
-        exercise: updatedExercise
-      })
+        exercise: {
+          id: updated.id,
+          exercise_title: updated.exercise_title,
+          unit: updated.unit,
+          current_value: updated.value_1 ? parseFloat(updated.value_1.toString()) : undefined,
+          objective: undefined,
+          created_at: updated.created_at,
+          updated_at: updated.updated_at
+        }
+      });
     }
-    return NextResponse.json({ error: 'No se proporcionó valor para actualizar' }, { status: 400 })
-  } catch (error) {
-    console.error('Error in exercise progress put:', error)
-    return NextResponse.json({ error: 'Error interno del servidor' }, { status: 500 })
+
+  } catch (error: any) {
+    console.error('Error en PUT /api/profile/exercise-progress:', error);
+    return NextResponse.json(
+      {
+        error: 'Error interno del servidor',
+        details: error.message
+      },
+      { status: 500 }
+    );
   }
 }
-export async function DELETE(request: NextRequest) {
-  try {
-    const supabase = await createRouteHandlerClient()
-    // Verificar autenticación
-    const { data: { user }, error: authError } = await supabase.auth.getUser()
-    if (authError || !user) {
-      return NextResponse.json({ error: 'No autorizado' }, { status: 401 })
-    }
-    const { searchParams } = new URL(request.url)
-    const exerciseId = searchParams.get('id')
-    if (!exerciseId) {
-      return NextResponse.json({ error: 'ID de ejercicio requerido' }, { status: 400 })
-    }
-    // Eliminar el ejercicio
-    const { error: deleteError } = await supabase
-      .from('user_exercise_objectives')
-      .delete()
-      .eq('id', exerciseId)
-      .eq('user_id', user.id)
-    if (deleteError) {
-      console.error('Error deleting exercise:', deleteError)
-      return NextResponse.json({ error: 'Error al eliminar ejercicio' }, { status: 500 })
-    }
-    return NextResponse.json({
-      success: true,
-      message: 'Ejercicio eliminado correctamente'
-    })
-  } catch (error) {
-    console.error('Error in exercise progress delete:', error)
-    return NextResponse.json({ error: 'Error interno del servidor' }, { status: 500 })
-  }
-}
+
