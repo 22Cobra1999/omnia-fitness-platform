@@ -46,6 +46,16 @@ export async function GET(request: NextRequest) {
     authUrl.searchParams.set('platform_id', 'mp');
     authUrl.searchParams.set('redirect_uri', redirectUri);
     authUrl.searchParams.set('state', coachId); // Pasar coach_id en el state
+    
+    // Forzar pantalla de login/selección de cuenta
+    // prompt=login: fuerza al usuario a iniciar sesión nuevamente
+    // Esto asegura que el usuario pueda elegir con qué cuenta conectarse
+    // Si Mercado Pago no soporta 'prompt', también intentamos con 'force_login'
+    authUrl.searchParams.set('prompt', 'login');
+    
+    // Parámetro adicional para asegurar que se muestre la pantalla de selección
+    // Algunos proveedores OAuth usan este parámetro para forzar login
+    authUrl.searchParams.set('force_login', 'true');
 
     // Redirigir a Mercado Pago
     return NextResponse.redirect(authUrl.toString());

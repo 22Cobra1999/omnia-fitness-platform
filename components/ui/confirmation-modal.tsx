@@ -14,12 +14,13 @@ import { AlertTriangle } from "lucide-react"
 interface ConfirmationModalProps {
   isOpen: boolean
   onClose: () => void
-  onConfirm: () => void
+  onConfirm: () => void | Promise<void>
   title: string
   description: string
   confirmText?: string
   cancelText?: string
   variant?: "default" | "destructive"
+  isLoading?: boolean
 }
 
 export function ConfirmationModal({
@@ -30,11 +31,12 @@ export function ConfirmationModal({
   description,
   confirmText = "Confirmar",
   cancelText = "Cancelar",
-  variant = "default"
+  variant = "default",
+  isLoading = false
 }: ConfirmationModalProps) {
-  const handleConfirm = () => {
-    onConfirm()
-    onClose()
+  const handleConfirm = async () => {
+    await onConfirm()
+    // No cerrar automáticamente - dejar que el componente padre maneje el cierre
   }
 
   return (
@@ -61,6 +63,7 @@ export function ConfirmationModal({
             variant={variant === "destructive" ? "destructive" : "default"}
             onClick={handleConfirm}
             className="w-full sm:w-auto"
+            disabled={isLoading}
           >
             {confirmText}
           </Button>
