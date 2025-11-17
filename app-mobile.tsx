@@ -2,27 +2,28 @@
 
 import { useState, useEffect, Suspense } from "react"
 import { useSearchParams } from "next/navigation"
-import ErrorBoundary from "@/components/ErrorBoundary"
-import { useErrorHandler } from "@/hooks/use-error-handler"
+import ErrorBoundary from '@/components/shared/misc/ErrorBoundary'
+import { useErrorHandler } from '@/components/shared/misc/error-boundary'
 import { BottomNavigation } from "@/components/mobile/bottom-navigation"
 import ProfileScreen from "@/components/mobile/profile-screen"
 import { CommunityScreen } from "@/components/mobile/community-screen"
 import { CalendarScreen } from "@/components/calendar/CalendarScreen"
+import CoachCalendarScreen from "@/components/coach/coach-calendar-screen"
 import { ClientsScreen } from "@/components/mobile/clients-screen"
 import { SearchScreen } from "@/components/mobile/search-screen"
 import { ActivityScreen } from "@/components/mobile/activity-screen"
 import { useAuth } from "@/contexts/auth-context"
 import { usePopup } from "@/contexts/popup-context"
 import { SignInPopup } from "@/components/auth/sign-in-popup"
-import { WelcomePopup } from "@/components/welcome-popup"
-import { SettingsIcon } from "@/components/settings-icon"
-import { MessagesIcon } from "@/components/messages-icon"
+import { WelcomePopup } from '@/components/shared/misc/welcome-popup'
+import { SettingsIcon } from '@/components/shared/ui/settings-icon'
+import { MessagesIcon } from '@/components/shared/ui/messages-icon'
 import ProductsManagementScreen from "@/components/mobile/products-management-screen"
-import { OmniaLogoText } from "@/components/omnia-logo"
-import { useCoachStorageInitialization } from "@/hooks/use-coach-storage-initialization"
-import { UsageReportButton } from "@/components/usage-report-button"
-import { AutoUsageTracker } from "@/components/auto-usage-tracker"
-import { trackComponent } from "@/lib/usage-tracker"
+import { OmniaLogoText } from '@/components/shared/ui/omnia-logo'
+import { useCoachStorageInitialization } from '@/hooks/coach/use-coach-storage-initialization'
+import { UsageReportButton } from '@/components/shared/admin/usage-report-button'
+import { AutoUsageTracker } from '@/components/shared/admin/auto-usage-tracker'
+import { trackComponent } from '@/lib/logging/usage-tracker'
 
 
 export default function MobileApp() {
@@ -111,6 +112,27 @@ export default function MobileApp() {
     }, 100)
   }, [activeTab])
 
+  // Listener para navegación desde otros componentes
+  useEffect(() => {
+    const handleNavigateToTab = (event: CustomEvent) => {
+      const { tab, section } = event.detail
+      if (tab) {
+        setActiveTab(tab)
+        // Si hay una sección específica, disparar evento para que el componente la maneje
+        if (section) {
+          setTimeout(() => {
+            window.dispatchEvent(new CustomEvent('navigateToSection', { detail: { section } }))
+          }, 500)
+        }
+      }
+    }
+
+    window.addEventListener('navigateToTab', handleNavigateToTab as EventListener)
+    return () => {
+      window.removeEventListener('navigateToTab', handleNavigateToTab as EventListener)
+    }
+  }, [])
+
   const renderScreen = () => {
     switch (activeTab) {
       // Coach screens
@@ -121,7 +143,7 @@ export default function MobileApp() {
 
       // Client screens
       case "search":
-        return <SearchScreen />
+        return <SearchScreen onTabChange={setActiveTab} />
       case "activity":
         return <ActivityScreen />
 
@@ -129,8 +151,10 @@ export default function MobileApp() {
       case "community":
         return <CommunityScreen />
       case "calendar":
-        // Calendario universal para coaches y clientes
-        return <CalendarScreen onTabChange={setActiveTab} />
+        // Calendario diferente según el rol
+        return userRole === "coach" 
+          ? <CoachCalendarScreen onTabChange={setActiveTab} />
+          : <CalendarScreen onTabChange={setActiveTab} />
       case "profile":
         // Perfil universal para coaches y clientes
         return <ProfileScreen />

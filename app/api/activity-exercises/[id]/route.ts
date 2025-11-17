@@ -1,116 +1,137 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { createClient } from '@supabase/supabase-js'
+import { createRouteHandlerClient } from '@/lib/supabase/supabase-server'
+import {
+  getActiveFlagForActivity,
+  normalizeActivityMap
+} from '@/lib/utils/exercise-activity-map'
+
+type RouteParams = {
+  params: Promise<{ id: string }>
+}
 
 export async function GET(
   request: NextRequest,
-  { params }: { params: Promise<{ id: string }> }
+  context: RouteParams
 ) {
-        try {
-          const { id } = await params
-          const activityId = parseInt(id)
+  try {
+    const supabase = await createRouteHandlerClient()
 
-    if (!activityId) {
-      return NextResponse.json(
-        { error: 'ID de actividad requerido' },
-        { status: 400 }
-      )
+    const { data: { user }, error: authError } = await supabase.auth.getUser()
+
+    if (authError || !user) {
+      return NextResponse.json({ error: 'No autenticado' }, { status: 401 })
     }
 
-    // Usar service role key para bypass RLS
-    const supabase = createClient(
-      process.env.NEXT_PUBLIC_SUPABASE_URL!,
-      process.env.SUPABASE_SERVICE_ROLE_KEY!
-    )
+    const { id } = await context.params
 
-    // Consultar ejercicios existentes con estructura básica
-    const { data: exercises, error } = await supabase
+    const activityId = parseInt(id)
+
+    if (!activityId || isNaN(activityId)) {
+      return NextResponse.json({ 
+        success: false, 
+        error: 'ID de actividad inválido' 
+      }, { status: 400 })
+    }
+
+    // Verificar que el usuario tenga acceso a esta actividad (sea el coach o esté inscrito)
+    const { data: activity, error: activityError } = await supabase
+      .from('activities')
+      .select('id, coach_id, categoria')
+      .eq('id', activityId)
+      .single()
+
+    if (activityError || !activity) {
+      return NextResponse.json({ 
+        success: false, 
+        error: 'Actividad no encontrada' 
+      }, { status: 404 })
+    }
+
+    // Verificar acceso: el usuario debe ser el coach o estar inscrito
+    const isCoach = activity.coach_id === user.id
+    
+    let hasAccess = isCoach
+    
+    if (!hasAccess) {
+      // Verificar si el usuario está inscrito como cliente
+      const { data: enrollment } = await supabase
+        .from('activity_enrollments')
+        .select('id')
+        .eq('activity_id', activityId)
+        .eq('client_id', user.id)
+        .maybeSingle()
+      
+      hasAccess = !!enrollment
+    }
+
+    if (!hasAccess) {
+      return NextResponse.json({ 
+        success: false, 
+        error: 'No tienes acceso a esta actividad' 
+      }, { status: 403 })
+    }
+
+    // Obtener ejercicios de la actividad desde ejercicios_detalles
+    const activityKey = id
+    const activityKeyObj = { [activityKey]: {} }
+
+    const { data: exercises, error: exercisesError } = await supabase
       .from('ejercicios_detalles')
-      .select(`
-        id,
-        activity_id,
-        nombre_ejercicio,
-        descripcion,
-        tipo,
-        equipo,
-        body_parts,
-        calorias,
-        intensidad,
-        detalle_series,
-        video_url,
-        created_at
-      `)
-      .eq('activity_id', activityId)
+      .select('*')
+      .contains('activity_id', activityKeyObj)
       .order('id', { ascending: true })
 
-          if (error) {
-            return NextResponse.json(
-              { error: 'Error consultando ejercicios' },
-              { status: 500 }
-            )
-          }
+    if (exercisesError) {
+      console.error('Error obteniendo ejercicios:', exercisesError)
+      return NextResponse.json({ 
+        success: false, 
+        error: 'Error al obtener ejercicios',
+        details: exercisesError.message 
+      }, { status: 500 })
+    }
 
-    // Transformar datos al formato esperado por el frontend (nuevo esquema sin día/semana/mes)
-    const transformedData: any[] = []
-    
-    exercises?.forEach(exercise => {
-      const baseData = {
+    // Transformar los ejercicios al formato esperado por el frontend
+    const transformedExercises = (exercises || []).map((exercise: any) => {
+      const activityMap = normalizeActivityMap(exercise.activity_id)
+      const primaryActivityIdKey = Object.keys(activityMap)[0]
+      const primaryActivityId = primaryActivityIdKey ? parseInt(primaryActivityIdKey, 10) : null
+      const isActive = getActiveFlagForActivity(activityMap, activityId, true)
+
+      return {
         id: exercise.id,
-        'Nombre de la Actividad': exercise.nombre_ejercicio,
-        'Descripción': exercise.descripcion,
-        'Duración (min)': (exercise.duracion_min || 30).toString(),
-        'Tipo de Ejercicio': exercise.tipo,
-        'Nivel de Intensidad': exercise.intensidad || 'Medio',
-        'Equipo Necesario': exercise.equipo,
-        'Partes del Cuerpo': exercise.body_parts,
-        'Calorías': exercise.calorias?.toString() || '0',
-        'Detalle de Series (peso-repeticiones-series)': formatSeriesForDisplay((exercise as any).detalle_series),
-        video_url: exercise.video_url || null,
-        created_at: exercise.created_at,
-        isExisting: true, // Marcar como existente
-        // Nuevos campos
-        periodo: exercise.periodo || 1,
-        bloque: exercise.bloque || 1,
-        orden: exercise.orden || 1,
-        // Información de período (por ahora hardcodeado)
-        periodo_info: null,
-        nombre_periodo: `Período ${exercise.periodo || 1}`,
-        descripcion_periodo: '',
-        duracion_semanas: 1,
-        periodo_activo: true
+        nombre_ejercicio: exercise.nombre_ejercicio,
+        tipo: exercise.tipo,
+        descripcion: exercise.descripcion,
+        calorias: exercise.calorias,
+        intensidad: exercise.intensidad,
+        video_url: exercise.video_url,
+        video_file_name: exercise.video_file_name || null,
+        bunny_video_id: exercise.bunny_video_id || null,
+        bunny_library_id: exercise.bunny_library_id || null,
+        video_thumbnail_url: exercise.video_thumbnail_url || null,
+        equipo: exercise.equipo,
+        body_parts: exercise.body_parts,
+        detalle_series: exercise.detalle_series,
+        duracion_min: exercise.duracion_min,
+        is_active: isActive,
+        activo: isActive,
+        activity_map: activityMap,
+        activity_id: primaryActivityId,
+        activity_assignments: activityMap
       }
-      
-      // Agregar fila base (sin intensidades relacionadas)
-      transformedData.push(baseData)
     })
-
-          // Función para formatear series para display
-          function formatSeriesForDisplay(series: any): string {
-            if (!series) {
-              return ''
-            }
-            if (typeof series === 'string') {
-              return series
-            }
-            if (Array.isArray(series)) {
-              const result = series.map((serie: any) => 
-                `(${serie.peso}-${serie.repeticiones}-${serie.series})`
-              ).join(';')
-              return result
-            }
-            return ''
-          }
 
     return NextResponse.json({
       success: true,
-      data: transformedData,
-      count: transformedData.length
+      data: transformedExercises
     })
-
-  } catch (error) {
-    console.error('Error en endpoint:', error)
-    return NextResponse.json(
-      { error: 'Error interno del servidor' },
-      { status: 500 }
-    )
+  } catch (error: any) {
+    console.error('Error en /api/activity-exercises/[id]:', error)
+    return NextResponse.json({ 
+      success: false, 
+      error: 'Error interno del servidor',
+      details: error.message 
+    }, { status: 500 })
   }
 }
+

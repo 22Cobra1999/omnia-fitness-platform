@@ -17,23 +17,7 @@ export async function purchaseActivity(activityId: number, paymentMethod: string
 
   const client_id = user.id
 
-  // Check if already enrolled
-  const { data: existingEnrollment, error: existingEnrollmentError } = await supabase
-    .from("activity_enrollments")
-    .select("id")
-    .eq("activity_id", activityId)
-    .eq("client_id", client_id)
-    .maybeSingle()
-
-  if (existingEnrollmentError) {
-    console.error("Error checking existing enrollment:", existingEnrollmentError)
-    return { success: false, error: "Error checking existing enrollment." }
-  }
-
-  if (existingEnrollment) {
-    return { success: false, error: "Ya estás inscrito en esta actividad." }
-  }
-
+  // Permitir múltiples compras - eliminada validación de compra única
   try {
     // 1. Insert into activity_enrollments
     const { data: enrollment, error: enrollmentError } = await supabase

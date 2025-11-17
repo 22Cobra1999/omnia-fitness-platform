@@ -1,7 +1,7 @@
 "use client"
 import { Clock } from "lucide-react"
 
-import { cn } from "@/lib/utils"
+import { cn } from '@/lib/utils/utils'
 import { Button } from "@/components/ui/button"
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover"
 import { Input } from "@/components/ui/input"

@@ -1,13 +1,14 @@
 "use client"
 
-import { useState, useEffect, useCallback, useMemo, memo } from "react"
+import { useState, useEffect, useCallback, useMemo, memo, useRef } from "react"
 import { Button } from "@/components/ui/button"
 import { Plus, TrendingUp, Users, DollarSign, Package, Filter, ArrowUpDown, ArrowUp, ArrowDown, ChevronDown, Edit, Trash2, X, Coffee, Clock, Pencil } from "lucide-react"
 import { Badge } from "@/components/ui/badge"
-import CreateProductModal from "@/components/create-product-modal-refactored"
-import ActivityCard from "@/components/ActivityCard"
-import ClientProductModal from "@/components/client-product-modal"
-import { API_ENDPOINTS } from "@/lib/api-config"
+import CreateProductModal from '@/components/shared/products/create-product-modal-refactored'
+import ActivityCard from '@/components/shared/activities/ActivityCard'
+import ClientProductModal from '@/components/client/activities/client-product-modal'
+import { API_ENDPOINTS } from '@/lib/config/api-config'
+import { useUser } from '@/contexts/user-context'
 
 type Product = {
   id: number
@@ -27,6 +28,7 @@ type Product = {
   image_url?: string
   media?: { image_url?: string }
   sessions_per_client?: number
+  is_paused?: boolean
 }
 
 type SortField = 'title' | 'type' | 'price' | 'created_at'
@@ -66,6 +68,7 @@ interface ProductsManagementScreenProps {
 }
 
 export default function ProductsManagementScreen({ onTabChange }: ProductsManagementScreenProps = {}) {
+  const { user } = useUser()
   const [isModalOpen, setIsModalOpen] = useState(false)
   const [editingProduct, setEditingProduct] = useState<Product | null>(null)
   const [selectedProduct, setSelectedProduct] = useState<Product | null>(null)
@@ -126,6 +129,15 @@ export default function ProductsManagementScreen({ onTabChange }: ProductsManage
       
       if (result.success) {
         setProducts(result.products || [])
+        
+        // Actualizar el producto seleccionado si existe (usando el estado actual)
+        setSelectedProduct(prev => {
+          if (prev) {
+            const updatedProduct = result.products?.find((p: Product) => p.id === prev.id)
+            return updatedProduct || prev
+          }
+          return prev
+        })
       } else {
         console.error('Error cargando productos:', result.error)
       }
@@ -138,132 +150,72 @@ export default function ProductsManagementScreen({ onTabChange }: ProductsManage
     } finally {
       setLoading(false)
     }
-  }, [])
+  }, []) // Sin dependencias para evitar loops
 
   // Cargar consultas del coach desde Supabase - Memoizado
+  // NOTA: API eliminada - usando valores por defecto
   const fetchConsultations = useCallback(async () => {
-    try {
-      const controller = new AbortController()
-      const timeoutId = setTimeout(() => controller.abort(), 15000) // 15 segundos timeout
-      
-      const response = await fetch(API_ENDPOINTS.COACH_CONSULTATIONS, {
-        signal: controller.signal,
-        headers: {
-          'Content-Type': 'application/json',
-        }
-      })
-      
-      clearTimeout(timeoutId)
-      const result = await response.json()
-      
-      if (result.success) {
-        setConsultations(result.consultations)
-      } else {
-        console.error('Error cargando consultas:', result.error)
-        // Fallback a datos por defecto si hay error
-        const defaultConsultations = {
-          cafe: { active: false, price: 0 },
-          meet30: { active: false, price: 0 },
-          meet60: { active: false, price: 0 }
-        }
-        setConsultations(defaultConsultations)
-      }
-    } catch (error) {
-      if (error.name === 'AbortError') {
-        console.warn('Timeout al obtener consultas - usando datos por defecto')
-      } else {
-        console.warn('Error al obtener consultas:', error)
-      }
-      // Fallback a datos por defecto si hay error
-      const defaultConsultations = {
-        cafe: { active: false, price: 0 },
-        meet30: { active: false, price: 0 },
-        meet60: { active: false, price: 0 }
-      }
-      setConsultations(defaultConsultations)
+    // API eliminada - usar valores por defecto
+    const defaultConsultations = {
+      cafe: { active: false, price: 0 },
+      meet30: { active: false, price: 0 },
+      meet60: { active: false, price: 0 }
     }
+    setConsultations(defaultConsultations)
   }, [])
 
-  // Cargar estadísticas del coach desde Supabase - Memoizado
+  // Cargar/derivar estadísticas del coach a partir de los productos obtenidos
   const fetchStats = useCallback(async () => {
-    try {
-      const controller = new AbortController()
-      const timeoutId = setTimeout(() => controller.abort(), 8000) // 8 segundos timeout
-      
-      const response = await fetch(API_ENDPOINTS.COACH_STATS, {
-        signal: controller.signal,
-        headers: {
-          'Content-Type': 'application/json',
-        }
-      })
-      
-      clearTimeout(timeoutId)
-      const result = await response.json()
-      
-      if (result.success) {
-        setStats(result.stats)
-      } else {
-        console.error('Error cargando estadísticas:', result.error)
-        // Usar valores por defecto si hay error
-        setStats({
-          totalProducts: 0,
-          totalRevenue: 0,
-          avgRating: 0,
-          totalReviews: 0,
-          totalEnrollments: 0,
-          totalSales: 0
-        })
-      }
-    } catch (error) {
-      if (error.name === 'AbortError') {
-        console.error('Timeout al obtener estadísticas')
-      } else {
-        console.error('Error al obtener estadísticas:', error)
-      }
-      // Usar valores por defecto si hay error
-      setStats({
-        totalProducts: 0,
+    // Derivar desde la lista de productos ya cargada
+    setStats(prev => {
+      const totalProducts = products.length
+      const ratings = products
+        .map((p: any) => (typeof p.program_rating === 'number' ? p.program_rating : null))
+        .filter((v: number | null): v is number => v !== null)
+      const totalReviews = products
+        .map((p: any) => (typeof p.total_program_reviews === 'number' ? p.total_program_reviews : 0))
+        .reduce((a, b) => a + b, 0)
+      const avgRating = ratings.length > 0 ? ratings.reduce((a, b) => a + b, 0) / ratings.length : 0
+      // Ingresos/ventas reales requieren endpoints; dejar 0 hasta conectar API
+      return {
+        totalProducts,
         totalRevenue: 0,
-        avgRating: 0,
-        totalReviews: 0,
-        totalEnrollments: 0,
-        totalSales: 0
-      })
-    }
-  }, [])
+        avgRating,
+        totalReviews,
+        totalEnrollments: prev.totalEnrollments || 0,
+        totalSales: prev.totalSales || 0
+      }
+    })
+  }, [products])
 
   // Guardar consultas del coach en Supabase
+  // NOTA: API eliminada - función deshabilitada
   const saveConsultations = async () => {
-    try {
-      const response = await fetch(API_ENDPOINTS.COACH_CONSULTATIONS, {
-        method: 'PUT',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({ consultations })
-      })
-      
-      const result = await response.json()
-      
-      if (result.success) {
-        // console.log('✅ Consultas guardadas correctamente')
-      } else {
-        console.error('Error guardando consultas:', result.error)
-      }
-    } catch (error) {
-      console.error('Error al guardar consultas:', error)
-    }
+    // API eliminada - no se puede guardar
+    console.warn('⚠️ API de consultas eliminada - no se puede guardar')
   }
 
+  // Usar refs para mantener referencias estables a las funciones
+  const fetchProductsRef = useRef(fetchProducts)
+  const fetchConsultationsRef = useRef(fetchConsultations)
+  const fetchStatsRef = useRef(fetchStats)
+  
+  // Actualizar refs cuando las funciones cambian
+  useEffect(() => {
+    fetchProductsRef.current = fetchProducts
+    fetchConsultationsRef.current = fetchConsultations
+    fetchStatsRef.current = fetchStats
+  }, [fetchProducts, fetchConsultations, fetchStats])
+  
   useEffect(() => {
     // Cargar datos de forma secuencial para evitar sobrecarga
     const loadData = async () => {
       try {
         // Esperar un poco para que la autenticación se complete
         await new Promise(resolve => setTimeout(resolve, 1000))
-        await fetchProducts()
-        await fetchConsultations()
-        await fetchStats()
+        await fetchProductsRef.current()
+        await fetchConsultationsRef.current()
+        await fetchStatsRef.current()
       } catch (error) {
         console.error('Error cargando datos iniciales:', error)
       }
@@ -273,22 +225,49 @@ export default function ProductsManagementScreen({ onTabChange }: ProductsManage
     
     // Escuchar eventos de producto creado
     const handleProductCreated = (event: CustomEvent) => {
-      fetchProducts() // Recargar productos
+      console.log('📦 Evento productCreated recibido')
+      fetchProductsRef.current() // Recargar productos
     }
     
-    // Escuchar eventos de producto actualizado
+    // Escuchar eventos de producto actualizado (solo cuando realmente se necesita)
     const handleProductUpdated = (event: CustomEvent) => {
-      fetchProducts() // Recargar productos
+      const { productId } = event.detail
+      console.log('🔄 Evento productUpdated recibido para producto:', productId)
+      // Solo recargar si no es un cambio de pausa (eso se maneja con productPauseChanged)
+      // No recargamos aquí para evitar loops, solo actualizamos estadísticas
+    }
+    
+    // Escuchar eventos de cambio de pausa (más rápido, solo actualiza el estado)
+    const handleProductPauseChanged = (event: CustomEvent) => {
+      const { productId, is_paused } = event.detail
+      console.log('🔄 Actualizando estado de pausa del producto:', { productId, is_paused })
+      
+      // Actualizar el producto en la lista sin recargar todo
+      setProducts(prevProducts => 
+        prevProducts.map(p => 
+          p.id === productId ? { ...p, is_paused } : p
+        )
+      )
+      
+      // Actualizar el producto seleccionado si es el mismo (usando función de actualización)
+      setSelectedProduct(prev => {
+        if (prev && prev.id === productId) {
+          return { ...prev, is_paused }
+        }
+        return prev
+      })
     }
     
     window.addEventListener('productCreated', handleProductCreated as EventListener)
     window.addEventListener('productUpdated', handleProductUpdated as EventListener)
+    window.addEventListener('productPauseChanged', handleProductPauseChanged as EventListener)
     
     return () => {
       window.removeEventListener('productCreated', handleProductCreated as EventListener)
       window.removeEventListener('productUpdated', handleProductUpdated as EventListener)
+      window.removeEventListener('productPauseChanged', handleProductPauseChanged as EventListener)
     }
-  }, [fetchConsultations, fetchStats])
+  }, []) // Solo se ejecuta una vez al montar el componente
 
   const handleOpenModal = useCallback(() => {
     setEditingProduct(null) // Limpiar cualquier producto en edición
@@ -296,6 +275,7 @@ export default function ProductsManagementScreen({ onTabChange }: ProductsManage
   }, [])
 
   // Funciones para manejar consultas
+  // NOTA: API eliminada - solo actualiza estado local
   const toggleConsultation = async (type: 'cafe' | 'meet30' | 'meet60') => {
     const newConsultations = {
       ...consultations,
@@ -305,31 +285,7 @@ export default function ProductsManagementScreen({ onTabChange }: ProductsManage
       }
     }
     setConsultations(newConsultations)
-    
-    // Guardar en la base de datos
-    try {
-      const response = await fetch(API_ENDPOINTS.COACH_CONSULTATIONS, {
-        method: 'PUT',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({ consultations: newConsultations })
-      })
-      
-      const result = await response.json()
-      
-      if (result.success) {
-        // console.log('✅ Consulta actualizada correctamente')
-      } else {
-        console.error('Error actualizando consulta:', result.error)
-        // Revertir cambios si hay error
-        setConsultations(consultations)
-      }
-    } catch (error) {
-      console.error('Error al actualizar consulta:', error)
-      // Revertir cambios si hay error
-      setConsultations(consultations)
-    }
+    // API eliminada - solo actualiza estado local, no se guarda en BD
   }
 
   const updateConsultationPrice = async (type: 'cafe' | 'meet30' | 'meet60', price: number) => {
@@ -341,37 +297,38 @@ export default function ProductsManagementScreen({ onTabChange }: ProductsManage
       }
     }
     setConsultations(newConsultations)
-    
-    // Guardar en la base de datos
-    try {
-      const response = await fetch(API_ENDPOINTS.COACH_CONSULTATIONS, {
-        method: 'PUT',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({ consultations: newConsultations })
-      })
-      
-      const result = await response.json()
-      
-      if (result.success) {
-        // console.log('✅ Precio actualizado correctamente')
-      } else {
-        console.error('Error actualizando precio:', result.error)
-        // Revertir cambios si hay error
-        setConsultations(consultations)
-      }
-    } catch (error) {
-      console.error('Error al actualizar precio:', error)
-      // Revertir cambios si hay error
-      setConsultations(consultations)
-    }
+    // API eliminada - solo actualiza estado local, no se guarda en BD
   }
 
-  const handleCloseModal = useCallback(() => {
+  const handleCloseModal = useCallback(async () => {
     setIsModalOpen(false)
-    setEditingProduct(null) // Limpiar el producto en edición
-  }, [])
+    const editingProductId = editingProduct?.id
+    
+    // Recargar productos para obtener los datos actualizados
+    await fetchProducts()
+    
+    setEditingProduct(null)
+    
+    // Disparar evento de actualización después de un pequeño delay para que los productos se hayan recargado
+    if (editingProductId) {
+      setTimeout(() => {
+        window.dispatchEvent(new CustomEvent('productUpdated', { 
+          detail: { productId: editingProductId } 
+        }))
+        
+        // Actualizar el producto seleccionado si coincide con el editado
+        if (selectedProduct && selectedProduct.id === editingProductId) {
+          // Buscar el producto actualizado en la lista (products ya debería estar actualizado)
+          setTimeout(() => {
+            const updatedProduct = products.find(p => p.id === editingProductId)
+            if (updatedProduct) {
+              setSelectedProduct(updatedProduct)
+            }
+          }, 100)
+        }
+      }, 200)
+    }
+  }, [fetchProducts, editingProduct, selectedProduct, products])
 
   const handlePreviewProduct = useCallback((product: Product) => {
     setSelectedProduct(product)
@@ -403,8 +360,8 @@ export default function ProductsManagementScreen({ onTabChange }: ProductsManage
       price: product.price,
       type: product.type,
       difficulty: product.difficulty,
-      coach_name: "Tu producto", // Placeholder para el coach
-      coach_rating: 0,
+      coach_name: "Franco Pomati coach", // Nombre real del coach desde la base de datos
+      coach_rating: null, // Sin rating inicial
       coach_avatar_url: "/placeholder.svg?height=24&width=24&query=coach",
       // Usar la misma estructura de imágenes que ActivityCard
       media: {
@@ -426,16 +383,22 @@ export default function ProductsManagementScreen({ onTabChange }: ProductsManage
         duration: product.type === 'workshop' ? '60' : undefined
       },
       consultation_info: null,
-      exercisesCount: undefined, // ✅ Se obtendrá dinámicamente via useProductStats
-      totalSessions: undefined, // ✅ Se obtendrá dinámicamente via useProductStats
-      modality: 'online',
+      exercisesCount: (product as any).exercisesCount || 0, // ✅ Usar valor del producto desde la API
+      totalSessions: (product as any).totalSessions || 0, // ✅ Usar valor del producto desde la API
+      capacity: product.capacity || null,
+      // Para talleres: estado 'activo' desde taller_detalles
+      taller_activo: (product as any).taller_activo, // ✅ Agregar capacity para mostrar en ActivityCard
+      modality: product.modality || 'online',
+      // ✅ Campos de ubicación para modalidad presencial
+      location_name: (product as any).location_name || null,
+      location_url: (product as any).location_url || null,
       workshop_type: product.type === 'workshop' ? 'Individual' : undefined,
       sessions_per_client: product.sessions_per_client,
       // Campos de rating usando los datos reales del producto
       program_rating: product.program_rating || 0,
       total_program_reviews: product.total_program_reviews || 0,
       // Campos adicionales requeridos por Activity
-      coach_id: product.coach_id,
+      coach_id: product.coach_id || user?.id || '', // Usar user.id como fallback
       is_public: product.is_public,
       categoria: product.categoria || 'fitness', // ✅ Agregar categoria con valor por defecto
       created_at: product.created_at,
@@ -455,7 +418,11 @@ export default function ProductsManagementScreen({ onTabChange }: ProductsManage
       available_hours: null,
       expiration_date: null,
       is_popular: false,
-      total_coach_reviews: 0
+      total_coach_reviews: 0,
+      // ✅ AGREGAR OBJETIVOS desde el producto
+      objetivos: product.objetivos || [],
+      // ✅ AGREGAR is_paused desde el producto
+      is_paused: product.is_paused || false
     }
   }, [])
 
@@ -573,29 +540,12 @@ export default function ProductsManagementScreen({ onTabChange }: ProductsManage
 
   // Función para cerrar modal de éxito
   const closeDeleteSuccess = useCallback(() => {
-    console.log('✅ CLOSE SUCCESS: Cerrando modal de éxito')
     setDeleteSuccessOpen(false)
     setDeletedProductName('')
     setIsDeleting(false)
-    
-    // Refrescar la página y navegar al tab de products
-    console.log('🔄 CLOSE SUCCESS: Refrescando página y navegando al tab de products')
-    
-    // Usar setTimeout para asegurar que el modal se cierre antes del refresh
-    setTimeout(() => {
-      // Guardar el tab de products en localStorage para después del refresh
-      console.log('💾 CLOSE SUCCESS: Guardando tab en localStorage:', 'products-management')
-      localStorage.setItem('activeTab', 'products-management')
-      
-      // Verificar que se guardó correctamente
-      const savedTab = localStorage.getItem('activeTab')
-      console.log('✅ CLOSE SUCCESS: Tab guardado verificado:', savedTab)
-      
-      // Refrescar la página
-      console.log('🔄 CLOSE SUCCESS: Refrescando página...')
-      window.location.reload()
-    }, 100)
-  }, [])
+    localStorage.setItem('activeTab', 'products-management')
+    fetchProducts()
+  }, [fetchProducts])
 
   const handleSort = (field: SortField) => {
     if (sortField === field) {
@@ -995,7 +945,36 @@ export default function ProductsManagementScreen({ onTabChange }: ProductsManage
       {selectedProduct && (
         <ClientProductModal
           isOpen={isProductModalOpen}
-          onClose={() => {
+          onClose={async () => {
+            // Refrescar el producto desde la API antes de cerrar
+            try {
+              console.log('🔄 Refrescando producto al cerrar modal:', selectedProduct.id)
+              const response = await fetch(API_ENDPOINTS.PRODUCTS)
+              if (response.ok) {
+                const result = await response.json()
+                if (result.success && result.products && result.products.length > 0) {
+                  // Buscar el producto actualizado en la lista
+                  const refreshedProduct = result.products.find((p: Product) => p.id === selectedProduct.id)
+                  if (refreshedProduct) {
+                    console.log('✅ Producto refrescado:', {
+                      id: refreshedProduct.id,
+                      is_paused: refreshedProduct.is_paused,
+                      old_is_paused: selectedProduct.is_paused
+                    })
+                    
+                    // Actualizar el producto en la lista
+                    setProducts(prevProducts => 
+                      prevProducts.map(p => 
+                        p.id === refreshedProduct.id ? refreshedProduct : p
+                      )
+                    )
+                  }
+                }
+              }
+            } catch (error) {
+              console.error('❌ Error refrescando producto:', error)
+            }
+            
             setIsProductModalOpen(false)
             setSelectedProduct(null)
           }}

@@ -635,7 +635,7 @@ export function ClientsScreen() {
                     <div className="text-xs text-gray-500">{showCalendar ? 'Ocultar' : 'Ver'}</div>
                   </div>
                   {showCalendar && (
-                    <div className="px-3 pb-3">
+                    <div className="px-3 pb-3 max-h-[70vh] overflow-y-auto">
                       <ClientCalendar clientId={selectedClient.id} />
                     </div>
                   )}
@@ -643,17 +643,6 @@ export function ClientsScreen() {
               </>
             )}
 
-            {/* Debug info (solo en desarrollo) */}
-            {process.env.NODE_ENV === 'development' && (
-              <div className="mb-6">
-                <details>
-                  <summary className="text-sm text-gray-500 cursor-pointer mb-2">Debug Info</summary>
-                  <pre className="text-xs text-gray-400 p-3 bg-zinc-900/40 rounded overflow-auto max-h-40">
-                    {JSON.stringify({ selectedClient, clientDetail }, null, 2)}
-                  </pre>
-                </details>
-            </div>
-        )}
 
           </div>
       </div>

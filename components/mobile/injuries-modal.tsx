@@ -5,7 +5,7 @@ import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { X, Plus, Trash2 } from "lucide-react"
 import { ConfirmationModal } from "@/components/ui/confirmation-modal"
-import { MUSCLE_GROUPS, PAIN_LEVELS, getAllMuscles, getMuscleById, getPainLevel, type StandardizedInjury } from "@/lib/muscle-system"
+import { MUSCLE_GROUPS, PAIN_LEVELS, getAllMuscles, getMuscleById, getPainLevel, type StandardizedInjury } from '@/lib/data/muscle-system'
 
 interface Injury {
   id: string

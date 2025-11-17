@@ -1,14 +1,15 @@
 "use client"
 
-import { useState } from "react"
+import { useState, useEffect } from "react"
 import { Card } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import { Progress } from "@/components/ui/progress"
-import { Calendar, User, Play, Clock } from "lucide-react"
+import { Calendar, User, Play, Clock, Flame } from "lucide-react"
 import Image from "next/image"
 import { useRouter } from "next/navigation"
 import type { Enrollment } from "@/types/activity"
+import { createClient } from '@/lib/supabase/supabase-client'
 
 interface PurchasedActivityCardProps {
   enrollment: Enrollment
@@ -25,6 +26,7 @@ interface PurchasedActivityCardProps {
 export function PurchasedActivityCard({ enrollment, nextActivity, realProgress, onActivityClick, onStartActivity }: PurchasedActivityCardProps) {
   const { activity } = enrollment
   const [isNavigating, setIsNavigating] = useState(false)
+  const [pendingCount, setPendingCount] = useState<number | null>(null)
   
   // Usar el progreso real calculado (enrollment.progress no existe en la base de datos)
   const progress = realProgress !== undefined ? realProgress : 0
@@ -32,63 +34,101 @@ export function PurchasedActivityCard({ enrollment, nextActivity, realProgress, 
   // Verificar si el programa ya ha comenzado
   const hasStarted = enrollment.start_date !== null;
   
-  // Obtener el día de la semana actual
-  const getCurrentDayOfWeek = () => {
-    const today = new Date();
-    const dayOfWeek = today.getDay(); // 0 = domingo, 1 = lunes, etc.
-    return dayOfWeek === 0 ? 7 : dayOfWeek; // Convertir domingo de 0 a 7
-  };
-  
-  // Calcular cuándo comenzar el programa (día 1, semana 1, mes 1)
-  const getProgramStartInfo = () => {
-    const today = new Date();
-    const currentDay = getCurrentDayOfWeek();
-    const currentDate = today.getDate();
-    const currentMonth = today.getMonth() + 1; // 0-indexed
-    const currentYear = today.getFullYear();
-    
-    // Si es lunes, empezar hoy
-    if (currentDay === 1) {
-      return {
-        canStartToday: true,
-        startDate: today,
-        message: "🔥 Empezar Hoy (Lunes)",
-        subMessage: `Día 1, Semana 1, ${currentMonth}/${currentYear}`
-      };
+  // Calcular días restantes para empezar y verificar si está bloqueado
+  const getDaysRemainingAndBlocked = () => {
+    if (hasStarted) {
+      return { daysRemaining: null, isBlocked: false, isLastDay: false }
     }
     
-    // Calcular próximo lunes
-    const daysUntilMonday = (8 - currentDay) % 7;
-    const nextMonday = new Date(today);
-    nextMonday.setDate(today.getDate() + daysUntilMonday);
+    const today = new Date()
+    today.setHours(0, 0, 0, 0)
     
-    const nextMondayMonth = nextMonday.getMonth() + 1;
-    const nextMondayYear = nextMonday.getFullYear();
+    const purchaseDate = new Date(enrollment.created_at)
+    purchaseDate.setHours(0, 0, 0, 0)
     
-    return {
-      canStartToday: false,
-      startDate: nextMonday,
-      message: `🔥 Empezar el Próximo Lunes (${daysUntilMonday} días)`,
-      subMessage: `Día 1, Semana 1, ${nextMondayMonth}/${nextMondayYear}`
-    };
-  };
+    const diasAcceso = activity.dias_acceso || 30 // Default 30 días si no está definido
+    const expirationDate = new Date(purchaseDate)
+    expirationDate.setDate(purchaseDate.getDate() + diasAcceso)
+    
+    const daysRemaining = Math.ceil((expirationDate.getTime() - today.getTime()) / (1000 * 60 * 60 * 24))
+    const isLastDay = daysRemaining === 0
+    // Bloquear solo si pasaron los días (el último día puede empezarlo sin problema)
+    const isBlocked = daysRemaining < 0
+    
+    return { daysRemaining, isBlocked, isLastDay }
+  }
   
-  const startInfo = getProgramStartInfo();
-  
-  // Función para manejar el inicio de la actividad
-  const handleStartActivity = (e: React.MouseEvent) => {
-    e.preventDefault()
-    e.stopPropagation()
-    
-    if (onStartActivity) {
-      onStartActivity(activity.id.toString(), startInfo.startDate);
+  const { daysRemaining, isBlocked } = getDaysRemainingAndBlocked()
+
+  // Obtener ejercicios/platos pendientes del día de hoy
+  useEffect(() => {
+    const fetchTodayPending = async () => {
+      // Solo obtener pendientes si la actividad ya ha comenzado
+      if (!hasStarted) {
+        setPendingCount(null)
+        return
+      }
+
+      try {
+        const supabase = createClient()
+        const { data: { session } } = await supabase.auth.getSession()
+        
+        if (!session?.user) return
+
+        const today = new Date().toISOString().split('T')[0]
+        
+        // Obtener registro de progreso del día de hoy - usar maybeSingle para evitar error 406
+        const { data: progressRecord, error } = await supabase
+          .from('progreso_cliente')
+          .select('ejercicios_pendientes')
+          .eq('cliente_id', enrollment.client_id)
+          .eq('actividad_id', activity.id)
+          .eq('fecha', today)
+          .maybeSingle()
+
+        if (error && error.code !== 'PGRST116') {
+          console.error('Error obteniendo pendientes:', error)
+          setPendingCount(null)
+          return
+        }
+
+        if (progressRecord?.ejercicios_pendientes) {
+          let pendientes: any = {}
+          
+          try {
+            if (typeof progressRecord.ejercicios_pendientes === 'string') {
+              pendientes = JSON.parse(progressRecord.ejercicios_pendientes)
+            } else {
+              pendientes = progressRecord.ejercicios_pendientes
+            }
+
+            const count = Array.isArray(pendientes) ? pendientes.length : Object.keys(pendientes || {}).length
+            setPendingCount(count > 0 ? count : null)
+          } catch (parseError) {
+            console.error('Error parseando pendientes:', parseError)
+            setPendingCount(null)
+          }
+        } else {
+          setPendingCount(null)
+        }
+      } catch (error) {
+        console.error('Error obteniendo pendientes del día:', error)
+        setPendingCount(null)
+      }
     }
-  };
+
+    fetchTodayPending()
+  }, [hasStarted, enrollment.client_id, activity.id])
 
   // Función para manejar el click
   const handleCardClick = async (e: React.MouseEvent) => {
     e.preventDefault()
     e.stopPropagation()
+    
+    // Si está bloqueado, no permitir acceso
+    if (isBlocked) {
+      return
+    }
     
     if (isNavigating) return
     
@@ -99,9 +139,13 @@ export function PurchasedActivityCard({ enrollment, nextActivity, realProgress, 
         // Usar callback si está disponible (para aplicación móvil)
         onActivityClick(activity.id.toString())
       } else {
-        // Fallback a navegación externa (para web)
-        const router = (await import("next/navigation")).useRouter()
-        await router.push(`/activities/${activity.id}`)
+        // Fallback a navegación al tab de actividades
+        try {
+          localStorage.setItem("openActivityId", activity.id.toString())
+        } catch (e) {
+          console.error("Error guardando en localStorage:", e)
+        }
+        window.location.href = '/?tab=activity'
       }
     } catch (error) {
       console.error("Error navigating to activity:", error)
@@ -120,139 +164,200 @@ export function PurchasedActivityCard({ enrollment, nextActivity, realProgress, 
     })
   }
 
-  // Obtener tipo de actividad basado en la categoría
+  // Obtener tipo de actividad basado en la categoría - usar categoria directamente de la base de datos
+  // La columna en la BD es 'categoria', no 'category'
+  const categoria = activity.categoria || (activity as any).category || 'fitness'
+  
+  // Debug: Log para verificar la categoría
+  if (process.env.NODE_ENV === 'development') {
+    console.log('🔍 PurchasedActivityCard - Activity ID:', activity.id, 'Categoria:', categoria, 'Raw activity:', {
+      categoria: activity.categoria,
+      category: (activity as any).category,
+      type: activity.type
+    })
+  }
+  
   const getActivityTypeDisplay = (category: string) => {
-    switch (category?.toLowerCase()) {
+    const cat = category?.toLowerCase() || ''
+    switch (cat) {
       case 'fitness':
         return 'Fitness'
       case 'nutrition':
+      case 'nutricion':
         return 'Nutrición'
       case 'consultation':
         return 'Consulta'
       default:
-        return category || 'Programa'
+        // Si no coincide, intentar inferir del tipo
+        if (cat.includes('nutri')) return 'Nutrición'
+        if (cat.includes('fit')) return 'Fitness'
+        return 'Fitness' // Default a Fitness
     }
   }
 
+  // Formatear fecha de inicio para mostrar solo el día
+  const formatStartDate = (dateString: string | null) => {
+    if (!dateString) return null
+    const date = new Date(dateString)
+    return date.toLocaleDateString('es-ES', {
+      day: 'numeric',
+      month: 'short'
+    })
+  }
+  
+  // Formatear días restantes
+  const formatDaysRemaining = (days: number | null) => {
+    if (days === null) return null
+    if (days < 0) return 'Expirado'
+    if (days === 0) return 'Último día para empezar'
+    if (days === 1) return '1 día para empezar'
+    return `${days} días para empezar`
+  }
+
+  // Obtener URL de imagen para el fondo difuminado
+  const imageUrl = activity.media?.image_url || null
+
   return (
     <Card 
-      className={`relative overflow-hidden rounded-xl shadow-lg bg-gray-900 text-white border-gray-800 cursor-pointer transition-all duration-300 hover:bg-gray-800/50 ${
-        isNavigating ? 'opacity-75 scale-95' : 'hover:scale-105'
+      className={`relative overflow-hidden rounded-xl shadow-xl transition-all duration-300 ${
+        isBlocked 
+          ? 'opacity-50 cursor-not-allowed' 
+          : isNavigating 
+            ? 'opacity-75 scale-95 cursor-pointer' 
+            : 'hover:scale-[1.01] cursor-pointer'
       }`}
       onClick={handleCardClick}
+      style={{
+        background: 'rgba(30, 30, 30, 0.6)',
+        backdropFilter: 'blur(20px)',
+        WebkitBackdropFilter: 'blur(20px)',
+        border: '1px solid rgba(255, 255, 255, 0.1)',
+      }}
     >
-      <div className="flex h-32">
-        {/* Lado izquierdo - Coach */}
-        <div className="flex flex-col items-center justify-center p-4 w-24 bg-gray-800/50">
-          <div className="relative h-12 w-12 rounded-full overflow-hidden border-2 border-[#FF7939] mb-2">
-            <Image
-              src={activity.coach_avatar_url || "/placeholder.svg?height=48&width=48&query=coach"}
-              alt={activity.coach_name || "Coach"}
-              fill
-              className="object-cover"
-            />
-          </div>
-          <span className="text-xs font-semibold text-white text-center leading-tight">
-            {activity.coach_name || "Coach"}
-          </span>
-        </div>
-
-        {/* Lado derecho - Portada del ejercicio */}
-        <div className="relative flex-1">
-          {activity.media?.image_url ? (
-            <Image
-              src={activity.media.image_url}
-              alt={activity.title}
-              fill
-              className="object-cover"
-              sizes="(max-width: 768px) 100vw, (max-width: 1200px) 50vw, 33vw"
-            />
-          ) : (
-            <div className="w-full h-full bg-gradient-to-br from-[#FF7939] to-[#E66829] flex items-center justify-center">
-              <span className="text-2xl font-bold text-white">{activity.title.charAt(0)}</span>
-            </div>
-          )}
-          
-          {/* Overlay oscuro */}
-          <div className="absolute inset-0 bg-black/50" />
-          
-          {/* Contenido sobre la imagen */}
-          <div className="absolute inset-0 p-3 flex flex-col justify-between">
-            {/* Badge de categoría en la esquina superior */}
-            <div className="flex justify-end">
-              <Badge className="bg-[#FF7939] text-white text-xs font-semibold px-2 py-1 rounded-full">
-                {getActivityTypeDisplay(activity.category)}
-              </Badge>
-            </div>
-            
-            {/* Título y progreso en la parte inferior */}
-            <div className="space-y-2">
-              <h3 className="font-bold text-sm leading-tight line-clamp-2 text-white drop-shadow-lg">
-                {activity.title}
-              </h3>
-              
-              {/* Barra de progreso */}
-              <div className="space-y-1">
-                <div className="flex justify-between items-center">
-                  <span className="text-xs font-medium text-gray-200">Progreso</span>
-                  <span className="text-xs font-bold text-[#FF7939]">{progress}%</span>
-                </div>
-                <Progress value={progress} className="h-1.5 bg-gray-800/50" />
-              </div>
-            </div>
-          </div>
-        </div>
-      </div>
-
-      {/* Información adicional en la parte inferior */}
-      <div className="p-3 bg-gray-800/30">
-        {/* Botón Empezar Actividad o Próxima actividad */}
-        {!hasStarted ? (
-          <div className="space-y-2">
-            <Button 
-              onClick={handleStartActivity}
-              className="w-full bg-[#FF7939] hover:bg-[#E66829] text-white font-semibold py-2 px-4 rounded-lg transition-colors"
-            >
-              {startInfo.message}
-            </Button>
-            <p className="text-xs text-gray-400 text-center">
-              {startInfo.subMessage}
-            </p>
-            {!startInfo.canStartToday && (
-              <p className="text-xs text-gray-500 text-center">
-                Te recomendamos empezar los lunes para seguir el programa completo
-              </p>
-            )}
-          </div>
+      {/* Imagen horizontal con todo el contenido integrado */}
+      <div className="relative w-full h-44 overflow-hidden">
+        {imageUrl ? (
+          <Image
+            src={imageUrl}
+            alt={activity.title}
+            fill
+            className="object-cover"
+            sizes="(max-width: 768px) 100vw, (max-width: 1200px) 50vw, 33vw"
+          />
         ) : (
-          nextActivity && (
-            <div className="flex items-center justify-between text-xs mb-2">
-              <div className="flex items-center space-x-1">
-                <Play className="h-3 w-3 text-[#FF7939]" />
-                <span className="text-gray-300">Próxima:</span>
-                <span className="text-white font-medium">{nextActivity.title}</span>
-              </div>
-              <div className="flex items-center space-x-1 text-gray-400">
-                <Clock className="h-3 w-3" />
-                <span>Día {nextActivity.day}</span>
-              </div>
-            </div>
-          )
+          <div className="w-full h-full bg-gradient-to-br from-[#FF7939] to-[#E66829] flex items-center justify-center">
+            <span className="text-3xl font-bold text-white">{activity.title.charAt(0)}</span>
+          </div>
         )}
-
-        {/* Fecha de compra */}
-        <div className="flex items-center space-x-1 text-xs text-gray-400">
-          <Calendar className="h-3 w-3" />
-          <span>{formatPurchaseDate(enrollment.created_at)}</span>
-          {hasStarted && enrollment.start_date && (
-            <>
-              <span className="mx-1">•</span>
-              <span>Iniciado: {formatPurchaseDate(enrollment.start_date)}</span>
-            </>
-          )}
-        </div>
         
+        {/* Overlay con gradiente para glassmorphism */}
+        <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-black/40 to-transparent" />
+        
+        {/* Badge de categoría en la esquina superior izquierda - glassmorphism */}
+        <div className="absolute top-2 left-2 z-10">
+          <Badge 
+            className="text-xs font-semibold px-2.5 py-0.5 rounded-full border-0 text-white"
+            style={{
+              background: 'rgba(255, 255, 255, 0.15)',
+              backdropFilter: 'blur(10px)',
+              WebkitBackdropFilter: 'blur(10px)',
+              border: '1px solid rgba(255, 255, 255, 0.2)',
+            }}
+          >
+            {getActivityTypeDisplay(categoria)}
+          </Badge>
+        </div>
+
+        {/* Ícono de fuego con pendientes del día en la esquina superior derecha */}
+        {hasStarted && pendingCount !== null && pendingCount > 0 && (
+          <div 
+            className="absolute top-2 right-2 z-10 flex items-center gap-1.5 px-2 py-1 rounded-full"
+            style={{
+              background: 'rgba(255, 121, 57, 0.2)',
+              backdropFilter: 'blur(10px)',
+              WebkitBackdropFilter: 'blur(10px)',
+              border: '1px solid rgba(255, 121, 57, 0.3)',
+            }}
+          >
+            <Flame className="w-3.5 h-3.5 text-[#FF7939]" fill="#FF7939" />
+            <span className="text-xs font-bold text-white">{pendingCount}</span>
+          </div>
+        )}
+        
+        {/* Contenido principal: Título y progreso */}
+        <div className="absolute bottom-12 left-0 right-0 p-3 z-10">
+          <div className="space-y-1.5">
+            <h3 
+              className="font-semibold text-base leading-tight text-white drop-shadow-2xl overflow-hidden" 
+              style={{
+                display: '-webkit-box',
+                WebkitLineClamp: 2,
+                WebkitBoxOrient: 'vertical',
+                lineHeight: '1.2em',
+                textShadow: '0 2px 8px rgba(0,0,0,0.8)',
+              }}
+            >
+              {activity.title}
+            </h3>
+            
+            {/* Barra de progreso con glassmorphism - naranja translúcido sin fondo negro */}
+            <div className="flex items-center gap-2">
+              <div 
+                className="relative h-1 flex-1 rounded-full overflow-hidden"
+                style={{
+                  background: 'rgba(255, 121, 57, 0.2)',
+                  backdropFilter: 'blur(5px)',
+                  WebkitBackdropFilter: 'blur(5px)',
+                }}
+              >
+                <div 
+                  className="h-full rounded-full transition-all duration-300"
+                  style={{
+                    width: `${progress}%`,
+                    background: 'rgba(255, 121, 57, 0.8)',
+                    backdropFilter: 'blur(5px)',
+                    WebkitBackdropFilter: 'blur(5px)',
+                    boxShadow: '0 0 10px rgba(255, 121, 57, 0.5)',
+                  }}
+                />
+              </div>
+              <span className="text-xs font-bold text-white flex-shrink-0">{progress}%</span>
+            </div>
+          </div>
+        </div>
+
+        {/* Contenido del coach en la parte inferior - integrado en la misma imagen */}
+        <div className="absolute bottom-0 left-0 right-0 p-3 z-10">
+          <div className="flex items-center justify-between gap-2.5 w-full">
+            <div className="flex items-center gap-2.5 flex-1 min-w-0">
+              <div className="relative h-10 w-10 rounded-full overflow-hidden flex-shrink-0">
+                <Image
+                  src={activity.coach_avatar_url || "/placeholder.svg?height=40&width=40&query=coach"}
+                  alt={activity.coach_name || "Coach"}
+                  fill
+                  className="object-cover"
+                />
+              </div>
+              <p className="text-sm font-normal text-white truncate drop-shadow-lg">
+                {activity.coach_name || "Coach"}
+              </p>
+            </div>
+            {/* Fecha de inicio o días restantes en la esquina derecha */}
+            {hasStarted && enrollment.start_date ? (
+              <span className="text-xs font-medium text-white/90 flex-shrink-0 drop-shadow-lg">
+                {formatStartDate(enrollment.start_date)}
+              </span>
+            ) : daysRemaining !== null ? (
+              <span className={`text-xs font-medium flex-shrink-0 drop-shadow-lg ${
+                isBlocked ? 'text-red-400' : daysRemaining <= 3 ? 'text-yellow-400' : 'text-white/90'
+              }`}>
+                {formatDaysRemaining(daysRemaining)}
+              </span>
+            ) : null}
+          </div>
+        </div>
       </div>
     </Card>
   )
 }
+

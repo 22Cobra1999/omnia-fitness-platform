@@ -8,3 +8,23 @@ ADD CONSTRAINT check_grasas_positive CHECK (grasas >= 0::numeric);
 
 -- Comentario para el campo
 COMMENT ON COLUMN public.nutrition_program_details.grasas IS 'Cantidad de grasas en gramos del plato';
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+

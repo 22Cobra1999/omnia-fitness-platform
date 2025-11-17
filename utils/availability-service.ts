@@ -1,4 +1,4 @@
-import { getSupabaseClient } from "@/lib/supabase"
+import { getSupabaseClient } from '@/lib/supabase/supabase-client'
 
 // Tipos para la disponibilidad
 export interface ActivityAvailability {

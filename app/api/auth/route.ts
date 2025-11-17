@@ -1,4 +1,4 @@
-import { hashPassword } from "@/lib/auth"
+import { hashPassword } from '@/lib/auth/auth'
 import { NextResponse } from "next/server"
 export async function POST(request: Request) {
   try {

@@ -41,6 +41,9 @@ next-env.d.ts
 *.swp
 *.swo
 
+# Cursor MCP Server (contiene credenciales)
+.cursor/mcp.json
+
 # OS
 .DS_Store
 .DS_Store?
@@ -133,3 +136,6 @@ playwright/.cache/
 # *-test.js
 # *.test.js
 # *.spec.js
+# Environment variables
+.env.local
+.env*.local

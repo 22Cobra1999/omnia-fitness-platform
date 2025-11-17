@@ -1,9 +1,9 @@
 "use client"
 
 import { useState, useEffect } from "react"
-import { ChevronLeft, ChevronRight, Calendar, Clock, Flame, Edit, RotateCcw } from "lucide-react"
+import { ChevronLeft, ChevronRight, Calendar, Clock, Flame, Edit, RotateCcw, ChevronDown } from "lucide-react"
 import { Switch } from '@/components/ui/switch'
-import { createClient } from '@/lib/supabase-browser'
+import { createClient } from '@/lib/supabase/supabase-client'
 
 interface ClientCalendarProps {
   clientId: string
@@ -20,6 +20,7 @@ interface ExerciseExecution {
   nota_cliente?: string
   ejercicio_nombre?: string
   actividad_titulo?: string
+  actividad_id?: number
   detalle_series?: any[]
 }
 
@@ -45,6 +46,10 @@ export function ClientCalendar({ clientId, onLastWorkoutUpdate }: ClientCalendar
   const [applyToAllSameDays, setApplyToAllSameDays] = useState(false)
   const [selectedDayForEdit, setSelectedDayForEdit] = useState<Date | null>(null)
   const [targetDayForEdit, setTargetDayForEdit] = useState<Date | null>(null)
+  const [editingExerciseId, setEditingExerciseId] = useState<string | null>(null)
+  const [editingSeries, setEditingSeries] = useState<any[]>([])
+  const [availableExercises, setAvailableExercises] = useState<any[]>([])
+  const [showExerciseDropdown, setShowExerciseDropdown] = useState(false)
 
   const supabase = createClient()
 
@@ -65,18 +70,338 @@ export function ClientCalendar({ clientId, onLastWorkoutUpdate }: ClientCalendar
   }
 
   // Función para formatear las series en el formato del cliente
-  const formatSeries = (detalleSeries: any[]): string => {
-    if (!detalleSeries || detalleSeries.length === 0) {
+  const formatSeries = (detalleSeries: any): string => {
+    if (!detalleSeries) {
       return 'Sin series'
     }
     
-    return detalleSeries
-      .map(serie => `${serie.peso}x${serie.series}x${serie.repeticiones}`)
-      .join(' | ')
+    // Si es un objeto con los campos directamente (estructura actual)
+    if (typeof detalleSeries === 'object' && detalleSeries.series && detalleSeries.repeticiones) {
+      const peso = detalleSeries.peso || detalleSeries.descanso || '-' // Fallback for old data
+      return `${detalleSeries.series} series × ${detalleSeries.repeticiones} reps × ${peso}kg`
+    }
+    
+    // Si es un array de series (nueva estructura para múltiples bloques)
+    if (Array.isArray(detalleSeries) && detalleSeries.length > 0) {
+      return detalleSeries
+        .map((serie, index) => {
+          const peso = serie.peso || '-'
+          const prefix = detalleSeries.length > 1 ? `B${index + 1}: ` : ''
+          return `${prefix}${serie.series || 0} series × ${serie.repeticiones || 0} reps × ${peso}kg`
+        })
+        .join(' | ')
+    }
+
+    return 'Sin series'
   }
 
-  // Función para activar/cancelar modo de selección de nueva fecha
+  // Función para iniciar edición de series
+  const handleEditSeries = async (exerciseId: string, currentSeries: any) => {
+    setEditingExerciseId(exerciseId)
+    
+    // Cargar ejercicios disponibles del programa
+    const currentExercise = selectedDayExercises.find(ex => ex.id === exerciseId)
+    if (currentExercise) {
+      // Intentar obtener activity_id de diferentes formas
+      let activityId = currentExercise.actividad_id
+      
+      if (!activityId && currentExercise.actividad_titulo) {
+        // Buscar por título como fallback
+        const { data: activity, error } = await supabase
+          .from('activities')
+          .select('id')
+          .ilike('title', `%${currentExercise.actividad_titulo}%`)
+          .single()
+        
+        if (activity && !error) {
+          activityId = activity.id
+        }
+      }
+      
+      // Si aún no tenemos activity_id, buscar en ejercicios_detalles
+      if (!activityId) {
+        const { data: ejercicioDetalle, error: detalleError } = await supabase
+          .from('ejercicios_detalles')
+          .select('activity_id')
+          .eq('id', currentExercise.ejercicio_id)
+          .single()
+        
+        if (ejercicioDetalle && !detalleError) {
+          const rawActivity = ejercicioDetalle.activity_id
+          if (typeof rawActivity === 'number') {
+            activityId = rawActivity
+          } else if (rawActivity && typeof rawActivity === 'object') {
+            const keys = Object.keys(rawActivity)
+            if (keys.length > 0) {
+              const firstKey = parseInt(keys[0], 10)
+              if (!Number.isNaN(firstKey)) {
+                activityId = firstKey
+              }
+            }
+          }
+        }
+      }
+      
+      if (activityId) {
+        console.log('🔍 Cargando ejercicios para actividad:', activityId)
+        await loadAvailableExercises(activityId)
+      } else {
+        console.warn('⚠️ No se pudo encontrar activity_id para el ejercicio:', currentExercise)
+      }
+    }
+    
+    // Si currentSeries es un objeto (estructura actual), guardarlo directamente
+    if (currentSeries && typeof currentSeries === 'object' && !Array.isArray(currentSeries)) {
+      // Convertir descanso a peso si existe (compatibilidad con datos antiguos)
+      const serie = {
+        series: currentSeries.series || '',
+        repeticiones: currentSeries.repeticiones || '',
+        peso: currentSeries.peso || currentSeries.descanso || ''
+      }
+      setEditingSeries([serie])
+    } else if (Array.isArray(currentSeries)) {
+      setEditingSeries(currentSeries)
+    } else {
+      setEditingSeries([{ series: '', repeticiones: '', peso: '' }])
+    }
+  }
+
+  // Función para cancelar edición de series
+  const handleCancelEditSeries = () => {
+    setEditingExerciseId(null)
+    setEditingSeries([])
+    setShowExerciseDropdown(false)
+  }
+
+  // Función para cargar ejercicios disponibles del programa
+  const loadAvailableExercises = async (activityId: number) => {
+    try {
+      console.log('🔍 Buscando ejercicios para activity_id:', activityId)
+      
+      const { data: exercises, error } = await supabase
+        .from('ejercicios_detalles')
+        .select('id, nombre_ejercicio, descripcion')
+        .contains('activity_id', { [activityId]: {} })
+        .order('id')
+
+      if (error) {
+        console.error('❌ Error cargando ejercicios disponibles:', error)
+        return
+      }
+
+      console.log('✅ Ejercicios encontrados:', exercises)
+      setAvailableExercises(exercises || [])
+    } catch (error) {
+      console.error('❌ Error en loadAvailableExercises:', error)
+    }
+  }
+
+  // Función para agregar una nueva serie
+  const handleAddSeries = () => {
+    setEditingSeries([...editingSeries, { series: '', repeticiones: '', peso: '' }])
+  }
+
+  // Función para cambiar el ejercicio
+  const handleChangeExercise = async (newExerciseId: string) => {
+    if (!editingExerciseId) return
+
+    try {
+      // Buscar el ejercicio actual
+      const currentExercise = selectedDayExercises.find(ex => ex.id === editingExerciseId)
+      if (!currentExercise) return
+
+      // Obtener el nuevo ejercicio de la lista disponible
+      const newExercise = availableExercises.find(ex => String(ex.id) === String(newExerciseId))
+      if (!newExercise) return
+
+      // Actualizar el ejercicio en el estado local
+      const updatedExercises = selectedDayExercises.map(ex => 
+        ex.id === editingExerciseId 
+          ? { 
+              ...ex, 
+              ejercicio_id: String(newExerciseId),
+              ejercicio_nombre: newExercise.nombre_ejercicio,
+              detalle_series: null // Reset series details
+            }
+          : ex
+      )
+      setSelectedDayExercises(updatedExercises)
+
+      // Actualizar los detalles de series en la base de datos
+      const { data: currentRecord, error: fetchError } = await supabase
+        .from('progreso_cliente')
+        .select('detalles_series')
+        .eq('cliente_id', clientId)
+        .eq('fecha', currentExercise.fecha_ejercicio)
+        .single()
+
+      if (fetchError) {
+        console.error('Error obteniendo registro actual:', fetchError)
+        return
+      }
+
+      // Parsear detalles_series existente
+      let allDetalles: any = {}
+      if (currentRecord?.detalles_series) {
+        if (typeof currentRecord.detalles_series === 'string') {
+          allDetalles = JSON.parse(currentRecord.detalles_series)
+        } else if (typeof currentRecord.detalles_series === 'object') {
+          allDetalles = { ...currentRecord.detalles_series }
+        }
+      }
+
+      // Eliminar el ejercicio anterior y agregar el nuevo (sin series)
+      const oldExerciseId = currentExercise.ejercicio_id
+      delete allDetalles[oldExerciseId]
+      // No agregar el nuevo ejercicio automáticamente, se agregará cuando se editen las series
+
+      // Actualizar en la base de datos
+      const { error } = await supabase
+        .from('progreso_cliente')
+        .update({ 
+          detalles_series: allDetalles
+        })
+        .eq('cliente_id', clientId)
+        .eq('fecha', currentExercise.fecha_ejercicio)
+
+      if (error) {
+        console.error('Error actualizando ejercicio:', error)
+        return
+      }
+
+      // Resetear la edición de series
+      setEditingSeries([{ series: '', repeticiones: '', peso: '' }])
+      setShowExerciseDropdown(false)
+      
+      // Recargar datos
+      await fetchClientExercises()
+
+    } catch (error) {
+      console.error('Error cambiando ejercicio:', error)
+    }
+  }
+
+  // Función para eliminar una serie
+  const handleRemoveSeries = (index: number) => {
+    const newSeries = editingSeries.filter((_, i) => i !== index)
+    setEditingSeries(newSeries)
+  }
+
+  // Función para actualizar una serie
+  const handleUpdateSeries = (index: number, field: string, value: string) => {
+    const newSeries = [...editingSeries]
+    newSeries[index] = { ...newSeries[index], [field]: value }
+    setEditingSeries(newSeries)
+  }
+
+  // Función para guardar cambios de series
+  const handleSaveSeries = async () => {
+    if (!editingExerciseId) return
+
+    try {
+      // Buscar el ejercicio en los datos actuales
+      const exercise = selectedDayExercises.find(ex => ex.id === editingExerciseId)
+      if (!exercise) return
+
+      // Obtener el ID del ejercicio (quitar el prefijo del ID compuesto)
+      const ejercicioIdStr = exercise.ejercicio_id
+
+      // Obtener detalles_series actual desde la BD
+      const { data: currentRecord, error: fetchError } = await supabase
+        .from('progreso_cliente')
+        .select('detalles_series')
+        .eq('cliente_id', clientId)
+        .eq('fecha', exercise.fecha_ejercicio)
+        .single()
+
+      if (fetchError) {
+        console.error('Error obteniendo registro actual:', fetchError)
+        return
+      }
+
+      // Parsear detalles_series existente
+      let allDetalles: any = {}
+      if (currentRecord?.detalles_series) {
+        if (typeof currentRecord.detalles_series === 'string') {
+          allDetalles = JSON.parse(currentRecord.detalles_series)
+        } else if (typeof currentRecord.detalles_series === 'object') {
+          allDetalles = { ...currentRecord.detalles_series }
+        }
+      }
+
+      // Actualizar solo el ejercicio actual
+      // Filtrar series válidas (que tengan series y repeticiones)
+      const validSeries = editingSeries.filter(serie => 
+        serie.series && serie.repeticiones && 
+        parseInt(serie.series) > 0 && parseInt(serie.repeticiones) > 0
+      )
+
+      if (validSeries.length > 0) {
+        // Si solo hay una serie válida, guardarla como objeto directo (compatibilidad)
+        if (validSeries.length === 1) {
+          const serie = validSeries[0]
+          allDetalles[ejercicioIdStr] = {
+            series: parseInt(serie.series) || 0,
+            repeticiones: parseInt(serie.repeticiones) || 0,
+            peso: parseFloat(serie.peso) || 0
+          }
+        } else {
+          // Si hay múltiples series, guardarlas como array
+          allDetalles[ejercicioIdStr] = validSeries.map(serie => ({
+            series: parseInt(serie.series) || 0,
+            repeticiones: parseInt(serie.repeticiones) || 0,
+            peso: parseFloat(serie.peso) || 0
+          }))
+        }
+      } else {
+        // Eliminar si no tiene datos válidos
+        delete allDetalles[ejercicioIdStr]
+      }
+
+      // Actualizar en la base de datos
+      const { error } = await supabase
+        .from('progreso_cliente')
+        .update({ 
+          detalles_series: allDetalles
+        })
+        .eq('cliente_id', clientId)
+        .eq('fecha', exercise.fecha_ejercicio)
+
+      if (error) {
+        console.error('Error actualizando series:', error)
+        return
+      }
+
+      // Actualizar el estado local
+      const updatedExercises = selectedDayExercises.map(ex => 
+        ex.id === editingExerciseId 
+          ? { ...ex, detalle_series: allDetalles[ejercicioIdStr] || null }
+          : ex
+      )
+      setSelectedDayExercises(updatedExercises)
+
+      // Cerrar edición
+      handleCancelEditSeries()
+      
+      // Recargar datos
+      await fetchClientExercises()
+      
+    } catch (error) {
+      console.error('Error guardando series:', error)
+    }
+  }
+
+  // Función para activar/cancelar modo de selección de nueva fecha (solo fechas futuras)
   const handleEditDate = (date: Date) => {
+    const today = new Date()
+    today.setHours(0, 0, 0, 0)
+    
+    // Solo permitir cambiar fechas futuras (desde mañana en adelante)
+    if (date <= today) {
+      console.log('No se puede cambiar la fecha de días pasados o hoy')
+      return
+    }
+
     if (isSelectingNewDate) {
       // Cancelar modo de selección
       setIsSelectingNewDate(false)
@@ -99,6 +424,15 @@ export function ClientCalendar({ clientId, onLastWorkoutUpdate }: ClientCalendar
   const confirmUpdateDate = async () => {
     if (!editingDate || !newDate) return
 
+    // Validar que la nueva fecha sea futura
+    const today = new Date()
+    today.setHours(0, 0, 0, 0)
+    
+    if (newDate <= today) {
+      console.log('No se puede cambiar a una fecha pasada o de hoy')
+      return
+    }
+
     try {
       const oldDateStr = editingDate.toISOString().split('T')[0]
       const newDateStr = newDate.toISOString().split('T')[0]
@@ -113,85 +447,13 @@ export function ClientCalendar({ clientId, onLastWorkoutUpdate }: ClientCalendar
         newDayOfWeek
       })
 
-      if (applyToAllSameDays) {
-        // Actualizar todos los días de la misma semana usando dia_semana
-
-        // Calcular la diferencia de días
-        const daysDiff = newDate.getDate() - editingDate.getDate()
-
-        // Primero verificar qué valores tiene dia_semana
-        const { data: allExercises, error: fetchError } = await supabase
-          .from('ejecuciones_ejercicio')
-          .select('fecha_ejercicio, dia_semana')
-          .eq('client_id', clientId)
-          .limit(10)
-
-        if (fetchError) {
-          console.error('❌ [EDIT DATE] Error obteniendo ejercicios:', fetchError)
-          return
-        }
-
-
-        // Obtener todas las fechas que tienen el mismo dia_semana (nombre del día)
-        const oldDayName = getDayName(oldDayOfWeek)
-        const { data: sameDayExercises, error: fetchError2 } = await supabase
-          .from('ejecuciones_ejercicio')
-          .select('fecha_ejercicio, dia_semana')
-          .eq('client_id', clientId)
-          .eq('dia_semana', oldDayName)
-
-        if (fetchError2) {
-          console.error('❌ [EDIT DATE] Error obteniendo ejercicios:', fetchError2)
-          return
-        }
-
-
-        if (!sameDayExercises || sameDayExercises.length === 0) {
-          return
-        }
-
-        // Actualizar cada fecha individualmente
-        for (const exercise of sameDayExercises) {
-          const exerciseDate = new Date(exercise.fecha_ejercicio)
-          const newExerciseDate = new Date(exerciseDate)
-          newExerciseDate.setDate(exerciseDate.getDate() + daysDiff)
-          const newExerciseDateStr = newExerciseDate.toISOString().split('T')[0]
-
-
-          const newDayName = getDayName(newDayOfWeek)
-          const { error } = await supabase
-            .from('ejecuciones_ejercicio')
-            .update({ 
-              fecha_ejercicio: newExerciseDateStr,
-              dia_semana: newDayName
-            })
-            .eq('client_id', clientId)
-            .eq('fecha_ejercicio', exercise.fecha_ejercicio)
-
-          if (error) {
-            console.error('❌ [EDIT DATE] Error actualizando fecha:', exercise.fecha_ejercicio, error)
-            return
-          }
-        }
-
-      } else {
-        // Actualizar solo el día específico
-        const newDayName = getDayName(newDayOfWeek)
-        const { error } = await supabase
-          .from('ejecuciones_ejercicio')
-          .update({ 
-            fecha_ejercicio: newDateStr,
-            dia_semana: newDayName
-          })
-          .eq('client_id', clientId)
-          .eq('fecha_ejercicio', oldDateStr)
-
-        if (error) {
-          console.error('❌ [EDIT DATE] Error actualizando fecha:', error)
-          return
-        }
-
-      }
+      // TODO: Implementar edición de fechas con progreso_cliente
+      // Por ahora solo actualizar el registro individual
+      const { error } = await supabase
+        .from('progreso_cliente')
+        .update({ fecha: newDateStr })
+        .eq('cliente_id', clientId)
+        .eq('fecha', oldDateStr)
       
       // Cerrar modales y recargar datos
       setShowConfirmModal(false)
@@ -216,26 +478,49 @@ export function ClientCalendar({ clientId, onLastWorkoutUpdate }: ClientCalendar
       try {
         setLoading(true)
 
-        // Obtener todas las ejecuciones de ejercicios del cliente
-        // Incluyendo la columna detalle_series que sí existe
-        const { data: executions, error } = await supabase
-          .from('ejecuciones_ejercicio')
-          .select(`
-            id,
-            ejercicio_id,
-            completado,
-            fecha_ejercicio,
-            detalle_series,
-            ejercicios_detalles(
-              nombre_ejercicio,
-              tipo,
-              activities(
-                title
-              )
-            )
-          `)
-          .eq('client_id', clientId)
-          .order('fecha_ejercicio', { ascending: false })
+        // Obtener progreso del cliente desde la nueva tabla
+        const { data: progressRecords, error } = await supabase
+          .from('progreso_cliente')
+          .select('id, fecha, actividad_id, ejercicios_completados, ejercicios_pendientes, detalles_series')
+          .eq('cliente_id', clientId)
+          .order('fecha', { ascending: false })
+
+        // Obtener nombres de ejercicios desde ejercicios_detalles
+        const ejercicioIds = new Set<string>()
+        progressRecords?.forEach((record: any) => {
+          let completados: any[] = []
+          let pendientes: any[] = []
+          
+          try {
+            if (Array.isArray(record.ejercicios_completados)) {
+              completados = record.ejercicios_completados
+            } else if (typeof record.ejercicios_completados === 'string') {
+              completados = JSON.parse(record.ejercicios_completados || '[]')
+            }
+            
+            if (Array.isArray(record.ejercicios_pendientes)) {
+              pendientes = record.ejercicios_pendientes
+            } else if (typeof record.ejercicios_pendientes === 'string') {
+              pendientes = JSON.parse(record.ejercicios_pendientes || '[]')
+            }
+          } catch (err) {
+            // Ignorar errores de parsing
+          }
+          
+          [...completados, ...pendientes].forEach((id: string) => {
+            ejercicioIds.add(String(id))
+          })
+        })
+
+        // Obtener nombres de ejercicios
+        const { data: ejerciciosData, error: ejerciciosError } = await supabase
+          .from('ejercicios_detalles')
+          .select('id, nombre_ejercicio')
+          .in('id', Array.from(ejercicioIds))
+
+        if (ejerciciosError) {
+          console.warn('⚠️ [CLIENT CALENDAR] Error obteniendo nombres de ejercicios:', ejerciciosError)
+        }
 
         if (error) {
           console.error('❌ [CLIENT CALENDAR] Error obteniendo ejecuciones:', error)
@@ -245,11 +530,36 @@ export function ClientCalendar({ clientId, onLastWorkoutUpdate }: ClientCalendar
         }
 
 
-        // Procesar datos por día
+        // Procesar datos por día desde progreso_cliente
         const processedData: { [key: string]: DayData } = {}
 
-        executions?.forEach((execution: any) => {
-          const fecha = execution.fecha_ejercicio
+        progressRecords?.forEach((record: any) => {
+          const fecha = record.fecha
+          
+          // Manejar tanto arrays nativos de PostgreSQL como strings JSON
+          let completados: any[] = []
+          let pendientes: any[] = []
+          
+          try {
+            if (Array.isArray(record.ejercicios_completados)) {
+              completados = record.ejercicios_completados
+            } else if (typeof record.ejercicios_completados === 'string') {
+              completados = JSON.parse(record.ejercicios_completados || '[]')
+            }
+            
+            if (Array.isArray(record.ejercicios_pendientes)) {
+              pendientes = record.ejercicios_pendientes
+            } else if (typeof record.ejercicios_pendientes === 'string') {
+              pendientes = JSON.parse(record.ejercicios_pendientes || '[]')
+            }
+          } catch (err) {
+            console.warn('Error parseando ejercicios:', err)
+            completados = []
+            pendientes = []
+          }
+          
+          const allEjercicios = [...completados, ...pendientes]
+
           if (!processedData[fecha]) {
             processedData[fecha] = {
               date: fecha,
@@ -260,29 +570,65 @@ export function ClientCalendar({ clientId, onLastWorkoutUpdate }: ClientCalendar
             }
           }
 
-          const exerciseData: ExerciseExecution = {
-            id: execution.id,
-            ejercicio_id: execution.ejercicio_id,
-            completado: execution.completado,
-            fecha_ejercicio: execution.fecha_ejercicio,
-            duracion: undefined, // Columna no disponible
-            calorias_estimadas: undefined, // Columna no disponible
-            nota_cliente: undefined, // Columna no disponible
-            ejercicio_nombre: execution.ejercicios_detalles?.nombre_ejercicio,
-            actividad_titulo: execution.ejercicios_detalles?.activities?.title,
-            detalle_series: execution.detalle_series
-          }
+          allEjercicios.forEach((ejId: string) => {
+            const isCompleted = completados.includes(ejId)
+            
+            // Buscar el nombre del ejercicio
+            const ejercicio = ejerciciosData?.find(e => String(e.id) === String(ejId))
+            
+            const exerciseData: ExerciseExecution = {
+              id: `${record.id}-${ejId}`,
+              ejercicio_id: ejId,
+              completado: isCompleted,
+              fecha_ejercicio: fecha,
+              duracion: undefined,
+              calorias_estimadas: undefined,
+              nota_cliente: undefined,
+              ejercicio_nombre: ejercicio?.nombre_ejercicio || `Ejercicio ${ejId}`,
+              actividad_titulo: undefined,
+              detalle_series: (() => {
+                try {
+                  if (!record.detalles_series) {
+                    return null
+                  }
+                  
+                  let detalles: any = null
+                  
+                  // Manejar string JSON
+                  if (typeof record.detalles_series === 'string') {
+                    try {
+                      detalles = JSON.parse(record.detalles_series)
+                    } catch (e) {
+                      console.warn('Error parseando detalles_series como JSON:', e)
+                      return null
+                    }
+                  } 
+                  // Manejar objeto nativo
+                  else if (typeof record.detalles_series === 'object') {
+                    detalles = record.detalles_series
+                  }
+                  
+                  // detalles_series está estructurado como: { "1042": { series: 3, repeticiones: 15, descanso: "30s" } }
+                  // Buscar por ejId (como string)
+                  if (detalles && typeof detalles === 'object' && !Array.isArray(detalles)) {
+                    const ejIdStr = String(ejId)
+                    return detalles[ejIdStr] || null
+                  }
+                  
+                  return null
+                } catch (err) {
+                  console.warn('Error parseando detalles_series:', err)
+                  return null
+                }
+              })()
+            }
 
-          processedData[fecha].exercises.push(exerciseData)
-          processedData[fecha].exerciseCount += 1
-          if (execution.completado) {
-            processedData[fecha].completedCount += 1
-          }
-
-          // Agregar actividad única
-          if (exerciseData.actividad_titulo && !processedData[fecha].activities.includes(exerciseData.actividad_titulo)) {
-            processedData[fecha].activities.push(exerciseData.actividad_titulo)
-          }
+            processedData[fecha].exercises.push(exerciseData)
+            processedData[fecha].exerciseCount += 1
+            if (isCompleted) {
+              processedData[fecha].completedCount += 1
+            }
+          })
         })
 
         setDayData(processedData)
@@ -305,6 +651,23 @@ export function ClientCalendar({ clientId, onLastWorkoutUpdate }: ClientCalendar
       fetchClientExercises()
     }
   }, [clientId, supabase])
+
+  // Cerrar dropdown cuando se hace clic fuera
+  useEffect(() => {
+    const handleClickOutside = (event: MouseEvent) => {
+      if (showExerciseDropdown) {
+        const target = event.target as HTMLElement
+        if (!target.closest('.exercise-dropdown')) {
+          setShowExerciseDropdown(false)
+        }
+      }
+    }
+
+    document.addEventListener('mousedown', handleClickOutside)
+    return () => {
+      document.removeEventListener('mousedown', handleClickOutside)
+    }
+  }, [showExerciseDropdown])
 
   // Navegación del calendario
   const goToPreviousMonth = () => {
@@ -581,11 +944,136 @@ export function ClientCalendar({ clientId, onLastWorkoutUpdate }: ClientCalendar
 
                 {/* Nombre del ejercicio y detalle de series */}
                 <div className="flex-1 px-4">
-                  <div className="font-semibold text-white mb-1">
-                    {exercise.ejercicio_nombre}
-                  </div>
+                  {editingExerciseId === exercise.id ? (
+                    <div className="relative mb-1 exercise-dropdown">
+                      <button
+                        onClick={() => setShowExerciseDropdown(!showExerciseDropdown)}
+                        className="flex items-center justify-between w-full px-3 py-2 text-sm font-semibold text-white bg-[#2A2A2A] border border-[#3A3A3A] rounded-lg hover:bg-[#3A3A3A] transition-colors"
+                      >
+                        <span>{exercise.ejercicio_nombre}</span>
+                        <ChevronDown className={`h-4 w-4 transition-transform ${showExerciseDropdown ? 'rotate-180' : ''}`} />
+                      </button>
+                      
+                      {showExerciseDropdown && (
+                        <div className="absolute top-full left-0 right-0 z-50 mt-1 bg-[#1E1E1E] border border-[#3A3A3A] rounded-lg shadow-lg max-h-48 overflow-y-auto">
+                          {availableExercises.length > 0 ? (
+                            availableExercises.map((ex) => (
+                              <button
+                                key={ex.id}
+                                onClick={() => handleChangeExercise(String(ex.id))}
+                                className={`w-full px-3 py-2 text-left text-sm hover:bg-[#3A3A3A] transition-colors ${
+                                  String(ex.id) === String(exercise.ejercicio_id)
+                                    ? 'bg-[#FF7939]/20 text-[#FF7939]'
+                                    : 'text-white'
+                                }`}
+                              >
+                                {ex.nombre_ejercicio}
+                              </button>
+                            ))
+                          ) : (
+                            <div className="px-3 py-2 text-sm text-gray-400">
+                              No hay ejercicios disponibles
+                            </div>
+                          )}
+                        </div>
+                      )}
+                    </div>
+                  ) : (
+                    <div className="font-semibold text-white mb-1">
+                      {exercise.ejercicio_nombre}
+                    </div>
+                  )}
+                  
+                  {/* Editor de series expandido */}
+                  {editingExerciseId === exercise.id ? (
+                    <div className="space-y-2">
+                      {editingSeries.map((serie, index) => (
+                        <div key={index} className="flex items-center gap-2 py-1">
+                          {/* Siempre mostrar indicador de bloque */}
+                          <div className="w-6 h-6 flex items-center justify-center text-xs text-[#FF7939] font-bold bg-[#FF7939]/10 rounded-full">
+                            {index + 1}
+                          </div>
+                          <div className="flex flex-col">
+                            <label className="text-[10px] text-gray-500 mb-0.5">Series</label>
+                            <input
+                              type="number"
+                              placeholder="3"
+                              value={serie.series}
+                              onChange={(e) => handleUpdateSeries(index, 'series', e.target.value)}
+                              className="w-14 px-2 py-1 text-xs bg-[#2A2A2A] border border-[#3A3A3A] rounded text-white placeholder:text-gray-400"
+                            />
+                          </div>
+                          <span className="text-gray-400 text-xs mt-4">×</span>
+                          <div className="flex flex-col">
+                            <label className="text-[10px] text-gray-500 mb-0.5">Reps</label>
+                            <input
+                              type="number"
+                              placeholder="15"
+                              value={serie.repeticiones}
+                              onChange={(e) => handleUpdateSeries(index, 'repeticiones', e.target.value)}
+                              className="w-14 px-2 py-1 text-xs bg-[#2A2A2A] border border-[#3A3A3A] rounded text-white placeholder:text-gray-400"
+                            />
+                          </div>
+                          <span className="text-gray-400 text-xs mt-4">×</span>
+                          <div className="flex flex-col">
+                            <label className="text-[10px] text-gray-500 mb-0.5">Peso (kg)</label>
+                            <input
+                              type="number"
+                              step="0.5"
+                              placeholder="50"
+                              value={serie.peso}
+                              onChange={(e) => handleUpdateSeries(index, 'peso', e.target.value)}
+                              className="w-14 px-2 py-1 text-xs bg-[#2A2A2A] border border-[#3A3A3A] rounded text-white placeholder:text-gray-400"
+                            />
+                          </div>
+                          {/* Siempre mostrar botón de eliminar, pero solo permitir eliminar si hay más de 1 bloque */}
+                          <button
+                            onClick={() => handleRemoveSeries(index)}
+                            disabled={editingSeries.length <= 1}
+                            className={`ml-2 p-1 rounded transition-colors ${
+                              editingSeries.length <= 1 
+                                ? 'text-gray-600 cursor-not-allowed' 
+                                : 'text-red-400 hover:text-red-300 hover:bg-red-900/20'
+                            }`}
+                            title={editingSeries.length <= 1 ? "Mínimo 1 bloque requerido" : "Eliminar bloque"}
+                          >
+                            <svg className="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+                            </svg>
+                          </button>
+                        </div>
+                      ))}
+                      
+                      {/* Botón para agregar más bloques */}
+                      <button
+                        onClick={handleAddSeries}
+                        className="flex items-center justify-center w-8 h-8 text-[#FF7939] hover:text-[#FF7939]/80 hover:bg-[#FF7939]/10 rounded-full transition-colors"
+                        title="Agregar bloque"
+                      >
+                        <svg className="h-5 w-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
+                        </svg>
+                      </button>
+                      
+                      <div className="flex items-center gap-2 mt-2">
+                        <button
+                          onClick={handleSaveSeries}
+                          className="px-3 py-1 text-xs bg-[#FF7939] hover:bg-[#FF7939]/80 text-white rounded transition-colors"
+                        >
+                          Guardar
+                        </button>
+                        <button
+                          onClick={handleCancelEditSeries}
+                          className="px-3 py-1 text-xs bg-gray-600 hover:bg-gray-700 text-white rounded transition-colors"
+                        >
+                          Cancelar
+                        </button>
+                      </div>
+                    </div>
+                  ) : (
+                    <div className="flex items-center justify-between">
                   <div className="text-xs text-gray-400">
-                    {exercise.detalle_series && exercise.detalle_series.length > 0 ? (
+                        {exercise.detalle_series ? (
                       <span className="text-[#FF7939]">
                         {formatSeries(exercise.detalle_series)}
                       </span>
@@ -593,6 +1081,17 @@ export function ClientCalendar({ clientId, onLastWorkoutUpdate }: ClientCalendar
                       <span className="text-gray-500">Sin series</span>
                     )}
                   </div>
+                      
+                      {/* Botón de editar series */}
+                      <button
+                        onClick={() => handleEditSeries(exercise.id, exercise.detalle_series)}
+                        className="p-1 text-gray-400 hover:text-[#FF7939] transition-colors"
+                        title="Editar series"
+                      >
+                        <Edit className="h-3 w-3" />
+                      </button>
+                    </div>
+                  )}
                 </div>
               </div>
             ))}

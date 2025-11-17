@@ -5,9 +5,10 @@ import { Inter } from "next/font/google"
 import { AuthProvider } from "@/contexts/auth-context"
 import { PopupProvider } from "@/contexts/popup-context"
 import { UserProvider } from "@/contexts/user-context"
-import { DebugLink } from "@/components/debug-link"
-import { AsyncErrorBoundary } from "@/components/error-boundary"
-import { LogThrottleIndicator } from "@/components/log-throttle-monitor"
+import { DebugLink } from '@/components/shared/admin/debug-link'
+import { AsyncErrorBoundary } from '@/components/shared/misc/error-boundary'
+import { LogThrottleIndicator } from '@/components/shared/admin/log-throttle-monitor'
+import { ConsoleSilencer } from '@/components/shared/misc/console-silencer'
 
 // Desactivar Service Worker en entornos de desarrollo o previsualización
 const isServiceWorkerSupported =
@@ -66,6 +67,8 @@ export default function RootLayout({
         )}
       </head>
       <body className={inter.className}>
+        {/* Silenciar logs en cliente (excepto errores) */}
+        <ConsoleSilencer />
         <AsyncErrorBoundary>
           <PopupProvider>
             <AuthProvider>

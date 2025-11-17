@@ -1,5 +1,75 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createRouteHandlerClient } from '@/lib/supabase/supabase-server'
+import { createClient } from '@supabase/supabase-js'
+
+// Función para verificar y pausar productos automáticamente si exceden el límite
+async function checkAndPauseProductsIfNeeded(coachId: string) {
+  try {
+    const supabaseService = createClient(
+      process.env.NEXT_PUBLIC_SUPABASE_URL!,
+      process.env.SUPABASE_SERVICE_ROLE_KEY!
+    )
+    
+    // Obtener plan actual del coach
+    const { data: plan } = await supabaseService
+      .from('planes_uso_coach')
+      .select('plan_type')
+      .eq('coach_id', coachId)
+      .eq('status', 'active')
+      .order('started_at', { ascending: false })
+      .limit(1)
+      .maybeSingle()
+    
+    // Límites de productos activos por plan (usar función getPlanLimit)
+    const { getPlanLimit } = await import('@/lib/utils/plan-limits')
+    const planType = (plan?.plan_type || 'free') as 'free' | 'basico' | 'black' | 'premium'
+    const limit = getPlanLimit(planType, 'activeProducts')
+    
+    // Contar productos activos (no pausados)
+    // Ordenar por created_at ASCENDENTE para mantener activos los más antiguos y pausar los más recientes
+    const { data: activeProducts, error: countError } = await supabaseService
+      .from('activities')
+      .select('id, created_at')
+      .eq('coach_id', coachId)
+      .eq('is_paused', false)
+      .order('created_at', { ascending: true }) // ASCENDENTE: los más antiguos primero
+    
+    if (countError) {
+      console.error('Error contando productos activos:', countError)
+      return
+    }
+    
+    const activeCount = activeProducts?.length || 0
+    
+    // Si excede el límite, pausar los más recientes (los últimos en el array ordenado ascendente)
+    if (activeCount > limit) {
+      // Mantener activos los primeros 'limit' productos (más antiguos)
+      // Pausar los productos desde el índice 'limit' en adelante (más recientes)
+      const productsToPause = activeProducts.slice(limit)
+      const productIds = productsToPause.map(p => p.id)
+      
+      console.log(`⚠️ Plan ${planType}: ${activeCount} productos activos, límite: ${limit}. Pausando ${productIds.length} productos más recientes:`, productIds)
+      
+      if (productIds.length > 0) {
+        const { error: pauseError } = await supabaseService
+          .from('activities')
+          .update({ 
+            is_paused: true,
+            updated_at: new Date().toISOString()
+          })
+          .in('id', productIds)
+        
+        if (pauseError) {
+          console.error('Error pausando productos automáticamente:', pauseError)
+        } else {
+          console.log(`✅ Pausados automáticamente ${productIds.length} productos que excedían el límite del plan ${planType}`)
+        }
+      }
+    }
+  } catch (error) {
+    console.error('Error en checkAndPauseProductsIfNeeded:', error)
+  }
+}
 
 export async function GET(request: NextRequest) {
   try {
@@ -11,7 +81,7 @@ export async function GET(request: NextRequest) {
       return NextResponse.json({ error: 'No autorizado' }, { status: 401 })
     }
     
-    // Obtener productos básicos
+    // Obtener productos básicos (incluyendo is_paused)
     const { data: products, error: productsError } = await supabase
       .from('activities')
       .select('*')
@@ -22,16 +92,390 @@ export async function GET(request: NextRequest) {
       return NextResponse.json({ error: productsError.message }, { status: 500 })
     }
     
-    // Obtener media para cada producto
+    // Obtener plan una sola vez para todos los productos
+    const supabaseService = createClient(
+      process.env.NEXT_PUBLIC_SUPABASE_URL!,
+      process.env.SUPABASE_SERVICE_ROLE_KEY!
+    )
+    
+    const { data: plan } = await supabaseService
+      .from('planes_uso_coach')
+      .select('plan_type')
+      .eq('coach_id', user.id)
+      .eq('status', 'active')
+      .order('started_at', { ascending: false })
+      .limit(1)
+      .maybeSingle()
+    
+    const planType = (plan?.plan_type || 'free') as 'free' | 'basico' | 'black' | 'premium'
+    const { getPlanLimit } = await import('@/lib/utils/plan-limits')
+    const { adjustProductCapacityIfNeeded, adjustProductActivitiesIfNeeded, updateFinishedWorkshops } = await import('@/lib/utils/auto-adjust-limits')
+    const stockLimit = getPlanLimit(planType, 'stockPerProduct')
+    
+    // IMPORTANTE: Actualizar talleres finalizados y pausar productos excedentes ANTES de procesar
+    // Esto asegura que los productos se muestren con el estado correcto
+    await updateFinishedWorkshops(user.id)
+    await checkAndPauseProductsIfNeeded(user.id)
+    
+    // Recargar productos después de pausar para obtener el estado actualizado
+    const { data: updatedProducts, error: updatedProductsError } = await supabase
+      .from('activities')
+      .select('*')
+      .eq('coach_id', user.id)
+      .order('created_at', { ascending: false })
+    
+    // Usar productos actualizados si están disponibles, sino usar los originales
+    const productsToProcess = updatedProducts || products
+    
+    // Obtener media y estadísticas para cada producto
     const productsWithMedia = await Promise.all(
-      (products || []).map(async (product) => {
+      (productsToProcess || []).map(async (product) => {
+        // Ajustar capacity automáticamente si excede el límite
+        // Verificar siempre, incluso si capacity es null o 0
+        if (product.capacity !== null && product.capacity !== undefined) {
+          const capacityNumber = typeof product.capacity === 'string' ? parseFloat(product.capacity) : product.capacity
+          
+          if (capacityNumber > stockLimit) {
+            const adjustedCapacity = await adjustProductCapacityIfNeeded(
+              user.id,
+              product.id,
+              capacityNumber
+            )
+            if (adjustedCapacity !== capacityNumber && adjustedCapacity !== null) {
+              product.capacity = adjustedCapacity
+            }
+          }
+        }
+        
+        // Ajustar actividades (platos/ejercicios) automáticamente si exceden el límite
+        const adjustResult = await adjustProductActivitiesIfNeeded(
+          user.id,
+          product.id,
+          product.categoria || 'fitness'
+        )
+        
+        // Silenciar logs detallados de autoajuste
+        
+        // Verificar y pausar producto si excede límites (actividades o semanas)
+        // Solo si el producto no está ya pausado manualmente
+        let pauseReasons: string[] = []
+        let pauseDetails: any = {}
+        if (!product.is_paused) {
+          const { checkAndPauseProductIfExceedsLimits } = await import('@/lib/utils/auto-adjust-limits')
+          const pauseResult = await checkAndPauseProductIfExceedsLimits(
+            user.id,
+            product.id,
+            product.categoria || 'fitness'
+          )
+          pauseReasons = pauseResult.reasons || []
+          pauseDetails = pauseResult.details || {}
+          // Recargar el producto para obtener el estado actualizado
+          const { data: updatedProduct } = await supabase
+            .from('activities')
+            .select('is_paused')
+            .eq('id', product.id)
+            .single()
+          if (updatedProduct) {
+            product.is_paused = updatedProduct.is_paused
+          }
+        } else {
+          // Si ya está pausado, verificar por qué (puede ser por exceso de límites)
+          // Obtener períodos para calcular semanas
+          const { data: periodosPaused } = await supabase
+            .from('periodos')
+            .select('cantidad_periodos')
+            .eq('actividad_id', product.id)
+            .maybeSingle()
+          
+          // Verificar sin pausar (solo para obtener los detalles)
+          const { data: planificacionCheck } = await supabase
+            .from('planificacion_ejercicios')
+            .select('numero_semana')
+            .eq('actividad_id', product.id)
+          
+          const baseWeeksCheck = new Set(planificacionCheck?.map(p => p.numero_semana) || []).size
+          const periodsCheck = periodosPaused?.cantidad_periodos || 1
+          const weeksCountCheck = baseWeeksCheck * periodsCheck
+          
+          const isNutritionCheck = (product.categoria || 'fitness') === 'nutricion' || (product.categoria || 'fitness') === 'nutrition'
+          const tableNameCheck = isNutritionCheck ? 'nutrition_program_details' : 'ejercicios_detalles'
+          
+          let activitiesCountCheck = 0
+          if (tableNameCheck === 'ejercicios_detalles') {
+            const { count } = await supabase
+              .from('ejercicios_detalles')
+              .select('*', { count: 'exact', head: true })
+              .contains('activity_id', { [product.id]: {} })
+            activitiesCountCheck = count || 0
+          } else {
+            const { count } = await supabase
+              .from(tableNameCheck)
+              .select('*', { count: 'exact', head: true })
+              .eq('activity_id', product.id)
+            activitiesCountCheck = count || 0
+          }
+          
+          const activitiesLimitCheck = getPlanLimit(planType, 'activitiesPerProduct')
+          const weeksLimitCheck = getPlanLimit(planType, 'weeksPerProduct')
+          
+          if (activitiesCountCheck > activitiesLimitCheck) {
+            pauseReasons.push(`Exceso de ${isNutritionCheck ? 'platos' : 'ejercicios'}: ${activitiesCountCheck} (límite: ${activitiesLimitCheck})`)
+          }
+          if (weeksCountCheck > weeksLimitCheck) {
+            pauseReasons.push(`Exceso de semanas: ${weeksCountCheck} (límite: ${weeksLimitCheck})`)
+          }
+          
+          pauseDetails = {
+            activitiesCount: activitiesCountCheck,
+            activitiesLimit: activitiesLimitCheck,
+            weeksCount: weeksCountCheck,
+            weeksLimit: weeksLimitCheck
+          }
+        }
         const { data: media } = await supabase
           .from('activity_media')
           .select('id, image_url, video_url, pdf_url, bunny_video_id, bunny_library_id, video_thumbnail_url')
           .eq('activity_id', product.id)
           .single()
+
+        // Obtener planificación y períodos una sola vez para todos los cálculos
+        const { data: planificacion } = await supabase
+          .from('planificacion_ejercicios')
+          .select('*')
+          .eq('actividad_id', product.id)
         
-        return {
+        const { data: periodos } = await supabase
+          .from('periodos')
+          .select('cantidad_periodos')
+          .eq('actividad_id', product.id)
+          .maybeSingle()
+
+        // Calcular estadísticas dinámicamente
+        let exercisesCount = 0
+        let totalSessions = 0
+        
+        // Verificar si es nutrición
+        const isNutrition = product.categoria === 'nutricion' || product.categoria === 'nutrition' || product.type === 'nutrition'
+        
+        if (isNutrition) {
+          // Para nutrición: obtener platos de nutrition_program_details
+          const { data: platos } = await supabase
+            .from('nutrition_program_details')
+            .select('id')
+            .eq('activity_id', product.id)
+          
+          exercisesCount = platos?.length || 0
+          
+          if (planificacion && planificacion.length > 0) {
+            const diasConEjercicios = new Set()
+            planificacion.forEach(semana => {
+              ['lunes', 'martes', 'miercoles', 'jueves', 'viernes', 'sabado', 'domingo'].forEach(dia => {
+                if (semana[dia] && typeof semana[dia] === 'object' && semana[dia].ejercicios && Array.isArray(semana[dia].ejercicios) && semana[dia].ejercicios.length > 0) {
+                  diasConEjercicios.add(dia)
+                }
+              })
+            })
+            
+            const diasUnicos = diasConEjercicios.size
+            const periodosUnicos = periodos?.cantidad_periodos || 1
+            totalSessions = diasUnicos * periodosUnicos
+            
+            console.log(`🥗 PRODUCTOS: Actividad ${product.id} (Nutrición) - Platos: ${exercisesCount}, Días: ${diasUnicos}, Períodos: ${periodosUnicos}, Sesiones: ${totalSessions}`)
+          }
+        } else if (product.type === 'program' || product.type === 'fitness') {
+          // Obtener ejercicios
+          const { data: ejercicios } = await supabase
+            .from('ejercicios_detalles')
+            .select('id')
+            .contains('activity_id', { [product.id]: {} })
+          
+          exercisesCount = ejercicios?.length || 0
+          
+          if (planificacion && planificacion.length > 0) {
+            // Calcular días únicos con ejercicios ACTIVOS
+            const diasConEjercicios = new Set()
+            planificacion.forEach(semana => {
+              ['lunes', 'martes', 'miercoles', 'jueves', 'viernes', 'sabado', 'domingo'].forEach(dia => {
+                if (semana[dia] && typeof semana[dia] === 'object' && semana[dia].ejercicios && Array.isArray(semana[dia].ejercicios)) {
+                  // Filtrar solo ejercicios activos (activo !== false)
+                  const activeExercises = semana[dia].ejercicios.filter((exercise: any) => {
+                    return exercise.activo !== false
+                  })
+                  
+                  // Solo contar el día si tiene al menos un ejercicio activo
+                  if (activeExercises.length > 0) {
+                    diasConEjercicios.add(dia)
+                  }
+                }
+              })
+            })
+            
+            const diasUnicos = diasConEjercicios.size
+            const periodosUnicos = periodos?.cantidad_periodos || 1
+            totalSessions = diasUnicos * periodosUnicos
+            
+            console.log(`📊 PRODUCTOS: Actividad ${product.id} - Días: ${diasUnicos}, Períodos: ${periodosUnicos}, Sesiones: ${totalSessions}`)
+          }
+        }
+        
+        // Los objetivos están guardados en workshop_type; puede venir como:
+        // 1) string JSON: '{"objetivos":"A;B"}' o '["A","B"]'
+        // 2) objeto: { objetivos: 'A;B' } o ['A','B']
+        // 3) string plano: 'general' (sin objetivos)
+        let objetivos = []
+        if (product.workshop_type) {
+          try {
+            let parsed: any = product.workshop_type
+            if (typeof product.workshop_type === 'string') {
+              const ws = product.workshop_type.trim()
+              if (ws.startsWith('{') || ws.startsWith('[')) {
+                parsed = JSON.parse(ws)
+              } else {
+                // String plano como 'general' -> sin objetivos
+                parsed = ws
+              }
+            }
+
+            if (parsed && typeof parsed === 'object' && !Array.isArray(parsed) && parsed.objetivos) {
+              objetivos = String(parsed.objetivos)
+                .split(';')
+                .map((obj: string) => obj.trim())
+                .filter((obj: string) => obj.length > 0)
+            } else if (Array.isArray(parsed)) {
+              objetivos = parsed
+            } else {
+              objetivos = []
+            }
+          } catch (e) {
+            console.warn('Error parseando objetivos:', e)
+            objetivos = []
+          }
+        }
+        
+        // Para talleres: obtener el estado 'activo' desde taller_detalles
+        // Todos los temas de un taller deben tener el mismo valor de 'activo'
+        let tallerActivo: boolean | null = null
+        if (product.type === 'workshop') {
+          try {
+            // Obtener 'activo' y 'originales' desde la BD
+            const { data: tallerDetalles, error: tallerError } = await supabase
+              .from('taller_detalles')
+              .select('activo, originales')
+              .eq('actividad_id', product.id)
+              .limit(1)
+            
+            if (tallerError) {
+              // Si hay error (probablemente la columna no existe), usar lógica de fechas
+              console.warn(`⚠️ Error obteniendo 'activo' para taller ${product.id}:`, tallerError.message)
+              
+              // Obtener fechas para calcular si está activo
+              const { data: tallerDetallesFechas } = await supabase
+                .from('taller_detalles')
+                .select('originales')
+                .eq('actividad_id', product.id)
+              
+              if (tallerDetallesFechas && tallerDetallesFechas.length > 0) {
+                // Extraer todas las fechas
+                const allDates: string[] = []
+                tallerDetallesFechas.forEach((tema: any) => {
+                  try {
+                    let originales = tema.originales
+                    if (typeof originales === 'string') {
+                      originales = JSON.parse(originales)
+                    }
+                    if (originales?.fechas_horarios && Array.isArray(originales.fechas_horarios)) {
+                      originales.fechas_horarios.forEach((fecha: any) => {
+                        if (fecha?.fecha) {
+                          allDates.push(fecha.fecha)
+                        }
+                      })
+                    }
+                  } catch (e) {
+                    console.error('Error procesando fechas del tema:', e)
+                  }
+                })
+                
+                // Verificar si hay fechas futuras
+                if (allDates.length > 0) {
+                  const now = new Date()
+                  now.setHours(0, 0, 0, 0)
+                  const lastDate = new Date(Math.max(...allDates.map((date: string) => new Date(date).getTime())))
+                  lastDate.setHours(0, 0, 0, 0)
+                  tallerActivo = lastDate >= now
+                  console.log(`📅 Taller ${product.id}: Última fecha = ${lastDate.toISOString().split('T')[0]}, Hoy = ${now.toISOString().split('T')[0]}, Activo = ${tallerActivo}`)
+                } else {
+                  tallerActivo = false // Sin fechas = inactivo
+                  console.log(`📅 Taller ${product.id}: Sin fechas, inactivo`)
+                }
+              } else {
+                tallerActivo = true // Sin temas = activo por defecto
+                console.log(`ℹ️ Taller ${product.id}: sin temas, activo por defecto`)
+              }
+            } else if (tallerDetalles && tallerDetalles.length > 0) {
+              // Verificar si la columna 'activo' existe en los resultados
+              const primerTema = tallerDetalles[0]
+              const tieneColumnaActivo = 'activo' in primerTema
+              
+              console.log(`🔍 Taller ${product.id}: Verificando columna 'activo' - tieneColumnaActivo: ${tieneColumnaActivo}, valor: ${primerTema.activo}, tipo: ${typeof primerTema.activo}`)
+              
+              if (tieneColumnaActivo) {
+                // Si la columna existe, usar su valor (puede ser true, false, 'true', 'false', etc.)
+                // Convertir a boolean si es necesario
+                let valorActivo = primerTema.activo
+                if (typeof valorActivo === 'string') {
+                  valorActivo = valorActivo === 'true' || valorActivo === '1'
+                }
+                tallerActivo = valorActivo === true
+                console.log(`✅ Taller ${product.id}: taller_activo = ${tallerActivo} (desde BD, columna activo = ${primerTema.activo}, convertido a ${tallerActivo})`)
+              } else {
+                // Si la columna no existe, calcular basándose en fechas
+                console.log(`ℹ️ Columna 'activo' no existe para taller ${product.id}, usando lógica de fechas`)
+                
+                // Extraer todas las fechas
+                const allDates: string[] = []
+                tallerDetalles.forEach((tema: any) => {
+                  try {
+                    let originales = tema.originales
+                    if (typeof originales === 'string') {
+                      originales = JSON.parse(originales)
+                    }
+                    if (originales?.fechas_horarios && Array.isArray(originales.fechas_horarios)) {
+                      originales.fechas_horarios.forEach((fecha: any) => {
+                        if (fecha?.fecha) {
+                          allDates.push(fecha.fecha)
+                        }
+                      })
+                    }
+                  } catch (e) {
+                    console.error('Error procesando fechas del tema:', e)
+                  }
+                })
+                
+                // Verificar si hay fechas futuras
+                if (allDates.length > 0) {
+                  const now = new Date()
+                  now.setHours(0, 0, 0, 0)
+                  const lastDate = new Date(Math.max(...allDates.map((date: string) => new Date(date).getTime())))
+                  lastDate.setHours(0, 0, 0, 0)
+                  tallerActivo = lastDate >= now
+                  console.log(`📅 Taller ${product.id}: Última fecha = ${lastDate.toISOString().split('T')[0]}, Hoy = ${now.toISOString().split('T')[0]}, Activo = ${tallerActivo}`)
+                } else {
+                  tallerActivo = false // Sin fechas = inactivo
+                  console.log(`📅 Taller ${product.id}: Sin fechas, inactivo`)
+                }
+              }
+            } else {
+              // Si no hay temas, considerar como activo por defecto
+              tallerActivo = true
+              console.log(`ℹ️ Taller ${product.id}: sin temas, activo por defecto`)
+            }
+          } catch (error) {
+            console.error(`❌ Error procesando taller ${product.id}:`, error)
+            tallerActivo = true // Por defecto activo si hay error
+          }
+        }
+        
+        const finalProduct = {
           id: product.id,
           title: product.title || 'Sin título',
           name: product.title || 'Sin título', // Alias para compatibilidad
@@ -41,6 +485,7 @@ export async function GET(request: NextRequest) {
           difficulty: product.difficulty || 'beginner',
           is_public: product.is_public || false,
           capacity: product.capacity || null,
+          modality: product.modality || null,
           created_at: product.created_at,
           updated_at: product.updated_at,
           // Valores seguros para campos que pueden no existir
@@ -55,8 +500,43 @@ export async function GET(request: NextRequest) {
           video_url: media?.video_url || null,
           pdf_url: media?.pdf_url || null,
           // Para compatibilidad con el modal
-          activity_media: media ? [media] : []
+          activity_media: media ? [media] : [],
+          // Objetivos desde workshop_type
+          objetivos: objetivos,
+          // Categoría para determinar si es nutrición
+          categoria: product.categoria,
+          // Tipo de dieta para productos de nutrición
+          dieta: product.dieta || null,
+          // Ubicación para actividades presenciales
+          location_url: product.location_url,
+          location_name: product.location_name,
+          // Estadísticas calculadas dinámicamente
+          exercisesCount: exercisesCount,
+          totalSessions: totalSessions,
+          // Estado de pausa
+          is_paused: product.is_paused || false,
+          // Para talleres: estado 'activo' desde taller_detalles (indica si está disponible para nuevas ventas)
+          taller_activo: product.type === 'workshop' 
+            ? (tallerActivo !== null ? tallerActivo : undefined)
+            : undefined,
+          // Obtener semanas para validar límites (semanas base * períodos)
+          weeks: (() => {
+            // Obtener semanas base desde planificacion_ejercicios
+            const planificacionWeeks = planificacion ? new Set(planificacion.map(p => p.numero_semana || p.semana)).size : 0
+            const periods = periodos?.cantidad_periodos || 1
+            return planificacionWeeks * periods
+          })(),
+          // Razones de pausa (si está pausado por exceso de límites)
+          pause_reasons: pauseReasons,
+          pause_details: pauseDetails
         }
+        
+        // Debug: Log para verificar que taller_activo se está devolviendo correctamente
+        if (product.type === 'workshop') {
+          console.log(`📦 Producto ${finalProduct.id} (${finalProduct.title}): taller_activo = ${finalProduct.taller_activo}, tipo = ${typeof finalProduct.taller_activo}`)
+        }
+        
+        return finalProduct
       })
     )
     
@@ -82,6 +562,82 @@ export async function POST(request: NextRequest) {
     
     const body = await request.json()
     
+    // Validar límite de stock según plan
+    const supabaseService = createClient(
+      process.env.NEXT_PUBLIC_SUPABASE_URL!,
+      process.env.SUPABASE_SERVICE_ROLE_KEY!
+    )
+    
+    const { data: plan } = await supabaseService
+      .from('planes_uso_coach')
+      .select('plan_type')
+      .eq('coach_id', user.id)
+      .eq('status', 'active')
+      .order('started_at', { ascending: false })
+      .limit(1)
+      .maybeSingle()
+    
+    const planType = (plan?.plan_type || 'free') as 'free' | 'basico' | 'black' | 'premium'
+    const { getPlanLimit } = await import('@/lib/utils/plan-limits')
+    const stockLimit = getPlanLimit(planType, 'stockPerProduct')
+    const totalClientsLimit = getPlanLimit(planType, 'totalClients')
+    
+    const { data: existingActivities, error: existingActivitiesError } = await supabaseService
+      .from('activities')
+      .select('id, capacity, type')
+      .eq('coach_id', user.id)
+    
+    if (existingActivitiesError) {
+      console.error('❌ Error obteniendo actividades existentes para validar cupos totales:', existingActivitiesError)
+      return NextResponse.json({ error: 'No se pudo validar los cupos disponibles' }, { status: 500 })
+    }
+    
+    const normalizeCapacity = (value: any) => {
+      if (value === null || value === undefined) return 0
+      if (typeof value === 'number') return isFinite(value) ? value : 0
+      if (typeof value === 'string') {
+        const parsed = parseFloat(value)
+        return isNaN(parsed) ? 0 : parsed
+      }
+      return 0
+    }
+    
+    const totalCapacityUsed = (existingActivities || [])
+      .filter((activity) => {
+        if (!activity?.type) return true
+        const type = activity.type.toLowerCase()
+        return type !== 'document'
+      })
+      .reduce((sum, activity) => sum + normalizeCapacity(activity.capacity), 0)
+    
+    const isDocumentProduct = typeof body.modality === 'string' && body.modality.toLowerCase() === 'document'
+    
+    // Ajustar capacity (stock) automáticamente si excede los límites
+    let adjustedCapacity = body.capacity ?? null
+    
+    if (isDocumentProduct) {
+      adjustedCapacity = null
+      console.log('ℹ️ Producto de tipo documento: la venta es ilimitada, no se aplica límite de cupos.')
+    } else if (adjustedCapacity !== null && adjustedCapacity !== undefined) {
+      const numericCapacity = normalizeCapacity(adjustedCapacity)
+      let targetCapacity = numericCapacity
+      
+      if (numericCapacity > stockLimit) {
+        console.log(`⚠️ Stock excede límite individual del plan ${planType}: ${numericCapacity} > ${stockLimit}. Ajustando a ${stockLimit}`)
+        targetCapacity = stockLimit
+      }
+      
+      const remainingCapacity = Math.max(totalClientsLimit - totalCapacityUsed, 0)
+      if (targetCapacity > remainingCapacity) {
+        console.log(
+          `⚠️ Stock excede límite total de clientes (${totalClientsLimit}). Cupos usados actualmente: ${totalCapacityUsed}. Ajustando a ${remainingCapacity}`
+        )
+        targetCapacity = remainingCapacity
+      }
+      
+      adjustedCapacity = Math.max(Math.floor(targetCapacity), 0)
+    }
+    
     // Crear producto en activities (la tabla real)
     const { data: product, error: productError } = await supabase
       .from('activities')
@@ -89,15 +645,25 @@ export async function POST(request: NextRequest) {
         title: body.name, // Usar title en lugar de name
         description: body.description,
         price: body.price,
-        type: body.modality, // Usar type en lugar de modality
+        type: body.modality, // type = tipo de producto (program/workshop)
+        modality: body.type, // modality = modalidad (online/presencial/híbrido)
         categoria: body.categoria || 'fitness', // ✅ GUARDAR CATEGORIA (fitness o nutricion)
         difficulty: body.level, // Usar difficulty en lugar de level
         is_public: body.is_public,
-        capacity: body.capacity,
+        capacity: adjustedCapacity,
         // stockQuantity no existe en la tabla activities
         coach_id: user.id,
-        // ✅ CAMPOS ESPECÍFICOS PARA TALLERES
-        workshop_type: body.workshop_type || (body.modality === 'workshop' ? 'general' : null)
+        // ✅ GUARDAR TIPO DE DIETA
+        dieta: body.dieta || null,
+        // ✅ GUARDAR OBJETIVOS EN workshop_type como JSON
+        workshop_type: body.objetivos && Array.isArray(body.objetivos) && body.objetivos.length > 0
+          ? JSON.stringify(body.objetivos)
+          : (body.workshop_type || (body.modality === 'workshop' ? 'general' : null)),
+        // ✅ Campos de ubicación para modalidad presencial
+        location_name: body.location_name || null,
+        location_url: body.location_url || null,
+        // ✅ NUEVO: Días para acceder al producto
+        dias_acceso: body.dias_acceso || 30
       })
       .select()
       .single()
@@ -105,6 +671,9 @@ export async function POST(request: NextRequest) {
     if (productError) {
       return NextResponse.json({ error: productError.message }, { status: 500 })
     }
+    
+    // Verificar y pausar productos automáticamente si exceden el límite del plan
+    await checkAndPauseProductsIfNeeded(user.id)
     
     if (body.modality === 'workshop' && body.workshopSchedule && Array.isArray(body.workshopSchedule)) {
       
@@ -146,7 +715,16 @@ export async function POST(request: NextRequest) {
           fechas_horarios: topicData.secundarios
         }
         
-        // Insertar en taller_detalles
+        // Verificar si hay fechas futuras para determinar si el taller está activo
+        const now = new Date()
+        now.setHours(0, 0, 0, 0)
+        const hasFutureDates = topicData.originales.some((horario: any) => {
+          const fecha = new Date(horario.fecha)
+          fecha.setHours(0, 0, 0, 0)
+          return fecha >= now
+        })
+        
+        // Insertar en taller_detalles con activo = true si hay fechas futuras
         const { error: topicError } = await supabase
           .from('taller_detalles')
           .insert({
@@ -154,7 +732,8 @@ export async function POST(request: NextRequest) {
             nombre: topicData.nombre || 'Sin título',
             descripcion: topicData.descripcion || '',
             originales: originalesJson,
-            secundarios: secundariosJson
+            secundarios: secundariosJson,
+            activo: hasFutureDates // Activo solo si hay fechas futuras
           })
         
         if (topicError) {
@@ -193,6 +772,88 @@ export async function PUT(request: NextRequest) {
       return NextResponse.json({ error: 'ID de producto requerido para actualización' }, { status: 400 })
     }
     
+    // Validar límite de stock según plan
+    const supabaseService = createClient(
+      process.env.NEXT_PUBLIC_SUPABASE_URL!,
+      process.env.SUPABASE_SERVICE_ROLE_KEY!
+    )
+    
+    const { data: plan } = await supabaseService
+      .from('planes_uso_coach')
+      .select('plan_type')
+      .eq('coach_id', user.id)
+      .eq('status', 'active')
+      .order('started_at', { ascending: false })
+      .limit(1)
+      .maybeSingle()
+    
+    const planType = (plan?.plan_type || 'free') as 'free' | 'basico' | 'black' | 'premium'
+    const { getPlanLimit } = await import('@/lib/utils/plan-limits')
+    const stockLimit = getPlanLimit(planType, 'stockPerProduct')
+    const totalClientsLimit = getPlanLimit(planType, 'totalClients')
+    
+    const { data: existingActivities, error: existingActivitiesError } = await supabaseService
+      .from('activities')
+      .select('id, capacity, type')
+      .eq('coach_id', user.id)
+    
+    if (existingActivitiesError) {
+      console.error('❌ Error obteniendo actividades existentes para validar cupos totales:', existingActivitiesError)
+      return NextResponse.json({ error: 'No se pudo validar los cupos disponibles' }, { status: 500 })
+    }
+    
+    const normalizeCapacity = (value: any) => {
+      if (value === null || value === undefined) return 0
+      if (typeof value === 'number') return isFinite(value) ? value : 0
+      if (typeof value === 'string') {
+        const parsed = parseFloat(value)
+        return isNaN(parsed) ? 0 : parsed
+      }
+      return 0
+    }
+    
+    const isDocumentProduct = typeof body.modality === 'string' && body.modality.toLowerCase() === 'document'
+    
+    const otherCapacityUsed = (existingActivities || [])
+      .filter((activity) => activity.id !== body.editingProductId)
+      .filter((activity) => {
+        if (!activity?.type) return true
+        const type = activity.type.toLowerCase()
+        return type !== 'document'
+      })
+      .reduce((sum, activity) => sum + normalizeCapacity(activity.capacity), 0)
+    
+    // Ajustar capacity (stock) automáticamente si excede los límites
+    let adjustedCapacity = body.capacity ?? null
+    
+    if (isDocumentProduct) {
+      adjustedCapacity = null
+      console.log(`ℹ️ Producto ${body.editingProductId} de tipo documento: la venta es ilimitada, no se aplica límite de cupos.`)
+    } else if (adjustedCapacity !== null && adjustedCapacity !== undefined) {
+      const numericCapacity = normalizeCapacity(adjustedCapacity)
+      let targetCapacity = numericCapacity
+      
+      if (numericCapacity > stockLimit) {
+        console.log(`⚠️ Stock excede límite individual del plan ${planType}: ${numericCapacity} > ${stockLimit}. Ajustando a ${stockLimit}`)
+        targetCapacity = stockLimit
+      }
+      
+      const remainingCapacity = Math.max(totalClientsLimit - otherCapacityUsed, 0)
+      if (targetCapacity > remainingCapacity) {
+        console.log(
+          `⚠️ Stock excede límite total de clientes (${totalClientsLimit}). Cupos usados por otros productos: ${otherCapacityUsed}. Ajustando a ${remainingCapacity}`
+        )
+        targetCapacity = remainingCapacity
+      }
+      
+      adjustedCapacity = Math.max(Math.floor(targetCapacity), 0)
+      
+      // Si el resultado es 0, convertir a null para evitar violar check_capacity_positive
+      if (adjustedCapacity === 0) {
+        adjustedCapacity = null
+        console.log(`ℹ️ Capacity ajustada a null (era 0) para evitar violar constraint check_capacity_positive`)
+      }
+    }
     
     // Actualizar producto en activities
     const { data: product, error: productError } = await supabase
@@ -201,13 +862,23 @@ export async function PUT(request: NextRequest) {
         title: body.name,
         description: body.description,
         price: body.price,
-        type: body.modality,
+        type: body.modality, // type = tipo de producto (program/workshop)
+        modality: body.type, // modality = modalidad (online/presencial/híbrido)
         categoria: body.categoria || 'fitness', // ✅ ACTUALIZAR CATEGORIA
         difficulty: body.level,
         is_public: body.is_public,
-        capacity: body.capacity,
-        // ✅ CAMPOS ESPECÍFICOS PARA TALLERES
-        workshop_type: body.workshop_type || (body.modality === 'workshop' ? 'general' : null)
+        capacity: adjustedCapacity,
+        // ✅ ACTUALIZAR TIPO DE DIETA
+        dieta: body.dieta || null,
+        // ✅ GUARDAR OBJETIVOS EN workshop_type como JSON
+        workshop_type: body.objetivos && Array.isArray(body.objetivos) && body.objetivos.length > 0
+          ? JSON.stringify(body.objetivos)
+          : (body.workshop_type || (body.modality === 'workshop' ? 'general' : null)),
+        // ✅ Campos de ubicación para modalidad presencial
+        location_name: body.location_name || null,
+        location_url: body.location_url || null,
+        // ✅ NUEVO: Días para acceder al producto
+        dias_acceso: body.dias_acceso || 30
       })
       .eq('id', body.editingProductId)
       .eq('coach_id', user.id) // Seguridad: solo el coach dueño puede actualizar
@@ -319,6 +990,23 @@ export async function PUT(request: NextRequest) {
         }
       }
       
+      // Verificar si hay fechas futuras en todos los temas para determinar si el taller está activo
+      const now = new Date()
+      now.setHours(0, 0, 0, 0)
+      let hasAnyFutureDates = false
+      
+      for (const [topicTitle, topicData] of topicGroups) {
+        const hasFutureDates = topicData.originales.some((horario: any) => {
+          const fecha = new Date(horario.fecha)
+          fecha.setHours(0, 0, 0, 0)
+          return fecha >= now
+        })
+        if (hasFutureDates) {
+          hasAnyFutureDates = true
+          break
+        }
+      }
+      
       for (const [topicTitle, topicData] of topicGroups) {
         const originalesJson = {
           fechas_horarios: topicData.originales
@@ -328,12 +1016,15 @@ export async function PUT(request: NextRequest) {
           fechas_horarios: topicData.secundarios
         }
         
-        // Insertar en taller_detalles
+        // Insertar en taller_detalles con activo = true si hay fechas futuras
+        // Todos los temas del taller deben tener el mismo valor de 'activo'
         const topicInsert = {
           actividad_id: body.editingProductId,
           nombre: topicData.nombre || 'Sin título',
           descripcion: topicData.descripcion || '',
-          horarios: horariosJson
+          originales: originalesJson,
+          secundarios: secundariosJson,
+          activo: hasAnyFutureDates // Todos los temas tienen el mismo valor
         }
         
         const { error: topicError } = await supabase

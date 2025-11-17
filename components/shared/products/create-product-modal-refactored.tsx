@@ -1,25 +1,33 @@
 "use client"
 
-import React, { useState, useEffect } from "react"
+import React, { useState, useEffect, useMemo, useCallback } from "react"
 import { Button } from "@/components/ui/button"
-import { ChevronLeft, ChevronRight, ChevronDown, Plus, X, Upload, Calendar, Clock, Users, FileText, Eye, Edit, Check, Video } from "lucide-react"
+import { Input } from "@/components/ui/input"
+import { Label } from "@/components/ui/label"
+import { Textarea } from "@/components/ui/textarea"
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
+import { Switch } from "@/components/ui/switch"
+import { ChevronLeft, ChevronRight, ChevronDown, Plus, X, Upload, Calendar, Clock, Users, FileText, Eye, Edit, Check, Video, Image as ImageIcon, Globe, MapPin, Trash2, Target, DollarSign, Eye as EyeIcon, EyeOff, Pencil, Flame, Lock, Unlock, Coins, MonitorSmartphone, Loader2, RotateCcw } from "lucide-react"
 import { motion, AnimatePresence } from "framer-motion"
 import { ProductPreviewCard } from '@/components/shared/products/product-preview-card'
 import ActivityCard from '@/components/shared/activities/ActivityCard'
 import { WorkshopScheduleManager } from '@/components/shared/calendar/workshop-schedule-manager'
-import { VideoSelectionModal } from '@/components/shared/ui/video-selection-modal'
+import { VideoSelectionModal, VideoSelectionResult } from '@/components/shared/ui/video-selection-modal'
 import { MediaSelectionModal } from '@/components/shared/ui/media-selection-modal'
 import { WorkshopSimpleScheduler } from '@/components/shared/calendar/workshop-simple-scheduler'
 import { CSVManagerEnhanced } from '@/components/shared/csv/csv-manager-enhanced'
 import CalendarScheduleManager from '@/components/shared/calendar/calendar-schedule-manager'
-import { ModalHeader } from "@/components/product-form-sections/modal-header"
-import { GeneralInfoSection } from "@/components/product-form-sections/general-info-section"
-import { SpecificDetailsSection } from "@/components/product-form-sections/specific-details-section"
-import { GeneralInfoSectionMinimal } from "@/components/product-form-sections/general-info-section-minimal"
-import { SpecificDetailsSectionMinimal } from "@/components/product-form-sections/specific-details-section-minimal"
-import { ProgressiveForm } from "@/components/product-form-sections/progressive-form"
+import { getPlanLimit, type PlanType } from '@/lib/utils/plan-limits'
+import { toast } from 'sonner'
+// Components removed - functionality to be reimplemented if needed
+// import { ModalHeader } from "@/components/product-form-sections/modal-header"
+// import { GeneralInfoSection } from "@/components/product-form-sections/general-info-section"
+// import { SpecificDetailsSection } from "@/components/product-form-sections/specific-details-section"
+// import { GeneralInfoSectionMinimal } from "@/components/product-form-sections/general-info-section-minimal"
+// import { SpecificDetailsSectionMinimal } from "@/components/product-form-sections/specific-details-section-minimal"
+// import { ProgressiveForm } from "@/components/product-form-sections/progressive-form"
 import { WeeklyExercisePlanner } from "../activities/weekly-exercise-planner"
-import { useCSVManagement } from '@/hooks/shared/use-csv-management'
+// import { useCSVManagement } from '@/hooks/shared/use-csv-management'
 import { useAuth } from '@/contexts/auth-context'
 
 interface CreateProductModalProps {
@@ -30,6 +38,43 @@ interface CreateProductModalProps {
 
 type ProductType = 'workshop' | 'program' | 'document'
 type ProgramSubType = 'fitness' | 'nutrition'
+
+const FITNESS_OBJECTIVE_OPTIONS = [
+  'Pérdida de peso',
+  'Ganancia muscular',
+  'Resistencia',
+  'Flexibilidad',
+  'Rehabilitación',
+  'Bienestar general',
+  'Movilidad',
+  'Mindfulness'
+]
+
+const INTENSITY_CHOICES = [
+  { value: 'beginner', label: 'Principiante', flames: 1 },
+  { value: 'intermediate', label: 'Intermedio', flames: 2 },
+  { value: 'advanced', label: 'Avanzado', flames: 3 }
+] as const
+
+const MODALITY_CHOICES = [
+  { value: 'online', label: 'Online', tone: 'text-[#FF7939]', icon: Globe },
+  { value: 'presencial', label: 'Presencial', tone: 'text-[#FF9354]', icon: MapPin },
+  { value: 'híbrido', label: 'Híbrido', tone: 'text-[#FFB26A]', icon: MonitorSmartphone }
+] as const
+
+const PLAN_COMMISSIONS: Record<PlanType, number> = {
+  free: 0.05,
+  basico: 0.05,
+  black: 0.04,
+  premium: 0.03
+}
+
+const PLAN_LABELS: Record<PlanType, string> = {
+  free: 'Free',
+  basico: 'Básico',
+  black: 'Black',
+  premium: 'Premium'
+}
 
 export default function CreateProductModal({ isOpen, onClose, editingProduct }: CreateProductModalProps) {
   const [selectedType, setSelectedType] = useState<ProductType | null>(null)
@@ -65,6 +110,9 @@ export default function CreateProductModal({ isOpen, onClose, editingProduct }: 
     ejerciciosUnicos: 0
   })
   
+  // Estado para controlar si se puede deshacer en el paso 5
+  const [canUndoWeeklyPlan, setCanUndoWeeklyPlan] = useState(false)
+  
   // Estado para taller - Material opcional (Paso 4)
   const [workshopMaterial, setWorkshopMaterial] = useState({
     hasPdf: false,
@@ -83,15 +131,71 @@ export default function CreateProductModal({ isOpen, onClose, editingProduct }: 
     isPrimary?: boolean
   }>>([])
   
-  // Estado para confirmación de cierre
+  // Estado para confirmación de cierre y acciones pendientes
   const [showCloseConfirmation, setShowCloseConfirmation] = useState(false)
+  const [pendingAction, setPendingAction] = useState<'close' | 'tab' | null>(null)
+  const [pendingTab, setPendingTab] = useState<string | null>(null)
   
   // Estado para validación y errores
   const [validationErrors, setValidationErrors] = useState<string[]>([])
   const [fieldErrors, setFieldErrors] = useState<{[key: string]: boolean}>({})
   
-  // Hook para gestión del CSV (solo para funciones auxiliares)
-  const csvManagement = useCSVManagement(productCategory)
+  // Hook para gestión del CSV (solo para funciones auxiliares) - removed, using local state instead
+  // const csvManagement = useCSVManagement(productCategory)
+  const csvManagement = { 
+    handleFileUpload: () => {}, 
+    handleFileSelect: () => {}, 
+    handleRowSelection: () => {},
+    csvData: persistentCsvData || [], 
+    selectedRows: persistentSelectedRows || new Set() 
+  }
+
+  function getExerciseVideoKey(exercise: any, index: number): string {
+    if (!exercise) return `row-${index}`
+    if (typeof exercise === 'object') {
+      if (exercise.tempRowId) return `tempRow-${exercise.tempRowId}`
+      if (exercise.csvRowId) return `csvRow-${exercise.csvRowId}`
+      if (exercise.tempId) return `tempId-${exercise.tempId}`
+      if (exercise.id !== undefined && exercise.id !== null) return `id-${exercise.id}`
+    }
+    return `row-${index}`
+  }
+
+  const getVideoKeyCandidates = (exercise: any, index: number): string[] => {
+    const keys = new Set<string>()
+    const baseKey = getExerciseVideoKey(exercise, index)
+    if (baseKey) keys.add(baseKey)
+
+    const register = (value: any, prefix?: string) => {
+      if (value === undefined || value === null) return
+      const str = String(value)
+      if (!str) return
+      keys.add(prefix ? `${prefix}${str}` : str)
+    }
+
+    if (exercise && typeof exercise === 'object') {
+      register(exercise.id, 'id-')
+      register(exercise.id, 'exercise-')
+      register(exercise.id)
+      register(exercise.tempId, 'tempId-')
+      register(exercise.tempId)
+      register(exercise.tempRowId, 'tempRow-')
+      register(exercise.csvRowId, 'csvRow-')
+    }
+
+    return Array.from(keys).filter(Boolean)
+  }
+
+  const getStoredExerciseVideoFile = (exercise: any, index: number): File | undefined => {
+    const candidates = getVideoKeyCandidates(exercise, index)
+
+    for (const key of candidates) {
+      if (!key) continue
+      const file = exerciseVideoFiles[key]
+      if (file) return file
+    }
+    return undefined
+  }
   
   // Contexto de autenticación
   const { user } = useAuth()
@@ -163,6 +267,8 @@ export default function CreateProductModal({ isOpen, onClose, editingProduct }: 
     
     if (hasChanges) {
       console.log(`⚠️ Mostrando modal de confirmación`)
+      setPendingAction('close')
+      setPendingTab(null)
       setShowCloseConfirmation(true)
       console.log(`⚠️ Estado showCloseConfirmation después de set: ${showCloseConfirmation}`)
     } else {
@@ -197,12 +303,25 @@ export default function CreateProductModal({ isOpen, onClose, editingProduct }: 
   const confirmClose = () => {
     clearPersistentState()
     setShowCloseConfirmation(false)
-    onClose()
+
+    if (pendingAction === 'tab' && pendingTab) {
+      onClose()
+      window.dispatchEvent(new CustomEvent('omnia-force-tab-change', {
+        detail: { tab: pendingTab }
+      }))
+    } else {
+      onClose()
+    }
+
+    setPendingAction(null)
+    setPendingTab(null)
   }
 
   // Función para cancelar cierre
   const cancelClose = () => {
     setShowCloseConfirmation(false)
+    setPendingAction(null)
+    setPendingTab(null)
   }
 
   // Función para limpiar estado persistente del CSV y calendario
@@ -216,6 +335,8 @@ export default function CreateProductModal({ isOpen, onClose, editingProduct }: 
     // ✅ Limpiar también archivos pendientes
     setPendingImageFile(null)
     setPendingVideoFile(null)
+    setExerciseVideoFiles({})
+    setVideosPendingDeletion([])
     console.log('🧹 Archivos pendientes limpiados al cerrar modal')
   }
 
@@ -288,7 +409,14 @@ export default function CreateProductModal({ isOpen, onClose, editingProduct }: 
     image: null as File | { url: string } | null,
     videoUrl: '',
     modality: 'online',
-    is_public: false
+    is_public: false,
+    objetivos: [] as string[],
+    capacity: 'ilimitada' as string,
+    stockQuantity: '0' as string,
+    dietType: '' as string,
+    dias_acceso: 30 as number,
+    location_name: '' as string,
+    location_url: '' as string
   })
 
   // Wrapper para setGeneralForm
@@ -312,6 +440,10 @@ export default function CreateProductModal({ isOpen, onClose, editingProduct }: 
     setGeneralForm(newForm)
   }
 
+  // Estado de carga para el botón de publicar/actualizar
+  const [isPublishing, setIsPublishing] = useState(false)
+  const [publishProgress, setPublishProgress] = useState('')
+
   const [specificForm, setSpecificForm] = useState({
     duration: '',
     capacity: '',
@@ -328,6 +460,8 @@ export default function CreateProductModal({ isOpen, onClose, editingProduct }: 
     pages: ''
   })
 
+  const [coachPlan, setCoachPlan] = useState<{ planType: PlanType; stockLimit: number } | null>(null)
+
   // Wrapper para setSpecificForm con logs
   const setSpecificFormWithLogs = (newForm: any) => {
     console.log('📝 CREATE-PRODUCT-MODAL: Actualizando specificForm:', newForm)
@@ -338,6 +472,155 @@ export default function CreateProductModal({ isOpen, onClose, editingProduct }: 
     }
     
     setSpecificForm(newForm)
+  }
+
+  useEffect(() => {
+    const loadCoachPlan = async () => {
+      try {
+        const response = await fetch('/api/coach/plan')
+        if (!response.ok) {
+          throw new Error(`Status ${response.status}`)
+        }
+        const result = await response.json()
+        const planType = (result?.plan?.plan_type || 'free') as PlanType
+        const stockLimit = getPlanLimit(planType, 'stockPerProduct')
+        setCoachPlan({ planType, stockLimit })
+        console.log('📊 Límites de plan cargados:', { planType, stockLimit })
+      } catch (error) {
+        console.warn('⚠️ No se pudo obtener el plan del coach. Usando free por defecto.', error)
+        setCoachPlan({ planType: 'free', stockLimit: getPlanLimit('free', 'stockPerProduct') })
+      }
+    }
+
+    loadCoachPlan()
+  }, [])
+
+  const planType = useMemo(() => coachPlan?.planType ?? 'free', [coachPlan?.planType])
+  const stockLimitFromPlan = coachPlan?.stockLimit ?? getPlanLimit('free', 'stockPerProduct')
+
+  const canUseUnlimited = useMemo(() => {
+    if (selectedType === 'workshop') return false
+    if (selectedType === 'document') {
+      return planType === 'black' || planType === 'premium'
+    }
+    return planType === 'premium'
+  }, [planType, selectedType])
+
+  const capacityOptions = useMemo<Array<'ilimitada' | 'limitada'>>(() => {
+    if (selectedType === 'workshop') return ['limitada']
+    if (canUseUnlimited) return ['ilimitada', 'limitada']
+    return ['limitada']
+  }, [selectedType, canUseUnlimited])
+
+  useEffect(() => {
+    setGeneralForm(prev => {
+      if (capacityOptions.includes(prev.capacity as 'ilimitada' | 'limitada')) {
+        return prev
+      }
+      const fallback = capacityOptions.includes('limitada') ? 'limitada' : capacityOptions[0] || 'limitada'
+      console.log('⚙️ Ajustando capacidad según restricciones:', { anterior: prev.capacity, nuevo: fallback })
+      return {
+        ...prev,
+        capacity: fallback,
+        stockQuantity: fallback === 'limitada' ? (prev.stockQuantity || '0') : ''
+      }
+    })
+  }, [capacityOptions])
+
+  const limitedStockMax = selectedType === 'workshop' ? 100 : stockLimitFromPlan
+  const isLimitedStock = generalForm.capacity === 'limitada'
+  const parsedStockValue = isLimitedStock ? parseInt(generalForm.stockQuantity || '', 10) : null
+  const stockAmount = isLimitedStock && parsedStockValue !== null && !Number.isNaN(parsedStockValue) ? parsedStockValue : null
+  const parsedPriceValue = generalForm.price ? parseFloat(generalForm.price) : NaN
+  const priceAmount = !Number.isNaN(parsedPriceValue) ? parsedPriceValue : null
+  const commissionPercent = useMemo(() => PLAN_COMMISSIONS[planType] ?? PLAN_COMMISSIONS.free, [planType])
+  const commissionPercentLabel = useMemo(() => `${Math.round(commissionPercent * 100)}%`, [commissionPercent])
+  const potentialRevenue = stockAmount !== null && priceAmount !== null ? stockAmount * priceAmount : null
+  const formattedNetRevenue = (() => {
+    if (generalForm.capacity === 'ilimitada') return '∞'
+    if (potentialRevenue === null || !Number.isFinite(potentialRevenue)) return '—'
+    const netRevenue = potentialRevenue * (1 - commissionPercent)
+    return new Intl.NumberFormat('es-ES', {
+      style: 'currency',
+      currency: 'USD',
+      minimumFractionDigits: 2,
+      maximumFractionDigits: 2
+    }).format(netRevenue)
+  })()
+
+  const handleStockQuantityChange = (rawValue: string) => {
+    if (!isLimitedStock) {
+      return
+    }
+
+    const numericOnly = rawValue.replace(/\D/g, '')
+    if (numericOnly === '') {
+      setGeneralFormWithLogs({ ...generalForm, stockQuantity: '' })
+      clearFieldError('stockQuantity')
+      return
+    }
+
+    let parsed = parseInt(numericOnly, 10)
+    if (Number.isNaN(parsed)) {
+      setGeneralFormWithLogs({ ...generalForm, stockQuantity: '' })
+      return
+    }
+
+    if (parsed > limitedStockMax) {
+      parsed = limitedStockMax
+      toast.info(`Tu plan permite un máximo de ${limitedStockMax} cupos.`)
+    }
+
+    setGeneralFormWithLogs({ ...generalForm, stockQuantity: parsed.toString() })
+    clearFieldError('stockQuantity')
+  }
+
+  const handleToggleCapacity = () => {
+    if (generalForm.capacity === 'limitada') {
+      if (!canUseUnlimited) {
+        toast.info('El modo ilimitado está disponible solo para el plan Premium.')
+        return
+      }
+      setGeneralFormWithLogs({
+        ...generalForm,
+        capacity: 'ilimitada',
+        stockQuantity: ''
+      })
+      clearFieldError('stockQuantity')
+    } else {
+      setGeneralFormWithLogs({
+        ...generalForm,
+        capacity: 'limitada',
+        stockQuantity: generalForm.stockQuantity || '0'
+      })
+    }
+  }
+
+  const handlePriceChange = (rawValue: string) => {
+    let value = rawValue.replace(/[^0-9.,]/g, '')
+    value = value.replace(',', '.')
+
+    const [integerPart, ...decimalParts] = value.split('.')
+    let normalized = integerPart
+
+    if (decimalParts.length > 0) {
+      const decimals = decimalParts.join('').slice(0, 2)
+      normalized += `.${decimals}`
+    }
+
+    setGeneralFormWithLogs({ ...generalForm, price: normalized })
+    clearFieldError('price')
+  }
+
+  const handlePriceBlur = () => {
+    if (!generalForm.price) return
+    const normalized = generalForm.price.replace(',', '.')
+    const parsed = parseFloat(normalized)
+    if (Number.isNaN(parsed)) {
+      setGeneralFormWithLogs({ ...generalForm, price: '' })
+      return
+    }
+    setGeneralFormWithLogs({ ...generalForm, price: parsed.toFixed(2) })
   }
 
   // Estados adicionales
@@ -351,40 +634,400 @@ export default function CreateProductModal({ isOpen, onClose, editingProduct }: 
   // ✅ NUEVO: Estados para archivos pendientes de subida
   const [pendingImageFile, setPendingImageFile] = useState<File | null>(null)
   const [pendingVideoFile, setPendingVideoFile] = useState<File | null>(null)
+  const [exerciseVideoFiles, setExerciseVideoFiles] = useState<Record<string, File | undefined>>({})
+  const [videosPendingDeletion, setVideosPendingDeletion] = useState<Array<{ exerciseId?: number | string; bunnyVideoId?: string; bunnyLibraryId?: number; videoUrl?: string }>>([])
 
-  // Funciones para manejar selección de videos
-  const handleRowSelection = (rowIndex: number) => {
-    csvManagement.handleRowSelection(rowIndex)
-  }
+  useEffect(() => {
+    const handleBeforeTabChange = (event: Event) => {
+      const customEvent = event as CustomEvent<{ tab: string; shouldAbort: boolean }>
+      if (!isOpen) return
 
-  const handleVideoSelection = (videoUrl: string, videoFile?: File) => {
-    // Actualizar las filas seleccionadas con el video
-    const newCsvData = [...csvManagement.csvData]
-    
-    // Agregar columna de video si no existe
-    if (newCsvData[0] && !newCsvData[0].includes('video_url')) {
-      newCsvData[0].push('video_url')
-      // Agregar columna vacía para todas las filas existentes
-      for (let i = 1; i < newCsvData.length; i++) {
-        newCsvData[i].push('')
+      if (hasUnsavedChanges()) {
+        customEvent.detail.shouldAbort = true
+        setPendingAction('tab')
+        setPendingTab(customEvent.detail.tab)
+        setShowCloseConfirmation(true)
       }
     }
 
-    // Asignar video a las filas seleccionadas
-    csvManagement.selectedRows.forEach(rowIndex => {
-      if (newCsvData[rowIndex]) {
-        const videoColumnIndex = newCsvData[rowIndex].length - 1
-        newCsvData[rowIndex][videoColumnIndex] = videoUrl
+    window.addEventListener('omnia-before-tab-change', handleBeforeTabChange as EventListener)
+    return () => {
+      window.removeEventListener('omnia-before-tab-change', handleBeforeTabChange as EventListener)
+    }
+  }, [isOpen, currentStep, generalForm, specificForm, persistentCsvData, persistentCalendarSchedule])
+
+  // Funciones para manejar selección de videos
+  const handleRowSelection = (rowIndex: number) => {
+    // csvManagement.handleRowSelection(rowIndex) - removed, using local state
+    const newSelected = new Set(persistentSelectedRows)
+    if (newSelected.has(rowIndex)) {
+      newSelected.delete(rowIndex)
+    } else {
+      newSelected.add(rowIndex)
+    }
+    setPersistentSelectedRows(newSelected)
+  }
+
+  const uploadVideosForExistingRows = useCallback(
+    async (
+      entries: Array<{
+        exercise: any
+        index: number
+        file: File
+      }>
+    ) => {
+      if (!editingProduct?.id || entries.length === 0) return
+
+      console.log('🚀 Subiendo videos inmediatamente para ejercicios existentes:', {
+        count: entries.length,
+        activityId: editingProduct.id,
+        entries: entries.map((entry) => ({
+          index: entry.index,
+          exerciseId: entry.exercise?.id
+        }))
+      })
+
+      const activityId = editingProduct.id
+      const uploadResults: Array<{
+        key: string
+        index: number
+        uploaded: boolean
+        videoUrl?: string
+        meta: { videoId?: string; thumbnailUrl?: string; libraryId?: number; fileName?: string } | null
+      }> = []
+
+      for (const { exercise, index, file } of entries) {
+        const rawId = exercise?.id
+        const exerciseId =
+          typeof rawId === 'number'
+            ? rawId
+            : typeof rawId === 'string' && /^\d+$/.test(rawId)
+              ? parseInt(rawId, 10)
+              : null
+
+        if (!exerciseId) {
+          uploadResults.push({
+            key: getExerciseVideoKey(exercise, index),
+            index,
+            uploaded: false,
+            videoUrl: exercise?.video_url,
+            meta: null
+          })
+          continue
+        }
+
+        let finalVideoUrl: string | undefined
+        let meta: { videoId?: string; thumbnailUrl?: string; libraryId?: number; fileName?: string } | null =
+          null
+        let uploaded = false
+        try {
+          const formData = new FormData()
+          formData.append('file', file, file.name)
+          formData.append('title', file.name)
+          formData.append('exerciseId', exerciseId.toString())
+          formData.append('activityId', activityId.toString())
+
+          const uploadResponse = await fetch('/api/bunny/upload-video', {
+            method: 'POST',
+            body: formData
+          })
+          const uploadJson = await uploadResponse.json()
+
+          if (uploadResponse.ok && uploadJson.success) {
+            finalVideoUrl = uploadJson.streamUrl
+            meta = {
+              url: uploadJson.streamUrl,
+              videoId: uploadJson.videoId,
+              thumbnailUrl: uploadJson.thumbnailUrl,
+              libraryId: uploadJson.libraryId,
+              fileName: uploadJson.fileName || file.name
+            }
+            uploaded = true
+          } else {
+            console.error(
+              `❌ Error subiendo video a Bunny para ejercicio ${exerciseId}:`,
+              uploadJson?.error || uploadResponse.statusText
+            )
+          }
+        } catch (error) {
+          console.error(`❌ Excepción subiendo video a Bunny para ejercicio ${exerciseId}:`, error)
+        }
+
+        uploadResults.push({
+          key: getExerciseVideoKey(exercise, index),
+          index,
+          uploaded,
+          videoUrl: uploaded ? finalVideoUrl : exercise?.video_url,
+          meta
+        })
       }
+
+      if (uploadResults.some((result) => result.uploaded)) {
+        setPersistentCsvData((prev) =>
+          prev.map((exercise, idx) => {
+            const match = uploadResults.find((result) => result.index === idx && result.uploaded)
+            if (!match || !exercise || typeof exercise !== 'object') {
+              return exercise
+            }
+            const updatedExercise = { ...exercise }
+            if (match.videoUrl) {
+              updatedExercise.video_url = match.videoUrl
+            }
+            if (match.meta?.videoId) {
+              updatedExercise.bunny_video_id = match.meta.videoId
+            }
+            if (match.meta?.libraryId !== undefined) {
+              updatedExercise.bunny_library_id = match.meta.libraryId
+            }
+            if (match.meta?.thumbnailUrl) {
+              updatedExercise.video_thumbnail_url = match.meta.thumbnailUrl
+            }
+            if (match.meta?.fileName) {
+              updatedExercise.video_file_name = match.meta.fileName
+            }
+            return updatedExercise
+          })
+        )
+
+        setExerciseVideoFiles((prev) => {
+          const next = { ...prev }
+          uploadResults
+            .filter((result) => result.uploaded)
+            .forEach((result) => {
+              const entry = entries.find((candidate) => candidate.index === result.index)
+              if (!entry) return
+              const key = getExerciseVideoKey(entry.exercise, entry.index)
+              if (key && next[key]) {
+                delete next[key]
+              }
+            })
+          return next
+        })
+      }
+    },
+    [editingProduct?.id, setPersistentCsvData, setExerciseVideoFiles]
+  )
+
+  const handleVideoSelection = (selection: VideoSelectionResult | null) => {
+    if (!selection) {
+      setIsVideoModalOpen(false)
+      return
+    }
+
+    if (!persistentSelectedRows || persistentSelectedRows.size === 0) {
+      setIsVideoModalOpen(false)
+      return
+    }
+
+    if (!persistentCsvData || persistentCsvData.length === 0) {
+      setIsVideoModalOpen(false)
+      return
+    }
+
+    const selectedIndices = Array.from(persistentSelectedRows)
+    const { videoUrl, videoFile, fileName, bunnyVideoId, bunnyLibraryId, thumbnailUrl } = selection
+
+    if (!videoUrl || videoUrl.trim() === '') {
+      console.warn('⚠️ handleVideoSelection: selección sin URL de video válida', selection)
+      setIsVideoModalOpen(false)
+      return
+    }
+
+    const deriveFileNameFromUrl = (url: string) => {
+      try {
+        const sanitized = url.split('?')[0]
+        const parts = sanitized.split('/')
+        const last = parts.pop()
+        return last && last.includes('.') ? last : last || null
+      } catch {
+        return null
+      }
+    }
+
+    const safeFileName =
+      (fileName && fileName.trim()) ||
+      (videoFile?.name ?? '').trim() ||
+      deriveFileNameFromUrl(videoUrl) ||
+      ''
+
+    console.log('🎯 handleVideoSelection', {
+      selectedIndices,
+      selection,
+      safeFileName
     })
 
-    csvManagement.setCsvData(newCsvData)
-    csvManagement.setSelectedRows(new Set()) // Limpiar selección
+    // Si hay un archivo de video, guardarlo inmediatamente en exerciseVideoFiles
+    if (videoFile) {
+      selectedIndices.forEach((idx) => {
+        const exercise = persistentCsvData[idx]
+        if (exercise) {
+          const key = getExerciseVideoKey(exercise, idx)
+          if (key) {
+            setExerciseVideoFiles((prev) => ({
+              ...prev,
+              [key]: videoFile
+            }))
+            console.log(`💾 Guardando archivo de video inmediatamente para ejercicio ${idx} (key: ${key}):`, videoFile.name)
+          }
+        }
+      })
+    }
+
+    const updatedCsvData = persistentCsvData.map((exercise, index) => {
+      if (!selectedIndices.includes(index)) {
+        return exercise
+      }
+
+      if (!exercise || typeof exercise !== 'object' || Array.isArray(exercise)) {
+        console.warn('⚠️ No se pudo asignar video a la fila (estructura inesperada):', exercise)
+        return exercise
+      }
+
+      const updatedExercise = { ...exercise }
+      const originalVideoMeta = {
+        video_url: exercise?.video_url,
+        video_file_name: exercise?.video_file_name,
+        bunny_video_id: exercise?.bunny_video_id,
+        bunny_library_id: exercise?.bunny_library_id
+      }
+
+      updatedExercise.video_url = videoUrl
+
+      if (videoFile) {
+        console.log('🎥 Asignando video local a ejercicio', {
+          index,
+          ejercicio: exercise?.nombre_ejercicio || exercise?.Nombre || exercise?.id,
+          fileName: videoFile.name,
+          originalVideoMeta
+        })
+        updatedExercise.video_file_name = safeFileName
+        updatedExercise.video_source = 'local'
+        updatedExercise.bunny_video_id = ''
+        updatedExercise.bunny_library_id = ''
+        updatedExercise.video_thumbnail_url = ''
+      } else {
+        if (safeFileName) {
+          updatedExercise.video_file_name = safeFileName
+        } else {
+          delete updatedExercise.video_file_name
+        }
+        updatedExercise.video_source = 'existing'
+        if (bunnyVideoId !== undefined) {
+          updatedExercise.bunny_video_id = bunnyVideoId ?? null
+        }
+        if (bunnyLibraryId !== undefined) {
+          updatedExercise.bunny_library_id = bunnyLibraryId ?? null
+        }
+        if (thumbnailUrl !== undefined) {
+          updatedExercise.video_thumbnail_url = thumbnailUrl ?? null
+        }
+      }
+
+      console.log('🎞️ Resultado actualización video fila', {
+        index,
+        id: updatedExercise?.id,
+        nombre:
+          updatedExercise?.nombre_ejercicio ||
+          updatedExercise?.Nombre ||
+          updatedExercise?.['Nombre de la Actividad'],
+        originalVideoMeta,
+        updatedVideoMeta: {
+          video_url: updatedExercise.video_url,
+          video_file_name: updatedExercise.video_file_name,
+          bunny_video_id: updatedExercise.bunny_video_id,
+          bunny_library_id: updatedExercise.bunny_library_id
+        }
+      })
+
+      return updatedExercise
+    })
+
+    setPersistentCsvData(updatedCsvData)
+    if (typeof window !== 'undefined') {
+      ;(window as any).__LAST_PERSISTENT_CSV__ = updatedCsvData
+      console.log(
+        '🗂️ Estado persistentCsvData tras asignar video',
+        updatedCsvData.slice(0, 3).map((row, idx) => ({
+          idx,
+          id: row?.id,
+          nombre: row?.nombre_ejercicio || row?.Nombre || row?.['Nombre de la Actividad'],
+          video_file_name: row?.video_file_name,
+          video_url: row?.video_url?.slice?.(0, 60)
+        }))
+      )
+    }
+
+    setExerciseVideoFiles((prev) => {
+      const next = { ...prev }
+      selectedIndices.forEach((index) => {
+        const exercise = updatedCsvData[index]
+        const candidates = getVideoKeyCandidates(exercise, index)
+        candidates.forEach((key) => {
+          if (!key) return
+          if (videoFile) {
+            next[key] = videoFile
+          } else if (next[key]) {
+            delete next[key]
+          }
+        })
+      })
+      return next
+    })
+
+    if (videoFile && editingProduct?.id) {
+      const entriesForUpload = selectedIndices
+        .map((index) => {
+          const exercise = updatedCsvData[index]
+          if (!exercise) return null
+          const hasNumericId =
+            typeof exercise.id === 'number' ||
+            (typeof exercise.id === 'string' && /^\d+$/.test(exercise.id))
+          if (!hasNumericId) return null
+          return { exercise, index, file: videoFile }
+        })
+        .filter(Boolean) as Array<{ exercise: any; index: number; file: File }>
+
+      if (entriesForUpload.length > 0) {
+        void uploadVideosForExistingRows(entriesForUpload)
+      }
+    }
+
+    setPersistentSelectedRows(new Set())
     setIsVideoModalOpen(false)
   }
 
+  const handleClearExerciseVideo = useCallback((index: number, exercise: any, meta?: { bunnyVideoId?: string; bunnyLibraryId?: number | string; videoUrl?: string }) => {
+    setExerciseVideoFiles((prev) => {
+      const next = { ...prev }
+      const candidates = getVideoKeyCandidates(exercise, index)
+      candidates.forEach((key) => {
+        if (key && next[key]) {
+          delete next[key]
+        }
+      })
+      return next
+    })
+
+    if (meta?.bunnyVideoId) {
+      setVideosPendingDeletion((prev) => {
+        if (prev.some((entry) => entry.bunnyVideoId === meta.bunnyVideoId)) {
+          return prev
+        }
+        return [
+          ...prev,
+          {
+            exerciseId: exercise?.id ?? exercise?.tempId ?? exercise?.tempRowId,
+            bunnyVideoId: meta.bunnyVideoId,
+            bunnyLibraryId: typeof meta.bunnyLibraryId === 'string' ? parseInt(meta.bunnyLibraryId, 10) : meta.bunnyLibraryId,
+            videoUrl: meta.videoUrl
+          }
+        ]
+      })
+    }
+  }, [getVideoKeyCandidates])
+
   const openVideoModal = () => {
-    if (csvManagement.selectedRows.size === 0) {
+    if (!persistentSelectedRows || persistentSelectedRows.size === 0) {
       alert('Selecciona al menos una fila para asignar video')
       return
     }
@@ -393,8 +1036,11 @@ export default function CreateProductModal({ isOpen, onClose, editingProduct }: 
 
   // Funciones para manejar selección de media de portada
   const openMediaModal = (type: 'image' | 'video') => {
+    console.log('🔄 openMediaModal llamado con tipo:', type)
+    console.log('🔄 Estado actual isMediaModalOpen:', isMediaModalOpen)
     setMediaModalType(type)
     setIsMediaModalOpen(true)
+    console.log('🔄 Estado después de setIsMediaModalOpen(true):', true)
   }
 
   const handleMediaSelection = (mediaUrl: string, mediaType: 'image' | 'video', mediaFile?: File) => {
@@ -449,6 +1095,14 @@ export default function CreateProductModal({ isOpen, onClose, editingProduct }: 
   }
 
   const handlePublishProduct = async () => {
+    // Prevenir múltiples clicks
+    if (isPublishing) {
+      console.log('⚠️ Ya hay una publicación en proceso, ignorando click')
+      return
+    }
+
+    setIsPublishing(true)
+    setPublishProgress('Validando datos...')
     console.log('🚀 INICIANDO PUBLICACIÓN DE PRODUCTO')
     console.log('📋 Estado completo del formulario:', {
       generalForm: {
@@ -486,6 +1140,8 @@ export default function CreateProductModal({ isOpen, onClose, editingProduct }: 
           price: !generalForm.price
         })
         setCurrentStep('general') // Volver al paso de formulario general
+        setIsPublishing(false)
+        setPublishProgress('')
         return
       }
       
@@ -500,6 +1156,7 @@ export default function CreateProductModal({ isOpen, onClose, editingProduct }: 
       
       // Subir imagen pendiente si existe
       if (pendingImageFile) {
+        setPublishProgress('Subiendo imagen...')
         console.log('📤 Subiendo imagen pendiente antes de guardar producto:', pendingImageFile.name)
         try {
           const formData = new FormData()
@@ -521,11 +1178,15 @@ export default function CreateProductModal({ isOpen, onClose, editingProduct }: 
           } else {
             console.error('❌ Error subiendo imagen')
             alert('Error al subir la imagen')
+            setIsPublishing(false)
+            setPublishProgress('')
             return
           }
         } catch (uploadError) {
           console.error('❌ Error en upload de imagen:', uploadError)
           alert('Error al subir la imagen')
+          setIsPublishing(false)
+          setPublishProgress('')
           return
         }
       }
@@ -533,6 +1194,7 @@ export default function CreateProductModal({ isOpen, onClose, editingProduct }: 
       // Subir video pendiente si existe
       let uploadedVideoData = null
       if (pendingVideoFile) {
+        setPublishProgress('Subiendo video...')
         console.log('📤 Subiendo video pendiente a Bunny.net:', pendingVideoFile.name)
         try {
           const formData = new FormData()
@@ -560,11 +1222,15 @@ export default function CreateProductModal({ isOpen, onClose, editingProduct }: 
           } else {
             console.error('❌ Error subiendo video a Bunny.net')
             alert('Error al subir el video')
+            setIsPublishing(false)
+            setPublishProgress('')
             return
           }
         } catch (uploadError) {
           console.error('❌ Error en upload de video:', uploadError)
           alert('Error al subir el video')
+          setIsPublishing(false)
+          setPublishProgress('')
           return
         }
       }
@@ -579,8 +1245,8 @@ export default function CreateProductModal({ isOpen, onClose, editingProduct }: 
           return isNaN(capNum) ? null : capNum
         }
         // Fallback a generalForm.capacity (para creación)
-        if (generalForm.capacity === 'ilimitada') return 999
-        if (generalForm.capacity === 'stock' && generalForm.stockQuantity) {
+        if (generalForm.capacity === 'ilimitada') return 500
+        if (generalForm.capacity === 'limitada' && generalForm.stockQuantity) {
           const stockNum = parseInt(generalForm.stockQuantity)
           return isNaN(stockNum) ? null : stockNum
         }
@@ -623,14 +1289,11 @@ export default function CreateProductModal({ isOpen, onClose, editingProduct }: 
         // ✅ INCLUIR DATOS DE TALLERES
         workshopSchedule: selectedType === 'workshop' ? workshopSchedule : null,
         workshopMaterial: selectedType === 'workshop' ? workshopMaterial : null,
-        // ✅ CONSTRUIR WORKSHOP_TYPE CON OBJETIVOS Y TIPO DE DIETA
+        // ✅ ENVIAR OBJETIVOS COMO ARRAY (la API los guardará en workshop_type)
+        objetivos: generalForm.objetivos && generalForm.objetivos.length > 0 ? generalForm.objetivos : [],
+        // ✅ CONSTRUIR WORKSHOP_TYPE CON TIPO DE DIETA (objetivos se manejan por separado)
         workshop_type: (() => {
           const workshopTypeData: any = {}
-          
-          // Agregar objetivos si existen
-          if (generalForm.objetivos && generalForm.objetivos.length > 0) {
-            workshopTypeData.objetivos = generalForm.objetivos.join(';')
-          }
           
           // Agregar tipo de dieta solo para nutrición
           if (productCategory === 'nutricion' && generalForm.dietType) {
@@ -638,7 +1301,10 @@ export default function CreateProductModal({ isOpen, onClose, editingProduct }: 
           }
           
           return Object.keys(workshopTypeData).length > 0 ? JSON.stringify(workshopTypeData) : null
-        })()
+        })(),
+        // ✅ INCLUIR DATOS DE UBICACIÓN PARA MODALIDAD PRESENCIAL
+        location_name: generalForm.location_name || null,
+        location_url: generalForm.location_url || null
       }
       
       console.log('📦 Datos preparados para la API:', {
@@ -677,6 +1343,7 @@ export default function CreateProductModal({ isOpen, onClose, editingProduct }: 
 
       // Llamar a la API de creación o actualización
       const isEditing = !!editingProduct
+      setPublishProgress(isEditing ? 'Actualizando producto...' : 'Creando producto...')
       console.log('📤 Enviando datos a la API:', {
         endpoint: '/api/products',
         method: isEditing ? 'PUT' : 'POST',
@@ -696,6 +1363,273 @@ export default function CreateProductModal({ isOpen, onClose, editingProduct }: 
       })
 
       const result = await response.json()
+      const activityIdForVideos =
+        (result?.product?.id && typeof result.product.id === 'number'
+          ? result.product.id
+          : null) ?? (typeof editingProduct?.id === 'number' ? editingProduct.id : null)
+
+      const uploadVideosForExistingExercisesOnFailure = async (activityId: number | null) => {
+        if (
+          !activityId ||
+          !persistentCsvData ||
+          persistentCsvData.length === 0 ||
+          selectedType !== 'program'
+        ) {
+          return
+        }
+
+        const candidates = persistentCsvData
+          .map((exercise: any, index: number) => ({
+            exercise,
+            index,
+            file: getStoredExerciseVideoFile(exercise, index)
+          }))
+          .filter(({ exercise, file }) => {
+            const rawId = exercise?.id
+            const numericId =
+              typeof rawId === 'number'
+                ? rawId
+                : typeof rawId === 'string' && /^\d+$/.test(rawId)
+                  ? parseInt(rawId, 10)
+                  : null
+            if (!numericId) return false
+
+            const hasVideoUrl =
+              typeof exercise.video_url === 'string' && exercise.video_url.trim() !== ''
+            const isBlob =
+              hasVideoUrl && typeof exercise.video_url === 'string' && exercise.video_url.startsWith('blob:')
+
+            return !!file || isBlob
+          })
+
+        if (candidates.length === 0) {
+          return
+        }
+
+        const completedUploads = new Map<
+          string,
+          {
+            url: string
+            meta?: {
+              url?: string
+              videoId?: string
+              thumbnailUrl?: string
+              libraryId?: number
+              fileName?: string
+            }
+          }
+        >()
+
+        const getFileSignature = (file?: File | null) =>
+          file ? `file::${file.name || 'unnamed'}::${file.size}` : null
+
+        const assignVideoToExercise = async (
+          exerciseIdentifier: number,
+          metadata: {
+            url?: string
+            videoId?: string
+            thumbnailUrl?: string
+            libraryId?: number
+            fileName?: string
+          }
+        ) => {
+          if (!metadata?.videoId || !metadata?.url) {
+            return
+          }
+
+          try {
+            const response = await fetch('/api/bunny/assign-video', {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({
+                exerciseId: exerciseIdentifier,
+                activityId,
+                videoId: metadata.videoId,
+                streamUrl: metadata.url,
+                thumbnailUrl: metadata.thumbnailUrl ?? null,
+                libraryId: metadata.libraryId ?? null,
+                fileName: metadata.fileName ?? null
+              })
+            })
+
+            if (!response.ok) {
+              console.error(
+                `❌ Error asignando video existente al ejercicio ${exerciseIdentifier}:`,
+                response.statusText
+              )
+            }
+          } catch (assignError) {
+            console.error(
+              `❌ Excepción asignando video existente al ejercicio ${exerciseIdentifier}:`,
+              assignError
+            )
+          }
+        }
+
+        const uploadResults: Array<{
+          key: string
+          index: number
+          uploaded: boolean
+          videoUrl?: string
+          meta: { videoId?: string; thumbnailUrl?: string; libraryId?: number; fileName?: string } | null
+        }> = []
+
+        for (const { exercise, index, file } of candidates) {
+          const key = getExerciseVideoKey(exercise, index)
+          const rawId = exercise?.id
+          const numericId =
+            typeof rawId === 'number'
+              ? rawId
+              : typeof rawId === 'string' && /^\d+$/.test(rawId)
+                ? parseInt(rawId, 10)
+                : null
+
+          if (!numericId) {
+            uploadResults.push({ key, index, uploaded: false, videoUrl: exercise?.video_url, meta: null })
+            continue
+          }
+
+          let fileToUpload = file
+          const videoUrlIsBlob =
+            typeof exercise?.video_url === 'string' && exercise.video_url.startsWith('blob:')
+
+          if (!fileToUpload && videoUrlIsBlob) {
+            try {
+              const blobResponse = await fetch(exercise.video_url)
+              const blob = await blobResponse.blob()
+              const fallbackName =
+                typeof exercise.video_file_name === 'string' && exercise.video_file_name.trim() !== ''
+                  ? exercise.video_file_name.trim()
+                  : `exercise-${numericId}-${Date.now()}.mp4`
+              fileToUpload = new File([blob], fallbackName, { type: blob.type || 'video/mp4' })
+            } catch (blobError) {
+              console.error(`❌ Error procesando blob para ejercicio ${exercise.id}:`, blobError)
+            }
+          }
+
+          if (!fileToUpload) {
+            uploadResults.push({ key, index, uploaded: false, videoUrl: exercise?.video_url, meta: null })
+            continue
+          }
+
+          const signature = getFileSignature(fileToUpload)
+
+          if (signature && completedUploads.has(signature)) {
+            const cached = completedUploads.get(signature)!
+            if (cached.meta?.videoId && cached.meta?.url) {
+              await assignVideoToExercise(numericId, {
+                url: cached.meta.url,
+                videoId: cached.meta.videoId,
+                thumbnailUrl: cached.meta.thumbnailUrl,
+                libraryId: cached.meta.libraryId,
+                fileName: cached.meta.fileName ?? fileToUpload.name
+              })
+            }
+
+            uploadResults.push({
+              key,
+              index,
+              uploaded: true,
+              videoUrl: cached.url,
+              meta: cached.meta || {
+                url: cached.url,
+                videoId: cached.meta?.videoId,
+                thumbnailUrl: cached.meta?.thumbnailUrl,
+                libraryId: cached.meta?.libraryId,
+                fileName: cached.meta?.fileName ?? fileToUpload.name
+              }
+            })
+            continue
+          }
+
+          try {
+            const formData = new FormData()
+            formData.append('file', fileToUpload, fileToUpload.name)
+            formData.append('title', fileToUpload.name)
+            formData.append('exerciseId', numericId.toString())
+            formData.append('activityId', activityId.toString())
+
+            const uploadResponse = await fetch('/api/bunny/upload-video', {
+              method: 'POST',
+              body: formData
+            })
+
+            const uploadJson = await uploadResponse.json()
+
+            if (uploadResponse.ok && uploadJson.success) {
+              const meta = {
+                url: uploadJson.streamUrl,
+                videoId: uploadJson.videoId,
+                thumbnailUrl: uploadJson.thumbnailUrl,
+                libraryId: uploadJson.libraryId,
+                fileName: uploadJson.fileName || fileToUpload.name
+              }
+
+              if (signature) {
+                completedUploads.set(signature, { url: uploadJson.streamUrl, meta })
+              }
+
+              uploadResults.push({
+                key,
+                index,
+                uploaded: true,
+                videoUrl: uploadJson.streamUrl,
+                meta
+              })
+            } else {
+              console.error('❌ Error subiendo video a Bunny:', uploadJson?.error)
+              uploadResults.push({ key, index, uploaded: false, videoUrl: exercise?.video_url, meta: null })
+            }
+          } catch (uploadError) {
+            console.error('❌ Excepción subiendo video a Bunny:', uploadError)
+            uploadResults.push({ key, index, uploaded: false, videoUrl: exercise?.video_url, meta: null })
+          }
+        }
+
+        if (uploadResults.length > 0) {
+          setPersistentCsvData((prev) =>
+            prev.map((exercise, index) => {
+              if (!exercise || typeof exercise !== 'object' || Array.isArray(exercise)) {
+                return exercise
+              }
+              const match = uploadResults.find(
+                (result) => result.key === getExerciseVideoKey(exercise, index)
+              )
+              if (!match) {
+                return exercise
+              }
+
+              const updatedExercise = { ...exercise }
+              if (match.videoUrl && typeof match.videoUrl === 'string') {
+                updatedExercise.video_url = match.videoUrl
+              }
+              if (match.meta?.videoId) {
+                updatedExercise.bunny_video_id = match.meta.videoId
+              }
+              if (match.meta?.libraryId !== undefined) {
+                updatedExercise.bunny_library_id = match.meta.libraryId
+              }
+              if (match.meta?.thumbnailUrl) {
+                updatedExercise.video_thumbnail_url = match.meta.thumbnailUrl
+              }
+              if (match.meta?.fileName) {
+                updatedExercise.video_file_name = match.meta.fileName
+              }
+              return updatedExercise
+            })
+          )
+
+          setExerciseVideoFiles((prev) => {
+            const next = { ...prev }
+            uploadResults.forEach((result) => {
+              if (result.uploaded && result.key && next[result.key]) {
+                delete next[result.key]
+              }
+            })
+            return next
+          })
+        }
+      }
       
       console.log('📥 Respuesta de la API:', {
         success: result.success,
@@ -713,7 +1647,11 @@ export default function CreateProductModal({ isOpen, onClose, editingProduct }: 
         console.log('🧹 Archivos pendientes limpiados')
         
         // ✅ GUARDAR EJERCICIOS/PLATOS si hay datos CSV
+        let idMapping: Record<string, number> = {} // Declarar fuera para que esté disponible más adelante
+        let resolveMappedIdForEntry = (entry: any) => entry?.id
+        
         if (persistentCsvData && persistentCsvData.length > 0 && selectedType === 'program') {
+          setPublishProgress('Guardando ejercicios...')
           console.log('💾 Guardando platos/ejercicios en la base de datos:', persistentCsvData.length, 'items')
           
           try {
@@ -721,19 +1659,124 @@ export default function CreateProductModal({ isOpen, onClose, editingProduct }: 
               ? '/api/activity-nutrition/bulk'
               : '/api/activities/exercises/bulk'
             
-            const plates = persistentCsvData.map((item: any) => {
+            const normalizeName = (value: any) => {
+              if (value === null || value === undefined) return ''
+              return value.toString().trim().toLowerCase()
+            }
+
+            const plateMetaByTempId: Record<string, { normalizedName: string }> = {}
+            const nameToTempIds: Record<string, string[]> = {}
+
+            const registerTempKey = (
+              key: string | number | null | undefined,
+              normalizedName: string
+            ) => {
+              if (key === undefined || key === null) return
+              const keyString = String(key)
+              plateMetaByTempId[keyString] = { normalizedName }
+              if (!normalizedName) return
+              if (!nameToTempIds[normalizedName]) {
+                nameToTempIds[normalizedName] = []
+              }
+              if (!nameToTempIds[normalizedName].includes(keyString)) {
+                nameToTempIds[normalizedName].push(keyString)
+              }
+            }
+
+            const plates = persistentCsvData.map((item: any, index: number) => {
+              const rawId = item.id ?? item.tempId
+              const numericId =
+                typeof rawId === 'number'
+                  ? rawId
+                  : typeof rawId === 'string' && /^\d+$/.test(rawId)
+                    ? parseInt(rawId, 10)
+                    : null
+              const generatedTempId = `exercise-${index + 1}`
+              const tempId =
+                typeof rawId === 'string' && !/^\d+$/.test(rawId)
+                  ? rawId
+                  : item.tempId ?? (numericId !== null ? `exercise-${numericId}` : generatedTempId)
+              const tempIdString = String(tempId)
+              const isExistingRecord =
+                item.isExisting === true ||
+                (item.isExisting === undefined && typeof rawId === 'number')
+              const resolvedId = isExistingRecord
+                ? (typeof rawId === 'number'
+                    ? rawId
+                    : typeof rawId === 'string' && /^\d+$/.test(rawId)
+                      ? parseInt(rawId, 10)
+                      : rawId)
+                : tempIdString
+
+              const normalizedPlateName = normalizeName(
+                item['Nombre de la Actividad'] ||
+                  item['Nombre'] ||
+                  item.nombre ||
+                  item.name ||
+                  ''
+              )
+
+              registerTempKey(tempIdString, normalizedPlateName)
+              if (item.tempId) {
+                registerTempKey(String(item.tempId), normalizedPlateName)
+              }
+              if (!isExistingRecord && tempIdString.startsWith('exercise-')) {
+                registerTempKey(tempIdString.replace(/^exercise-/, ''), normalizedPlateName)
+              }
+              if (isExistingRecord) {
+                if (typeof resolvedId === 'number') {
+                  registerTempKey(resolvedId, normalizedPlateName)
+                  registerTempKey(`exercise-${resolvedId}`, normalizedPlateName)
+                } else if (
+                  typeof resolvedId === 'string' &&
+                  /^\d+$/.test(resolvedId)
+                ) {
+                  registerTempKey(resolvedId, normalizedPlateName)
+                  registerTempKey(`exercise-${resolvedId}`, normalizedPlateName)
+                }
+              }
+
               if (productCategory === 'nutricion') {
+                // Procesar ingredientes
+                let ingredientes = null
+                try {
+                  if (item['Ingredientes'] || item.ingredientes) {
+                    const ingredientesRaw = item['Ingredientes'] || item.ingredientes
+                    ingredientes = typeof ingredientesRaw === 'string' 
+                      ? JSON.parse(ingredientesRaw) 
+                      : ingredientesRaw
+                  }
+                } catch (e) {
+                  console.error('Error parseando ingredientes:', e)
+                }
+                
                 return {
+                  id: isExistingRecord ? resolvedId : tempIdString || `nutrition-${index + 1}`,
+                  tempId: tempIdString || `nutrition-${index + 1}`,
+                  isExisting: isExistingRecord,
+                  is_active: item.is_active !== undefined ? item.is_active : true,
                   nombre: item['Nombre'] || item.nombre || '',
-                  descripcion: item['Descripción'] || item.Descripción || item.descripcion || item.receta || '',
+                  receta: item['Receta'] || item['Descripción'] || item.Descripción || item.descripcion || item.receta || '',
+                  descripcion: item['Receta'] || item['Descripción'] || item.Descripción || item.descripcion || item.receta || '',
                   calorias: item['Calorías'] || item.Calorías || item.calorias || '0',
                   proteinas: item['Proteínas (g)'] || item['Proteínas'] || item.proteinas || '0',
                   carbohidratos: item['Carbohidratos (g)'] || item.Carbohidratos || item.carbohidratos || '0',
                   grasas: item['Grasas (g)'] || item.Grasas || item.grasas || '0',
-                  video_url: item.video_url || ''
+                  ingredientes: ingredientes,
+                  porciones: item['Porciones'] || item.porciones || null,
+                  minutos: item['Minutos'] || item.minutos || null,
+                  video_url: item.video_url || '',
+                  video_file_name: item.video_file_name || '',
+                  bunny_video_id: item.bunny_video_id || '',
+                  bunny_library_id: item.bunny_library_id || '',
+                  video_thumbnail_url: item.video_thumbnail_url || ''
                 }
               } else {
                 return {
+                  id: isExistingRecord ? resolvedId : tempIdString,
+                  tempId: tempIdString,
+                  isExisting: isExistingRecord,
+                  is_active: item.is_active !== undefined ? item.is_active : true,
                   nombre: item['Nombre de la Actividad'] || item.nombre || '',
                   descripcion: item['Descripción'] || item.Descripción || item.descripcion || '',
                   duracion_min: item['Duración (min)'] || item.duracion_min || '0',
@@ -743,7 +1786,11 @@ export default function CreateProductModal({ isOpen, onClose, editingProduct }: 
                   detalle_series: item['Detalle de Series (peso-repeticiones-series)'] || item.detalle_series || '',
                   body_parts: item['Partes del Cuerpo'] || item.body_parts || '',
                   calorias: item['Calorías'] || item.Calorías || item.calorias || '0',
-                  video_url: item.video_url || ''
+                  video_url: item.video_url || '',
+                  video_file_name: item.video_file_name || '',
+                  bunny_video_id: item.bunny_video_id || '',
+                  bunny_library_id: item.bunny_library_id || '',
+                  video_thumbnail_url: item.video_thumbnail_url || ''
                 }
               }
             })
@@ -759,8 +1806,166 @@ export default function CreateProductModal({ isOpen, onClose, editingProduct }: 
             })
 
             const bulkResult = await bulkResponse.json()
+            
             if (bulkResult.success) {
-              console.log('✅ Platos/ejercicios guardados exitosamente:', bulkResult.insertedCount || plates.length)
+              console.log('✅ Platos/ejercicios guardados exitosamente:', bulkResult.count || plates.length)
+              
+              // Crear mapeo temporal de IDs temporales a IDs reales (para ambos: nutricion y fitness)
+              if (bulkResult.data && Array.isArray(bulkResult.data)) {
+                const mappedIds: Record<string, number> = {}
+
+                bulkResult.data.forEach((entry: any, index: number) => {
+                  const plate = plates[index] || {}
+                  const tempCandidates: string[] = []
+
+                  if (entry?.tempId) tempCandidates.push(entry.tempId)
+                  if (plate?.tempId) tempCandidates.push(plate.tempId)
+                  if (plate?.id !== undefined) {
+                    const idString = String(plate.id)
+                    tempCandidates.push(idString)
+                    if (!idString.startsWith('exercise-')) {
+                      tempCandidates.push(`exercise-${idString}`)
+                    }
+                  }
+
+                  const realId = entry?.id
+                  if (realId) {
+                    tempCandidates
+                      .filter(Boolean)
+                      .forEach((temp) => {
+                        const key = String(temp)
+                        mappedIds[key] = realId
+                        if (key.startsWith('exercise-')) {
+                          mappedIds[key.replace(/^exercise-/, '')] = realId
+                        }
+                        mappedIds[String(realId)] = realId
+                        mappedIds[`exercise-${realId}`] = realId
+                      })
+                  }
+                })
+
+                Object.assign(idMapping, mappedIds)
+
+                console.log('🔄 Mapeo de IDs temporal -> real:', idMapping)
+
+                const plateTempKeys = Object.keys(plateMetaByTempId)
+                const missingTempIds = plateTempKeys.filter((key) => idMapping[key] === undefined)
+
+                if (missingTempIds.length > 0 && result.product?.id) {
+                  console.warn('⚠️ IDs temporales sin mapear tras inserción inicial:', missingTempIds)
+                  try {
+                    const exercisesResponse = await fetch(`/api/activity-exercises/${result.product.id}?t=${Date.now()}`)
+                    if (exercisesResponse.ok) {
+                      const exercisesResult = await exercisesResponse.json()
+                      const exerciseList: any[] = Array.isArray(exercisesResult?.data)
+                        ? exercisesResult.data
+                        : Array.isArray(exercisesResult?.exercises)
+                          ? exercisesResult.exercises
+                          : []
+
+                      exerciseList.forEach((exercise: any) => {
+                        const normalized = normalizeName(
+                          exercise?.nombre_ejercicio ||
+                          exercise?.nombre ||
+                          exercise?.name ||
+                          ''
+                        )
+                        if (!normalized) return
+                        const potentialTempIds = nameToTempIds[normalized] || []
+                        potentialTempIds.forEach((tempKey) => {
+                          if (idMapping[tempKey] === undefined) {
+                            idMapping[tempKey] = exercise.id
+                            idMapping[String(exercise.id)] = exercise.id
+                            idMapping[`exercise-${exercise.id}`] = exercise.id
+                            if (tempKey.startsWith('exercise-')) {
+                              idMapping[tempKey.replace(/^exercise-/, '')] = exercise.id
+                            }
+                            console.log(`🔁 Mapeo completado vía listado: ${tempKey} -> ${exercise.id}`)
+                          }
+                        })
+                      })
+                    } else {
+                      console.warn('⚠️ No se pudo obtener ejercicios para completar mapeo:', exercisesResponse.status)
+                    }
+                  } catch (fetchError) {
+                    console.error('❌ Error obteniendo ejercicios para completar mapeo:', fetchError)
+                  }
+                }
+                
+                resolveMappedIdForEntry = (entry: any) => {
+                  if (!entry) return entry
+                  const potentialKeys: (string | number | undefined | null)[] = [
+                    entry.id,
+                    entry.tempId,
+                    typeof entry.id === 'number' ? `exercise-${entry.id}` : null,
+                    typeof entry.id === 'string' && entry.id.startsWith('exercise-')
+                      ? entry.id.replace(/^exercise-/, '')
+                      : null
+                  ]
+
+                  for (const key of potentialKeys) {
+                    if (key === undefined || key === null) continue
+                    const mapped = idMapping[String(key)]
+                    if (mapped !== undefined) {
+                      return mapped
+                    }
+                  }
+
+                  const normalizedEntryName = normalizeName(
+                    entry.name ||
+                      entry['Nombre de la Actividad'] ||
+                      entry['Nombre'] ||
+                      entry.nombre ||
+                      ''
+                  )
+
+                  if (normalizedEntryName && nameToTempIds[normalizedEntryName]) {
+                    for (const tempKey of nameToTempIds[normalizedEntryName]) {
+                      const mapped = idMapping[tempKey]
+                      if (mapped !== undefined) {
+                        return mapped
+                      }
+                    }
+                  }
+
+                  return entry.id
+                }
+
+                // Actualizar IDs en la planificación antes de guardarla
+                if (persistentCalendarSchedule) {
+                  const updatedSchedule = JSON.parse(JSON.stringify(persistentCalendarSchedule))
+                  for (const weekKey in updatedSchedule) {
+                    for (const dayKey in updatedSchedule[weekKey]) {
+                      const dayData = updatedSchedule[weekKey][dayKey]
+                      if (!dayData) continue
+
+                      if (Array.isArray(dayData.ejercicios)) {
+                        dayData.ejercicios = dayData.ejercicios.map((ex: any) => {
+                          const resolvedId = resolveMappedIdForEntry(ex)
+                          const finalId =
+                            typeof resolvedId === 'string' && /^\d+$/.test(resolvedId)
+                              ? parseInt(resolvedId, 10)
+                              : resolvedId
+                          return { ...ex, id: finalId }
+                        })
+                      }
+
+                      if (Array.isArray(dayData.exercises)) {
+                        dayData.exercises = dayData.exercises.map((ex: any) => {
+                          const resolvedId = resolveMappedIdForEntry(ex)
+                          const finalId =
+                            typeof resolvedId === 'string' && /^\d+$/.test(resolvedId)
+                              ? parseInt(resolvedId, 10)
+                              : resolvedId
+                          return { ...ex, id: finalId }
+                        })
+                      }
+                    }
+                  }
+                  setPersistentCalendarSchedule(updatedSchedule)
+                  console.log('✅ Planificación actualizada con IDs reales')
+                }
+              }
             } else {
               console.error('❌ Error guardando platos/ejercicios:', bulkResult.error)
             }
@@ -769,17 +1974,76 @@ export default function CreateProductModal({ isOpen, onClose, editingProduct }: 
           }
         }
 
+        // Pequeña pausa para asegurar que los platos se guardaron antes de crear la planificación
+        await new Promise(resolve => setTimeout(resolve, 500))
+
         // ✅ GUARDAR PLANIFICACIÓN SEMANAL si existe
         if (persistentCalendarSchedule && Object.keys(persistentCalendarSchedule).length > 0 && selectedType === 'program') {
           console.log('📅 Guardando planificación semanal:', Object.keys(persistentCalendarSchedule).length, 'semanas')
           
+          // Actualizar IDs temporales con IDs reales si tenemos el mapeo
+          let scheduleToSave = persistentCalendarSchedule
+          if (idMapping && Object.keys(idMapping).length > 0) {
+            scheduleToSave = JSON.parse(JSON.stringify(persistentCalendarSchedule))
+            for (const weekKey in scheduleToSave) {
+              for (const dayKey in scheduleToSave[weekKey]) {
+                const dayData = scheduleToSave[weekKey][dayKey]
+                if (!dayData) continue
+
+                if (Array.isArray(dayData.ejercicios)) {
+                  dayData.ejercicios = dayData.ejercicios.map((ex: any) => {
+                    const resolvedId = resolveMappedIdForEntry(ex)
+                    const finalId =
+                      typeof resolvedId === 'string' && /^\d+$/.test(resolvedId)
+                        ? parseInt(resolvedId, 10)
+                        : resolvedId
+                    if (finalId !== ex.id) {
+                      console.log(`🔧 Actualizando ID en planificación: ${ex.id} -> ${finalId}`)
+                    }
+                    return { ...ex, id: finalId }
+                  })
+                }
+
+                if (Array.isArray(dayData.exercises)) {
+                  dayData.exercises = dayData.exercises.map((ex: any) => {
+                    const resolvedId = resolveMappedIdForEntry(ex)
+                    const finalId =
+                      typeof resolvedId === 'string' && /^\d+$/.test(resolvedId)
+                        ? parseInt(resolvedId, 10)
+                        : resolvedId
+                    if (finalId !== ex.id) {
+                      console.log(`🔧 Actualizando ID en planificación (exercises): ${ex.id} -> ${finalId}`)
+                    }
+                    return { ...ex, id: finalId }
+                  })
+                }
+              }
+            }
+            console.log('✅ Planificación actualizada con IDs reales antes de enviar')
+          }
+          
           try {
+            // Pre-chequeo: evitar llamada si excede el límite conocido (fallback 4 semanas para plan free)
+            const uniqueWeeks = Object.keys(scheduleToSave || {}).length
+            const totalWeeksToSave = (uniqueWeeks > 0 ? uniqueWeeks : 1) * (periods || 1)
+            const fallbackWeeksLimit = 4
+            if (totalWeeksToSave > fallbackWeeksLimit) {
+              const msg = `El número de semanas (${totalWeeksToSave}) excede el límite de tu plan (free: ${fallbackWeeksLimit} semanas). Reduce el número de semanas o períodos.`
+              console.error('❌ Evitando POST /api/save-weekly-planning por exceso de semanas:', { totalWeeksToSave, fallbackWeeksLimit })
+              alert(msg)
+              // Llevar al usuario al paso del planificador para corregir
+              setCurrentStep('weeklyPlan' as any)
+              setIsPublishing(false)
+              setPublishProgress('')
+              return
+            }
+            setPublishProgress('Guardando planificación semanal...')
             const planningResponse = await fetch('/api/save-weekly-planning', {
               method: 'POST',
               headers: { 'Content-Type': 'application/json' },
               body: JSON.stringify({
                 activityId: result.product?.id,
-                weeklySchedule: persistentCalendarSchedule,
+                weeklySchedule: scheduleToSave,
                 periods: periods || 1
               })
             })
@@ -797,58 +2061,490 @@ export default function CreateProductModal({ isOpen, onClose, editingProduct }: 
         
         // Guardar videos de ejercicios si hay datos CSV con videos
         if (persistentCsvData && persistentCsvData.length > 0) {
-          const exerciseVideos = persistentCsvData
-            .filter((exercise: any) => exercise.video_url && exercise.id)
-            .map((exercise: any) => {
-              // Si el video del ejercicio es el mismo que el video de portada que acabamos de subir
-              // (detectado por URL temporal blob:), usar la URL de Bunny.net subida
-              let videoUrl = exercise.video_url
-              
-              if (uploadedVideoData && exercise.video_url.startsWith('blob:')) {
-                // Es el mismo archivo que se subió como portada, reutilizar URL
-                videoUrl = uploadedVideoData.streamUrl
-                console.log(`🔄 Reutilizando video de portada para ejercicio ${exercise.id}`)
+          const exercisesWithPotentialVideos = persistentCsvData
+            .map((exercise: any, index: number) => ({
+              exercise,
+              index,
+              file: getStoredExerciseVideoFile(exercise, index)
+            }))
+            .filter(({ exercise, file }) => {
+              if (!exercise || exercise.id === undefined || exercise.id === null) {
+                return false
               }
-              
-              return {
-                exerciseId: exercise.id,
-                videoUrl: videoUrl
+              const hasVideoUrl =
+                typeof exercise.video_url === 'string' && exercise.video_url.trim() !== ''
+              return hasVideoUrl || !!file
+            })
+
+          if (exercisesWithPotentialVideos.length > 0) {
+            const blobUrlCache = new Map<
+              string,
+              {
+                url: string
+                meta?: {
+                  url?: string
+                  videoId?: string
+                  thumbnailUrl?: string
+                  libraryId?: number
+                  fileName?: string
+                }
+              }
+            >()
+            const completedUploads = new Map<
+              string,
+              {
+                url: string
+                meta?: {
+                  url?: string
+                  videoId?: string
+                  thumbnailUrl?: string
+                  libraryId?: number
+                  fileName?: string
+                }
+              }
+            >()
+
+            const getFileSignature = (file?: File | null) =>
+              file ? `file::${file.name || 'unnamed'}::${file.size}` : null
+
+            const getNameSignature = (exercise: any) => {
+              if (
+                exercise &&
+                typeof exercise === 'object' &&
+                typeof exercise.video_file_name === 'string'
+              ) {
+                const normalized = exercise.video_file_name.trim().toLowerCase()
+                if (normalized) {
+                  return `name::${normalized}`
+                }
+              }
+              return null
+            }
+
+            const activityIdForAssignment = result.product?.id
+
+            const assignVideoToExercise = async (
+              exerciseIdentifier: number,
+              metadata: {
+                url?: string
+                videoId?: string
+                thumbnailUrl?: string
+                libraryId?: number
+                fileName?: string
+              }
+            ) => {
+              if (
+                !activityIdForAssignment ||
+                !metadata?.videoId ||
+                !metadata?.url
+              ) {
+                return
+              }
+
+              try {
+                const response = await fetch('/api/bunny/assign-video', {
+                  method: 'POST',
+                  headers: { 'Content-Type': 'application/json' },
+                  body: JSON.stringify({
+                    exerciseId: exerciseIdentifier,
+                    activityId: activityIdForAssignment,
+                    videoId: metadata.videoId,
+                    streamUrl: metadata.url,
+                    thumbnailUrl: metadata.thumbnailUrl ?? null,
+                    libraryId: metadata.libraryId ?? null,
+                    fileName: metadata.fileName ?? null
+                  })
+                })
+
+                if (!response.ok) {
+                  console.error(
+                    `❌ Error asignando video existente al ejercicio ${exerciseIdentifier}:`,
+                    response.statusText
+                  )
+                  return
+                }
+
+                const assignResult = await response.json()
+                if (!assignResult?.success) {
+                  console.error(
+                    `❌ Error asignando video existente al ejercicio ${exerciseIdentifier}:`,
+                    assignResult?.error
+                  )
+                } else {
+                  console.log(
+                    `♻️ Video reutilizado asignado a ejercicio ${exerciseIdentifier}`
+                  )
+                }
+              } catch (assignError) {
+                console.error(
+                  `❌ Excepción asignando video existente al ejercicio ${exerciseIdentifier}:`,
+                  assignError
+                )
+              }
+            }
+
+            const uploadResults: Array<{
+              key: string
+              index: number
+              uploaded: boolean
+              videoUrl?: string
+              meta: { videoId?: string; thumbnailUrl?: string; libraryId?: number; fileName?: string } | null
+            }> = []
+
+            for (const { exercise, index, file } of exercisesWithPotentialVideos) {
+              const uploadResult = await (async () => {
+                const key = getExerciseVideoKey(exercise, index)
+
+                const candidateKeys = new Set<string>()
+                const registerCandidate = (value: any) => {
+                  if (value === undefined || value === null) return
+                  const str = String(value)
+                  if (!str) return
+                  candidateKeys.add(str)
+                  if (!str.startsWith('exercise-')) {
+                    candidateKeys.add(`exercise-${str}`)
+                  }
+                }
+
+                registerCandidate(exercise?.id)
+                registerCandidate(exercise?.tempId)
+                registerCandidate(exercise?.tempRowId)
+                registerCandidate(exercise?.csvRowId)
+
+                let realExerciseId: number | null = null
+                for (const candidate of candidateKeys) {
+                  if (idMapping[candidate] !== undefined) {
+                    realExerciseId = idMapping[candidate]
+                    break
+                  }
+                }
+
+                if (realExerciseId === null) {
+                  const tryParse = (value: any) => {
+                    if (value === undefined || value === null) return null
+                    const parsed = parseInt(String(value).replace(/^exercise-/, ''), 10)
+                    return Number.isNaN(parsed) ? null : parsed
+                  }
+                  realExerciseId =
+                    tryParse(exercise?.id) ??
+                    tryParse(exercise?.tempId) ??
+                    tryParse(exercise?.tempRowId) ??
+                    tryParse(exercise?.csvRowId)
+                }
+
+                if (!realExerciseId || !result.product?.id) {
+                  console.warn('⚠️ No se pudo resolver ID real para video de ejercicio:', {
+                    exerciseId: exercise?.id,
+                    realExerciseId,
+                    productId: result.product?.id
+                  })
+                  return { key, index, uploaded: false, videoUrl: exercise?.video_url, meta: null }
+                }
+
+                let finalVideoUrl: string | undefined = exercise?.video_url
+                let uploaded = false
+                let meta: { videoId?: string; thumbnailUrl?: string; libraryId?: number; fileName?: string } | null =
+                  null
+
+                const videoUrlIsBlob =
+                  typeof exercise?.video_url === 'string' && exercise.video_url.startsWith('blob:')
+                // PRIORIZAR: Intentar usar archivo guardado de exerciseVideoFiles primero
+                let fileToUpload = file || getStoredExerciseVideoFile(exercise, index)
+
+                // Solo intentar fetch del blob si no hay archivo guardado
+                if (!fileToUpload && videoUrlIsBlob) {
+                  try {
+                    const blobResponse = await fetch(exercise.video_url)
+                    if (!blobResponse.ok) {
+                      console.warn(`⚠️ Blob no disponible para ejercicio ${exercise.id}, saltando video (${blobResponse.status})`)
+                      return { key, index, uploaded: false, videoUrl: exercise?.video_url, meta: null }
+                    }
+                    const blob = await blobResponse.blob()
+                    const fallbackName =
+                      typeof exercise.video_file_name === 'string' && exercise.video_file_name.trim() !== ''
+                        ? exercise.video_file_name.trim()
+                        : `exercise-${realExerciseId}-${Date.now()}.mp4`
+                    fileToUpload = new File([blob], fallbackName, { type: blob.type || 'video/mp4' })
+                  } catch (blobError) {
+                    console.warn(`⚠️ Error procesando blob para ejercicio ${exercise.id}, continuando sin video:`, blobError)
+                    // No fallar todo el proceso si un blob falla, solo continuar sin ese video
+                    return { key, index, uploaded: false, videoUrl: exercise?.video_url, meta: null }
+                  }
+                }
+
+                const signatureCandidates = new Set<string>()
+                const fileSignature = getFileSignature(fileToUpload)
+                if (fileSignature) signatureCandidates.add(fileSignature)
+
+                const nameSignature = getNameSignature(exercise)
+                if (nameSignature) signatureCandidates.add(nameSignature)
+
+                if (typeof exercise?.video_url === 'string') {
+                  signatureCandidates.add(`url::${exercise.video_url}`)
+                }
+                if (videoUrlIsBlob && typeof exercise?.video_url === 'string') {
+                  signatureCandidates.add(`blob::${exercise.video_url}`)
+                }
+
+                if (videoUrlIsBlob && blobUrlCache.has(exercise.video_url)) {
+                  const cached = blobUrlCache.get(exercise.video_url)!
+                  finalVideoUrl = cached.url
+                  meta = cached.meta || null
+                  uploaded = true
+
+                  if (meta?.url === undefined && finalVideoUrl) {
+                    meta = { ...(meta || {}), url: finalVideoUrl }
+                  }
+
+                  if (meta?.videoId && finalVideoUrl) {
+                    await assignVideoToExercise(realExerciseId, {
+                      url: finalVideoUrl,
+                      videoId: meta.videoId,
+                      thumbnailUrl: meta.thumbnailUrl,
+                      libraryId: meta.libraryId,
+                      fileName: meta.fileName
+                    })
+                  }
+
+                  console.log(`♻️ Reutilizando video ya subido para ejercicio ${realExerciseId}`)
+                } else if (fileToUpload) {
+                  let reused = false
+                  for (const signature of signatureCandidates) {
+                    if (!signature) continue
+                    if (completedUploads.has(signature)) {
+                      const cached = completedUploads.get(signature)!
+                      finalVideoUrl = cached.url
+                      meta = cached.meta || null
+                      uploaded = true
+                      reused = true
+
+                      if (meta?.url === undefined && finalVideoUrl) {
+                        meta = { ...(meta || {}), url: finalVideoUrl }
+                      }
+
+                      if (videoUrlIsBlob && !blobUrlCache.has(exercise.video_url)) {
+                        blobUrlCache.set(exercise.video_url, {
+                          url: finalVideoUrl!,
+                          meta
+                        })
+                      }
+
+                      if (meta?.videoId && finalVideoUrl) {
+                        await assignVideoToExercise(realExerciseId, {
+                          url: finalVideoUrl,
+                          videoId: meta.videoId,
+                          thumbnailUrl: meta.thumbnailUrl,
+                          libraryId: meta.libraryId,
+                          fileName: meta.fileName ?? fileToUpload.name
+                        })
+                      }
+
+                      console.log(`♻️ Reutilizando video previamente subido para ejercicio ${realExerciseId}`)
+                      break
+                    }
+                    }
+
+                  if (!reused) {
+                    try {
+                      const formData = new FormData()
+                      formData.append('file', fileToUpload, fileToUpload.name)
+                      formData.append('title', fileToUpload.name)
+                      formData.append('exerciseId', realExerciseId.toString())
+                      formData.append('activityId', result.product.id.toString())
+
+                      const uploadResponse = await fetch('/api/bunny/upload-video', {
+                        method: 'POST',
+                        body: formData
+                      })
+
+                      const uploadResult = await uploadResponse.json()
+
+                      if (uploadResponse.ok && uploadResult.success) {
+                        finalVideoUrl = uploadResult.streamUrl
+                        uploaded = true
+                        meta = {
+                          url: uploadResult.streamUrl,
+                          videoId: uploadResult.videoId,
+                          thumbnailUrl: uploadResult.thumbnailUrl,
+                          libraryId: uploadResult.libraryId,
+                          fileName: uploadResult.fileName || fileToUpload.name
+                        }
+
+                        if (videoUrlIsBlob) {
+                          blobUrlCache.set(exercise.video_url, { url: finalVideoUrl!, meta })
+                        }
+
+                        signatureCandidates.forEach((signature) => {
+                          if (signature) {
+                            completedUploads.set(signature, { url: finalVideoUrl!, meta })
+                          }
+                        })
+
+                        console.log(`✅ Video subido a Bunny para ejercicio ${realExerciseId}`)
+                      } else {
+                        console.error(
+                          `❌ Error subiendo video a Bunny para ejercicio ${realExerciseId}:`,
+                          uploadResult.error || uploadResponse.statusText
+                        )
+                      }
+                    } catch (uploadError) {
+                      console.error(`❌ Error en upload para ejercicio ${realExerciseId}:`, uploadError)
+                    }
+                  }
+                }
+
+                return { key, index, uploaded, videoUrl: finalVideoUrl, meta }
+              })()
+
+              uploadResults.push(uploadResult)
+            }
+
+            if (uploadResults.length > 0) {
+                  setPersistentCsvData((prev) =>
+                    prev.map((exercise, index) => {
+                      if (!exercise || typeof exercise !== 'object' || Array.isArray(exercise)) {
+                        return exercise
+                      }
+                      const match = uploadResults.find(
+                        (result) => result.key === getExerciseVideoKey(exercise, index)
+                      )
+                      if (!match) {
+                        return exercise
+                      }
+
+                      const updatedExercise = { ...exercise }
+                      if (match.videoUrl && typeof match.videoUrl === 'string') {
+                        updatedExercise.video_url = match.videoUrl
+                      }
+                      if (match.meta?.videoId) {
+                        updatedExercise.bunny_video_id = match.meta.videoId
+                      }
+                      if (match.meta?.libraryId !== undefined) {
+                        updatedExercise.bunny_library_id = match.meta.libraryId
+                      }
+                      if (match.meta?.thumbnailUrl) {
+                        updatedExercise.video_thumbnail_url = match.meta.thumbnailUrl
+                      }
+                      if (match.meta?.fileName) {
+                        updatedExercise.video_file_name = match.meta.fileName
+                      }
+                      return updatedExercise
+                    })
+                  )
+
+              setExerciseVideoFiles((prev) => {
+                const next = { ...prev }
+                uploadResults.forEach((result) => {
+                  if (result.uploaded && result.key && next[result.key]) {
+                    delete next[result.key]
+                  }
+                })
+                return next
+              })
+            }
+
+            setPublishProgress('Procesando videos...')
+            console.log('✅ Videos procesados y guardados en Bunny')
+          }
+        }
+        
+        if (videosPendingDeletion.length > 0) {
+          try {
+            const videosStillUsed = new Set<string>()
+            ;(persistentCsvData || []).forEach((exercise: any) => {
+              const currentId = exercise?.bunny_video_id
+              if (currentId) {
+                videosStillUsed.add(String(currentId))
               }
             })
-          
-          if (exerciseVideos.length > 0) {
-            console.log('🎥 Guardando videos de ejercicios:', exerciseVideos)
-            try {
-              const videoResponse = await fetch('/api/save-exercise-videos', {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({
-                  activityId: result.product?.id,
-                  exerciseVideos
+
+            const deletionsToAttempt = videosPendingDeletion.filter((entry) => {
+              if (!entry.bunnyVideoId) return false
+              return !videosStillUsed.has(String(entry.bunnyVideoId))
+            })
+
+            const successfulDeletes = new Set<string>()
+
+            for (const entry of deletionsToAttempt) {
+              try {
+                const response = await fetch('/api/bunny/delete-video', {
+                  method: 'POST',
+                  headers: { 'Content-Type': 'application/json' },
+                  body: JSON.stringify({
+                    videoId: entry.bunnyVideoId,
+                    exerciseId: entry.exerciseId ? Number(entry.exerciseId) : undefined,
+                    activityId: result.product?.id
+                  })
                 })
-              })
-              
-              const videoResult = await videoResponse.json()
-              if (videoResult.success) {
-                console.log('✅ Videos de ejercicios guardados:', videoResult.message)
-              } else {
-                console.error('❌ Error guardando videos:', videoResult.error)
+
+                if (response.ok) {
+                  const deleteResult = await response.json()
+                  if (deleteResult.success) {
+                    successfulDeletes.add(String(entry.bunnyVideoId))
+                    console.log('🗑️ Video eliminado en Bunny:', entry.bunnyVideoId)
+                  } else if (deleteResult.skipped) {
+                    console.log('ℹ️ Video no eliminado (aún en uso):', entry.bunnyVideoId)
+                  } else {
+                    console.warn('⚠️ No se pudo eliminar video en Bunny:', entry.bunnyVideoId, deleteResult.error)
+                  }
+                } else {
+                  console.error('❌ Error HTTP eliminando video en Bunny:', entry.bunnyVideoId, response.status)
+                }
+              } catch (deleteError) {
+                console.error('❌ Excepción eliminando video en Bunny:', entry.bunnyVideoId, deleteError)
               }
-            } catch (videoError) {
-              console.error('❌ Error en llamada a guardar videos:', videoError)
             }
+
+            const remainingPending = videosPendingDeletion.filter((entry) => {
+              if (!entry.bunnyVideoId) return false
+              const idString = String(entry.bunnyVideoId)
+              if (videosStillUsed.has(idString)) return true
+              return !successfulDeletes.has(idString)
+            })
+
+            setVideosPendingDeletion(remainingPending)
+          } catch (cleanupError) {
+            console.error('⚠️ Error gestionando eliminación de videos:', cleanupError)
           }
         }
         
         onClose()
-        // ✅ Recargar SIEMPRE para refrescar la lista de productos
-        window.location.reload()
+        // ✅ NO recargar la página para poder ver los logs
+        // Disparar evento para actualizar estadísticas del producto
+        if (result.product?.id) {
+          console.log('🔄 Disparando evento productUpdated para producto:', result.product.id)
+          window.dispatchEvent(new CustomEvent('productUpdated', { 
+            detail: { productId: result.product.id } 
+          }))
+        }
+        
+        // window.location.reload()
       } else {
         console.error('❌ ERROR AL PUBLICAR PRODUCTO:', result.error)
+        if (isEditing && activityIdForVideos) {
+          try {
+            await uploadVideosForExistingExercisesOnFailure(activityIdForVideos)
+          } catch (videoError) {
+            console.error('❌ Error procesando videos tras fallo de publicación:', videoError)
+          }
+        }
+        setValidationErrors((prev) => [
+          ...prev,
+          result?.error || 'Error desconocido al actualizar el producto'
+        ])
+        setIsPublishing(false)
+        setPublishProgress('')
+        return
       }
     } catch (error) {
       console.error('Error al publicar producto:', error)
       alert('Error al publicar el producto')
+      setIsPublishing(false)
+      setPublishProgress('')
+    } finally {
+      // Asegurar que el estado se limpia al final
+      setIsPublishing(false)
+      setPublishProgress('')
     }
   }
 
@@ -947,20 +2643,22 @@ export default function CreateProductModal({ isOpen, onClose, editingProduct }: 
       
       
       if (editingProduct.capacity) {
-        if (editingProduct.capacity >= 999) {
+        if (editingProduct.capacity >= 500) {
           capacityType = 'ilimitada'
-          console.log('✅ Capacity detectado como ilimitada (>= 999)')
+          console.log('✅ Capacity detectado como ilimitada (>= 500)')
         } else {
-          capacityType = 'stock'
+          capacityType = 'limitada' // Cambiar 'stock' a 'limitada' para que coincida con el Select
           stockQuantity = editingProduct.capacity.toString()
-          console.log('✅ Capacity detectado como stock:', stockQuantity)
+          console.log('✅ Capacity detectado como limitada:', stockQuantity)
         }
       } else {
-        capacityType = 'consultar'
-        console.log('✅ Capacity detectado como consultar (null/undefined)')
+        capacityType = 'ilimitada' // Cambiar 'consultar' a 'ilimitada' por defecto
+        console.log('✅ Capacity no definido, usando ilimitada por defecto')
       }
       
 
+      console.log('🎯 Cargando objetivos desde editingProduct:', editingProduct.objetivos)
+      
       setGeneralForm({
         name: editingProduct.title || '',
         description: editingProduct.description || '',
@@ -974,8 +2672,27 @@ export default function CreateProductModal({ isOpen, onClose, editingProduct }: 
         modality: editingProduct.modality || 'online',
         is_public: editingProduct.is_public !== false,
         capacity: capacityType,
-        stockQuantity: stockQuantity
+        stockQuantity: stockQuantity,
+        objetivos: editingProduct.objetivos || [],
+        dietType: editingProduct.dietType || '',
+        dias_acceso: editingProduct.dias_acceso || 30,
+        location_name: editingProduct.location_name || '',
+        location_url: editingProduct.location_url || ''
       })
+      
+      console.log('✅ Objetivos cargados en generalForm:', editingProduct.objetivos || [])
+
+      // Normalizar intensidad del producto para que coincida con las opciones del selector
+      const rawLevel = editingProduct.level || editingProduct.difficulty || ''
+      const normalizedLevel = (() => {
+        if (!rawLevel) return ''
+        const value = String(rawLevel).trim().toLowerCase()
+        if (['beginner', 'principiante', 'inicio', 'bajo'].includes(value)) return 'beginner'
+        if (['intermediate', 'intermedio', 'medio', 'moderado'].includes(value)) return 'intermediate'
+        if (['advanced', 'avanzado', 'alto', 'intenso'].includes(value)) return 'advanced'
+        if (['all', 'todos los niveles', 'todos', 'any'].includes(value)) return 'all'
+        return value
+      })()
 
       // Cargar datos específicos
       setSpecificForm({
@@ -984,7 +2701,7 @@ export default function CreateProductModal({ isOpen, onClose, editingProduct }: 
         workshopType: editingProduct.workshopType || '',
         startDate: editingProduct.startDate || '',
         endDate: editingProduct.endDate || '',
-        level: editingProduct.level || '',
+        level: normalizedLevel,
         availabilityType: editingProduct.availabilityType || '',
         stockQuantity: editingProduct.stockQuantity || '',
         sessionsPerClient: editingProduct.sessionsPerClient || '',
@@ -1199,16 +2916,218 @@ export default function CreateProductModal({ isOpen, onClose, editingProduct }: 
   }
 
   // Funciones CSV
-  const downloadCSV = () => {
-    // Descargar plantilla según el tipo de programa
-    const templateFileName = productCategory === 'nutricion' 
-      ? 'nutrition-program-template.csv' 
-      : 'fitness-program-template.csv'
-    
+  const downloadFitnessTemplateWorkbook = async () => {
+    // eslint-disable-next-line @typescript-eslint/ban-ts-comment
+    // @ts-ignore - import dinámico disponible en runtime
+    const XLSX = await import('xlsx')
+    const workbook = XLSX.utils.book_new()
+
+    const plantillaHeaders = [
+      'Nombre de la Actividad',
+      'Descripción',
+      'Duración (min)',
+      'Tipo de Ejercicio',
+      'Nivel de Intensidad',
+      'Equipo Necesario',
+      'Detalle de Series (peso-repeticiones-series)',
+      'Partes del Cuerpo',
+      'Calorías'
+    ]
+
+    const plantillaRows = [
+      {
+        'Nombre de la Actividad': 'Press con mancuernas',
+        'Descripción': 'Press de pecho utilizando mancuernas en banco plano.',
+        'Duración (min)': 12,
+        'Tipo de Ejercicio': 'Fuerza',
+        'Nivel de Intensidad': 'Medio',
+        'Equipo Necesario': 'Banco; Mancuernas',
+        'Detalle de Series (peso-repeticiones-series)': '(12-10-3); (10-12-2)',
+        'Partes del Cuerpo': 'Pecho; Hombros; Brazos',
+        'Calorías': 70
+      },
+      {
+        'Nombre de la Actividad': 'Burpees',
+        'Descripción': 'Movimiento HIIT de cuerpo completo.',
+        'Duración (min)': 8,
+        'Tipo de Ejercicio': 'HIIT',
+        'Nivel de Intensidad': 'Alto',
+        'Equipo Necesario': '',
+        'Detalle de Series (peso-repeticiones-series)': '(0-12-3); (0-10-3)',
+        'Partes del Cuerpo': 'Cuerpo Completo; Core; Piernas',
+        'Calorías': 90
+      },
+      {
+        'Nombre de la Actividad': 'Remo con banda',
+        'Descripción': 'Trabaja la espalda con bandas de resistencia y mancuernas ligeras.',
+        'Duración (min)': 12,
+        'Tipo de Ejercicio': 'Fuerza',
+        'Nivel de Intensidad': 'Medio',
+        'Equipo Necesario': 'Bandas; Mancuernas',
+        'Detalle de Series (peso-repeticiones-series)': '(12-12-3); (10-15-2)',
+        'Partes del Cuerpo': 'Espalda; Brazos; Core',
+        'Calorías': 65
+      },
+      {
+        'Nombre de la Actividad': 'Yoga restaurativo',
+        'Descripción': 'Secuencia suave para movilidad y respiración.',
+        'Duración (min)': 20,
+        'Tipo de Ejercicio': 'Movilidad',
+        'Nivel de Intensidad': 'Bajo',
+        'Equipo Necesario': 'Mat de yoga',
+        'Detalle de Series (peso-repeticiones-series)': '(0-60-1)',
+        'Partes del Cuerpo': 'Caderas; Core; Espalda',
+        'Calorías': 35
+      },
+      {
+        'Nombre de la Actividad': 'Saltos con chaleco',
+        'Descripción': 'Saltos pliométricos utilizando chaleco lastrado.',
+        'Duración (min)': 6,
+        'Tipo de Ejercicio': 'Funcional',
+        'Nivel de Intensidad': 'Medio',
+        'Equipo Necesario': 'Chaleco',
+        'Detalle de Series (peso-repeticiones-series)': '(5-15-3); (5-12-2)',
+        'Partes del Cuerpo': 'Piernas; Core; Cuerpo Completo',
+        'Calorías': 60
+      }
+    ]
+
+    const opcionesDict = {
+      'Tipo de Ejercicio': ['Fuerza', 'Cardio', 'HIIT', 'Movilidad', 'Flexibilidad', 'Equilibrio', 'Funcional'],
+      'Nivel de Intensidad': ['Bajo', 'Medio', 'Alto'],
+      'Equipo Necesario': ['', 'Bandas', 'Banco', 'Barra', 'Chaleco', 'Kettlebell', 'Mancuernas', 'Máquinas', 'Mat de yoga', 'Rack'],
+      'Partes del Cuerpo': ['Pecho', 'Espalda', 'Hombros', 'Brazos', 'Antebrazos', 'Core', 'Glúteos', 'Piernas', 'Cuádriceps', 'Isquiotibiales', 'Pantorrillas', 'Caderas', 'Cuerpo Completo']
+    }
+
+    const estructuraRows = [
+      {
+        Columna: 'Nombre de la Actividad',
+        'Formato / Tipo': 'Texto (max 100 caracteres)',
+        'Permite múltiples valores': 'No',
+        'Cómo indicar varias opciones': '-',
+        Validación: 'Obligatoria. No puede repetirse con otro registro existente para evitar duplicados.'
+      },
+      {
+        Columna: 'Descripción',
+        'Formato / Tipo': 'Texto libre (max 255 caracteres)',
+        'Permite múltiples valores': 'No',
+        'Cómo indicar varias opciones': '-',
+        Validación: 'Opcional. El sistema la acepta vacía.'
+      },
+      {
+        Columna: 'Duración (min)',
+        'Formato / Tipo': 'Número entero positivo',
+        'Permite múltiples valores': 'No',
+        'Cómo indicar varias opciones': '-',
+        Validación: 'Obligatoria. Debe ser >= 1. Valores no numéricos se rechazan.'
+      },
+      {
+        Columna: 'Tipo de Ejercicio',
+        'Formato / Tipo': 'Texto (catálogo)',
+        'Permite múltiples valores': 'No',
+        'Cómo indicar varias opciones': '-',
+        Validación: 'Obligatoria. Debe coincidir con alguna opción listada en la hoja "Opciones".'
+      },
+      {
+        Columna: 'Nivel de Intensidad',
+        'Formato / Tipo': 'Texto (catálogo)',
+        'Permite múltiples valores': 'No',
+        'Cómo indicar varias opciones': '-',
+        Validación: 'Obligatoria. Debe coincidir con la hoja "Opciones". Valores fuera de catálogo se marcan como error.'
+      },
+      {
+        Columna: 'Equipo Necesario',
+        'Formato / Tipo': 'Texto (catálogo)',
+        'Permite múltiples valores': 'Sí',
+        'Cómo indicar varias opciones': "Separar cada equipo con '; ' (ej. 'Bandas; Mancuernas'). Dejar vacío si no aplica.",
+        Validación: 'Opcional. Cada palabra debe estar en la hoja "Opciones". Si existe uno inválido, la fila se marca con error pero se mantiene para revisión.'
+      },
+      {
+        Columna: 'Detalle de Series (peso-repeticiones-series)',
+        'Formato / Tipo': 'Texto estructurado',
+        'Permite múltiples valores': 'Sí',
+        'Cómo indicar varias opciones': "Cada bloque entre paréntesis en formato (peso-reps-series) y separados por '; '.",
+        Validación: 'Opcional. El sistema muestra advertencia si el formato no respeta los paréntesis.'
+      },
+      {
+        Columna: 'Partes del Cuerpo',
+        'Formato / Tipo': 'Texto (catálogo)',
+        'Permite múltiples valores': 'Sí',
+        'Cómo indicar varias opciones': "Separar con '; ' (ej. 'Core; Espalda').",
+        Validación: 'Obligatoria. Cada valor debe estar en la hoja "Opciones". Valores fuera de catálogo generan error y no se cargan.'
+      },
+      {
+        Columna: 'Calorías',
+        'Formato / Tipo': 'Número entero (aprox.)',
+        'Permite múltiples valores': 'No',
+        'Cómo indicar varias opciones': '-',
+        Validación: 'Opcional. Si se completa, debe ser un número >= 0.'
+      }
+    ]
+
+    const guiaRows = [
+      {
+        Paso: 1,
+        Indicaciones: 'Descargá este archivo de ejemplo. La hoja "Plantilla" trae 5 ejercicios de referencia para que veas el formato esperado.'
+      },
+      {
+        Paso: 2,
+        Indicaciones: 'Completá tus ejercicios sobre la hoja "Plantilla". Usá las hojas "Opciones" y "Estructura" para validar qué valores son válidos y cómo separarlos.'
+      },
+      {
+        Paso: 3,
+        Indicaciones: 'No cambies el nombre de las hojas ni de las columnas. Al subir el Excel, la plataforma sólo leerá la hoja "Plantilla", convertirá los datos y descartará las otras hojas.'
+      },
+      {
+        Paso: 4,
+        Indicaciones: 'Si una columna tiene valores fuera del catálogo o datos inválidos, esa fila se marcará con error y no se importará hasta que la corrijas.'
+      }
+    ]
+
+    const plantillaSheet = XLSX.utils.json_to_sheet(plantillaRows, { header: plantillaHeaders })
+    XLSX.utils.book_append_sheet(workbook, plantillaSheet, 'Plantilla')
+
+    const opcionesHeaders = Object.keys(opcionesDict)
+    const maxOptions = Math.max(...opcionesHeaders.map(header => opcionesDict[header as keyof typeof opcionesDict].length))
+    const opcionesRows = Array.from({ length: maxOptions }, (_, index) => {
+      const row: Record<string, string> = {}
+      opcionesHeaders.forEach(header => {
+        row[header] = opcionesDict[header as keyof typeof opcionesDict][index] || ''
+      })
+      return row
+    })
+    const opcionesSheet = XLSX.utils.json_to_sheet(opcionesRows, { header: opcionesHeaders })
+    XLSX.utils.book_append_sheet(workbook, opcionesSheet, 'Opciones')
+
+    const estructuraSheet = XLSX.utils.json_to_sheet(estructuraRows)
+    XLSX.utils.book_append_sheet(workbook, estructuraSheet, 'Estructura')
+
+    const guiaSheet = XLSX.utils.json_to_sheet(guiaRows)
+    XLSX.utils.book_append_sheet(workbook, guiaSheet, 'Guía')
+
+    const wbout = XLSX.write(workbook, { bookType: 'xlsx', type: 'array' })
+    const blob = new Blob([wbout], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' })
+    const url = window.URL.createObjectURL(blob)
     const a = document.createElement('a')
-    a.href = `/templates/${templateFileName}`
-    a.download = templateFileName
+    a.href = url
+    a.download = 'plantilla-fitness ejemplo.xlsx'
+    document.body.appendChild(a)
     a.click()
+    document.body.removeChild(a)
+    window.URL.revokeObjectURL(url)
+  }
+
+  const downloadCSV = async () => {
+    if (productCategory === 'nutricion') {
+      const templateFileName = 'nutrition-program-template.csv'
+      const a = document.createElement('a')
+      a.href = `/templates/${templateFileName}`
+      a.download = templateFileName
+      a.click()
+      return
+    }
+
+    await downloadFitnessTemplateWorkbook()
   }
 
   const removeCSV = () => {
@@ -1262,41 +3181,28 @@ export default function CreateProductModal({ isOpen, onClose, editingProduct }: 
     }
   }
 
-  const onDownloadTemplate = (type: 'fitness' | 'nutrition') => {
-    let headers: string[] = []
-    let exampleRows: string[][] = []
-    
+  const onDownloadTemplate = async (type: 'fitness' | 'nutrition') => {
     if (type === 'fitness') {
-      headers = [
-        'Semana', 'Día', 'Nombre de la Actividad', 'Descripción', 
-        'Duración (min)', 'Tipo de Ejercicio', 'Nivel de Intensidad', 
-        'Equipo Necesario', '1RM', 'Detalle de Series (peso-repeticiones-series)', 'Partes del Cuerpo', 'Calorías', 'video_url'
-      ]
-      
-      exampleRows = [
-        ['1', 'Lunes', 'Press de Banca', 'Ejercicio principal para pecho', '45', 'Fuerza', 'Alto', 'Barra, Banco', '100', '(80-8-4);(85-6-3);(90-4-2)', 'Pecho;Hombros;Tríceps', '350', ''],
-        ['2', 'Lunes', 'Sentadillas', 'Ejercicio fundamental para piernas', '60', 'Fuerza', 'Alto', 'Barra, Rack', '120', '(100-6-4);(110-5-3);(120-3-2)', 'Piernas;Glúteos', '420', ''],
-        ['3', 'Lunes', 'Remo con Barra', 'Ejercicio para espalda', '50', 'Fuerza', 'Medio', 'Barra, Discos', '90', '(70-8-4);(75-6-3);(80-5-2)', 'Espalda;Bíceps', '280', ''],
-        ['4', 'Lunes', 'Press Militar', 'Ejercicio para hombros', '40', 'Fuerza', 'Medio', 'Barra, Rack', '80', '(60-6-4);(65-5-3);(70-4-2)', 'Hombros;Tríceps', '200', '']
-      ]
-    } else {
-      headers = [
-        'Día', 'Comida', 'Descripción', 'Horario', 'Calorías', 
-        'Proteínas (g)', 'Carbohidratos (g)', 'Grasas (g)', 'Fibra (g)', 'Partes del Cuerpo', 'video_url'
-      ]
-      
-      exampleRows = [
-        ['Lunes', 'Desayuno', 'Avena con frutas y proteína', '08:00', '450', '25', '60', '12', '8', 'Sistema digestivo', ''],
-        ['Lunes', 'Almuerzo', 'Pollo con arroz y vegetales', '13:00', '550', '35', '45', '15', '6', 'Sistema muscular', ''],
-        ['Lunes', 'Cena', 'Salmón con quinoa y espinacas', '19:00', '480', '30', '40', '18', '7', 'Sistema cardiovascular', ''],
-        ['Martes', 'Desayuno', 'Smoothie de proteína y frutas', '08:30', '380', '28', '45', '10', '5', 'Sistema digestivo', '']
-      ]
+      await downloadFitnessTemplateWorkbook()
+      return
     }
-    
+
+    const headers = [
+      'Día', 'Comida', 'Descripción', 'Horario', 'Calorías',
+      'Proteínas (g)', 'Carbohidratos (g)', 'Grasas (g)', 'Fibra (g)', 'Partes del Cuerpo', 'video_url'
+    ]
+
+    const exampleRows = [
+      ['Lunes', 'Desayuno', 'Avena con frutas y proteína', '08:00', '450', '25', '60', '12', '8', 'Sistema digestivo', ''],
+      ['Lunes', 'Almuerzo', 'Pollo con arroz y vegetales', '13:00', '550', '35', '45', '15', '6', 'Sistema muscular', ''],
+      ['Lunes', 'Cena', 'Salmón con quinoa y espinacas', '19:00', '480', '30', '40', '18', '7', 'Sistema cardiovascular', ''],
+      ['Martes', 'Desayuno', 'Smoothie de proteína y frutas', '08:30', '380', '28', '45', '10', '5', 'Sistema digestivo', '']
+    ]
+
     const csvContent = [headers, ...exampleRows]
       .map(row => row.map(cell => `"${cell}"`).join(','))
       .join('\n')
-    
+
     const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' })
     const link = document.createElement('a')
     const url = URL.createObjectURL(blob)
@@ -1306,6 +3212,7 @@ export default function CreateProductModal({ isOpen, onClose, editingProduct }: 
     document.body.appendChild(link)
     link.click()
     document.body.removeChild(link)
+    URL.revokeObjectURL(url)
   }
 
   if (!isOpen) return null
@@ -1384,7 +3291,7 @@ export default function CreateProductModal({ isOpen, onClose, editingProduct }: 
         </div>
 
         {/* Botón de cerrar siempre visible */}
-        <div className="absolute top-4 right-6 z-10">
+        <div className="absolute top-4 right-6 z-10 flex items-center gap-2">
           <Button
             variant="ghost"
             size="sm"
@@ -1520,28 +3427,339 @@ export default function CreateProductModal({ isOpen, onClose, editingProduct }: 
                 initial={{ opacity: 0, x: 20 }}
                 animate={{ opacity: 1, x: 0 }}
                 exit={{ opacity: 0, x: -20 }}
-                className="space-y-6"
+                className="flex flex-col gap-8 pb-24"
               >
-                <ProgressiveForm
-                  onOpenMediaModal={openMediaModal}
-                  onMediaSelected={handleMediaSelection}
-                  hasLocalVideo={hasLocalVideo}
-                  videoFileName={videoFile?.name}
-                  onClearVideo={() => { setVideoFile(null); setHasLocalVideo(false) }}
-                  generalForm={generalForm}
-                  setGeneralForm={setGeneralFormWithLogs}
-                  specificForm={specificForm}
-                  setSpecificForm={setSpecificFormWithLogs}
-                  initialSchedule={persistentCalendarSchedule}
-                  onScheduleChange={setPersistentCalendarSchedule}
-                  onNextStep={handleNext}
-                  currentModalStep={currentStep}
-                  selectedType={selectedType || undefined}
-                  validationErrors={validationErrors}
-                  fieldErrors={fieldErrors}
-                  onClearFieldError={clearFieldError}
-                  productCategory={productCategory}
-                />
+                <div className="space-y-6">
+                  <div className="relative aspect-[4/3] w-full overflow-hidden rounded-2xl">
+                    {generalForm.image ? (
+                      <>
+                        <img
+                          src={typeof generalForm.image === 'object' && 'url' in generalForm.image ? generalForm.image.url : URL.createObjectURL(generalForm.image as File)}
+                          alt="Preview"
+                          className="h-full w-full object-cover"
+                        />
+                        <div className="absolute inset-0 bg-gradient-to-t from-black/50 via-black/0 to-transparent" />
+                        <button
+                          type="button"
+                          onClick={() => openMediaModal('image')}
+                          className="absolute bottom-4 right-4 inline-flex items-center gap-2 rounded-full bg-black/40 px-4 py-2 text-xs font-medium text-white backdrop-blur-sm transition hover:bg-black/55"
+                        >
+                          <Pencil className="h-4 w-4" />
+                          Cambiar portada
+                        </button>
+                      </>
+                    ) : generalForm.videoUrl ? (
+                      <div className="flex h-full w-full flex-col items-center justify-center gap-4 text-white/70">
+                        <Video className="h-12 w-12 text-[#FF7939]" />
+                        <button
+                          type="button"
+                          onClick={() => openMediaModal('video')}
+                          className="inline-flex items-center gap-2 rounded-full bg-black/40 px-4 py-2 text-xs font-medium text-white backdrop-blur-sm transition hover:bg-black/55"
+                        >
+                          <Pencil className="h-4 w-4" />
+                          Cambiar video
+                        </button>
+                      </div>
+                    ) : (
+                      <div className="flex h-full w-full flex-col items-center justify-center gap-3 text-white/55">
+                        <ImageIcon className="h-12 w-12" strokeWidth={1.2} />
+                        <p className="text-sm">Añadí una portada o video</p>
+                        <div className="flex gap-3 text-xs font-semibold text-white/75">
+                          <button
+                            type="button"
+                            onClick={() => openMediaModal('image')}
+                            className="underline-offset-4 hover:text-white hover:underline"
+                          >
+                            Subir imagen
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => openMediaModal('video')}
+                            className="underline-offset-4 hover:text-white hover:underline"
+                          >
+                            Elegir video
+                          </button>
+                        </div>
+                      </div>
+                    )}
+                  </div>
+
+                  <div className="grid grid-cols-2 gap-3">
+                    <button
+                      type="button"
+                      onClick={() => openMediaModal('image')}
+                      className={`group flex items-center justify-center gap-2 rounded-full px-4 py-3 text-xs font-medium text-white/65 transition hover:text-white ${
+                        generalForm.image ? '!text-white' : ''
+                      }`}
+                    >
+                      <ImageIcon className={`h-4 w-4 ${generalForm.image ? 'text-[#FF7939]' : 'text-white/40'} group-hover:text-[#FF7939]`} />
+                      Imagen
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => openMediaModal('video')}
+                      className={`group flex items-center justify-center gap-2 rounded-full px-4 py-3 text-xs font-medium text-white/65 transition hover:text-white ${
+                        generalForm.videoUrl ? '!text-white' : ''
+                      }`}
+                    >
+                      <Video className={`h-4 w-4 ${generalForm.videoUrl ? 'text-[#FF7939]' : 'text-white/40'} group-hover:text-[#FF7939]`} />
+                      Video
+                    </button>
+                  </div>
+                </div>
+
+                <div className="space-y-8">
+                  <div className="grid gap-6 md:grid-cols-2">
+                    <div className="space-y-3 md:col-span-2">
+                      <Label htmlFor="name" className="text-sm font-medium text-white/75">
+                        Título <span className="text-red-500">*</span>
+                      </Label>
+                      <Input
+                        id="name"
+                        value={generalForm.name}
+                        onChange={(e) => {
+                          setGeneralFormWithLogs({ ...generalForm, name: e.target.value })
+                          clearFieldError('name')
+                        }}
+                        placeholder="Ej: Plan funcional 8 semanas"
+                        className="h-12 rounded-none border-0 border-b border-white/15 bg-transparent text-white placeholder:text-white/30 focus-visible:border-[#FF7939] focus-visible:ring-0"
+                        maxLength={100}
+                      />
+                      {fieldErrors.name && <p className="text-sm text-red-500">El título es requerido</p>}
+                    </div>
+
+                    <div className="space-y-3 md:col-span-2">
+                      <Label htmlFor="description" className="text-sm font-medium text-white/75">
+                        Descripción <span className="text-red-500">*</span>
+                      </Label>
+                      <Textarea
+                        id="description"
+                        value={generalForm.description}
+                        onChange={(e) => {
+                          setGeneralFormWithLogs({ ...generalForm, description: e.target.value })
+                          clearFieldError('description')
+                        }}
+                        placeholder="Contá beneficios, formato y a quién está dirigido..."
+                        className="min-h-[140px] rounded-none border-0 border-b border-white/15 bg-transparent text-white placeholder:text-white/30 focus-visible:border-[#FF7939] focus-visible:ring-0"
+                        maxLength={500}
+                      />
+                      <div className="flex justify-between text-xs text-white/35">
+                        <span>{generalForm.description.length}/500 caracteres</span>
+                        {generalForm.description.length < 50 && <span className="text-yellow-500/70">Mínimo 50 caracteres</span>}
+                      </div>
+                      {fieldErrors.description && (
+                        <p className="text-sm text-red-500">La descripción es requerida (mínimo 50 caracteres)</p>
+                      )}
+                    </div>
+                  </div>
+
+                  <div className="space-y-3">
+                    <Label className="flex items-center gap-2 text-sm font-medium text-white/75">
+                      <Target className="h-4 w-4 text-[#FF7939]" />
+                      Objetivos <span className="text-red-500">*</span>
+                    </Label>
+                    <div className="-mx-2 overflow-x-auto px-2">
+                      <div className="flex gap-3 min-w-max">
+                        {FITNESS_OBJECTIVE_OPTIONS.map((objetivo) => {
+                          const isSelected = generalForm.objetivos.includes(objetivo)
+                          return (
+                            <button
+                              key={objetivo}
+                              type="button"
+                              onClick={() => {
+                                const newObjetivos = isSelected
+                                  ? generalForm.objetivos.filter(o => o !== objetivo)
+                                  : [...generalForm.objetivos, objetivo]
+                                setGeneralFormWithLogs({ ...generalForm, objetivos: newObjetivos })
+                              }}
+                              className={`whitespace-nowrap border-b-2 px-0 py-2 text-sm transition ${
+                                isSelected
+                                  ? 'border-[#FF7939] text-white'
+                                  : 'border-transparent text-white/55 hover:text-white'
+                              }`}
+                            >
+                              {objetivo}
+                            </button>
+                          )
+                        })}
+                      </div>
+                    </div>
+                    {generalForm.objetivos.length === 0 && <p className="text-sm text-yellow-500/70">Selecciona al menos un objetivo</p>}
+                  </div>
+
+                  <div className="grid gap-8 md:grid-cols-2">
+                    <div className="space-y-3">
+                      <p className="text-[11px] uppercase tracking-[0.3em] text-white/40">Intensidad</p>
+                      <div className="flex flex-col gap-2">
+                        {INTENSITY_CHOICES.map(({ value, label, flames }) => {
+                          const active = specificForm.level === value
+                          return (
+                            <button
+                              key={value}
+                              type="button"
+                              onClick={() => {
+                                setSpecificFormWithLogs({ ...specificForm, level: value })
+                                clearFieldError('level')
+                              }}
+                              className={`flex items-center justify-between border-b border-white/10 px-0 py-2 text-sm transition ${
+                                active ? 'text-white' : 'text-white/60 hover:text-white'
+                              }`}
+                            >
+                              <div className="flex items-center gap-3">
+                                <div className="flex gap-1">
+                                  {Array.from({ length: flames }).map((_, idx) => (
+                                    <Flame key={idx} className={`h-4 w-4 ${active ? 'text-[#FF7939]' : 'text-[#FF9354]/70'}`} />
+                                  ))}
+                                </div>
+                                <span className="font-medium">{label}</span>
+                              </div>
+                              {active && <Check className="h-4 w-4 text-[#FF7939]" />}
+                            </button>
+                          )
+                        })}
+                      </div>
+                      {fieldErrors.level && <p className="text-xs text-red-500">Requerido</p>}
+                    </div>
+
+                    <div className="space-y-3">
+                      <p className="text-[11px] uppercase tracking-[0.3em] text-white/40">Modalidad</p>
+                      <div className="flex flex-col gap-2">
+                        {MODALITY_CHOICES.map(({ value, label, tone, icon: Icon }) => {
+                          const active = generalForm.modality === value
+                          return (
+                            <button
+                              key={value}
+                              type="button"
+                              onClick={() => setGeneralFormWithLogs({ ...generalForm, modality: value })}
+                              className={`flex items-center justify-between border-b border-white/10 px-0 py-2 text-sm transition ${
+                                active ? 'text-white' : 'text-white/60 hover:text-white'
+                              }`}
+                            >
+                              <div className="flex items-center gap-3">
+                                <Icon className={`h-5 w-5 ${active ? tone : 'text-white/40'}`} />
+                                <span className="font-medium">{label}</span>
+                              </div>
+                              {active && <Check className="h-4 w-4 text-[#FF7939]" />}
+                            </button>
+                          )
+                        })}
+                      </div>
+                      
+                      {/* Campos de ubicación cuando se selecciona presencial */}
+                      {generalForm.modality === 'presencial' && (
+                        <div className="mt-3 space-y-2 pt-3 border-t border-white/10">
+                          <Input
+                            type="text"
+                            value={generalForm.location_name || ''}
+                            onChange={(e) => setGeneralFormWithLogs({ ...generalForm, location_name: e.target.value })}
+                            placeholder="Nombre del lugar"
+                            className="h-8 bg-transparent border-0 border-b border-white/10 text-sm text-white placeholder:text-white/30 focus-visible:border-[#FF7939] focus-visible:ring-0 rounded-none"
+                          />
+                          <Input
+                            type="text"
+                            value={generalForm.location_url || ''}
+                            onChange={(e) => setGeneralFormWithLogs({ ...generalForm, location_url: e.target.value })}
+                            placeholder="Link o dirección de Maps"
+                            className="h-8 bg-transparent border-0 border-b border-white/10 text-sm text-white placeholder:text-white/30 focus-visible:border-[#FF7939] focus-visible:ring-0 rounded-none"
+                          />
+                        </div>
+                      )}
+                    </div>
+                  </div>
+
+                  <div className="space-y-3">
+                  <div className="flex items-center justify-center gap-4 text-sm text-white/80">
+                    <div className="flex items-center gap-2">
+                      <Users className="h-5 w-5 text-[#FF7939]" />
+                      {generalForm.capacity === 'ilimitada' ? (
+                        <button
+                          type="button"
+                          onClick={handleToggleCapacity}
+                          className="h-8 min-w-[3.5rem] rounded-full border border-white/20 bg-transparent px-3 text-base font-semibold text-white transition hover:border-[#FF7939]/60 hover:text-white"
+                          title="Cambiar a cupos limitados"
+                        >
+                          ∞
+                        </button>
+                      ) : (
+                        <Input
+                          type="text"
+                          inputMode="numeric"
+                          pattern="[0-9]*"
+                          value={generalForm.stockQuantity}
+                          onChange={(e) => handleStockQuantityChange(e.target.value)}
+                          onFocus={(e) => e.target.select()}
+                          className="h-8 w-20 rounded-none border-0 border-b border-white/20 bg-transparent text-center text-base font-semibold text-white focus-visible:border-[#FF7939] focus-visible:ring-0"
+                          placeholder="0"
+                        />
+                      )}
+                    </div>
+
+                      <span className="text-white/60 text-base">×</span>
+
+                      <div className="flex items-center gap-2">
+                        <DollarSign className="h-5 w-5 text-[#FF7939]" />
+                        <Input
+                          type="text"
+                          inputMode="decimal"
+                          value={generalForm.price}
+                          onChange={(e) => handlePriceChange(e.target.value)}
+                          onBlur={handlePriceBlur}
+                          placeholder="0.00"
+                          className="h-8 w-24 rounded-none border-0 border-b border-white/20 bg-transparent text-center text-sm font-semibold text-white focus-visible:border-[#FF7939] focus-visible:ring-0"
+                        />
+                      </div>
+
+                      <span className="text-white/60 text-base">−</span>
+
+                      <div className="flex items-center gap-2">
+                        <Coins className="h-5 w-5 text-[#FF7939]" />
+                        <span className="text-sm font-semibold text-[#FF7939]">{commissionPercentLabel}</span>
+                      </div>
+
+                      <span className="text-white/60 text-base">=</span>
+                    </div>
+                    {fieldErrors.price && <p className="text-xs text-red-500">El precio es requerido</p>}
+
+                    {generalForm.capacity === 'limitada' && canUseUnlimited && (
+                      <button
+                        type="button"
+                        onClick={handleToggleCapacity}
+                        className="text-xs font-medium text-[#FF7939] underline-offset-2 hover:underline"
+                      >
+                        Usar cupos ilimitados
+                      </button>
+                    )}
+
+                    <div className="text-center text-xs text-white/50">
+                      Ganancia posible:
+                    </div>
+
+                    <div className="text-center text-xl font-semibold text-white">
+                      {formattedNetRevenue}
+                    </div>
+                  </div>
+
+                  <div className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
+                    <button
+                      type="button"
+                      onClick={() => setGeneralFormWithLogs({ ...generalForm, is_public: !generalForm.is_public })}
+                      className="inline-flex items-center gap-3 text-sm font-medium text-white/75 transition hover:text-white"
+                    >
+                      {generalForm.is_public ? <Unlock className="h-4 w-4 text-[#FF7939]" /> : <Lock className="h-4 w-4 text-[#FF7939]" />}
+                      {generalForm.is_public ? 'Público' : 'Clientes con invitación'}
+                    </button>
+
+                <div className="sticky bottom-6 flex justify-end w-full md:w-auto md:static md:bottom-auto">
+                      <button
+                        type="button"
+                        onClick={handleNext}
+                    className="inline-flex h-12 w-12 items-center justify-center rounded-full bg-[#FF7939] text-white transition hover:bg-[#FF6B00] hover:shadow-[0_18px_40px_-26px_rgba(255,121,57,1)]"
+                      >
+                        <ChevronRight className="h-6 w-6" />
+                      </button>
+                    </div>
+                  </div>
+                </div>
               </motion.div>
             )}
 
@@ -1684,25 +3902,13 @@ export default function CreateProductModal({ isOpen, onClose, editingProduct }: 
                 className="space-y-6"
               >
                 {/* Título del paso */}
-                <div className="text-center mb-6">
-                  <h3 className="text-xl font-semibold text-white mb-2">
+                <div className="text-center mb-4">
+                  <h3 className="text-xl font-semibold text-white">
                     {productCategory === 'nutricion' ? 'Platos del Programa' : 'Ejercicios del Producto'}
                   </h3>
-                  <p className="text-gray-400 text-sm">
-                    {productCategory === 'nutricion' 
-                      ? 'Gestiona los platos y comidas de tu programa nutricional'
-                      : selectedType === 'program' 
-                        ? 'Gestiona los ejercicios de tu programa de entrenamiento'
-                        : 'Gestiona los ejercicios de tu producto'
-                    }
-                  </p>
                 </div>
 
                 {/* CSV Manager - Para todos los tipos de productos */}
-                {(() => {
-                  console.log('🔍 CSVManagerEnhanced - activityId:', editingProduct?.id, 'coachId:', user?.id)
-                  return null
-                })()}
                 <CSVManagerEnhanced
                     activityId={editingProduct?.id || 0}
                     coachId={user?.id || "b16c4f8c-f47b-4df0-ad2b-13dcbd76263f"}
@@ -1729,17 +3935,107 @@ export default function CreateProductModal({ isOpen, onClose, editingProduct }: 
                       setPersistentSelectedRows(newRows)
                     }}
                     productCategory={productCategory}
-                  />
+                    onVideoCleared={handleClearExerciseVideo}
+                    onVideoFileSelected={(exercise, index, videoFile) => {
+                      // Guardar archivo de video inmediatamente cuando se selecciona
+                      const key = getExerciseVideoKey(exercise, index)
+                      if (key) {
+                        setExerciseVideoFiles((prev) => ({
+                          ...prev,
+                          [key]: videoFile
+                        }))
+                        console.log(`💾 CSVManagerEnhanced: Guardando archivo de video inmediatamente para ejercicio ${index} (key: ${key}):`, videoFile.name)
+                      }
+                    }}
+                    renderAfterTable={
+                      <button
+                        onClick={() => setCurrentStep('weeklyPlan')}
+                        className="w-12 h-12 bg-[#FF7939] hover:bg-[#FF6B35] rounded-full flex items-center justify-center transition-all duration-200 hover:scale-105"
+                      >
+                        <ChevronRight className="h-5 w-5 text-white" />
+                      </button>
+                    }
+                    onItemsStatusChange={async (items, action) => {
+                      console.log(`🗂️ Cambio de estado recibido desde CSVManager (${action}):`, items.length, 'elementos')
 
-                {/* Botón de continuar */}
-                <div className="flex justify-end">
-                  <button
-                    onClick={() => setCurrentStep('weeklyPlan')}
-                    className="w-12 h-12 bg-[#FF7939] hover:bg-[#FF6B35] rounded-full flex items-center justify-center transition-all duration-200 hover:scale-105"
-                  >
-                    <ChevronRight className="h-5 w-5 text-white" />
-                  </button>
-                </div>
+                      if (!editingProduct?.id || items.length === 0) {
+                        return
+                      }
+
+                      if (action === 'remove') {
+                        // Eliminación definitiva ya fue gestionada por CSVManager (incluye llamada al API)
+                        return
+                      }
+
+                      const itemsWithId = items.filter(item => item && item.id && typeof item.id === 'number')
+                      if (itemsWithId.length === 0) {
+                        return
+                      }
+
+                      const desiredActive = action === 'reactivate'
+                      const notFoundIds: number[] = []
+
+                      for (const item of itemsWithId) {
+                        try {
+                          const response = await fetch('/api/update-exercise-activo-flag', {
+                            method: 'POST',
+                            headers: { 'Content-Type': 'application/json' },
+                            body: JSON.stringify({
+                              activityId: editingProduct.id,
+                              exerciseId: item.id,
+                              activo: desiredActive
+                            })
+                          })
+
+                          if (!response.ok) {
+                            if (response.status === 404) {
+                              notFoundIds.push(item.id)
+                              console.warn(`⚠️ Ejercicio ${item.id} ya no existe o no pertenece a la actividad; se retirará de la tabla.`)
+                              continue
+                            }
+
+                            const errorText = await response.text()
+                            console.error(`❌ Error HTTP actualizando flag activo (ejercicio ${item.id}):`, response.status, response.statusText, errorText)
+                            continue
+                          }
+
+                          const result = await response.json()
+                          if (result.success) {
+                            console.log(`✅ Flag activo actualizado para ejercicio ${item.id}:`, desiredActive)
+                          } else {
+                            console.error(`❌ Respuesta sin éxito al actualizar flag activo (ejercicio ${item.id}):`, result.error)
+                          }
+                        } catch (error) {
+                          console.error(`❌ Error llamando endpoint para ejercicio ${item.id}:`, error)
+                        }
+                      }
+
+                      if (notFoundIds.length > 0) {
+                        setPersistentCsvData(prev => {
+                          if (!prev || prev.length === 0) return prev
+                          return prev.filter(row => {
+                            const rawId = row?.id
+                            const numericId = typeof rawId === 'number'
+                              ? rawId
+                              : typeof rawId === 'string'
+                                ? parseInt(rawId, 10)
+                                : NaN
+                            if (Number.isNaN(numericId)) {
+                              return true
+                            }
+                            return !notFoundIds.includes(numericId)
+                          })
+                        })
+
+                        setPersistentSelectedRows(prev => {
+                          if (prev.size === 0) return prev
+                          return new Set<number>()
+                        })
+
+                        console.log('🧹 Ejercicios removidos del estado local tras 404:', notFoundIds)
+                      }
+                    }}
+                  />
               </motion.div>
             )}
 
@@ -1753,11 +4049,27 @@ export default function CreateProductModal({ isOpen, onClose, editingProduct }: 
                 className="space-y-6"
               >
                 <WeeklyExercisePlanner 
+                  planLimits={{
+                    planType,
+                    weeksLimit: getPlanLimit(planType, 'weeksPerProduct'),
+                    activitiesLimit: getPlanLimit(planType, 'activitiesPerProduct'),
+                    stockLimit: stockLimitFromPlan
+                  }}
+                  onUndo={() => {
+                    // Llamar a la función de undo del WeeklyExercisePlanner
+                    if (typeof window !== 'undefined' && (window as any).weeklyPlannerUndo) {
+                      (window as any).weeklyPlannerUndo()
+                    }
+                  }}
+                  onUndoAvailable={(canUndo) => {
+                    // Actualizar estado del botón de undo
+                    setCanUndoWeeklyPlan(canUndo)
+                  }}
                   exercises={(() => {
                     // Convertir persistentCsvData a ejercicios para el planificador
                     
-                    // Usar csvManagement.csvData si persistentCsvData está vacío
-                    const dataToUse = (persistentCsvData && persistentCsvData.length > 0) ? persistentCsvData : csvManagement.csvData
+                    // Usar persistentCsvData directamente
+                    const dataToUse = persistentCsvData || []
                     
                     if (!dataToUse || dataToUse.length === 0) {
                       console.log('⚠️ No hay datos CSV para el planificador semanal')
@@ -1765,11 +4077,40 @@ export default function CreateProductModal({ isOpen, onClose, editingProduct }: 
                     }
                     
                     const exercises = dataToUse.map((row, index) => {
+                      // Detectar si es nutrición por la presencia de campos específicos
+                      const isNutrition = row && typeof row === 'object' && (
+                        'Nombre' in row || 
+                        'Proteínas (g)' in row || 
+                        'Carbohidratos (g)' in row || 
+                        'Grasas (g)' in row
+                      )
+                      
+                      // Si es nutrición, usar campos específicos de nutrición
+                      if (isNutrition || productCategory === 'nutricion') {
+                        
+                        return {
+                          id: row.id || `nutrition-${index}`,
+                          name: row['Nombre'] || row['nombre'] || row.nombre || `Plato ${index + 1}`,
+                          description: row['Descripción'] || row['Receta'] || row.descripcion || row.receta || '',
+                          duration: 0, // Los platos no tienen duración
+                          type: 'Nutrición', // Tipo específico para nutrición
+                          intensity: 'N/A', // No aplica para nutrición
+                          equipment: 'N/A', // No aplica para nutrición
+                          bodyParts: '', // No aplica para nutrición
+                          calories: parseInt(row['Calorías'] || row.calorias || '0') || 0,
+                          proteinas: row.proteinas || parseInt(row['Proteínas (g)'] || '0') || 0,
+                          carbohidratos: row.carbohidratos || parseInt(row['Carbohidratos (g)'] || '0') || 0,
+                          grasas: row.grasas || parseInt(row['Grasas (g)'] || '0') || 0,
+                          peso: '',
+                          reps: '',
+                          series: ''
+                        }
+                      }
                       
                       // Si row es un array de strings, usar índices numéricos
                       if (Array.isArray(row)) {
-                        const exercise = {
-                          id: `exercise-${index}`,
+                        return {
+                          id: row.id || `exercise-${index}`, // Usar ID real si existe
                           name: row[0] || `Ejercicio ${index + 1}`,
                           description: row[1] || '',
                           duration: parseInt(row[2]) || 30,
@@ -1780,26 +4121,29 @@ export default function CreateProductModal({ isOpen, onClose, editingProduct }: 
                           calories: parseInt(row[7]) || 0,
                           peso: row[8] || '',
                           reps: row[9] || '',
-                          series: row[10] || ''
+                          series: row[10] || '',
+                          is_active: (row as any).is_active !== undefined ? (row as any).is_active : true,
+                          activo: (row as any).activo !== undefined ? (row as any).activo : true
                         }
-                        return exercise
                       }
-                      // Si row es un objeto, usar propiedades
-                      const exercise = {
-                        id: `exercise-${index}`,
-                        name: row['Nombre de la Actividad'] || row[0] || `Ejercicio ${index + 1}`,
-                        description: row['Descripción'] || row[1] || '',
-                        duration: parseInt(row['Duración (min)'] || row[2]) || 30,
-                        type: row['Tipo de Ejercicio'] || row[3] || 'General',
-                        intensity: row['Nivel de Intensidad'] || row[4] || 'Media',
-                        equipment: row['Equipo Necesario'] || row[5] || 'Ninguno',
-                        bodyParts: row['Partes del Cuerpo'] || row[6] || '',
-                        calories: parseInt(row['Calorías'] || row[7]) || 0,
-                        peso: row['Peso'] || row['1RM'] || row[8] || '',
-                        reps: row['Repeticiones'] || row[9] || '',
-                        series: row['Series'] || row['Detalle de Series (peso-repeticiones-series)'] || row[10] || ''
+                      
+                      // Si row es un objeto de fitness, usar propiedades de fitness
+                      return {
+                        id: row.id || `exercise-${index}`, // Usar ID real si existe
+                        name: row['Nombre de la Actividad'] || row.name || row[0] || `Ejercicio ${index + 1}`,
+                        description: row['Descripción'] || row.description || row[1] || '',
+                        duration: parseInt(row['Duración (min)'] || row.duration || row[2]) || 30,
+                        type: row['Tipo de Ejercicio'] || row.type || row[3] || 'General',
+                        intensity: row['Nivel de Intensidad'] || row.intensity || row[4] || 'Media',
+                        equipment: row['Equipo Necesario'] || row.equipment || row[5] || 'Ninguno',
+                        bodyParts: row['Partes del Cuerpo'] || row.bodyParts || row[6] || '',
+                        calories: parseInt(row['Calorías'] || row.calories || row[7]) || 0,
+                        peso: row['Peso'] || row.peso || row['1RM'] || row[8] || '',
+                        reps: row['Repeticiones'] || row.reps || row[9] || '',
+                        series: row['Series'] || row.series || row['Detalle de Series (peso-repeticiones-series)'] || row[10] || '',
+                        is_active: row.is_active !== undefined ? row.is_active : (row.activo !== undefined ? row.activo : true),
+                        activo: row.activo !== undefined ? row.activo : (row.is_active !== undefined ? row.is_active : true)
                       }
-                      return exercise
                     })
                     
                     return exercises
@@ -1811,12 +4155,12 @@ export default function CreateProductModal({ isOpen, onClose, editingProduct }: 
                     setWeeklyStats(stats)
                   }}
                   onPeriodsChange={(periods: number) => {
-                    console.log('🔄 PERÍODOS CAMBIADOS EN FRONTEND:', periods)
                     setPeriods(periods)
                   }}
                   initialSchedule={persistentCalendarSchedule}
                   activityId={editingProduct?.id}
                   isEditing={!!editingProduct}
+                  productCategory={productCategory}
                 />
                 
                 {/* Botón de continuar al paso 6 */}
@@ -1863,6 +4207,7 @@ export default function CreateProductModal({ isOpen, onClose, editingProduct }: 
                           },
                           image_url: generalForm.image instanceof File ? URL.createObjectURL(generalForm.image) : 
                                    (generalForm.image && typeof generalForm.image === 'object' && 'url' in generalForm.image) ? generalForm.image.url : null,
+                          categoria: productCategory || 'fitness',
                           program_info: {
                             program_duration: parseInt(specificForm.duration) || 8
                           },
@@ -1871,9 +4216,13 @@ export default function CreateProductModal({ isOpen, onClose, editingProduct }: 
                           exercisesCount: persistentCsvData.length,
                           totalSessions: persistentCalendarSchedule.length || 1,
                           modality: generalForm.modality || 'online',
+                          // Debug: Log para verificar modalidad pasada a ActivityCard
+                          // console.log('🏷️ Paso 6 - Modalidad pasada a ActivityCard:', generalForm.modality),
+                          location_name: generalForm.location_name || null,
+                          location_url: generalForm.location_url || null,
                           capacity: (() => {
-                            if (generalForm.capacity === 'ilimitada') return 999
-                            if (generalForm.capacity === 'stock' && generalForm.stockQuantity) {
+                            if (generalForm.capacity === 'ilimitada') return 500
+                            if (generalForm.capacity === 'limitada' && generalForm.stockQuantity) {
                               const stockNum = parseInt(generalForm.stockQuantity)
                               return isNaN(stockNum) ? null : stockNum
                             }
@@ -1883,6 +4232,8 @@ export default function CreateProductModal({ isOpen, onClose, editingProduct }: 
                           sessions_per_client: undefined,
                           program_rating: 0,
                           total_program_reviews: 0,
+                          // ✅ INCLUIR OBJETIVOS PARA MOSTRAR EN LA CARD
+                          objetivos: generalForm.objetivos && generalForm.objetivos.length > 0 ? generalForm.objetivos : [],
                           // Valores del resumen del paso 5
                           previewStats: (() => {
                             return {
@@ -1901,9 +4252,17 @@ export default function CreateProductModal({ isOpen, onClose, editingProduct }: 
                   <div className="flex justify-center">
                     <Button
                       onClick={handlePublishProduct}
-                      className="bg-[#FF7939] hover:bg-[#FF6B35] text-black font-bold px-8 py-3 rounded-lg text-lg transition-all duration-200"
+                      disabled={isPublishing}
+                      className="bg-[#FF7939] hover:bg-[#FF6B35] disabled:bg-[#FF7939]/50 disabled:cursor-not-allowed text-black font-bold px-8 py-3 rounded-lg text-lg transition-all duration-200 flex items-center gap-2 min-w-[200px] justify-center"
                     >
-                      {editingProduct ? 'Actualizar Producto' : 'Publicar Producto'}
+                      {isPublishing ? (
+                        <>
+                          <Loader2 className="h-5 w-5 animate-spin" />
+                          <span>{publishProgress || (editingProduct ? 'Actualizando...' : 'Publicando...')}</span>
+                        </>
+                      ) : (
+                        editingProduct ? 'Actualizar Producto' : 'Publicar Producto'
+                      )}
                     </Button>
                   </div>
                 </div>

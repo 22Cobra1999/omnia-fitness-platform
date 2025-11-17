@@ -57,6 +57,7 @@ export interface ActivityBase {
   price: number
   coach_id: string
   is_public: boolean
+  dias_acceso: number // Número de días para acceder al producto
   created_at: string
   updated_at: string
   program_rating?: number | null
@@ -92,6 +93,9 @@ export interface Activity extends ActivityBase {
 
   // Category for filtering in UI
   categoria?: string | null // Assuming 'categoria' is a direct column in 'activities'
+  
+  // Diet type for nutrition products
+  dieta?: string | null
 
   // Properties for ActivityDetailScreen (fitness exercises)
   repeticiones?: string | null
@@ -142,6 +146,10 @@ export interface Activity extends ActivityBase {
   sessions_per_client?: number | null
   workshop_type?: string | null
   capacity?: number | null
+  
+  // Location properties for presencial activities
+  location_url?: string | null
+  location_name?: string | null
 }
 
 // Interface for ActivityEnrollment, including the joined Activity data

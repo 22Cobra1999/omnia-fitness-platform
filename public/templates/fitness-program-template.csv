@@ -1,11 +1,12 @@
-Semana,Día,Nombre de la Actividad,Descripción,Duración (min),Tipo de Ejercicio,Nivel de Intensidad,Equipo Necesario,1RM,Detalle de Series (peso-repeticiones-series),video_url
-1,Lunes,Remo con barra,Ejercicio para trabajar piernas.,40,Flexibilidad,Alta,Ninguno,,[(75-14-2)],https://vimeo.com/ejercicio_demo
-1,Martes,Sentadillas,Ejercicio para fortalecer piernas.,45,Fuerza,Moderada,Mancuernas,60 kg,[(50-12-3)],https://vimeo.com/sentadillas_demo
-1,Miércoles,Press de banca,Ejercicio para pecho y tríceps.,30,Fuerza,Alta,Banco plano,50 kg,[(40-10-4)],https://vimeo.com/press_demo
-2,Lunes,Plancha abdominal,Ejercicio para core.,20,Resistencia,Baja,Ninguno,,[(30-1-3)],https://vimeo.com/plancha_demo
-2,Martes,Deadlift,Ejercicio para espalda baja.,35,Fuerza,Alta,Barra,80 kg,[(60-8-3)],https://vimeo.com/deadlift_demo
-3,Jueves,Entrenamiento compuesto,Ejercicio combinado de fuerza y resistencia.,50,Fuerza,Alta,Pesas,,[(33-10-3);(80-8-2);(32-11-1)],https://vimeo.com/compuesto_demo
-
-
-
-
+Semana,Día,Nombre de la Actividad,Descripción,Duración (min),Tipo de Ejercicio,Nivel de Intensidad,Equipo Necesario,Detalle de Series (peso-repeticiones-series),Partes del Cuerpo,Calorías,video_url
+1,Lunes,Remo con barra,Ejercicio para trabajar piernas.,40,Flexibilidad,Alta,Ninguno,[(75-14-2)],Piernas;Glúteos,50,https://vimeo.com/ejercicio_demo
+1,Martes,Sentadillas,Ejercicio para fortalecer piernas.,45,Fuerza,Moderada,Mancuernas,[(50-12-3)],Cuádriceps;Glúteos;Isquiotibiales,40,https://vimeo.com/sentadillas_demo
+1,Miércoles,Press de banca,Ejercicio para pecho y tríceps.,30,Fuerza,Alta,Banco plano,[(40-10-4)],Pecho;Tríceps;Hombros,60,https://vimeo.com/press_demo
+2,Lunes,Plancha abdominal,Ejercicio para core.,20,Resistencia,Baja,Ninguno,[(30-1-3)],Core;Hombros,20,https://vimeo.com/plancha_demo
+2,Martes,Deadlift,Ejercicio para espalda baja.,35,Fuerza,Alta,Barra,[(60-8-3)],Espalda;Glúteos;Isquiotibiales,80,https://vimeo.com/deadlift_demo
+3,Jueves,Entrenamiento compuesto,Ejercicio combinado de fuerza y resistencia.,50,Fuerza,Alta,Pesas,[(33-10-3);(80-8-2);(32-11-1)],Pecho;Piernas;Hombros,120,https://vimeo.com/compuesto_demo
+3,Viernes,Burpees explosivos,Movimiento cardiovascular de cuerpo completo.,25,HIIT,Alta,Ninguno,[(0-15-3)],Cuerpo Completo;Piernas;Core,95,https://vimeo.com/burpees_demo
+3,Sábado,Sprint intervalado,Series cortas de sprints para potencia.,30,Cardio,Alta,Ninguno,[(0-30-6)],Piernas;Cardio,110,https://vimeo.com/sprint_demo
+4,Lunes,Estocadas laterales,Trabajo unilateral para estabilidad.,28,Fuerza,Media,Mancuernas,[(12-12-3)],Piernas;Glúteos;Caderas,70,https://vimeo.com/estocadas_demo
+4,Miércoles,Escalera de agilidad,Secuencias rápidas para coordinación.,18,Funcional,Media,Escalera de agilidad,[(0-45-6)],Piernas;Cuerpo Completo,60,https://vimeo.com/escalera_demo
+4,Viernes,Yoga restaurativo,Estiramientos para recuperación activa.,40,Movilidad,Baja,Mat de yoga,[(0-1-4)],Espalda;Core;Caderas,35,https://vimeo.com/yoga_demo

@@ -1,7 +1,7 @@
 "use client"
 
 import { useState, useEffect, useCallback, useMemo } from "react"
-import { createClient } from '@/lib/supabase-browser'
+import { createClient } from '@/lib/supabase/supabase-client'
 import CalendarView from "./CalendarView"
 
 interface CalendarScreenProps {

@@ -2,7 +2,7 @@
 
 import { useState, useEffect } from 'react'
 import { ChevronDown, ChevronUp, Clock, Calendar, Users, CheckCircle, X, Edit2 } from 'lucide-react'
-import { createClient } from '@/lib/supabase-browser'
+import { createClient } from '@/lib/supabase/supabase-client'
 import { useAuth } from '@/contexts/auth-context'
 import { format } from 'date-fns'
 import { es } from 'date-fns/locale'

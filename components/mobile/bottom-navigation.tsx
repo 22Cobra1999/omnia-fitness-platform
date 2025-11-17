@@ -2,9 +2,9 @@
 
 import { useAuth } from "@/contexts/auth-context"
 import { usePopup } from "@/contexts/popup-context"
-import { cn } from "@/lib/utils"
+import { cn } from '@/lib/utils/utils'
 import { Activity, CalendarDays, Flame, Search, ShoppingBag, User, Users } from "lucide-react"
-import { useEffect, useState } from "react"
+import { useCallback, useEffect, useState } from "react"
 
 interface BottomNavigationProps {
   activeTab: string
@@ -24,36 +24,52 @@ export function BottomNavigation({ activeTab, setActiveTab }: BottomNavigationPr
     setIsMounted(true)
   }, [])
 
+  const applyTabChange = useCallback((tab: string) => {
+    setActiveTab(tab)
+
+    if (tab === "clients") {
+      window.dispatchEvent(new CustomEvent('clients-tab-click'))
+    }
+
+    setTimeout(() => {
+      window.scrollTo({ top: 0, behavior: 'smooth' })
+    }, 100)
+  }, [setActiveTab])
+
   const handleTabClick = (tab: string) => {
+    const detail = { tab, shouldAbort: false }
+    window.dispatchEvent(new CustomEvent('omnia-before-tab-change', { detail }))
+    if (detail.shouldAbort) {
+      return
+    }
+
     // If user is authenticated, allow navigation to any tab
     if (isAuthenticated) {
-      setActiveTab(tab)
-      
-      // Emitir evento especial para clients tab
-      if (tab === "clients") {
-        window.dispatchEvent(new CustomEvent('clients-tab-click'))
-      }
-      
-      // Scroll hacia arriba cuando se cambia de tab
-      setTimeout(() => {
-        window.scrollTo({ top: 0, behavior: 'smooth' })
-      }, 100)
+      applyTabChange(tab)
       return
     }
 
     // If tab is community, allow navigation even for non-authenticated users
     if (tab === "community") {
-      setActiveTab(tab)
-      // Scroll hacia arriba cuando se cambia de tab
-      setTimeout(() => {
-        window.scrollTo({ top: 0, behavior: 'smooth' })
-      }, 100)
+      applyTabChange(tab)
       return
     }
 
     // If user is not authenticated and tab is not community, show login popup
     showAuthPopup("login")
   }
+
+  useEffect(() => {
+    const handleForceTabChange = (event: Event) => {
+      const customEvent = event as CustomEvent<{ tab: string }>
+      applyTabChange(customEvent.detail.tab)
+    }
+
+    window.addEventListener('omnia-force-tab-change', handleForceTabChange as EventListener)
+    return () => {
+      window.removeEventListener('omnia-force-tab-change', handleForceTabChange as EventListener)
+    }
+  }, [applyTabChange])
 
   // Define tabs based on user role
   const renderTabs = () => {
@@ -202,7 +218,7 @@ export function BottomNavigation({ activeTab, setActiveTab }: BottomNavigationPr
   // Don't render until component is mounted to avoid hydration mismatch
   if (!isMounted) {
     return (
-      <div className="fixed bottom-0 left-0 right-0 bg-[#1E1E1E] border-t border-gray-800 h-16 flex items-center justify-around">
+      <div className="fixed bottom-0 left-0 right-0 z-50 bg-[#1E1E1E] border-t border-gray-800 h-16 flex items-center justify-around">
         {/* Placeholder for hydration */}
         <div className="flex flex-col items-center justify-center w-1/5 h-full text-gray-400">
           <div className="h-5 w-5 mb-1"></div>
@@ -229,7 +245,7 @@ export function BottomNavigation({ activeTab, setActiveTab }: BottomNavigationPr
   }
 
   return (
-    <div className="fixed bottom-0 left-0 right-0 bg-[#1E1E1E] border-t border-gray-800 h-16 flex items-center justify-around">
+    <div className="fixed bottom-0 left-0 right-0 z-50 bg-[#1E1E1E] border-t border-gray-800 h-16 flex items-center justify-around">
       {renderTabs()}
     </div>
   )

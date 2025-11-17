@@ -35,3 +35,23 @@ SELECT *
 FROM public.planificacion_ejercicios
 WHERE actividad_id = 90;
 
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+

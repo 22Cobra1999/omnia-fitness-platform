@@ -1,14 +1,54 @@
 import { type NextRequest, NextResponse } from "next/server"
 import { createClient } from '@supabase/supabase-js'
+
+// Función para detectar si un taller está finalizado
+async function isWorkshopFinished(supabase: any, activityId: number): Promise<boolean> {
+  try {
+    // Obtener detalles del taller
+    const { data: tallerDetalles, error: tallerError } = await supabase
+      .from('taller_detalles')
+      .select('originales')
+      .eq('actividad_id', activityId)
+
+    if (tallerError || !tallerDetalles || tallerDetalles.length === 0) {
+      return false // Si no hay detalles, no está finalizado
+    }
+
+    // Extraer todas las fechas de todos los temas
+    const allDates: string[] = []
+    tallerDetalles.forEach((tema: any) => {
+      if (tema.originales?.fechas_horarios) {
+        tema.originales.fechas_horarios.forEach((fecha: any) => {
+          if (fecha.fecha) {
+            allDates.push(fecha.fecha)
+          }
+        })
+      }
+    })
+
+    if (allDates.length === 0) {
+      return true // Si no hay fechas, está finalizado
+    }
+
+    // Verificar si la última fecha ya pasó
+    const now = new Date()
+    const lastDate = new Date(Math.max(...allDates.map(date => new Date(date).getTime())))
+    
+    return lastDate < now
+  } catch (error) {
+    console.error('Error verificando si taller está finalizado:', error)
+    return false
+  }
+}
+
 export async function GET(request: NextRequest) {
+  console.log('🚀 ACTIVITIES/SEARCH: API ejecutándose...')
   try {
     const { searchParams } = new URL(request.url)
     const searchTerm = searchParams.get("term")
     const typeFilter = searchParams.get("type") // e.g., 'fitness', 'nutrition'
     const difficultyFilter = searchParams.get("difficulty") // e.g., 'beginner', 'intermediate'
     const coachIdFilter = searchParams.get("coachId") // Filter by specific coach
-    // console.log("🔍 GET /api/activities/search - Buscando actividades con término:", searchTerm)
-    console.log("Filtros:", { typeFilter, difficultyFilter, coachIdFilter })
     // Usar service role para bypass RLS temporalmente
     const supabase = createClient(
       process.env.NEXT_PUBLIC_SUPABASE_URL!,
@@ -39,8 +79,26 @@ export async function GET(request: NextRequest) {
         { status: 500 },
       )
     }
+
+    // Filtrar talleres finalizados para clientes
+    const filteredActivities = []
+    for (const activity of activities) {
+      if (activity.type === 'workshop') {
+        const isFinished = await isWorkshopFinished(supabase, activity.id)
+        if (!isFinished) {
+          filteredActivities.push(activity)
+        } else {
+          console.log(`🚫 Taller finalizado filtrado: ${activity.title} (ID: ${activity.id})`)
+        }
+      } else {
+        // Programas y documentos no se filtran
+        filteredActivities.push(activity)
+      }
+    }
+
+    console.log(`📊 Actividades encontradas: ${activities.length}, Filtradas: ${filteredActivities.length}`)
     // Obtener ratings desde la vista materializada por separado
-    const activityIds = activities.map((a: any) => a.id)
+    const activityIds = filteredActivities.map((a: any) => a.id)
     const ratingsData: any = {}
     if (activityIds.length > 0) {
       // Ahora que las tablas existen, podemos usar las estadísticas
@@ -56,13 +114,11 @@ export async function GET(request: NextRequest) {
           }
         })
       } else if (ratingsError) {
-        console.log("⚠️ Error obteniendo estadísticas:", ratingsError.message)
       }
     }
     // Obtener datos de coaches por separado
     const coachIds = [...new Set(activities.map((a: any) => a.coach_id).filter(Boolean))]
     const coachesData: any = {}
-    // console.log("🔍 Coach IDs a buscar:", coachIds)
     if (coachIds.length > 0) {
       // Obtener ratings de coaches desde coach_stats_view
       const { data: coachStats, error: coachStatsError } = await supabase
@@ -83,13 +139,11 @@ export async function GET(request: NextRequest) {
         .from("user_profiles")
         .select("id, full_name, avatar_url")
         .in("id", coachIds)
-      // console.log("🔍 Resultado de consulta user_profiles:", { userProfiles, error: userProfilesError })
       // Obtener datos adicionales de coaches (especialización y experiencia)
       const { data: coaches, error: coachesError } = await supabase
         .from("coaches")
         .select("id, specialization, experience_years")
         .in("id", coachIds)
-      // console.log("🔍 Resultado de consulta coaches:", { coaches, error: coachesError })
       // Combinar datos de user_profiles y coaches
       if (!userProfilesError && userProfiles) {
         userProfiles.forEach((profile: any) => {
@@ -107,7 +161,6 @@ export async function GET(request: NextRequest) {
           }
         })
       }
-      // console.log("🔍 Datos finales de coaches:", coachesData)
     }
     // Obtener estadísticas detalladas usando el nuevo endpoint
     const programActivityIds = activities
@@ -119,49 +172,116 @@ export async function GET(request: NextRequest) {
     // Para cada actividad, obtener estadísticas usando el nuevo cálculo
     for (const activityId of programActivityIds) {
       try {
-        // Calcular ejercicios: cantidad de filas en ejercicios_detalles × cantidad de periodos
-        const { data: ejercicios } = await supabase
-          .from('ejercicios_detalles')
-          .select('id')
-          .eq('activity_id', activityId)
+        // Obtener el tipo de actividad para determinar qué tabla usar
+        const { data: actividad } = await supabase
+          .from('activities')
+          .select('type, categoria')
+          .eq('id', activityId)
+          .single()
 
-        // Calcular periodos únicos
-        const { data: periodosData } = await supabase
-          .from('organizacion_ejercicios')
-          .select('numero_periodo')
-          .eq('activity_id', activityId)
-
-        // Calcular sesiones: count distinct (dias-semanas) × periodos
-        const { data: sesionesData } = await supabase
-          .from('organizacion_ejercicios')
-          .select('dia, semana, numero_periodo')
-          .eq('activity_id', activityId)
-
-        const ejerciciosCount = ejercicios?.length || 0
-        const periodosUnicos = [...new Set(periodosData?.map(p => p.numero_periodo) || [])].length
+        const isNutrition = actividad?.categoria === 'nutricion' || actividad?.type === 'nutrition'
         
-        // Días únicos por período
-        const diasUnicosPorPeriodo = new Map<number, Set<string>>()
-        sesionesData?.forEach(session => {
-          const key = `${session.dia}-${session.semana}`
-          if (!diasUnicosPorPeriodo.has(session.numero_periodo)) {
-            diasUnicosPorPeriodo.set(session.numero_periodo, new Set())
-          }
-          diasUnicosPorPeriodo.get(session.numero_periodo)!.add(key)
-        })
-
-        // Total de sesiones: días únicos × periodos
+        let ejerciciosCount = 0
         let totalSessions = 0
-        diasUnicosPorPeriodo.forEach(diasSet => {
-          totalSessions += diasSet.size
-        })
+        let periodosUnicos = 1
 
-        // Si no hay datos en organizacion_ejercicios, usar datos de ejercicios_detalles
-        if (periodosUnicos === 0 && totalSessions === 0) {
+        if (isNutrition) {
+          // Para nutrición: usar nutrition_program_details
+          const { data: platos } = await supabase
+            .from('nutrition_program_details')
+            .select('id')
+            .eq('activity_id', activityId)
+
+          ejerciciosCount = platos?.length || 0
+          // Para nutrición, cada plato es una "sesión" (día de comida)
+          totalSessions = ejerciciosCount
+          
+          console.log(`🥗 Actividad ${activityId} (Nutrición):`, {
+            platos: ejerciciosCount,
+            totalSessions
+          })
+        } else {
+          // Para fitness: usar ejercicios_detalles y planificacion_ejercicios
+          const { data: ejercicios } = await supabase
+            .from('ejercicios_detalles')
+            .select('id')
+            .contains('activity_id', { [activityId]: {} })
+
+          // Calcular periodos únicos
+          const { data: periodosData } = await supabase
+            .from('periodos')
+            .select('cantidad_periodos')
+            .eq('actividad_id', activityId)
+
+          // Calcular sesiones: count distinct (dias-semanas) × periodos
+          const { data: sesionesData } = await supabase
+            .from('planificacion_ejercicios')
+            .select('lunes, martes, miercoles, jueves, viernes, sabado, domingo, numero_semana')
+            .eq('actividad_id', activityId)
+
+          ejerciciosCount = ejercicios?.length || 0
+          periodosUnicos = periodosData?.[0]?.cantidad_periodos || 1
+          
+          // Calcular sesiones basado en planificacion_ejercicios
+          if (sesionesData && sesionesData.length > 0) {
+            // Contar días que tienen ejercicios ACTIVOS en cada semana
+            const diasConEjercicios = new Set<string>()
+            sesionesData.forEach(planificacion => {
+              const dias = ['lunes', 'martes', 'miercoles', 'jueves', 'viernes', 'sabado', 'domingo']
+              dias.forEach(dia => {
+                const diaContent = planificacion[dia]
+                // Verificar que el día tenga contenido válido
+                if (diaContent && diaContent !== 'null' && diaContent !== '[]') {
+                  // Si es un objeto con ejercicios, verificar que tenga al menos uno activo
+                  if (typeof diaContent === 'object' && diaContent.ejercicios && Array.isArray(diaContent.ejercicios)) {
+                    const activeExercises = diaContent.ejercicios.filter((exercise: any) => {
+                      return exercise.activo !== false
+                    })
+                    // Solo contar el día si tiene al menos un ejercicio activo
+                    if (activeExercises.length > 0) {
+                      diasConEjercicios.add(`${planificacion.numero_semana}-${dia}`)
+                    }
+                  } else {
+                    // Fallback: si no es un objeto estructurado, usar el comportamiento anterior
+                    diasConEjercicios.add(`${planificacion.numero_semana}-${dia}`)
+                  }
+                }
+              })
+            })
+            
+            // Días únicos con ejercicios
+            const diasUnicos = diasConEjercicios.size
+            
+            // Multiplicar por cantidad de periodos
+            totalSessions = diasUnicos * Math.max(periodosUnicos, 1)
+            
+            console.log(`📊 Actividad ${activityId} (Fitness):`, {
+              diasUnicos,
+              periodosUnicos,
+              totalSessions,
+              planificacion: sesionesData.length,
+              diasConEjercicios: Array.from(diasConEjercicios),
+              sesionesData: sesionesData.map(s => ({
+                numero_semana: s.numero_semana,
+                lunes: s.lunes,
+                martes: s.martes,
+                miercoles: s.miercoles,
+                jueves: s.jueves,
+                viernes: s.viernes,
+                sabado: s.sabado,
+                domingo: s.domingo
+              }))
+            })
+          }
+        }
+
+        // Si no hay datos en planificacion_ejercicios, usar fallback (solo para fitness)
+        if (totalSessions === 0 && !isNutrition) {
+          // Fallback: usar ejercicios_detalles si existe
           const { data: ejerciciosDetalles } = await supabase
             .from('ejercicios_detalles')
             .select('semana, dia, periodo')
-            .eq('activity_id', activityId)
+            .contains('activity_id', { [activityId]: {} })
             .not('semana', 'is', null)
 
           if (ejerciciosDetalles && ejerciciosDetalles.length > 0) {
@@ -195,12 +315,33 @@ export async function GET(request: NextRequest) {
       }
     }
     // Formatear las actividades
-    const formattedActivities = activities.map((activity: any) => {
+    const formattedActivities = filteredActivities.map((activity: any) => {
       const rating = ratingsData[activity.id] || { avg_rating: 0, total_reviews: 0 }
       const coach = coachesData[activity.coach_id] || null
       const fitness = fitnessData[activity.id] || { exercisesCount: 0, totalSessions: 0 }
+      
+      // Parsear objetivos desde workshop_type si existe
+      let objetivos = []
+      if (activity.workshop_type) {
+        try {
+          const parsed = JSON.parse(activity.workshop_type)
+          if (parsed.objetivos) {
+            // Si objetivos es un string separado por ';', convertirlo a array
+            if (typeof parsed.objetivos === 'string') {
+              objetivos = parsed.objetivos.split(';').map(obj => obj.trim()).filter(obj => obj.length > 0)
+            } else if (Array.isArray(parsed.objetivos)) {
+              objetivos = parsed.objetivos
+            }
+          }
+        } catch (error) {
+          console.error('Error parseando objetivos:', error)
+        }
+      }
+      
       return {
         ...activity,
+        // Incluir objetivos parseados
+        objetivos: objetivos,
         // Incluir media de la actividad
         media: activity.activity_media?.[0] || null,
         coach_name: coach?.full_name || null,
@@ -220,8 +361,6 @@ export async function GET(request: NextRequest) {
         totalSessions: fitness.totalSessions || 0,
       }
     })
-    // console.log(`✅ Encontradas ${formattedActivities.length} actividades.`)
-    // console.log("📊 Ejemplo de datos de rating:", {
     //   program_rating: formattedActivities[0]?.program_rating,
     //   total_program_reviews: formattedActivities[0]?.total_program_reviews,
     // })

@@ -1,6 +1,6 @@
 "use server"
 
-import { getServerSupabaseClient } from "@/lib/supabase"
+import { getServerSupabaseClient } from '@/lib/supabase/supabase-client'
 
 export async function getCurrentUser() {
   const supabase = getServerSupabaseClient()

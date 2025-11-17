@@ -3,7 +3,7 @@
 import { useState } from "react"
 import { Button } from "@/components/ui/button"
 import { purchaseActivity } from "@/app/actions/purchase-activity"
-import { useToast } from "@/hooks/use-toast"
+import { useToast } from '@/hooks/shared/use-toast'
 
 interface PurchaseButtonProps {
   activityId: number

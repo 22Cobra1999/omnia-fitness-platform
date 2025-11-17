@@ -1,76 +1,224 @@
-import { NextResponse } from 'next/server'
-import { createRouteHandlerClient } from '@/lib/supabase-server'
+import { NextRequest, NextResponse } from 'next/server'
+import { createRouteHandlerClient } from '@/lib/supabase/supabase-server'
+import { hasActivity } from '@/lib/utils/exercise-activity-map'
 
-// Devuelve ejercicios existentes del coach (tomados de ejercicios_detalles)
-// Filtra por actividades que pertenezcan al coach autenticado y que sean de tipo "program"
-// Respuesta: [{ name, descripcion, tipo_ejercicio, nivel_intensidad, equipo_necesario, partes_cuerpo }]
-export async function GET() {
+const normalizeName = (value?: string | null) =>
+  (value ?? '')
+    .toString()
+    .toLowerCase()
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .replace(/\s+/g, ' ')
+    .trim()
+
+const scoreFitnessExercise = (exercise: any): number => {
+  let score = 0
+  if (exercise.video_url) score += 4
+  if (exercise.detalle_series) score += 3
+  if (exercise.nivel_intensidad) score += 2
+  if (exercise.equipo_necesario) score += 1
+  if (exercise.partes_cuerpo) score += 1
+  if (exercise.calorias) score += 1
+  return score
+}
+
+const scoreNutritionDish = (dish: any): number => {
+  let score = 0
+  if (dish.video_url) score += 3
+  if (dish.receta) score += 2
+  if (dish.ingredientes) score += 2
+  if (dish.proteinas) score += 1
+  if (dish.carbohidratos) score += 1
+  if (dish.grasas) score += 1
+  return score
+}
+
+export async function GET(request: NextRequest) {
   try {
     const supabase = await createRouteHandlerClient()
 
     const { data: { user }, error: authError } = await supabase.auth.getUser()
+
     if (authError || !user) {
-      return NextResponse.json({ error: 'No autorizado' }, { status: 401 })
+      return NextResponse.json({ error: 'No autenticado' }, { status: 401 })
     }
 
-    // Obtener actividades del coach
+    // Verificar que el usuario sea un coach
+    const { data: coach } = await supabase
+      .from('coaches')
+      .select('id')
+      .eq('id', user.id)
+      .single()
+
+    if (!coach) {
+      return NextResponse.json({ error: 'Coach no encontrado' }, { status: 404 })
+    }
+
+    const url = new URL(request.url)
+    const categoryParam = url.searchParams.get('category')
+    const category = categoryParam === 'nutricion' ? 'nutricion' : 'fitness'
+    const categoryAliases = category === 'nutricion'
+      ? ['nutricion', 'nutrition']
+      : ['fitness', 'program_fitness', 'entrenamiento', 'training', null]
+
+    const isNutritionCategory = category === 'nutricion'
+
+    // Primero obtener todas las actividades del coach
     const { data: activities, error: activitiesError } = await supabase
       .from('activities')
-      .select('id, type')
-      .eq('coach_id', user.id)
+      .select('id, type, categoria')
+      .eq('coach_id', coach.id)
 
     if (activitiesError) {
-      return NextResponse.json({ error: 'Error obteniendo actividades' }, { status: 500 })
+      console.error('Error obteniendo actividades del coach:', activitiesError)
+      return NextResponse.json({ 
+        success: true,
+        exercises: [],
+        warning: activitiesError.message
+      })
     }
 
-    if (!activities || activities.length === 0) {
-      return NextResponse.json({ exercises: [] })
-    }
+    const relevantActivities = (activities || []).filter((activity: any) => {
+      const type = (activity?.type ?? '').toString().toLowerCase()
+      const categoria = (activity?.categoria ?? '').toString().toLowerCase()
+      const isProgram = type.includes('program')
+      if (!isProgram) return false
 
-    const activityIds = activities
-      .filter(a => (a as any).type === 'program' || (a as any).type === 'fitness')
-      .map(a => a.id)
+      if (isNutritionCategory) {
+        return categoryAliases.includes(categoria)
+      }
+
+      // Fitness: excluir nutrición explícita
+      if (categoria === 'nutricion' || categoria === 'nutrition') {
+        return false
+      }
+
+      return true
+    })
+
+    const activityIds = relevantActivities.map((activity: any) => activity.id).filter(Boolean)
 
     if (activityIds.length === 0) {
-      return NextResponse.json({ exercises: [] })
+      return NextResponse.json({
+        success: true,
+        exercises: []
+      })
     }
 
-    // Tomar ejercicios existentes de esas actividades y devolver únicos por nombre + tipo
-    const { data: details, error: detailsError } = await supabase
-      .from('ejercicios_detalles')
-      .select('id, nombre_ejercicio, descripcion, tipo, nivel_intensidad:intensidad, equipo, body_parts, duracion_min, calorias, detalle_series')
-      .in('activity_id', activityIds)
+    if (isNutritionCategory) {
+      const { data: dishes, error: dishesError } = await supabase
+        .from('platos_detalles')
+        .select('id, activity_id, coach_id, nombre_plato, descripcion, receta, calorias, proteinas, carbohidratos, grasas, ingredientes, porciones, minutos, video_url')
+        .eq('coach_id', coach.id)
+        .in('activity_id', activityIds)
 
-    if (detailsError) {
-      return NextResponse.json({ error: 'Error obteniendo ejercicios' }, { status: 500 })
-    }
-
-    const seen = new Set<string>()
-    const exercises = (details || []).reduce<any[]>((acc, row: any) => {
-      const key = `${row.nombre_ejercicio}|${row.tipo}`
-      if (!seen.has(key)) {
-        seen.add(key)
-        acc.push({
-          id: row.id,
-          name: row.nombre_ejercicio,
-          descripcion: row.descripcion || '',
-          tipo_ejercicio: row.tipo || '',
-          nivel_intensidad: row.nivel_intensidad || '',
-          equipo_necesario: row.equipo || '',
-          partes_cuerpo: row.body_parts || '',
-          duracion_min: row.duracion_min || '',
-          calorias: row.calorias?.toString?.() || '',
-          detalle_series: row.detalle_series || null
+      if (dishesError) {
+        console.error('Error obteniendo platos existentes:', dishesError)
+        return NextResponse.json({
+          success: true,
+          exercises: [],
+          warning: dishesError.message
         })
       }
-      return acc
-    }, [])
 
-    return NextResponse.json({ exercises })
-  } catch (error) {
-    console.error('Error existing-exercises:', error)
-    return NextResponse.json({ error: 'Error interno del servidor' }, { status: 500 })
+      const uniqueDishesMap = new Map<string, any>()
+
+      dishes?.forEach((dish: any) => {
+        const name = dish?.nombre_plato || ''
+        const key = normalizeName(name)
+        if (!key) return
+
+        const candidate = {
+          id: dish.id,
+          name,
+          descripcion: dish.descripcion ?? '',
+          receta: dish.receta ?? '',
+          calorias: dish.calorias ?? '',
+          proteinas: dish.proteinas ?? '',
+          carbohidratos: dish.carbohidratos ?? '',
+          grasas: dish.grasas ?? '',
+          ingredientes: dish.ingredientes ?? '',
+          porciones: dish.porciones ?? '',
+          minutos: dish.minutos ?? '',
+          video_url: dish.video_url ?? ''
+        }
+
+        const existing = uniqueDishesMap.get(key)
+        if (!existing) {
+          uniqueDishesMap.set(key, candidate)
+          return
+        }
+
+        if (scoreNutritionDish(candidate) > scoreNutritionDish(existing)) {
+          uniqueDishesMap.set(key, candidate)
+        }
+      })
+
+      return NextResponse.json({
+        success: true,
+        exercises: Array.from(uniqueDishesMap.values())
+      })
+    }
+
+    const { data: exercises, error: exercisesError } = await supabase
+      .from('ejercicios_detalles')
+      .select('id, activity_id, coach_id, nombre_ejercicio, tipo, descripcion, calorias, intensidad, nivel_intensidad, equipo, body_parts, detalle_series, duracion_min, video_url')
+      .eq('coach_id', coach.id)
+
+    if (exercisesError) {
+      console.error('Error obteniendo ejercicios existentes:', exercisesError)
+      return NextResponse.json({
+        success: true,
+        exercises: [],
+        warning: exercisesError.message
+      })
+    }
+
+    const uniqueExercisesMap = new Map<string, any>()
+
+    exercises
+      ?.filter((exercise: any) => activityIds.some(id => hasActivity(exercise.activity_id, id)))
+      .forEach((exercise: any) => {
+      const name = exercise?.nombre_ejercicio || ''
+      const key = normalizeName(name)
+      if (!key) return
+
+      const candidate = {
+        id: exercise.id,
+        name,
+        descripcion: exercise.descripcion ?? '',
+        duracion_min: exercise.duracion_min ?? '',
+        tipo_ejercicio: exercise.tipo ?? '',
+        nivel_intensidad: exercise.nivel_intensidad ?? exercise.intensidad ?? '',
+        equipo_necesario: exercise.equipo ?? '',
+        detalle_series: exercise.detalle_series ?? '',
+        partes_cuerpo: exercise.body_parts ?? '',
+        calorias: exercise.calorias ?? '',
+        video_url: exercise.video_url ?? ''
+      }
+
+      const existing = uniqueExercisesMap.get(key)
+      if (!existing) {
+        uniqueExercisesMap.set(key, candidate)
+        return
+      }
+
+      if (scoreFitnessExercise(candidate) > scoreFitnessExercise(existing)) {
+        uniqueExercisesMap.set(key, candidate)
+      }
+    })
+
+    return NextResponse.json({
+      success: true,
+      exercises: Array.from(uniqueExercisesMap.values())
+    })
+  } catch (error: any) {
+    console.error('Error en /api/existing-exercises:', error)
+    return NextResponse.json({ 
+      success: true,
+      exercises: [],
+      warning: error.message 
+    })
   }
 }
-
 

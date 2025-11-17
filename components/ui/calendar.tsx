@@ -3,7 +3,7 @@
 import React, { useState } from 'react'
 import { ChevronLeft, ChevronRight, Plus } from 'lucide-react'
 import { Button } from './button'
-import { cn } from '@/lib/utils'
+import { cn } from '@/lib/utils/utils'
 
 interface CalendarProps {
   selectedDates: Date[]

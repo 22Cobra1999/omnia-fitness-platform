@@ -13,7 +13,6 @@ export async function GET(
   try {
     const { id: clientId } = await params
     
-    console.log('[client-details] Obteniendo detalles para cliente:', clientId)
 
     // 1. PERFIL DEL CLIENTE
     const { data: profile, error: profileError } = await supabase
@@ -36,12 +35,10 @@ export async function GET(
       .eq('user_id', clientId)
       .order('created_at', { ascending: false })
 
-    console.log('[client-details] Lesiones encontradas:', injuries?.length || 0)
     if (injuriesError) {
       console.error('[client-details] Error obteniendo lesiones:', injuriesError)
     }
     if (injuries && injuries.length > 0) {
-      console.log('[client-details] Primera lesión:', injuries[0])
     }
 
     // 3. BIOMÉTRICAS DEL CLIENTE
@@ -154,15 +151,6 @@ export async function GET(
         description: clientData?.description || null
       }
     }
-
-    console.log('[client-details] Cliente procesado:', {
-      id: client.id,
-      name: client.name,
-      activitiesCount: client.activitiesCount,
-      injuriesCount: client.injuries.length,
-      biometricsCount: client.biometrics.length,
-      objectivesCount: client.objectives.length
-    })
 
     return NextResponse.json({ 
       success: true, 

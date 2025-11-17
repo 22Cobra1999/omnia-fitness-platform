@@ -2,7 +2,7 @@
 
 import { useState, useEffect } from "react"
 import { ChevronLeft, ChevronRight } from "lucide-react"
-import { useClientMetrics } from "@/hooks/use-client-metrics"
+import { useClientMetrics } from '@/hooks/client/use-client-metrics'
 
 interface ActivityCalendarProps {
   userId?: string

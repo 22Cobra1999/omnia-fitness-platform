@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server"
-import { createRouteHandlerClient } from "../../../../../lib/supabase-server"
+import { createRouteHandlerClient } from "../../../../../lib/supabase/supabase-server"
 import { cookies } from "next/headers"
 
 export async function GET(
@@ -99,7 +99,6 @@ export async function GET(
       }
     }
 
-    // // console.log(`📊 Estado de compra para usuario ${user.id} y actividad ${activityId}:`, purchaseStatus)
 
     return NextResponse.json({
       success: true,

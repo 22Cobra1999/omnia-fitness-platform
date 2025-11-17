@@ -338,14 +338,9 @@ export function ProductPreviewCard({
         const exercisesCount = product.exercisesCount || (csvData && csvData.length > 1 ? csvData.length - 1 : 0)
 
         if (exercisesCount > 0) {
-          // Determinar si es nutrición o fitness basado en la categoría
-          const isNutrition = product.categoria === 'nutricion' || product.type === 'nutrition'
-          const label = isNutrition ? 'Platos' : 'Ejercicios'
-          const value = isNutrition ? `${exercisesCount} platos` : `${exercisesCount} ejercicios`
-          
           details.push({
-            label: label,
-            value: value,
+            label: 'Ejercicios',
+            value: `${exercisesCount} ejercicios`,
             icon: Flame,
             color: 'text-red-400',
             bgColor: 'bg-red-400/10'

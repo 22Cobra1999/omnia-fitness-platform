@@ -1,8 +1,7 @@
 import { NextResponse } from "next/server"
-import { getSupabaseAdmin } from "@/lib/db"
+import { getSupabaseAdmin } from '@/lib/config/db'
 export async function GET() {
   try {
-    // console.log("🔍 GET /api/coaches - Obteniendo todos los coaches")
     const supabaseAdmin = await getSupabaseAdmin()
     // Get all coaches
     const { data: coaches, error } = await supabaseAdmin
@@ -27,7 +26,6 @@ export async function GET() {
       .from("coach_stats_view")
       .select("coach_id, avg_rating, total_reviews")
       .in("coach_id", coachIds)
-    // console.log("🔍 Coach stats from coach_stats_view:", { coachStats, statsError, coachIds })
     const statsMap = new Map()
     if (!statsError && coachStats) {
       coachStats.forEach((stat) => {
@@ -78,7 +76,6 @@ export async function GET() {
 }
 export async function POST(request: Request) {
   try {
-    // console.log("🚀 POST /api/coaches - Creando nueva actividad")
     const body = await request.json()
     const {
       name,

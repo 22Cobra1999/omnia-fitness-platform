@@ -1,7 +1,7 @@
 "use client"
 
 import { useState, useEffect, useCallback, useMemo } from "react"
-import { throttledLog } from "@/lib/log-throttler"
+import { throttledLog } from '@/lib/logging/log-throttler'
 import {
   ChefHat,
   Dumbbell,
@@ -41,12 +41,12 @@ import { toast } from "@/components/ui/use-toast"
 import { Skeleton } from "@/components/ui/skeleton"
 import { useRouter } from "next/navigation"
 import Link from "next/link"
-import { ActivitySkeletonLoader, CoachSkeletonLoader } from "@/components/activity-skeleton-loader"
-import { getSupabaseClient } from "@/lib/supabase-singleton"
-import { PurchaseActivityModal } from "@/components/purchase-activity-modal"
-import { ActivitySurveyModal } from "@/components/activity-survey-modal"
+import { ActivitySkeletonLoader, CoachSkeletonLoader } from '@/components/shared/activities/activity-skeleton-loader'
+import { getSupabaseClient } from '@/lib/supabase/supabase-client'
+import { PurchaseActivityModal } from '@/components/shared/activities/purchase-activity-modal'
+import { ActivitySurveyModal } from '@/components/shared/activities/activity-survey-modal'
 import { PurchasedActivityCard } from "@/components/activities/purchased-activity-card"
-import TodayScreen from "@/components/TodayScreen"
+import TodayScreen from '@/components/shared/misc/TodayScreen'
 import { WorkshopClientView } from "@/components/client/workshop-client-view"
 import type { Activity, Enrollment } from "@/types/activity" // Import updated types
 
@@ -107,9 +107,12 @@ export function ActivityScreen() {
     return enrollment?.activity?.type || null
   }
 
-  // Efecto para manejar navegación desde el calendario
+  // Efecto para manejar navegación desde el calendario o compra
+  // Se ejecuta al montar Y cuando los enrollments cambian (después de una compra)
   useEffect(() => {
-    if (typeof window !== 'undefined') {
+    const checkForPendingNavigation = () => {
+      if (typeof window === 'undefined') return;
+      
       const selectedActivityFromCalendar = localStorage.getItem('selectedActivityFromCalendar');
       if (selectedActivityFromCalendar) {
         console.log('📅 [ActivityScreen] ActivityId detectado desde calendario:', selectedActivityFromCalendar);
@@ -118,9 +121,29 @@ export function ActivityScreen() {
         // Limpiar el localStorage después de usarlo
         localStorage.removeItem('selectedActivityFromCalendar');
         console.log('🧹 [ActivityScreen] localStorage limpiado');
+        return;
       }
-    }
-  }, []); // Solo ejecutar una vez al montar el componente
+      
+      // Detectar actividad recién comprada
+      const openActivityId = localStorage.getItem('openActivityId');
+      if (openActivityId) {
+        console.log('🛒 [ActivityScreen] ActivityId detectado desde compra:', openActivityId);
+        setSelectedActivityId(openActivityId);
+        setShowTodayScreen(true);
+        // Limpiar el localStorage después de usarlo
+        localStorage.removeItem('openActivityId');
+        console.log('🧹 [ActivityScreen] localStorage limpiado (compra)');
+      }
+    };
+    
+    // Verificar inmediatamente
+    checkForPendingNavigation();
+    
+    // También verificar cuando enrollments cambia (después de comprar)
+    const timer = setTimeout(checkForPendingNavigation, 500);
+    
+    return () => clearTimeout(timer);
+  }, [enrollments.length]); // Re-ejecutar cuando cambie la cantidad de enrollments
 
   // Función para manejar el click en un coach desde la tab de Activity
   const handleCoachClickFromActivity = (coachId: string) => {
@@ -190,34 +213,52 @@ export function ActivityScreen() {
       const activityId = enrollment.activity_id
       console.log(`🔍 [calculateRealProgress] Calculando progreso simple para actividad ${activityId}`)
       
-      // Obtener TODAS las ejecuciones del cliente para esta actividad
-      const { data: allExecutions, error: executionsError } = await supabase
-        .from("ejecuciones_ejercicio")
-        .select(`
-          id, 
-          completado,
-          ejercicio_id,
-          ejercicios_detalles!inner(activity_id)
-        `)
-        .eq("ejercicios_detalles.activity_id", activityId)
-        .eq("client_id", enrollment.client_id)
+      // Obtener progreso del cliente para esta actividad usando la nueva tabla progreso_cliente
+      const { data: progressRecords, error: progressError } = await supabase
+        .from("progreso_cliente")
+        .select("ejercicios_completados, ejercicios_pendientes")
+        .eq("actividad_id", activityId)
+        .eq("cliente_id", enrollment.client_id)
 
-      if (executionsError) {
-        console.error("❌ [calculateRealProgress] Error getting executions:", executionsError)
+      if (progressError) {
+        console.error("❌ [calculateRealProgress] Error getting progress:", progressError)
         return 0
       }
 
-      // Contar completados y total
-      const completed = allExecutions?.filter(e => e.completado).length || 0
-      const total = allExecutions?.length || 0
+      // Sumar todos los ejercicios completados y pendientes de todos los registros
+      let totalCompleted = 0
+      let totalPending = 0
+
+      progressRecords?.forEach(record => {
+        try {
+          const completados = record.ejercicios_completados 
+            ? (typeof record.ejercicios_completados === 'string' 
+                ? JSON.parse(record.ejercicios_completados) 
+                : record.ejercicios_completados)
+            : {};
+          const pendientes = record.ejercicios_pendientes 
+            ? (typeof record.ejercicios_pendientes === 'string' 
+                ? JSON.parse(record.ejercicios_pendientes) 
+                : record.ejercicios_pendientes)
+            : {};
+          
+          totalCompleted += Object.keys(completados).length
+          totalPending += Object.keys(pendientes).length
+        } catch (err) {
+          console.warn('⚠️ Error parseando JSON en calculateRealProgress:', err)
+        }
+      })
+
+      const total = totalCompleted + totalPending
       
       console.log(`📈 [calculateRealProgress] CÁLCULO SIMPLE:`)
-      console.log(`   - Ejercicios completados: ${completed}`)
+      console.log(`   - Ejercicios completados: ${totalCompleted}`)
+      console.log(`   - Ejercicios pendientes: ${totalPending}`)
       console.log(`   - Total de ejercicios: ${total}`)
-      console.log(`   - Progreso: ${completed}/${total} = ${total > 0 ? Math.round((completed / total) * 100) : 0}%`)
+      console.log(`   - Progreso: ${totalCompleted}/${total} = ${total > 0 ? Math.round((totalCompleted / total) * 100) : 0}%`)
       
       if (total === 0) return 0
-      const progressPercentage = Math.round((completed / total) * 100)
+      const progressPercentage = Math.round((totalCompleted / total) * 100)
       console.log(`✅ [calculateRealProgress] Progreso final: ${progressPercentage}%`)
       return progressPercentage
       
@@ -240,7 +281,7 @@ export function ActivityScreen() {
           .select(`
             id, nombre_ejercicio, semana, dia
           `)
-          .eq("activity_id", activityId)
+          .contains('activity_id', { [activityId]: {} })
           .not('semana', 'is', null)
           .order("semana", { ascending: true })
           .order("dia", { ascending: true })
@@ -525,6 +566,7 @@ export function ActivityScreen() {
         client_id,
         status,
         created_at,
+        start_date,
         activity:activities!activity_enrollments_activity_id_fkey (
           id,
           title,
@@ -533,6 +575,8 @@ export function ActivityScreen() {
           difficulty,
           price,
           coach_id,
+          categoria,
+          dias_acceso,
           media:activity_media!activity_media_activity_id_fkey (image_url, video_url),
           coaches:coaches!activities_coach_id_fkey (id, full_name, specialization)
         )
@@ -579,7 +623,9 @@ export function ActivityScreen() {
               coach_name: "Coach", // Se obtendrá desde user_profiles
               coach_avatar_url: null, // Se obtendrá por separado si es necesario
               coach_rating: enrollment.activity.coaches?.rating || null,
-              // Usar la categoría directamente de la base de datos
+              // Preservar categoria directamente de la base de datos
+              categoria: enrollment.activity.categoria || getCategoryFromType(enrollment.activity.type || ""),
+              // También mantener category para compatibilidad
               category: enrollment.activity.categoria || getCategoryFromType(enrollment.activity.type || ""),
             },
           }

@@ -8,7 +8,6 @@ const supabase = createClient(
 
 export async function GET(request: NextRequest) {
   try {
-    console.log('[coach-clients] Iniciando consulta de clientes')
 
     // Obtener inscripciones activas
     const { data: enrollments, error: enrollmentsError } = await supabase
@@ -27,7 +26,6 @@ export async function GET(request: NextRequest) {
       return NextResponse.json({ success: false, error: enrollmentsError.message }, { status: 500 })
     }
 
-    console.log('[coach-clients] Inscripciones encontradas:', enrollments?.length || 0)
 
     if (!enrollments || enrollments.length === 0) {
       return NextResponse.json({
@@ -40,7 +38,7 @@ export async function GET(request: NextRequest) {
     const activityIds = enrollments.map(e => e.activity_id)
     const { data: activities, error: activitiesError } = await supabase
       .from('activities')
-      .select('id, title, type, coach_id')
+      .select('id, title, type, coach_id, price, categoria')
       .in('id', activityIds)
 
     if (activitiesError) {
@@ -60,17 +58,7 @@ export async function GET(request: NextRequest) {
       return NextResponse.json({ success: false, error: usersError.message }, { status: 500 })
     }
 
-    // Obtener datos de pagos desde banco
-    const enrollmentIds = enrollments.map(e => e.id)
-    const { data: payments, error: paymentsError } = await supabase
-      .from('banco')
-      .select('enrollment_id, amount_paid')
-      .in('enrollment_id', enrollmentIds)
-
-    if (paymentsError) {
-      console.error('[coach-clients] Error en payments:', paymentsError)
-      return NextResponse.json({ success: false, error: paymentsError.message }, { status: 500 })
-    }
+    // No necesitamos consultar banco, calcularemos ingresos desde activities
 
     // Agrupar por cliente
     const clientsMap = new Map()
@@ -79,7 +67,6 @@ export async function GET(request: NextRequest) {
       const clientId = enrollment.client_id
       const user = users?.find(u => u.id === clientId)
       const activity = activities?.find(a => a.id === enrollment.activity_id)
-      const payment = payments?.find(p => p.enrollment_id === enrollment.id)
       
       if (!user || !activity) continue
       
@@ -95,12 +82,12 @@ export async function GET(request: NextRequest) {
       }
       
       const clientData = clientsMap.get(clientId)
-      // Agregar amount_paid al activity
-      const activityWithPayment = {
+      // Agregar precio al activity
+      const activityWithPrice = {
         ...activity,
-        amount_paid: payment?.amount_paid || 0
+        amountPaid: activity.price || 0  // Usar el precio de la actividad
       }
-      clientData.activities.push(activityWithPayment)
+      clientData.activities.push(activityWithPrice)
       clientData.enrollments.push(enrollment)
     }
 
@@ -117,26 +104,78 @@ export async function GET(request: NextRequest) {
 
 
         for (const activity of activities) {
-          // Contar ejercicios planificados
-          const { data: ejercicios } = await supabase
-            .from('ejercicios_detalles')
-            .select('id')
-            .eq('activity_id', activity.id)
+          // Determinar si es nutrición o fitness
+          // Verificar tanto en type como en categoria
+          const isNutrition = 
+            activity.type === 'nutrition' || 
+            activity.type === 'nutricion' ||
+            activity.categoria === 'nutrition' ||
+            activity.categoria === 'nutricion'
           
-          totalExercises += ejercicios?.length || 0
+          if (isNutrition) {
+            // Para productos de nutrición: contar platos
+            const { data: platos } = await supabase
+              .from('nutrition_program_details')
+              .select('id')
+              .eq('activity_id', activity.id)
+            
+            totalExercises += platos?.length || 0
 
-          // Contar ejercicios completados
-          const { data: ejecuciones } = await supabase
-            .from('ejecuciones_ejercicio')
-            .select('id')
-            .eq('client_id', client.id)
-            .eq('completado', true)
-            .in('ejercicio_id', (ejercicios || []).map((e: any) => e.id))
+            // Contar platos completados desde progreso_cliente_nutricion
+            const { data: progresoRecords } = await supabase
+              .from('progreso_cliente_nutricion')
+              .select('ejercicios_completados')
+              .eq('cliente_id', client.id)
+              .eq('actividad_id', activity.id)
 
-          completedExercises += ejecuciones?.length || 0
+            progresoRecords?.forEach(record => {
+              let completados: any[] = []
+              try {
+                // Manejar tanto arrays nativos de PostgreSQL como strings JSON
+                if (Array.isArray(record.ejercicios_completados)) {
+                  completados = record.ejercicios_completados
+                } else if (typeof record.ejercicios_completados === 'string') {
+                  completados = JSON.parse(record.ejercicios_completados || '[]')
+                }
+              } catch (err) {
+                completados = []
+              }
+              completedExercises += completados.length
+            })
+          } else {
+            // Para productos de fitness: contar ejercicios
+            const { data: ejercicios } = await supabase
+              .from('ejercicios_detalles')
+              .select('id')
+            .contains('activity_id', { [activity.id]: {} })
+            
+            totalExercises += ejercicios?.length || 0
 
-          // Sumar ingresos
-          totalRevenue += activity.amount_paid || 0
+            // Contar ejercicios completados desde progreso_cliente
+            const { data: progresoRecords } = await supabase
+              .from('progreso_cliente')
+              .select('ejercicios_completados')
+              .eq('cliente_id', client.id)
+              .eq('actividad_id', activity.id)
+
+            progresoRecords?.forEach(record => {
+              let completados: any[] = []
+              try {
+                // Manejar tanto arrays nativos de PostgreSQL como strings JSON
+                if (Array.isArray(record.ejercicios_completados)) {
+                  completados = record.ejercicios_completados
+                } else if (typeof record.ejercicios_completados === 'string') {
+                  completados = JSON.parse(record.ejercicios_completados || '[]')
+                }
+              } catch (err) {
+                completados = []
+              }
+              completedExercises += completados.length
+            })
+          }
+
+          // Sumar ingresos (precio de la actividad)
+          totalRevenue += activity.price || 0
 
           // Contar todos de las inscripciones
           const enrollment = client.enrollments.find((e: any) => e.activity_id === activity.id)
@@ -158,14 +197,36 @@ export async function GET(request: NextRequest) {
 
         const progress = totalExercises > 0 ? Math.round((completedExercises / totalExercises) * 100) : 0
 
-        // Última actividad
-        const { data: lastActivity } = await supabase
-          .from('ejecuciones_ejercicio')
-          .select('fecha_ejercicio')
-          .eq('client_id', client.id)
-          .order('fecha_ejercicio', { ascending: false })
+        // Última actividad desde progreso_cliente o progreso_cliente_nutricion
+        // Primero verificar en progreso_cliente (fitness)
+        const { data: lastActivityFitness } = await supabase
+          .from('progreso_cliente')
+          .select('fecha')
+          .eq('cliente_id', client.id)
+          .order('fecha', { ascending: false })
           .limit(1)
-          .single()
+          .maybeSingle()
+        
+        // Luego verificar en progreso_cliente_nutricion (nutrición)
+        const { data: lastActivityNutrition } = await supabase
+          .from('progreso_cliente_nutricion')
+          .select('fecha')
+          .eq('cliente_id', client.id)
+          .order('fecha', { ascending: false })
+          .limit(1)
+          .maybeSingle()
+        
+        // Obtener la fecha más reciente entre ambas
+        let lastActivityDate: string | null = null
+        if (lastActivityFitness?.fecha && lastActivityNutrition?.fecha) {
+          const fitnessDate = new Date(lastActivityFitness.fecha)
+          const nutritionDate = new Date(lastActivityNutrition.fecha)
+          lastActivityDate = fitnessDate > nutritionDate ? lastActivityFitness.fecha : lastActivityNutrition.fecha
+        } else if (lastActivityFitness?.fecha) {
+          lastActivityDate = lastActivityFitness.fecha
+        } else if (lastActivityNutrition?.fecha) {
+          lastActivityDate = lastActivityNutrition.fecha
+        }
 
         return {
           id: client.id,
@@ -174,8 +235,8 @@ export async function GET(request: NextRequest) {
           avatar_url: client.avatar_url || null,
           progress,
           status: 'active' as const,
-          lastActive: lastActivity?.fecha_ejercicio ? 
-            new Date(lastActivity.fecha_ejercicio).toLocaleDateString() : 'Nunca',
+          lastActive: lastActivityDate ? 
+            new Date(lastActivityDate).toLocaleDateString() : 'Nunca',
           totalExercises,
           completedExercises,
           totalRevenue,
@@ -191,7 +252,6 @@ export async function GET(request: NextRequest) {
       })
     )
 
-    console.log('[coach-clients] Clientes procesados:', processedClients.length)
 
     return NextResponse.json({
       success: true,
