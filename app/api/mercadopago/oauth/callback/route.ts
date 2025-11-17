@@ -13,30 +13,32 @@ export async function GET(request: NextRequest) {
     const state = searchParams.get('state'); // Contiene el coach_id
     const error = searchParams.get('error');
 
+    const appUrl = process.env.NEXT_PUBLIC_APP_URL?.trim() || 'https://omnia-app.vercel.app';
+    
     // Si hay un error, redirigir con mensaje
     if (error) {
       console.error('Error en OAuth callback:', error);
       return NextResponse.redirect(
-        `${process.env.NEXT_PUBLIC_APP_URL}/coach/settings?mp_auth=error&error=${encodeURIComponent(error)}`
+        `${appUrl}/coach/settings?mp_auth=error&error=${encodeURIComponent(error)}`
       );
     }
 
     if (!code || !state) {
       return NextResponse.redirect(
-        `${process.env.NEXT_PUBLIC_APP_URL}/coach/settings?mp_auth=error&error=missing_params`
+        `${appUrl}/coach/settings?mp_auth=error&error=missing_params`
       );
     }
 
     const coachId = state;
-    const clientId = process.env.MERCADOPAGO_CLIENT_ID;
-    const clientSecret = process.env.MERCADOPAGO_CLIENT_SECRET;
-    const redirectUri = process.env.NEXT_PUBLIC_MERCADOPAGO_REDIRECT_URI || 
-                       `${process.env.NEXT_PUBLIC_APP_URL}/api/mercadopago/oauth/callback`;
+    const clientId = process.env.MERCADOPAGO_CLIENT_ID?.trim();
+    const clientSecret = process.env.MERCADOPAGO_CLIENT_SECRET?.trim();
+    const redirectUri = process.env.NEXT_PUBLIC_MERCADOPAGO_REDIRECT_URI?.trim() || 
+                       `${appUrl}/api/mercadopago/oauth/callback`;
 
     if (!clientId || !clientSecret) {
       console.error('Credenciales de Mercado Pago no configuradas');
       return NextResponse.redirect(
-        `${process.env.NEXT_PUBLIC_APP_URL}/coach/settings?mp_auth=error&error=config_error`
+        `${appUrl}/coach/settings?mp_auth=error&error=config_error`
       );
     }
 
@@ -60,7 +62,7 @@ export async function GET(request: NextRequest) {
       const errorData = await tokenResponse.json();
       console.error('Error intercambiando código por token:', errorData);
       return NextResponse.redirect(
-        `${process.env.NEXT_PUBLIC_APP_URL}/coach/settings?mp_auth=error&error=token_exchange_failed`
+        `${appUrl}/coach/settings?mp_auth=error&error=token_exchange_failed`
       );
     }
 
@@ -70,7 +72,7 @@ export async function GET(request: NextRequest) {
     if (!access_token || !user_id) {
       console.error('Tokens incompletos recibidos:', tokenData);
       return NextResponse.redirect(
-        `${process.env.NEXT_PUBLIC_APP_URL}/coach/settings?mp_auth=error&error=invalid_tokens`
+        `${appUrl}/coach/settings?mp_auth=error&error=invalid_tokens`
       );
     }
 
@@ -106,19 +108,20 @@ export async function GET(request: NextRequest) {
     if (dbError) {
       console.error('Error guardando credenciales:', dbError);
       return NextResponse.redirect(
-        `${process.env.NEXT_PUBLIC_APP_URL}/coach/settings?mp_auth=error&error=db_error`
+        `${appUrl}/coach/settings?mp_auth=error&error=db_error`
       );
     }
 
     // Redirigir a la página de configuración con éxito
     return NextResponse.redirect(
-      `${process.env.NEXT_PUBLIC_APP_URL}/coach/settings?mp_auth=success`
+      `${appUrl}/coach/settings?mp_auth=success`
     );
 
   } catch (error: any) {
     console.error('Error en OAuth callback:', error);
+    const appUrl = process.env.NEXT_PUBLIC_APP_URL?.trim() || 'https://omnia-app.vercel.app';
     return NextResponse.redirect(
-      `${process.env.NEXT_PUBLIC_APP_URL}/coach/settings?mp_auth=error&error=internal_error`
+      `${appUrl}/coach/settings?mp_auth=error&error=internal_error`
     );
   }
 }

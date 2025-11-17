@@ -26,12 +26,17 @@ export async function GET(request: NextRequest) {
       return NextResponse.json({ error: 'No autorizado para este coach' }, { status: 403 });
     }
 
-    const clientId = process.env.MERCADOPAGO_CLIENT_ID;
-    const redirectUri = process.env.NEXT_PUBLIC_MERCADOPAGO_REDIRECT_URI || 
-                       `${process.env.NEXT_PUBLIC_APP_URL}/api/mercadopago/oauth/callback`;
+    const clientId = process.env.MERCADOPAGO_CLIENT_ID?.trim();
+    const appUrl = process.env.NEXT_PUBLIC_APP_URL?.trim();
+    const redirectUri = process.env.NEXT_PUBLIC_MERCADOPAGO_REDIRECT_URI?.trim() || 
+                       `${appUrl}/api/mercadopago/oauth/callback`;
 
     if (!clientId) {
       return NextResponse.json({ error: 'MERCADOPAGO_CLIENT_ID no configurado' }, { status: 500 });
+    }
+
+    if (!redirectUri) {
+      return NextResponse.json({ error: 'Redirect URI no configurado' }, { status: 500 });
     }
 
     // Construir URL de autorización de Mercado Pago
