@@ -1,0 +1,324 @@
+'use client';
+
+import React, { useState } from 'react';
+import { motion, AnimatePresence } from 'framer-motion';
+import { X, Star } from 'lucide-react';
+
+interface ActivitySurveyModalProps {
+  isOpen: boolean;
+  onClose: () => void;
+  onComplete: (activityRating: number, coachRating: number, feedback: string, wouldRepeat: boolean | null) => void;
+  activityTitle: string;
+}
+
+export function ActivitySurveyModal({
+  isOpen,
+  onClose,
+  onComplete,
+  activityTitle
+}: ActivitySurveyModalProps) {
+  const [activityRating, setActivityRating] = useState(0);
+  const [coachRating, setCoachRating] = useState(0);
+  const [feedback, setFeedback] = useState('');
+  const [wouldRepeat, setWouldRepeat] = useState<boolean | null>(null);
+  const [showConfirm, setShowConfirm] = useState(false);
+
+  if (!isOpen) return null;
+
+  const handleSubmit = () => {
+    setShowConfirm(true);
+  };
+
+  const handleConfirmSubmit = () => {
+    onComplete(activityRating, coachRating, feedback, wouldRepeat);
+    onClose();
+    // Resetear estados al cerrar
+    setShowConfirm(false);
+    setActivityRating(0);
+    setCoachRating(0);
+    setFeedback('');
+    setWouldRepeat(null);
+  };
+
+  const handleCancelConfirm = () => {
+    setShowConfirm(false);
+  };
+
+  const handleClose = () => {
+    // Resetear estados al cerrar sin confirmar
+    setShowConfirm(false);
+    setActivityRating(0);
+    setCoachRating(0);
+    setFeedback('');
+    setWouldRepeat(null);
+    onClose();
+  };
+
+  return (
+    <AnimatePresence>
+      {isOpen && (
+        <div 
+          className="fixed inset-0 z-50 flex items-center justify-center"
+          style={{
+            background: 'rgba(0, 0, 0, 0.7)',
+            backdropFilter: 'blur(8px)',
+            WebkitBackdropFilter: 'blur(8px)'
+          }}
+        >
+          {!showConfirm ? (
+            <motion.div
+              initial={{ opacity: 0, scale: 0.95 }}
+              animate={{ opacity: 1, scale: 1 }}
+              exit={{ opacity: 0, scale: 0.95 }}
+              className="max-w-md w-full mx-4 rounded-2xl overflow-hidden"
+              style={{
+                background: 'rgba(15, 16, 18, 0.95)',
+                backdropFilter: 'blur(20px) saturate(180%)',
+                WebkitBackdropFilter: 'blur(20px) saturate(180%)',
+                border: '1px solid rgba(255, 255, 255, 0.1)',
+                boxShadow: '0 8px 32px rgba(0, 0, 0, 0.4)'
+              }}
+            >
+            {/* Header */}
+            <div className="flex items-center justify-between p-4 border-b border-white/10">
+              <h2 className="text-lg font-semibold text-white">
+                Calificar
+              </h2>
+              <button
+                onClick={handleClose}
+                className="p-1.5 hover:bg-white/10 rounded-lg transition-colors"
+              >
+                <X className="w-4 h-4 text-gray-400" />
+              </button>
+            </div>
+
+            {/* Content */}
+            <div className="p-5 space-y-6">
+              {/* Calificación de la Actividad */}
+              <div>
+                <label className="block text-sm font-medium text-gray-300 mb-3">
+                  ¿Cómo calificarías esta actividad?
+                </label>
+                <div className="flex gap-2">
+                  {[1, 2, 3, 4, 5].map((star) => (
+                    <button
+                      key={star}
+                      onClick={() => setActivityRating(star)}
+                      className="p-1 hover:scale-110 transition-transform"
+                    >
+                      <Star
+                        className={`w-5 h-5 ${
+                          star <= activityRating
+                            ? 'text-[#FF7939] fill-[#FF7939]'
+                            : 'text-gray-600'
+                        }`}
+                      />
+                    </button>
+                  ))}
+                </div>
+              </div>
+
+              {/* Calificación del Coach */}
+              <div>
+                <label className="block text-sm font-medium text-gray-300 mb-3">
+                  ¿Cómo calificarías al coach?
+                </label>
+                <div className="flex gap-2">
+                  {[1, 2, 3, 4, 5].map((star) => (
+                    <button
+                      key={star}
+                      onClick={() => setCoachRating(star)}
+                      className="p-1 hover:scale-110 transition-transform"
+                    >
+                      <Star
+                        className={`w-5 h-5 ${
+                          star <= coachRating
+                            ? 'text-[#FF7939] fill-[#FF7939]'
+                            : 'text-gray-600'
+                        }`}
+                      />
+                    </button>
+                  ))}
+                </div>
+              </div>
+
+              {/* Feedback */}
+              <div>
+                <label className="block text-sm font-medium text-gray-300 mb-2">
+                  Comentarios (opcional)
+                </label>
+                <textarea
+                  value={feedback}
+                  onChange={(e) => setFeedback(e.target.value)}
+                  placeholder="¿Qué te pareció la actividad? ¿Tienes alguna sugerencia?"
+                  className="w-full p-3 bg-white/5 border border-white/10 rounded-lg resize-none h-20 text-white placeholder-gray-500 focus:ring-1 focus:ring-[#FF7939]/50 focus:border-[#FF7939]/50 transition-colors"
+                  style={{
+                    background: 'rgba(255, 255, 255, 0.05)',
+                  }}
+                />
+              </div>
+
+              {/* ¿Repetiría la actividad? */}
+              <div>
+                <label className="block text-sm font-medium text-gray-300 mb-3">
+                  ¿Repetirías esta actividad?
+                </label>
+                <div className="flex gap-2">
+                  <button
+                    onClick={() => setWouldRepeat(true)}
+                    className={`flex-1 px-3 py-2 text-xs rounded-lg transition-colors ${
+                      wouldRepeat === true
+                        ? 'bg-[#FF7939]/30 text-[#FF7939] border border-[#FF7939]/50'
+                        : 'bg-white/5 text-gray-400 border border-white/10 hover:bg-white/10'
+                    }`}
+                  >
+                    Sí
+                  </button>
+                  <button
+                    onClick={() => setWouldRepeat(false)}
+                    className={`flex-1 px-3 py-2 text-xs rounded-lg transition-colors ${
+                      wouldRepeat === false
+                        ? 'bg-[#FF7939]/30 text-[#FF7939] border border-[#FF7939]/50'
+                        : 'bg-white/5 text-gray-400 border border-white/10 hover:bg-white/10'
+                    }`}
+                  >
+                    No
+                  </button>
+                </div>
+              </div>
+            </div>
+
+            {/* Actions */}
+            <div className="flex gap-2 p-4 border-t border-white/10">
+              <button
+                onClick={handleClose}
+                className="flex-1 px-3 py-2 text-sm text-gray-400 hover:text-white hover:bg-white/5 rounded-lg transition-colors"
+              >
+                Cancelar
+              </button>
+              <button
+                onClick={handleSubmit}
+                className="flex-1 px-3 py-2 text-sm bg-[#FF7939]/20 hover:bg-[#FF7939]/30 text-[#FF7939] rounded-lg transition-colors border border-[#FF7939]/30"
+              >
+                Enviar
+              </button>
+            </div>
+          </motion.div>
+          ) : (
+            <motion.div
+              initial={{ opacity: 0, scale: 0.95 }}
+              animate={{ opacity: 1, scale: 1 }}
+              exit={{ opacity: 0, scale: 0.95 }}
+              className="max-w-md w-full mx-4 rounded-2xl overflow-hidden"
+              style={{
+                background: 'rgba(15, 16, 18, 0.95)',
+                backdropFilter: 'blur(20px) saturate(180%)',
+                WebkitBackdropFilter: 'blur(20px) saturate(180%)',
+                border: '1px solid rgba(255, 255, 255, 0.1)',
+                boxShadow: '0 8px 32px rgba(0, 0, 0, 0.4)'
+              }}
+            >
+              {/* Header */}
+              <div className="flex items-center justify-between p-4 border-b border-white/10">
+                <h2 className="text-lg font-semibold text-white">
+                  Confirmar envío
+                </h2>
+                <button
+                  onClick={handleClose}
+                  className="p-1.5 hover:bg-white/10 rounded-lg transition-colors"
+                >
+                  <X className="w-4 h-4 text-gray-400" />
+                </button>
+              </div>
+
+              {/* Content */}
+              <div className="p-5 space-y-4">
+                <p className="text-sm text-gray-300 leading-relaxed">
+                  ¿Estás seguro de que deseas enviar tu calificación? Una vez enviada, no podrás modificarla ni eliminarla.
+                </p>
+                <div className="bg-white/5 border border-white/10 rounded-lg p-3 space-y-2">
+                  <div className="flex items-center justify-between">
+                    <span className="text-xs text-gray-400">Calificación de la actividad:</span>
+                    <div className="flex gap-1">
+                      {[1, 2, 3, 4, 5].map((star) => (
+                        <Star
+                          key={star}
+                          className={`w-3 h-3 ${
+                            star <= activityRating
+                              ? 'text-[#FF7939] fill-[#FF7939]'
+                              : 'text-gray-600'
+                          }`}
+                        />
+                      ))}
+                    </div>
+                  </div>
+                  <div className="flex items-center justify-between">
+                    <span className="text-xs text-gray-400">Calificación del coach:</span>
+                    <div className="flex gap-1">
+                      {[1, 2, 3, 4, 5].map((star) => (
+                        <Star
+                          key={star}
+                          className={`w-3 h-3 ${
+                            star <= coachRating
+                              ? 'text-[#FF7939] fill-[#FF7939]'
+                              : 'text-gray-600'
+                          }`}
+                        />
+                      ))}
+                    </div>
+                  </div>
+                  {wouldRepeat !== null && (
+                    <div className="flex items-center justify-between">
+                      <span className="text-xs text-gray-400">¿Repetiría la actividad?</span>
+                      <span className="text-xs text-white">{wouldRepeat ? 'Sí' : 'No'}</span>
+                    </div>
+                  )}
+                </div>
+              </div>
+
+              {/* Actions */}
+              <div className="flex gap-2 p-4 border-t border-white/10">
+                <button
+                  onClick={handleCancelConfirm}
+                  className="flex-1 px-3 py-2 text-sm text-gray-400 hover:text-white hover:bg-white/5 rounded-lg transition-colors"
+                >
+                  Volver
+                </button>
+                <button
+                  onClick={handleConfirmSubmit}
+                  className="flex-1 px-3 py-2 text-sm bg-[#FF7939]/20 hover:bg-[#FF7939]/30 text-[#FF7939] rounded-lg transition-colors border border-[#FF7939]/30"
+                >
+                  Confirmar
+                </button>
+              </div>
+            </motion.div>
+          )}
+        </div>
+      )}
+    </AnimatePresence>
+  );
+}
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
