@@ -51,6 +51,20 @@ export default function MobileApp() {
     }
   }, [searchParams])
 
+  // Manejar parámetro mp_auth para mostrar notificaciones
+  useEffect(() => {
+    const mpAuth = searchParams.get('mp_auth')
+    if (mpAuth === 'success' || mpAuth === 'error') {
+      // Limpiar el parámetro de la URL después de procesarlo
+      const newUrl = new URL(window.location.href)
+      newUrl.searchParams.delete('mp_auth')
+      if (mpAuth === 'error') {
+        newUrl.searchParams.delete('error')
+      }
+      window.history.replaceState({}, '', newUrl.toString())
+    }
+  }, [searchParams])
+
   // Debug logging optimizado
   useEffect(() => {
     // Log optimizado - solo en desarrollo
