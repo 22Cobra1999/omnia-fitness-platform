@@ -93,23 +93,28 @@ export async function GET(request: NextRequest) {
 
     const userInfo = await userInfoResponse.json();
     
-    console.log('Información de usuario MP recibida:', {
+    // Log completo para debugging
+    console.log('📋 Información completa de usuario MP recibida:', JSON.stringify(userInfo, null, 2));
+    console.log('🔍 Campos específicos:', {
       id: userInfo.id,
       nickname: userInfo.nickname,
       email: userInfo.email,
       first_name: userInfo.first_name,
       last_name: userInfo.last_name,
+      username: userInfo.username, // Algunos usuarios de prueba tienen username
+      site_id: userInfo.site_id,
     });
 
     return NextResponse.json({
       success: true,
       user: {
         id: userInfo.id,
-        nickname: userInfo.nickname || null,
+        nickname: userInfo.nickname || userInfo.username || null, // Intentar username si no hay nickname
         email: userInfo.email || null,
         first_name: userInfo.first_name || null,
         last_name: userInfo.last_name || null,
         country_id: userInfo.country_id || null,
+        username: userInfo.username || null, // Agregar username también
       },
       mercadopago_user_id: credentials.mercadopago_user_id,
     });
