@@ -377,18 +377,53 @@ export function MercadoPagoConnection() {
               {/* Links de Acción */}
               <div className="mt-3 flex gap-2">
                 <button
-                  onClick={() => {
-                    // Abrir Mercado Pago en nueva ventana con logout primero para asegurar sesión correcta
-                    const mpUrl = 'https://www.mercadopago.com.ar/logout?go=https://www.mercadopago.com.ar/home';
-                    const popup = window.open(
-                      mpUrl,
-                      'mercadopago_account',
-                      'width=800,height=600,scrollbars=yes,resizable=yes'
-                    );
-                    
-                    if (!popup) {
-                      // Si el popup fue bloqueado, mostrar advertencia
-                      alert('⚠️ Por favor, permite ventanas emergentes para acceder a tu cuenta de Mercado Pago.\n\nSi ya tienes una sesión abierta, ciérrala primero y vuelve a intentar.');
+                  onClick={async () => {
+                    if (!credentials?.mercadopago_user_id) {
+                      alert('⚠️ No hay cuenta de Mercado Pago conectada.');
+                      return;
+                    }
+
+                    try {
+                      // Obtener URL de acceso directo a la cuenta del coach
+                      const response = await fetch('/api/mercadopago/get-account-url');
+                      const result = await response.json();
+
+                      if (!response.ok || !result.success) {
+                        throw new Error(result.error || 'Error al obtener URL de cuenta');
+                      }
+
+                      // Usar el OAuth flow para garantizar que se acceda con la cuenta correcta
+                      // Esto fuerza al usuario a iniciar sesión con la cuenta conectada
+                      const popup = window.open(
+                        result.accountUrl,
+                        'mercadopago_account',
+                        'width=600,height=700,scrollbars=yes,resizable=yes'
+                      );
+
+                      if (!popup) {
+                        alert('⚠️ Por favor, permite ventanas emergentes para acceder a tu cuenta de Mercado Pago.');
+                        return;
+                      }
+
+                      // Monitorear cuando se cierre la ventana de OAuth
+                      const checkClosed = setInterval(() => {
+                        if (popup.closed) {
+                          clearInterval(checkClosed);
+                          // Después de autorizar, el callback redirigirá a la cuenta
+                        }
+                      }, 500);
+
+                      // También escuchar mensajes desde la ventana popup
+                      window.addEventListener('message', (event) => {
+                        if (event.data.type === 'mp_account_ready') {
+                          clearInterval(checkClosed);
+                          popup.close();
+                        }
+                      });
+
+                    } catch (error: any) {
+                      console.error('Error accediendo a cuenta:', error);
+                      alert(`Error: ${error.message || 'No se pudo acceder a tu cuenta de Mercado Pago'}`);
                     }
                   }}
                   className="flex-1 flex items-center justify-center gap-2 px-3 py-2 bg-blue-500/10 hover:bg-blue-500/20 border border-blue-500/30 rounded-lg transition-colors text-blue-400 text-xs font-medium"

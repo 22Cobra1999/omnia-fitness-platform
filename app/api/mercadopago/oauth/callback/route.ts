@@ -112,7 +112,18 @@ export async function GET(request: NextRequest) {
       );
     }
 
-    // Redirigir a la página de perfil con éxito
+    // Verificar si viene de "Ir a Mi Cuenta" (return_to=account)
+    const returnTo = searchParams.get('return_to');
+    
+    if (returnTo === 'account') {
+      // Si viene de "Ir a Mi Cuenta", redirigir directamente a la página de inicio de Mercado Pago
+      // Esto garantiza que el usuario acceda a su cuenta específica
+      return NextResponse.redirect(
+        `https://www.mercadopago.com.ar/home`
+      );
+    }
+    
+    // Redirigir a la página de perfil con éxito (flujo normal de conexión)
     return NextResponse.redirect(
       `${appUrl}/?tab=profile&mp_auth=success`
     );
