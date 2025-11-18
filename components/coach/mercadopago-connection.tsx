@@ -376,61 +376,15 @@ export function MercadoPagoConnection() {
 
               {/* Links de Acción */}
               <div className="mt-3 flex gap-2">
-                <button
-                  onClick={async () => {
-                    if (!credentials?.mercadopago_user_id) {
-                      alert('⚠️ No hay cuenta de Mercado Pago conectada.');
-                      return;
-                    }
-
-                    try {
-                      // Obtener URL de acceso directo a la cuenta del coach
-                      const response = await fetch('/api/mercadopago/get-account-url');
-                      const result = await response.json();
-
-                      if (!response.ok || !result.success) {
-                        throw new Error(result.error || 'Error al obtener URL de cuenta');
-                      }
-
-                      // Usar el OAuth flow para garantizar que se acceda con la cuenta correcta
-                      // Esto fuerza al usuario a iniciar sesión con la cuenta conectada
-                      const popup = window.open(
-                        result.accountUrl,
-                        'mercadopago_account',
-                        'width=600,height=700,scrollbars=yes,resizable=yes'
-                      );
-
-                      if (!popup) {
-                        alert('⚠️ Por favor, permite ventanas emergentes para acceder a tu cuenta de Mercado Pago.');
-                        return;
-                      }
-
-                      // Monitorear cuando se cierre la ventana de OAuth
-                      const checkClosed = setInterval(() => {
-                        if (popup.closed) {
-                          clearInterval(checkClosed);
-                          // Después de autorizar, el callback redirigirá a la cuenta
-                        }
-                      }, 500);
-
-                      // También escuchar mensajes desde la ventana popup
-                      window.addEventListener('message', (event) => {
-                        if (event.data.type === 'mp_account_ready') {
-                          clearInterval(checkClosed);
-                          popup.close();
-                        }
-                      });
-
-                    } catch (error: any) {
-                      console.error('Error accediendo a cuenta:', error);
-                      alert(`Error: ${error.message || 'No se pudo acceder a tu cuenta de Mercado Pago'}`);
-                    }
-                  }}
+                <a
+                  href="https://www.mercadopago.com.ar/home"
+                  target="_blank"
+                  rel="noopener noreferrer"
                   className="flex-1 flex items-center justify-center gap-2 px-3 py-2 bg-blue-500/10 hover:bg-blue-500/20 border border-blue-500/30 rounded-lg transition-colors text-blue-400 text-xs font-medium"
                 >
                   <LinkIcon className="w-3.5 h-3.5" />
                   Ir a Mi Cuenta
-                </button>
+                </a>
                 <button
                   onClick={() => setShowDisconnectModal(true)}
                   className="flex-1 flex items-center justify-center gap-2 px-3 py-2 bg-red-500/10 hover:bg-red-500/20 border border-red-500/30 rounded-lg transition-colors text-red-400 text-xs font-medium"
