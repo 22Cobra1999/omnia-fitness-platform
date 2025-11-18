@@ -1,12 +1,12 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { Suspense, useEffect, useState } from 'react';
 import { useSearchParams, useRouter } from 'next/navigation';
 import { Clock, Loader2, ArrowRight } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { createClient } from '@/lib/supabase/supabase-client';
 
-export default function PaymentPendingPage() {
+function PaymentPendingContent() {
   const searchParams = useSearchParams();
   const router = useRouter();
   const [checking, setChecking] = useState(false);
@@ -115,6 +115,18 @@ export default function PaymentPendingPage() {
         )}
       </div>
     </div>
+  );
+}
+
+export default function PaymentPendingPage() {
+  return (
+    <Suspense fallback={
+      <div className="min-h-screen bg-gradient-to-b from-[#0A0A0A] to-[#1A1C1F] flex items-center justify-center">
+        <div className="text-white">Cargando...</div>
+      </div>
+    }>
+      <PaymentPendingContent />
+    </Suspense>
   );
 }
 

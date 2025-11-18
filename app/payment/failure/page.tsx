@@ -1,10 +1,11 @@
 'use client';
 
+import { Suspense } from 'react';
 import { useSearchParams, useRouter } from 'next/navigation';
 import { XCircle, ArrowLeft, RefreshCw } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 
-export default function PaymentFailurePage() {
+function PaymentFailureContent() {
   const searchParams = useSearchParams();
   const router = useRouter();
   const preferenceId = searchParams.get('preference_id');
@@ -88,6 +89,18 @@ export default function PaymentFailurePage() {
         )}
       </div>
     </div>
+  );
+}
+
+export default function PaymentFailurePage() {
+  return (
+    <Suspense fallback={
+      <div className="min-h-screen bg-gradient-to-b from-[#0A0A0A] to-[#1A1C1F] flex items-center justify-center">
+        <div className="text-white">Cargando...</div>
+      </div>
+    }>
+      <PaymentFailureContent />
+    </Suspense>
   );
 }
 
