@@ -56,7 +56,6 @@ export async function POST(request: NextRequest) {
     }
 
     // Usar credenciales del coach
-    let accessTokenToUse: string;
     const mercadopagoUserId = coachCredentials.mercadopago_user_id;
 
     // 4. Calcular comisión de OMNIA
