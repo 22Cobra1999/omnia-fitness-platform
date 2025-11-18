@@ -67,10 +67,10 @@ Al iniciar sesión en la web con usuarios de prueba e intentar acceder a algunas
 
 **⚠️ IMPORTANTE**: Como son usuarios ficticios, **NO tendrás acceso a ese e-mail**. En su lugar:
 
-1. Usa los **últimos 6 dígitos del User ID** de la cuenta de prueba
-2. O usa los **últimos 6 dígitos del Access Token productivo**
+1. **Primero intenta**: Los **últimos 6 dígitos del User ID** de la cuenta de prueba
+2. **Si no funciona**: Usa los **últimos 6 dígitos del Access Token de producción** de tu aplicación
 
-### Ejemplo
+### Ejemplo - User ID
 
 Para la cuenta `ronaldinho` (User ID: `2995219181`):
 - Últimos 6 dígitos: `5219181`
@@ -80,6 +80,27 @@ Para la cuenta `totti1` (User ID: `2992707264`):
 - Últimos 6 dígitos: `2707264`
 - **Ingresa**: `2` `7` `0` `7` `2` `6` `4` (un dígito por campo)
 
+### Ejemplo - Access Token de Producción
+
+Si los últimos 6 dígitos del User ID no funcionan, usa los últimos 6 dígitos del Access Token de producción de tu aplicación.
+
+**Para encontrar tu Access Token de producción**:
+1. Ve a tu panel de Mercado Pago Developers
+2. Selecciona tu aplicación "Om Omnia in te"
+3. Ve a **"Credenciales de producción"**
+4. Copia el **Access Token** (empieza con `APP_USR-`)
+5. Toma los **últimos 6 dígitos** del token
+
+**Ejemplo**: Si tu Access Token es `APP_USR-1806894141402209-111615-c8eb49a21685ec57eb24b443f0ac72ea-143028270`
+- Últimos 6 dígitos: `143028270` → `430282` (toma solo los últimos 6)
+- **Ingresa**: `4` `3` `0` `2` `8` `2` (un dígito por campo)
+
+### ⚠️ Nota Importante
+
+Si **ninguno de los métodos funciona**, puede ser que Mercado Pago esté pidiendo un código diferente. En ese caso:
+1. Intenta cerrar la ventana y volver a iniciar el proceso
+2. O contacta a Mercado Pago para verificar si hay otra forma de autenticación para cuentas de prueba
+
 ### Pasos para Conectar Cuenta de Prueba
 
 1. Haz clic en "Conectar" en la sección de Mercado Pago
@@ -87,8 +108,9 @@ Para la cuenta `totti1` (User ID: `2992707264`):
 3. Inicia sesión con la cuenta de prueba (ej: `TESTUSER4826...` / `VxvptDWun9`)
 4. Si aparece la pantalla de verificación por email:
    - **NO busques el email** (no existe)
-   - Usa los **últimos 6 dígitos del User ID** de la cuenta
-   - Ingresa un dígito en cada campo
+   - **Primero intenta**: Los últimos 6 dígitos del User ID de la cuenta
+   - **Si no funciona**: Usa los últimos 6 dígitos del Access Token de producción
+   - Ingresa un dígito en cada campo (6 dígitos en total)
 5. Completa la autorización de OMNIA
 6. Serás redirigido de vuelta a Omnia con `?mp_auth=success`
 
