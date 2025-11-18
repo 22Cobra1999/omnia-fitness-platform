@@ -65,6 +65,15 @@ export async function POST(request: NextRequest) {
         }, { status: 400 });
       }
       
+      // Validar que el token del marketplace sea de prueba
+      const isTestToken = (token: string) => token.startsWith('TEST-');
+      if (!isTestToken(marketplaceAccessToken)) {
+        return NextResponse.json({ 
+          error: 'Para realizar pagos de prueba, las credenciales del marketplace deben ser de prueba (TEST-...). Por favor, configura MERCADOPAGO_ACCESS_TOKEN con un token de prueba.',
+          requiresTestCredentials: true
+        }, { status: 400 });
+      }
+      
       accessTokenToUse = marketplaceAccessToken;
       // Para marketplace, no tenemos un user_id específico del coach
       mercadopagoUserId = null;
@@ -142,8 +151,28 @@ export async function POST(request: NextRequest) {
       }
     }
 
+    // Validar que todos los tokens sean de prueba para split payment
+    const isTestToken = (token: string) => token.startsWith('TEST-');
+    const isProductionToken = (token: string) => token.startsWith('APP_USR-');
+    
+    const coachTokenType = isTestToken(coachAccessToken) ? 'PRUEBA (TEST-)' : 
+                          isProductionToken(coachAccessToken) ? 'PRODUCCIÓN (APP_USR-)' : 
+                          'DESCONOCIDO';
+    
+    // Verificar si hay mezcla de tokens
+    if (!isTestToken(coachAccessToken)) {
+      console.warn('⚠️ ADVERTENCIA: El access token del coach NO es de prueba:', coachTokenType);
+      console.warn('⚠️ Para split payment en modo de prueba, TODOS los tokens deben ser TEST-...');
+      return NextResponse.json({ 
+        error: 'Para realizar pagos de prueba, el coach debe usar credenciales de prueba (TEST-...). Por favor, desconecta y vuelve a conectar tu cuenta de Mercado Pago usando una cuenta de prueba.',
+        tokenType: coachTokenType,
+        requiresTestCredentials: true
+      }, { status: 400 });
+    }
+
     // 7. Crear preferencia de pago con Mercado Pago
     console.log('🔑 Usando Access Token:', useMarketplaceCredentials ? 'Marketplace (OMNIA)' : 'Coach');
+    console.log('🔑 Tipo de token:', coachTokenType);
     console.log('💰 Monto total:', totalAmount);
     console.log('💵 Comisión marketplace:', marketplaceFee);
     console.log('👤 Monto para vendedor:', sellerAmount);
