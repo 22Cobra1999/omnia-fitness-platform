@@ -40,7 +40,7 @@ export async function POST(request: NextRequest) {
     const totalAmount = parseFloat(activity.price.toString());
 
     // 3. Verificar que el coach tenga Mercado Pago autorizado
-    // Si no lo tiene, usar las credenciales de OMNIA (marketplace) como fallback
+    // El coach DEBE tener Mercado Pago configurado para poder vender
     const { data: coachCredentials, error: credsError } = await supabase
       .from('coach_mercadopago_credentials')
       .select('*')
@@ -48,40 +48,16 @@ export async function POST(request: NextRequest) {
       .eq('oauth_authorized', true)
       .maybeSingle();
 
-    let useMarketplaceCredentials = false;
-    let accessTokenToUse: string;
-    let mercadopagoUserId: string | null = null;
-
     if (credsError || !coachCredentials) {
-      // Si el coach no tiene Mercado Pago configurado, usar credenciales de OMNIA
-      console.log('Coach no tiene Mercado Pago configurado, usando credenciales de marketplace');
-      useMarketplaceCredentials = true;
-      
-      const marketplaceAccessToken = process.env.MERCADOPAGO_ACCESS_TOKEN?.trim();
-      if (!marketplaceAccessToken) {
-        return NextResponse.json({ 
-          error: 'No se puede procesar el pago. El coach no ha configurado Mercado Pago y las credenciales del marketplace no están disponibles.',
-          requiresCoachSetup: true
-        }, { status: 400 });
-      }
-      
-      // Validar que el token del marketplace sea de prueba
-      const isTestToken = (token: string) => token.startsWith('TEST-');
-      if (!isTestToken(marketplaceAccessToken)) {
-        return NextResponse.json({ 
-          error: 'Para realizar pagos de prueba, las credenciales del marketplace deben ser de prueba (TEST-...). Por favor, configura MERCADOPAGO_ACCESS_TOKEN con un token de prueba.',
-          requiresTestCredentials: true
-        }, { status: 400 });
-      }
-      
-      accessTokenToUse = marketplaceAccessToken;
-      // Para marketplace, no tenemos un user_id específico del coach
-      mercadopagoUserId = null;
-    } else {
-      // Usar credenciales del coach
-      accessTokenToUse = ''; // Se desencriptará después
-      mercadopagoUserId = coachCredentials.mercadopago_user_id;
+      return NextResponse.json({ 
+        error: 'El coach de esta actividad no ha configurado Mercado Pago. Por favor, contacta al coach para que configure su cuenta de Mercado Pago antes de realizar la compra.',
+        requiresCoachSetup: true
+      }, { status: 400 });
     }
+
+    // Usar credenciales del coach
+    let accessTokenToUse: string;
+    const mercadopagoUserId = coachCredentials.mercadopago_user_id;
 
     // 4. Calcular comisión de OMNIA
     const { data: commissionResult, error: commissionError } = await supabase
@@ -135,23 +111,16 @@ export async function POST(request: NextRequest) {
     
     console.log('✅ Enrollment creado exitosamente:', enrollment.id);
 
-    // 6. Obtener access token (del coach o del marketplace)
+    // 6. Desencriptar access token del coach
     let coachAccessToken: string;
-    
-    if (useMarketplaceCredentials) {
-      // Ya tenemos el token del marketplace
-      coachAccessToken = accessTokenToUse;
-    } else {
-      // Desencriptar access token del coach
-      try {
-        coachAccessToken = decrypt(coachCredentials!.access_token_encrypted);
-      } catch (error) {
-        console.error('Error desencriptando token:', error);
-        return NextResponse.json({ error: 'Error procesando credenciales del coach' }, { status: 500 });
-      }
+    try {
+      coachAccessToken = decrypt(coachCredentials.access_token_encrypted);
+    } catch (error) {
+      console.error('Error desencriptando token:', error);
+      return NextResponse.json({ error: 'Error procesando credenciales del coach' }, { status: 500 });
     }
 
-    // Validar que todos los tokens sean de prueba para split payment
+    // Validar que el token del coach sea de prueba para split payment
     const isTestToken = (token: string) => token.startsWith('TEST-');
     const isProductionToken = (token: string) => token.startsWith('APP_USR-');
     
@@ -159,19 +128,19 @@ export async function POST(request: NextRequest) {
                           isProductionToken(coachAccessToken) ? 'PRODUCCIÓN (APP_USR-)' : 
                           'DESCONOCIDO';
     
-    // Verificar si hay mezcla de tokens
+    // Verificar si el token es de prueba (requerido para split payment en modo de prueba)
     if (!isTestToken(coachAccessToken)) {
       console.warn('⚠️ ADVERTENCIA: El access token del coach NO es de prueba:', coachTokenType);
-      console.warn('⚠️ Para split payment en modo de prueba, TODOS los tokens deben ser TEST-...');
+      console.warn('⚠️ Para split payment en modo de prueba, el token del coach debe ser TEST-...');
       return NextResponse.json({ 
-        error: 'Para realizar pagos de prueba, el coach debe usar credenciales de prueba (TEST-...). Por favor, desconecta y vuelve a conectar tu cuenta de Mercado Pago usando una cuenta de prueba.',
+        error: 'Para realizar pagos de prueba, el coach debe usar credenciales de prueba (TEST-...). Por favor, el coach debe desconectar y volver a conectar su cuenta de Mercado Pago usando una cuenta de prueba (como ronaldinho).',
         tokenType: coachTokenType,
         requiresTestCredentials: true
       }, { status: 400 });
     }
 
     // 7. Crear preferencia de pago con Mercado Pago
-    console.log('🔑 Usando Access Token:', useMarketplaceCredentials ? 'Marketplace (OMNIA)' : 'Coach');
+    console.log('🔑 Usando Access Token del Coach');
     console.log('🔑 Tipo de token:', coachTokenType);
     console.log('💰 Monto total:', totalAmount);
     console.log('💵 Comisión marketplace:', marketplaceFee);
@@ -249,7 +218,7 @@ export async function POST(request: NextRequest) {
       marketplace_fee: marketplaceFee,
       seller_amount: sellerAmount,
       coach_mercadopago_user_id: mercadopagoUserId,
-      coach_access_token_encrypted: useMarketplaceCredentials ? null : coachCredentials!.access_token_encrypted,
+      coach_access_token_encrypted: coachCredentials.access_token_encrypted,
       external_reference: `enrollment_${enrollment.id}`
     });
 
