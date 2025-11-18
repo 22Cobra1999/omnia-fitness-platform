@@ -64,15 +64,47 @@ export async function GET(request: NextRequest) {
       .select('id, coach_id')
       .eq('coach_id', user.id);
 
+    // Construir filtro de fecha primero (necesario para suscripciones)
+    const now = new Date();
+    const targetMonth = month ? parseInt(month.split('-')[1]) : now.getMonth() + 1;
+    const targetYear = year ? parseInt(year) : now.getFullYear();
+    const startDate = new Date(targetYear, targetMonth - 1, 1).toISOString();
+    const endDate = new Date(targetYear, targetMonth, 0, 23, 59, 59).toISOString();
+
+    // Obtener suscripciones de planes del mes (siempre, incluso si no hay ventas)
+    let planSubscriptionsList: Array<{id: string, date: string, planType: string, amount: number}> = [];
+    try {
+      const { data: planSubscriptions, error: planSubsError } = await supabase
+        .from('planes_uso_coach')
+        .select('id, plan_type, started_at, created_at')
+        .eq('coach_id', user.id)
+        .gte('started_at', startDate)
+        .lte('started_at', endDate)
+        .order('started_at', { ascending: false });
+
+      if (!planSubsError && planSubscriptions) {
+        planSubscriptionsList = planSubscriptions.map((sub: any) => ({
+          id: sub.id,
+          date: sub.started_at || sub.created_at,
+          planType: sub.plan_type,
+          amount: planFees[sub.plan_type] || 0
+        }));
+      }
+    } catch (error) {
+      console.error('Error obteniendo suscripciones de planes:', error);
+      // Continuar sin suscripciones si hay error
+    }
+
     if (!activities || activities.length === 0) {
       return NextResponse.json({
         success: true,
-        month: month || new Date().toISOString().slice(0, 7),
+        month: `${targetYear}-${String(targetMonth).padStart(2, '0')}`,
         totalIncome: 0,
         totalCommission: 0,
         planFee: planFee,
         earnings: 0,
-        invoices: []
+        invoices: [],
+        planSubscriptions: planSubscriptionsList
       });
     }
 
@@ -87,23 +119,17 @@ export async function GET(request: NextRequest) {
     if (!enrollments || enrollments.length === 0) {
       return NextResponse.json({
         success: true,
-        month: month || new Date().toISOString().slice(0, 7),
+        month: `${targetYear}-${String(targetMonth).padStart(2, '0')}`,
         totalIncome: 0,
         totalCommission: 0,
         planFee: planFee,
         earnings: 0,
-        invoices: []
+        invoices: [],
+        planSubscriptions: planSubscriptionsList
       });
     }
 
     const enrollmentIds = enrollments.map(e => e.id);
-
-    // Construir filtro de fecha
-    const now = new Date();
-    const targetMonth = month ? parseInt(month.split('-')[1]) : now.getMonth() + 1;
-    const targetYear = year ? parseInt(year) : now.getFullYear();
-    const startDate = new Date(targetYear, targetMonth - 1, 1).toISOString();
-    const endDate = new Date(targetYear, targetMonth, 0, 23, 59, 59).toISOString();
 
     // Obtener pagos del mes
     const { data: payments, error: paymentsError } = await supabase
@@ -161,22 +187,6 @@ export async function GET(request: NextRequest) {
     });
 
     const earnings = totalIncome - totalCommission - planFee;
-
-    // Obtener suscripciones de planes del mes
-    const { data: planSubscriptions, error: planSubsError } = await supabase
-      .from('planes_uso_coach')
-      .select('id, plan_type, started_at, created_at')
-      .eq('coach_id', user.id)
-      .gte('started_at', startDate)
-      .lte('started_at', endDate)
-      .order('started_at', { ascending: false });
-
-    const planSubscriptionsList = (planSubscriptions || []).map((sub: any) => ({
-      id: sub.id,
-      date: sub.started_at || sub.created_at,
-      planType: sub.plan_type,
-      amount: planFees[sub.plan_type] || 0
-    }));
 
     return NextResponse.json({
       success: true,
