@@ -707,6 +707,14 @@ export default function ClientProductModal({
           // Si hay initPoint, redirigir a Mercado Pago
           if (result.initPoint) {
             console.log('🚀 Redirigiendo a Mercado Pago:', result.initPoint)
+            
+            // Guardar información de la compra en sessionStorage para detectar cancelación
+            sessionStorage.setItem('pending_payment', JSON.stringify({
+              activityId: product.id,
+              preferenceId: result.preferenceId,
+              timestamp: Date.now()
+            }))
+            
             // Redirigir a Mercado Pago para que el cliente pague
             window.location.href = result.initPoint
             return

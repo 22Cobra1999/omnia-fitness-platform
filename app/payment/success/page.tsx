@@ -66,6 +66,11 @@ function PaymentSuccessContent() {
   }, [preferenceId]);
 
   const handleGoToActivity = () => {
+    // Limpiar sessionStorage si existe
+    if (typeof window !== 'undefined') {
+      sessionStorage.removeItem('pending_payment');
+    }
+    
     if (enrollment?.activity_id) {
       router.push(`/activities/${enrollment.activity_id}`);
     } else {

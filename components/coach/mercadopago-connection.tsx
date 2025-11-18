@@ -376,15 +376,26 @@ export function MercadoPagoConnection() {
 
               {/* Links de Acción */}
               <div className="mt-3 flex gap-2">
-                <a
-                  href="https://www.mercadopago.com.ar/home"
-                  target="_blank"
-                  rel="noopener noreferrer"
+                <button
+                  onClick={() => {
+                    // Abrir Mercado Pago en nueva ventana con logout primero para asegurar sesión correcta
+                    const mpUrl = 'https://www.mercadopago.com.ar/logout?go=https://www.mercadopago.com.ar/home';
+                    const popup = window.open(
+                      mpUrl,
+                      'mercadopago_account',
+                      'width=800,height=600,scrollbars=yes,resizable=yes'
+                    );
+                    
+                    if (!popup) {
+                      // Si el popup fue bloqueado, mostrar advertencia
+                      alert('⚠️ Por favor, permite ventanas emergentes para acceder a tu cuenta de Mercado Pago.\n\nSi ya tienes una sesión abierta, ciérrala primero y vuelve a intentar.');
+                    }
+                  }}
                   className="flex-1 flex items-center justify-center gap-2 px-3 py-2 bg-blue-500/10 hover:bg-blue-500/20 border border-blue-500/30 rounded-lg transition-colors text-blue-400 text-xs font-medium"
                 >
                   <LinkIcon className="w-3.5 h-3.5" />
                   Ir a Mi Cuenta
-                </a>
+                </button>
                 <button
                   onClick={() => setShowDisconnectModal(true)}
                   className="flex-1 flex items-center justify-center gap-2 px-3 py-2 bg-red-500/10 hover:bg-red-500/20 border border-red-500/30 rounded-lg transition-colors text-red-400 text-xs font-medium"
@@ -402,7 +413,31 @@ export function MercadoPagoConnection() {
               </div>
             ) : paymentStats && (
               <div className="space-y-2">
-                <h4 className="text-xs font-semibold text-gray-300">Resumen de Cobros</h4>
+                <div className="flex items-center justify-between">
+                  <h4 className="text-xs font-semibold text-gray-300">Resumen de Cobros</h4>
+                  <button
+                    onClick={async () => {
+                      try {
+                        const response = await fetch(`/api/mercadopago/transactions?account_type=coach&coach_id=${user?.id}&limit=20`);
+                        const result = await response.json();
+                        if (result.success) {
+                          const message = `📊 Transacciones del Coach:\n\n` +
+                            `Total: ${result.summary.total} transacciones\n` +
+                            `Monto total: $${result.summary.totalAmount.toLocaleString()}\n` +
+                            `Tu parte: $${result.summary.totalSellerAmount.toLocaleString()}\n` +
+                            `Comisión OMNIA: $${result.summary.totalMarketplaceFee.toLocaleString()}`;
+                          alert(message);
+                        }
+                      } catch (error) {
+                        console.error('Error obteniendo transacciones:', error);
+                        alert('Error al obtener las transacciones');
+                      }
+                    }}
+                    className="text-xs text-blue-400 hover:text-blue-300 underline"
+                  >
+                    Ver transacciones
+                  </button>
+                </div>
                 <div className="grid grid-cols-2 gap-2">
                   <div className="p-2.5 bg-white/5 rounded-lg">
                     <div className="flex items-center gap-1.5 mb-1">

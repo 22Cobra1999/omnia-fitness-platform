@@ -14,12 +14,13 @@ function PaymentFailureContent() {
   const error = searchParams.get('error');
 
   const handleRetry = () => {
-    // Volver a la página anterior o a actividades
-    router.back();
+    // Reiniciar la página para limpiar el estado
+    window.location.href = '/';
   };
 
   const handleGoHome = () => {
-    router.push('/activities');
+    // Reiniciar la página completamente
+    window.location.href = '/';
   };
 
   return (
@@ -33,7 +34,7 @@ function PaymentFailureContent() {
             Pago No Completado
           </h1>
           <p className="text-gray-400 mb-4">
-            No pudimos procesar tu pago. Por favor, intenta nuevamente.
+            La transacción no se confirmó. Por favor, intenta nuevamente.
           </p>
         </div>
 
@@ -41,9 +42,17 @@ function PaymentFailureContent() {
           <div className="bg-red-500/10 border border-red-500/20 rounded-lg p-4 mb-6">
             <p className="text-sm text-red-400">
               {error === 'rejected' && 'El pago fue rechazado. Verifica los datos de tu tarjeta o método de pago.'}
-              {error === 'cancelled' && 'El pago fue cancelado.'}
+              {error === 'cancelled' && 'La transacción fue cancelada. No se realizó ningún cargo.'}
               {error === 'expired' && 'El tiempo para completar el pago expiró.'}
               {!error.includes('rejected') && !error.includes('cancelled') && !error.includes('expired') && `Error: ${error}`}
+            </p>
+          </div>
+        )}
+
+        {status === 'cancelled' && !error && (
+          <div className="bg-yellow-500/10 border border-yellow-500/20 rounded-lg p-4 mb-6">
+            <p className="text-sm text-yellow-400">
+              ⚠️ La transacción no se confirmó. No se realizó ningún cargo.
             </p>
           </div>
         )}

@@ -65,6 +65,53 @@ export default function MobileApp() {
     }
   }, [searchParams])
 
+  // Detectar si el usuario volvió de Mercado Pago sin completar el pago
+  useEffect(() => {
+    // Solo verificar si no estamos en una página de resultado de pago
+    if (typeof window !== 'undefined' && !window.location.pathname.startsWith('/payment/')) {
+      const pendingPayment = sessionStorage.getItem('pending_payment')
+      
+      if (pendingPayment) {
+        try {
+          const paymentData = JSON.parse(pendingPayment)
+          const timeElapsed = Date.now() - paymentData.timestamp
+          
+          // Si pasaron más de 30 segundos y no estamos en una página de resultado, asumir cancelación
+          if (timeElapsed > 30000) {
+            // Verificar si realmente no se completó el pago
+            const checkPaymentStatus = async () => {
+              try {
+                const response = await fetch(`/api/payments/check-status?preference_id=${paymentData.preferenceId}`)
+                const result = await response.json()
+                
+                if (!result.completed) {
+                  // El pago no se completó, mostrar mensaje y reiniciar
+                  sessionStorage.removeItem('pending_payment')
+                  alert('⚠️ La transacción no se confirmó. No se realizó ningún cargo.\n\nLa página se reiniciará.')
+                  window.location.href = '/'
+                } else {
+                  // El pago se completó, limpiar sessionStorage
+                  sessionStorage.removeItem('pending_payment')
+                }
+              } catch (error) {
+                console.error('Error verificando estado del pago:', error)
+                // En caso de error, limpiar y reiniciar
+                sessionStorage.removeItem('pending_payment')
+                alert('⚠️ No se pudo verificar el estado de la transacción. La página se reiniciará.')
+                window.location.href = '/'
+              }
+            }
+            
+            checkPaymentStatus()
+          }
+        } catch (error) {
+          console.error('Error procesando pending_payment:', error)
+          sessionStorage.removeItem('pending_payment')
+        }
+      }
+    }
+  }, [])
+
   // Debug logging optimizado
   useEffect(() => {
     // Log optimizado - solo en desarrollo
