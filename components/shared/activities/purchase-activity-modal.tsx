@@ -40,7 +40,7 @@ interface PurchaseActivityModalProps {
 }
 
 export function PurchaseActivityModal({ isOpen, onClose, activity, onPurchaseComplete, onTabChange }: PurchaseActivityModalProps) {
-  const [paymentMethod, setPaymentMethod] = useState("credit_card")
+  const [paymentMethod, setPaymentMethod] = useState("mercadopago")
   const [notes, setNotes] = useState("")
   const [isProcessing, setIsProcessing] = useState(false)
   const [isComplete, setIsComplete] = useState(false)
@@ -61,7 +61,7 @@ export function PurchaseActivityModal({ isOpen, onClose, activity, onPurchaseCom
       setIsAlreadyEnrolled(false)
       setTransactionDetails(null)
       setNotes("")
-      setPaymentMethod("credit_card")
+      setPaymentMethod("mercadopago")
       setIsProcessing(false)
 
       // Verificar si el usuario ya está inscrito
@@ -118,18 +118,25 @@ export function PurchaseActivityModal({ isOpen, onClose, activity, onPurchaseCom
         description: "Estamos procesando tu compra...",
       })
 
-      // Intentar usar Mercado Pago primero
-      const response = await fetch("/api/enrollments/create-with-mercadopago", {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify({
-          activityId: activity.id,
-          paymentMethod: "mercadopago",
-          notes: notes || "Compra desde la aplicación móvil",
-        }),
-      })
+      // Usar Mercado Pago si está seleccionado, de lo contrario usar método directo
+      const useMercadoPago = paymentMethod === 'mercadopago';
+      
+      const response = await fetch(
+        useMercadoPago 
+          ? "/api/enrollments/create-with-mercadopago"
+          : "/api/enrollments/direct",
+        {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+          },
+          body: JSON.stringify({
+            activityId: activity.id,
+            paymentMethod: useMercadoPago ? "mercadopago" : paymentMethod,
+            notes: notes || "Compra desde la aplicación móvil",
+          }),
+        }
+      )
 
       console.log("Respuesta del servidor:", response.status)
 
@@ -364,6 +371,9 @@ export function PurchaseActivityModal({ isOpen, onClose, activity, onPurchaseCom
                     <SelectValue placeholder="Seleccionar método de pago" />
                   </SelectTrigger>
                   <SelectContent className="bg-[#2A2A2A] border-gray-700 text-white">
+                    <SelectItem value="mercadopago" className="font-semibold">
+                      💳 Mercado Pago (Recomendado)
+                    </SelectItem>
                     <SelectItem value="credit_card">Tarjeta de crédito</SelectItem>
                     <SelectItem value="debit_card">Tarjeta de débito</SelectItem>
                     <SelectItem value="cash">Efectivo</SelectItem>
@@ -371,6 +381,11 @@ export function PurchaseActivityModal({ isOpen, onClose, activity, onPurchaseCom
                     <SelectItem value="other">Otro</SelectItem>
                   </SelectContent>
                 </Select>
+                {paymentMethod === 'mercadopago' && (
+                  <p className="text-xs text-gray-400 mt-1">
+                    Serás redirigido a Mercado Pago para completar el pago de forma segura
+                  </p>
+                )}
               </div>
             </div>
 

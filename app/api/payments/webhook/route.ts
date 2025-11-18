@@ -104,12 +104,13 @@ export async function POST(request: NextRequest) {
         const enrollmentId = bancoRecord.enrollment_id;
         
         if (enrollmentId) {
+          // Actualizar enrollment - solo status, los campos de pago están en 'banco'
           const { error: enrollmentUpdateError } = await supabase
             .from('activity_enrollments')
             .update({
               status: 'activa',
-              payment_status: 'completed',
-              payment_date: new Date().toISOString()
+              // payment_status, payment_date, amount_paid fueron movidos a 'banco'
+              updated_at: new Date().toISOString()
             })
             .eq('id', enrollmentId);
 
@@ -118,6 +119,25 @@ export async function POST(request: NextRequest) {
             // No retornar error, el pago ya se registró
           } else {
             console.log('✅ Enrollment activado:', enrollmentId);
+          }
+        }
+      } else if (paymentDetails.status === 'rejected' || paymentDetails.status === 'cancelled') {
+        // Si el pago fue rechazado o cancelado, actualizar el enrollment
+        const enrollmentId = bancoRecord.enrollment_id;
+        
+        if (enrollmentId) {
+          const { error: enrollmentUpdateError } = await supabase
+            .from('activity_enrollments')
+            .update({
+              payment_status: 'failed',
+              updated_at: new Date().toISOString()
+            })
+            .eq('id', enrollmentId);
+
+          if (enrollmentUpdateError) {
+            console.error('Error actualizando enrollment rechazado:', enrollmentUpdateError);
+          } else {
+            console.log('⚠️ Enrollment marcado como fallido:', enrollmentId);
           }
         }
       }

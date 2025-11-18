@@ -214,11 +214,15 @@ export function MercadoPagoConnection() {
 
     setConnecting(true);
     try {
+      // Usar URL absoluta para evitar problemas con ventanas nuevas
+      // window.location.origin funciona tanto en localhost como en producción
+      const baseUrl = typeof window !== 'undefined' ? window.location.origin : '';
+      const authUrl = `${baseUrl}/api/mercadopago/oauth/authorize?coach_id=${user.id}`;
+      
+      console.log('🔗 Abriendo OAuth en:', authUrl);
+      
       // Abrir en una nueva ventana para evitar usar la sesión del navegador actual
       // Esto fuerza a Mercado Pago a mostrar la pantalla de login/selección de cuenta
-      const authUrl = `/api/mercadopago/oauth/authorize?coach_id=${user.id}`;
-      
-      // Abrir en ventana nueva con dimensiones específicas
       const popup = window.open(
         authUrl,
         'mercadopago_oauth',

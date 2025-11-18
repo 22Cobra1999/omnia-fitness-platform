@@ -35,38 +35,21 @@ export function PaymentMethodsModal({
 
   const paymentMethods: PaymentMethod[] = [
     {
-      id: 'credit_card',
-      name: 'Tarjeta de Crédito',
-      description: 'Visa, Mastercard, American Express',
-      icon: <CreditCard className="w-6 h-6" />,
-      available: true,
-      processingFee: 0.03
-    },
-    {
-      id: 'debit_card',
-      name: 'Tarjeta de Débito',
-      description: 'Pago directo desde tu cuenta',
-      icon: <CreditCard className="w-6 h-6" />,
-      available: true,
-      processingFee: 0.02
-    },
-    {
       id: 'mercadopago',
       name: 'MercadoPago',
       description: 'Pago rápido y seguro',
       icon: <Wallet className="w-6 h-6" />,
       available: true,
-      processingFee: 0.04
-    },
-    {
-      id: 'bank_transfer',
-      name: 'Transferencia Bancaria',
-      description: 'Transferencia directa',
-      icon: <Building2 className="w-6 h-6" />,
-      available: true,
       processingFee: 0
     },
   ]
+
+  // Auto-seleccionar Mercado Pago al abrir el modal
+  React.useEffect(() => {
+    if (isOpen && paymentMethods.length > 0) {
+      setSelectedMethod('mercadopago')
+    }
+  }, [isOpen])
 
   const handleMethodSelect = (methodId: string) => {
     setSelectedMethod(methodId)
@@ -81,7 +64,7 @@ export function PaymentMethodsModal({
     setTimeout(() => {
       setIsProcessing(false)
       onPaymentMethodSelect(selectedMethod)
-    }, 2000)
+    }, 1000)
   }
 
   const selectedPaymentMethod = paymentMethods.find(method => method.id === selectedMethod)

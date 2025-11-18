@@ -57,8 +57,24 @@ export async function GET(request: NextRequest) {
     // Algunos proveedores OAuth usan este parámetro para forzar login
     authUrl.searchParams.set('force_login', 'true');
 
-    // Redirigir a Mercado Pago
-    return NextResponse.redirect(authUrl.toString());
+    const finalAuthUrl = authUrl.toString();
+    console.log('🔗 Redirigiendo a Mercado Pago:', finalAuthUrl);
+    console.log('📋 Parámetros:', {
+      clientId,
+      redirectUri,
+      coachId,
+      appUrl
+    });
+
+    // Redirigir a Mercado Pago con headers explícitos
+    return NextResponse.redirect(finalAuthUrl, {
+      status: 302,
+      headers: {
+        'Cache-Control': 'no-cache, no-store, must-revalidate',
+        'Pragma': 'no-cache',
+        'Expires': '0'
+      }
+    });
 
   } catch (error: any) {
     console.error('Error en OAuth authorize:', error);
