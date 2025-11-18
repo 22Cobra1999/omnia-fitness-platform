@@ -41,14 +41,27 @@ export async function POST(request: NextRequest) {
 
     // 3. Verificar que el coach tenga Mercado Pago autorizado
     // El coach DEBE tener Mercado Pago configurado para poder vender
-    const { data: coachCredentials, error: credsError } = await supabase
+    // Usar service role para leer credenciales del coach (RLS puede bloquear acceso del cliente)
+    const { getSupabaseAdmin } = await import('@/lib/config/db');
+    const adminSupabase = await getSupabaseAdmin();
+    
+    const { data: coachCredentials, error: credsError } = await adminSupabase
       .from('coach_mercadopago_credentials')
       .select('*')
       .eq('coach_id', coachId)
       .eq('oauth_authorized', true)
       .maybeSingle();
 
-    if (credsError || !coachCredentials) {
+    if (credsError) {
+      console.error('Error consultando credenciales del coach:', credsError);
+      return NextResponse.json({ 
+        error: 'Error al verificar credenciales del coach',
+        details: credsError.message
+      }, { status: 500 });
+    }
+
+    if (!coachCredentials) {
+      console.log('Coach no tiene Mercado Pago configurado. Coach ID:', coachId);
       return NextResponse.json({ 
         error: 'El coach de esta actividad no ha configurado Mercado Pago. Por favor, contacta al coach para que configure su cuenta de Mercado Pago antes de realizar la compra.',
         requiresCoachSetup: true
