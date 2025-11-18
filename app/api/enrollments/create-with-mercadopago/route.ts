@@ -140,14 +140,20 @@ export async function POST(request: NextRequest) {
                           isProductionToken(coachAccessToken) ? 'PRODUCCIÓN (APP_USR-)' : 
                           'DESCONOCIDO';
     
+    // Log del tipo de token para debugging (sin mostrar el token completo por seguridad)
+    console.log('🔑 Tipo de token del coach:', coachTokenType);
+    console.log('🔑 Primeros caracteres del token:', coachAccessToken.substring(0, 10) + '...');
+    
     // Verificar si el token es de prueba (requerido para split payment en modo de prueba)
     if (!isTestToken(coachAccessToken)) {
       console.warn('⚠️ ADVERTENCIA: El access token del coach NO es de prueba:', coachTokenType);
       console.warn('⚠️ Para split payment en modo de prueba, el token del coach debe ser TEST-...');
+      console.warn('⚠️ Token actual comienza con:', coachAccessToken.substring(0, 20));
       return NextResponse.json({ 
-        error: 'Para realizar pagos de prueba, el coach debe usar credenciales de prueba (TEST-...). Por favor, el coach debe desconectar y volver a conectar su cuenta de Mercado Pago usando una cuenta de prueba (como ronaldinho).',
+        error: 'El coach está usando credenciales de producción. Para realizar pagos de prueba, el coach debe desconectar su cuenta actual y volver a conectar usando una cuenta de prueba de Mercado Pago (como ronaldinho).',
         tokenType: coachTokenType,
-        requiresTestCredentials: true
+        requiresTestCredentials: true,
+        solution: 'El coach debe ir a su perfil, hacer clic en "Desvincular" en la sección de Mercado Pago, y luego "Conectar" nuevamente usando la cuenta de prueba ronaldinho (TESTUSER4826... / VxvptDWun9)'
       }, { status: 400 });
     }
 
