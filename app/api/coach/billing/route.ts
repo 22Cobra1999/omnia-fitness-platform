@@ -19,12 +19,26 @@ export async function GET(request: NextRequest) {
     }
 
     // Obtener plan del coach para calcular fee
-    const { data: planData } = await supabase
+    // Intentar primero con coach_plans, luego con planes_uso_coach
+    let { data: planData } = await supabase
       .from('coach_plans')
       .select('plan_type')
       .eq('coach_id', user.id)
       .eq('is_active', true)
       .maybeSingle();
+
+    if (!planData) {
+      // Si no existe en coach_plans, buscar en planes_uso_coach
+      const { data: planDataAlt } = await supabase
+        .from('planes_uso_coach')
+        .select('plan_type')
+        .eq('coach_id', user.id)
+        .eq('status', 'active')
+        .order('started_at', { ascending: false })
+        .limit(1)
+        .maybeSingle();
+      planData = planDataAlt;
+    }
 
     const planType = planData?.plan_type || 'free';
     const planFees: Record<string, number> = {
@@ -148,6 +162,22 @@ export async function GET(request: NextRequest) {
 
     const earnings = totalIncome - totalCommission - planFee;
 
+    // Obtener suscripciones de planes del mes
+    const { data: planSubscriptions, error: planSubsError } = await supabase
+      .from('planes_uso_coach')
+      .select('id, plan_type, started_at, created_at')
+      .eq('coach_id', user.id)
+      .gte('started_at', startDate)
+      .lte('started_at', endDate)
+      .order('started_at', { ascending: false });
+
+    const planSubscriptionsList = (planSubscriptions || []).map((sub: any) => ({
+      id: sub.id,
+      date: sub.started_at || sub.created_at,
+      planType: sub.plan_type,
+      amount: planFees[sub.plan_type] || 0
+    }));
+
     return NextResponse.json({
       success: true,
       month: `${targetYear}-${String(targetMonth).padStart(2, '0')}`,
@@ -156,6 +186,7 @@ export async function GET(request: NextRequest) {
       planFee,
       earnings,
       invoices,
+      planSubscriptions: planSubscriptionsList,
       planType
     });
 

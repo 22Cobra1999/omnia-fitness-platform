@@ -1,9 +1,9 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { useAuth } from '@/contexts/auth-context';
 import { createClient } from '@/lib/supabase/supabase-client';
-import { CheckCircle2, Loader2, User, Mail, Unlink, Link as LinkIcon, DollarSign, Clock, TrendingUp, FileText, Download, Eye, X } from 'lucide-react';
+import { CheckCircle2, Loader2, User, Mail, Unlink, DollarSign, Clock, TrendingUp, Printer, FileText, Download, Eye, X, ChevronDown } from 'lucide-react';
 import { ConfirmationModal } from '@/components/ui/confirmation-modal';
 import { toast } from 'sonner';
 
@@ -43,6 +43,12 @@ interface BillingData {
     commission: number;
     sellerAmount: number;
   }>;
+  planSubscriptions?: Array<{
+    id: string;
+    date: string;
+    planType: string;
+    amount: number;
+  }>;
 }
 
 export function MercadoPagoConnection() {
@@ -59,6 +65,8 @@ export function MercadoPagoConnection() {
   const [billingData, setBillingData] = useState<BillingData | null>(null);
   const [loadingBilling, setLoadingBilling] = useState(false);
   const [showInvoices, setShowInvoices] = useState(false);
+  const [showExportMenu, setShowExportMenu] = useState(false);
+  const exportMenuRef = useRef<HTMLDivElement>(null);
   const supabase = createClient();
 
   useEffect(() => {
@@ -84,6 +92,20 @@ export function MercadoPagoConnection() {
       window.history.replaceState({}, '', window.location.pathname);
     }
   }, []);
+
+  // Cerrar menú de exportar al hacer clic fuera
+  useEffect(() => {
+    const handleClickOutside = (event: MouseEvent) => {
+      if (exportMenuRef.current && !exportMenuRef.current.contains(event.target as Node)) {
+        setShowExportMenu(false);
+      }
+    };
+
+    if (showExportMenu) {
+      document.addEventListener('mousedown', handleClickOutside);
+      return () => document.removeEventListener('mousedown', handleClickOutside);
+    }
+  }, [showExportMenu]);
 
   const loadCredentials = async () => {
     if (!user?.id) return;
@@ -281,6 +303,7 @@ export function MercadoPagoConnection() {
   };
 
   const handleExportSales = async (format: 'excel' | 'pdf') => {
+    setShowExportMenu(false);
     try {
       const now = new Date();
       const month = String(now.getMonth() + 1).padStart(2, '0');
@@ -318,6 +341,16 @@ export function MercadoPagoConnection() {
     }).format(amount);
   };
 
+  const getPlanName = (planType: string) => {
+    const names: Record<string, string> = {
+      free: 'Free',
+      basico: 'Básico',
+      black: 'Black',
+      premium: 'Premium'
+    };
+    return names[planType] || planType;
+  };
+
   if (loading) {
     return (
       <div className="flex items-center justify-center py-8">
@@ -350,134 +383,121 @@ export function MercadoPagoConnection() {
       {/* Frame de Mercado Pago y Resumen de Cobros - Dos columnas */}
       <div className="grid grid-cols-2 gap-4">
         {/* Frame de Mercado Pago - Izquierda */}
-        <div className="backdrop-blur-xl bg-black/40 border border-white/10 rounded-2xl p-5">
-          <h3 className="text-white font-semibold mb-4 flex items-center gap-2">
+        <div className="backdrop-blur-xl bg-black/40 border border-white/10 rounded-2xl p-4">
+          <h3 className="text-white font-semibold mb-3 flex items-center gap-2 text-sm">
             <span>Mercado Pago</span>
-            <CheckCircle2 className="w-4 h-4 text-[#FF7939]" />
+            <CheckCircle2 className="w-3.5 h-3.5 text-[#FF7939]" />
           </h3>
 
           {/* Info de la cuenta con scroll */}
-          <div className="space-y-3 mb-4">
+          <div className="space-y-2 mb-3">
             {loadingUserInfo ? (
-              <div className="flex items-center justify-center py-4">
-                <Loader2 className="w-4 h-4 animate-spin text-[#FF7939]" />
+              <div className="flex items-center justify-center py-3">
+                <Loader2 className="w-3.5 h-3.5 animate-spin text-[#FF7939]" />
               </div>
             ) : (
-              <>
-                <div className="max-h-32 overflow-y-auto space-y-2 pr-2 custom-scrollbar">
-                  {userInfo && (
-                    <>
-                      {/* Mostrar nickname o username primero (más identificativo para usuarios de prueba) */}
-                      {(userInfo.nickname || userInfo.username) && (
-                        <div className="flex items-center gap-2 text-white/90">
-                          <User className="w-4 h-4 text-[#FF7939] flex-shrink-0" />
-                          <span className="text-sm font-medium">
-                            {userInfo.nickname || userInfo.username}
-                          </span>
-                        </div>
-                      )}
-                      {/* Mostrar nombre completo si existe y es diferente del nickname */}
-                      {userInfo.first_name && userInfo.last_name && 
-                       `${userInfo.first_name} ${userInfo.last_name}` !== userInfo.nickname && (
-                        <div className="flex items-center gap-2 text-white/80">
-                          <User className="w-4 h-4 text-white/50 flex-shrink-0" />
-                          <span className="text-xs">
-                            {userInfo.first_name} {userInfo.last_name}
-                          </span>
-                        </div>
-                      )}
-                      {/* Mostrar email completo para confirmar la cuenta */}
-                      {userInfo.email && (
-                        <div className="flex items-center gap-2 text-white/70">
-                          <Mail className="w-4 h-4 text-white/50 flex-shrink-0" />
-                          <span className="text-xs break-all">{userInfo.email}</span>
-                        </div>
-                      )}
-                    </>
-                  )}
-                  {credentials.mercadopago_user_id && (
-                    <div className="text-xs text-white/50 font-mono pt-2 border-t border-white/10">
-                      ID: {credentials.mercadopago_user_id}
-                    </div>
-                  )}
-                  {/* Si no hay userInfo pero sí hay ID, mostrar mensaje */}
-                  {!userInfo && credentials.mercadopago_user_id && (
-                    <div className="text-xs text-white/50 font-mono">
-                      ID: {credentials.mercadopago_user_id}
-                    </div>
-                  )}
-                </div>
-              </>
+              <div className="max-h-24 overflow-y-auto space-y-1.5 pr-2 custom-scrollbar">
+                {userInfo && (
+                  <>
+                    {/* Mostrar solo nickname o username (sin duplicar) */}
+                    {(userInfo.nickname || userInfo.username) && (
+                      <div className="flex items-center gap-2 text-white/90">
+                        <User className="w-3.5 h-3.5 text-[#FF7939] flex-shrink-0" />
+                        <span className="text-xs font-medium">
+                          {userInfo.nickname || userInfo.username}
+                        </span>
+                      </div>
+                    )}
+                    {/* Mostrar email completo para confirmar la cuenta */}
+                    {userInfo.email && (
+                      <div className="flex items-center gap-2 text-white/70">
+                        <Mail className="w-3.5 h-3.5 text-white/50 flex-shrink-0" />
+                        <span className="text-xs break-all">{userInfo.email}</span>
+                      </div>
+                    )}
+                  </>
+                )}
+                {credentials.mercadopago_user_id && (
+                  <div className="text-xs text-white/50 font-mono pt-1.5 border-t border-white/10">
+                    ID: {credentials.mercadopago_user_id}
+                  </div>
+                )}
+              </div>
             )}
           </div>
 
-          {/* Botones */}
+          {/* Botones compactos */}
           <div className="flex gap-2">
             <a
               href="https://www.mercadopago.com.ar/home"
               target="_blank"
               rel="noopener noreferrer"
-              className="flex-1 flex items-center justify-center gap-2 px-3 py-2 bg-[#FF7939]/20 hover:bg-[#FF7939]/30 border border-[#FF7939]/30 rounded-lg transition-colors text-[#FF7939] text-xs font-medium"
+              className="flex items-center justify-center w-10 h-8 bg-[#FF7939]/20 hover:bg-[#FF7939]/30 border border-[#FF7939]/30 rounded-lg transition-colors"
+              title="Ir a Mi Cuenta de Mercado Pago"
             >
-              <LinkIcon className="w-3.5 h-3.5" />
-              Ir a Mi Cuenta
+              {/* Logo de Mercado Pago simplificado */}
+              <svg className="w-5 h-5 text-[#FF7939]" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                <path d="M12 2L2 7l10 5 10-5-10-5z"/>
+                <path d="M2 17l10 5 10-5"/>
+                <path d="M2 12l10 5 10-5"/>
+              </svg>
             </a>
             <button
               onClick={() => setShowDisconnectModal(true)}
-              className="flex-1 flex items-center justify-center gap-2 px-3 py-2 bg-black/40 hover:bg-black/60 border border-white/10 rounded-lg transition-colors text-white/70 text-xs font-medium"
+              className="flex items-center justify-center w-10 h-8 bg-black/40 hover:bg-black/60 border border-white/10 rounded-lg transition-colors text-white/70"
+              title="Desvincular cuenta"
             >
               <Unlink className="w-3.5 h-3.5" />
-              Desvincular
             </button>
           </div>
         </div>
 
         {/* Resumen de Cobros - Derecha */}
-        <div className="backdrop-blur-xl bg-black/40 border border-white/10 rounded-2xl p-5">
-          <h3 className="text-white font-semibold mb-4">Resumen de Cobros</h3>
+        <div className="backdrop-blur-xl bg-black/40 border border-white/10 rounded-2xl p-4">
+          <h3 className="text-white font-semibold mb-3 text-sm">Resumen de Cobros</h3>
           
           {loadingStats ? (
-            <div className="flex items-center justify-center py-8">
-              <Loader2 className="w-5 h-5 animate-spin text-[#FF7939]" />
+            <div className="flex items-center justify-center py-6">
+              <Loader2 className="w-4 h-4 animate-spin text-[#FF7939]" />
             </div>
           ) : paymentStats ? (
-            <div className="space-y-3">
-              <div className="p-3 bg-[#FF7939]/10 border border-[#FF7939]/20 rounded-lg">
-                <div className="flex items-center gap-2 mb-1">
-                  <DollarSign className="w-4 h-4 text-[#FF7939]" />
+            <div className="space-y-2.5">
+              <div className="p-2.5 bg-[#FF7939]/10 border border-[#FF7939]/20 rounded-lg">
+                <div className="flex items-center gap-1.5 mb-1">
+                  <DollarSign className="w-3.5 h-3.5 text-[#FF7939]" />
                   <span className="text-xs text-white/70">Total Recibido</span>
                 </div>
-                <p className="text-xl font-bold text-white">
+                <p className="text-lg font-bold text-white">
                   {formatCurrency(paymentStats.totalReceived)}
                 </p>
-                <p className="text-xs text-white/50 mt-1">
+                <p className="text-xs text-white/50 mt-0.5">
                   {paymentStats.completedPayments} pago{paymentStats.completedPayments !== 1 ? 's' : ''}
                 </p>
               </div>
 
-              <div className="p-3 bg-black/40 border border-white/10 rounded-lg">
-                <div className="flex items-center gap-2 mb-1">
-                  <Clock className="w-4 h-4 text-white/50" />
+              <div className="p-2.5 bg-black/40 border border-white/10 rounded-lg">
+                <div className="flex items-center gap-1.5 mb-1">
+                  <Clock className="w-3.5 h-3.5 text-white/50" />
                   <span className="text-xs text-white/70">Pendientes</span>
                 </div>
-                <p className="text-xl font-bold text-white/80">
+                <p className="text-lg font-bold text-white/80">
                   {formatCurrency(paymentStats.totalPending)}
                 </p>
-                <p className="text-xs text-white/50 mt-1">
+                <p className="text-xs text-white/50 mt-0.5">
                   {paymentStats.pendingPayments} pago{paymentStats.pendingPayments !== 1 ? 's' : ''}
                 </p>
               </div>
             </div>
           ) : (
-            <p className="text-white/50 text-sm">No hay datos disponibles</p>
+            <p className="text-white/50 text-xs">No hay datos disponibles</p>
           )}
         </div>
       </div>
 
       {/* Frame de Facturación */}
-      <div className="backdrop-blur-xl bg-black/40 border border-white/10 rounded-2xl p-5">
-        <div className="flex items-center justify-between mb-4">
-          <h3 className="text-white font-semibold">Facturación</h3>
+      <div className="backdrop-blur-xl bg-black/40 border border-white/10 rounded-2xl p-4">
+        <div className="flex items-center justify-between mb-3">
+          <h3 className="text-white font-semibold text-sm">Facturación</h3>
           <button
             onClick={() => setShowInvoices(!showInvoices)}
             className="text-xs text-[#FF7939] hover:text-[#E86A2D] flex items-center gap-1"
@@ -488,50 +508,51 @@ export function MercadoPagoConnection() {
         </div>
 
         {loadingBilling ? (
-          <div className="flex items-center justify-center py-8">
-            <Loader2 className="w-5 h-5 animate-spin text-[#FF7939]" />
+          <div className="flex items-center justify-center py-6">
+            <Loader2 className="w-4 h-4 animate-spin text-[#FF7939]" />
           </div>
         ) : billingData ? (
-          <div className="space-y-4">
-            <div className="grid grid-cols-2 gap-4">
-              <div className="p-4 bg-[#FF7939]/10 border border-[#FF7939]/20 rounded-lg">
-                <div className="flex items-center gap-2 mb-2">
-                  <TrendingUp className="w-4 h-4 text-[#FF7939]" />
+          <div className="space-y-3">
+            <div className="grid grid-cols-2 gap-3">
+              <div className="p-3 bg-[#FF7939]/10 border border-[#FF7939]/20 rounded-lg">
+                <div className="flex items-center gap-1.5 mb-1.5">
+                  <TrendingUp className="w-3.5 h-3.5 text-[#FF7939]" />
                   <span className="text-xs text-white/70">Ingresos</span>
                 </div>
-                <p className="text-2xl font-bold text-white">
+                <p className="text-xl font-bold text-white">
                   {formatCurrency(billingData.totalIncome)}
                 </p>
               </div>
 
-              <div className="p-4 bg-[#FF7939]/10 border border-[#FF7939]/20 rounded-lg">
-                <div className="flex items-center gap-2 mb-2">
-                  <DollarSign className="w-4 h-4 text-[#FF7939]" />
+              <div className="p-3 bg-[#FF7939]/10 border border-[#FF7939]/20 rounded-lg">
+                <div className="flex items-center gap-1.5 mb-1.5">
+                  <DollarSign className="w-3.5 h-3.5 text-[#FF7939]" />
                   <span className="text-xs text-white/70">Ganancias</span>
                 </div>
-                <p className="text-2xl font-bold text-white">
+                <p className="text-xl font-bold text-white">
                   {formatCurrency(billingData.earnings)}
                 </p>
-                <p className="text-xs text-white/50 mt-1">
-                  Sin comisión ni fee del plan
+                <p className="text-xs text-white/50 mt-0.5">
+                  Sin comisión ni fee
                 </p>
               </div>
             </div>
 
-            {/* Lista de facturas */}
-            {showInvoices && billingData.invoices.length > 0 && (
-              <div className="mt-4 space-y-2 max-h-64 overflow-y-auto pr-2 custom-scrollbar">
+            {/* Lista de facturas y suscripciones */}
+            {showInvoices && (
+              <div className="mt-3 space-y-2 max-h-64 overflow-y-auto pr-2 custom-scrollbar">
+                {/* Facturas de ventas */}
                 {billingData.invoices.map((invoice) => (
-                  <div key={invoice.id} className="p-3 bg-black/40 border border-white/10 rounded-lg">
+                  <div key={invoice.id} className="p-2.5 bg-black/40 border border-white/10 rounded-lg">
                     <div className="flex items-center justify-between">
                       <div>
-                        <p className="text-sm text-white font-medium">{invoice.concept}</p>
+                        <p className="text-xs text-white font-medium">{invoice.concept}</p>
                         <p className="text-xs text-white/50">
                           {new Date(invoice.date).toLocaleDateString('es-AR')}
                         </p>
                       </div>
                       <div className="text-right">
-                        <p className="text-sm text-white font-semibold">
+                        <p className="text-xs text-white font-semibold">
                           {formatCurrency(invoice.sellerAmount)}
                         </p>
                         <p className="text-xs text-white/50">
@@ -541,34 +562,73 @@ export function MercadoPagoConnection() {
                     </div>
                   </div>
                 ))}
-              </div>
-            )}
 
-            {showInvoices && billingData.invoices.length === 0 && (
-              <p className="text-white/50 text-sm text-center py-4">No hay facturas este mes</p>
+                {/* Suscripciones de planes */}
+                {billingData.planSubscriptions && billingData.planSubscriptions.length > 0 && (
+                  <>
+                    {billingData.planSubscriptions.map((subscription) => (
+                      <div key={subscription.id} className="p-2.5 bg-black/40 border border-white/10 rounded-lg">
+                        <div className="flex items-center justify-between">
+                          <div>
+                            <p className="text-xs text-white font-medium">
+                              Plan {getPlanName(subscription.planType)}
+                            </p>
+                            <p className="text-xs text-white/50">
+                              {new Date(subscription.date).toLocaleDateString('es-AR')}
+                            </p>
+                          </div>
+                          <div className="text-right">
+                            <p className="text-xs text-white font-semibold">
+                              {formatCurrency(subscription.amount)}
+                            </p>
+                          </div>
+                        </div>
+                      </div>
+                    ))}
+                  </>
+                )}
+
+                {billingData.invoices.length === 0 && (!billingData.planSubscriptions || billingData.planSubscriptions.length === 0) && (
+                  <p className="text-white/50 text-xs text-center py-3">No hay facturas este mes</p>
+                )}
+              </div>
             )}
           </div>
         ) : (
-          <p className="text-white/50 text-sm">No hay datos disponibles</p>
+          <p className="text-white/50 text-xs">No hay datos disponibles</p>
         )}
       </div>
 
-      {/* Botón de exportar */}
-      <div className="flex gap-2">
-        <button
-          onClick={() => handleExportSales('excel')}
-          className="flex-1 flex items-center justify-center gap-2 px-4 py-3 bg-[#FF7939] hover:bg-[#E86A2D] text-white font-medium rounded-xl transition-colors"
-        >
-          <Download className="w-4 h-4" />
-          Imprimir Detalle de Ventas (Excel)
-        </button>
-        <button
-          onClick={() => handleExportSales('pdf')}
-          className="flex-1 flex items-center justify-center gap-2 px-4 py-3 bg-black/40 hover:bg-black/60 border border-white/10 text-white font-medium rounded-xl transition-colors"
-        >
-          <FileText className="w-4 h-4" />
-          Exportar PDF
-        </button>
+      {/* Botón de exportar - Solo ícono con menú */}
+      <div className="flex justify-end">
+        <div className="relative" ref={exportMenuRef}>
+          <button
+            onClick={() => setShowExportMenu(!showExportMenu)}
+            className="flex items-center justify-center w-10 h-10 bg-[#FF7939] hover:bg-[#E86A2D] text-white rounded-xl transition-colors"
+            title="Exportar ventas"
+          >
+            <Printer className="w-5 h-5" />
+          </button>
+
+          {showExportMenu && (
+            <div className="absolute right-0 bottom-full mb-2 backdrop-blur-xl bg-black/80 border border-white/10 rounded-lg p-2 shadow-xl z-50 min-w-[140px]">
+              <button
+                onClick={() => handleExportSales('excel')}
+                className="w-full flex items-center gap-2 px-3 py-2 text-white/90 hover:bg-white/10 rounded-lg transition-colors text-xs"
+              >
+                <FileText className="w-3.5 h-3.5" />
+                Exportar Excel
+              </button>
+              <button
+                onClick={() => handleExportSales('pdf')}
+                className="w-full flex items-center gap-2 px-3 py-2 text-white/90 hover:bg-white/10 rounded-lg transition-colors text-xs"
+              >
+                <Download className="w-3.5 h-3.5" />
+                Exportar PDF
+              </button>
+            </div>
+          )}
+        </div>
       </div>
 
       {/* Modal de Confirmación */}
