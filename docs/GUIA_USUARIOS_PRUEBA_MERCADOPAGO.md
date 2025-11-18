@@ -63,9 +63,9 @@ Cada cuenta de prueba muestra:
 
 ### Autenticación por Email
 
-Al iniciar sesión en la web con usuarios de prueba e intentar acceder a algunas secciones del Panel del Desarrollador, es posible que te sea solicitada una autenticación mediante un código enviado por e-mail.
+Al iniciar sesión en la web con usuarios de prueba e intentar acceder a algunas secciones del Panel del Desarrollador, o al conectar la cuenta mediante OAuth, es posible que te sea solicitada una autenticación mediante un código enviado por e-mail.
 
-**Como son usuarios ficticios**, no tendrás acceso a ese e-mail. En su lugar:
+**⚠️ IMPORTANTE**: Como son usuarios ficticios, **NO tendrás acceso a ese e-mail**. En su lugar:
 
 1. Usa los **últimos 6 dígitos del User ID** de la cuenta de prueba
 2. O usa los **últimos 6 dígitos del Access Token productivo**
@@ -74,9 +74,23 @@ Al iniciar sesión en la web con usuarios de prueba e intentar acceder a algunas
 
 Para la cuenta `ronaldinho` (User ID: `2995219181`):
 - Últimos 6 dígitos: `5219181`
+- **Ingresa**: `5` `2` `1` `9` `1` `8` `1` (un dígito por campo)
 
 Para la cuenta `totti1` (User ID: `2992707264`):
 - Últimos 6 dígitos: `2707264`
+- **Ingresa**: `2` `7` `0` `7` `2` `6` `4` (un dígito por campo)
+
+### Pasos para Conectar Cuenta de Prueba
+
+1. Haz clic en "Conectar" en la sección de Mercado Pago
+2. Serás redirigido a Mercado Pago
+3. Inicia sesión con la cuenta de prueba (ej: `TESTUSER4826...` / `VxvptDWun9`)
+4. Si aparece la pantalla de verificación por email:
+   - **NO busques el email** (no existe)
+   - Usa los **últimos 6 dígitos del User ID** de la cuenta
+   - Ingresa un dígito en cada campo
+5. Completa la autorización de OMNIA
+6. Serás redirigido de vuelta a Omnia con `?mp_auth=success`
 
 ### Limitaciones
 
