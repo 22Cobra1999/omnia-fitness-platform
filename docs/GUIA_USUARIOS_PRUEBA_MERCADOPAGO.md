@@ -63,12 +63,16 @@ Cada cuenta de prueba muestra:
 
 ### Autenticación por Email
 
+> 📖 **Información Oficial de Mercado Pago**: Según la [documentación oficial](https://www.mercadopago.com/developers/es/docs/checkout-api/additional-content/your-integrations/test/accounts), cuando se solicita autenticación mediante código enviado por e-mail para cuentas de prueba:
+
 Al iniciar sesión en la web con usuarios de prueba e intentar acceder a algunas secciones del Panel del Desarrollador, o al conectar la cuenta mediante OAuth, es posible que te sea solicitada una autenticación mediante un código enviado por e-mail.
 
-**⚠️ IMPORTANTE**: Como son usuarios ficticios, **NO tendrás acceso a ese e-mail**. En su lugar:
+**⚠️ IMPORTANTE**: Como se trata de usuarios ficticios, **NO tendrás acceso a ese e-mail** que recibirá el código. En su lugar, debes realizar esa validación introduciendo:
 
-1. **Primero intenta**: Los **últimos 6 dígitos del User ID** de la cuenta de prueba
-2. **Si no funciona**: Usa los **últimos 6 dígitos del Access Token de producción** de tu aplicación
+1. **Opción 1**: Los **últimos 6 dígitos que componen el User ID de la cuenta de prueba**
+2. **Opción 2**: Los **últimos 6 dígitos que componen el Access Token productivo** de tu aplicación
+
+> ⚠️ **Nota**: Para acceder al User ID o el Access Token de una cuenta de prueba, deberás haber creado previamente una aplicación. Si tienes dudas sobre cómo obtener el User ID o el Access Token, accede a [Detalles de la aplicación](https://www.mercadopago.com/developers/es/docs/your-integrations/application-details) o [Credenciales](https://www.mercadopago.com/developers/es/docs/your-integrations/credentials).
 
 ### Ejemplo - User ID
 
@@ -92,8 +96,11 @@ Si los últimos 6 dígitos del User ID no funcionan, usa los últimos 6 dígitos
 5. Toma los **últimos 6 dígitos** del token
 
 **Ejemplo**: Si tu Access Token es `APP_USR-1806894141402209-111615-c8eb49a21685ec57eb24b443f0ac72ea-143028270`
-- Últimos 6 dígitos: `143028270` → `430282` (toma solo los últimos 6)
+- Busca los **últimos 6 dígitos numéricos** del token completo
+- En este caso: `143028270` → los últimos 6 dígitos son `430282`
 - **Ingresa**: `4` `3` `0` `2` `8` `2` (un dígito por campo)
+
+> 💡 **Tip**: Si el Access Token termina con muchos dígitos, toma solo los últimos 6 dígitos numéricos consecutivos del final del token.
 
 ### ⚠️ Nota Importante
 
