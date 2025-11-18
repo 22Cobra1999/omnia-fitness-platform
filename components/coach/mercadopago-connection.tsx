@@ -378,9 +378,13 @@ export function MercadoPagoConnection() {
           <div className="mt-4 p-3 bg-[#FF7939]/10 border border-[#FF7939]/20 rounded-lg text-left">
             <p className="text-xs text-white/70 font-medium mb-2">💡 ¿Usando cuenta de prueba?</p>
             <p className="text-xs text-white/60 leading-relaxed">
-              Si Mercado Pago te pide verificar por email, usa los <strong>últimos 6 dígitos del User ID</strong> de tu cuenta de prueba.
+              Si Mercado Pago te pide verificar por email:
               <br />
-              <span className="text-[#FF7939]">Ejemplo: ronaldinho (2995219181) → ingresa: 5219181</span>
+              • <strong>Primero intenta</strong>: Últimos 6 dígitos del User ID
+              <br />
+              • <strong>Si no funciona</strong>: Últimos 6 dígitos del Access Token de producción
+              <br />
+              <span className="text-[#FF7939] mt-1 block">Ejemplo: ronaldinho (2995219181) → 5219181</span>
             </p>
           </div>
         </div>
