@@ -136,25 +136,42 @@ export async function POST(request: NextRequest) {
     const isTestToken = (token: string) => token.startsWith('TEST-');
     const isProductionToken = (token: string) => token.startsWith('APP_USR-');
     
+    // Lista de user_ids de cuentas de prueba conocidas
+    // Estas cuentas pueden usar tokens de producción si fueron obtenidos vía OAuth con Client ID/Secret de producción
+    const TEST_USER_IDS = [
+      '2995219181', // ronaldinho (coach de prueba)
+      '2992707264', // totti1 (cliente de prueba)
+      '2995219179'  // omniav1 (marketplace de prueba)
+    ];
+    
     const coachTokenType = isTestToken(coachAccessToken) ? 'PRUEBA (TEST-)' : 
                           isProductionToken(coachAccessToken) ? 'PRODUCCIÓN (APP_USR-)' : 
                           'DESCONOCIDO';
     
+    const isTestUser = mercadopagoUserId && TEST_USER_IDS.includes(mercadopagoUserId.toString());
+    
     // Log del tipo de token para debugging (sin mostrar el token completo por seguridad)
     console.log('🔑 Tipo de token del coach:', coachTokenType);
+    console.log('🔑 User ID del coach:', mercadopagoUserId);
+    console.log('🔑 Es cuenta de prueba conocida:', isTestUser);
     console.log('🔑 Primeros caracteres del token:', coachAccessToken.substring(0, 10) + '...');
     
-    // Verificar si el token es de prueba (requerido para split payment en modo de prueba)
-    if (!isTestToken(coachAccessToken)) {
+    // Verificar si el token es de prueba O si es una cuenta de prueba conocida con token de producción
+    // (Esto permite usar OAuth de producción con cuentas de prueba)
+    if (!isTestToken(coachAccessToken) && !isTestUser) {
       console.warn('⚠️ ADVERTENCIA: El access token del coach NO es de prueba:', coachTokenType);
-      console.warn('⚠️ Para split payment en modo de prueba, el token del coach debe ser TEST-...');
+      console.warn('⚠️ User ID no está en la lista de cuentas de prueba conocidas');
       console.warn('⚠️ Token actual comienza con:', coachAccessToken.substring(0, 20));
       return NextResponse.json({ 
-        error: 'El coach está usando credenciales de producción. Para realizar pagos de prueba, el coach debe desconectar su cuenta actual y volver a conectar usando una cuenta de prueba de Mercado Pago (como ronaldinho).',
+        error: 'El coach está usando credenciales de producción y no es una cuenta de prueba conocida. Para realizar pagos de prueba, el coach debe usar una cuenta de prueba de Mercado Pago (como ronaldinho).',
         tokenType: coachTokenType,
         requiresTestCredentials: true,
         solution: 'El coach debe ir a su perfil, hacer clic en "Desvincular" en la sección de Mercado Pago, y luego "Conectar" nuevamente usando la cuenta de prueba ronaldinho (TESTUSER4826... / VxvptDWun9)'
       }, { status: 400 });
+    }
+    
+    if (isProductionToken(coachAccessToken) && isTestUser) {
+      console.log('✅ Token de producción detectado, pero es cuenta de prueba conocida. Permitido para testing.');
     }
 
     // 7. Crear preferencia de pago con Mercado Pago
