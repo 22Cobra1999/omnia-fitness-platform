@@ -175,18 +175,10 @@ export async function POST(request: NextRequest) {
     }
 
     // 7. Crear preferencia de pago con Mercado Pago
-    console.log('🔑 Usando Access Token del Coach');
-    console.log('🔑 Tipo de token:', coachTokenType);
+    console.log('🔑 Access Token del Coach:', coachTokenType);
     console.log('💰 Monto total:', totalAmount);
     console.log('💵 Comisión marketplace:', marketplaceFee);
     console.log('👤 Monto para vendedor:', sellerAmount);
-    
-    const client = new MercadoPagoConfig({
-      accessToken: coachAccessToken,
-      options: { timeout: 5000 }
-    });
-
-    const preference = new Preference(client);
 
     const appUrl = (process.env.NEXT_PUBLIC_APP_URL?.trim() || 'http://localhost:3000').replace(/\/$/, '');
     
@@ -202,6 +194,9 @@ export async function POST(request: NextRequest) {
     console.log('🌐 App URL:', appUrl);
     
     // Construir preferencia - NO usar auto_return por ahora para evitar el error
+    // IMPORTANTE: Para split payment en modo de prueba, todas las partes deben ser de prueba
+    // Si el coach tiene token de producción pero es cuenta de prueba conocida, 
+    // Mercado Pago puede rechazar el pago si detecta mezcla de entornos
     const preferenceData: any = {
       items: [
         {
@@ -221,9 +216,37 @@ export async function POST(request: NextRequest) {
       notification_url: `${appUrl}/api/payments/webhook`
     };
     
+    // Si el coach tiene token de producción pero es cuenta de prueba, 
+    // usar el Access Token de prueba del marketplace para evitar errores de split payment
+    let tokenToUseForPreference = coachAccessToken;
+    
+    if (isProductionToken(coachAccessToken) && isTestUser) {
+      console.log('⚠️ ADVERTENCIA: Coach tiene token de producción pero es cuenta de prueba.');
+      console.log('⚠️ Mercado Pago puede rechazar el pago si detecta mezcla de entornos.');
+      console.log('💡 Usando Access Token de prueba del marketplace para crear la preferencia...');
+      
+      // Usar el Access Token de prueba del marketplace en lugar del token del coach
+      const marketplaceTestToken = process.env.MERCADOPAGO_ACCESS_TOKEN?.trim();
+      if (marketplaceTestToken && isTestToken(marketplaceTestToken)) {
+        tokenToUseForPreference = marketplaceTestToken;
+        console.log('✅ Usando Access Token de prueba del marketplace para split payment.');
+      } else {
+        console.warn('⚠️ No se encontró Access Token de prueba del marketplace. Usando token del coach (puede fallar).');
+      }
+    }
+    
+    // Crear cliente de Mercado Pago con el token apropiado
+    const client = new MercadoPagoConfig({
+      accessToken: tokenToUseForPreference,
+      options: { timeout: 5000 }
+    });
+
+    const preference = new Preference(client);
+    
     // No usar auto_return por ahora - el cliente será redirigido manualmente usando init_point
 
     console.log('📋 Creando preferencia con datos:', JSON.stringify(preferenceData, null, 2));
+    console.log('🔑 Token usado para crear preferencia:', isTestToken(tokenToUseForPreference) ? 'PRUEBA (TEST-...)' : 'PRODUCCIÓN (APP_USR-...)');
 
     let preferenceResponse;
     try {
