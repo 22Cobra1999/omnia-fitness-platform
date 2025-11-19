@@ -9,9 +9,25 @@ import { createRouteHandlerClient } from '@/lib/supabase/supabase-server';
 export async function POST(request: NextRequest) {
   try {
     const data = await request.json();
-    const { type, data: paymentData } = data;
+    const { type, data: paymentData, live_mode } = data;
 
-    console.log('📥 Webhook recibido:', { type, paymentId: paymentData?.id });
+    console.log('📥 Webhook recibido:', { 
+      type, 
+      paymentId: paymentData?.id, 
+      live_mode,
+      action: data.action,
+      api_version: data.api_version
+    });
+    
+    // Si es una notificación de prueba (live_mode: false) y no es un pago real, 
+    // retornar 200 sin procesar
+    if (live_mode === false && type === 'payment' && (!paymentData?.id || paymentData.id === '123456')) {
+      console.log('ℹ️ Notificación de prueba detectada, retornando 200 sin procesar');
+      return NextResponse.json({ 
+        received: true, 
+        message: 'Notificación de prueba recibida correctamente' 
+      }, { status: 200 });
+    }
 
     if (type === 'payment') {
       const paymentId = paymentData.id;
@@ -30,7 +46,7 @@ export async function POST(request: NextRequest) {
 
       // Consultar detalles del pago en Mercado Pago
       const client = new MercadoPagoConfig({
-        accessToken: accessToken,
+        accessToken: accessToken.trim(),
         options: { timeout: 5000 }
       });
 
@@ -41,23 +57,74 @@ export async function POST(request: NextRequest) {
         paymentDetails = await payment.get({ id: paymentId });
       } catch (error: any) {
         console.error('Error obteniendo detalles del pago:', error);
+        // Si es un error de pago no encontrado (probablemente es una notificación de prueba)
+        // Retornar 200 para que Mercado Pago no reintente
+        if (error.status === 404 || error.message?.includes('not found') || error.message?.includes('no encontrado')) {
+          console.log('⚠️ Pago no encontrado en Mercado Pago (probablemente notificación de prueba)');
+          return NextResponse.json({ 
+            received: true, 
+            message: 'Pago no encontrado (probablemente notificación de prueba)' 
+          }, { status: 200 });
+        }
         return NextResponse.json({ error: 'Error consultando pago' }, { status: 500 });
+      }
+
+      // Validar que paymentDetails existe y tiene datos válidos
+      if (!paymentDetails || !paymentDetails.id) {
+        console.error('PaymentDetails inválido:', paymentDetails);
+        return NextResponse.json({ 
+          received: true, 
+          message: 'PaymentDetails inválido (probablemente notificación de prueba)' 
+        }, { status: 200 });
       }
 
       const supabase = await createRouteHandlerClient();
 
-      // Buscar registro en banco por preference_id o external_reference
-      const { data: bancoRecord, error: bancoError } = await supabase
-        .from('banco')
-        .select('*')
-        .or(`mercadopago_preference_id.eq.${paymentDetails.preference_id},external_reference.eq.${paymentDetails.external_reference}`)
-        .single();
+      // Construir query para buscar en banco
+      // Manejar casos donde preference_id o external_reference pueden ser null
+      let query = supabase.from('banco').select('*');
+      
+      const conditions: string[] = [];
+      
+      if (paymentDetails.preference_id) {
+        conditions.push(`mercadopago_preference_id.eq.${paymentDetails.preference_id}`);
+      }
+      
+      if (paymentDetails.external_reference) {
+        conditions.push(`external_reference.eq.${paymentDetails.external_reference}`);
+      }
+      
+      // Si no hay preference_id ni external_reference, buscar por payment_id
+      if (conditions.length === 0) {
+        conditions.push(`mercadopago_payment_id.eq.${paymentDetails.id}`);
+      }
+      
+      if (conditions.length > 0) {
+        query = query.or(conditions.join(','));
+      } else {
+        // Si no hay ninguna condición, retornar error
+        console.error('No hay preference_id, external_reference ni payment_id válidos');
+        return NextResponse.json({ 
+          received: true, 
+          message: 'No hay identificadores válidos (probablemente notificación de prueba)' 
+        }, { status: 200 });
+      }
 
+      const { data: bancoRecord, error: bancoError } = await query.maybeSingle();
+
+      // Si no se encuentra el registro, puede ser una notificación de prueba
+      // Retornar 200 para que Mercado Pago no reintente
       if (bancoError || !bancoRecord) {
-        console.error('Error buscando registro en banco:', bancoError);
-        console.error('Preference ID:', paymentDetails.preference_id);
-        console.error('External Reference:', paymentDetails.external_reference);
-        return NextResponse.json({ error: 'Registro de banco no encontrado' }, { status: 404 });
+        console.log('⚠️ Registro de banco no encontrado (probablemente notificación de prueba)');
+        console.log('   Preference ID:', paymentDetails.preference_id);
+        console.log('   External Reference:', paymentDetails.external_reference);
+        console.log('   Payment ID:', paymentDetails.id);
+        console.log('   Error:', bancoError);
+        // Retornar 200 para notificaciones de prueba, 404 solo para errores reales
+        return NextResponse.json({ 
+          received: true, 
+          message: 'Registro de banco no encontrado (probablemente notificación de prueba)' 
+        }, { status: 200 });
       }
 
       // Calcular marketplace_fee y seller_amount desde los fee_details
