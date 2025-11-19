@@ -390,13 +390,15 @@ export function MercadoPagoConnection() {
         <div className="backdrop-blur-xl bg-black/40 border border-white/10 rounded-2xl p-4">
           {/* Header con logo de Mercado Pago */}
           <div className="flex items-center gap-3 mb-4">
-            {/* Logo oficial de Mercado Pago (naranja) */}
-            <svg className="w-8 h-8" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
-              <path d="M12 0C5.373 0 0 5.373 0 12s5.373 12 12 12 12-5.373 12-12S18.627 0 12 0zm0 22C6.477 22 2 17.523 2 12S6.477 2 12 2s10 4.477 10 10-4.477 10-10 10z" fill="#FFE600"/>
-              <path d="M12 4C7.582 4 4 7.582 4 12s3.582 8 8 8 8-3.582 8-8-3.582-8-8-8zm0 14c-3.314 0-6-2.686-6-6s2.686-6 6-6 6 2.686 6 6-2.686 6-6 6z" fill="#009EE3"/>
-              <path d="M12 6c-3.314 0-6 2.686-6 6s2.686 6 6 6 6-2.686 6-6-2.686-6-6-6zm0 10c-2.209 0-4-1.791-4-4s1.791-4 4-4 4 1.791 4 4-1.791 4-4 4z" fill="#FF6B35"/>
-            </svg>
-            <div className="flex-1">
+            {/* Logo oficial de Mercado Pago (naranja Omnia) */}
+            <div className="w-10 h-10 flex-shrink-0 rounded-lg bg-[#FF7939] flex items-center justify-center">
+              <svg className="w-7 h-7" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+                <path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm0 18c-4.41 0-8-3.59-8-8s3.59-8 8-8 8 3.59 8 8-3.59 8-8 8z" fill="white"/>
+                <path d="M12 6c-3.31 0-6 2.69-6 6s2.69 6 6 6 6-2.69 6-6-2.69-6-6-6zm0 10c-2.21 0-4-1.79-4-4s1.79-4 4-4 4 1.79 4 4-1.79 4-4 4z" fill="white"/>
+                <circle cx="12" cy="12" r="2" fill="white"/>
+              </svg>
+            </div>
+            <div className="flex-1 min-w-0">
               <h3 className="text-white font-semibold text-sm">Mercado Pago</h3>
               {loadingUserInfo ? (
                 <div className="flex items-center gap-2 mt-1">
@@ -404,7 +406,7 @@ export function MercadoPagoConnection() {
                   <span className="text-xs text-white/50">Cargando...</span>
                 </div>
               ) : userInfo && (userInfo.nickname || userInfo.username) ? (
-                <span className="text-xs text-white/70 mt-1 block">
+                <span className="text-xs text-white/90 mt-1 block truncate font-medium">
                   {userInfo.nickname || userInfo.username}
                 </span>
               ) : null}
