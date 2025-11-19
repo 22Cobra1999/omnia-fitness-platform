@@ -155,6 +155,11 @@ export async function POST(request: NextRequest) {
     // IMPORTANTE: Para split payment en modo de prueba, todas las partes deben ser de prueba
     // Si el coach tiene token de producción pero es cuenta de prueba conocida, 
     // Mercado Pago puede rechazar el pago si detecta mezcla de entornos
+    
+    // Crear external_reference único para identificar esta compra
+    // Formato: pending_activityId_clientId_timestamp
+    const externalReference = `pending_${activityId}_${clientId}_${Date.now()}`;
+    
     const preferenceData: any = {
       items: [
         {
@@ -165,7 +170,7 @@ export async function POST(request: NextRequest) {
         }
       ],
       marketplace_fee: marketplaceFee, // Comisión de OMNIA
-      external_reference: `enrollment_${enrollment.id}`,
+      external_reference: externalReference,
       back_urls: {
         success: backUrls.success,
         failure: backUrls.failure,
@@ -229,7 +234,7 @@ export async function POST(request: NextRequest) {
 
     // 8. Guardar en banco SIN enrollment_id (se creará cuando el pago sea aprobado)
     // Guardamos activity_id y client_id para poder crear el enrollment después
-    const externalReference = `pending_${activityId}_${clientId}_${Date.now()}`;
+    // externalReference ya fue creado arriba para la preferencia
     const { error: bancoError } = await supabase.from('banco').insert({
       enrollment_id: null, // Se asignará cuando se cree el enrollment
       activity_id: activityId,
