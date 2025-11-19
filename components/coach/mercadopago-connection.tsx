@@ -3,7 +3,7 @@
 import { useState, useEffect, useRef } from 'react';
 import { useAuth } from '@/contexts/auth-context';
 import { createClient } from '@/lib/supabase/supabase-client';
-import { CheckCircle2, Loader2, User, Mail, Unlink, DollarSign, Clock, TrendingUp, Printer, FileText, Download, Eye, X, ChevronDown } from 'lucide-react';
+import { CheckCircle2, Loader2, Unlink, DollarSign, Clock, TrendingUp, Printer, FileText, Download, Eye, X, ChevronDown } from 'lucide-react';
 import { ConfirmationModal } from '@/components/ui/confirmation-modal';
 import { toast } from 'sonner';
 
@@ -388,71 +388,82 @@ export function MercadoPagoConnection() {
       <div className="grid grid-cols-2 gap-4">
         {/* Frame de Mercado Pago - Izquierda */}
         <div className="backdrop-blur-xl bg-black/40 border border-white/10 rounded-2xl p-4">
-          <h3 className="text-white font-semibold mb-3 flex items-center gap-2 text-sm">
-        <span>Mercado Pago</span>
-            <CheckCircle2 className="w-3.5 h-3.5 text-[#FF7939]" />
-      </h3>
-
-          {/* Info de la cuenta con scroll */}
-          <div className="space-y-2 mb-3">
-            {loadingUserInfo ? (
-              <div className="flex items-center justify-center py-3">
-                <Loader2 className="w-3.5 h-3.5 animate-spin text-[#FF7939]" />
-              </div>
-            ) : (
-              <div className="max-h-24 overflow-y-auto space-y-1.5 pr-2 custom-scrollbar">
-                {userInfo && (
-                  <>
-                    {/* Mostrar solo nickname o username (sin duplicar) */}
-                    {(userInfo.nickname || userInfo.username) && (
-                      <div className="flex items-center gap-2 text-white/90">
-                        <User className="w-3.5 h-3.5 text-[#FF7939] flex-shrink-0" />
-                        <span className="text-xs font-medium">
-                          {userInfo.nickname || userInfo.username}
-                        </span>
-                      </div>
-                    )}
-                    {/* Mostrar email completo para confirmar la cuenta */}
-                    {userInfo.email && (
-                      <div className="flex items-center gap-2 text-white/70">
-                        <Mail className="w-3.5 h-3.5 text-white/50 flex-shrink-0" />
-                        <span className="text-xs break-all">{userInfo.email}</span>
-                      </div>
-                    )}
-                  </>
-                )}
-              {credentials.mercadopago_user_id && (
-                  <div className="text-xs text-white/50 font-mono pt-1.5 border-t border-white/10">
-                  ID: {credentials.mercadopago_user_id}
-                  </div>
-              )}
-              </div>
+          {/* Header con logo de Mercado Pago */}
+          <div className="flex items-center gap-3 mb-4">
+            {/* Logo oficial de Mercado Pago (naranja) */}
+            <svg className="w-8 h-8" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+              <path d="M12 0C5.373 0 0 5.373 0 12s5.373 12 12 12 12-5.373 12-12S18.627 0 12 0zm0 22C6.477 22 2 17.523 2 12S6.477 2 12 2s10 4.477 10 10-4.477 10-10 10z" fill="#FFE600"/>
+              <path d="M12 4C7.582 4 4 7.582 4 12s3.582 8 8 8 8-3.582 8-8-3.582-8-8-8zm0 14c-3.314 0-6-2.686-6-6s2.686-6 6-6 6 2.686 6 6-2.686 6-6 6z" fill="#009EE3"/>
+              <path d="M12 6c-3.314 0-6 2.686-6 6s2.686 6 6 6 6-2.686 6-6-2.686-6-6-6zm0 10c-2.209 0-4-1.791-4-4s1.791-4 4-4 4 1.791 4 4-1.791 4-4 4z" fill="#FF6B35"/>
+            </svg>
+            <div className="flex-1">
+              <h3 className="text-white font-semibold text-sm">Mercado Pago</h3>
+              {loadingUserInfo ? (
+                <div className="flex items-center gap-2 mt-1">
+                  <Loader2 className="w-3 h-3 animate-spin text-[#FF7939]" />
+                  <span className="text-xs text-white/50">Cargando...</span>
+                </div>
+              ) : userInfo && (userInfo.nickname || userInfo.username) ? (
+                <span className="text-xs text-white/70 mt-1 block">
+                  {userInfo.nickname || userInfo.username}
+                </span>
+              ) : null}
+            </div>
+            {isConnected && (
+              <CheckCircle2 className="w-4 h-4 text-[#FF7939] flex-shrink-0" />
             )}
           </div>
 
-          {/* Botones compactos */}
+          {/* Botones de acción */}
           <div className="flex gap-2">
-            <a
-              href="https://www.mercadopago.com.ar/home"
-              target="_blank"
-              rel="noopener noreferrer"
-              className="flex items-center justify-center w-10 h-8 bg-[#FF7939]/20 hover:bg-[#FF7939]/30 border border-[#FF7939]/30 rounded-lg transition-colors"
-              title="Ir a Mi Cuenta de Mercado Pago"
-            >
-              {/* Logo de Mercado Pago simplificado */}
-              <svg className="w-5 h-5 text-[#FF7939]" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                <path d="M12 2L2 7l10 5 10-5-10-5z"/>
-                <path d="M2 17l10 5 10-5"/>
-                <path d="M2 12l10 5 10-5"/>
-              </svg>
-            </a>
-            <button
-              onClick={() => setShowDisconnectModal(true)}
-              className="flex items-center justify-center w-10 h-8 bg-black/40 hover:bg-black/60 border border-white/10 rounded-lg transition-colors text-white/70"
-              title="Desvincular cuenta"
-            >
-              <Unlink className="w-3.5 h-3.5" />
-            </button>
+            {isConnected ? (
+              <>
+                <a
+                  href="https://www.mercadopago.com.ar/home"
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="flex items-center justify-center flex-1 h-9 bg-[#FF7939] hover:bg-[#E86A2D] rounded-lg transition-colors"
+                  title="Ir a Mi Cuenta de Mercado Pago"
+                >
+                  {/* Logo de Mercado Pago naranja */}
+                  <svg className="w-5 h-5" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+                    <rect width="24" height="24" rx="12" fill="#FF6B35"/>
+                    <path d="M12 6c-3.314 0-6 2.686-6 6s2.686 6 6 6 6-2.686 6-6-2.686-6-6-6zm0 10c-2.209 0-4-1.791-4-4s1.791-4 4-4 4 1.791 4 4-1.791 4-4 4z" fill="#FFE600"/>
+                    <circle cx="12" cy="12" r="2" fill="#009EE3"/>
+                  </svg>
+                </a>
+                <button
+                  onClick={() => setShowDisconnectModal(true)}
+                  className="flex items-center justify-center w-9 h-9 bg-black/40 hover:bg-black/60 border border-white/10 rounded-lg transition-colors text-white/70"
+                  title="Desvincular cuenta"
+                >
+                  <Unlink className="w-4 h-4" />
+                </button>
+              </>
+            ) : (
+              <button
+                onClick={handleConnect}
+                disabled={connecting}
+                className="flex items-center justify-center flex-1 h-9 bg-[#FF7939] hover:bg-[#E86A2D] text-white font-medium rounded-lg transition-colors disabled:opacity-50"
+              >
+                {connecting ? (
+                  <>
+                    <Loader2 className="w-4 h-4 animate-spin mr-2" />
+                    Conectando...
+                  </>
+                ) : (
+                  <>
+                    {/* Logo de Mercado Pago naranja */}
+                    <svg className="w-5 h-5 mr-2" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+                      <rect width="24" height="24" rx="12" fill="#FF6B35"/>
+                      <path d="M12 6c-3.314 0-6 2.686-6 6s2.686 6 6 6 6-2.686 6-6-2.686-6-6-6zm0 10c-2.209 0-4-1.791-4-4s1.791-4 4-4 4 1.791 4 4-1.791 4-4 4z" fill="#FFE600"/>
+                      <circle cx="12" cy="12" r="2" fill="#009EE3"/>
+                    </svg>
+                    Conectar
+                  </>
+                )}
+              </button>
+            )}
           </div>
         </div>
 
