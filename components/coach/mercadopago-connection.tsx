@@ -388,65 +388,45 @@ export function MercadoPagoConnection() {
       <div className="grid grid-cols-2 gap-4">
         {/* Frame de Mercado Pago - Izquierda */}
         <div className="backdrop-blur-xl bg-black/40 border border-white/10 rounded-2xl p-4">
-          {/* Header con logo de Mercado Pago */}
-          <div className="flex items-center gap-3 mb-4">
-            {/* Logo oficial de Mercado Pago (naranja Omnia) */}
-            <div className="w-10 h-10 flex-shrink-0 rounded-lg bg-[#FF7939] flex items-center justify-center">
-              <svg className="w-7 h-7" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
-                <path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm0 18c-4.41 0-8-3.59-8-8s3.59-8 8-8 8 3.59 8 8-3.59 8-8 8z" fill="white"/>
-                <path d="M12 6c-3.31 0-6 2.69-6 6s2.69 6 6 6 6-2.69 6-6-2.69-6-6-6zm0 10c-2.21 0-4-1.79-4-4s1.79-4 4-4 4 1.79 4 4-1.79 4-4 4z" fill="white"/>
-                <circle cx="12" cy="12" r="2" fill="white"/>
-              </svg>
-            </div>
-            <div className="flex-1 min-w-0">
-              <h3 className="text-white font-semibold text-sm">Mercado Pago</h3>
-              {loadingUserInfo ? (
-                <div className="flex items-center gap-2 mt-1">
-                  <Loader2 className="w-3 h-3 animate-spin text-[#FF7939]" />
-                  <span className="text-xs text-white/50">Cargando...</span>
-                </div>
-              ) : userInfo && (userInfo.nickname || userInfo.username) ? (
-                <span className="text-xs text-white/90 mt-1 block truncate font-medium">
-                  {userInfo.nickname || userInfo.username}
-                </span>
-              ) : null}
-            </div>
-            {isConnected && (
-              <CheckCircle2 className="w-4 h-4 text-[#FF7939] flex-shrink-0" />
-            )}
+          {/* Header simplificado */}
+          <div className="mb-4">
+            <h3 className="text-white font-semibold text-sm mb-2">Mercado Pago</h3>
+            {loadingUserInfo ? (
+              <div className="flex items-center gap-2">
+                <Loader2 className="w-3 h-3 animate-spin text-[#FFE600]" />
+                <span className="text-xs text-white/50">Cargando...</span>
+              </div>
+            ) : userInfo && (userInfo.nickname || userInfo.username) ? (
+              <span className="text-xs text-white/90 block truncate font-medium">
+                {userInfo.nickname || userInfo.username}
+              </span>
+            ) : null}
           </div>
 
           {/* Botones de acción */}
           <div className="flex gap-2">
             {isConnected ? (
               <>
+                <button
+                  onClick={() => setShowDisconnectModal(true)}
+                  className="flex items-center justify-center flex-1 h-9 bg-white hover:bg-white/90 text-black font-medium rounded-lg transition-colors"
+                >
+                  Desvincular
+                </button>
                 <a
                   href="https://www.mercadopago.com.ar/home"
                   target="_blank"
                   rel="noopener noreferrer"
-                  className="flex items-center justify-center flex-1 h-9 bg-[#FF7939] hover:bg-[#E86A2D] rounded-lg transition-colors"
-                  title="Ir a Mi Cuenta de Mercado Pago"
+                  className="flex items-center justify-center flex-1 h-9 bg-[#FFE600] hover:bg-[#FFD600] text-black font-medium rounded-lg transition-colors"
                 >
-                  {/* Logo de Mercado Pago naranja */}
-                  <svg className="w-5 h-5" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
-                    <path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm0 18c-4.41 0-8-3.59-8-8s3.59-8 8-8 8 3.59 8 8-3.59 8-8 8z" fill="white"/>
-                    <path d="M12 6c-3.31 0-6 2.69-6 6s2.69 6 6 6 6-2.69 6-6-2.69-6-6-6zm0 10c-2.21 0-4-1.79-4-4s1.79-4 4-4 4 1.79 4 4-1.79 4-4 4z" fill="white"/>
-                    <circle cx="12" cy="12" r="2" fill="white"/>
-                  </svg>
+                  Ir a Mercado Pago
                 </a>
-                <button
-                  onClick={() => setShowDisconnectModal(true)}
-                  className="flex items-center justify-center w-9 h-9 bg-black/40 hover:bg-black/60 border border-white/10 rounded-lg transition-colors text-white/70"
-                  title="Desvincular cuenta"
-                >
-                  <Unlink className="w-4 h-4" />
-                </button>
               </>
             ) : (
               <button
                 onClick={handleConnect}
                 disabled={connecting}
-                className="flex items-center justify-center flex-1 h-9 bg-[#FF7939] hover:bg-[#E86A2D] text-white font-medium rounded-lg transition-colors disabled:opacity-50"
+                className="flex items-center justify-center flex-1 h-9 bg-[#FFE600] hover:bg-[#FFD600] text-black font-medium rounded-lg transition-colors disabled:opacity-50"
               >
                 {connecting ? (
                   <>
@@ -454,15 +434,7 @@ export function MercadoPagoConnection() {
                     Conectando...
                   </>
                 ) : (
-                  <>
-                    {/* Logo de Mercado Pago naranja */}
-                    <svg className="w-5 h-5 mr-2" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
-                      <path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm0 18c-4.41 0-8-3.59-8-8s3.59-8 8-8 8 3.59 8 8-3.59 8-8 8z" fill="white"/>
-                      <path d="M12 6c-3.31 0-6 2.69-6 6s2.69 6 6 6 6-2.69 6-6-2.69-6-6-6zm0 10c-2.21 0-4-1.79-4-4s1.79-4 4-4 4 1.79 4 4-1.79 4-4 4z" fill="white"/>
-                      <circle cx="12" cy="12" r="2" fill="white"/>
-                    </svg>
-                    Conectar
-                  </>
+                  'Conectar a Mercado Pago'
                 )}
               </button>
             )}
@@ -475,32 +447,32 @@ export function MercadoPagoConnection() {
           
           {loadingStats ? (
             <div className="flex items-center justify-center py-6">
-              <Loader2 className="w-4 h-4 animate-spin text-[#FF7939]" />
+              <Loader2 className="w-4 h-4 animate-spin text-[#FFE600]" />
             </div>
           ) : paymentStats ? (
             <div className="space-y-2.5">
-              <div className="p-2.5 bg-[#FF7939]/10 border border-[#FF7939]/20 rounded-lg">
+              <div className="p-2.5 bg-[#FFE600]/20 border border-[#FFE600]/40 rounded-lg">
                 <div className="flex items-center gap-1.5 mb-1">
-                  <DollarSign className="w-3.5 h-3.5 text-[#FF7939]" />
-                  <span className="text-xs text-white/70">Total Recibido</span>
+                  <DollarSign className="w-3.5 h-3.5 text-[#FFE600]" />
+                  <span className="text-xs text-white font-medium">Total Recibido</span>
                 </div>
                 <p className="text-lg font-bold text-white">
                   {formatCurrency(paymentStats.totalReceived)}
                 </p>
-                <p className="text-xs text-white/50 mt-0.5">
+                <p className="text-xs text-white/70 mt-0.5">
                   {paymentStats.completedPayments} pago{paymentStats.completedPayments !== 1 ? 's' : ''}
                 </p>
               </div>
 
-              <div className="p-2.5 bg-black/40 border border-white/10 rounded-lg">
+              <div className="p-2.5 bg-white/10 border border-white/20 rounded-lg">
                 <div className="flex items-center gap-1.5 mb-1">
-                  <Clock className="w-3.5 h-3.5 text-white/50" />
-                  <span className="text-xs text-white/70">Pendientes</span>
+                  <Clock className="w-3.5 h-3.5 text-white" />
+                  <span className="text-xs text-white font-medium">Pendientes</span>
                 </div>
-                <p className="text-lg font-bold text-white/80">
+                <p className="text-lg font-bold text-white">
                   {formatCurrency(paymentStats.totalPending)}
                 </p>
-                <p className="text-xs text-white/50 mt-0.5">
+                <p className="text-xs text-white/70 mt-0.5">
                   {paymentStats.pendingPayments} pago{paymentStats.pendingPayments !== 1 ? 's' : ''}
                 </p>
               </div>
@@ -511,117 +483,12 @@ export function MercadoPagoConnection() {
         </div>
       </div>
 
-      {/* Frame de Facturación */}
-      <div className="backdrop-blur-xl bg-black/40 border border-white/10 rounded-2xl p-4">
-        <div className="flex items-center justify-between mb-3">
-          <h3 className="text-white font-semibold text-sm">Facturación</h3>
-          <button
-            onClick={() => setShowInvoices(!showInvoices)}
-            className="text-xs text-[#FF7939] hover:text-[#E86A2D] flex items-center gap-1"
-          >
-            <Eye className="w-3.5 h-3.5" />
-            {showInvoices ? 'Ocultar' : 'Ver'} detalle
-          </button>
-        </div>
-
-        {loadingBilling ? (
-          <div className="flex items-center justify-center py-6">
-            <Loader2 className="w-4 h-4 animate-spin text-[#FF7939]" />
-          </div>
-        ) : billingData ? (
-          <div className="space-y-3">
-            <div className="grid grid-cols-2 gap-3">
-              <div className="p-3 bg-[#FF7939]/10 border border-[#FF7939]/20 rounded-lg">
-                <div className="flex items-center gap-1.5 mb-1.5">
-                  <TrendingUp className="w-3.5 h-3.5 text-[#FF7939]" />
-                  <span className="text-xs text-white/70">Ingresos</span>
-                </div>
-                <p className="text-xl font-bold text-white">
-                  {formatCurrency(billingData.totalIncome)}
-                </p>
-              </div>
-
-              <div className="p-3 bg-[#FF7939]/10 border border-[#FF7939]/20 rounded-lg">
-                <div className="flex items-center gap-1.5 mb-1.5">
-                  <DollarSign className="w-3.5 h-3.5 text-[#FF7939]" />
-                  <span className="text-xs text-white/70">Ganancias</span>
-                </div>
-                <p className="text-xl font-bold text-white">
-                  {formatCurrency(billingData.earnings)}
-                </p>
-                <p className="text-xs text-white/50 mt-0.5">
-                  Sin comisión ni fee
-                </p>
-              </div>
-            </div>
-
-            {/* Lista de facturas y suscripciones */}
-            {showInvoices && (
-              <div className="mt-3 space-y-2 max-h-64 overflow-y-auto pr-2 custom-scrollbar">
-                {/* Facturas de ventas */}
-                {billingData.invoices.map((invoice) => (
-                  <div key={invoice.id} className="p-2.5 bg-black/40 border border-white/10 rounded-lg">
-                    <div className="flex items-center justify-between">
-                      <div>
-                        <p className="text-xs text-white font-medium">{invoice.concept}</p>
-                        <p className="text-xs text-white/50">
-                          {new Date(invoice.date).toLocaleDateString('es-AR')}
-                        </p>
-                      </div>
-                      <div className="text-right">
-                        <p className="text-xs text-white font-semibold">
-                          {formatCurrency(invoice.sellerAmount)}
-                        </p>
-                        <p className="text-xs text-white/50">
-                          Comisión: {formatCurrency(invoice.commission)}
-                        </p>
-                      </div>
-                    </div>
-                  </div>
-                ))}
-
-                {/* Suscripciones de planes */}
-                {billingData.planSubscriptions && billingData.planSubscriptions.length > 0 && (
-                  <>
-                    {billingData.planSubscriptions.map((subscription) => (
-                      <div key={subscription.id} className="p-2.5 bg-black/40 border border-white/10 rounded-lg">
-                        <div className="flex items-center justify-between">
-                          <div>
-                            <p className="text-xs text-white font-medium">
-                              Plan {getPlanName(subscription.planType)}
-                            </p>
-                            <p className="text-xs text-white/50">
-                              {new Date(subscription.date).toLocaleDateString('es-AR')}
-                            </p>
-                          </div>
-                          <div className="text-right">
-                            <p className="text-xs text-white font-semibold">
-                              {formatCurrency(subscription.amount)}
-                            </p>
-                          </div>
-                        </div>
-                      </div>
-                    ))}
-                </>
-              )}
-
-                {billingData.invoices.length === 0 && (!billingData.planSubscriptions || billingData.planSubscriptions.length === 0) && (
-                  <p className="text-white/50 text-xs text-center py-3">No hay facturas este mes</p>
-                )}
-              </div>
-            )}
-          </div>
-        ) : (
-          <p className="text-white/50 text-xs">No hay datos disponibles</p>
-        )}
-      </div>
-
       {/* Botón de exportar - Solo ícono con menú */}
       <div className="flex justify-end">
         <div className="relative" ref={exportMenuRef}>
           <button
             onClick={() => setShowExportMenu(!showExportMenu)}
-            className="flex items-center justify-center w-10 h-10 bg-[#FF7939] hover:bg-[#E86A2D] text-white rounded-xl transition-colors"
+            className="flex items-center justify-center w-10 h-10 bg-[#FFE600] hover:bg-[#FFD600] text-black rounded-xl transition-colors"
             title="Exportar ventas"
           >
             <Printer className="w-5 h-5" />
