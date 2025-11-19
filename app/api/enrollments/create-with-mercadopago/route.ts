@@ -85,43 +85,9 @@ export async function POST(request: NextRequest) {
     const marketplaceFee = parseFloat(commissionResult?.toString() || '0');
     const sellerAmount = totalAmount - marketplaceFee;
 
-    // 5. Crear enrollment en estado "pendiente" (se activará cuando se apruebe el pago)
-    // Nota: Usamos 'pendiente' porque es el valor permitido por la constraint de la BD
-    // Nota: Solo incluimos los campos básicos que existen en la tabla según insert_enrollment.sql
-    // Los campos de pago se guardan en la tabla 'banco' después
-    const enrollmentData: any = {
-      activity_id: activityId,
-      client_id: clientId,
-      status: 'pendiente', // Cambiado de 'pending' a 'pendiente' para cumplir con la constraint
-      created_at: new Date().toISOString(),
-      updated_at: new Date().toISOString(),
-    };
-    
-    // Solo agregar progress si existe en la tabla (verificar primero)
-    // progress puede no existir según algunas migraciones
-    
-    console.log('📝 Intentando crear enrollment con datos:', JSON.stringify(enrollmentData, null, 2));
-    
-    const { data: enrollment, error: enrollmentError } = await supabase
-      .from('activity_enrollments')
-      .insert(enrollmentData)
-      .select()
-      .single();
-
-    if (enrollmentError) {
-      console.error('❌ Error creando enrollment:', enrollmentError);
-      console.error('❌ Código de error:', enrollmentError.code);
-      console.error('❌ Mensaje de error:', enrollmentError.message);
-      console.error('❌ Detalles completos:', JSON.stringify(enrollmentError, null, 2));
-      return NextResponse.json({ 
-        error: 'Error creando inscripción',
-        details: enrollmentError.message,
-        code: enrollmentError.code,
-        fullError: enrollmentError
-      }, { status: 500 });
-    }
-    
-    console.log('✅ Enrollment creado exitosamente:', enrollment.id);
+    // 5. NO crear enrollment todavía - se creará solo cuando el pago sea exitoso
+    // Guardamos activity_id y client_id en banco para crear el enrollment después
+    console.log('ℹ️ No se crea enrollment todavía - se creará cuando el pago sea aprobado');
 
     // 6. Desencriptar access token del coach
     let coachAccessToken: string;
@@ -254,8 +220,6 @@ export async function POST(request: NextRequest) {
     } catch (error: any) {
       console.error('❌ Error creando preferencia:', error);
       console.error('❌ Detalles del error:', JSON.stringify(error, null, 2));
-      // Si falla, eliminar el enrollment creado
-      await supabase.from('activity_enrollments').delete().eq('id', enrollment.id);
       return NextResponse.json({ 
         error: 'Error creando preferencia de pago',
         details: error.message || 'Error desconocido',
@@ -263,9 +227,13 @@ export async function POST(request: NextRequest) {
       }, { status: 500 });
     }
 
-    // 8. Guardar en banco
+    // 8. Guardar en banco SIN enrollment_id (se creará cuando el pago sea aprobado)
+    // Guardamos activity_id y client_id para poder crear el enrollment después
+    const externalReference = `pending_${activityId}_${clientId}_${Date.now()}`;
     const { error: bancoError } = await supabase.from('banco').insert({
-      enrollment_id: enrollment.id,
+      enrollment_id: null, // Se asignará cuando se cree el enrollment
+      activity_id: activityId,
+      client_id: clientId,
       amount_paid: totalAmount,
       payment_status: 'pending',
       payment_method: 'mercadopago',
@@ -275,34 +243,28 @@ export async function POST(request: NextRequest) {
       seller_amount: sellerAmount,
       coach_mercadopago_user_id: mercadopagoUserId,
       coach_access_token_encrypted: coachCredentials.access_token_encrypted,
-      external_reference: `enrollment_${enrollment.id}`
+      external_reference: externalReference
     });
 
     if (bancoError) {
       console.error('Error guardando en banco:', bancoError);
-      // No eliminar enrollment, pero registrar el error
+      return NextResponse.json({ 
+        error: 'Error guardando información de pago',
+        details: bancoError.message
+      }, { status: 500 });
     }
 
-    // 9. Si es un programa, duplicar detalles
-    if (activity.type === 'fitness_program' || activity.type === 'nutrition_program') {
-      await supabase.rpc('duplicate_program_details_on_enrollment', {
-        p_activity_id: activityId,
-        p_client_id: clientId,
-        p_enrollment_id: enrollment.id,
-        p_program_type: activity.type,
-      }).catch((err) => {
-        console.error('Error duplicando detalles del programa:', err);
-        // No fallar la transacción por esto
-      });
-    }
+    console.log('✅ Información de pago guardada en banco (sin enrollment todavía)');
+
+    // 9. NO duplicar detalles del programa todavía - se hará cuando se cree el enrollment
 
     const responseData = {
       success: true,
-      enrollmentId: enrollment.id,
       preferenceId: preferenceResponse.id,
       initPoint: preferenceResponse.init_point, // URL para redirigir al checkout
       marketplaceFee,
-      sellerAmount
+      sellerAmount,
+      externalReference // Para referencia
     };
     
     console.log('✅ Respuesta exitosa:', JSON.stringify(responseData, null, 2));

@@ -99,37 +99,92 @@ export async function POST(request: NextRequest) {
         return NextResponse.json({ error: 'Error actualizando registro de banco' }, { status: 500 });
       }
 
-      // Si el pago fue aprobado, activar enrollment
+      // Si el pago fue aprobado, crear enrollment si no existe
       if (paymentDetails.status === 'approved') {
-        const enrollmentId = bancoRecord.enrollment_id;
+        let enrollmentId = bancoRecord.enrollment_id;
         
-        if (enrollmentId) {
-          // Actualizar enrollment - solo status, los campos de pago están en 'banco'
+        // Si no hay enrollment_id, crear el enrollment ahora
+        if (!enrollmentId && bancoRecord.activity_id && bancoRecord.client_id) {
+          console.log('📝 Creando enrollment para pago aprobado...');
+          console.log('   Activity ID:', bancoRecord.activity_id);
+          console.log('   Client ID:', bancoRecord.client_id);
+          
+          // Crear enrollment
+          const { data: newEnrollment, error: enrollmentCreateError } = await supabase
+            .from('activity_enrollments')
+            .insert({
+              activity_id: bancoRecord.activity_id,
+              client_id: bancoRecord.client_id,
+              status: 'activa',
+              created_at: new Date().toISOString(),
+              updated_at: new Date().toISOString()
+            })
+            .select()
+            .single();
+
+          if (enrollmentCreateError) {
+            console.error('❌ Error creando enrollment:', enrollmentCreateError);
+            // No retornar error, el pago ya se registró
+          } else {
+            enrollmentId = newEnrollment.id;
+            console.log('✅ Enrollment creado:', enrollmentId);
+            
+            // Actualizar banco con el enrollment_id
+            await supabase
+              .from('banco')
+              .update({ enrollment_id: enrollmentId })
+              .eq('id', bancoRecord.id);
+            
+            // Si es un programa, duplicar detalles
+            const { data: activity } = await supabase
+              .from('activities')
+              .select('type')
+              .eq('id', bancoRecord.activity_id)
+              .single();
+            
+            if (activity && (activity.type === 'fitness_program' || activity.type === 'nutrition_program')) {
+              console.log('📋 Duplicando detalles del programa...');
+              await supabase.rpc('duplicate_program_details_on_enrollment', {
+                p_activity_id: bancoRecord.activity_id,
+                p_client_id: bancoRecord.client_id,
+                p_enrollment_id: enrollmentId,
+                p_program_type: activity.type,
+              }).catch((err) => {
+                console.error('Error duplicando detalles del programa:', err);
+                // No fallar la transacción por esto
+              });
+            }
+          }
+        } else if (enrollmentId) {
+          // Si ya existe el enrollment, solo actualizar su status
           const { error: enrollmentUpdateError } = await supabase
             .from('activity_enrollments')
             .update({
               status: 'activa',
-              // payment_status, payment_date, amount_paid fueron movidos a 'banco'
               updated_at: new Date().toISOString()
             })
             .eq('id', enrollmentId);
 
           if (enrollmentUpdateError) {
             console.error('Error activando enrollment:', enrollmentUpdateError);
-            // No retornar error, el pago ya se registró
           } else {
             console.log('✅ Enrollment activado:', enrollmentId);
           }
+        } else {
+          console.warn('⚠️ No se puede crear enrollment: faltan activity_id o client_id en banco');
         }
       } else if (paymentDetails.status === 'rejected' || paymentDetails.status === 'cancelled') {
-        // Si el pago fue rechazado o cancelado, actualizar el enrollment
-        const enrollmentId = bancoRecord.enrollment_id;
+        // Si el pago fue rechazado o cancelado, NO crear enrollment
+        // Solo registrar el estado en banco (ya se hizo arriba)
+        console.log('⚠️ Pago rechazado o cancelado - no se crea enrollment');
         
+        // Si por alguna razón ya existe un enrollment, marcarlo como cancelado
+        const enrollmentId = bancoRecord.enrollment_id;
         if (enrollmentId) {
           const { error: enrollmentUpdateError } = await supabase
             .from('activity_enrollments')
             .update({
-              payment_status: 'failed',
+              status: 'cancelada',
               updated_at: new Date().toISOString()
             })
             .eq('id', enrollmentId);
@@ -137,7 +192,7 @@ export async function POST(request: NextRequest) {
           if (enrollmentUpdateError) {
             console.error('Error actualizando enrollment rechazado:', enrollmentUpdateError);
           } else {
-            console.log('⚠️ Enrollment marcado como fallido:', enrollmentId);
+            console.log('⚠️ Enrollment marcado como cancelado:', enrollmentId);
           }
         }
       }
