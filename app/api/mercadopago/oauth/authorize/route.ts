@@ -67,12 +67,14 @@ export async function GET(request: NextRequest) {
     });
 
     // Redirigir a Mercado Pago con headers explícitos
+    // Usar 307 (Temporary Redirect) para mantener el método GET
     return NextResponse.redirect(finalAuthUrl, {
-      status: 302,
+      status: 307,
       headers: {
         'Cache-Control': 'no-cache, no-store, must-revalidate',
         'Pragma': 'no-cache',
-        'Expires': '0'
+        'Expires': '0',
+        'Location': finalAuthUrl
       }
     });
 

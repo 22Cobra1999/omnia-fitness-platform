@@ -159,7 +159,7 @@ export async function POST(request: NextRequest) {
     // Crear external_reference único para identificar esta compra
     // Formato: pending_activityId_clientId_timestamp
     const externalReference = `pending_${activityId}_${clientId}_${Date.now()}`;
-    
+
     const preferenceData: any = {
       items: [
         {

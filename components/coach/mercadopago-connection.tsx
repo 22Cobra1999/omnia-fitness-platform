@@ -246,29 +246,19 @@ export function MercadoPagoConnection() {
 
     setConnecting(true);
     try {
+      // Usar el endpoint intermedio que construye la URL de Mercado Pago
+      // y redirige correctamente. Abrir en la misma ventana para que funcione.
       const baseUrl = typeof window !== 'undefined' ? window.location.origin : '';
       const authUrl = `${baseUrl}/api/mercadopago/oauth/authorize?coach_id=${user.id}`;
       
-      const popup = window.open(
-        authUrl,
-        'mercadopago_oauth',
-        'width=600,height=700,scrollbars=yes,resizable=yes'
-      );
-
-      if (!popup) {
-        window.location.href = authUrl;
-        return;
-      }
-
-      const checkClosed = setInterval(() => {
-        if (popup.closed) {
-          clearInterval(checkClosed);
-          setConnecting(false);
-        }
-      }, 500);
+      // Abrir directamente en la misma ventana para que la redirección funcione correctamente
+      // Esto asegura que Mercado Pago se abra y el usuario pueda loguearse
+      window.location.href = authUrl;
+      
     } catch (error) {
       console.error('Error al conectar:', error);
       setConnecting(false);
+      toast.error('Error al iniciar la conexión con Mercado Pago');
     }
   };
 
@@ -399,9 +389,9 @@ export function MercadoPagoConnection() {
         {/* Frame de Mercado Pago - Izquierda */}
         <div className="backdrop-blur-xl bg-black/40 border border-white/10 rounded-2xl p-4">
           <h3 className="text-white font-semibold mb-3 flex items-center gap-2 text-sm">
-            <span>Mercado Pago</span>
+        <span>Mercado Pago</span>
             <CheckCircle2 className="w-3.5 h-3.5 text-[#FF7939]" />
-          </h3>
+      </h3>
 
           {/* Info de la cuenta con scroll */}
           <div className="space-y-2 mb-3">
@@ -431,11 +421,11 @@ export function MercadoPagoConnection() {
                     )}
                   </>
                 )}
-                {credentials.mercadopago_user_id && (
+              {credentials.mercadopago_user_id && (
                   <div className="text-xs text-white/50 font-mono pt-1.5 border-t border-white/10">
-                    ID: {credentials.mercadopago_user_id}
+                  ID: {credentials.mercadopago_user_id}
                   </div>
-                )}
+              )}
               </div>
             )}
           </div>
@@ -599,8 +589,8 @@ export function MercadoPagoConnection() {
                         </div>
                       </div>
                     ))}
-                  </>
-                )}
+                </>
+              )}
 
                 {billingData.invoices.length === 0 && (!billingData.planSubscriptions || billingData.planSubscriptions.length === 0) && (
                   <p className="text-white/50 text-xs text-center py-3">No hay facturas este mes</p>

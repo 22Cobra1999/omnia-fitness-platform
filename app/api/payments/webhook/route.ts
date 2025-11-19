@@ -208,7 +208,7 @@ export async function POST(request: NextRequest) {
               .select('type')
               .eq('id', bancoRecord.activity_id)
               .single();
-            
+        
             if (activity && (activity.type === 'fitness_program' || activity.type === 'nutrition_program')) {
               console.log('📋 Duplicando detalles del programa...');
               await supabase.rpc('duplicate_program_details_on_enrollment', {
