@@ -206,20 +206,21 @@ export async function POST(request: NextRequest) {
       statement_descriptor: 'OMNIA',
       // Habilitar binarios para mejor experiencia de pago
       binary_mode: false,
-      // Configuraciones adicionales para asegurar que el botón esté habilitado
-      expires: false, // No expirar la preferencia
-      expiration_date_from: null,
-      expiration_date_to: null,
       // Información del comprador (requerida para habilitar el botón de pago)
       payer: {
         email: clientEmail,
         name: clientProfile?.name || '',
         surname: clientProfile?.surname || ''
       },
+      // Configuraciones adicionales para asegurar que el botón esté habilitado
+      expires: false, // No expirar la preferencia
       // Configurar locale para evitar warnings de BRICKS
       metadata: {
         locale: 'es-AR'
-      }
+      },
+      // Configuraciones adicionales para mejorar la experiencia
+      auto_return: 'approved', // Redirigir automáticamente cuando se apruebe
+      purpose: 'wallet_purchase' // Especificar que es una compra desde wallet
     };
     
     // Determinar qué token usar para crear la preferencia
@@ -260,12 +261,29 @@ export async function POST(request: NextRequest) {
     console.log('📋 Creando preferencia con datos:', JSON.stringify(preferenceData, null, 2));
     console.log('🔑 Token usado para crear preferencia:', isTestToken(tokenToUseForPreference) ? 'PRUEBA (TEST-...)' : 'PRODUCCIÓN (APP_USR-...)');
     console.log('💳 Métodos de pago configurados:', JSON.stringify(preferenceData.payment_methods, null, 2));
+    console.log('👤 Información del payer:', JSON.stringify(preferenceData.payer, null, 2));
+    console.log('💰 Monto total:', totalAmount);
+    console.log('💵 Comisión marketplace:', marketplaceFee);
+    console.log('👤 Monto para vendedor:', sellerAmount);
 
     let preferenceResponse;
     try {
       preferenceResponse = await preference.create({ body: preferenceData });
       console.log('✅ Preferencia creada exitosamente:', preferenceResponse.id);
       console.log('🔗 Init Point:', preferenceResponse.init_point);
+      console.log('📊 Respuesta completa de Mercado Pago:', JSON.stringify({
+        id: preferenceResponse.id,
+        init_point: preferenceResponse.init_point,
+        sandbox_init_point: preferenceResponse.sandbox_init_point,
+        client_id: preferenceResponse.client_id,
+        collector_id: preferenceResponse.collector_id,
+        operation_type: preferenceResponse.operation_type,
+        date_created: preferenceResponse.date_created,
+        items: preferenceResponse.items,
+        payer: preferenceResponse.payer,
+        payment_methods: preferenceResponse.payment_methods,
+        marketplace_fee: preferenceResponse.marketplace_fee
+      }, null, 2));
     } catch (error: any) {
       console.error('❌ Error creando preferencia:', error);
       console.error('❌ Detalles del error:', JSON.stringify(error, null, 2));
