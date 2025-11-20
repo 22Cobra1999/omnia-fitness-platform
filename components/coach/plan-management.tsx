@@ -245,6 +245,13 @@ export function PlanManagement() {
       const result = await response.json()
       
       if (result.success) {
+        // Si hay un init_point de Mercado Pago, redirigir para el pago
+        if (result.subscription_init_point) {
+          console.log('🚀 Redirigiendo a Mercado Pago:', result.subscription_init_point)
+          window.location.href = result.subscription_init_point
+          return
+        }
+        
         setCurrentPlan(result.plan)
         setConfirmingPlan(null)
         setShowPlansDialog(false)
