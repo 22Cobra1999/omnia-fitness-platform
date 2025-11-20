@@ -229,13 +229,9 @@ export async function POST(request: NextRequest) {
       },
       // Configuraciones adicionales para asegurar que el botón esté habilitado
       expires: false, // No expirar la preferencia
-      // Configurar locale para evitar warnings de BRICKS
-      metadata: {
-        locale: 'es-AR'
-      },
-      // Configuraciones adicionales para mejorar la experiencia
-      auto_return: 'approved', // Redirigir automáticamente cuando se apruebe
-      purpose: 'wallet_purchase' // Especificar que es una compra desde wallet
+      // Configurar locale directamente (no en metadata)
+      // El locale se pasa en la URL del init_point, no en la preferencia
+      auto_return: 'approved' // Redirigir automáticamente cuando se apruebe
     };
     
     // Determinar qué token usar para crear la preferencia
@@ -285,7 +281,15 @@ export async function POST(request: NextRequest) {
     try {
       preferenceResponse = await preference.create({ body: preferenceData });
       console.log('✅ Preferencia creada exitosamente:', preferenceResponse.id);
-      console.log('🔗 Init Point:', preferenceResponse.init_point);
+      
+      // Agregar locale a la URL del init_point para evitar warnings de BRICKS
+      let initPoint = preferenceResponse.init_point || preferenceResponse.sandbox_init_point || '';
+      if (initPoint && !initPoint.includes('locale=')) {
+        initPoint = `${initPoint}${initPoint.includes('?') ? '&' : '?'}locale=es-AR`;
+      }
+      
+      console.log('🔗 Init Point original:', preferenceResponse.init_point || preferenceResponse.sandbox_init_point);
+      console.log('🔗 Init Point con locale:', initPoint);
       console.log('📊 Respuesta completa de Mercado Pago:', JSON.stringify({
         id: preferenceResponse.id,
         init_point: preferenceResponse.init_point,
