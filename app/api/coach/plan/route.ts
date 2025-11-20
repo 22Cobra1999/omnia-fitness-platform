@@ -323,6 +323,54 @@ export async function POST(request: NextRequest) {
       renewalCount = 0
     }
 
+    // Si es un plan de pago (no free), cancelar suscripción anterior si existe
+    let subscriptionId: string | null = null
+    if (plan_type !== 'free' && currentPlan?.mercadopago_subscription_id) {
+      try {
+        const { cancelSubscription } = await import('@/lib/mercadopago/subscriptions')
+        await cancelSubscription(currentPlan.mercadopago_subscription_id)
+        console.log('✅ Suscripción anterior cancelada:', currentPlan.mercadopago_subscription_id)
+      } catch (error: any) {
+        console.error('⚠️ Error cancelando suscripción anterior:', error)
+        // Continuar aunque falle, el plan se cambiará de todos modos
+      }
+    }
+
+    // Si es un plan de pago (no free), crear suscripción de Mercado Pago
+    if (plan_type !== 'free') {
+      try {
+        const { createCoachSubscription } = await import('@/lib/mercadopago/subscriptions')
+        
+        // Obtener email del usuario
+        const { data: { user: userData } } = await supabase.auth.getUser()
+        const email = userData?.email || user.email || ''
+        
+        if (!email) {
+          return NextResponse.json({
+            success: false,
+            error: 'Se requiere email para crear suscripción'
+          }, { status: 400 })
+        }
+
+        const subscription = await createCoachSubscription({
+          coachId: coach.id,
+          planType: plan_type as 'basico' | 'black' | 'premium',
+          email,
+          reason: `Plan ${plan_type} - OMNIA`
+        })
+
+        subscriptionId = subscription.id
+        console.log('✅ Suscripción de Mercado Pago creada:', subscriptionId)
+      } catch (error: any) {
+        console.error('❌ Error creando suscripción de Mercado Pago:', error)
+        return NextResponse.json({
+          success: false,
+          error: 'Error creando suscripción de Mercado Pago',
+          details: error.message || 'Error desconocido'
+        }, { status: 500 })
+      }
+    }
+
     // Crear el nuevo plan con los límites y fechas actualizados
     const { data: newPlan, error: createError } = await supabaseService
       .from('planes_uso_coach')
@@ -334,7 +382,8 @@ export async function POST(request: NextRequest) {
         status: 'active',
         started_at: newStartedAt.toISOString(),
         expires_at: newExpiresAt.toISOString(),
-        renewal_count: renewalCount
+        renewal_count: renewalCount,
+        mercadopago_subscription_id: subscriptionId
       })
       .select()
       .single()
@@ -397,7 +446,8 @@ export async function POST(request: NextRequest) {
       storage_limit_gb: newStorageLimit,
       storage_used_gb: storageUsed,
       started_at: newStartedAt.toISOString(),
-      expires_at: newExpiresAt.toISOString()
+      expires_at: newExpiresAt.toISOString(),
+      subscription_id: subscriptionId
     })
 
     return NextResponse.json({ 
@@ -405,7 +455,9 @@ export async function POST(request: NextRequest) {
       plan: newPlan,
       message,
       is_upgrade: isUpgrade,
-      is_downgrade: isDowngrade
+      is_downgrade: isDowngrade,
+      subscription_id: subscriptionId,
+      requires_payment: plan_type !== 'free' && subscriptionId ? true : false
     })
 
   } catch (error) {
