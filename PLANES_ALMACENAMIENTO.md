@@ -81,3 +81,5 @@ Cada sección muestra su tamaño cuando el porcentaje es > 10%, y siempre muestr
 
 
 
+
+

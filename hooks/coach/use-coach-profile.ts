@@ -39,6 +39,13 @@ interface RecentActivity {
   client_name?: string
 }
 
+interface EarningsData {
+  totalIncome: number // Ganancia bruta
+  totalCommission: number
+  planFee: number
+  earnings: number // Ganancia neta
+}
+
 export function useCoachProfile() {
   const [profile, setProfile] = useState<CoachProfile | null>(null)
   const [salesData, setSalesData] = useState<SalesData>({
@@ -47,6 +54,12 @@ export function useCoachProfile() {
     documents: 0,
     cefe: 0,
     consultations: 0
+  })
+  const [earningsData, setEarningsData] = useState<EarningsData>({
+    totalIncome: 0,
+    totalCommission: 0,
+    planFee: 0,
+    earnings: 0
   })
   const [recentActivities, setRecentActivities] = useState<RecentActivity[]>([])
   const [loading, setLoading] = useState(true)
@@ -148,6 +161,27 @@ export function useCoachProfile() {
         }
         setSalesData(mockSalesData)
 
+        // Obtener datos de ganancias del mes actual
+        try {
+          const now = new Date()
+          const currentMonth = String(now.getMonth() + 1).padStart(2, '0')
+          const currentYear = now.getFullYear()
+          
+          const billingResponse = await fetch(`/api/coach/billing?month=${currentYear}-${currentMonth}&year=${currentYear}`)
+          if (billingResponse.ok) {
+            const billingData = await billingResponse.json()
+            setEarningsData({
+              totalIncome: billingData.totalIncome || 0,
+              totalCommission: billingData.totalCommission || 0,
+              planFee: billingData.planFee || 0,
+              earnings: billingData.earnings || 0
+            })
+          }
+        } catch (earningsError) {
+          console.error('Error cargando datos de ganancias:', earningsError)
+          // Continuar sin datos de ganancias si hay error
+        }
+
         // Obtener actividades recientes (simulado por ahora)
         // TODO: Implementar consultas reales a las tablas de actividades
         const mockRecentActivities: RecentActivity[] = [
@@ -210,6 +244,7 @@ export function useCoachProfile() {
   return {
     profile,
     salesData,
+    earningsData,
     recentActivities,
     loading,
     error,

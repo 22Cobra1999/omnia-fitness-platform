@@ -186,3 +186,5 @@ curl -s http://localhost:3000/api/mercadopago/verify-tables | grep -A 10 "campos
 
 
 
+
+

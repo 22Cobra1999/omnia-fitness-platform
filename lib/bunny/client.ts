@@ -69,22 +69,39 @@ export class BunnyClient {
 
   async getVideoInfo(videoId: string): Promise<BunnyVideoInfo | null> {
     try {
-      const response = await fetch(
-        `${BUNNY_CONFIG.apiUrl}/library/${this.libraryId}/videos/${videoId}`,
-        {
-          headers: {
-            'AccessKey': this.streamApiKey,
-          },
-        }
-      )
+      // Usar video.bunnycdn.com para la API de Stream, no api.bunny.net
+      const url = `https://video.bunnycdn.com/library/${this.libraryId}/videos/${videoId}`
+      const response = await fetch(url, {
+        headers: {
+          'AccessKey': this.streamApiKey,
+        },
+      })
 
       if (!response.ok) {
-        throw new Error(`Error obteniendo info: ${response.statusText}`)
+        const errorText = await response.text()
+        console.error(`❌ Error obteniendo info de video ${videoId}: HTTP ${response.status} - ${errorText}`)
+        if (response.status === 404) {
+          console.warn(`⚠️ Video ${videoId} no encontrado en Bunny.net (puede haber sido eliminado)`)
+        }
+        return null
       }
 
-      return await response.json()
-    } catch (error) {
-      console.error('❌ Error getVideoInfo:', error)
+      const videoInfo = await response.json()
+      
+      // Validar que la respuesta tiene la estructura esperada
+      if (!videoInfo || typeof videoInfo !== 'object') {
+        console.error(`❌ Respuesta inválida para video ${videoId}:`, videoInfo)
+        return null
+      }
+
+      // Log para debugging si no tiene storageSize
+      if (videoInfo.storageSize === null || videoInfo.storageSize === undefined || videoInfo.storageSize === 0) {
+        console.warn(`⚠️ Video ${videoId} no tiene storageSize o es 0. Estado: ${videoInfo.status}, Título: ${videoInfo.title || 'N/A'}`)
+      }
+
+      return videoInfo
+    } catch (error: any) {
+      console.error(`❌ Error getVideoInfo para ${videoId}:`, error?.message || error)
       return null
     }
   }

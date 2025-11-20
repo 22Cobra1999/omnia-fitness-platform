@@ -138,14 +138,23 @@ export async function POST(request: NextRequest) {
     }
 
     if (mediaId) {
+      const effectiveFileName = videoMeta.fileName || normalizedFileName || null
+      
+      const updatePayload: Record<string, unknown> = {
+        video_url: videoMeta.streamUrl,
+        bunny_video_id: videoMeta.videoId,
+        bunny_library_id: videoMeta.libraryId,
+        video_thumbnail_url: videoMeta.thumbnailUrl ?? null,
+      }
+
+      // Agregar video_file_name si está disponible
+      if (effectiveFileName) {
+        updatePayload.video_file_name = effectiveFileName
+      }
+
       const { error: updateError } = await supabase
         .from('activity_media')
-        .update({
-          video_url: videoMeta.streamUrl,
-          bunny_video_id: videoMeta.videoId,
-          bunny_library_id: videoMeta.libraryId,
-          video_thumbnail_url: videoMeta.thumbnailUrl ?? null,
-        })
+        .update(updatePayload)
         .eq('id', parseInt(mediaId))
 
       if (updateError) {
@@ -167,14 +176,23 @@ export async function POST(request: NextRequest) {
 
       if (existing) {
         const existingVideoId = existing.bunny_video_id || null
+        const effectiveFileName = videoMeta.fileName || normalizedFileName || null
+        
+        const updatePayload: Record<string, unknown> = {
+          video_url: videoMeta.streamUrl,
+          bunny_video_id: videoMeta.videoId,
+          bunny_library_id: videoMeta.libraryId,
+          video_thumbnail_url: videoMeta.thumbnailUrl ?? null,
+        }
+
+        // Agregar video_file_name si está disponible
+        if (effectiveFileName) {
+          updatePayload.video_file_name = effectiveFileName
+        }
+
         const { error: updateError } = await supabase
           .from('activity_media')
-          .update({
-            video_url: videoMeta.streamUrl,
-            bunny_video_id: videoMeta.videoId,
-            bunny_library_id: videoMeta.libraryId,
-            video_thumbnail_url: videoMeta.thumbnailUrl ?? null,
-          })
+          .update(updatePayload)
           .eq('id', existing.id)
 
         if (updateError) {
@@ -186,15 +204,24 @@ export async function POST(request: NextRequest) {
           await deleteVideoIfUnused(supabase, existingVideoId)
         }
       } else {
+        const effectiveFileName = videoMeta.fileName || normalizedFileName || null
+        
+        const insertPayload: Record<string, unknown> = {
+          activity_id: parseInt(activityId),
+          video_url: videoMeta.streamUrl,
+          bunny_video_id: videoMeta.videoId,
+          bunny_library_id: videoMeta.libraryId,
+          video_thumbnail_url: videoMeta.thumbnailUrl ?? null,
+        }
+
+        // Agregar video_file_name si está disponible
+        if (effectiveFileName) {
+          insertPayload.video_file_name = effectiveFileName
+        }
+
         const { error: insertError } = await supabase
           .from('activity_media')
-          .insert({
-            activity_id: parseInt(activityId),
-            video_url: videoMeta.streamUrl,
-            bunny_video_id: videoMeta.videoId,
-            bunny_library_id: videoMeta.libraryId,
-            video_thumbnail_url: videoMeta.thumbnailUrl ?? null,
-          })
+          .insert(insertPayload)
 
         if (insertError) {
           console.error('❌ Error creando activity_media:', insertError)

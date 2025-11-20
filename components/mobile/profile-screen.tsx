@@ -27,7 +27,9 @@ import {
   Coffee,
   MessageCircle,
   ShoppingCart,
-  Clock
+  Clock,
+  DollarSign,
+  Printer
 } from "lucide-react"
 import { useProfileManagement } from '@/hooks/client/use-profile-management'
 import { useClientMetrics } from '@/hooks/client/use-client-metrics'
@@ -79,11 +81,39 @@ export function ProfileScreen() {
   const isUserCoach = user?.level === 'coach'
   
   // Solo cargar datos del coach si el usuario tiene rol de coach
-  const { profile: coachProfile, salesData, recentActivities, loading: coachLoading } = useCoachProfile()
+  const { profile: coachProfile, salesData, earningsData, recentActivities, loading: coachLoading } = useCoachProfile()
   
   // Determinar si es un coach: verificar rol del usuario directamente
   // Si tiene rol de coach, mostrar vista de coach (incluso si está cargando)
   const isCoach = isUserCoach
+
+  // Función para descargar factura
+  const handleDownloadInvoice = async () => {
+    try {
+      const now = new Date();
+      const month = String(now.getMonth() + 1).padStart(2, '0');
+      const year = now.getFullYear();
+      
+      const url = `/api/coach/export-sales?format=excel&month=${year}-${month}&year=${year}`;
+      const response = await fetch(url);
+      
+      if (!response.ok) {
+        throw new Error('Error al descargar factura');
+      }
+      
+      const blob = await response.blob();
+      const downloadUrl = window.URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = downloadUrl;
+      a.download = `factura_${month}_${year}.csv`;
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      window.URL.revokeObjectURL(downloadUrl);
+    } catch (error) {
+      console.error('Error descargando factura:', error);
+    }
+  }
 
   // Implementar caché inteligente para datos del perfil
   useEffect(() => {
@@ -469,41 +499,66 @@ export function ProfileScreen() {
 
       {/* Barra segmentada de tipos de ventas - Solo para coaches */}
       {isCoach && (
-        <div className="bg-[#1A1C1F] rounded-2xl p-4">
-          <h3 className="text-sm font-medium text-gray-300 mb-3 text-center">Tipos de Ventas</h3>
+        <div className="bg-[#1A1C1F] rounded-2xl p-4 relative">
+          {/* Ícono de imprimir en esquina superior derecha */}
+          <button 
+            onClick={handleDownloadInvoice}
+            className="absolute top-4 right-4 flex items-center justify-center hover:opacity-80 transition-opacity"
+            title="Descargar factura"
+          >
+            <Printer className="w-4 h-4 text-[#FF7939]" />
+          </button>
+
+          {/* Sección de Ganancias */}
+          <div className="mb-4">
+            {/* Ganancias */}
+            <div className="text-center">
+              <p className="text-3xl font-semibold text-[#FF7939] mb-1">
+                ${earningsData.earnings.toLocaleString('es-AR', { minimumFractionDigits: 0, maximumFractionDigits: 0 })}
+              </p>
+              <p className="text-xs text-gray-500">
+                Ganancia Bruta: ${earningsData.totalIncome.toLocaleString('es-AR', { minimumFractionDigits: 0, maximumFractionDigits: 0 })}
+              </p>
+            </div>
+          </div>
+
+          {/* Divider */}
+          <div className="h-px bg-[#2A2C2E] mb-4"></div>
           
           {/* Barra de progreso segmentada - 4 segmentos */}
-          <div className="flex rounded-xl overflow-hidden h-8 mb-3">
-            {/* Programas */}
-            <div 
-              className="bg-[#FF7939] flex items-center justify-center text-white text-xs font-medium"
-              style={{ width: `${(salesData.programs / Math.max(...Object.values(salesData)) * 100)}%` }}
-            >
-              {salesData.programs > 0 && salesData.programs}
-            </div>
-            
-            {/* Talleres */}
-            <div 
-              className="bg-[#FF8C42] flex items-center justify-center text-white text-xs font-medium"
-              style={{ width: `${(salesData.workshops / Math.max(...Object.values(salesData)) * 100)}%` }}
-            >
-              {salesData.workshops > 0 && salesData.workshops}
-            </div>
-            
-            {/* Documentos */}
-            <div 
-              className="bg-[#FF9F5A] flex items-center justify-center text-white text-xs font-medium"
-              style={{ width: `${(salesData.documents / Math.max(...Object.values(salesData)) * 100)}%` }}
-            >
-              {salesData.documents > 0 && salesData.documents}
-            </div>
-            
-            {/* Cefe + Consultas combinado */}
-            <div 
-              className="bg-white flex items-center justify-center text-[#121212] text-xs font-medium"
-              style={{ width: `${(salesData.cefe / Math.max(...Object.values(salesData)) * 100)}%` }}
-            >
-              {salesData.cefe > 0 && salesData.cefe}
+          <div className="mb-3">
+            <div className="flex rounded-xl overflow-hidden h-8">
+              {/* Programas */}
+              <div 
+                className="bg-[#FF7939] flex items-center justify-center text-white text-xs font-medium"
+                style={{ width: `${(salesData.programs / Math.max(...Object.values(salesData), 1) * 100)}%` }}
+              >
+                {salesData.programs > 0 && salesData.programs}
+              </div>
+              
+              {/* Talleres */}
+              <div 
+                className="bg-[#FF8C42] flex items-center justify-center text-white text-xs font-medium"
+                style={{ width: `${(salesData.workshops / Math.max(...Object.values(salesData), 1) * 100)}%` }}
+              >
+                {salesData.workshops > 0 && salesData.workshops}
+              </div>
+              
+              {/* Documentos */}
+              <div 
+                className="bg-[#FF9F5A] flex items-center justify-center text-white text-xs font-medium"
+                style={{ width: `${(salesData.documents / Math.max(...Object.values(salesData), 1) * 100)}%` }}
+              >
+                {salesData.documents > 0 && salesData.documents}
+              </div>
+              
+              {/* Cefe + Consultas combinado */}
+              <div 
+                className="bg-white flex items-center justify-center text-[#121212] text-xs font-medium"
+                style={{ width: `${(salesData.cefe / Math.max(...Object.values(salesData), 1) * 100)}%` }}
+              >
+                {salesData.cefe > 0 && salesData.cefe}
+              </div>
             </div>
           </div>
           
@@ -575,84 +630,24 @@ export function ProfileScreen() {
         </div>
       )}
 
-      {/* Suscripción del Coach - Solo para coaches */}
+      {/* Suscripción y Mercado Pago - Solo para coaches */}
       {isCoach && (
-        <PlanManagement />
+        <div className="flex gap-3">
+          {/* Suscripción del Coach - Ocupa más espacio */}
+          <div className="flex-[1.4] min-w-0">
+            <PlanManagement />
+          </div>
+          
+          {/* Mercado Pago - Ocupa menos espacio */}
+          <div className="flex-1 min-w-0">
+            <MercadoPagoConnection />
+          </div>
+        </div>
       )}
 
       {/* Almacenamiento - Solo para coaches */}
       {isCoach && (
         <StorageUsageWidget />
-      )}
-
-      {/* Mercado Pago - Solo para coaches */}
-      {isCoach && (
-        <MercadoPagoConnection />
-      )}
-
-      {/* Facturación del Coach - Solo para coaches */}
-      {isCoach && (
-        <div className="bg-[#1A1C1F] rounded-2xl p-4">
-          <h3 className="text-lg font-semibold mb-4">Facturación</h3>
-          <div className="space-y-3">
-            {/* Resumen del mes */}
-            <div className="p-3 bg-white/5 rounded-xl">
-              <div className="flex items-center justify-between mb-2">
-                <span className="text-sm font-medium text-gray-300">Resumen del Mes</span>
-                <span className="text-xs text-gray-500">Enero 2025</span>
-              </div>
-              <div className="grid grid-cols-2 gap-4 text-center">
-                <div>
-                  <p className="text-2xl font-bold text-[#FF7939]">$2,847</p>
-                  <p className="text-xs text-gray-400">Ingresos</p>
-                </div>
-                <div>
-                  <p className="text-2xl font-bold text-green-400">$1,923</p>
-                  <p className="text-xs text-gray-400">Ganancias</p>
-                </div>
-              </div>
-            </div>
-
-            {/* Botones de descarga */}
-            <div className="space-y-2">
-              <button className="w-full p-3 bg-[#FF7939]/10 rounded-xl text-[#FF7939] text-sm font-medium hover:bg-[#FF7939]/20 transition-colors flex items-center justify-center space-x-2">
-                <FileText className="h-4 w-4" />
-                <span>Descargar Resumen de Ventas</span>
-              </button>
-              <button className="w-full p-3 bg-gray-700 rounded-xl text-white text-sm font-medium hover:bg-gray-600 transition-colors flex items-center justify-center space-x-2">
-                <FileText className="h-4 w-4" />
-                <span>Descargar Facturas de Suscripción</span>
-              </button>
-            </div>
-
-            {/* Historial reciente */}
-            <div className="mt-4">
-              <h4 className="text-sm font-medium text-gray-300 mb-3">Últimas Facturas</h4>
-              <div className="space-y-2">
-                <div className="flex items-center justify-between p-2 bg-white/5 rounded-lg">
-                  <div>
-                    <p className="text-sm text-white">Enero 2025</p>
-                    <p className="text-xs text-gray-400">Plan Coach Premium</p>
-                  </div>
-                  <div className="text-right">
-                    <p className="text-sm font-medium text-[#FF7939]">$49.99</p>
-                    <p className="text-xs text-green-400">Pagado</p>
-                  </div>
-                </div>
-                <div className="flex items-center justify-between p-2 bg-white/5 rounded-lg">
-                  <div>
-                    <p className="text-sm text-white">Diciembre 2024</p>
-                    <p className="text-xs text-gray-400">Plan Coach Premium</p>
-                  </div>
-                  <div className="text-right">
-                    <p className="text-sm font-medium text-[#FF7939]">$49.99</p>
-                    <p className="text-xs text-green-400">Pagado</p>
-                  </div>
-                </div>
-              </div>
-            </div>
-          </div>
-        </div>
       )}
 
       {/* Anillos de actividad - Solo para clientes */}

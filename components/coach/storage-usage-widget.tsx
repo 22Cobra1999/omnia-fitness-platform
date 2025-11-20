@@ -1,7 +1,8 @@
-"use client"
+'use client'
 
 import { useState, useEffect } from 'react'
 import { Button } from '@/components/ui/button'
+import { useAuth } from '@/contexts/auth-context'
 import { 
   RefreshCw,
   Layers,
@@ -13,8 +14,16 @@ import {
   FileText,
   Video,
   Image,
-  File as FileIcon
+  File as FileIcon,
+  Edit,
+  Trash2,
+  Plus,
+  X,
+  AlertTriangle,
+  Save,
+  Eye
 } from 'lucide-react'
+import { UniversalVideoPlayer } from '@/components/shared/video/universal-video-player'
 
 interface StorageUsageData {
   total: number
@@ -38,6 +47,7 @@ interface StorageFile {
   sizeGB: number
   usesCount: number
   activities: Array<{ id: number, name: string }>
+  url?: string // URL pública del archivo
 }
 
 type ViewMode = 'activity' | 'usage'
@@ -59,7 +69,9 @@ interface StorageUsageWidgetProps {
   plan?: PlanType // Plan del coach, por defecto 'free'
 }
 
-export function StorageUsageWidget({ plan: planProp }: StorageUsageWidgetProps = {}) {
+export function StorageUsageWidget(props: StorageUsageWidgetProps = {}) {
+  const { plan: planProp } = props
+  const { user } = useAuth()
   const [storageData, setStorageData] = useState<StorageUsageData | null>(null)
   const [storageFiles, setStorageFiles] = useState<StorageFile[]>([])
   const [loading, setLoading] = useState(false)
@@ -67,8 +79,14 @@ export function StorageUsageWidget({ plan: planProp }: StorageUsageWidgetProps =
   const [error, setError] = useState<string | null>(null)
   const [expanded, setExpanded] = useState(false)
   const [collapsed, setCollapsed] = useState(true)
-  const [viewMode, setViewMode] = useState<ViewMode>('activity')
+  const [viewMode, setViewMode] = useState<ViewMode>('usage')
   const [currentPlan, setCurrentPlan] = useState<PlanType | null>(null)
+  const [editing, setEditing] = useState(false)
+  const [fileToDelete, setFileToDelete] = useState<StorageFile | null>(null)
+  const [showDeleteWarning, setShowDeleteWarning] = useState(false)
+  const [editingFileName, setEditingFileName] = useState<string | null>(null)
+  const [newFileName, setNewFileName] = useState<string>('')
+  const [viewingFile, setViewingFile] = useState<StorageFile | null>(null)
   
   // Obtener el plan desde la API si no se proporciona como prop
   useEffect(() => {
@@ -169,6 +187,147 @@ export function StorageUsageWidget({ plan: planProp }: StorageUsageWidgetProps =
     return `${gb.toFixed(2)} GB`
   }
 
+  const handleDeleteFile = async (file: StorageFile) => {
+    // Si el archivo está siendo usado en actividades, mostrar advertencia
+    if (file.activities.length > 0) {
+      setFileToDelete(file)
+      setShowDeleteWarning(true)
+      return
+    }
+    
+    // Si no está en uso, eliminar directamente
+    await deleteFile(file)
+  }
+
+  const deleteFile = async (file: StorageFile) => {
+    try {
+      let endpoint = ''
+      let body: any = {}
+
+      if (file.concept === 'video') {
+        // Extraer videoId del fileId (formato: video-{activityId}-{idx} o bunny_video_id)
+        const videoIdMatch = file.fileId.match(/^([a-zA-Z0-9-]+)$/)
+        if (!videoIdMatch) {
+          alert('No se pudo identificar el video para eliminar')
+          return
+        }
+        endpoint = '/api/bunny/delete-video'
+        body = { videoId: file.fileId }
+      } else if (file.concept === 'image' || file.concept === 'pdf') {
+        // Para imágenes y PDFs, necesitamos el nombre real del archivo
+        // El fileName puede ser sintético, necesitamos extraer el nombre real
+        endpoint = '/api/storage/delete-file'
+        body = { 
+          fileName: file.fileName,
+          concept: file.concept,
+          activityIds: file.activities.map(a => a.id)
+        }
+      }
+
+      if (!endpoint) {
+        console.error('Tipo de archivo no soportado para eliminación')
+        return
+      }
+
+      const response = await fetch(endpoint, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(body)
+      })
+
+      const result = await response.json()
+
+      if (response.ok && result.success) {
+        // Recargar datos
+        await loadStorageUsage()
+        setEditing(false)
+        setShowDeleteWarning(false)
+        setFileToDelete(null)
+      } else {
+        console.error('Error eliminando archivo:', result.error)
+        alert(result.error || 'Error al eliminar el archivo')
+      }
+    } catch (error) {
+      console.error('Error eliminando archivo:', error)
+      alert('Error al eliminar el archivo')
+    }
+  }
+
+  const confirmDelete = async () => {
+    if (fileToDelete) {
+      await deleteFile(fileToDelete)
+    }
+  }
+
+  const handleEditFileName = (file: StorageFile) => {
+    setEditingFileName(file.fileId)
+    setNewFileName(file.fileName)
+  }
+
+  const handleSaveFileName = async (file: StorageFile) => {
+    if (!newFileName.trim()) {
+      alert('El nombre no puede estar vacío')
+      return
+    }
+
+    try {
+      // Llamar al endpoint para actualizar en la BD
+      console.log('[storage-widget] Guardando nombre:', { fileId: file.fileId, fileName: newFileName.trim(), concept: file.concept })
+      
+      const response = await fetch('/api/storage/update-file-name', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        credentials: 'include',
+        body: JSON.stringify({
+          fileId: file.fileId,
+          fileName: newFileName.trim(),
+          concept: file.concept,
+        }),
+      })
+
+      if (!response.ok) {
+        const errorText = await response.text()
+        console.error('[storage-widget] Error response:', response.status, errorText)
+        let errorData
+        try {
+          errorData = JSON.parse(errorText)
+        } catch {
+          errorData = { error: errorText || `Error ${response.status}` }
+        }
+        throw new Error(errorData.error || `Error ${response.status}: ${response.statusText}`)
+      }
+
+      const result = await response.json()
+      console.log('[storage-widget] Respuesta del servidor:', result)
+
+      if (!result.success) {
+        throw new Error(result.error || 'Error al actualizar el nombre')
+      }
+
+      // Actualizar localmente solo si la actualización fue exitosa
+      const updatedFiles = storageFiles.map(f => 
+        f.fileId === file.fileId 
+          ? { ...f, fileName: newFileName.trim() }
+          : f
+      )
+      setStorageFiles(updatedFiles)
+      setEditingFileName(null)
+      setNewFileName('')
+      
+      // Recargar los datos para asegurar consistencia con la BD
+      await loadStorageUsage()
+    } catch (error) {
+      console.error('Error actualizando nombre:', error)
+      alert(error instanceof Error ? error.message : 'Error al actualizar el nombre del archivo')
+    }
+  }
+
+  const handleViewFile = (file: StorageFile) => {
+    setViewingFile(file)
+  }
+
   // Agrupar por actividad
   const getActivityView = () => {
     const activityMap = new Map<number, { name: string, files: StorageFile[], totalGB: number }>()
@@ -205,9 +364,11 @@ export function StorageUsageWidget({ plan: planProp }: StorageUsageWidgetProps =
   // Calcular porcentajes basados en el límite total del plan
   const videoGB = storageData?.breakdown.video || 0
   const imageGB = storageData?.breakdown.image || 0
+  const pdfGB = storageData?.breakdown.pdf || 0
   
   const videoPercent = storageLimitGB > 0 ? (videoGB / storageLimitGB) * 100 : 0
   const imagePercent = storageLimitGB > 0 ? (imageGB / storageLimitGB) * 100 : 0
+  const pdfPercent = storageLimitGB > 0 ? (pdfGB / storageLimitGB) * 100 : 0
   const availablePercent = storageLimitGB > 0 ? (remainingGB / storageLimitGB) * 100 : 100
 
   return (
@@ -236,70 +397,43 @@ export function StorageUsageWidget({ plan: planProp }: StorageUsageWidgetProps =
         </div>
       ) : storageData ? (
         <>
-          {/* Leyendas arriba de la barra (solo cuando expandido) */}
-          {!collapsed && (
-          <div className="flex items-center justify-between mb-2">
-            {storageData.breakdown.video > 0 && (
-              <div className="flex items-center gap-1">
-                <Video className="w-4 h-4 text-[#FF7939]" />
-                <span className="text-xs text-gray-300">Video</span>
-              </div>
-            )}
-            {storageData.breakdown.image > 0 && (
-              <div className="flex items-center gap-1">
-                <Image className="w-4 h-4 text-[#FF8C42]" />
-                <span className="text-xs text-gray-300">Imagen</span>
-              </div>
-            )}
-            {storageData.breakdown.pdf > 0 && (
-              <div className="flex items-center gap-1">
-                <FileIcon className="w-4 h-4 text-white" />
-                <span className="text-xs text-gray-300">PDF</span>
-              </div>
-            )}
-          </div>
-          )}
-
-          {/* Barra con Videos, Fotos y Disponible */}
-          <div className="relative h-14 rounded-xl overflow-hidden border-2 border-gray-700 bg-gray-900/50 shadow-inner mb-4">
+          {/* Barra con Videos, Imágenes, PDFs y Disponible */}
+          <div className="relative h-8 rounded-xl overflow-hidden border-2 border-gray-700 bg-white shadow-inner mb-4">
             <div className="flex h-full items-center">
-              {/* Videos - Naranja */}
+              {/* Videos - Naranja más oscuro #FF7939 */}
               {videoPercent > 0 && (
                 <div 
-                  className="bg-[#FF7939] flex items-center justify-center gap-2 text-white text-xs font-bold h-full transition-all"
-                  style={{ width: `${videoPercent}%`, minWidth: videoPercent > 2 ? '50px' : '0px' }}
-                >
-                  <Video className="w-4 h-4" />
-                  {videoPercent > 10 && (
-                    <span className="whitespace-nowrap">{formatMB(videoGB)}</span>
-                  )}
-                </div>
+                  className="bg-[#FF7939] h-full transition-all"
+                  style={{ width: `${videoPercent}%`, minWidth: videoPercent > 0.5 ? '4px' : '0px' }}
+                  title={`Videos: ${formatMB(videoGB)}`}
+                />
               )}
               
-              {/* Fotos - Negro */}
+              {/* Imágenes - Naranja medio #FF8C42 */}
               {imagePercent > 0 && (
                 <div 
-                  className="bg-black flex items-center justify-center gap-2 text-white text-xs font-bold h-full transition-all"
-                  style={{ width: `${imagePercent}%`, minWidth: imagePercent > 2 ? '50px' : '0px' }}
-                >
-                  <Image className="w-4 h-4" />
-                  {imagePercent > 10 && (
-                    <span className="whitespace-nowrap">{formatMB(imageGB)}</span>
-                  )}
-                </div>
+                  className="bg-[#FF8C42] h-full transition-all"
+                  style={{ width: `${imagePercent}%`, minWidth: imagePercent > 0.5 ? '4px' : '0px' }}
+                  title={`Imágenes: ${formatMB(imageGB)}`}
+                />
+              )}
+              
+              {/* PDFs - Naranja claro #FF9F5A */}
+              {pdfPercent > 0 && (
+                <div 
+                  className="bg-[#FF9F5A] h-full transition-all"
+                  style={{ width: `${pdfPercent}%`, minWidth: pdfPercent > 0.5 ? '4px' : '0px' }}
+                  title={`PDFs: ${formatMB(pdfGB)}`}
+                />
               )}
               
               {/* Disponible - Blanco */}
               {availablePercent > 0 && (
                 <div 
-                  className="bg-white flex items-center justify-center gap-2 text-[#1A1C1F] text-xs font-bold h-full transition-all"
-                  style={{ width: `${availablePercent}%`, minWidth: availablePercent > 2 ? '50px' : '0px' }}
-                >
-                  <FileIcon className="w-4 h-4" />
-                  {availablePercent > 10 && (
-                    <span className="whitespace-nowrap">{formatGB(remainingGB)}</span>
-                  )}
-                </div>
+                  className="bg-white h-full transition-all"
+                  style={{ width: `${availablePercent}%`, minWidth: availablePercent > 0.5 ? '4px' : '0px' }}
+                  title={`Disponible: ${formatGB(remainingGB)}`}
+                />
               )}
             </div>
           </div>
@@ -323,10 +457,16 @@ export function StorageUsageWidget({ plan: planProp }: StorageUsageWidgetProps =
           </div>
 
           {/* Botón expandir/colapsar */}
-          <div className="mb-2">
+          <div className="mb-2 flex items-center justify-between">
             <button
-              onClick={() => setCollapsed(!collapsed)}
-              className="w-full flex items-center justify-center gap-1 text-xs text-gray-400 hover:text-white transition-colors py-1"
+              onClick={() => {
+                setCollapsed(!collapsed)
+                if (collapsed) {
+                  // Cuando se expande, cambiar a vista de uso total
+                  setViewMode('usage')
+                }
+              }}
+              className="flex items-center justify-center gap-1 text-xs text-gray-400 hover:text-white transition-colors py-1"
             >
               {collapsed ? (
                 <>
@@ -338,6 +478,14 @@ export function StorageUsageWidget({ plan: planProp }: StorageUsageWidgetProps =
                 </>
               )}
             </button>
+            {!collapsed && (
+              <button
+                onClick={() => setEditing(!editing)}
+                className="text-xs text-[#FF7939] hover:text-[#FF8C42] transition-colors font-medium"
+              >
+                {editing ? 'Cancelar' : 'Editar'}
+              </button>
+            )}
           </div>
 
           {/* Tabs (solo cuando expandido) */}
@@ -468,23 +616,106 @@ export function StorageUsageWidget({ plan: planProp }: StorageUsageWidgetProps =
                         return <FileText className="h-4 w-4 text-[#FF9F5A]" />
                       }
 
+                      const isEditingThisFile = editingFileName === file.fileId
+
                       return (
                         <div key={`usage-${file.fileId}-${idx}`} className="text-xs pb-2 border-b border-gray-800 last:border-0">
-                          <div className="flex items-start justify-between">
+                          <div className="flex items-start justify-between gap-2">
                             <div className="flex items-start gap-2 flex-1 min-w-0">
                               {getIcon()}
                               <div className="flex-1 min-w-0">
-                                <div className="text-white font-medium truncate">{file.fileName}</div>
+                                {isEditingThisFile ? (
+                                  <div className="flex items-center gap-1 mb-1">
+                                    <input
+                                      type="text"
+                                      value={newFileName}
+                                      onChange={(e) => setNewFileName(e.target.value)}
+                                      onKeyDown={(e) => {
+                                        if (e.key === 'Enter') {
+                                          handleSaveFileName(file)
+                                        } else if (e.key === 'Escape') {
+                                          setEditingFileName(null)
+                                          setNewFileName('')
+                                        }
+                                      }}
+                                      className="flex-1 px-2 py-1 bg-gray-800 border border-gray-700 rounded text-white text-xs focus:outline-none focus:border-[#FF7939]"
+                                      autoFocus
+                                    />
+                                    <button
+                                      onClick={() => handleSaveFileName(file)}
+                                      className="p-1 text-[#FF7939] hover:text-[#FF8C42] transition-colors"
+                                      title="Guardar"
+                                    >
+                                      <Save className="w-3.5 h-3.5" />
+                                    </button>
+                                    <button
+                                      onClick={() => {
+                                        setEditingFileName(null)
+                                        setNewFileName('')
+                                      }}
+                                      className="p-1 text-gray-400 hover:text-white transition-colors"
+                                      title="Cancelar"
+                                    >
+                                      <X className="w-3.5 h-3.5" />
+                                    </button>
+                                  </div>
+                                ) : (
+                                  <div 
+                                    className={`text-white font-medium truncate ${editing ? 'cursor-pointer hover:text-[#FF7939]' : ''}`}
+                                    onClick={() => {
+                                      if (editing && (file.concept === 'video' || file.concept === 'image')) {
+                                        handleViewFile(file)
+                                      }
+                                    }}
+                                    title={editing && (file.concept === 'video' || file.concept === 'image') ? 'Click para ver' : ''}
+                                  >
+                                    {file.fileName}
+                                  </div>
+                                )}
                                 <div className="text-gray-500 text-[10px] mt-0.5">
                                   Usado {file.usesCount} {file.usesCount === 1 ? 'vez' : 'veces'} • {formatMB(file.sizeGB)} cada uno
                                 </div>
+                                {file.activities.length > 0 && (
+                                  <div className="text-[10px] text-yellow-500 mt-0.5">
+                                    {file.activities.length} {file.activities.length === 1 ? 'actividad' : 'actividades'}
+                                  </div>
+                                )}
                               </div>
                             </div>
-                            <div className="text-right ml-2">
-                              <div className="text-white font-semibold">
-                                {formatMB(file.totalUsageGB)}
+                            <div className="flex items-start gap-2">
+                              <div className="text-right ml-2">
+                                <div className="text-white font-semibold">
+                                  {formatMB(file.totalUsageGB)}
+                                </div>
+                                <div className="text-[10px] text-gray-500">total</div>
                               </div>
-                              <div className="text-[10px] text-gray-500">total</div>
+                              {editing && !isEditingThisFile && (
+                                <div className="flex gap-1">
+                                  {(file.concept === 'video' || file.concept === 'image') && (
+                                    <button
+                                      onClick={() => handleViewFile(file)}
+                                      className="p-1.5 text-[#FF7939] hover:text-[#FF8C42] hover:bg-[#FF7939]/10 rounded transition-colors"
+                                      title="Ver archivo"
+                                    >
+                                      <Eye className="w-3.5 h-3.5" />
+                                    </button>
+                                  )}
+                                  <button
+                                    onClick={() => handleEditFileName(file)}
+                                    className="p-1.5 text-blue-500 hover:text-blue-400 hover:bg-blue-500/10 rounded transition-colors"
+                                    title="Editar nombre"
+                                  >
+                                    <Edit className="w-3.5 h-3.5" />
+                                  </button>
+                                  <button
+                                    onClick={() => handleDeleteFile(file)}
+                                    className="p-1.5 text-red-500 hover:text-red-400 hover:bg-red-500/10 rounded transition-colors"
+                                    title="Eliminar archivo"
+                                  >
+                                    <Trash2 className="w-3.5 h-3.5" />
+                                  </button>
+                                </div>
+                              )}
                             </div>
                           </div>
                         </div>
@@ -516,6 +747,100 @@ export function StorageUsageWidget({ plan: planProp }: StorageUsageWidgetProps =
               </>
             )}
           </div>
+          )}
+
+          {/* Modal para ver archivo */}
+          {viewingFile && (
+            <div className="fixed inset-0 bg-black/90 z-50 flex items-center justify-center p-4" onClick={() => setViewingFile(null)}>
+              <div className="bg-[#1A1C1F] rounded-xl p-4 max-w-4xl w-full border border-[#2A2C2E] max-h-[90vh] overflow-auto" onClick={(e) => e.stopPropagation()}>
+                <div className="flex items-center justify-between mb-4">
+                  <h3 className="text-white font-semibold text-sm">{viewingFile.fileName}</h3>
+                  <button
+                    onClick={() => setViewingFile(null)}
+                    className="p-1 text-gray-400 hover:text-white transition-colors"
+                  >
+                    <X className="w-5 h-5" />
+                  </button>
+                </div>
+                <div className="relative w-full aspect-video bg-black rounded-lg overflow-hidden">
+                  {viewingFile.concept === 'video' ? (
+                    <UniversalVideoPlayer
+                      videoUrl={null}
+                      bunnyVideoId={viewingFile.fileId}
+                      autoPlay={false}
+                      controls={true}
+                      muted={false}
+                      className="w-full h-full"
+                      onError={(error) => {
+                        console.error('Error cargando video:', error)
+                      }}
+                    />
+                  ) : viewingFile.concept === 'image' ? (
+                    <img
+                      src={viewingFile.url || `${process.env.NEXT_PUBLIC_SUPABASE_URL}/storage/v1/object/public/product-media/coaches/${user?.id}/images/${viewingFile.fileName}`}
+                      alt={viewingFile.fileName}
+                      className="w-full h-full object-contain"
+                      onError={(e) => {
+                        console.error('Error cargando imagen:', viewingFile.url || viewingFile.fileName)
+                        // Intentar URL alternativa si falla
+                        if (!viewingFile.url) {
+                          e.currentTarget.src = `${process.env.NEXT_PUBLIC_SUPABASE_URL}/storage/v1/object/public/product-media/coaches/${user?.id}/images/${viewingFile.fileName}`
+                        } else {
+                          e.currentTarget.src = '/placeholder.svg'
+                        }
+                      }}
+                    />
+                  ) : (
+                    <div className="flex items-center justify-center h-full text-gray-400">
+                      <FileText className="w-16 h-16" />
+                      <p className="ml-4">Vista previa de PDF no disponible</p>
+                    </div>
+                  )}
+                </div>
+              </div>
+            </div>
+          )}
+
+          {/* Modal de advertencia al eliminar */}
+          {showDeleteWarning && fileToDelete && (
+            <div className="fixed inset-0 bg-black/80 z-50 flex items-center justify-center p-4">
+              <div className="bg-[#1A1C1F] rounded-xl p-4 max-w-md w-full border border-[#2A2C2E]">
+                <div className="flex items-start gap-3 mb-4">
+                  <AlertTriangle className="w-5 h-5 text-yellow-500 flex-shrink-0 mt-0.5" />
+                  <div className="flex-1">
+                    <h3 className="text-white font-semibold text-sm mb-2">Advertencia</h3>
+                    <p className="text-gray-300 text-xs mb-2">
+                      Este archivo está siendo usado en {fileToDelete.activities.length} {fileToDelete.activities.length === 1 ? 'actividad' : 'actividades'}:
+                    </p>
+                    <ul className="text-gray-400 text-xs space-y-1 mb-3">
+                      {fileToDelete.activities.map((act) => (
+                        <li key={act.id}>• {act.name}</li>
+                      ))}
+                    </ul>
+                    <p className="text-red-400 text-xs font-medium">
+                      Al eliminar este archivo, se perderá de estas actividades también.
+                    </p>
+                  </div>
+                </div>
+                <div className="flex gap-2">
+                  <button
+                    onClick={() => {
+                      setShowDeleteWarning(false)
+                      setFileToDelete(null)
+                    }}
+                    className="flex-1 py-2 px-4 bg-gray-700 hover:bg-gray-600 text-white text-xs font-medium rounded-lg transition-colors"
+                  >
+                    Cancelar
+                  </button>
+                  <button
+                    onClick={confirmDelete}
+                    className="flex-1 py-2 px-4 bg-red-600 hover:bg-red-700 text-white text-xs font-medium rounded-lg transition-colors"
+                  >
+                    Eliminar de todos modos
+                  </button>
+                </div>
+              </div>
+            </div>
           )}
         </>
       ) : null}

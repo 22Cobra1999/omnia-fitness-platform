@@ -454,18 +454,18 @@ export function PlanManagement() {
 
   return (
     <>
-      <div ref={planSectionRef} className="bg-black rounded-2xl p-4 space-y-4">
-        <h3 className="text-lg font-semibold text-white">Mi Suscripción</h3>
+      <div ref={planSectionRef} className="bg-black rounded-2xl p-3 space-y-3">
+        <h3 className="text-base font-semibold text-white">Mi Suscripción</h3>
         
         {/* Plan Actual - Diseño simplificado */}
-        <div className="p-4 rounded-xl bg-[#0A0A0A] border border-white/10">
+        <div className="p-3 rounded-xl bg-[#0A0A0A] border border-white/10">
           <div className="flex items-center justify-between">
             <div className="flex items-center gap-3">
-              <div className={`p-2 rounded-lg ${currentColor}`}>
-                <CurrentIcon className="w-5 h-5" />
+              <div className={`p-1.5 rounded-lg ${currentColor}`}>
+                <CurrentIcon className="w-4 h-4" />
               </div>
               <div>
-                <p className="font-semibold text-white">{PLAN_NAMES[currentPlanType]}</p>
+                <p className="font-semibold text-white text-sm">{PLAN_NAMES[currentPlanType]}</p>
                 <p className="text-xs text-gray-400">
                   {currentPlanInfo.price === 0 
                     ? currentPlanInfo.period 
@@ -481,9 +481,7 @@ export function PlanManagement() {
                   </p>
                   <p className="text-xs text-gray-400">/mes</p>
                 </>
-              ) : (
-                <p className="text-lg font-bold text-green-400">Gratis</p>
-              )}
+              ) : null}
             </div>
           </div>
         </div>
@@ -562,9 +560,7 @@ export function PlanManagement() {
                             </p>
                             <p className={`text-xs ${isConfirming || isCurrent ? 'font-bold text-black/70' : 'text-gray-400'}`}>/mes</p>
                           </>
-                        ) : (
-                          <p className={`text-lg font-bold ${isConfirming || isCurrent ? 'text-black' : 'text-green-400'}`}>Gratis</p>
-                        )}
+                        ) : null}
                       </div>
                     </div>
 
