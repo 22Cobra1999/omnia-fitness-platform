@@ -60,19 +60,15 @@ export async function createCoachSubscription({
       transaction_amount: planPrice.price,
       currency_id: planPrice.currency,
       start_date: new Date(Date.now() + 60000).toISOString(), // Comienza en 1 minuto
-      end_date: null // Sin fecha de fin (indefinida hasta cancelación)
+      // IMPORTANTE: No usar end_date: null en sandbox, puede causar problemas
+      // Dejar que se renueve automáticamente sin especificar end_date
     },
     back_url: `${appUrl}/payment/subscription-success`,
-    notification_url: `${appUrl}/api/payments/subscription-webhook`,
-    // Especificar payment_methods_allowed para asegurar que aparezcan tarjetas
-    // En PreApproval, si no se especifica, puede que solo muestre account_money
-    payment_methods_allowed: {
-      payment_types: [
-        { id: 'credit_card' },
-        { id: 'debit_card' }
-      ],
-      payment_methods: [] // Array vacío = permitir todos los métodos de tarjeta
-    }
+    notification_url: `${appUrl}/api/payments/subscription-webhook`
+    // IMPORTANTE: No especificar payment_methods_allowed para PreApproval
+    // PreApproval mostrará los métodos disponibles según la cuenta del usuario
+    // En sandbox, si el usuario tiene dinero en cuenta, puede que aparezca primero
+    // Pero también debería mostrar opciones para agregar tarjetas
   }
 
     try {
