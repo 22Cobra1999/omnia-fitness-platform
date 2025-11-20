@@ -360,7 +360,8 @@ export async function POST(request: NextRequest) {
         })
 
         subscriptionId = subscription.id
-        console.log('✅ Suscripción de Mercado Pago creada:', subscriptionId)
+        subscriptionInitPoint = subscription.init_point
+        console.log('✅ Suscripción de Mercado Pago creada:', subscriptionId, 'init_point:', subscriptionInitPoint)
       } catch (error: any) {
         console.error('❌ Error creando suscripción de Mercado Pago:', error)
         return NextResponse.json({
@@ -457,6 +458,7 @@ export async function POST(request: NextRequest) {
       is_upgrade: isUpgrade,
       is_downgrade: isDowngrade,
       subscription_id: subscriptionId,
+      subscription_init_point: subscriptionInitPoint,
       requires_payment: plan_type !== 'free' && subscriptionId ? true : false
     })
 

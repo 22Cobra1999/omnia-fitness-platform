@@ -13,8 +13,11 @@ const PLAN_PRICES = {
   premium: { price: 35000, currency: 'ARS', period: 'mensual' }
 }
 
+// Usar TEST_MERCADOPAGO_ACCESS_TOKEN si está disponible (modo prueba), sino usar MERCADOPAGO_ACCESS_TOKEN
+const accessToken = process.env.TEST_MERCADOPAGO_ACCESS_TOKEN || process.env.MERCADOPAGO_ACCESS_TOKEN!
+
 const client = new MercadoPagoConfig({
-  accessToken: process.env.MERCADOPAGO_ACCESS_TOKEN!,
+  accessToken: accessToken,
   options: { timeout: 5000 }
 })
 
@@ -78,8 +81,8 @@ export async function createCoachSubscription({
   }
 
     try {
-      // Detectar si estamos en modo prueba
-      const isTestMode = process.env.MERCADOPAGO_ACCESS_TOKEN?.startsWith('TEST-')
+      // Detectar si estamos en modo prueba (usa TEST_MERCADOPAGO_ACCESS_TOKEN si está disponible)
+      const isTestMode = !!process.env.TEST_MERCADOPAGO_ACCESS_TOKEN || accessToken.startsWith('TEST-')
       console.log(`📅 Creando suscripción de Mercado Pago (${isTestMode ? 'MODO PRUEBA' : 'MODO PRODUCCIÓN'}):`, JSON.stringify(subscriptionData, null, 2))
       
       const response = await preApproval.create({ body: subscriptionData })
