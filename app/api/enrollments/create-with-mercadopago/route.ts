@@ -100,6 +100,19 @@ export async function POST(request: NextRequest) {
 
     const marketplaceFee = parseFloat(commissionResult?.toString() || '0');
     const sellerAmount = totalAmount - marketplaceFee;
+    
+    // Validar que la comisión no sea mayor que el monto total
+    if (marketplaceFee >= totalAmount) {
+      console.error('❌ Error: La comisión del marketplace es mayor o igual al monto total');
+      return NextResponse.json({ 
+        error: 'Error en el cálculo de comisión',
+        details: `Comisión: ${marketplaceFee}, Monto total: ${totalAmount}`
+      }, { status: 500 });
+    }
+    
+    // En modo test, si marketplace_fee causa problemas, podemos intentar sin split payment temporalmente
+    const isTestMode = isTestToken(coachAccessToken) || isTestToken(process.env.MERCADOPAGO_ACCESS_TOKEN || '');
+    console.log('🧪 Modo de prueba detectado:', isTestMode);
 
     // 5. NO crear enrollment todavía - se creará solo cuando el pago sea exitoso
     // Guardamos activity_id y client_id en banco para crear el enrollment después
@@ -185,7 +198,9 @@ export async function POST(request: NextRequest) {
           currency_id: 'ARS'
         }
       ],
-      marketplace_fee: marketplaceFee, // Comisión de OMNIA
+      // IMPORTANTE: marketplace_fee solo funciona si el coach tiene cuenta de marketplace configurada
+      // En modo test, puede causar que el botón se deshabilite si no está correctamente configurado
+      ...(marketplaceFee > 0 && sellerAmount > 0 ? { marketplace_fee: marketplaceFee } : {}),
       external_reference: externalReference,
       back_urls: {
         success: backUrls.success,
