@@ -176,7 +176,21 @@ export async function POST(request: NextRequest) {
         failure: backUrls.failure,
         pending: backUrls.pending
       },
-      notification_url: `${appUrl}/api/payments/webhook`
+      notification_url: `${appUrl}/api/payments/webhook`,
+      // Configurar métodos de pago: excluir account_money para forzar uso de tarjetas
+      // Esto asegura que las tarjetas aparezcan y el botón no se bloquee
+      payment_methods: {
+        excluded_payment_methods: [
+          { id: 'account_money' } // Excluir dinero en cuenta para mostrar tarjetas y otros métodos
+        ],
+        excluded_payment_types: [], // Permitir todos los tipos de pago (tarjetas, transferencias, etc.)
+        installments: 12, // Permitir hasta 12 cuotas para tarjetas
+        default_installments: 1 // Por defecto 1 cuota
+      },
+      // Asegurar que las tarjetas estén disponibles y habilitadas
+      statement_descriptor: 'OMNIA',
+      // Habilitar binarios para mejor experiencia de pago
+      binary_mode: false
     };
     
     // Determinar qué token usar para crear la preferencia
@@ -216,6 +230,7 @@ export async function POST(request: NextRequest) {
 
     console.log('📋 Creando preferencia con datos:', JSON.stringify(preferenceData, null, 2));
     console.log('🔑 Token usado para crear preferencia:', isTestToken(tokenToUseForPreference) ? 'PRUEBA (TEST-...)' : 'PRODUCCIÓN (APP_USR-...)');
+    console.log('💳 Métodos de pago configurados:', JSON.stringify(preferenceData.payment_methods, null, 2));
 
     let preferenceResponse;
     try {
