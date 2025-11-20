@@ -63,21 +63,10 @@ export async function createCoachSubscription({
       end_date: null // Sin fecha de fin (indefinida hasta cancelación)
     },
     back_url: `${appUrl}/payment/subscription-success`,
-    notification_url: `${appUrl}/api/payments/subscription-webhook`,
-    payment_methods_allowed: {
-      payment_types: [
-        { id: 'credit_card' },
-        { id: 'debit_card' }
-        // Removido account_money temporalmente - puede causar problemas en sandbox
-      ],
-      payment_methods: [
-        { id: 'visa' },
-        { id: 'master' },
-        { id: 'amex' },
-        { id: 'naranja' },
-        { id: 'cabal' }
-      ]
-    }
+    notification_url: `${appUrl}/api/payments/subscription-webhook`
+    // NO especificar payment_methods_allowed para permitir todos los métodos disponibles
+    // Esto permite que el usuario vea tarjetas de crédito, débito, etc.
+    // Si especificamos payment_methods_allowed, puede restringir demasiado las opciones
   }
 
     try {
