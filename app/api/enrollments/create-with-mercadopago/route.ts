@@ -23,6 +23,14 @@ export async function POST(request: NextRequest) {
     }
 
     const clientId = session.user.id;
+    const clientEmail = session.user.email || '';
+    
+    // Obtener información adicional del cliente si está disponible
+    const { data: clientProfile } = await supabase
+      .from('profiles')
+      .select('name, surname')
+      .eq('id', clientId)
+      .single();
 
     // Permitir múltiples compras - eliminada validación de compra única
     // 1. Obtener datos de la actividad
@@ -201,7 +209,17 @@ export async function POST(request: NextRequest) {
       // Configuraciones adicionales para asegurar que el botón esté habilitado
       expires: false, // No expirar la preferencia
       expiration_date_from: null,
-      expiration_date_to: null
+      expiration_date_to: null,
+      // Información del comprador (requerida para habilitar el botón de pago)
+      payer: {
+        email: clientEmail,
+        name: clientProfile?.name || '',
+        surname: clientProfile?.surname || ''
+      },
+      // Configurar locale para evitar warnings de BRICKS
+      metadata: {
+        locale: 'es-AR'
+      }
     };
     
     // Determinar qué token usar para crear la preferencia

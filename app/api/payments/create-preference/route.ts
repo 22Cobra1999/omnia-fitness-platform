@@ -24,6 +24,15 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: 'No autorizado' }, { status: 401 });
     }
 
+    const clientEmail = session.user.email || '';
+    
+    // Obtener información adicional del cliente si está disponible
+    const { data: clientProfile } = await supabase
+      .from('profiles')
+      .select('name, surname')
+      .eq('id', session.user.id)
+      .single();
+
     // 1. Obtener datos de la actividad
     const { data: activity, error: activityError } = await supabase
       .from('activities')
@@ -118,7 +127,17 @@ export async function POST(request: NextRequest) {
       // Configuraciones adicionales para asegurar que el botón esté habilitado
       expires: false, // No expirar la preferencia
       expiration_date_from: null,
-      expiration_date_to: null
+      expiration_date_to: null,
+      // Información del comprador (requerida para habilitar el botón de pago)
+      payer: {
+        email: clientEmail,
+        name: clientProfile?.name || '',
+        surname: clientProfile?.surname || ''
+      },
+      // Configurar locale para evitar warnings de BRICKS
+      metadata: {
+        locale: 'es-AR'
+      }
     };
 
     const response = await preference.create({ body: preferenceData });
