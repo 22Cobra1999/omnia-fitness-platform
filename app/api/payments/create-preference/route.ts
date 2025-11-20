@@ -102,12 +102,11 @@ export async function POST(request: NextRequest) {
       },
       auto_return: 'approved',
       notification_url: `${process.env.NEXT_PUBLIC_APP_URL}/api/payments/webhook`,
-      // Configurar métodos de pago: excluir account_money para forzar uso de tarjetas
-      // Esto asegura que las tarjetas aparezcan y el botón no se bloquee
+      // Configurar métodos de pago: permitir todos los métodos incluyendo tarjetas
+      // NOTA: No se puede excluir account_money según la API de Mercado Pago
+      // Las tarjetas aparecerán automáticamente si el usuario no tiene suficiente saldo
       payment_methods: {
-        excluded_payment_methods: [
-          { id: 'account_money' } // Excluir dinero en cuenta para mostrar tarjetas y otros métodos
-        ],
+        excluded_payment_methods: [], // No excluir ningún método (account_money no se puede excluir)
         excluded_payment_types: [], // Permitir todos los tipos de pago (tarjetas, transferencias, etc.)
         installments: 12, // Permitir hasta 12 cuotas para tarjetas
         default_installments: 1 // Por defecto 1 cuota
