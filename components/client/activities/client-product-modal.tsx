@@ -682,65 +682,33 @@ export default function ClientProductModal({
   const executePurchase = useCallback(async (paymentMethod: string = 'credit_card') => {
     setIsProcessingPurchase(true)
     try {
-      // Si es Mercado Pago, usar el endpoint que crea la preferencia y redirige
+      // Si es Mercado Pago, usar el nuevo endpoint de Checkout Pro
       if (paymentMethod === 'mercadopago') {
-        const response = await fetch('/api/enrollments/create-with-mercadopago', {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-          },
-          body: JSON.stringify({
-            activityId: product.id,
-            paymentMethod: 'mercadopago',
-            notes: 'Compra desde la aplicación móvil'
-          }),
-        })
-
-        const result = await response.json()
-        
-        console.log('📥 Respuesta del servidor:', result)
-        console.log('📊 Status:', response.status)
-        console.log('✅ Success:', result.success)
-        console.log('🔗 Init Point:', result.initPoint)
-        
-        if (response.ok && result.success) {
-          // Si hay initPoint, redirigir a Mercado Pago
-          if (result.initPoint) {
-            console.log('🚀 Redirigiendo a Mercado Pago:', result.initPoint)
-            
-            // Guardar información de la compra en sessionStorage para detectar cancelación
-            sessionStorage.setItem('pending_payment', JSON.stringify({
-              activityId: product.id,
-              preferenceId: result.preferenceId,
-              timestamp: Date.now()
-            }))
-            
-            // Redirigir a Mercado Pago para que el cliente pague
-            window.location.href = result.initPoint
-            return
-          } else {
-            console.error('❌ No se recibió initPoint en la respuesta:', result)
-            alert('Error: No se pudo obtener la URL de pago de Mercado Pago. Por favor, intenta de nuevo.')
-          }
-        } else {
-          // Mostrar error específico para Mercado Pago no configurado
-          const errorMessage = result.error || 'Error desconocido'
-          const errorDetails = result.details || ''
+        try {
+          const { createCheckoutProPreference, redirectToMercadoPagoCheckout, getCheckoutProErrorMessage } = await import('@/lib/mercadopago/checkout-pro');
           
-          console.error('❌ Error en la compra:', {
-            error: errorMessage,
-            details: errorDetails,
-            fullResponse: result
-          })
+          const response = await createCheckoutProPreference(product.id);
           
-          if (result.requiresCoachSetup || errorMessage.includes('no ha configurado')) {
-            alert('El coach de esta actividad no ha configurado Mercado Pago. Por favor, selecciona otro método de pago o contacta al coach.')
+          if (response.success && response.initPoint) {
+            redirectToMercadoPagoCheckout(
+              response.initPoint,
+              product.id,
+              response.preferenceId
+            );
+            return;
           } else {
-            alert(`Error en la compra: ${errorMessage}${errorDetails ? `\n\nDetalles: ${errorDetails}` : ''}`)
+            throw new Error(response.error || 'Error desconocido');
           }
+        } catch (error: any) {
+          const { getCheckoutProErrorMessage } = await import('@/lib/mercadopago/checkout-pro');
+          const errorMessage = getCheckoutProErrorMessage(error);
+          
+          console.error('❌ Error en la compra:', error);
+          alert(errorMessage);
+        } finally {
+          setIsProcessingPurchase(false);
         }
-        setIsProcessingPurchase(false)
-        return
+        return;
       }
 
       // Para otros métodos de pago, usar el endpoint directo

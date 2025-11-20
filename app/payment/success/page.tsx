@@ -26,12 +26,26 @@ function PaymentSuccessContent() {
       try {
         const supabase = createClient();
         
-        // Buscar en banco por preference_id
-        const { data: bancoRecord } = await supabase
-          .from('banco')
-          .select('enrollment_id, amount_paid, payment_status')
-          .eq('mercadopago_preference_id', preferenceId)
-          .maybeSingle();
+        // Buscar en banco por preference_id o payment_id
+        let bancoRecord;
+        
+        if (preferenceId) {
+          const { data } = await supabase
+            .from('banco')
+            .select('enrollment_id, amount_paid, payment_status, activity_id')
+            .eq('mercadopago_preference_id', preferenceId)
+            .maybeSingle();
+          bancoRecord = data;
+        }
+        
+        if (!bancoRecord && paymentId) {
+          const { data } = await supabase
+            .from('banco')
+            .select('enrollment_id, amount_paid, payment_status, activity_id')
+            .eq('mercadopago_payment_id', paymentId)
+            .maybeSingle();
+          bancoRecord = data;
+        }
 
         if (bancoRecord?.enrollment_id) {
           // Obtener detalles del enrollment

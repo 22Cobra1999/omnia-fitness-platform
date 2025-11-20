@@ -121,22 +121,52 @@ export function PurchaseActivityModal({ isOpen, onClose, activity, onPurchaseCom
       // Usar Mercado Pago si está seleccionado, de lo contrario usar método directo
       const useMercadoPago = paymentMethod === 'mercadopago';
       
-      const response = await fetch(
-        useMercadoPago 
-          ? "/api/enrollments/create-with-mercadopago"
-          : "/api/enrollments/direct",
-        {
-          method: "POST",
-          headers: {
-            "Content-Type": "application/json",
-          },
-          body: JSON.stringify({
-            activityId: activity.id,
-            paymentMethod: useMercadoPago ? "mercadopago" : paymentMethod,
-            notes: notes || "Compra desde la aplicación móvil",
-          }),
+      if (useMercadoPago) {
+        // Usar el nuevo endpoint de Checkout Pro
+        const { createCheckoutProPreference, redirectToMercadoPagoCheckout, getCheckoutProErrorMessage } = await import('@/lib/mercadopago/checkout-pro');
+        
+        try {
+          const response = await createCheckoutProPreference(activity.id);
+          
+          if (response.success && response.initPoint) {
+            toast({
+              title: "Redirigiendo a Mercado Pago",
+              description: "Serás redirigido para completar el pago...",
+            });
+            
+            redirectToMercadoPagoCheckout(
+              response.initPoint,
+              activity.id,
+              response.preferenceId
+            );
+            return;
+          } else {
+            throw new Error(response.error || 'Error desconocido');
+          }
+        } catch (error: any) {
+          const errorMessage = getCheckoutProErrorMessage(error);
+          toast({
+            title: "Error al procesar el pago",
+            description: errorMessage,
+            variant: "destructive",
+          });
+          setIsProcessing(false);
+          return;
         }
-      )
+      }
+      
+      // Para otros métodos de pago, usar el endpoint directo
+      const response = await fetch("/api/enrollments/direct", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          activityId: activity.id,
+          paymentMethod: paymentMethod,
+          notes: notes || "Compra desde la aplicación móvil",
+        }),
+      });
 
       console.log("Respuesta del servidor:", response.status)
 
@@ -160,17 +190,6 @@ export function PurchaseActivityModal({ isOpen, onClose, activity, onPurchaseCom
       console.log("Datos de respuesta:", result)
 
       if (result.success) {
-        // Si hay initPoint, redirigir a Mercado Pago
-        if (result.initPoint) {
-          toast({
-            title: "Redirigiendo a Mercado Pago",
-            description: "Serás redirigido para completar el pago...",
-          })
-          
-          // Redirigir a Mercado Pago
-          window.location.href = result.initPoint
-          return
-        }
 
         // Si no hay initPoint, asumir que el pago fue directo (fallback)
         setIsComplete(true)
