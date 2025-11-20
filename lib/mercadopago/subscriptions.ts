@@ -77,22 +77,30 @@ export async function createCoachSubscription({
     }
   }
 
-  try {
-    console.log('📅 Creando suscripción de Mercado Pago:', JSON.stringify(subscriptionData, null, 2))
-    
-    const response = await preApproval.create({ body: subscriptionData })
-    
-    console.log('✅ Suscripción creada exitosamente:', {
-      id: response.id,
-      status: response.status,
-      init_point: response.init_point || response.sandbox_init_point
-    })
+    try {
+      // Detectar si estamos en modo prueba
+      const isTestMode = process.env.MERCADOPAGO_ACCESS_TOKEN?.startsWith('TEST-')
+      console.log(`📅 Creando suscripción de Mercado Pago (${isTestMode ? 'MODO PRUEBA' : 'MODO PRODUCCIÓN'}):`, JSON.stringify(subscriptionData, null, 2))
+      
+      const response = await preApproval.create({ body: subscriptionData })
+      
+      // En modo prueba, usar sandbox_init_point si está disponible
+      const initPoint = isTestMode 
+        ? (response.sandbox_init_point || response.init_point)
+        : (response.init_point || response.sandbox_init_point)
+      
+      console.log('✅ Suscripción creada exitosamente:', {
+        id: response.id,
+        status: response.status,
+        init_point: initPoint,
+        mode: isTestMode ? 'PRUEBA' : 'PRODUCCIÓN'
+      })
 
-    return {
-      id: response.id!,
-      status: response.status!,
-      init_point: response.init_point || response.sandbox_init_point
-    }
+      return {
+        id: response.id!,
+        status: response.status!,
+        init_point: initPoint
+      }
   } catch (error: any) {
     console.error('❌ Error creando suscripción:', error)
     throw new Error(`Error creando suscripción: ${error.message || 'Error desconocido'}`)
