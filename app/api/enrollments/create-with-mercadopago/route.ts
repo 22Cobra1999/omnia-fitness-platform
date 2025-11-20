@@ -38,6 +38,14 @@ export async function POST(request: NextRequest) {
 
     const coachId = activity.coach_id;
     const totalAmount = parseFloat(activity.price.toString());
+    
+    // Validar que el monto sea válido y mayor a 0
+    if (isNaN(totalAmount) || totalAmount <= 0) {
+      return NextResponse.json({ 
+        error: 'El precio de la actividad debe ser mayor a 0',
+        details: `Precio recibido: ${activity.price}`
+      }, { status: 400 });
+    }
 
     // 3. Verificar que el coach tenga Mercado Pago autorizado
     // El coach DEBE tener Mercado Pago configurado para poder vender
@@ -189,7 +197,11 @@ export async function POST(request: NextRequest) {
       // Asegurar que las tarjetas estén disponibles y habilitadas
       statement_descriptor: 'OMNIA',
       // Habilitar binarios para mejor experiencia de pago
-      binary_mode: false
+      binary_mode: false,
+      // Configuraciones adicionales para asegurar que el botón esté habilitado
+      expires: false, // No expirar la preferencia
+      expiration_date_from: null,
+      expiration_date_to: null
     };
     
     // Determinar qué token usar para crear la preferencia

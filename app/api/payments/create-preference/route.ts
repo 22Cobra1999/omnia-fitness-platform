@@ -114,7 +114,11 @@ export async function POST(request: NextRequest) {
       // Asegurar que las tarjetas estén disponibles y habilitadas
       statement_descriptor: 'OMNIA',
       // Habilitar binarios para mejor experiencia de pago
-      binary_mode: false
+      binary_mode: false,
+      // Configuraciones adicionales para asegurar que el botón esté habilitado
+      expires: false, // No expirar la preferencia
+      expiration_date_from: null,
+      expiration_date_to: null
     };
 
     const response = await preference.create({ body: preferenceData });
