@@ -67,8 +67,8 @@ export async function createCoachSubscription({
     payment_methods_allowed: {
       payment_types: [
         { id: 'credit_card' },
-        { id: 'debit_card' },
-        { id: 'account_money' } // Mercado Pago account
+        { id: 'debit_card' }
+        // Removido account_money temporalmente - puede causar problemas en sandbox
       ],
       payment_methods: [
         { id: 'visa' },
