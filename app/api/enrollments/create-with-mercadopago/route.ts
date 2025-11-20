@@ -344,10 +344,13 @@ export async function POST(request: NextRequest) {
 
     // 9. NO duplicar detalles del programa todavía - se hará cuando se cree el enrollment
 
+    // Usar initPoint con locale si fue modificado
+    const finalInitPoint = initPoint || preferenceResponse.init_point || preferenceResponse.sandbox_init_point || '';
+    
     const responseData = {
       success: true,
       preferenceId: preferenceResponse.id,
-      initPoint: preferenceResponse.init_point, // URL para redirigir al checkout
+      initPoint: finalInitPoint, // URL para redirigir al checkout (con locale)
       marketplaceFee,
       sellerAmount,
       externalReference // Para referencia
