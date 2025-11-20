@@ -325,6 +325,7 @@ export async function POST(request: NextRequest) {
 
     // Si es un plan de pago (no free), cancelar suscripción anterior si existe
     let subscriptionId: string | null = null
+    let subscriptionInitPoint: string | undefined = undefined
     if (plan_type !== 'free' && currentPlan?.mercadopago_subscription_id) {
       try {
         const { cancelSubscription } = await import('@/lib/mercadopago/subscriptions')
