@@ -109,10 +109,6 @@ export async function POST(request: NextRequest) {
         details: `Comisión: ${marketplaceFee}, Monto total: ${totalAmount}`
       }, { status: 500 });
     }
-    
-    // En modo test, si marketplace_fee causa problemas, podemos intentar sin split payment temporalmente
-    const isTestMode = isTestToken(coachAccessToken) || isTestToken(process.env.MERCADOPAGO_ACCESS_TOKEN || '');
-    console.log('🧪 Modo de prueba detectado:', isTestMode);
 
     // 5. NO crear enrollment todavía - se creará solo cuando el pago sea exitoso
     // Guardamos activity_id y client_id en banco para crear el enrollment después
@@ -130,6 +126,10 @@ export async function POST(request: NextRequest) {
     // Identificar tipo de token para logging y debugging
     const isTestToken = (token: string) => token.startsWith('TEST-');
     const isProductionToken = (token: string) => token.startsWith('APP_USR-');
+    
+    // En modo test, si marketplace_fee causa problemas, podemos intentar sin split payment temporalmente
+    const isTestMode = isTestToken(coachAccessToken) || isTestToken(process.env.MERCADOPAGO_ACCESS_TOKEN || '');
+    console.log('🧪 Modo de prueba detectado:', isTestMode);
     
     // Lista de user_ids de cuentas de prueba conocidas (para logging y optimizaciones)
     const TEST_USER_IDS = [
