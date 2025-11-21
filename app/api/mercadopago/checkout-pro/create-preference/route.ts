@@ -276,12 +276,19 @@ export async function POST(request: NextRequest) {
         email: preferenceData.payer.email,
         name: preferenceData.payer.name,
         surname: preferenceData.payer.surname,
-        hasPhone: !!preferenceData.payer.phone
+        hasPhone: !!preferenceData.payer.phone,
+        hasIdentification: !!preferenceData.payer.identification
       },
       items: preferenceData.items,
       payment_methods: preferenceData.payment_methods,
-      hasMarketplaceFee: !!(marketplaceFee > 0 && sellerAmount > 0)
+      hasMarketplaceFee: !!(marketplaceFee > 0 && sellerAmount > 0),
+      back_urls: preferenceData.back_urls,
+      auto_return: preferenceData.auto_return,
+      expires: preferenceData.expires
     });
+    
+    // Log completo de la preferencia (para debugging)
+    console.log('🔍 Preferencia completa que se enviará a Mercado Pago:', JSON.stringify(preferenceData, null, 2));
 
     let preferenceResponse;
     try {
