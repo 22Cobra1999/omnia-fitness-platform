@@ -335,14 +335,15 @@ export async function POST(request: NextRequest) {
       }, null, 2));
       console.log('✅ ========== FIN RESPUESTA MERCADO PAGO ==========');
     } catch (error: any) {
-      console.error('❌ Error creando preferencia:', error);
-      console.error('Detalles del error:', {
-        message: error.message,
-        cause: error.cause,
-        status: error.status,
-        statusCode: error.statusCode,
-        response: error.response
-      });
+      console.error('❌ ========== ERROR CREANDO PREFERENCIA ==========');
+      console.error('❌ Error Message:', error.message);
+      console.error('❌ Error Cause:', error.cause);
+      console.error('❌ Error Status:', error.status);
+      console.error('❌ Error Status Code:', error.statusCode);
+      console.error('❌ Error Response:', error.response);
+      console.error('❌ Error Stack:', error.stack);
+      console.error('❌ Preferencia que intentamos crear:', JSON.stringify(preferenceData, null, 2));
+      console.error('❌ ========== FIN ERROR ==========');
       return NextResponse.json(
         { 
           error: 'Error creando preferencia de pago',
