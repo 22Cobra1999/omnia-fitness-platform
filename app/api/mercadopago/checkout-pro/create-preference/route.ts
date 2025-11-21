@@ -311,6 +311,13 @@ export async function POST(request: NextRequest) {
 
     const preference = new Preference(client);
 
+    // 11.1. Crear preferencia SIMPLE primero (para debugging)
+    // Si el marketplace tiene token de prueba, crear preferencia SIN marketplace_fee
+    // El marketplace_fee puede causar problemas con cuentas de prueba
+    const useSimplePreference = marketplaceTokenIsTest;
+    
+    console.log('🔍 Usando preferencia simple (sin marketplace_fee):', useSimplePreference);
+    
     const preferenceData = {
       items: [
         {
@@ -321,8 +328,9 @@ export async function POST(request: NextRequest) {
           currency_id: 'ARS'
         }
       ],
-      // Solo incluir marketplace_fee si es válido
-      ...(marketplaceFee > 0 && sellerAmount > 0 ? { marketplace_fee: marketplaceFee } : {}),
+      // SOLO incluir marketplace_fee si NO estamos en modo prueba
+      // En modo prueba, el marketplace_fee puede causar que el botón se deshabilite
+      ...(marketplaceTokenIsTest ? {} : (marketplaceFee > 0 && sellerAmount > 0 ? { marketplace_fee: marketplaceFee } : {})),
       external_reference: externalReference,
       back_urls: backUrls,
       auto_return: 'approved' as const,
@@ -331,42 +339,36 @@ export async function POST(request: NextRequest) {
         email: clientEmail,
         name: clientProfile?.name || 'Cliente',
         surname: clientProfile?.surname || 'OMNIA',
-        // Agregar phone si está disponible (puede ayudar con validaciones)
+        // Agregar phone si está disponible
         ...(clientProfile?.phone ? { phone: { number: clientProfile.phone } } : {}),
         // Agregar identificación - SIEMPRE incluir para evitar problemas con el botón
-        // Si no hay DNI del usuario, usar un DNI de prueba genérico
         identification: clientProfile?.dni ? {
           type: clientProfile?.document_type || 'DNI',
           number: clientProfile.dni.toString()
         } : {
           type: 'DNI',
-          number: '12345678' // DNI de prueba genérico para habilitar el botón
+          number: '12345678' // DNI de prueba genérico
         }
       },
+      // Configuración mínima de payment_methods
       payment_methods: {
         excluded_payment_methods: [],
         excluded_payment_types: [],
         installments: 12,
         default_installments: 1
-        // No incluir default_payment_method_id para permitir todos los métodos
       },
-      // Configuración adicional para asegurar que el botón esté habilitado
-      // No usar purpose: 'wallet_purchase' ya que puede causar problemas
       statement_descriptor: 'OMNIA',
       binary_mode: false,
-      // Configuraciones adicionales para mejorar la experiencia
       expires: false,
-      // Agregar metadata para debugging (puede ayudar)
+      // Metadata solo para debugging
       metadata: {
         platform: 'OMNIA',
         activity_id: String(activityId),
-        client_id: clientId
-      },
-      // Configuración adicional: asegurar que el checkout esté listo
-      // No usar purpose: 'wallet_purchase' ya que puede causar problemas
-      // Agregar additional_info si es necesario
-      additional_info: `Compra de actividad ${activity.title} en OMNIA`
-      // No incluir expiration_date_from y expiration_date_to si expires es false
+        client_id: clientId,
+        test_mode: marketplaceTokenIsTest,
+        simple_preference: useSimplePreference
+      }
+      // NO incluir additional_info para simplificar
     };
 
     // Log detallado ANTES de crear la preferencia
