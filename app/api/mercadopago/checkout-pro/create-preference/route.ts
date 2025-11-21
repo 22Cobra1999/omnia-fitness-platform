@@ -196,6 +196,34 @@ export async function POST(request: NextRequest) {
       );
     }
 
+    // 7.1. Funciones para detectar tipo de token
+    const isTestToken = (token: string) => token.startsWith('TEST-');
+    const isProductionToken = (token: string) => token.startsWith('APP_USR-');
+    
+    // 7.2. Verificar si el coach es cuenta de prueba (basado en user_id)
+    // Los user IDs de prueba suelen ser diferentes, pero podemos verificar el token
+    const coachTokenIsTest = isTestToken(coachAccessToken);
+    const marketplaceToken = process.env.MERCADOPAGO_ACCESS_TOKEN?.trim() || '';
+    const marketplaceTokenIsTest = isTestToken(marketplaceToken);
+    
+    // 7.3. Determinar qué token usar para crear la preferencia
+    // Si estamos en modo prueba (marketplace tiene token de prueba) pero el coach tiene token de producción,
+    // usar el token de prueba del marketplace para permitir cuentas de prueba
+    let tokenToUseForPreference = coachAccessToken;
+    
+    if (marketplaceTokenIsTest && isProductionToken(coachAccessToken)) {
+      console.log('⚠️ ADVERTENCIA: Coach tiene token de producción pero marketplace está en modo prueba.');
+      console.log('⚠️ Mercado Pago puede bloquear cuentas de prueba si se usa token de producción.');
+      console.log('💡 Usando Access Token de prueba del marketplace para permitir cuentas de prueba...');
+      
+      tokenToUseForPreference = marketplaceToken;
+      console.log('✅ Usando Access Token de prueba del marketplace para split payment.');
+    } else if (coachTokenIsTest) {
+      console.log('✅ Coach tiene token de prueba. Usando token del coach.');
+    } else {
+      console.log('✅ Usando Access Token del coach (producción).');
+    }
+
     // 8. Obtener información del cliente (con todos los campos disponibles)
     const { data: clientProfile } = await supabase
       .from('profiles')
@@ -215,29 +243,17 @@ export async function POST(request: NextRequest) {
     // 10. Crear external_reference único
     const externalReference = `omnia_${activityId}_${clientId}_${Date.now()}`;
 
-    // 11. Detectar si estamos en modo prueba
-    // Verificar si el Access Token es de prueba o producción
-    const isTestToken = coachAccessToken.startsWith('TEST-') || 
-                       coachAccessToken.includes('test') ||
-                       process.env.MERCADOPAGO_ACCESS_TOKEN?.includes('8497664518687621');
-    
-    // Verificar si el email del cliente parece ser de prueba
-    const isTestEmail = clientEmail.includes('test') || 
-                       clientEmail.includes('prueba') ||
-                       clientEmail.includes('TESTUSER');
-
-    console.log('🔍 Modo de operación detectado:', {
-      isTestToken,
-      isTestEmail,
-      clientEmail,
-      tokenPrefix: coachAccessToken.substring(0, 20)
-    });
-
-    // 12. Crear preferencia de pago
+    // 11. Crear preferencia de pago
     const client = new MercadoPagoConfig({
-      accessToken: coachAccessToken,
+      accessToken: tokenToUseForPreference,
       options: { timeout: 5000 }
     });
+    
+    console.log('🔑 Token usado para crear preferencia:', 
+      isTestToken(tokenToUseForPreference) ? 'PRUEBA (TEST-...)' : 
+      isProductionToken(tokenToUseForPreference) ? 'PRODUCCIÓN (APP_USR-...)' : 
+      'DESCONOCIDO'
+    );
 
     const preference = new Preference(client);
 
@@ -262,23 +278,15 @@ export async function POST(request: NextRequest) {
         name: clientProfile?.name || 'Cliente',
         surname: clientProfile?.surname || 'OMNIA',
         // Agregar phone si está disponible (puede ayudar con validaciones)
-        // Para cuentas de prueba, siempre incluir un teléfono válido
-        ...(clientProfile?.phone ? { 
-          phone: { number: clientProfile.phone } 
-        } : (isTestToken || isTestEmail ? {
-          phone: {
-            number: '1123456789', // Teléfono de prueba genérico
-            area_code: '11'
-          }
-        } : {})),
+        ...(clientProfile?.phone ? { phone: { number: clientProfile.phone } } : {}),
         // Agregar identificación - SIEMPRE incluir para evitar problemas con el botón
-        // Para cuentas de prueba, usar DNI de prueba estándar
+        // Si no hay DNI del usuario, usar un DNI de prueba genérico
         identification: clientProfile?.dni ? {
           type: clientProfile?.document_type || 'DNI',
           number: clientProfile.dni.toString()
         } : {
           type: 'DNI',
-          number: isTestToken || isTestEmail ? '12345678' : '12345678' // DNI de prueba genérico
+          number: '12345678' // DNI de prueba genérico para habilitar el botón
         }
       },
       payment_methods: {

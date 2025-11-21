@@ -346,7 +346,7 @@ export async function POST(request: NextRequest) {
 
     // Usar initPoint con locale si fue modificado
     const finalInitPoint = initPoint || preferenceResponse.init_point || preferenceResponse.sandbox_init_point || '';
-    
+
     const responseData = {
       success: true,
       preferenceId: preferenceResponse.id,
