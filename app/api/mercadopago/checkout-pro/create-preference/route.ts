@@ -114,6 +114,18 @@ export async function POST(request: NextRequest) {
     if (totalAmount < 1) {
       console.warn(`⚠️ Monto muy bajo detectado: $${totalAmount}. Mercado Pago puede tener restricciones con montos menores a $1.`);
     }
+    
+    // Validar que el monto sea válido para evitar problemas con el botón
+    if (totalAmount <= 0 || isNaN(totalAmount)) {
+      return NextResponse.json(
+        { 
+          error: 'El monto debe ser mayor a 0',
+          code: 'INVALID_AMOUNT',
+          details: `Monto recibido: ${totalAmount}`
+        },
+        { status: 400 }
+      );
+    }
 
     // 5. Obtener credenciales del coach
     const { getSupabaseAdmin } = await import('@/lib/config/db');
