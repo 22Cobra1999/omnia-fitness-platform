@@ -197,25 +197,41 @@ export async function POST(request: NextRequest) {
     }
 
     // 7.1. Funciones para detectar tipo de token
+    // NOTA: Las credenciales de prueba pueden empezar con TEST- o APP_USR-
+    // Los tokens APP_USR- pueden ser tanto de prueba como de producción
+    // Para distinguirlos, verificamos si contienen user IDs de prueba conocidos
     const isTestToken = (token: string) => token.startsWith('TEST-');
     const isProductionToken = (token: string) => token.startsWith('APP_USR-');
     
-    // 7.2. Verificar tokens disponibles
-    const marketplaceToken = process.env.MERCADOPAGO_ACCESS_TOKEN?.trim() || '';
-    const coachTokenIsTest = isTestToken(coachAccessToken);
-    const coachTokenIsProduction = isProductionToken(coachAccessToken);
-    const marketplaceTokenIsTest = isTestToken(marketplaceToken);
-    const marketplaceTokenIsProduction = isProductionToken(marketplaceToken);
-    
-    // 7.3. Lista de user IDs de cuentas de prueba conocidas
+    // 7.2. Lista de user IDs de cuentas de prueba conocidas
     const TEST_USER_IDS = [
       '2995219181', // ronaldinho (coach/vendedor de prueba)
       '2992707264', // totti1 (cliente/comprador de prueba)
       '2995219179'  // omniav1 (marketplace/integrador de prueba)
     ];
     
+    // 7.3. Verificar si un token APP_USR- es de prueba basándose en el user ID
+    // Los tokens de prueba suelen contener el user ID en el token
+    const isTestTokenByUserId = (token: string, userId: string | null): boolean => {
+      if (!userId) return false;
+      // Verificar si el token contiene el user ID de prueba
+      return token.includes(userId) && TEST_USER_IDS.includes(userId);
+    };
+    
+    // 7.4. Verificar tokens disponibles
+    const marketplaceToken = process.env.MERCADOPAGO_ACCESS_TOKEN?.trim() || '';
     const coachUserId = coachCredentials.mercadopago_user_id?.toString();
     const isTestUser = coachUserId && TEST_USER_IDS.includes(coachUserId);
+    
+    // Verificar tipo de tokens
+    const coachTokenIsTest = isTestToken(coachAccessToken) || isTestTokenByUserId(coachAccessToken, coachUserId);
+    const coachTokenIsProduction = isProductionToken(coachAccessToken) && !coachTokenIsTest;
+    
+    // Para el marketplace, verificar si el token contiene user ID de prueba conocido
+    // El marketplace token puede contener el user ID 2995219179 (omniav1)
+    const marketplaceTokenIsTest = isTestToken(marketplaceToken) || 
+                                   marketplaceToken.includes('2995219179') ||
+                                   marketplaceToken.includes('8497664518687621'); // Parte del token de prueba conocido
     
     console.log('🔍 ========== ANÁLISIS DE TOKENS ==========');
     console.log('🔍 Coach User ID:', coachUserId);
@@ -223,42 +239,41 @@ export async function POST(request: NextRequest) {
     console.log('🔍 Coach Token es TEST:', coachTokenIsTest);
     console.log('🔍 Coach Token es PRODUCCIÓN:', coachTokenIsProduction);
     console.log('🔍 Marketplace Token es TEST:', marketplaceTokenIsTest);
-    console.log('🔍 Marketplace Token es PRODUCCIÓN:', marketplaceTokenIsProduction);
     console.log('🔍 Marketplace Token disponible:', !!marketplaceToken);
+    console.log('🔍 Marketplace Token empieza con:', marketplaceToken.substring(0, 20) + '...');
     
-    // 7.4. Determinar qué token usar para crear la preferencia
-    // ESTRATEGIA: En sandbox, SIEMPRE usar token de prueba del marketplace si está disponible
+    // 7.5. ESTRATEGIA: En sandbox, SIEMPRE priorizar token de prueba del marketplace
     // Esto garantiza que las cuentas de prueba funcionen correctamente
     let tokenToUseForPreference = coachAccessToken;
     let tokenSource = 'coach';
     
-    // Si el marketplace tiene token de prueba, usarlo SIEMPRE en sandbox
+    // PRIORIDAD 1: Si el marketplace tiene token de prueba, usarlo SIEMPRE
     // Esto permite que las cuentas de prueba funcionen incluso si el coach tiene token de producción
     if (marketplaceTokenIsTest && marketplaceToken) {
       console.log('✅ Marketplace tiene token de prueba. Usando token del marketplace para permitir cuentas de prueba.');
       tokenToUseForPreference = marketplaceToken;
       tokenSource = 'marketplace (test)';
     } 
-    // Si el coach tiene token de prueba, usarlo
+    // PRIORIDAD 2: Si el coach tiene token de prueba, usarlo
     else if (coachTokenIsTest) {
       console.log('✅ Coach tiene token de prueba. Usando token del coach.');
       tokenSource = 'coach (test)';
     }
-    // Si el coach es cuenta de prueba conocida pero tiene token de producción, usar token del marketplace si está disponible
+    // PRIORIDAD 3: Si el coach es cuenta de prueba conocida pero tiene token de producción, usar token del marketplace
     else if (isTestUser && coachTokenIsProduction && marketplaceToken) {
       console.log('⚠️ Coach es cuenta de prueba pero tiene token de producción.');
       console.log('💡 Usando token del marketplace para permitir cuentas de prueba...');
       tokenToUseForPreference = marketplaceToken;
       tokenSource = 'marketplace (fallback for test user)';
     }
-    // En producción, usar token del coach
+    // PRIORIDAD 4: En producción, usar token del coach
     else {
       console.log('✅ Usando Access Token del coach (producción).');
       tokenSource = 'coach (production)';
     }
     
     console.log('🔍 Token seleccionado:', tokenSource);
-    console.log('🔍 Token usado empieza con:', tokenToUseForPreference.substring(0, 10) + '...');
+    console.log('🔍 Token usado empieza con:', tokenToUseForPreference.substring(0, 20) + '...');
     console.log('🔍 ========== FIN ANÁLISIS ==========');
 
     // 8. Obtener información del cliente (con todos los campos disponibles)
