@@ -263,12 +263,14 @@ export async function POST(request: NextRequest) {
         surname: clientProfile?.surname || 'OMNIA',
         // Agregar phone si está disponible (puede ayudar con validaciones)
         // Para cuentas de prueba, siempre incluir un teléfono válido
-        phone: clientProfile?.phone ? { 
-          number: clientProfile.phone 
+        ...(clientProfile?.phone ? { 
+          phone: { number: clientProfile.phone } 
         } : (isTestToken || isTestEmail ? {
-          number: '1123456789', // Teléfono de prueba genérico
-          area_code: '11'
-        } : undefined),
+          phone: {
+            number: '1123456789', // Teléfono de prueba genérico
+            area_code: '11'
+          }
+        } : {})),
         // Agregar identificación - SIEMPRE incluir para evitar problemas con el botón
         // Para cuentas de prueba, usar DNI de prueba estándar
         identification: clientProfile?.dni ? {
