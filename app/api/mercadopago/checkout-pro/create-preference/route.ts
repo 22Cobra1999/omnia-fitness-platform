@@ -215,7 +215,25 @@ export async function POST(request: NextRequest) {
     // 10. Crear external_reference único
     const externalReference = `omnia_${activityId}_${clientId}_${Date.now()}`;
 
-    // 11. Crear preferencia de pago
+    // 11. Detectar si estamos en modo prueba
+    // Verificar si el Access Token es de prueba o producción
+    const isTestToken = coachAccessToken.startsWith('TEST-') || 
+                       coachAccessToken.includes('test') ||
+                       process.env.MERCADOPAGO_ACCESS_TOKEN?.includes('8497664518687621');
+    
+    // Verificar si el email del cliente parece ser de prueba
+    const isTestEmail = clientEmail.includes('test') || 
+                       clientEmail.includes('prueba') ||
+                       clientEmail.includes('TESTUSER');
+
+    console.log('🔍 Modo de operación detectado:', {
+      isTestToken,
+      isTestEmail,
+      clientEmail,
+      tokenPrefix: coachAccessToken.substring(0, 20)
+    });
+
+    // 12. Crear preferencia de pago
     const client = new MercadoPagoConfig({
       accessToken: coachAccessToken,
       options: { timeout: 5000 }
@@ -244,15 +262,21 @@ export async function POST(request: NextRequest) {
         name: clientProfile?.name || 'Cliente',
         surname: clientProfile?.surname || 'OMNIA',
         // Agregar phone si está disponible (puede ayudar con validaciones)
-        ...(clientProfile?.phone ? { phone: { number: clientProfile.phone } } : {}),
+        // Para cuentas de prueba, siempre incluir un teléfono válido
+        phone: clientProfile?.phone ? { 
+          number: clientProfile.phone 
+        } : (isTestToken || isTestEmail ? {
+          number: '1123456789', // Teléfono de prueba genérico
+          area_code: '11'
+        } : undefined),
         // Agregar identificación - SIEMPRE incluir para evitar problemas con el botón
-        // Si no hay DNI del usuario, usar un DNI de prueba genérico
+        // Para cuentas de prueba, usar DNI de prueba estándar
         identification: clientProfile?.dni ? {
           type: clientProfile?.document_type || 'DNI',
           number: clientProfile.dni.toString()
         } : {
           type: 'DNI',
-          number: '12345678' // DNI de prueba genérico para habilitar el botón
+          number: isTestToken || isTestEmail ? '12345678' : '12345678' // DNI de prueba genérico
         }
       },
       payment_methods: {
