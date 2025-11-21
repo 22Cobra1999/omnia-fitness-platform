@@ -227,10 +227,12 @@ export async function POST(request: NextRequest) {
     const coachTokenIsTest = isTestToken(coachAccessToken) || isTestTokenByUserId(coachAccessToken, coachUserId);
     const coachTokenIsProduction = isProductionToken(coachAccessToken) && !coachTokenIsTest;
     
-    // Para el marketplace, verificar si el token contiene user ID de prueba conocido
-    // El marketplace token puede contener el user ID 2995219179 (omniav1)
+    // Para el marketplace, verificar si el token es de prueba
+    // El marketplace token de prueba conocido: APP_USR-8497664518687621-112020-...
+    // Contiene el user ID 2995219181 al final
     const marketplaceTokenIsTest = isTestToken(marketplaceToken) || 
-                                   marketplaceToken.includes('2995219179') ||
+                                   marketplaceToken.includes('2995219179') || // omniav1
+                                   marketplaceToken.includes('2995219181') || // ronaldinho (coach)
                                    marketplaceToken.includes('8497664518687621'); // Parte del token de prueba conocido
     
     console.log('🔍 ========== ANÁLISIS DE TOKENS ==========');
