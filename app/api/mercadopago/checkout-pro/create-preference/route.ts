@@ -24,12 +24,18 @@ import { decrypt } from '@/lib/utils/encryption';
  * }
  */
 export async function POST(request: NextRequest) {
+  // Log inicial para verificar que el endpoint se está ejecutando
+  console.log('🚀 ========== INICIO CREATE PREFERENCE ==========');
+  console.log('🚀 Timestamp:', new Date().toISOString());
+  
   try {
-    // 1. Validar autenticación
+    // 1. Validar autenticación (usar getUser() en lugar de getSession() para mayor seguridad)
     const supabase = await createRouteHandlerClient();
-    const { data: { session }, error: sessionError } = await supabase.auth.getSession();
+    const { data: { user }, error: userError } = await supabase.auth.getUser();
+    
+    console.log('🔐 Autenticación:', user ? `Usuario ${user.id}` : 'No autenticado');
 
-    if (sessionError || !session) {
+    if (userError || !user) {
       return NextResponse.json(
         { 
           error: 'No autorizado',
@@ -39,8 +45,8 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    const clientId = session.user.id;
-    const clientEmail = session.user.email;
+    const clientId = user.id;
+    const clientEmail = user.email;
 
     if (!clientEmail) {
       return NextResponse.json(
@@ -404,8 +410,11 @@ export async function POST(request: NextRequest) {
     let preferenceResponse;
     try {
       console.log('🚀 ========== ENVIANDO PREFERENCIA A MERCADO PAGO ==========');
-      console.log('🚀 Access Token usado:', coachAccessToken.substring(0, 20) + '...');
+      console.log('🚀 Token seleccionado para usar:', tokenSource);
+      console.log('🚀 Access Token usado:', tokenToUseForPreference.substring(0, 20) + '...');
       console.log('🚀 Coach User ID:', coachCredentials.mercadopago_user_id);
+      console.log('🚀 Marketplace Token es TEST:', marketplaceTokenIsTest);
+      console.log('🚀 Usando preferencia simple (sin marketplace_fee):', useSimplePreference);
       
       preferenceResponse = await preference.create({ body: preferenceData });
       
