@@ -110,6 +110,11 @@ export async function POST(request: NextRequest) {
       );
     }
 
+    // Advertencia si el monto es muy bajo (puede causar problemas en el checkout)
+    if (totalAmount < 1) {
+      console.warn(`⚠️ Monto muy bajo detectado: $${totalAmount}. Mercado Pago puede tener restricciones con montos menores a $1.`);
+    }
+
     // 5. Obtener credenciales del coach
     const { getSupabaseAdmin } = await import('@/lib/config/db');
     const adminSupabase = await getSupabaseAdmin();
@@ -191,10 +196,10 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    // 8. Obtener información del cliente
+    // 8. Obtener información del cliente (con todos los campos disponibles)
     const { data: clientProfile } = await supabase
       .from('profiles')
-      .select('name, surname')
+      .select('name, surname, phone, address, dni, document_type')
       .eq('id', clientId)
       .single();
 
@@ -221,6 +226,7 @@ export async function POST(request: NextRequest) {
     const preferenceData = {
       items: [
         {
+          id: String(activityId),
           title: activity.title,
           quantity: 1,
           unit_price: totalAmount,
@@ -235,24 +241,65 @@ export async function POST(request: NextRequest) {
       notification_url: `${appUrl}/api/mercadopago/webhook`,
       payer: {
         email: clientEmail,
-        name: clientProfile?.name || '',
-        surname: clientProfile?.surname || ''
+        name: clientProfile?.name || 'Cliente',
+        surname: clientProfile?.surname || 'OMNIA',
+        // Agregar phone si está disponible (puede ayudar con validaciones)
+        ...(clientProfile?.phone ? { phone: { number: clientProfile.phone } } : {}),
+        // Agregar identificación si está disponible (puede ser requerido para habilitar el botón)
+        ...(clientProfile?.dni ? {
+          identification: {
+            type: clientProfile?.document_type || 'DNI',
+            number: clientProfile.dni.toString()
+          }
+        } : {})
       },
       payment_methods: {
         excluded_payment_methods: [],
         excluded_payment_types: [],
         installments: 12,
         default_installments: 1
+        // No incluir default_payment_method_id para permitir todos los métodos
       },
       statement_descriptor: 'OMNIA',
-      binary_mode: false
+      binary_mode: false,
+      // Configuraciones adicionales para mejorar la experiencia
+      expires: false
+      // No incluir expiration_date_from y expiration_date_to si expires es false
     };
+
+    console.log('📋 Creando preferencia con los siguientes datos:', {
+      totalAmount,
+      marketplaceFee,
+      sellerAmount,
+      clientEmail,
+      payer: {
+        email: preferenceData.payer.email,
+        name: preferenceData.payer.name,
+        surname: preferenceData.payer.surname,
+        hasPhone: !!preferenceData.payer.phone
+      },
+      items: preferenceData.items,
+      payment_methods: preferenceData.payment_methods,
+      hasMarketplaceFee: !!(marketplaceFee > 0 && sellerAmount > 0)
+    });
 
     let preferenceResponse;
     try {
       preferenceResponse = await preference.create({ body: preferenceData });
+      console.log('✅ Preferencia creada exitosamente:', {
+        preferenceId: preferenceResponse.id,
+        initPoint: preferenceResponse.init_point || preferenceResponse.sandbox_init_point,
+        hasInitPoint: !!(preferenceResponse.init_point || preferenceResponse.sandbox_init_point)
+      });
     } catch (error: any) {
-      console.error('Error creando preferencia:', error);
+      console.error('❌ Error creando preferencia:', error);
+      console.error('Detalles del error:', {
+        message: error.message,
+        cause: error.cause,
+        status: error.status,
+        statusCode: error.statusCode,
+        response: error.response
+      });
       return NextResponse.json(
         { 
           error: 'Error creando preferencia de pago',

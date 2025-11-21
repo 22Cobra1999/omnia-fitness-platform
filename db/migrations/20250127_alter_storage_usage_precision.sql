@@ -36,3 +36,4 @@ COMMENT ON COLUMN storage_usage.gb_usage IS 'Espacio usado en GB con 6 decimales
 
 
 
+
