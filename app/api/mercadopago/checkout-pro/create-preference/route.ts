@@ -273,41 +273,67 @@ export async function POST(request: NextRequest) {
         platform: 'OMNIA',
         activity_id: String(activityId),
         client_id: clientId
-      }
+      },
+      // Configuración adicional: asegurar que el checkout esté listo
+      // No usar purpose: 'wallet_purchase' ya que puede causar problemas
+      // Agregar additional_info si es necesario
+      additional_info: `Compra de actividad ${activity.title} en OMNIA`
       // No incluir expiration_date_from y expiration_date_to si expires es false
     };
 
-    console.log('📋 Creando preferencia con los siguientes datos:', {
-      totalAmount,
-      marketplaceFee,
-      sellerAmount,
-      clientEmail,
-      payer: {
-        email: preferenceData.payer.email,
-        name: preferenceData.payer.name,
-        surname: preferenceData.payer.surname,
-        hasPhone: !!preferenceData.payer.phone,
-        hasIdentification: !!preferenceData.payer.identification
-      },
-      items: preferenceData.items,
-      payment_methods: preferenceData.payment_methods,
-      hasMarketplaceFee: !!(marketplaceFee > 0 && sellerAmount > 0),
-      back_urls: preferenceData.back_urls,
-      auto_return: preferenceData.auto_return,
-      expires: preferenceData.expires
+    // Log detallado ANTES de crear la preferencia
+    console.log('📋 ========== CREANDO PREFERENCIA ==========');
+    console.log('📋 Activity ID:', activityId);
+    console.log('📋 Total Amount:', totalAmount);
+    console.log('📋 Marketplace Fee:', marketplaceFee);
+    console.log('📋 Seller Amount:', sellerAmount);
+    console.log('📋 Client Email:', clientEmail);
+    console.log('📋 Payer Info:', {
+      email: preferenceData.payer.email,
+      name: preferenceData.payer.name,
+      surname: preferenceData.payer.surname,
+      hasPhone: !!preferenceData.payer.phone,
+      hasIdentification: !!preferenceData.payer.identification,
+      identification: preferenceData.payer.identification
     });
+    console.log('📋 Items:', JSON.stringify(preferenceData.items, null, 2));
+    console.log('📋 Payment Methods:', JSON.stringify(preferenceData.payment_methods, null, 2));
+    console.log('📋 Back URLs:', JSON.stringify(preferenceData.back_urls, null, 2));
+    console.log('📋 Auto Return:', preferenceData.auto_return);
+    console.log('📋 Binary Mode:', preferenceData.binary_mode);
+    console.log('📋 Expires:', preferenceData.expires);
+    console.log('📋 Has Marketplace Fee:', !!(marketplaceFee > 0 && sellerAmount > 0));
+    console.log('📋 External Reference:', preferenceData.external_reference);
+    console.log('📋 Notification URL:', preferenceData.notification_url);
     
     // Log completo de la preferencia (para debugging)
-    console.log('🔍 Preferencia completa que se enviará a Mercado Pago:', JSON.stringify(preferenceData, null, 2));
+    console.log('🔍 ========== PREFERENCIA COMPLETA (JSON) ==========');
+    console.log(JSON.stringify(preferenceData, null, 2));
+    console.log('🔍 ========== FIN PREFERENCIA COMPLETA ==========');
 
     let preferenceResponse;
     try {
+      console.log('🚀 ========== ENVIANDO PREFERENCIA A MERCADO PAGO ==========');
+      console.log('🚀 Access Token usado:', coachAccessToken.substring(0, 20) + '...');
+      console.log('🚀 Coach User ID:', coachCredentials.mercadopago_user_id);
+      
       preferenceResponse = await preference.create({ body: preferenceData });
-      console.log('✅ Preferencia creada exitosamente:', {
-        preferenceId: preferenceResponse.id,
-        initPoint: preferenceResponse.init_point || preferenceResponse.sandbox_init_point,
-        hasInitPoint: !!(preferenceResponse.init_point || preferenceResponse.sandbox_init_point)
-      });
+      
+      console.log('✅ ========== PREFERENCIA CREADA EXITOSAMENTE ==========');
+      console.log('✅ Preference ID:', preferenceResponse.id);
+      console.log('✅ Init Point:', preferenceResponse.init_point || preferenceResponse.sandbox_init_point);
+      console.log('✅ Sandbox Init Point:', preferenceResponse.sandbox_init_point);
+      console.log('✅ Production Init Point:', preferenceResponse.init_point);
+      console.log('✅ Status:', (preferenceResponse as any).status || 'N/A');
+      console.log('✅ Response completa:', JSON.stringify({
+        id: preferenceResponse.id,
+        init_point: preferenceResponse.init_point,
+        sandbox_init_point: preferenceResponse.sandbox_init_point,
+        status: (preferenceResponse as any).status,
+        items: (preferenceResponse as any).items,
+        payer: (preferenceResponse as any).payer
+      }, null, 2));
+      console.log('✅ ========== FIN RESPUESTA MERCADO PAGO ==========');
     } catch (error: any) {
       console.error('❌ Error creando preferencia:', error);
       console.error('Detalles del error:', {
@@ -353,11 +379,20 @@ export async function POST(request: NextRequest) {
     // 13. Obtener init_point (preferir sandbox_init_point en modo test)
     const initPoint = preferenceResponse.sandbox_init_point || preferenceResponse.init_point;
 
+    console.log('🔗 ========== PROCESANDO INIT POINT ==========');
+    console.log('🔗 Init Point Original:', initPoint);
+    console.log('🔗 Tiene Init Point:', !!initPoint);
+    console.log('🔗 Tiene Sandbox Init Point:', !!preferenceResponse.sandbox_init_point);
+    console.log('🔗 Tiene Production Init Point:', !!preferenceResponse.init_point);
+
     if (!initPoint) {
+      console.error('❌ ERROR: No se recibió init_point de Mercado Pago');
+      console.error('❌ Response completa:', JSON.stringify(preferenceResponse, null, 2));
       return NextResponse.json(
         { 
           error: 'No se recibió init_point de Mercado Pago',
-          code: 'MISSING_INIT_POINT'
+          code: 'MISSING_INIT_POINT',
+          details: 'La respuesta de Mercado Pago no incluyó init_point ni sandbox_init_point'
         },
         { status: 500 }
       );
@@ -367,23 +402,48 @@ export async function POST(request: NextRequest) {
     const finalInitPoint = initPoint.includes('locale=') 
       ? initPoint 
       : `${initPoint}${initPoint.includes('?') ? '&' : '?'}locale=es-AR`;
+    
+    console.log('🔗 Init Point Final (con locale):', finalInitPoint);
+    console.log('🔗 ========== FIN PROCESANDO INIT POINT ==========');
 
-    return NextResponse.json({
+    const responseData = {
       success: true,
       preferenceId: preferenceResponse.id,
       initPoint: finalInitPoint,
       marketplaceFee,
       sellerAmount,
-      externalReference
-    });
+      externalReference,
+      // Agregar información adicional para debugging
+      debug: {
+        totalAmount,
+        hasPayerIdentification: !!preferenceData.payer.identification,
+        hasPayerPhone: !!preferenceData.payer.phone,
+        payerEmail: preferenceData.payer.email,
+        itemsCount: preferenceData.items.length,
+        firstItemPrice: preferenceData.items[0]?.unit_price
+      }
+    };
+
+    console.log('✅ ========== RESPUESTA FINAL AL CLIENTE ==========');
+    console.log('✅ Response Data:', JSON.stringify(responseData, null, 2));
+    console.log('✅ ========== FIN RESPUESTA ==========');
+
+    return NextResponse.json(responseData);
 
   } catch (error: any) {
-    console.error('Error inesperado en create-preference:', error);
+    console.error('❌ ========== ERROR INESPERADO ==========');
+    console.error('❌ Error Type:', typeof error);
+    console.error('❌ Error Message:', error.message);
+    console.error('❌ Error Stack:', error.stack);
+    console.error('❌ Error Complete:', JSON.stringify(error, Object.getOwnPropertyNames(error), 2));
+    console.error('❌ ========== FIN ERROR INESPERADO ==========');
+    
     return NextResponse.json(
       { 
         error: 'Error interno del servidor',
         code: 'INTERNAL_SERVER_ERROR',
-        details: error.message
+        details: error.message,
+        stack: process.env.NODE_ENV === 'development' ? error.stack : undefined
       },
       { status: 500 }
     );
