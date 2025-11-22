@@ -29,7 +29,8 @@ import {
   ShoppingCart,
   Clock,
   DollarSign,
-  Printer
+  Printer,
+  Loader2
 } from "lucide-react"
 import { useProfileManagement } from '@/hooks/client/use-profile-management'
 import { useClientMetrics } from '@/hooks/client/use-client-metrics'
