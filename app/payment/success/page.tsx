@@ -17,7 +17,7 @@ function PaymentSuccessContent() {
   const status = searchParams.get('status');
 
   useEffect(() => {
-    if (!preferenceId) {
+    if (!preferenceId && !paymentId) {
       setLoading(false);
       return;
     }
@@ -51,6 +51,21 @@ function PaymentSuccessContent() {
         // Guardar bancoRecord para usar en handleGoToActivity
         if (bancoData) {
           setBancoRecord(bancoData);
+          
+          // Si tenemos activity_id, redirigir a la página principal con parámetros para abrir modales
+          if (bancoData.activity_id) {
+            // Guardar en sessionStorage para que el modal de compra sepa qué actividad mostrar
+            if (typeof window !== 'undefined') {
+              sessionStorage.setItem('last_purchase_activity_id', String(bancoData.activity_id));
+              sessionStorage.setItem('show_purchase_success', 'true');
+              sessionStorage.setItem('purchase_preference_id', preferenceId || '');
+              sessionStorage.setItem('purchase_payment_id', paymentId || '');
+            }
+            
+            // Redirigir a la página principal - el modal de compra detectará los parámetros
+            router.push(`/?purchase_success=true&activity_id=${bancoData.activity_id}&preference_id=${preferenceId || ''}&payment_id=${paymentId || ''}`);
+            return;
+          }
         }
 
         // Si hay enrollment_id, obtener detalles del enrollment
@@ -97,7 +112,7 @@ function PaymentSuccessContent() {
     };
 
     fetchEnrollment();
-  }, [preferenceId]);
+  }, [preferenceId, paymentId, router]);
 
   const handleGoToActivity = () => {
     // Limpiar sessionStorage si existe
