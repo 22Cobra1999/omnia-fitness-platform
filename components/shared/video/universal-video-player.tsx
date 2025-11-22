@@ -15,6 +15,7 @@ interface UniversalVideoPlayerProps {
   onError?: (error: any) => void
   muted?: boolean
   loop?: boolean
+  disableDownload?: boolean
 }
 
 export function UniversalVideoPlayer({
@@ -27,6 +28,7 @@ export function UniversalVideoPlayer({
   onError,
   muted = false,
   loop = false,
+  disableDownload = false,
 }: UniversalVideoPlayerProps) {
   const [isPlaying, setIsPlaying] = useState(autoPlay)
   const [hasError, setHasError] = useState(false)
@@ -168,6 +170,8 @@ export function UniversalVideoPlayer({
           src={bunnyUrl}
           className={cn("w-full h-full object-cover", className)}
           autoPlay={autoPlay}
+          controls={controls}
+          controlsList={disableDownload ? "nodownload" : undefined}
           muted={isMuted}
           loop={loop}
           playsInline
@@ -287,6 +291,7 @@ export function UniversalVideoPlayer({
         className={cn("w-full h-full object-cover cursor-pointer", className)}
         autoPlay={autoPlay}
         controls={controls}
+        controlsList={disableDownload ? "nodownload" : undefined}
         muted={isMuted}
         loop={loop}
         playsInline

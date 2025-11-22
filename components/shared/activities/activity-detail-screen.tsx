@@ -84,27 +84,49 @@ const ActivityDetailScreen: React.FC<ActivityDetailScreenProps> = ({
           throw new Error("Ejercicio no encontrado")
         }
 
-
+        console.log('📋 [activity-detail-screen] Datos del ejercicio obtenidos de DB:', {
+          id: exerciseData.id,
+          nombre: exerciseData.nombre_ejercicio,
+          duracion_min_raw: exerciseData.duracion_min,
+          calorias_raw: exerciseData.calorias,
+          tipo_duracion: typeof exerciseData.duracion_min,
+          tipo_calorias: typeof exerciseData.calorias,
+          camposDisponibles: Object.keys(exerciseData),
+          datosCompletos: exerciseData
+        });
         
         // Crear un objeto compatible con la interfaz ExerciseData - NUEVO ESQUEMA
+        const duracion = exerciseData.duracion_min ?? 0;
+        const calorias = exerciseData.calorias ?? 0;
+        
+        console.log('🔄 [activity-detail-screen] Procesando ejercicio:', {
+          duracion_final: duracion,
+          calorias_final: calorias
+        });
+        
         const processedExercise = {
           id: exerciseData.id,
           nombre_actividad: exerciseData.nombre_ejercicio,
           descripción: exerciseData.descripcion,
-          duracion: exerciseData.duracion_min || 0,
-          calorias_consumidas: 0, // No disponible en el nuevo esquema
+          duracion: duracion,
+          calorias_consumidas: calorias,
           tipo_ejercicio: exerciseData.tipo || "Fuerza",
           repeticiones: "10", // Valor por defecto
           intervalos_secs: "3", // Valor por defecto
           descanso: "60", // Valor por defecto
           peso: "0", // Valor por defecto
-          nivel_intensidad: "Moderado", // Valor por defecto
-          equipo_necesario: "Ninguno", // Valor por defecto
+          nivel_intensidad: exerciseData.nivel_intensidad || exerciseData.intensidad || "Moderado",
+          equipo_necesario: exerciseData.equipo || "Ninguno",
           video: exerciseData.video_url || "",
           nota_cliente: "", // Se maneja en ejecuciones_ejercicio
           completed: false, // Se maneja en ejecuciones_ejercicio
           series: []
         }
+        
+        console.log('✅ [activity-detail-screen] Ejercicio procesado:', {
+          duracion: processedExercise.duracion,
+          calorias_consumidas: processedExercise.calorias_consumidas
+        });
         
         setExercise(processedExercise)
         setIsCompleted(false) // Se maneja en ejecuciones_ejercicio

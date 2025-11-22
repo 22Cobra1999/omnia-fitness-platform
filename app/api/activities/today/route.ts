@@ -1,6 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { createRouteHandlerClient } from '../../../../lib/supabase/supabase-server';
-import { createClient } from '@supabase/supabase-js';
 
 export async function GET(request: NextRequest) {
   try {
@@ -95,9 +94,7 @@ export async function GET(request: NextRequest) {
         
         ejerciciosDelDia.forEach((ejercicioId: number) => {
           const key = `${ejercicioId}_${ordenGlobal}`;
-          const ejercicioDetalle = ejerciciosDetalles?.find(e => e.id === ejercicioId);
-          // Solo obtener detalle_series si es fitness (no nutrición)
-          const detalleSeries = (categoria === 'nutricion' ? null : (ejercicioDetalle as any)?.detalle_series) || '';
+          const detalleSeries = ejerciciosDetalles?.find(e => e.id === ejercicioId)?.detalle_series || '';
           
           ejerciciosPendientes[key] = {
             ejercicio_id: ejercicioId,
@@ -236,117 +233,32 @@ export async function GET(request: NextRequest) {
     const tablaDetalles = categoria === 'nutricion' ? 'platos_detalles' : 'ejercicios_detalles'
     const camposSelect = categoria === 'nutricion' 
       ? 'id, nombre_plato, tipo, descripcion, video_url, calorias, proteinas, carbohidratos, grasas, receta'
-      : 'id, nombre_ejercicio, tipo, descripcion, video_url, calorias, equipo, body_parts, intensidad, detalle_series'
+      : 'id, nombre_ejercicio, tipo, descripcion, video_url, calorias, equipo, body_parts, intensidad, detalle_series, duracion_min'
     
-    // Si no hay IDs, no hacer la consulta
-    let ejerciciosDetalles: any[] = [];
-    let ejerciciosError: any = null;
-    
-    if (ejercicioIds.length > 0) {
-      console.log(`🔍 Buscando ${ejercicioIds.length} ${categoria === 'nutricion' ? 'platos' : 'ejercicios'} en ${tablaDetalles} con IDs:`, ejercicioIds);
-      
-      // Primero intentar con el cliente normal (con RLS)
-      let query = supabase
-        .from(tablaDetalles)
-        .select(camposSelect)
-        .in('id', ejercicioIds);
-      
-      const result = await query;
-      
-      ejerciciosDetalles = result.data || [];
-      ejerciciosError = result.error;
-      
-      console.log(`📊 Resultado de la consulta (con RLS):`, {
-        encontrados: ejerciciosDetalles.length,
-        esperados: ejercicioIds.length,
-        error: ejerciciosError,
-        datos: ejerciciosDetalles?.map(e => ({ id: e.id, nombre: categoria === 'nutricion' ? e.nombre_plato : e.nombre_ejercicio }))
-      });
-      
-      // Si no se encontraron ejercicios, intentar con service role para evitar problemas con RLS
-      if (ejerciciosDetalles.length === 0 && tablaDetalles === 'ejercicios_detalles') {
-        console.log('⚠️ No se encontraron ejercicios con RLS, intentando con service role...');
-        
-        const supabaseService = createClient(
-          process.env.NEXT_PUBLIC_SUPABASE_URL!,
-          process.env.SUPABASE_SERVICE_ROLE_KEY!
-        );
-        
-        const resultService = await supabaseService
-          .from(tablaDetalles)
-          .select(camposSelect)
-          .in('id', ejercicioIds);
-        
-        if (resultService.data && resultService.data.length > 0) {
-          console.log(`✅ Se encontraron ${resultService.data.length} ejercicios con service role:`, 
-            resultService.data.map((e: any) => ({ 
-              id: e.id, 
-              nombre: categoria === 'nutricion' ? e.nombre_plato : e.nombre_ejercicio 
-            }))
-          );
-          ejerciciosDetalles = resultService.data;
-          ejerciciosError = null;
-        } else {
-          console.warn(`⚠️ Tampoco se encontraron ejercicios con service role. Error:`, resultService.error);
-          ejerciciosError = resultService.error;
-        }
-      }
-    } else {
-      console.warn('⚠️ No hay IDs de ejercicios para buscar');
-    }
-    
-    if (ejerciciosError) {
-      console.error(`❌ Error obteniendo ${categoria === 'nutricion' ? 'platos' : 'ejercicios'} de ${tablaDetalles}:`, ejerciciosError);
-      console.error(`❌ Detalles del error:`, JSON.stringify(ejerciciosError, null, 2));
-    }
+    const { data: ejerciciosDetalles } = await supabase
+      .from(tablaDetalles)
+      .select(camposSelect)
+      .in('id', ejercicioIds.length > 0 ? ejercicioIds : [0]);
     
     console.log(`📚 ${categoria === 'nutricion' ? 'Platos' : 'Ejercicios'} encontrados en ${tablaDetalles}:`, ejerciciosDetalles);
-    console.log('📋 detalles_series desde progreso_cliente:', JSON.stringify(detallesSeries, null, 2));
+    console.log('📋 detalles_series desde progreso_cliente:', detallesSeries);
     console.log('🔍 IDs buscados:', ejercicioIds);
     console.log('🔍 IDs encontrados:', ejerciciosDetalles?.map(e => e.id));
-    console.log('🔍 IDs faltantes:', ejercicioIds.filter(id => !ejerciciosDetalles?.some(e => e.id === id)));
-    console.log('🔍 Estructura de detalles_series keys:', Object.keys(detallesSeries));
 
     // Usar detalles_series para obtener bloque y orden correctos
     const transformedActivities = Object.keys(detallesSeries).map((key, index) => {
       const detalle = detallesSeries[key];
+      if (!detalle || !detalle.ejercicio_id) return null;
       
-      // Log detallado de la estructura
-      console.log(`🔍 Procesando key "${key}":`, detalle);
-      
-      if (!detalle) {
-        console.warn(`⚠️ Key "${key}" no tiene detalle`);
-        return null;
-      }
-      
-      // El ejercicio_id puede estar directamente o dentro de un objeto
-      const ejercicioId = detalle.ejercicio_id || detalle.id || (typeof detalle === 'number' ? detalle : null);
-      
-      if (!ejercicioId) {
-        console.warn(`⚠️ Key "${key}" no tiene ejercicio_id válido. Detalle:`, detalle);
-        return null;
-      }
-      
-      // Buscar el ejercicio - intentar con diferentes tipos de comparación
-      let ejercicio = ejerciciosDetalles?.find(e => e.id === ejercicioId);
-      
-      // Si no se encuentra, intentar con conversión de tipos
-      if (!ejercicio) {
-        ejercicio = ejerciciosDetalles?.find(e => Number(e.id) === Number(ejercicioId));
-      }
+      const ejercicio = ejerciciosDetalles?.find(e => e.id === detalle.ejercicio_id);
       
       // Log para debug
       if (!ejercicio) {
-        console.warn(`⚠️ Ejercicio ${ejercicioId} (tipo: ${typeof ejercicioId}) no encontrado en ${tablaDetalles}.`);
-        console.warn(`⚠️ IDs disponibles (${ejerciciosDetalles?.length || 0}):`, ejerciciosDetalles?.map(e => ({ id: e.id, tipo: typeof e.id, nombre: categoria === 'nutricion' ? e.nombre_plato : e.nombre_ejercicio })));
-        console.warn(`⚠️ Detalle completo:`, detalle);
-        console.warn(`⚠️ IDs buscados:`, ejercicioIds);
+        console.warn(`⚠️ Ejercicio ${detalle.ejercicio_id} no encontrado en ${tablaDetalles}. IDs disponibles:`, ejerciciosDetalles?.map(e => e.id));
       } else {
-        console.log(`✅ Ejercicio ${ejercicioId} encontrado:`, {
-          id: ejercicio.id,
+        console.log(`✅ Ejercicio ${detalle.ejercicio_id} encontrado:`, {
           nombre: categoria === 'nutricion' ? ejercicio.nombre_plato : ejercicio.nombre_ejercicio,
-          video_url: ejercicio.video_url,
-          tipo: ejercicio.tipo
+          video_url: ejercicio.video_url
         });
       }
       
@@ -355,20 +267,41 @@ export async function GET(request: NextRequest) {
       const isCompleted = completados && typeof completados === 'object' && key in completados;
       
       // Usar la key correcta para minutos_json y calorias_json (formato: "ejercicio_id_orden")
-      const orden = detalle.orden || detalle.order || 1;
-      const bloque = detalle.bloque || detalle.block || 1;
-      const minutosKey = `${ejercicioId}_${orden}`;
-      const caloriasKey = `${ejercicioId}_${orden}`;
+      const minutosKey = `${detalle.ejercicio_id}_${detalle.orden}`;
+      const caloriasKey = `${detalle.ejercicio_id}_${detalle.orden}`;
       
       const nombreEjercicio = ejercicio 
         ? (categoria === 'nutricion' ? ejercicio.nombre_plato : ejercicio.nombre_ejercicio)
         : null;
       
+      // Obtener duración: primero de minutosJson, luego de ejercicio.duracion_min, luego null
+      const duracionMinutos = categoria === 'nutricion' 
+        ? null 
+        : (minutosJson[minutosKey] || minutosJson[detalle.ejercicio_id] || (ejercicio as any)?.duracion_min || null);
+      
+      // Obtener calorías: primero de caloriasJson, luego de ejercicio.calorias, luego null
+      const caloriasFinal = caloriasJson[caloriasKey] || caloriasJson[detalle.ejercicio_id] || ejercicio?.calorias || null;
+      
+      console.log(`🔍 [API] Ejercicio ${detalle.ejercicio_id} - Duración y Calorías:`, {
+        ejercicio_id: detalle.ejercicio_id,
+        minutosJson_key: minutosKey,
+        minutosJson_value: minutosJson[minutosKey],
+        minutosJson_ejercicio_id: minutosJson[detalle.ejercicio_id],
+        ejercicio_duracion_min: (ejercicio as any)?.duracion_min,
+        duracion_final: duracionMinutos,
+        caloriasJson_key: caloriasKey,
+        caloriasJson_value: caloriasJson[caloriasKey],
+        caloriasJson_ejercicio_id: caloriasJson[detalle.ejercicio_id],
+        ejercicio_calorias: ejercicio?.calorias,
+        calorias_final: caloriasFinal,
+        ejercicio_completo: ejercicio
+      });
+      
       const transformedExercise = {
-        id: `${progressRecord?.id || 0}-${ejercicioId}`,
-        exercise_id: ejercicioId,
-        nombre_ejercicio: nombreEjercicio || `Ejercicio ${ejercicioId}`,
-        name: nombreEjercicio || `Ejercicio ${ejercicioId}`,
+        id: `${progressRecord?.id || 0}-${detalle.ejercicio_id}`,
+        exercise_id: detalle.ejercicio_id,
+        nombre_ejercicio: nombreEjercicio || `Ejercicio ${detalle.ejercicio_id}`,
+        name: nombreEjercicio || `Ejercicio ${detalle.ejercicio_id}`,
         type: ejercicio?.tipo || 'general',
         tipo: ejercicio?.tipo || 'general',
         description: ejercicio?.descripcion || '',
@@ -376,17 +309,19 @@ export async function GET(request: NextRequest) {
         completed: isCompleted,
         intensity: categoria === 'nutricion' ? null : (ejercicio?.intensidad || 'Principiante'),
         day: null,
-        block: bloque,
-        bloque: bloque,
-        order: orden,
-        orden: orden,
+        block: detalle.bloque,
+        bloque: detalle.bloque,
+        order: detalle.orden,
+        orden: detalle.orden,
         series: detalle.detalle_series || null,
         detalle_series: detalle.detalle_series || null,
         formatted_series: detalle.detalle_series || null,
         date: today,
         video_url: ejercicio?.video_url || null,
-        duracion_minutos: categoria === 'nutricion' ? null : (minutosJson[minutosKey] || minutosJson[ejercicioId] || null),
-        calorias: caloriasJson[caloriasKey] || caloriasJson[ejercicioId] || null,
+        duracion_minutos: duracionMinutos,
+        duracion_min: duracionMinutos,
+        duration: duracionMinutos,
+        calorias: caloriasFinal,
         intensidad: categoria === 'nutricion' ? null : (ejercicio?.intensidad || null),
         equipo: categoria === 'nutricion' ? null : (ejercicio?.equipo || null),
         body_parts: categoria === 'nutricion' ? null : (ejercicio?.body_parts || null),
@@ -397,12 +332,11 @@ export async function GET(request: NextRequest) {
         receta: categoria === 'nutricion' ? (ejercicio?.receta || null) : null
       };
       
-      console.log(`🔍 ${categoria === 'nutricion' ? 'Plato' : 'Ejercicio'} ${ejercicioId} (${categoria === 'nutricion' ? ejercicio?.nombre_plato : ejercicio?.nombre_ejercicio}):`, {
+      console.log(`🔍 ${categoria === 'nutricion' ? 'Plato' : 'Ejercicio'} ${detalle.ejercicio_id} (${categoria === 'nutricion' ? ejercicio?.nombre_plato : ejercicio?.nombre_ejercicio}):`, {
         key: key,
         detalle_series: detalle.detalle_series,
-        bloque: bloque,
-        orden: orden,
-        nombre_final: nombreEjercicio || `Ejercicio ${ejercicioId}`
+        bloque: detalle.bloque,
+        orden: detalle.orden
       });
       
       return transformedExercise;
@@ -664,7 +598,7 @@ async function getActivitiesFromPlanning(supabase: any, activityId: number, dia:
     const tablaDetalles = categoria === 'nutricion' ? 'platos_detalles' : 'ejercicios_detalles'
     const camposSelect = categoria === 'nutricion' 
       ? 'id, nombre_plato, tipo, descripcion, video_url, calorias, proteinas, carbohidratos, grasas, receta'
-      : 'id, nombre_ejercicio, tipo, descripcion, video_url, calorias, equipo, body_parts, intensidad, detalle_series'
+      : 'id, nombre_ejercicio, tipo, descripcion, video_url, calorias, equipo, body_parts, intensidad, detalle_series, duracion_min'
     
     const { data: ejerciciosDetalles, error: ejerciciosError } = await supabase
       .from(tablaDetalles)
@@ -704,7 +638,9 @@ async function getActivitiesFromPlanning(supabase: any, activityId: number, dia:
         formatted_series: ejercicio?.detalle_series || null,
         date: new Date().toISOString().split('T')[0],
         video_url: ejercicio?.video_url || null,
-        duracion_minutos: null,
+        duracion_minutos: categoria === 'nutricion' ? null : ((ejercicio as any)?.duracion_min || null),
+        duracion_min: categoria === 'nutricion' ? null : ((ejercicio as any)?.duracion_min || null),
+        duration: categoria === 'nutricion' ? null : ((ejercicio as any)?.duracion_min || null),
         calorias: ejercicio?.calorias || null,
         intensidad: categoria === 'nutricion' ? null : (ejercicio?.intensidad || null),
         equipo: categoria === 'nutricion' ? null : (ejercicio?.equipo || 'Ninguno'),

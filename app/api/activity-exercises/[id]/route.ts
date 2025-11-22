@@ -5,13 +5,9 @@ import {
   normalizeActivityMap
 } from '@/lib/utils/exercise-activity-map'
 
-type RouteParams = {
-  params: Promise<{ id: string }>
-}
-
 export async function GET(
   request: NextRequest,
-  context: RouteParams
+  { params }: { params: { id: string } }
 ) {
   try {
     const supabase = await createRouteHandlerClient()
@@ -22,9 +18,7 @@ export async function GET(
       return NextResponse.json({ error: 'No autenticado' }, { status: 401 })
     }
 
-    const { id } = await context.params
-
-    const activityId = parseInt(id)
+    const activityId = parseInt(params.id)
 
     if (!activityId || isNaN(activityId)) {
       return NextResponse.json({ 
@@ -72,7 +66,7 @@ export async function GET(
     }
 
     // Obtener ejercicios de la actividad desde ejercicios_detalles
-    const activityKey = id
+    const activityKey = params.id
     const activityKeyObj = { [activityKey]: {} }
 
     const { data: exercises, error: exercisesError } = await supabase
@@ -95,7 +89,11 @@ export async function GET(
       const activityMap = normalizeActivityMap(exercise.activity_id)
       const primaryActivityIdKey = Object.keys(activityMap)[0]
       const primaryActivityId = primaryActivityIdKey ? parseInt(primaryActivityIdKey, 10) : null
-      const isActive = getActiveFlagForActivity(activityMap, activityId, true)
+      const isActive = getActiveFlagForActivity(
+        activityMap,
+        activityId,
+        exercise.is_active !== false
+      )
 
       return {
         id: exercise.id,
@@ -105,10 +103,6 @@ export async function GET(
         calorias: exercise.calorias,
         intensidad: exercise.intensidad,
         video_url: exercise.video_url,
-        video_file_name: exercise.video_file_name || null,
-        bunny_video_id: exercise.bunny_video_id || null,
-        bunny_library_id: exercise.bunny_library_id || null,
-        video_thumbnail_url: exercise.video_thumbnail_url || null,
         equipo: exercise.equipo,
         body_parts: exercise.body_parts,
         detalle_series: exercise.detalle_series,

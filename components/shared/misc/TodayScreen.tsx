@@ -295,9 +295,13 @@ export default function TodayScreen({ activityId, onBack }: { activityId: string
     console.log('🎬 [openVideo] Datos recibidos:', {
       exerciseName,
       exerciseId,
+      duration_raw: duration,
+      calorias_raw: calorias,
       detalle_series,
       description,
-      equipment
+      equipment,
+      tipo_duracion: typeof duration,
+      tipo_calorias: typeof calorias
     });
     setSelectedVideo({
       url: videoUrl,
@@ -309,6 +313,10 @@ export default function TodayScreen({ activityId, onBack }: { activityId: string
       duration,
       descripcion,
       calorias
+    });
+    console.log('✅ [openVideo] selectedVideo actualizado:', {
+      duration: duration,
+      calorias: calorias
     });
     // Inicializar valores editables de series
     const parsed = parseSeries(detalle_series);
@@ -366,9 +374,9 @@ export default function TodayScreen({ activityId, onBack }: { activityId: string
         nextExercise.description,
         nextExercise.equipment,
         nextExercise.series || nextExercise.detalle_series,
-        nextExercise.duration,
+        nextExercise.duration ?? (nextExercise as any).duracion_minutos ?? (nextExercise as any).duracion_min ?? null,
         nextExercise.descripcion,
-        (nextExercise as any).calorias
+        (nextExercise as any).calorias ?? null
       );
     } else {
       // console.log('No next exercise found');
@@ -1438,6 +1446,31 @@ export default function TodayScreen({ activityId, onBack }: { activityId: string
         const result = await response.json();
         
         console.log('🧭 TodayScreen: Respuesta del endpoint:', result);
+        console.log('📋 [TodayScreen] Actividades recibidas de API:', {
+          cantidad: result.data?.activities?.length || 0,
+          actividades: result.data?.activities?.map((a: any) => ({
+            id: a.id,
+            exercise_id: a.exercise_id,
+            nombre: a.nombre_ejercicio || a.name,
+            duracion_minutos: a.duracion_minutos,
+            duracion_minutos_tipo: typeof a.duracion_minutos,
+            duracion_minutos_null: a.duracion_minutos === null,
+            duration: a.duration,
+            duration_tipo: typeof a.duration,
+            duracion_min: a.duracion_min,
+            duracion_min_tipo: typeof a.duracion_min,
+            calorias: a.calorias,
+            calorias_tipo: typeof a.calorias,
+            calorias_null: a.calorias === null,
+            calorias_undefined: a.calorias === undefined,
+            calorias_cero: a.calorias === 0,
+            todosLosCampos: Object.keys(a || {}),
+            valoresTodosCampos: Object.keys(a || {}).reduce((acc: any, key: string) => {
+              acc[key] = { valor: a[key], tipo: typeof a[key], esNull: a[key] === null, esUndefined: a[key] === undefined };
+              return acc;
+            }, {})
+          }))
+        });
         
         if (result.success && result.data.activities && result.data.activities.length > 0) {
           const todayActivities: Activity[] = result.data.activities.map((item: any, index: number) => {
@@ -1448,6 +1481,42 @@ export default function TodayScreen({ activityId, onBack }: { activityId: string
             // El endpoint /api/activities/today ya devuelve si el ejercicio está completado
             const isCompleted = Boolean(item.completed);
 
+            const duracion = item.duracion_minutos ?? item.duration ?? item.duracion_min ?? null;
+            const calorias = item.calorias ?? null;
+            
+            console.log(`📋 [TodayScreen] Mapeando ejercicio ${ejercicioId}:`, {
+              nombre: item.nombre_ejercicio || item.name,
+              // Duración - valores crudos
+              duracion_minutos_raw: item.duracion_minutos,
+              duracion_minutos_tipo: typeof item.duracion_minutos,
+              duracion_minutos_null: item.duracion_minutos === null,
+              duration_raw: item.duration,
+              duration_tipo: typeof item.duration,
+              duracion_min_raw: item.duracion_min,
+              duracion_min_tipo: typeof item.duracion_min,
+              // Duración final
+              duracion_final: duracion,
+              duracion_final_tipo: typeof duracion,
+              duracion_final_null: duracion === null,
+              duracion_final_undefined: duracion === undefined,
+              // Calorías - valores crudos
+              calorias_raw: item.calorias,
+              calorias_raw_tipo: typeof item.calorias,
+              calorias_raw_null: item.calorias === null,
+              calorias_raw_undefined: item.calorias === undefined,
+              calorias_raw_cero: item.calorias === 0,
+              // Calorías finales
+              calorias_final: calorias,
+              calorias_final_tipo: typeof calorias,
+              calorias_final_null: calorias === null,
+              calorias_final_undefined: calorias === undefined,
+              camposDisponibles: Object.keys(item),
+              todosLosValores: Object.keys(item).reduce((acc: any, key: string) => {
+                acc[key] = { valor: item[key], tipo: typeof item[key], null: item[key] === null, undefined: item[key] === undefined };
+                return acc;
+              }, {})
+            });
+            
             const mappedActivity = {
               // id único que combina ejercicio_id, bloque y orden para evitar duplicados
               id: `${ejercicioId}_${bloque}_${orden}`,
@@ -1458,24 +1527,42 @@ export default function TodayScreen({ activityId, onBack }: { activityId: string
               bloque,
               orden,
               ejercicio_id: ejercicioId,
-              duration: item.duracion_minutos || item.duration || null,
+              duration: duracion,
               equipment: item.equipo || 'Ninguno',
               series: item.series || item.formatted_series || item.detalle_series,
               detalle_series: item.detalle_series,
               description: item.descripcion || item.description || '',
               video_url: item.video_url || null,
               descripcion: item.descripcion || item.description,
-              calorias: item.calorias ?? null,
+              calorias: calorias,
               body_parts: item.body_parts ?? null,
               intensidad: item.intensidad ?? null
             };
             
-            console.log('🧭 TodayScreen: Mapeando ejercicio:', item.name, 'Video URL:', item.video_url, '->', mappedActivity.video_url);
+            console.log(`✅ [TodayScreen] Ejercicio ${ejercicioId} mapeado:`, {
+              duration: mappedActivity.duration,
+              calorias: mappedActivity.calorias,
+              video_url: mappedActivity.video_url
+            });
+            
             return mappedActivity;
           });
 
           console.log('🧭 TodayScreen: Activities mapeadas (id único, done de BD)');
           console.table(todayActivities.map(a => ({ id: a.id, ejercicio_id: a.ejercicio_id, bloque: a.bloque, orden: a.orden, done: a.done })));
+          
+          console.log('✅ [TodayScreen] Actividades finales mapeadas:', {
+            cantidad: todayActivities.length,
+            actividades: todayActivities.map(a => ({
+              id: a.id,
+              ejercicio_id: a.ejercicio_id,
+              nombre: a.title,
+              duration: a.duration,
+              calorias: (a as any).calorias,
+              tipo_duracion: typeof a.duration,
+              tipo_calorias: typeof (a as any).calorias
+            }))
+          });
 
           setActivities(todayActivities);
           setNextAvailableActivity(null);
@@ -1586,11 +1673,18 @@ export default function TodayScreen({ activityId, onBack }: { activityId: string
         </div>
       </div>
 
-      <div style={{ minHeight: '100vh', overflowY: 'auto', overflowX: 'hidden', paddingTop: '56px' }}>
+      <div style={{ 
+        minHeight: '100vh', 
+        overflowY: 'auto', 
+        overflowX: 'hidden', 
+        paddingTop: '56px',
+        WebkitOverflowScrolling: 'touch',
+        paddingBottom: calendarExpanded ? '250px' : '0px'
+      }}>
         {/* HERO DE PROGRESO */}
         <motion.div
           style={{
-            padding: '0px 24px 120px',
+            padding: calendarExpanded ? '0px 24px 200px' : '0px 24px 120px',
             minHeight: 'calc(100vh - 120px)',
             backgroundImage: backgroundImage && backgroundImage.trim() !== ''
               ? `linear-gradient(180deg, rgba(15, 16, 18, 0.3) 0%, rgba(15, 16, 18, 0.6) 100%), url(${backgroundImage})`
@@ -1813,7 +1907,8 @@ export default function TodayScreen({ activityId, onBack }: { activityId: string
           border: '1px solid rgba(255, 255, 255, 0.15)',
           borderRadius: 24,
           padding: 28,
-            marginBottom: 20,
+          paddingBottom: calendarExpanded ? 140 : 28,
+          marginBottom: calendarExpanded ? 80 : 20,
           position: 'relative',
           boxShadow: '0 12px 40px rgba(0, 0, 0, 0.4), inset 0 1px 0 rgba(255, 255, 255, 0.1), 0 0 0 1px rgba(255, 255, 255, 0.05)'
         }}>
@@ -2322,26 +2417,32 @@ export default function TodayScreen({ activityId, onBack }: { activityId: string
       <div style={{
                 display: 'flex',
                 justifyContent: 'center',
-                marginTop: 16,
-                width: '100%'
+                marginTop: calendarExpanded ? 24 : 16,
+                marginBottom: calendarExpanded ? 100 : 0,
+                paddingBottom: calendarExpanded ? 60 : 0,
+                width: '100%',
+                position: 'relative',
+                zIndex: 1
               }}>
                 <button
                   onClick={() => setCalendarExpanded(!calendarExpanded)}
                   style={{
-                    width: 32,
-                    height: 32,
+                    width: 36,
+                    height: 36,
                     background: 'transparent',
                     border: '2px solid #FF6A00',
                     borderRadius: '50%',
                     color: '#FF6A00',
-                    fontSize: 18,
+                    fontSize: 20,
                     fontWeight: 'bold',
                     cursor: 'pointer',
                     transition: 'all 0.2s ease',
                     display: 'flex',
                     alignItems: 'center',
                     justifyContent: 'center',
-                    padding: 0
+                    padding: 0,
+                    position: 'relative',
+                    zIndex: 2
           }}
           onMouseEnter={(e) => {
                     e.currentTarget.style.background = 'rgba(255, 106, 0, 0.1)';
@@ -2444,14 +2545,14 @@ export default function TodayScreen({ activityId, onBack }: { activityId: string
               alignItems: 'center',
               padding: '16px 20px 0'
             }}>
-              <div style={{ flex: 1 }}>
+              <div style={{ flex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center', textAlign: 'center' }}>
                 {(() => {
                   const currentExercise = activities.find(a => a.id === selectedVideo.exerciseId);
                   const currentIndex = activities.findIndex(a => a.id === selectedVideo.exerciseId);
                   const remainingExercises = activities.length - currentIndex - 1;
                   
                   return (
-                    <div>
+                    <div style={{ width: '100%' }}>
                       <div style={{
                         color: 'rgba(255, 255, 255, 0.6)',
                         fontSize: 12,
@@ -2522,6 +2623,7 @@ export default function TodayScreen({ activityId, onBack }: { activityId: string
                   autoPlay={false}
                   controls={true}
                   className="w-full h-full rounded-xl"
+                  disableDownload={true}
                 />
               ) : (
                 <div style={{
@@ -2549,10 +2651,14 @@ export default function TodayScreen({ activityId, onBack }: { activityId: string
             <div style={{
               flex: 1,
               overflow: 'auto',
-              padding: '0 20px 20px',
+              overflowY: 'scroll',
+              WebkitOverflowScrolling: 'touch',
+              padding: '0 20px 120px',
               display: 'flex',
               flexDirection: 'column',
-              gap: 20
+              gap: 20,
+              maxHeight: 'none',
+              minHeight: 'calc(100vh - 300px)'
             }}>
               <div>
                 <h3 style={{
@@ -2577,6 +2683,28 @@ export default function TodayScreen({ activityId, onBack }: { activityId: string
               </div>
 
               {/* Métricas - Duración, Calorías y Equipo en la misma fila */}
+              {(() => {
+                const duracionValue = selectedVideo.duration;
+                const caloriasValue = selectedVideo.calorias;
+                
+                console.log('🖼️ [TodayScreen] Renderizando duración y calorías:', {
+                  selectedVideo_completo: selectedVideo,
+                  exerciseId: selectedVideo.exerciseId,
+                  exerciseName: selectedVideo.exerciseName,
+                  duration: duracionValue,
+                  calorias: caloriasValue,
+                  tipo_duracion: typeof duracionValue,
+                  tipo_calorias: typeof caloriasValue,
+                  esNull_duracion: duracionValue === null,
+                  esUndefined_duracion: duracionValue === undefined,
+                  esNull_calorias: caloriasValue === null,
+                  esUndefined_calorias: caloriasValue === undefined,
+                  todosLosCampos: Object.keys(selectedVideo),
+                  valoresTodosCampos: Object.keys(selectedVideo).map(key => ({ key, value: (selectedVideo as any)[key], tipo: typeof (selectedVideo as any)[key] }))
+                });
+                
+                return null;
+              })()}
               <div style={{
                 display: 'flex',
                 alignItems: 'flex-start',
@@ -2602,7 +2730,7 @@ export default function TodayScreen({ activityId, onBack }: { activityId: string
                     fontSize: 16,
                     fontWeight: 600
                   }}>
-                    {selectedVideo.duration ? `${selectedVideo.duration} min` : '-'}
+                    {selectedVideo.duration !== null && selectedVideo.duration !== undefined && selectedVideo.duration !== '' ? `${selectedVideo.duration} min` : '-'}
                   </div>
                 </div>
                 
@@ -2623,7 +2751,7 @@ export default function TodayScreen({ activityId, onBack }: { activityId: string
                     fontSize: 16,
                     fontWeight: 600
                   }}>
-                    {selectedVideo.calorias ? `~${selectedVideo.calorias} cal` : '-'}
+                    {selectedVideo.calorias !== null && selectedVideo.calorias !== undefined && selectedVideo.calorias !== '' ? `~${selectedVideo.calorias} cal` : '-'}
                   </div>
                 </div>
                 
@@ -2667,7 +2795,7 @@ export default function TodayScreen({ activityId, onBack }: { activityId: string
                               padding: '6px 12px',
                               fontSize: 13,
                               fontWeight: 500,
-                              color: '#fff',
+                              color: 'rgba(255, 255, 255, 0.6)',
                               whiteSpace: 'nowrap',
                               flexShrink: 0
                             }}
@@ -2692,15 +2820,13 @@ export default function TodayScreen({ activityId, onBack }: { activityId: string
                   }}>
                     <h4 style={{
                       color: 'rgba(255, 255, 255, 0.8)',
-                      fontSize: 13,
-                      fontWeight: 600,
+                      fontSize: 18,
+                      fontWeight: 700,
                       margin: 0,
                       textTransform: 'uppercase',
-                      letterSpacing: '0.5px',
-                      textAlign: 'center',
-                      flex: 1
+                      letterSpacing: '0.5px'
                     }}>
-                      Reps Peso Series
+                      Bloques:
                     </h4>
                     {!isEditingSeries ? (
                       <button
@@ -2876,29 +3002,48 @@ export default function TodayScreen({ activityId, onBack }: { activityId: string
                     {editableSeries.map((bloque, index) => (
                       <div key={bloque.id} style={{
                         display: 'flex',
-                        justifyContent: 'space-between',
                         alignItems: 'center',
-                        padding: '12px',
-                        background: 'rgba(255, 255, 255, 0.03)',
-                        borderRadius: 8,
-                        border: '1px solid rgba(255, 255, 255, 0.08)'
+                        padding: '8px 0',
+                        gap: 16,
+                        borderBottom: index < editableSeries.length - 1 ? '1px solid rgba(255, 255, 255, 0.08)' : 'none',
+                        flexWrap: 'nowrap',
+                        width: '100%'
                       }}>
-                        <span style={{
-                          color: 'rgba(255, 255, 255, 0.7)',
-                          fontSize: 13,
-                          fontWeight: 500,
-                          minWidth: 80
-                        }}>
-                          Bloque {bloque.id}
-                        </span>
+                        {/* Número del bloque */}
                         <div style={{
                           display: 'flex',
-                          gap: 12,
-                          alignItems: 'center',
-                          flex: 1,
-                          justifyContent: 'flex-end'
+                          alignItems: 'baseline',
+                          flexShrink: 0,
+                          minWidth: 45
                         }}>
-                          <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                          <span style={{
+                            color: '#FF7939',
+                            fontSize: 32,
+                            fontWeight: 700,
+                            lineHeight: 1
+                          }}>
+                            {bloque.id}
+                          </span>
+                        </div>
+                        
+                        {/* Reps, kg y series en una sola línea horizontal - números y palabras en la misma línea */}
+                        <div style={{
+                          display: 'flex',
+                          gap: 20,
+                          alignItems: 'baseline',
+                          flex: 1,
+                          justifyContent: 'flex-start',
+                          flexWrap: 'nowrap',
+                          minWidth: 0,
+                          marginLeft: 16
+                        }}>
+                          {/* Reps - Número y palabra en la misma línea */}
+                          <div style={{ 
+                            display: 'flex', 
+                            alignItems: 'baseline',
+                            gap: 4,
+                            flexShrink: 0
+                          }}>
                             <input
                               type="number"
                               value={bloque.reps}
@@ -2907,25 +3052,31 @@ export default function TodayScreen({ activityId, onBack }: { activityId: string
                                 newSeries[index].reps = e.target.value;
                                 setEditableSeries(newSeries);
                               }}
-                              disabled={!isEditingSeries}
                               style={{
-                                width: 60,
-                                padding: '6px 8px',
-                                background: isEditingSeries ? 'rgba(255, 255, 255, 0.1)' : 'rgba(255, 255, 255, 0.05)',
-                                border: '1px solid rgba(255, 255, 255, 0.2)',
-                                borderRadius: 6,
-                                color: '#FF7939',
-                                fontSize: 13,
-                                fontWeight: 600,
-                                textAlign: 'center',
+                                width: 'auto',
+                                minWidth: 35,
+                                maxWidth: 50,
+                                padding: '2px 0',
+                                background: 'transparent',
+                                border: 'none',
+                                color: '#FFFFFF',
+                                fontSize: 18,
+                                fontWeight: 700,
+                                textAlign: 'left',
                                 outline: 'none',
-                                cursor: isEditingSeries ? 'text' : 'not-allowed',
-                                opacity: isEditingSeries ? 1 : 0.6
+                                cursor: 'text'
                               }}
                             />
-                            <span style={{ color: '#FF7939', fontSize: 12, fontWeight: 500 }}>reps</span>
+                            <span style={{ color: '#FF7939', fontSize: 12, fontWeight: 500, lineHeight: 1 }}>reps</span>
                           </div>
-                          <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                          
+                          {/* Kg - Número y palabra en la misma línea */}
+                          <div style={{ 
+                            display: 'flex', 
+                            alignItems: 'baseline',
+                            gap: 4,
+                            flexShrink: 0
+                          }}>
                             <input
                               type="number"
                               value={bloque.kg}
@@ -2934,25 +3085,31 @@ export default function TodayScreen({ activityId, onBack }: { activityId: string
                                 newSeries[index].kg = e.target.value;
                                 setEditableSeries(newSeries);
                               }}
-                              disabled={!isEditingSeries}
                               style={{
-                                width: 60,
-                                padding: '6px 8px',
-                                background: isEditingSeries ? 'rgba(255, 255, 255, 0.1)' : 'rgba(255, 255, 255, 0.05)',
-                                border: '1px solid rgba(255, 255, 255, 0.2)',
-                                borderRadius: 6,
-                                color: '#FF7939',
-                                fontSize: 13,
-                                fontWeight: 600,
-                                textAlign: 'center',
+                                width: 'auto',
+                                minWidth: 35,
+                                maxWidth: 50,
+                                padding: '2px 0',
+                                background: 'transparent',
+                                border: 'none',
+                                color: '#FFFFFF',
+                                fontSize: 18,
+                                fontWeight: 700,
+                                textAlign: 'left',
                                 outline: 'none',
-                                cursor: isEditingSeries ? 'text' : 'not-allowed',
-                                opacity: isEditingSeries ? 1 : 0.6
+                                cursor: 'text'
                               }}
                             />
-                            <span style={{ color: '#FF7939', fontSize: 12, fontWeight: 500 }}>kg</span>
+                            <span style={{ color: '#FF7939', fontSize: 12, fontWeight: 500, lineHeight: 1 }}>kg</span>
                           </div>
-                          <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                          
+                          {/* Series - Número y palabra en la misma línea */}
+                          <div style={{ 
+                            display: 'flex', 
+                            alignItems: 'baseline',
+                            gap: 4,
+                            flexShrink: 0
+                          }}>
                             <input
                               type="number"
                               value={bloque.series}
@@ -2961,23 +3118,22 @@ export default function TodayScreen({ activityId, onBack }: { activityId: string
                                 newSeries[index].series = e.target.value;
                                 setEditableSeries(newSeries);
                               }}
-                              disabled={!isEditingSeries}
                               style={{
-                                width: 60,
-                                padding: '6px 8px',
-                                background: isEditingSeries ? 'rgba(255, 255, 255, 0.1)' : 'rgba(255, 255, 255, 0.05)',
-                                border: '1px solid rgba(255, 255, 255, 0.2)',
-                                borderRadius: 6,
-                                color: '#FF7939',
-                                fontSize: 13,
-                                fontWeight: 600,
-                                textAlign: 'center',
+                                width: 'auto',
+                                minWidth: 35,
+                                maxWidth: 50,
+                                padding: '2px 0',
+                                background: 'transparent',
+                                border: 'none',
+                                color: '#FFFFFF',
+                                fontSize: 18,
+                                fontWeight: 700,
+                                textAlign: 'left',
                                 outline: 'none',
-                                cursor: isEditingSeries ? 'text' : 'not-allowed',
-                                opacity: isEditingSeries ? 1 : 0.6
+                                cursor: 'text'
                               }}
                             />
-                            <span style={{ color: '#FF7939', fontSize: 12, fontWeight: 500 }}>series</span>
+                            <span style={{ color: '#FF7939', fontSize: 12, fontWeight: 500, lineHeight: 1 }}>series</span>
                           </div>
                         </div>
                       </div>
@@ -2989,12 +3145,15 @@ export default function TodayScreen({ activityId, onBack }: { activityId: string
 
               {/* Navegación de ejercicios con botón de completar */}
               <div style={{
+                position: 'relative',
                 display: 'flex',
                 alignItems: 'center',
                 justifyContent: 'center',
-                gap: 40,
-                padding: '20px 0',
-                borderTop: '1px solid rgba(255, 255, 255, 0.08)'
+                gap: 16,
+                padding: '16px 20px 20px',
+                marginTop: '8px',
+                background: 'transparent',
+                zIndex: 1001
               }}>
                 {/* Flecha izquierda - ejercicio anterior */}
                 <button
@@ -3425,6 +3584,24 @@ export default function TodayScreen({ activityId, onBack }: { activityId: string
                                 setOriginalSeries(JSON.parse(JSON.stringify(initialSeries)));
                                 setIsEditingSeries(false);
                                 if (activity.video_url) {
+                                  const duracionParaOpenVideo = activity.duration ?? (activity as any).duracion_minutos ?? (activity as any).duracion_min ?? null;
+                                  const caloriasParaOpenVideo = (activity as any).calorias ?? null;
+                                  
+                                  console.log(`🎬 [TodayScreen] Abriendo video para ejercicio ${activity.id}:`, {
+                                    nombre: activity.title,
+                                    activity_duration: activity.duration,
+                                    activity_duracion_minutos: (activity as any).duracion_minutos,
+                                    activity_duracion_min: (activity as any).duracion_min,
+                                    duracion_final_pasada: duracionParaOpenVideo,
+                                    duracion_tipo: typeof duracionParaOpenVideo,
+                                    activity_calorias: (activity as any).calorias,
+                                    calorias_final_pasada: caloriasParaOpenVideo,
+                                    calorias_tipo: typeof caloriasParaOpenVideo,
+                                    actividad_completa: activity,
+                                    mappedActivity_duration: activity.duration,
+                                    mappedActivity_calorias: activity.calorias
+                                  });
+                                  
                                   openVideo(
                                     activity.video_url,
                                     activity.title,
@@ -3432,11 +3609,29 @@ export default function TodayScreen({ activityId, onBack }: { activityId: string
                                     activity.description,
                                     activity.equipment,
                                     activity.detalle_series || activity.series,
-                                    activity.duration,
+                                    duracionParaOpenVideo,
                                     activity.descripcion,
-                                    (activity as any).calorias
+                                    caloriasParaOpenVideo
                                   );
                                 } else {
+                                  const duracionParaOpenVideoSinURL = activity.duration ?? (activity as any).duracion_minutos ?? (activity as any).duracion_min ?? null;
+                                  const caloriasParaOpenVideoSinURL = (activity as any).calorias ?? null;
+                                  
+                                  console.log(`🎬 [TodayScreen] Abriendo video sin URL para ejercicio ${activity.id}:`, {
+                                    nombre: activity.title,
+                                    activity_duration: activity.duration,
+                                    activity_duracion_minutos: (activity as any).duracion_minutos,
+                                    activity_duracion_min: (activity as any).duracion_min,
+                                    duracion_final_pasada: duracionParaOpenVideoSinURL,
+                                    duracion_tipo: typeof duracionParaOpenVideoSinURL,
+                                    activity_calorias: (activity as any).calorias,
+                                    calorias_final_pasada: caloriasParaOpenVideoSinURL,
+                                    calorias_tipo: typeof caloriasParaOpenVideoSinURL,
+                                    actividad_completa: activity,
+                                    mappedActivity_duration: activity.duration,
+                                    mappedActivity_calorias: activity.calorias
+                                  });
+                                  
                                   openVideo(
                                     '',
                                     activity.title,
@@ -3444,9 +3639,9 @@ export default function TodayScreen({ activityId, onBack }: { activityId: string
                                     activity.description,
                                     activity.equipment,
                                     activity.detalle_series || activity.series,
-                                    activity.duration,
+                                    duracionParaOpenVideoSinURL,
                                     activity.descripcion,
-                                    (activity as any).calorias
+                                    caloriasParaOpenVideoSinURL
                                   );
                                 }
                               }}
