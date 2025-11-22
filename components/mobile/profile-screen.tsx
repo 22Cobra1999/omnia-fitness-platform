@@ -64,6 +64,139 @@ interface WeeklyProgress {
   kcal: number
 }
 
+/**
+ * Componente para mostrar lista de compras recientes
+ */
+function RecentPurchasesList({ userId }: { userId?: string }) {
+  const [purchases, setPurchases] = useState<any[]>([]);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    if (!userId) {
+      setLoading(false);
+      return;
+    }
+
+    const fetchPurchases = async () => {
+      try {
+        const response = await fetch('/api/client/recent-purchases?limit=5');
+        const data = await response.json();
+        
+        if (data.success) {
+          setPurchases(data.purchases || []);
+        }
+      } catch (error) {
+        console.error('Error obteniendo compras:', error);
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    fetchPurchases();
+  }, [userId]);
+
+  if (loading) {
+    return (
+      <div className="flex items-center justify-center py-4">
+        <Loader2 className="h-5 w-5 animate-spin text-gray-400" />
+      </div>
+    );
+  }
+
+  if (purchases.length === 0) {
+    return (
+      <div className="text-center py-4">
+        <p className="text-gray-400 text-sm">No hay compras recientes</p>
+      </div>
+    );
+  }
+
+  const getStatusColor = (status: string) => {
+    switch (status) {
+      case 'completed':
+      case 'approved':
+        return 'bg-green-400';
+      case 'pending':
+        return 'bg-yellow-400';
+      case 'failed':
+      case 'rejected':
+      case 'cancelled':
+        return 'bg-red-400';
+      default:
+        return 'bg-gray-400';
+    }
+  };
+
+  const getStatusText = (status: string) => {
+    switch (status) {
+      case 'completed':
+      case 'approved':
+        return 'Completado';
+      case 'pending':
+        return 'Pendiente';
+      case 'failed':
+      case 'rejected':
+        return 'Rechazado';
+      case 'cancelled':
+        return 'Cancelado';
+      default:
+        return status;
+    }
+  };
+
+  const formatDate = (dateString: string) => {
+    if (!dateString) return '';
+    const date = new Date(dateString);
+    return date.toLocaleDateString('es-AR', { 
+      day: 'numeric', 
+      month: 'short',
+      year: 'numeric'
+    });
+  };
+
+  return (
+    <div className="space-y-3">
+      {purchases.map((purchase) => (
+        <div
+          key={purchase.id}
+          className="flex items-center justify-between p-3 bg-white/5 rounded-xl"
+        >
+          <div className="flex items-center space-x-3 flex-1 min-w-0">
+            {purchase.activity?.imageUrl ? (
+              <img
+                src={purchase.activity.imageUrl}
+                alt={purchase.activity.title}
+                className="w-12 h-12 rounded-lg object-cover flex-shrink-0"
+              />
+            ) : (
+              <div className="w-12 h-12 rounded-lg bg-gray-700 flex-shrink-0 flex items-center justify-center">
+                <FileText className="h-6 w-6 text-gray-400" />
+              </div>
+            )}
+            <div className="flex-1 min-w-0">
+              <p className="font-medium text-white truncate">
+                {purchase.activity?.title || 'Actividad'}
+              </p>
+              <div className="flex items-center gap-2 mt-1">
+                <div className={`w-2 h-2 rounded-full ${getStatusColor(purchase.status)}`}></div>
+                <p className="text-sm text-gray-400">
+                  {getStatusText(purchase.status)}
+                  {purchase.paymentDate && ` • ${formatDate(purchase.paymentDate)}`}
+                </p>
+              </div>
+            </div>
+          </div>
+          <div className="text-right flex-shrink-0 ml-3">
+            <p className="font-semibold text-white">
+              ${purchase.amount?.toLocaleString('es-AR') || '0'}
+            </p>
+          </div>
+        </div>
+      ))}
+    </div>
+  );
+}
+
 export function ProfileScreen() {
   const { 
     profile: managedProfile, 
@@ -855,7 +988,23 @@ export function ProfileScreen() {
       )}
 
       {/* Compras recientes - Solo para clientes */}
-      {!isCoach && <RecentPurchasesSection userId={user?.id} />}
+      {!isCoach && (
+      <div className="bg-[#1A1C1F] rounded-2xl p-6">
+        <div className="flex items-center justify-between mb-4">
+          <div className="flex items-center space-x-2">
+            <FileText className="h-5 w-5 text-[#FF6A00]" />
+            <h2 className="text-lg font-semibold">Compras recientes</h2>
+          </div>
+        </div>
+        <RecentPurchasesList userId={user?.id} />
+        <div className="mt-4">
+          <Button variant="ghost" className="w-full justify-start text-white hover:bg-white/10">
+            <FileText className="h-4 w-4 mr-3" />
+            Ver facturas
+          </Button>
+        </div>
+      </div>
+      )}
 
       {/* Lesiones / Contraindicaciones - Solo para clientes */}
       {!isCoach && (
