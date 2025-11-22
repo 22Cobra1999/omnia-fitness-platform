@@ -19,7 +19,7 @@ export async function GET(request: NextRequest) {
     }
 
     const { searchParams } = new URL(request.url);
-    const limit = parseInt(searchParams.get('limit') || '5');
+    const limit = parseInt(searchParams.get('limit') || '10');
 
     // Obtener compras recientes del cliente desde banco
     const { data: purchases, error: purchasesError } = await supabase

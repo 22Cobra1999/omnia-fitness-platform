@@ -110,7 +110,7 @@ export function redirectToMercadoPagoCheckout(
   activityId?: string | number,
   preferenceId?: string
 ): void {
-  // Guardar información de la compra en sessionStorage para detectar cancelación
+  // Guardar información de la compra en sessionStorage para detectar cancelación y retorno
   if (activityId && preferenceId && typeof window !== 'undefined') {
     try {
       sessionStorage.setItem('pending_payment', JSON.stringify({
@@ -118,6 +118,8 @@ export function redirectToMercadoPagoCheckout(
         preferenceId,
         timestamp: Date.now()
       }));
+      // Guardar también para que el modal de compra sepa qué actividad mostrar al volver
+      sessionStorage.setItem('last_purchase_activity_id', String(activityId));
     } catch (error) {
       console.warn('No se pudo guardar en sessionStorage:', error);
     }

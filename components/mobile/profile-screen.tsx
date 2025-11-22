@@ -79,7 +79,7 @@ function RecentPurchasesList({ userId }: { userId?: string }) {
 
     const fetchPurchases = async () => {
       try {
-        const response = await fetch('/api/client/recent-purchases?limit=5');
+        const response = await fetch('/api/client/recent-purchases?limit=10');
         const data = await response.json();
         
         if (data.success) {
@@ -155,39 +155,22 @@ function RecentPurchasesList({ userId }: { userId?: string }) {
   };
 
   return (
-    <div className="space-y-3">
+    <div className="space-y-2">
       {purchases.map((purchase) => (
         <div
           key={purchase.id}
-          className="flex items-center justify-between p-3 bg-white/5 rounded-xl"
+          className="flex items-center justify-between py-2 border-b border-white/5 last:border-0"
         >
-          <div className="flex items-center space-x-3 flex-1 min-w-0">
-            {purchase.activity?.imageUrl ? (
-              <img
-                src={purchase.activity.imageUrl}
-                alt={purchase.activity.title}
-                className="w-12 h-12 rounded-lg object-cover flex-shrink-0"
-              />
-            ) : (
-              <div className="w-12 h-12 rounded-lg bg-gray-700 flex-shrink-0 flex items-center justify-center">
-                <FileText className="h-6 w-6 text-gray-400" />
-              </div>
-            )}
-            <div className="flex-1 min-w-0">
-              <p className="font-medium text-white truncate">
-                {purchase.activity?.title || 'Actividad'}
-              </p>
-              <div className="flex items-center gap-2 mt-1">
-                <div className={`w-2 h-2 rounded-full ${getStatusColor(purchase.status)}`}></div>
-                <p className="text-sm text-gray-400">
-                  {getStatusText(purchase.status)}
-                  {purchase.paymentDate && ` • ${formatDate(purchase.paymentDate)}`}
-                </p>
-              </div>
-            </div>
+          <div className="flex-1 min-w-0">
+            <p className="text-sm text-white truncate">
+              {purchase.activity?.title || 'Actividad'}
+            </p>
+            <p className="text-xs text-gray-500 mt-0.5">
+              {purchase.paymentDate ? formatDate(purchase.paymentDate) : 'Sin fecha'}
+            </p>
           </div>
-          <div className="text-right flex-shrink-0 ml-3">
-            <p className="font-semibold text-white">
+          <div className="text-right flex-shrink-0 ml-4">
+            <p className="text-sm font-medium text-white">
               ${purchase.amount?.toLocaleString('es-AR') || '0'}
             </p>
           </div>

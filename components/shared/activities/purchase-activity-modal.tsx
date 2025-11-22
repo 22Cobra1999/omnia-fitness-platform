@@ -15,7 +15,8 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { useToast } from "@/components/ui/use-toast"
 import { Loader2, CreditCard, CheckCircle2, AlertCircle, X } from "lucide-react"
 import Image from "next/image"
-import { useRouter } from "next/navigation"
+import { useRouter, useSearchParams } from "next/navigation"
+import { PurchaseSuccessModal } from "@/components/shared/payments/purchase-success-modal"
 
 interface Activity {
   id: number
@@ -46,12 +47,14 @@ export function PurchaseActivityModal({ isOpen, onClose, activity, onPurchaseCom
   const [isComplete, setIsComplete] = useState(false)
   const [isCheckingEnrollment, setIsCheckingEnrollment] = useState(false)
   const [isAlreadyEnrolled, setIsAlreadyEnrolled] = useState(false)
+  const [showSuccessModal, setShowSuccessModal] = useState(false)
   const [transactionDetails, setTransactionDetails] = useState<{
     transactionId: string
     invoiceNumber: string
   } | null>(null)
   const { toast } = useToast()
   const router = useRouter()
+  const searchParams = useSearchParams()
 
   useEffect(() => {
     if (isOpen && activity) {
@@ -63,11 +66,34 @@ export function PurchaseActivityModal({ isOpen, onClose, activity, onPurchaseCom
       setNotes("")
       setPaymentMethod("mercadopago")
       setIsProcessing(false)
+      setShowSuccessModal(false)
 
       // Verificar si el usuario ya está inscrito
       checkEnrollment()
     }
   }, [isOpen, activity])
+
+  // Detectar si viene de Mercado Pago (success page)
+  useEffect(() => {
+    const preferenceId = searchParams?.get('preference_id')
+    const paymentId = searchParams?.get('payment_id')
+    const status = searchParams?.get('status')
+
+    // Si hay parámetros de Mercado Pago y el modal está abierto, mostrar modal de éxito
+    if (isOpen && (preferenceId || paymentId) && (status === 'approved' || status === 'pending')) {
+      console.log('✅ Detectado retorno de Mercado Pago - mostrando modal de éxito')
+      setShowSuccessModal(true)
+      
+      // Limpiar URL params
+      if (typeof window !== 'undefined') {
+        const url = new URL(window.location.href)
+        url.searchParams.delete('preference_id')
+        url.searchParams.delete('payment_id')
+        url.searchParams.delete('status')
+        window.history.replaceState({}, '', url.toString())
+      }
+    }
+  }, [isOpen, searchParams])
 
   const checkEnrollment = async () => {
     if (!activity) return
@@ -282,8 +308,22 @@ export function PurchaseActivityModal({ isOpen, onClose, activity, onPurchaseCom
   if (!activity) return null
 
   return (
-    <Dialog open={isOpen} onOpenChange={handleClose}>
-      <DialogContent className="sm:max-w-md bg-[#1A1A1A] text-white border-gray-800">
+    <>
+      {/* Modal de éxito de compra */}
+      <PurchaseSuccessModal
+        isOpen={showSuccessModal}
+        onClose={() => {
+          setShowSuccessModal(false)
+          // NO cerrar el modal de compra, solo el de éxito
+        }}
+        preferenceId={searchParams?.get('preference_id') || null}
+        paymentId={searchParams?.get('payment_id') || null}
+        activityId={activity?.id || null}
+        onGoToActivity={handleGoToActivity}
+      />
+
+      <Dialog open={isOpen} onOpenChange={handleClose}>
+        <DialogContent className="sm:max-w-md bg-[#1A1A1A] text-white border-gray-800">
         <DialogHeader>
           <DialogTitle className="flex items-center justify-between">
             <span>Finalizar compra</span>
@@ -435,5 +475,6 @@ export function PurchaseActivityModal({ isOpen, onClose, activity, onPurchaseCom
         )}
       </DialogContent>
     </Dialog>
+    </>
   )
 }
