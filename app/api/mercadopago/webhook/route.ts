@@ -230,69 +230,103 @@ async function handleApprovedPayment(
 ) {
   let enrollmentId = bancoRecord.enrollment_id;
   
-  // Si no hay enrollment_id, crear el enrollment
-  if (!enrollmentId && bancoRecord.activity_id && bancoRecord.client_id) {
-    console.log('📝 Creando enrollment para pago aprobado...');
-    
-    const { data: newEnrollment, error: enrollmentCreateError } = await supabase
-      .from('activity_enrollments')
-      .insert({
-        activity_id: bancoRecord.activity_id,
-        client_id: bancoRecord.client_id,
-        status: 'activa',
-        created_at: new Date().toISOString(),
-        updated_at: new Date().toISOString()
-      })
-      .select()
-      .single();
+  try {
+    // Si no hay enrollment_id, crear el enrollment
+    if (!enrollmentId && bancoRecord.activity_id && bancoRecord.client_id) {
+      console.log('📝 Creando enrollment para pago aprobado...');
+      console.log('   Activity ID:', bancoRecord.activity_id);
+      console.log('   Client ID:', bancoRecord.client_id);
+      
+      const { data: newEnrollment, error: enrollmentCreateError } = await supabase
+        .from('activity_enrollments')
+        .insert({
+          activity_id: bancoRecord.activity_id,
+          client_id: bancoRecord.client_id,
+          status: 'activa',
+          created_at: new Date().toISOString(),
+          updated_at: new Date().toISOString()
+        })
+        .select()
+        .single();
 
-    if (enrollmentCreateError) {
-      console.error('❌ Error creando enrollment:', enrollmentCreateError);
-      return;
-    }
+      if (enrollmentCreateError) {
+        console.error('❌ Error creando enrollment:', enrollmentCreateError);
+        console.error('   Detalles:', JSON.stringify(enrollmentCreateError, null, 2));
+        // NO retornar aquí - intentar continuar con el proceso
+        throw new Error(`Error creando enrollment: ${enrollmentCreateError.message}`);
+      }
 
-    enrollmentId = newEnrollment.id;
-    console.log('✅ Enrollment creado:', enrollmentId);
-    
-    // Actualizar banco con el enrollment_id
-    await supabase
-      .from('banco')
-      .update({ enrollment_id: enrollmentId })
-      .eq('id', bancoRecord.id);
-    
-    // Si es un programa, duplicar detalles
-    const { data: activity } = await supabase
-      .from('activities')
-      .select('type')
-      .eq('id', bancoRecord.activity_id)
-      .single();
-  
-    if (activity && (activity.type === 'fitness_program' || activity.type === 'nutrition_program')) {
-      console.log('📋 Duplicando detalles del programa...');
-      await supabase.rpc('duplicate_program_details_on_enrollment', {
-        p_activity_id: bancoRecord.activity_id,
-        p_client_id: bancoRecord.client_id,
-        p_enrollment_id: enrollmentId,
-        p_program_type: activity.type,
-      }).catch((err) => {
-        console.error('Error duplicando detalles del programa:', err);
-      });
-    }
-  } else if (enrollmentId) {
-    // Si ya existe el enrollment, activarlo
-    const { error: enrollmentUpdateError } = await supabase
-      .from('activity_enrollments')
-      .update({
-        status: 'activa',
-        updated_at: new Date().toISOString()
-      })
-      .eq('id', enrollmentId);
+      enrollmentId = newEnrollment.id;
+      console.log('✅ Enrollment creado:', enrollmentId);
+      
+      // Actualizar banco con el enrollment_id
+      const { error: updateBancoError } = await supabase
+        .from('banco')
+        .update({ enrollment_id: enrollmentId })
+        .eq('id', bancoRecord.id);
 
-    if (enrollmentUpdateError) {
-      console.error('Error activando enrollment:', enrollmentUpdateError);
+      if (updateBancoError) {
+        console.error('⚠️ Error actualizando banco con enrollment_id:', updateBancoError);
+        // Continuar aunque falle la actualización
+      } else {
+        console.log('✅ Banco actualizado con enrollment_id:', enrollmentId);
+      }
+      
+      // Si es un programa, duplicar detalles
+      const { data: activity, error: activityError } = await supabase
+        .from('activities')
+        .select('type')
+        .eq('id', bancoRecord.activity_id)
+        .single();
+    
+      if (activityError) {
+        console.error('⚠️ Error obteniendo tipo de actividad:', activityError);
+      } else if (activity && (activity.type === 'fitness_program' || activity.type === 'nutrition_program')) {
+        console.log('📋 Duplicando detalles del programa...');
+        try {
+          const { error: duplicateError } = await supabase.rpc('duplicate_program_details_on_enrollment', {
+            p_activity_id: bancoRecord.activity_id,
+            p_client_id: bancoRecord.client_id,
+            p_enrollment_id: enrollmentId,
+            p_program_type: activity.type,
+          });
+
+          if (duplicateError) {
+            console.error('⚠️ Error duplicando detalles del programa:', duplicateError);
+            // Continuar aunque falle la duplicación
+          } else {
+            console.log('✅ Detalles del programa duplicados correctamente');
+          }
+        } catch (err: any) {
+          console.error('⚠️ Excepción al duplicar detalles del programa:', err);
+          // Continuar aunque falle
+        }
+      }
+    } else if (enrollmentId) {
+      // Si ya existe el enrollment, activarlo
+      console.log('🔄 Activando enrollment existente:', enrollmentId);
+      const { error: enrollmentUpdateError } = await supabase
+        .from('activity_enrollments')
+        .update({
+          status: 'activa',
+          updated_at: new Date().toISOString()
+        })
+        .eq('id', enrollmentId);
+
+      if (enrollmentUpdateError) {
+        console.error('⚠️ Error activando enrollment:', enrollmentUpdateError);
+      } else {
+        console.log('✅ Enrollment activado:', enrollmentId);
+      }
     } else {
-      console.log('✅ Enrollment activado:', enrollmentId);
+      console.warn('⚠️ No se puede crear enrollment: falta activity_id o client_id');
+      console.warn('   Activity ID:', bancoRecord.activity_id);
+      console.warn('   Client ID:', bancoRecord.client_id);
     }
+  } catch (error: any) {
+    console.error('❌ Error en handleApprovedPayment:', error);
+    // NO lanzar el error - solo loguearlo para que el webhook responda 200
+    // Esto evita que Mercado Pago reenvíe la notificación
   }
 }
 
@@ -304,6 +338,10 @@ async function handlePendingPayment(
   bancoRecord: any
 ) {
   try {
+    console.log('📝 Creando enrollment para pago pendiente...');
+    console.log('   Activity ID:', bancoRecord.activity_id);
+    console.log('   Client ID:', bancoRecord.client_id);
+    
     const { data: newEnrollment, error: enrollmentCreateError } = await supabase
       .from('activity_enrollments')
       .insert({
@@ -318,19 +356,28 @@ async function handlePendingPayment(
 
     if (enrollmentCreateError) {
       console.error('❌ Error creando enrollment pendiente:', enrollmentCreateError);
-      return;
+      console.error('   Detalles:', JSON.stringify(enrollmentCreateError, null, 2));
+      // NO retornar - intentar continuar
+      throw new Error(`Error creando enrollment pendiente: ${enrollmentCreateError.message}`);
     }
 
     const enrollmentId = newEnrollment.id;
     console.log('✅ Enrollment pendiente creado:', enrollmentId);
     
     // Actualizar banco con el enrollment_id
-    await supabase
+    const { error: updateBancoError } = await supabase
       .from('banco')
       .update({ enrollment_id: enrollmentId })
       .eq('id', bancoRecord.id);
+
+    if (updateBancoError) {
+      console.error('⚠️ Error actualizando banco con enrollment_id:', updateBancoError);
+    } else {
+      console.log('✅ Banco actualizado con enrollment_id:', enrollmentId);
+    }
   } catch (error: any) {
     console.error('❌ Error en handlePendingPayment:', error);
+    // NO lanzar el error - solo loguearlo
   }
 }
 

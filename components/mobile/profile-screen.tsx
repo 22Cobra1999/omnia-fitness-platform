@@ -853,38 +853,8 @@ export function ProfileScreen() {
       </div>
       )}
 
-      {/* Plan, suscripción & pagos - Solo para clientes */}
-      {!isCoach && (
-      <div className="bg-[#1A1C1F] rounded-2xl p-6">
-        <div className="flex items-center justify-between mb-4">
-          <div className="flex items-center space-x-2">
-            <FileText className="h-5 w-5 text-[#FF6A00]" />
-            <h2 className="text-lg font-semibold">Plan, suscripción & pagos</h2>
-      </div>
-    </div>
-        <div className="space-y-4">
-          <div className="flex items-center justify-between p-3 bg-white/5 rounded-xl">
-            <div className="flex items-center space-x-3">
-              <div className="w-2 h-2 bg-green-400 rounded-full"></div>
-              <div className="flex-1">
-                <p className="font-medium">Plan Premium</p>
-                <p className="text-sm text-gray-400">Activo - Visa - 28 Sep</p>
-              </div>
-            </div>
-          </div>
-          <div className="space-y-2">
-            <Button variant="ghost" className="w-full justify-start text-white hover:bg-white/10">
-              <FileText className="h-4 w-4 mr-3" />
-              Gestionar suscripción
-            </Button>
-            <Button variant="ghost" className="w-full justify-start text-white hover:bg-white/10">
-              <FileText className="h-4 w-4 mr-3" />
-              Ver facturas
-            </Button>
-          </div>
-        </div>
-      </div>
-      )}
+      {/* Compras recientes - Solo para clientes */}
+      {!isCoach && <RecentPurchasesSection userId={user?.id} />}
 
       {/* Lesiones / Contraindicaciones - Solo para clientes */}
       {!isCoach && (
