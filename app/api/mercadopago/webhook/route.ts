@@ -195,6 +195,14 @@ export async function POST(request: NextRequest) {
       await handleApprovedPayment(supabase, bancoRecord, paymentDetails);
     } else if (paymentDetails.status === 'rejected' || paymentDetails.status === 'cancelled') {
       await handleRejectedPayment(supabase, bancoRecord);
+    } else if (paymentDetails.status === 'pending') {
+      // Si el pago está pendiente pero ya tenemos activity_id y client_id, 
+      // crear el enrollment en estado 'pending' para que esté listo cuando se apruebe
+      console.log('⏳ Pago pendiente - verificando si crear enrollment...');
+      if (!bancoRecord.enrollment_id && bancoRecord.activity_id && bancoRecord.client_id) {
+        console.log('📝 Creando enrollment en estado pendiente...');
+        await handlePendingPayment(supabase, bancoRecord);
+      }
     }
 
     console.log('✅ Webhook procesado correctamente:', paymentId);
@@ -285,6 +293,44 @@ async function handleApprovedPayment(
     } else {
       console.log('✅ Enrollment activado:', enrollmentId);
     }
+  }
+}
+
+/**
+ * Maneja un pago pendiente: crea el enrollment en estado pendiente
+ */
+async function handlePendingPayment(
+  supabase: any,
+  bancoRecord: any
+) {
+  try {
+    const { data: newEnrollment, error: enrollmentCreateError } = await supabase
+      .from('activity_enrollments')
+      .insert({
+        activity_id: bancoRecord.activity_id,
+        client_id: bancoRecord.client_id,
+        status: 'pendiente',
+        created_at: new Date().toISOString(),
+        updated_at: new Date().toISOString()
+      })
+      .select()
+      .single();
+
+    if (enrollmentCreateError) {
+      console.error('❌ Error creando enrollment pendiente:', enrollmentCreateError);
+      return;
+    }
+
+    const enrollmentId = newEnrollment.id;
+    console.log('✅ Enrollment pendiente creado:', enrollmentId);
+    
+    // Actualizar banco con el enrollment_id
+    await supabase
+      .from('banco')
+      .update({ enrollment_id: enrollmentId })
+      .eq('id', bancoRecord.id);
+  } catch (error: any) {
+    console.error('❌ Error en handlePendingPayment:', error);
   }
 }
 

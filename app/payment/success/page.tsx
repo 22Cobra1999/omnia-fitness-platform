@@ -11,6 +11,7 @@ function PaymentSuccessContent() {
   const router = useRouter();
   const [loading, setLoading] = useState(true);
   const [enrollment, setEnrollment] = useState<any>(null);
+  const [bancoRecord, setBancoRecord] = useState<any>(null);
   const preferenceId = searchParams.get('preference_id');
   const paymentId = searchParams.get('payment_id');
   const status = searchParams.get('status');
@@ -27,28 +28,33 @@ function PaymentSuccessContent() {
         const supabase = createClient();
         
         // Buscar en banco por preference_id o payment_id
-        let bancoRecord;
+        let bancoData;
         
         if (preferenceId) {
           const { data } = await supabase
             .from('banco')
-            .select('enrollment_id, amount_paid, payment_status, activity_id')
+            .select('enrollment_id, amount_paid, payment_status, activity_id, client_id')
             .eq('mercadopago_preference_id', preferenceId)
             .maybeSingle();
-          bancoRecord = data;
+          bancoData = data;
         }
         
-        if (!bancoRecord && paymentId) {
+        if (!bancoData && paymentId) {
           const { data } = await supabase
             .from('banco')
-            .select('enrollment_id, amount_paid, payment_status, activity_id')
+            .select('enrollment_id, amount_paid, payment_status, activity_id, client_id')
             .eq('mercadopago_payment_id', paymentId)
             .maybeSingle();
-          bancoRecord = data;
+          bancoData = data;
         }
 
-        if (bancoRecord?.enrollment_id) {
-          // Obtener detalles del enrollment
+        // Guardar bancoRecord para usar en handleGoToActivity
+        if (bancoData) {
+          setBancoRecord(bancoData);
+        }
+
+        // Si hay enrollment_id, obtener detalles del enrollment
+        if (bancoData?.enrollment_id) {
           const { data: enrollmentData } = await supabase
             .from('activity_enrollments')
             .select(`
@@ -62,11 +68,25 @@ function PaymentSuccessContent() {
                 image_url
               )
             `)
-            .eq('id', bancoRecord.enrollment_id)
+            .eq('id', bancoData.enrollment_id)
             .single();
 
           if (enrollmentData) {
             setEnrollment(enrollmentData);
+          }
+        } else if (bancoData?.activity_id) {
+          // Si no hay enrollment pero sí activity_id, obtener info de la actividad directamente
+          const { data: activityData } = await supabase
+            .from('activities')
+            .select('id, title, image_url')
+            .eq('id', bancoData.activity_id)
+            .single();
+
+          if (activityData) {
+            setEnrollment({
+              activity_id: activityData.id,
+              activities: activityData
+            });
           }
         }
       } catch (error) {
@@ -142,11 +162,11 @@ function PaymentSuccessContent() {
                 <ArrowRight className="ml-2 w-4 h-4" />
               </Button>
               <Button
-                onClick={() => router.push('/activities')}
+                onClick={() => router.push('/')}
                 variant="outline"
                 className="w-full border-gray-700 text-gray-300 hover:bg-white/5"
               >
-                Ver Todas las Actividades
+                Volver al Inicio
               </Button>
             </div>
 
