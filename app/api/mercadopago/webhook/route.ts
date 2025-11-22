@@ -190,19 +190,32 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    // 10. Si el pago fue aprobado, crear/activar enrollment
+    // 10. Procesar según el estado del pago
+    // IMPORTANTE: Siempre intentar crear/actualizar enrollment para asegurar que el proceso se complete
+    console.log('🔄 Procesando estado del pago:', paymentDetails.status);
+    
     if (paymentDetails.status === 'approved') {
+      console.log('✅ Pago aprobado - creando/activando enrollment...');
       await handleApprovedPayment(supabase, bancoRecord, paymentDetails);
     } else if (paymentDetails.status === 'rejected' || paymentDetails.status === 'cancelled') {
+      console.log('❌ Pago rechazado/cancelado - marcando enrollment como cancelado...');
       await handleRejectedPayment(supabase, bancoRecord);
     } else if (paymentDetails.status === 'pending') {
       // Si el pago está pendiente pero ya tenemos activity_id y client_id, 
-      // crear el enrollment en estado 'pending' para que esté listo cuando se apruebe
+      // crear el enrollment en estado 'pendiente' para que esté listo cuando se apruebe
       console.log('⏳ Pago pendiente - verificando si crear enrollment...');
       if (!bancoRecord.enrollment_id && bancoRecord.activity_id && bancoRecord.client_id) {
         console.log('📝 Creando enrollment en estado pendiente...');
         await handlePendingPayment(supabase, bancoRecord);
+      } else if (bancoRecord.enrollment_id) {
+        console.log('ℹ️ Enrollment ya existe para pago pendiente:', bancoRecord.enrollment_id);
+      } else {
+        console.warn('⚠️ No se puede crear enrollment: falta activity_id o client_id');
+        console.warn('   Activity ID:', bancoRecord.activity_id);
+        console.warn('   Client ID:', bancoRecord.client_id);
       }
+    } else {
+      console.log('ℹ️ Estado de pago no manejado:', paymentDetails.status);
     }
 
     console.log('✅ Webhook procesado correctamente:', paymentId);
@@ -256,21 +269,33 @@ async function handleApprovedPayment(
         throw new Error(`Error creando enrollment: ${enrollmentCreateError.message}`);
       }
 
-      enrollmentId = newEnrollment.id;
-      console.log('✅ Enrollment creado:', enrollmentId);
-      
-      // Actualizar banco con el enrollment_id
-      const { error: updateBancoError } = await supabase
+    enrollmentId = newEnrollment.id;
+    console.log('✅ Enrollment creado:', enrollmentId);
+    
+    // Actualizar banco con el enrollment_id (CRÍTICO para que el proceso no se corte)
+    const { error: updateBancoError } = await supabase
+      .from('banco')
+      .update({ enrollment_id: enrollmentId })
+      .eq('id', bancoRecord.id);
+
+    if (updateBancoError) {
+      console.error('❌ ERROR CRÍTICO: No se pudo actualizar banco con enrollment_id:', updateBancoError);
+      console.error('   Esto puede causar que el proceso se corte');
+      // Intentar de nuevo con un retry
+      const { error: retryError } = await supabase
         .from('banco')
         .update({ enrollment_id: enrollmentId })
         .eq('id', bancoRecord.id);
-
-      if (updateBancoError) {
-        console.error('⚠️ Error actualizando banco con enrollment_id:', updateBancoError);
-        // Continuar aunque falle la actualización
+      
+      if (retryError) {
+        console.error('❌ ERROR: Retry también falló:', retryError);
+        throw new Error(`No se pudo actualizar banco con enrollment_id después de 2 intentos: ${retryError.message}`);
       } else {
-        console.log('✅ Banco actualizado con enrollment_id:', enrollmentId);
+        console.log('✅ Banco actualizado con enrollment_id (en retry):', enrollmentId);
       }
+    } else {
+      console.log('✅ Banco actualizado con enrollment_id:', enrollmentId);
+    }
       
       // Si es un programa, duplicar detalles
       const { data: activity, error: activityError } = await supabase
@@ -364,14 +389,26 @@ async function handlePendingPayment(
     const enrollmentId = newEnrollment.id;
     console.log('✅ Enrollment pendiente creado:', enrollmentId);
     
-    // Actualizar banco con el enrollment_id
+    // Actualizar banco con el enrollment_id (CRÍTICO para que el proceso no se corte)
     const { error: updateBancoError } = await supabase
       .from('banco')
       .update({ enrollment_id: enrollmentId })
       .eq('id', bancoRecord.id);
 
     if (updateBancoError) {
-      console.error('⚠️ Error actualizando banco con enrollment_id:', updateBancoError);
+      console.error('❌ ERROR CRÍTICO: No se pudo actualizar banco con enrollment_id:', updateBancoError);
+      // Intentar de nuevo con un retry
+      const { error: retryError } = await supabase
+        .from('banco')
+        .update({ enrollment_id: enrollmentId })
+        .eq('id', bancoRecord.id);
+      
+      if (retryError) {
+        console.error('❌ ERROR: Retry también falló:', retryError);
+        throw new Error(`No se pudo actualizar banco con enrollment_id después de 2 intentos: ${retryError.message}`);
+      } else {
+        console.log('✅ Banco actualizado con enrollment_id (en retry):', enrollmentId);
+      }
     } else {
       console.log('✅ Banco actualizado con enrollment_id:', enrollmentId);
     }
