@@ -75,25 +75,47 @@ export function PurchaseActivityModal({ isOpen, onClose, activity, onPurchaseCom
 
   // Detectar si viene de Mercado Pago (success page)
   useEffect(() => {
+    if (!isOpen) return;
+
+    // Verificar parámetros de URL
     const preferenceId = searchParams?.get('preference_id')
     const paymentId = searchParams?.get('payment_id')
-    const status = searchParams?.get('status')
+    const purchaseSuccess = searchParams?.get('purchase_success')
+    const activityIdParam = searchParams?.get('activity_id')
 
-    // Si hay parámetros de Mercado Pago y el modal está abierto, mostrar modal de éxito
-    if (isOpen && (preferenceId || paymentId) && (status === 'approved' || status === 'pending')) {
+    // Verificar sessionStorage también
+    const showSuccess = typeof window !== 'undefined' && sessionStorage.getItem('show_purchase_success') === 'true';
+    const storedActivityId = typeof window !== 'undefined' ? sessionStorage.getItem('last_purchase_activity_id') : null;
+    const storedPreferenceId = typeof window !== 'undefined' ? sessionStorage.getItem('purchase_preference_id') : null;
+    const storedPaymentId = typeof window !== 'undefined' ? sessionStorage.getItem('purchase_payment_id') : null;
+
+    // Si hay indicadores de éxito de compra y el modal está abierto, mostrar modal de éxito
+    if ((purchaseSuccess === 'true' || showSuccess) && (preferenceId || paymentId || storedPreferenceId || storedPaymentId)) {
       console.log('✅ Detectado retorno de Mercado Pago - mostrando modal de éxito')
-      setShowSuccessModal(true)
       
-      // Limpiar URL params
-      if (typeof window !== 'undefined') {
-        const url = new URL(window.location.href)
-        url.searchParams.delete('preference_id')
-        url.searchParams.delete('payment_id')
-        url.searchParams.delete('status')
-        window.history.replaceState({}, '', url.toString())
+      // Verificar que la actividad del modal coincida con la comprada
+      const targetActivityId = activityIdParam || storedActivityId;
+      if (!targetActivityId || (activity && String(activity.id) === String(targetActivityId))) {
+        setShowSuccessModal(true)
+        
+        // Limpiar URL params y sessionStorage
+        if (typeof window !== 'undefined') {
+          const url = new URL(window.location.href)
+          url.searchParams.delete('purchase_success')
+          url.searchParams.delete('preference_id')
+          url.searchParams.delete('payment_id')
+          url.searchParams.delete('activity_id')
+          url.searchParams.delete('status')
+          window.history.replaceState({}, '', url.toString())
+          
+          sessionStorage.removeItem('show_purchase_success')
+          sessionStorage.removeItem('last_purchase_activity_id')
+          sessionStorage.removeItem('purchase_preference_id')
+          sessionStorage.removeItem('purchase_payment_id')
+        }
       }
     }
-  }, [isOpen, searchParams])
+  }, [isOpen, searchParams, activity])
 
   const checkEnrollment = async () => {
     if (!activity) return
