@@ -32,10 +32,10 @@ function PaymentSuccessContent() {
         
         if (preferenceId) {
           const { data } = await supabase
-            .from('banco')
+          .from('banco')
             .select('enrollment_id, amount_paid, payment_status, activity_id, client_id')
-            .eq('mercadopago_preference_id', preferenceId)
-            .maybeSingle();
+          .eq('mercadopago_preference_id', preferenceId)
+          .maybeSingle();
           bancoData = data;
         }
         
@@ -51,6 +51,38 @@ function PaymentSuccessContent() {
         // Guardar bancoRecord para usar en handleGoToActivity
         if (bancoData) {
           setBancoRecord(bancoData);
+          
+          // CRÍTICO: Si no hay enrollment_id, crear el enrollment (fallback)
+          if (!bancoData.enrollment_id && bancoData.activity_id && bancoData.client_id) {
+            console.log('⚠️ No hay enrollment_id - creando enrollment como fallback...');
+            
+            try {
+              const createResponse = await fetch('/api/enrollments/create-from-payment', {
+                method: 'POST',
+                headers: {
+                  'Content-Type': 'application/json',
+                },
+                body: JSON.stringify({
+                  preferenceId: preferenceId || null,
+                  paymentId: paymentId || null,
+                  activityId: bancoData.activity_id
+                }),
+              });
+
+              const createResult = await createResponse.json();
+              
+              if (createResult.success) {
+                console.log('✅ Enrollment creado exitosamente:', createResult.enrollmentId);
+                // Actualizar bancoData con el nuevo enrollment_id
+                bancoData.enrollment_id = createResult.enrollmentId;
+                setBancoRecord(bancoData);
+              } else {
+                console.error('❌ Error creando enrollment:', createResult.error);
+              }
+            } catch (error) {
+              console.error('❌ Error al llamar a create-from-payment:', error);
+            }
+          }
           
           // Si tenemos activity_id, redirigir a la página principal con parámetros para abrir modales
           if (bancoData.activity_id) {

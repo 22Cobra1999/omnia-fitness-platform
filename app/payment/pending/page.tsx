@@ -32,10 +32,10 @@ function PaymentPendingContent() {
         
         if (preferenceId) {
           const { data } = await supabase
-            .from('banco')
+          .from('banco')
             .select('enrollment_id, amount_paid, payment_status, activity_id')
-            .eq('mercadopago_preference_id', preferenceId)
-            .maybeSingle();
+          .eq('mercadopago_preference_id', preferenceId)
+          .maybeSingle();
           bancoRecord = data;
         }
         
@@ -46,8 +46,8 @@ function PaymentPendingContent() {
             .eq('mercadopago_payment_id', paymentId)
             .maybeSingle();
           bancoRecord = data;
-        }
-
+          }
+          
         if (bancoRecord?.enrollment_id) {
           // Obtener detalles del enrollment
           const { data: enrollmentData } = await supabase
@@ -103,7 +103,7 @@ function PaymentPendingContent() {
     if (enrollment?.activity_id || enrollment?.activities?.id) {
       router.push(`/activities/${enrollment.activity_id || enrollment.activities.id}`);
     } else {
-      router.push('/activities');
+    router.push('/activities');
     }
   };
 
@@ -117,17 +117,17 @@ function PaymentPendingContent() {
           </div>
         ) : (
           <>
-            <div className="flex flex-col items-center text-center mb-6">
-              <div className="w-20 h-20 bg-yellow-500/20 rounded-full flex items-center justify-center mb-4">
-                <Clock className="w-12 h-12 text-yellow-400" />
-              </div>
-              <h1 className="text-2xl font-bold text-white mb-2">
-                Pago Pendiente
-              </h1>
-              <p className="text-gray-400 mb-4">
+        <div className="flex flex-col items-center text-center mb-6">
+          <div className="w-20 h-20 bg-yellow-500/20 rounded-full flex items-center justify-center mb-4">
+              <Clock className="w-12 h-12 text-yellow-400" />
+          </div>
+          <h1 className="text-2xl font-bold text-white mb-2">
+            Pago Pendiente
+          </h1>
+          <p className="text-gray-400 mb-4">
                 Tu pago está siendo procesado. Te notificaremos cuando se confirme.
-              </p>
-            </div>
+          </p>
+        </div>
 
             {error && (
               <div className="bg-red-500/10 border border-red-500/20 rounded-lg p-4 mb-6">
@@ -160,11 +160,11 @@ function PaymentPendingContent() {
               <p className="text-sm text-blue-400">
                 ℹ️ Los pagos pueden tardar unos minutos en procesarse. Si el pago se confirma, 
                 recibirás una notificación y podrás acceder a la actividad.
-              </p>
-            </div>
+          </p>
+        </div>
 
-            <div className="space-y-3">
-              <Button
+        <div className="space-y-3">
+          <Button
                 onClick={handleGoToActivity}
                 className="w-full bg-[#FF7939] hover:bg-[#FF7939]/90 text-white"
                 size="lg"
@@ -174,31 +174,31 @@ function PaymentPendingContent() {
               </Button>
               <Button
                 onClick={() => router.push('/activities')}
-                variant="outline"
-                className="w-full border-gray-700 text-gray-300 hover:bg-white/5"
-              >
+            variant="outline"
+            className="w-full border-gray-700 text-gray-300 hover:bg-white/5"
+          >
                 Ver Todas las Actividades
-              </Button>
-            </div>
+          </Button>
+        </div>
 
             {(preferenceId || paymentId) && (
               <div className="mt-6 pt-6 border-t border-gray-800">
-                {preferenceId && (
-                  <p className="text-xs text-gray-500 text-center">
-                    ID de Preferencia: {preferenceId}
-                  </p>
+        {preferenceId && (
+            <p className="text-xs text-gray-500 text-center">
+              ID de Preferencia: {preferenceId}
+            </p>
                 )}
-                {paymentId && (
-                  <p className="text-xs text-gray-500 text-center mt-1">
-                    ID de Pago: {paymentId}
-                  </p>
-                )}
+            {paymentId && (
+              <p className="text-xs text-gray-500 text-center mt-1">
+                ID de Pago: {paymentId}
+              </p>
+            )}
                 {status && (
                   <p className="text-xs text-gray-500 text-center mt-1">
                     Estado: {status}
                   </p>
                 )}
-              </div>
+          </div>
             )}
           </>
         )}

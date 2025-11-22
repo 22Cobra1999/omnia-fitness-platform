@@ -107,35 +107,71 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    // 7. Buscar registro en banco
+    // 7. Buscar registro en banco (MEJORADO: múltiples criterios de búsqueda)
     const supabase = await createRouteHandlerClient();
     
-    let query = supabase.from('banco').select('*');
-    const conditions: string[] = [];
+    console.log('🔍 Buscando registro en banco...');
+    console.log('   Preference ID:', paymentDetails.preference_id);
+    console.log('   External Reference:', paymentDetails.external_reference);
+    console.log('   Payment ID:', paymentDetails.id);
     
+    let bancoRecord = null;
+    let bancoError = null;
+    
+    // Estrategia de búsqueda: intentar múltiples criterios en orden de prioridad
+    // 1. Por preference_id (más confiable)
     if (paymentDetails.preference_id) {
-      conditions.push(`mercadopago_preference_id.eq.${paymentDetails.preference_id}`);
+      console.log('🔍 Buscando por preference_id...');
+      const { data, error } = await supabase
+        .from('banco')
+        .select('*')
+        .eq('mercadopago_preference_id', paymentDetails.preference_id)
+        .maybeSingle();
+      
+      if (!error && data) {
+        bancoRecord = data;
+        console.log('✅ Registro encontrado por preference_id:', data.id);
+      } else if (error) {
+        console.error('❌ Error buscando por preference_id:', error);
+        bancoError = error;
+      }
     }
     
-    if (paymentDetails.external_reference) {
-      conditions.push(`external_reference.eq.${paymentDetails.external_reference}`);
+    // 2. Por external_reference (si no se encontró por preference_id)
+    if (!bancoRecord && paymentDetails.external_reference) {
+      console.log('🔍 Buscando por external_reference...');
+      const { data, error } = await supabase
+        .from('banco')
+        .select('*')
+        .eq('external_reference', paymentDetails.external_reference)
+        .maybeSingle();
+      
+      if (!error && data) {
+        bancoRecord = data;
+        console.log('✅ Registro encontrado por external_reference:', data.id);
+      } else if (error) {
+        console.error('❌ Error buscando por external_reference:', error);
+        bancoError = error;
+      }
     }
     
-    if (conditions.length === 0) {
-      conditions.push(`mercadopago_payment_id.eq.${paymentDetails.id}`);
+    // 3. Por payment_id (si ya existe en banco)
+    if (!bancoRecord && paymentDetails.id) {
+      console.log('🔍 Buscando por payment_id...');
+      const { data, error } = await supabase
+        .from('banco')
+        .select('*')
+        .eq('mercadopago_payment_id', paymentDetails.id)
+        .maybeSingle();
+      
+      if (!error && data) {
+        bancoRecord = data;
+        console.log('✅ Registro encontrado por payment_id:', data.id);
+      } else if (error) {
+        console.error('❌ Error buscando por payment_id:', error);
+        bancoError = error;
+      }
     }
-    
-    if (conditions.length > 0) {
-      query = query.or(conditions.join(','));
-    } else {
-      console.error('❌ No hay identificadores válidos para buscar en banco');
-      return NextResponse.json(
-        { received: true, message: 'No hay identificadores válidos' },
-        { status: 200 }
-      );
-    }
-
-    const { data: bancoRecord, error: bancoError } = await query.maybeSingle();
 
     if (bancoError || !bancoRecord) {
       console.log('⚠️ Registro de banco no encontrado');
