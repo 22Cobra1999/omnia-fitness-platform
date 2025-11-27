@@ -635,7 +635,7 @@ export function ClientsScreen() {
                     <div className="text-xs text-gray-500">{showCalendar ? 'Ocultar' : 'Ver'}</div>
                   </div>
                   {showCalendar && (
-                    <div className="px-3 pb-3 max-h-[70vh] overflow-y-auto">
+                    <div className="px-3 pb-3 overflow-y-auto" style={{ maxHeight: 'calc(100vh - 200px)', minHeight: 'calc(100vh + 500px)' }}>
                       <ClientCalendar clientId={selectedClient.id} />
                     </div>
                   )}

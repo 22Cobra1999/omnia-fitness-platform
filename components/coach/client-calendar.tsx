@@ -21,6 +21,8 @@ interface ExerciseExecution {
   ejercicio_nombre?: string
   actividad_titulo?: string
   actividad_id?: number
+  enrollment_id?: number
+  version?: number
   detalle_series?: any[]
 }
 
@@ -478,15 +480,28 @@ export function ClientCalendar({ clientId, onLastWorkoutUpdate }: ClientCalendar
       try {
         setLoading(true)
 
-        // Obtener progreso del cliente desde la nueva tabla
+        // ✅ Obtener enrollments del cliente para saber sus actividades y fechas de inicio
+        const { data: enrollments, error: enrollmentsError } = await supabase
+          .from('activity_enrollments')
+          .select('activity_id, start_date, status')
+          .eq('client_id', clientId)
+          .eq('status', 'activa')
+
+        if (enrollmentsError) {
+          console.warn('⚠️ [CLIENT CALENDAR] Error obteniendo enrollments:', enrollmentsError)
+        }
+
+        // ✅ Obtener progreso del cliente desde la nueva tabla
         const { data: progressRecords, error } = await supabase
           .from('progreso_cliente')
           .select('id, fecha, actividad_id, ejercicios_completados, ejercicios_pendientes, detalles_series')
           .eq('cliente_id', clientId)
           .order('fecha', { ascending: false })
 
-        // Obtener nombres de ejercicios desde ejercicios_detalles
+        // ✅ Obtener IDs de ejercicios y platos desde progreso_cliente
         const ejercicioIds = new Set<string>()
+        const actividadIds = new Set<number>()
+        
         progressRecords?.forEach((record: any) => {
           let completados: any[] = []
           let pendientes: any[] = []
@@ -510,17 +525,134 @@ export function ClientCalendar({ clientId, onLastWorkoutUpdate }: ClientCalendar
           [...completados, ...pendientes].forEach((id: string) => {
             ejercicioIds.add(String(id))
           })
+          
+          // ✅ Guardar actividad_id para determinar el tipo
+          if (record.actividad_id) {
+            actividadIds.add(record.actividad_id)
+          }
         })
 
-        // Obtener nombres de ejercicios
+        // ✅ Obtener información de actividades para determinar tipo y nombre
+        const { data: actividadesData } = await supabase
+          .from('activities')
+          .select('id, type, title')
+          .in('id', Array.from(actividadIds))
+
+        const actividadTypes = new Map<number, string>()
+        const actividadTitulos = new Map<number, string>()
+        actividadesData?.forEach((act: any) => {
+          actividadTypes.set(act.id, act.type)
+          actividadTitulos.set(act.id, act.title)
+        })
+
+        // ✅ Obtener enrollments para calcular versiones
+        const { data: allEnrollments } = await supabase
+          .from('activity_enrollments')
+          .select('id, activity_id, created_at')
+          .eq('client_id', clientId)
+          .eq('status', 'activa')
+          .order('created_at', { ascending: true })
+
+        // ✅ Calcular versión para cada enrollment (basado en orden de compra del mismo producto)
+        const enrollmentVersions = new Map<number, number>()
+        const enrollmentsByActivity = new Map<number, any[]>()
+        
+        allEnrollments?.forEach((enrollment: any) => {
+          const activityId = enrollment.activity_id
+          if (!enrollmentsByActivity.has(activityId)) {
+            enrollmentsByActivity.set(activityId, [])
+          }
+          enrollmentsByActivity.get(activityId)!.push(enrollment)
+        })
+
+        // ✅ Asignar versión a cada enrollment (1, 2, 3... según orden de compra)
+        enrollmentsByActivity.forEach((enrollments, activityId) => {
+          enrollments.forEach((enrollment, index) => {
+            enrollmentVersions.set(enrollment.id, index + 1)
+          })
+        })
+
+        // ✅ Recopilar IDs de planificación ANTES de cargar nombres
+        const planificacionIds = new Set<string>()
+        
+        if (enrollments && enrollments.length > 0) {
+          for (const enrollment of enrollments) {
+            if (!enrollment.activity_id) continue
+            const actividadId = enrollment.activity_id
+
+            // ✅ Obtener planificación semanal para esta actividad
+            const { data: planificacion, error: planError } = await supabase
+              .from('planificacion_ejercicios')
+              .select('*')
+              .eq('actividad_id', actividadId)
+              .order('numero_semana', { ascending: true })
+
+            if (planError || !planificacion || planificacion.length === 0) continue
+
+            // ✅ Recopilar IDs de la planificación
+            planificacion.forEach((semana: any) => {
+              const diasSemana = ['lunes', 'martes', 'miercoles', 'jueves', 'viernes', 'sabado', 'domingo']
+              diasSemana.forEach((dia: string) => {
+                const diaData = semana[dia]
+                if (!diaData) return
+
+                let ejerciciosDelDia: any[] = []
+                try {
+                  if (typeof diaData === 'string') {
+                    ejerciciosDelDia = JSON.parse(diaData)
+                  } else if (Array.isArray(diaData)) {
+                    ejerciciosDelDia = diaData
+                  } else if (diaData && typeof diaData === 'object') {
+                    ejerciciosDelDia = (diaData as any).ejercicios || (diaData as any).exercises || []
+                  }
+                } catch (err) {
+                  // Ignorar errores de parsing
+                }
+
+                ejerciciosDelDia.forEach((ej: any) => {
+                  const ejId = String(ej.id || ej.ejercicioId || ej.ejercicio_id)
+                  if (ejId) planificacionIds.add(ejId)
+                })
+              })
+            })
+          }
+        }
+
+        // ✅ Combinar IDs de progreso_cliente y planificación
+        const allEjercicioIds = new Set([...ejercicioIds, ...planificacionIds])
+        
+        // ✅ Separar IDs en ejercicios y platos (todos los IDs pueden ser de cualquier tipo)
+        const ejercicioIdsArray = Array.from(allEjercicioIds).map(id => parseInt(id, 10)).filter(id => !isNaN(id))
+        const platoIdsArray = Array.from(allEjercicioIds).map(id => parseInt(id, 10)).filter(id => !isNaN(id))
+
+        // ✅ Obtener nombres de ejercicios desde ejercicios_detalles
         const { data: ejerciciosData, error: ejerciciosError } = await supabase
           .from('ejercicios_detalles')
           .select('id, nombre_ejercicio')
-          .in('id', Array.from(ejercicioIds))
+          .in('id', ejercicioIdsArray)
+
+        // ✅ Obtener nombres de platos desde nutrition_program_details
+        const { data: platosData, error: platosError } = await supabase
+          .from('nutrition_program_details')
+          .select('id, nombre')
+          .in('id', platoIdsArray)
 
         if (ejerciciosError) {
           console.warn('⚠️ [CLIENT CALENDAR] Error obteniendo nombres de ejercicios:', ejerciciosError)
         }
+        
+        if (platosError) {
+          console.warn('⚠️ [CLIENT CALENDAR] Error obteniendo nombres de platos:', platosError)
+        }
+
+        // ✅ Crear un mapa combinado de nombres
+        const nombresMap = new Map<string, string>()
+        ejerciciosData?.forEach((ej: any) => {
+          nombresMap.set(String(ej.id), ej.nombre_ejercicio)
+        })
+        platosData?.forEach((plato: any) => {
+          nombresMap.set(String(plato.id), plato.nombre)
+        })
 
         if (error) {
           console.error('❌ [CLIENT CALENDAR] Error obteniendo ejecuciones:', error)
@@ -573,9 +705,22 @@ export function ClientCalendar({ clientId, onLastWorkoutUpdate }: ClientCalendar
           allEjercicios.forEach((ejId: string) => {
             const isCompleted = completados.includes(ejId)
             
-            // Buscar el nombre del ejercicio
-            const ejercicio = ejerciciosData?.find(e => String(e.id) === String(ejId))
+            // ✅ Buscar el nombre del ejercicio o plato desde el mapa combinado
+            const nombre = nombresMap.get(String(ejId))
+            const actividadType = record.actividad_id ? actividadTypes.get(record.actividad_id) : null
+            const defaultNombre = actividadType === 'nutricion' || actividadType === 'nutrition_program'
+              ? `Plato ${ejId}`
+              : `Ejercicio ${ejId}`
             
+            // ✅ Obtener enrollment_id desde activity_enrollments basándome en actividad_id y cliente_id
+            // Buscar el enrollment más reciente para esta actividad y cliente
+            const enrollmentForActivity = allEnrollments?.find(
+              (e: any) => e.activity_id === record.actividad_id
+            )
+            const enrollmentId = enrollmentForActivity?.id
+            const version = enrollmentId ? enrollmentVersions.get(enrollmentId) : undefined
+            const actividadTitulo = record.actividad_id ? actividadTitulos.get(record.actividad_id) : undefined
+
             const exerciseData: ExerciseExecution = {
               id: `${record.id}-${ejId}`,
               ejercicio_id: ejId,
@@ -584,8 +729,11 @@ export function ClientCalendar({ clientId, onLastWorkoutUpdate }: ClientCalendar
               duracion: undefined,
               calorias_estimadas: undefined,
               nota_cliente: undefined,
-              ejercicio_nombre: ejercicio?.nombre_ejercicio || `Ejercicio ${ejId}`,
-              actividad_titulo: undefined,
+              ejercicio_nombre: nombre || defaultNombre,
+              actividad_titulo: actividadTitulo,
+              actividad_id: record.actividad_id,
+              enrollment_id: enrollmentId,
+              version: version,
               detalle_series: (() => {
                 try {
                   if (!record.detalles_series) {
@@ -631,6 +779,194 @@ export function ClientCalendar({ clientId, onLastWorkoutUpdate }: ClientCalendar
           })
         })
 
+        // ✅ Cargar planificación semanal desde planificacion_ejercicios para cada actividad
+        if (enrollments && enrollments.length > 0) {
+          const currentMonth = currentDate.getMonth()
+          const currentYear = currentDate.getFullYear()
+          const monthStart = new Date(currentYear, currentMonth, 1)
+          const monthEnd = new Date(currentYear, currentMonth + 1, 0)
+
+          for (const enrollment of enrollments) {
+            if (!enrollment.start_date || !enrollment.activity_id) continue
+
+            const startDate = new Date(enrollment.start_date)
+            const actividadId = enrollment.activity_id
+
+            // ✅ Obtener planificación semanal para esta actividad
+            const { data: planificacion, error: planError } = await supabase
+              .from('planificacion_ejercicios')
+              .select('*')
+              .eq('actividad_id', actividadId)
+              .order('numero_semana', { ascending: true })
+
+            if (planError) {
+              console.warn(`⚠️ [CLIENT CALENDAR] Error obteniendo planificación para actividad ${actividadId}:`, planError)
+              continue
+            }
+
+            if (!planificacion || planificacion.length === 0) {
+              console.log(`ℹ️ [CLIENT CALENDAR] No hay planificación para actividad ${actividadId}`)
+              continue
+            }
+
+            // ✅ Recopilar IDs de la planificación
+            planificacion.forEach((semana: any) => {
+              const diasSemana = ['lunes', 'martes', 'miercoles', 'jueves', 'viernes', 'sabado', 'domingo']
+              diasSemana.forEach((dia: string) => {
+                const diaData = semana[dia]
+                if (!diaData) return
+
+                let ejerciciosDelDia: any[] = []
+                try {
+                  if (typeof diaData === 'string') {
+                    ejerciciosDelDia = JSON.parse(diaData)
+                  } else if (Array.isArray(diaData)) {
+                    ejerciciosDelDia = diaData
+                  } else if (diaData && typeof diaData === 'object') {
+                    ejerciciosDelDia = (diaData as any).ejercicios || (diaData as any).exercises || []
+                  }
+                } catch (err) {
+                  // Ignorar errores de parsing
+                }
+
+                ejerciciosDelDia.forEach((ej: any) => {
+                  const ejId = String(ej.id || ej.ejercicioId || ej.ejercicio_id)
+                  if (ejId) planificacionIds.add(ejId)
+                })
+              })
+            })
+
+            // ✅ Obtener períodos para calcular semanas totales
+            const { data: periodosData } = await supabase
+              .from('periodos')
+              .select('cantidad_periodos')
+              .eq('actividad_id', actividadId)
+              .single()
+
+            const cantidadPeriodos = periodosData?.cantidad_periodos || 1
+            const maxSemanasPlanificacion = Math.max(...planificacion.map((p: any) => p.numero_semana))
+
+            // ✅ Obtener tipo de actividad
+            const actividadType = actividadTypes.get(actividadId)
+            
+            // ✅ Si no tenemos el tipo, obtenerlo
+            if (!actividadType && actividadId) {
+              const { data: actData } = await supabase
+                .from('activities')
+                .select('type')
+                .eq('id', actividadId)
+                .single()
+              
+              if (actData) {
+                actividadTypes.set(actividadId, actData.type)
+              }
+            }
+
+            // ✅ Procesar cada día del mes actual
+            for (let day = 1; day <= monthEnd.getDate(); day++) {
+              const fecha = new Date(currentYear, currentMonth, day)
+              const fechaStr = fecha.toISOString().split('T')[0]
+
+              // Solo procesar fechas futuras o iguales a start_date
+              if (fecha < startDate) continue
+
+              // Calcular semana del ciclo
+              const diffDays = Math.floor((fecha.getTime() - startDate.getTime()) / (1000 * 60 * 60 * 24))
+              const totalWeekNumber = Math.floor(diffDays / 7) + 1
+              const weekInCycle = ((totalWeekNumber - 1) % maxSemanasPlanificacion) + 1
+
+              // Obtener día de la semana (0 = domingo, 1 = lunes, ..., 6 = sábado)
+              const dayOfWeek = fecha.getDay()
+              const diasMap: Record<number, string> = {
+                0: 'domingo',
+                1: 'lunes',
+                2: 'martes',
+                3: 'miercoles',
+                4: 'jueves',
+                5: 'viernes',
+                6: 'sabado'
+              }
+              const diaColumna = diasMap[dayOfWeek]
+
+              // ✅ Obtener planificación para esta semana y día
+              const semanaPlanificacion = planificacion.find(p => p.numero_semana === weekInCycle)
+              if (!semanaPlanificacion || !semanaPlanificacion[diaColumna]) continue
+
+              let ejerciciosDelDia: any[] = []
+              try {
+                const diaData = semanaPlanificacion[diaColumna]
+                if (typeof diaData === 'string') {
+                  ejerciciosDelDia = JSON.parse(diaData)
+                } else if (Array.isArray(diaData)) {
+                  ejerciciosDelDia = diaData
+                } else if (diaData && typeof diaData === 'object') {
+                  // Si es un objeto con estructura { ejercicios: [...] }
+                  ejerciciosDelDia = (diaData as any).ejercicios || (diaData as any).exercises || []
+                }
+              } catch (err) {
+                console.warn(`⚠️ Error parseando planificación para ${fechaStr}:`, err)
+                continue
+              }
+
+              if (!Array.isArray(ejerciciosDelDia) || ejerciciosDelDia.length === 0) continue
+
+              // ✅ Inicializar día si no existe
+              if (!processedData[fechaStr]) {
+                processedData[fechaStr] = {
+                  date: fechaStr,
+                  exerciseCount: 0,
+                  completedCount: 0,
+                  exercises: [],
+                  activities: []
+                }
+              }
+
+              // ✅ Agregar ejercicios/platos planificados
+              ejerciciosDelDia.forEach((ej: any) => {
+                const ejId = String(ej.id || ej.ejercicioId || ej.ejercicio_id)
+                if (!ejId) return
+
+                // Verificar si ya existe en processedData (desde progreso_cliente)
+                const existe = processedData[fechaStr].exercises.some(
+                  ex => String(ex.ejercicio_id) === ejId
+                )
+
+                if (!existe) {
+                  const nombre = nombresMap.get(ejId)
+                  const defaultNombre = actividadType === 'nutricion' || actividadType === 'nutrition_program'
+                    ? `Plato ${ejId}`
+                    : `Ejercicio ${ejId}`
+
+                  // ✅ Obtener enrollment_id y versión para esta actividad
+                  const enrollmentForActivity = enrollments.find(e => e.activity_id === actividadId)
+                  const enrollmentId = enrollmentForActivity?.id
+                  const version = enrollmentId ? enrollmentVersions.get(enrollmentId) : undefined
+                  const actividadTitulo = actividadTitulos.get(actividadId)
+
+                  const exerciseData: ExerciseExecution = {
+                    id: `plan-${actividadId}-${fechaStr}-${ejId}`,
+                    ejercicio_id: ejId,
+                    completado: false, // No completado aún (solo planificado)
+                    fecha_ejercicio: fechaStr,
+                    duracion: undefined,
+                    calorias_estimadas: undefined,
+                    nota_cliente: undefined,
+                    ejercicio_nombre: nombre || defaultNombre,
+                    actividad_titulo: actividadTitulo,
+                    actividad_id: actividadId,
+                    enrollment_id: enrollmentId,
+                    version: version,
+                    detalle_series: null
+                  }
+
+                  processedData[fechaStr].exercises.push(exerciseData)
+                  processedData[fechaStr].exerciseCount += 1
+                }
+              })
+            }
+          }
+        }
+
         setDayData(processedData)
 
         // Calcular la última ejercitación (último día que completó al menos un ejercicio)
@@ -650,7 +986,7 @@ export function ClientCalendar({ clientId, onLastWorkoutUpdate }: ClientCalendar
     if (clientId) {
       fetchClientExercises()
     }
-  }, [clientId, supabase])
+  }, [clientId, supabase, currentDate]) // ✅ Agregar currentDate para recargar cuando cambia el mes
 
   // Cerrar dropdown cuando se hace clic fuera
   useEffect(() => {
@@ -981,6 +1317,23 @@ export function ClientCalendar({ clientId, onLastWorkoutUpdate }: ClientCalendar
                   ) : (
                     <div className="font-semibold text-white mb-1">
                       {exercise.ejercicio_nombre}
+                    </div>
+                  )}
+                  
+                  {/* ✅ Mostrar nombre de actividad y versión */}
+                  {exercise.actividad_titulo && (
+                    <div className="text-xs text-[#FF7939] mt-1 font-medium">
+                      {exercise.actividad_titulo}
+                      {exercise.version && exercise.version > 1 && (
+                        <span className="text-gray-400 ml-1">(Versión {exercise.version})</span>
+                      )}
+                    </div>
+                  )}
+                  
+                  {/* ✅ Mostrar series si existen */}
+                  {exercise.detalle_series && (
+                    <div className="text-xs text-gray-400 mt-1">
+                      {formatSeries(exercise.detalle_series)}
                     </div>
                   )}
                   

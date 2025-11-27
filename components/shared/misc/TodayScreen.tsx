@@ -2528,6 +2528,7 @@ export default function TodayScreen({ activityId, onBack }: { activityId: string
               zIndex: 1000,
               height: '100vh',
               width: '100vw',
+              overflow: 'hidden', // ✅ Mantener overflow hidden en el contenedor principal
               transform: isTransitioning 
                 ? `translateX(${swipeDirection === 'left' ? '-20px' : swipeDirection === 'right' ? '20px' : '0'})` 
                 : 'translateX(0)',
@@ -2657,8 +2658,8 @@ export default function TodayScreen({ activityId, onBack }: { activityId: string
               display: 'flex',
               flexDirection: 'column',
               gap: 20,
-              maxHeight: 'none',
-              minHeight: 'calc(100vh - 300px)'
+              maxHeight: 'none', // ✅ Remover límite de altura máximo
+              minHeight: 'calc(100vh + 1000px)' // ✅ Expandir altura mínima aún más para permitir mucho más scroll
             }}>
               <div>
                 <h3 style={{
@@ -3388,7 +3389,10 @@ export default function TodayScreen({ activityId, onBack }: { activityId: string
         {!isVideoExpanded && (
           <div style={{ 
             overflow: 'auto', 
-            padding: '0 12px 24px' 
+            overflowY: 'scroll',
+            padding: '0 12px 24px',
+            minHeight: 'calc(100vh + 500px)', // ✅ Expandir altura mínima para permitir más scroll
+            maxHeight: 'none' // ✅ Remover límite de altura máximo
           }}>
          {activities.length === 0 && (
            <div style={{
