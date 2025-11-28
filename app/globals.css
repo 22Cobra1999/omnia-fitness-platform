@@ -537,3 +537,40 @@ html {
   display: none; /* Chrome, Safari, Opera */
 }
 
+/* Scrollbar naranja con glassmorphism para actividades de hoy */
+.orange-glass-scrollbar {
+  scrollbar-width: thin;
+  scrollbar-color: rgba(255, 121, 57, 0.6) transparent;
+}
+
+.orange-glass-scrollbar::-webkit-scrollbar {
+  width: 6px;
+}
+
+.orange-glass-scrollbar::-webkit-scrollbar-track {
+  background: transparent;
+  border-radius: 10px;
+}
+
+.orange-glass-scrollbar::-webkit-scrollbar-thumb {
+  background: rgba(255, 121, 57, 0.4);
+  backdrop-filter: blur(10px);
+  -webkit-backdrop-filter: blur(10px);
+  border-radius: 10px;
+  border: 1px solid rgba(255, 121, 57, 0.2);
+  box-shadow: 
+    0 2px 8px rgba(255, 121, 57, 0.3),
+    inset 0 1px 0 rgba(255, 255, 255, 0.1);
+}
+
+.orange-glass-scrollbar::-webkit-scrollbar-thumb:hover {
+  background: rgba(255, 121, 57, 0.6);
+  box-shadow: 
+    0 2px 12px rgba(255, 121, 57, 0.5),
+    inset 0 1px 0 rgba(255, 255, 255, 0.15);
+}
+
+.orange-glass-scrollbar::-webkit-scrollbar-thumb:active {
+  background: rgba(255, 121, 57, 0.8);
+}
+

@@ -196,7 +196,7 @@ const ActivityDetailScreen: React.FC<ActivityDetailScreenProps> = ({
   const vimeoId = exercise.video ? extractVimeoId(exercise.video) : null
 
   return (
-    <div className="min-h-screen bg-black text-white">
+    <div className="min-h-screen bg-black text-white" style={{ paddingBottom: '200px', overflowY: 'auto', WebkitOverflowScrolling: 'touch' }}>
       {/* Header */}
       <div className="fixed top-6 left-6 z-30">
         <Button
@@ -258,7 +258,7 @@ const ActivityDetailScreen: React.FC<ActivityDetailScreenProps> = ({
       </div>
 
       {/* Exercise Info */}
-      <div className="px-8 pb-20">
+      <div className="px-8 pb-40" style={{ minHeight: 'calc(100vh + 1000px)' }}>
         {/* Calories and Duration */}
         <div className="flex justify-between mb-8 max-w-4xl mx-auto">
           <div className="text-left">

@@ -1673,18 +1673,21 @@ export default function TodayScreen({ activityId, onBack }: { activityId: string
         </div>
       </div>
 
-      <div style={{ 
-        minHeight: '100vh', 
-        overflowY: 'auto', 
-        overflowX: 'hidden', 
-        paddingTop: '56px',
-        WebkitOverflowScrolling: 'touch',
-        paddingBottom: calendarExpanded ? '250px' : '0px'
-      }}>
+      <div 
+        className="orange-glass-scrollbar"
+        style={{ 
+          height: 'calc(100vh - 56px)',
+          overflowY: 'auto', 
+          overflowX: 'hidden', 
+          paddingTop: '56px',
+          paddingBottom: calendarExpanded ? '80px' : '60px',
+          WebkitOverflowScrolling: 'touch',
+          position: 'relative'
+        }}>
         {/* HERO DE PROGRESO */}
         <motion.div
           style={{
-            padding: calendarExpanded ? '0px 24px 200px' : '0px 24px 120px',
+            padding: calendarExpanded ? '0px 24px 20px' : '0px 24px 20px',
             minHeight: 'calc(100vh - 120px)',
             backgroundImage: backgroundImage && backgroundImage.trim() !== ''
               ? `linear-gradient(180deg, rgba(15, 16, 18, 0.3) 0%, rgba(15, 16, 18, 0.6) 100%), url(${backgroundImage})`
@@ -1803,13 +1806,13 @@ export default function TodayScreen({ activityId, onBack }: { activityId: string
           WebkitBackdropFilter: 'blur(25px) saturate(200%)',
           border: '1px solid rgba(255, 255, 255, 0.15)',
           borderRadius: 24,
-          padding: 28,
+          padding: '20px 28px',
           marginBottom: 16,
           position: 'relative',
           boxShadow: '0 12px 40px rgba(0, 0, 0, 0.4), inset 0 1px 0 rgba(255, 255, 255, 0.1), 0 0 0 1px rgba(255, 255, 255, 0.05)'
         }}>
           <h1 style={{ 
-            margin: '0 0 16 0', 
+            margin: '0 0 8 0', 
             fontSize: 22, 
             lineHeight: 1.2, 
             fontWeight: 800,
@@ -1828,75 +1831,100 @@ export default function TodayScreen({ activityId, onBack }: { activityId: string
       <div style={{
         display: 'flex',
         alignItems: 'center',
-            gap: 12, 
-            marginBottom: 16,
-            flexWrap: 'wrap'
+        justifyContent: 'space-between',
+        marginBottom: 0,
+        marginTop: 0,
+        width: '100%',
+        position: 'relative',
+        minHeight: '24px'
+      }}>
+        {/* Tags a la derecha */}
+        <div style={{
+          display: 'flex',
+          alignItems: 'center',
+          gap: 12,
+          flexWrap: 'wrap',
+          justifyContent: 'flex-end',
+          flex: 1
+        }}>
+          <span style={{ 
+            padding: '4px 8px', 
+            background: 'rgba(255, 106, 0, 0.15)', 
+            borderRadius: 8,
+            border: '1px solid rgba(255, 106, 0, 0.3)',
+            color: '#FF6A00',
+            fontSize: 12
           }}>
-            <span style={{ 
-              padding: '4px 8px', 
-              background: 'rgba(255, 106, 0, 0.15)', 
-              borderRadius: 8,
-              border: '1px solid rgba(255, 106, 0, 0.3)',
-              color: '#FF6A00',
-              fontSize: 12
-            }}>
-              {programInfo?.categoria === 'fitness' ? 'Fitness' : programInfo?.categoria === 'nutricion' ? 'Nutrición' : 'Programa'}
-            </span>
-            <span style={{ 
-              padding: '4px 8px', 
-              background: 'rgba(255, 106, 0, 0.15)', 
-              borderRadius: 8,
-              border: '1px solid rgba(255, 106, 0, 0.3)',
-              color: '#FF6A00',
-              fontSize: 12
-            }}>
-              {programInfo?.difficulty || 'Principiante'}
-            </span>
+            {programInfo?.categoria === 'fitness' ? 'Fitness' : programInfo?.categoria === 'nutricion' ? 'Nutrición' : 'Programa'}
+          </span>
+          <span style={{ 
+            padding: '4px 8px', 
+            background: 'rgba(255, 106, 0, 0.15)', 
+            borderRadius: 8,
+            border: '1px solid rgba(255, 106, 0, 0.3)',
+            color: '#FF6A00',
+            fontSize: 12
+          }}>
+            {(() => {
+              const difficulty = programInfo?.difficulty || 'Principiante';
+              return difficulty.charAt(0).toUpperCase() + difficulty.slice(1).toLowerCase();
+            })()}
+          </span>
         </div>
         
+        {/* Flecha centrada - posicionada absolutamente */}
         {programInfo?.description && (
-          <div style={{ marginTop: 4 }}>
+          <div 
+            style={{
+              position: 'absolute',
+              left: '50%',
+              top: '50%',
+              transform: 'translate(-50%, -50%)',
+              cursor: 'pointer',
+              padding: '2px',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              zIndex: 10
+            }}
+            onClick={() => {
+              setDescriptionExpanded(!descriptionExpanded)
+            }}
+          >
             <div style={{
-              overflow: 'hidden',
-              transition: 'max-height 0.3s ease, opacity 0.3s ease',
-              maxHeight: descriptionExpanded ? '200px' : '0px',
-              opacity: descriptionExpanded ? 1 : 0
+              fontSize: 10,
+              color: '#9CA3AF',
+              transition: 'transform 0.3s ease, color 0.2s ease',
+              transform: descriptionExpanded ? 'rotate(180deg)' : 'rotate(0deg)',
+              userSelect: 'none'
             }}>
-              <p style={{ 
-                margin: 0, 
-                fontSize: 13,
-                lineHeight: 1.4, 
-                color: '#E5E7EB',
-                opacity: 0.9,
-                paddingBottom: 4
-              }}>
-                {programInfo.description}
-              </p>
-            </div>
-            <div 
-              style={{
-                display: 'flex',
-                justifyContent: 'center',
-                marginTop: 2,
-                cursor: 'pointer',
-                padding: '2px'
-              }}
-              onClick={() => {
-                setDescriptionExpanded(!descriptionExpanded)
-              }}
-            >
-              <div style={{
-                fontSize: 10,
-                color: '#9CA3AF',
-                transition: 'transform 0.3s ease, color 0.2s ease',
-                transform: descriptionExpanded ? 'rotate(180deg)' : 'rotate(0deg)',
-                userSelect: 'none'
-              }}>
-                ▼
-              </div>
+              ▼
             </div>
           </div>
         )}
+      </div>
+        
+      {programInfo?.description && (
+        <div style={{ marginTop: 4 }}>
+          <div style={{
+            overflow: 'hidden',
+            transition: 'max-height 0.3s ease, opacity 0.3s ease',
+            maxHeight: descriptionExpanded ? '200px' : '0px',
+            opacity: descriptionExpanded ? 1 : 0
+          }}>
+            <p style={{ 
+              margin: 0, 
+              fontSize: 13,
+              lineHeight: 1.4, 
+              color: '#E5E7EB',
+              opacity: 0.9,
+              paddingBottom: 4
+            }}>
+              {programInfo.description}
+            </p>
+          </div>
+        </div>
+      )}
         </div>
 
         {/* FRAME DE PROGRESO DEL PROGRAMA */}
@@ -1907,8 +1935,8 @@ export default function TodayScreen({ activityId, onBack }: { activityId: string
           border: '1px solid rgba(255, 255, 255, 0.15)',
           borderRadius: 24,
           padding: 28,
-          paddingBottom: calendarExpanded ? 140 : 28,
-          marginBottom: calendarExpanded ? 80 : 20,
+          paddingBottom: calendarExpanded ? 28 : 28,
+          marginBottom: 0,
           position: 'relative',
           boxShadow: '0 12px 40px rgba(0, 0, 0, 0.4), inset 0 1px 0 rgba(255, 255, 255, 0.1), 0 0 0 1px rgba(255, 255, 255, 0.05)'
         }}>
@@ -2417,9 +2445,9 @@ export default function TodayScreen({ activityId, onBack }: { activityId: string
       <div style={{
                 display: 'flex',
                 justifyContent: 'center',
-                marginTop: calendarExpanded ? 24 : 16,
-                marginBottom: calendarExpanded ? 100 : 0,
-                paddingBottom: calendarExpanded ? 60 : 0,
+                marginTop: calendarExpanded ? 16 : 12,
+                marginBottom: 0,
+                paddingBottom: 0,
                 width: '100%',
                 position: 'relative',
                 zIndex: 1
@@ -2495,13 +2523,18 @@ export default function TodayScreen({ activityId, onBack }: { activityId: string
         <div style={{ 
           display: 'grid', 
           placeItems: 'center', 
-          paddingTop: 10 
+          paddingTop: 10,
+          flexShrink: 0
         }}>
           <div style={{ 
             width: 44, 
             height: 4, 
             borderRadius: 999, 
-            background: 'rgba(255, 255, 255, 0.2)' 
+            background: 'rgba(255, 121, 57, 0.6)',
+            backdropFilter: 'blur(10px)',
+            WebkitBackdropFilter: 'blur(10px)',
+            border: '1px solid rgba(255, 121, 57, 0.3)',
+            boxShadow: '0 2px 8px rgba(255, 121, 57, 0.4), inset 0 1px 0 rgba(255, 255, 255, 0.1)'
           }} />
         </div>
 
@@ -2528,7 +2561,9 @@ export default function TodayScreen({ activityId, onBack }: { activityId: string
               zIndex: 1000,
               height: '100vh',
               width: '100vw',
-              overflow: 'hidden', // ✅ Mantener overflow hidden en el contenedor principal
+              overflow: 'hidden', // ✅ Mantener hidden en el contenedor principal
+              display: 'flex',
+              flexDirection: 'column',
               transform: isTransitioning 
                 ? `translateX(${swipeDirection === 'left' ? '-20px' : swipeDirection === 'right' ? '20px' : '0'})` 
                 : 'translateX(0)',
@@ -2544,7 +2579,8 @@ export default function TodayScreen({ activityId, onBack }: { activityId: string
               display: 'flex',
               justifyContent: 'space-between',
               alignItems: 'center',
-              padding: '16px 20px 0'
+              padding: '16px 20px 0',
+              flexShrink: 0
             }}>
               <div style={{ flex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center', textAlign: 'center' }}>
                 {(() => {
@@ -2610,7 +2646,8 @@ export default function TodayScreen({ activityId, onBack }: { activityId: string
               alignItems: 'center',
               height: 180,
               marginBottom: 24,
-              position: 'relative'
+              position: 'relative',
+              flexShrink: 0
             }}>
             {/* Ejercicio actual */}
             <div style={{
@@ -2649,18 +2686,22 @@ export default function TodayScreen({ activityId, onBack }: { activityId: string
 
 
             {/* Información del ejercicio */}
-            <div style={{
-              flex: 1,
-              overflow: 'auto',
-              overflowY: 'scroll',
-              WebkitOverflowScrolling: 'touch',
-              padding: '0 20px 120px',
-              display: 'flex',
-              flexDirection: 'column',
-              gap: 20,
-              maxHeight: 'none', // ✅ Remover límite de altura máximo
-              minHeight: 'calc(100vh + 1000px)' // ✅ Expandir altura mínima aún más para permitir mucho más scroll
-            }}>
+            <div 
+              className="orange-glass-scrollbar"
+              style={{
+                flex: 1,
+                overflow: 'auto',
+                overflowY: 'scroll',
+                WebkitOverflowScrolling: 'touch',
+                padding: '0 20px 120px',
+                display: 'flex',
+                flexDirection: 'column',
+                gap: 20,
+                minHeight: 0,
+                maxHeight: '100%',
+                position: 'relative',
+                zIndex: 1
+              }}>
               <div>
                 <h3 style={{
                   color: '#fff',
@@ -3387,13 +3428,18 @@ export default function TodayScreen({ activityId, onBack }: { activityId: string
 
         {/* Contenido del bottom-sheet - solo visible cuando NO está expandido */}
         {!isVideoExpanded && (
-          <div style={{ 
-            overflow: 'auto', 
-            overflowY: 'scroll',
-            padding: '0 12px 24px',
-            minHeight: 'calc(100vh + 500px)', // ✅ Expandir altura mínima para permitir más scroll
-            maxHeight: 'none' // ✅ Remover límite de altura máximo
-          }}>
+          <div 
+            className="orange-glass-scrollbar"
+            style={{ 
+              flex: 1,
+              overflow: 'auto', 
+              overflowY: 'scroll',
+              WebkitOverflowScrolling: 'touch',
+              padding: '0 12px 200px',
+              minHeight: 0, // Necesario para que flex funcione correctamente
+              maxHeight: '100%',
+              position: 'relative'
+            }}>
          {activities.length === 0 && (
            <div style={{
                display: 'flex',
