@@ -109,10 +109,12 @@ export function ExpandedProductCard({
   }
 
   const getProductImage = () => {
-    if (product.image) {
+    // Si hay imagen real, devolverla
+    if (product.image && product.image.trim() !== '') {
       return product.image
     }
-    return '/placeholder.svg?height=400&width=600'
+    // Si no hay imagen real, devolver null para mostrar logo de Omnia
+    return null
   }
 
   const getProductVideo = () => {
@@ -193,13 +195,6 @@ export function ExpandedProductCard({
 
   const videoUrl = getProductVideo()
   const embedUrl = videoUrl ? getEmbedUrl(videoUrl) : null
-  
-    videoUrl,
-    embedUrl,
-    isExternal: videoUrl ? isExternalVideo(videoUrl) : false,
-    productVideoUrl: product.videoUrl,
-    productVideo: product.video
-  })
 
   return (
     <motion.div 
@@ -233,14 +228,22 @@ export function ExpandedProductCard({
                   Tu navegador no soporta el elemento de video.
                 </video>
               )
-            ) : (
+            ) : getProductImage() ? (
               <Image
-                src={getProductImage()}
+                src={getProductImage()!}
                 alt={product.title}
                 fill
                 className="object-cover"
                 sizes="(max-width: 768px) 100vw, (max-width: 1200px) 50vw, 33vw"
               />
+            ) : (
+              // Logo de Omnia cuando no hay imagen (igual que cuando no hay video en ejercicios)
+              <div className="w-full h-full bg-[rgba(255,255,255,0.02)] flex items-center justify-center flex-col gap-3">
+                <div className="w-20 h-20 bg-[#FF7939] rounded-xl flex items-center justify-center">
+                  <Flame className="w-10 h-10 text-black" />
+                </div>
+                <h1 className="text-gray-400 text-2xl font-bold">OMNIA</h1>
+              </div>
             )}
             
             {/* Type Badge */}

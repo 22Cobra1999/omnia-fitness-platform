@@ -11,6 +11,11 @@ export function ConsoleSilencer() {
   useEffect(() => {
     if (typeof window === "undefined") return
     const verbose = process.env.NEXT_PUBLIC_VERBOSE_LOGS === "true"
+
+    // En desarrollo no silenciamos nada para poder ver todos los logs en Chrome
+    if (process.env.NODE_ENV !== "production") return
+
+    // En producción solo silenciamos si no se ha activado el modo verbose
     if (verbose) return
 
     const originalLog = console.log
@@ -29,6 +34,12 @@ export function ConsoleSilencer() {
 
   return null
 }
+
+
+
+
+
+
 
 
 

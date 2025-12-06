@@ -48,6 +48,9 @@ export default function ClientProductModal({
   const [isVideoRevealed, setIsVideoRevealed] = useState(false)
   const [comments, setComments] = useState<any[]>([])
   const [loadingComments, setLoadingComments] = useState(false)
+  // Estado para temas y horarios del taller
+  const [workshopTopics, setWorkshopTopics] = useState<any[]>([])
+  const [loadingWorkshopTopics, setLoadingWorkshopTopics] = useState(false)
   const [isAlreadyPurchased, setIsAlreadyPurchased] = useState(false)
   const [isProcessingPurchase, setIsProcessingPurchase] = useState(false)
   const [purchaseCompleted, setPurchaseCompleted] = useState(false)
@@ -71,17 +74,31 @@ export default function ClientProductModal({
   const [isTogglingPause, setIsTogglingPause] = useState(false)
   const dragRef = useRef<HTMLDivElement>(null)
   
+  // Estado para controlar si el aviso de cambio de fechas está cerrado
+  // Se resetea cada vez que se abre el modal para que siempre aparezca
+  const [isDateChangeNoticeClosed, setIsDateChangeNoticeClosed] = useState(false)
+  
   // Para talleres: obtener el estado 'activo' desde taller_detalles
   const isWorkshopInactive = product?.type === 'workshop' && (product as any).taller_activo === false
   
+  // Resetear el estado del aviso cada vez que se abre el modal
+  useEffect(() => {
+    if (isOpen) {
+      setIsDateChangeNoticeClosed(false)
+    }
+  }, [isOpen])
+  
+  // Memoizar el estado pausado del producto para evitar re-renders innecesarios
+  const productPausedState = useMemo(() => {
+    if (!product) return false
+    return product.type === 'workshop' 
+      ? (product as any).taller_activo === false 
+      : (product.is_paused ?? false)
+  }, [product?.id, product?.type, product?.is_paused, (product as any)?.taller_activo])
+
   // Sincronizar estado con el producto cuando cambia (solo al abrir el modal)
   useEffect(() => {
     if (isOpen && product) {
-      // Para talleres, usar taller_activo; para otros productos, usar is_paused
-      const productPausedState = product.type === 'workshop' 
-        ? (product as any).taller_activo === false 
-        : (product.is_paused ?? false)
-      
       console.log('🔍 ClientProductModal - Sincronizando estado inicial:', {
         id: product.id,
         type: product.type,
@@ -95,7 +112,7 @@ export default function ClientProductModal({
         setIsPaused(productPausedState)
       }
     }
-  }, [isOpen, product]) // Incluir product para detectar cambios en taller_activo
+  }, [isOpen, productPausedState]) // Usar productPausedState memoizado en lugar de product completo
   
   // Función para pausar/despausar producto
   const handleTogglePause = async (checked: boolean) => {
@@ -190,9 +207,10 @@ export default function ClientProductModal({
           message: result.message
         })
       } else {
-        console.error('❌ Error en la respuesta del servidor:', result.error)
-        toast.error('Error', {
-          description: result.error || 'No se pudo cambiar el estado del producto'
+        console.error('❌ Error en la respuesta del servidor:', result.error, result.details)
+        const errorMessage = result.details || result.error || 'No se pudo cambiar el estado del producto'
+        toast.error(result.error || 'Error', {
+          description: errorMessage
         })
         // Revertir el estado del switch si falla - usar el estado original
         setIsPaused(wasPaused)
@@ -277,12 +295,33 @@ export default function ClientProductModal({
     }
   }, [showEditButton, product?.coach_id, product?.coach?.id, navigationContext?.coachId, user?.id])
   
+  // Ref para cancelar fetch de límites cuando el modal se cierra
+  const planLimitsAbortControllerRef = useRef<AbortController | null>(null)
+  
   // Obtener límites del plan al abrir el modal
   useEffect(() => {
-    if (isOpen) {
+    if (!isOpen) {
+      // Limpiar si el modal se cierra
+      if (planLimitsAbortControllerRef.current) {
+        planLimitsAbortControllerRef.current.abort()
+        planLimitsAbortControllerRef.current = null
+      }
+      return
+    }
+    
+    // Solo cargar límites si showEditButton está activo
+    if (showEditButton) {
       loadPlanLimits()
     }
-  }, [isOpen, loadPlanLimits])
+    
+    // Cleanup: cancelar operaciones si el modal se cierra
+    return () => {
+      if (planLimitsAbortControllerRef.current) {
+        planLimitsAbortControllerRef.current.abort()
+        planLimitsAbortControllerRef.current = null
+      }
+    }
+  }, [isOpen, loadPlanLimits, showEditButton])
   
   // Listener para actualizar cuando se edita el producto
   useEffect(() => {
@@ -303,6 +342,50 @@ export default function ClientProductModal({
     }
   }, [product.id, refreshStats, loadPlanLimits])
   
+  // Función para calcular semanas únicas basándose en las fechas de los temas
+  const calculateWorkshopWeeks = useMemo(() => {
+    if (product.type !== 'workshop' || !workshopTopics || workshopTopics.length === 0) {
+      return 0
+    }
+    
+    // Función helper para calcular semana ISO (semana comienza en lunes)
+    const getISOWeek = (date: Date): string => {
+      const d = new Date(Date.UTC(date.getFullYear(), date.getMonth(), date.getDate()))
+      const dayNum = d.getUTCDay() || 7
+      d.setUTCDate(d.getUTCDate() + 4 - dayNum)
+      const yearStart = new Date(Date.UTC(d.getUTCFullYear(), 0, 1))
+      const weekNo = Math.ceil((((d.getTime() - yearStart.getTime()) / 86400000) + 1) / 7)
+      return `${d.getUTCFullYear()}-W${weekNo.toString().padStart(2, '0')}`
+    }
+    
+    const weeksSet = new Set<string>()
+    
+    workshopTopics.forEach((tema: any) => {
+      const originales = tema.originales?.fechas_horarios || []
+      const secundarios = tema.secundarios?.fechas_horarios || []
+      const allHorarios = [...originales, ...secundarios]
+      
+      allHorarios.forEach((horario: any) => {
+        if (horario.fecha) {
+          try {
+            // Parsear fecha desde YYYY-MM-DD
+            const [year, month, day] = horario.fecha.split('-').map(Number)
+            const fecha = new Date(year, month - 1, day)
+            
+            if (!isNaN(fecha.getTime())) {
+              const weekKey = getISOWeek(fecha)
+              weeksSet.add(weekKey)
+            }
+          } catch (error) {
+            console.error('Error procesando fecha:', horario.fecha, error)
+          }
+        }
+      })
+    })
+    
+    return weeksSet.size
+  }, [workshopTopics, product.type])
+
   // Obtener datos del producto del hook
   const productCapacity = productData?.capacity || product.capacity
   const productModality = productData?.modality || product.modality
@@ -319,7 +402,10 @@ export default function ClientProductModal({
     }
     return 0
   })()
-  const weeksCount = weeksFromPlanning ?? product.weeks ?? productStats?.totalWeeks ?? programDuration ?? 0
+  // Para talleres, calcular semanas basándose en las fechas de los temas
+  const weeksCount = product.type === 'workshop' 
+    ? calculateWorkshopWeeks 
+    : (weeksFromPlanning ?? product.weeks ?? productStats?.totalWeeks ?? programDuration ?? 0)
   
   // Verificar qué valores exceden límites
   const exceedsActivities = planLimits ? exercisesCount > planLimits.activitiesLimit : false
@@ -344,12 +430,25 @@ export default function ClientProductModal({
     }
   }, [planLimits, exercisesCount, weeksCount, productCapacity, exceedsActivities, exceedsWeeks, exceedsStock, isOpen, product.pause_reasons])
 
+  // Ref para cancelar fetch cuando el modal se cierra
+  const abortControllerRef = useRef<AbortController | null>(null)
+  
   useEffect(() => {
     if (!isOpen || !product?.id || product.type !== 'program') {
+      // Limpiar si el modal se cierra
+      if (abortControllerRef.current) {
+        abortControllerRef.current.abort()
+        abortControllerRef.current = null
+      }
       return
     }
+    
+    // Crear nuevo AbortController para esta petición
+    abortControllerRef.current = new AbortController()
+    const signal = abortControllerRef.current.signal
+    
     setPlanningStatsLoading(true)
-    fetch(`/api/get-product-planning?actividad_id=${product.id}`)
+    fetch(`/api/get-product-planning?actividad_id=${product.id}`, { signal })
       .then(async res => {
         if (!res.ok) {
           const errorPayload = await res.json().catch(() => ({}))
@@ -358,6 +457,9 @@ export default function ClientProductModal({
         return res.json()
       })
       .then(data => {
+        // Verificar si la petición fue cancelada
+        if (signal.aborted) return
+        
         if (data?.success && data.data) {
           const semanas = Number(data.data.semanas || 0)
           const periods = Number(data.data.periods || 1)
@@ -369,12 +471,29 @@ export default function ClientProductModal({
         }
       })
       .catch(error => {
+        // Ignorar errores de cancelación
+        if (error.name === 'AbortError') {
+          console.log('⏹️ Petición de planificación cancelada')
+          return
+        }
         console.error('❌ Error obteniendo planificación para stats:', error)
-        setWeeksFromPlanning(null)
+        if (!signal.aborted) {
+          setWeeksFromPlanning(null)
+        }
       })
       .finally(() => {
-        setPlanningStatsLoading(false)
+        if (!signal.aborted) {
+          setPlanningStatsLoading(false)
+        }
       })
+    
+    // Cleanup: cancelar petición si el modal se cierra
+    return () => {
+      if (abortControllerRef.current) {
+        abortControllerRef.current.abort()
+        abortControllerRef.current = null
+      }
+    }
   }, [isOpen, product?.id, product?.type])
 
   // Función para obtener fuegos de dificultad con colores específicos
@@ -435,15 +554,19 @@ export default function ClientProductModal({
     )
   }
   
-  // Cargar comentarios cuando se abre el modal
+  // Cargar comentarios y temas del taller cuando se abre el modal
   useEffect(() => {
     if (isOpen && product?.id) {
       loadComments()
+      // Si es un taller, cargar temas y horarios
+      if (product.type === 'workshop') {
+        loadWorkshopTopics()
+      }
       // Verificar si ya está comprada desde la base de datos
       checkPurchaseStatus()
       setIsVideoRevealed(false)
     }
-  }, [isOpen, product?.id])
+  }, [isOpen, product?.id, product?.type])
 
   // Estado para el status de compra detallado
   const [purchaseStatus, setPurchaseStatus] = useState<{
@@ -497,6 +620,32 @@ export default function ClientProductModal({
   // console.log('🔍 Coach data:', product.coach)
 
   // Función para cargar comentarios desde activity_surveys
+  // Función para cargar temas y horarios del taller
+  const loadWorkshopTopics = async () => {
+    if (!product.id || product.type !== 'workshop') return
+    
+    setLoadingWorkshopTopics(true)
+    try {
+      const response = await fetch(`/api/taller-detalles?actividad_id=${product.id}`)
+      if (!response.ok) {
+        throw new Error('Error al cargar temas del taller')
+      }
+      
+      const { success, data: tallerDetalles } = await response.json()
+      
+      if (success && Array.isArray(tallerDetalles)) {
+        setWorkshopTopics(tallerDetalles)
+      } else {
+        setWorkshopTopics([])
+      }
+    } catch (error) {
+      console.error('Error loading workshop topics:', error)
+      setWorkshopTopics([])
+    } finally {
+      setLoadingWorkshopTopics(false)
+    }
+  }
+
   const loadComments = async () => {
     if (!product.id) return
     
@@ -504,14 +653,24 @@ export default function ClientProductModal({
     try {
       const supabase = getSupabaseClient()
       
-      // Primero, vamos a ver qué columnas están disponibles en activity_surveys
-      const { data: surveys, error: surveysError } = await supabase
+      // Obtener el coach_id de la actividad para filtrar sus comentarios
+      const coachId = product?.coach_id || product?.coach?.id
+      
+      // Cargar comentarios, pero EXCLUIR los del coach (solo mostrar comentarios de clientes)
+      let query = supabase
         .from('activity_surveys')
         .select('*')
         .eq('activity_id', product.id)
         .not('comments', 'is', null)
         .order('created_at', { ascending: false })
         .limit(10)
+      
+      // Si hay coach_id, excluir los comentarios del coach
+      if (coachId) {
+        query = query.neq('client_id', coachId)
+      }
+      
+      const { data: surveys, error: surveysError } = await query
 
       if (surveysError) {
         console.error('Error loading surveys:', surveysError)
@@ -589,15 +748,15 @@ export default function ClientProductModal({
 
 
   const getValidImageUrl = useCallback(() => {
-    const imageUrl = product.activity_media?.[0]?.image_url || product.image?.url
+    const imageUrl = product.activity_media?.[0]?.image_url || product.image?.url || product.image_url
     
-    // Si es una URL de placeholder, usar una imagen real
-    if (imageUrl && imageUrl.includes('via.placeholder.com')) {
-      return `https://images.unsplash.com/photo-1571019613454-1cb2f99b2d8b?w=400&h=300&fit=crop&crop=center&timestamp=${Date.now()}`
+    // Si es una URL de placeholder o está vacía, devolver null para mostrar logo de Omnia
+    if (!imageUrl || imageUrl.trim() === '' || imageUrl.includes('via.placeholder.com') || imageUrl.includes('placeholder.svg')) {
+      return null
     }
     
     return imageUrl
-  }, [product.activity_media, product.image])
+  }, [product.activity_media, product.image, product.image_url])
 
   
       // Debug logs
@@ -773,13 +932,19 @@ export default function ClientProductModal({
   }, [product?.id, onClose])
 
   // Función para manejar el cierre con navegación contextual - memoizada
+  // Optimizada para cerrar inmediatamente sin esperar operaciones
   const handleClose = useCallback(() => {
+    // Cancelar todas las peticiones en curso
+    if (abortControllerRef.current) {
+      abortControllerRef.current.abort()
+      abortControllerRef.current = null
+    }
+    
     // Si venimos del perfil del coach, regresar ahí
     if (navigationContext?.fromCoachProfile && navigationContext?.onReturnToCoach) {
-      // console.log('🔄 Regresando al perfil del coach desde modal de actividad')
       navigationContext.onReturnToCoach()
     } else {
-      // Cierre normal
+      // Cierre normal - ejecutar inmediatamente
       onClose()
     }
   }, [navigationContext, onClose])
@@ -838,24 +1003,62 @@ export default function ClientProductModal({
 
   return (
     <>
-    <AnimatePresence>
+    <AnimatePresence mode="wait">
       {isOpen && (
         <motion.div
           initial={{ opacity: 0 }}
           animate={{ opacity: 1 }}
           exit={{ opacity: 0 }}
+          transition={{ duration: 0.05, exit: { duration: 0.01 } }}
           className="fixed inset-0 bg-black/80 z-40 flex items-center justify-center p-4 pt-20"
           onClick={handleClose}
         >
         <motion.div
-          initial={{ scale: 0.9, opacity: 0 }}
+          initial={{ scale: 0.95, opacity: 0 }}
           animate={{ scale: 1, opacity: 1 }}
-          exit={{ scale: 0.9, opacity: 0 }}
+          exit={{ opacity: 0, scale: 0.95 }}
+          transition={{ duration: 0.05, exit: { duration: 0.01 } }}
           className="bg-[#1A1A1A] rounded-2xl w-full max-w-4xl border border-[#2A2A2A] max-h-[90vh] overflow-y-auto"
           onClick={(e) => e.stopPropagation()}
         >
           {/* Content */}
           <div className="px-0 pb-6">
+            {/* Aviso de cambio de fechas para talleres finalizados - Siempre visible al abrir */}
+            {product?.type === 'workshop' && isWorkshopInactive && !isDateChangeNoticeClosed && (
+              <div className="bg-[#FF7939]/10 border-l-4 border-[#FF7939] rounded-r-lg p-4 mb-4 mx-4 mt-4">
+                <div className="flex items-start justify-between gap-3">
+                  <div className="flex-1">
+                    <div className="flex items-center gap-2 mb-2">
+                      <Calendar className="h-5 w-5 text-[#FF7939]" />
+                      <h3 className="text-white font-semibold text-base">Taller finalizado</h3>
+                    </div>
+                    <p className="text-gray-300 text-sm">
+                      Este taller ha finalizado. Para reactivar las ventas, debes agregar nuevas fechas.
+                    </p>
+                    {onEdit && (
+                      <button
+                        onClick={() => {
+                          if (onEdit) {
+                            onEdit(product)
+                          }
+                        }}
+                        className="mt-3 text-[#FF7939] hover:text-[#FF6B00] text-sm font-medium underline"
+                      >
+                        Agregar nuevas fechas
+                      </button>
+                    )}
+                  </div>
+                  <button
+                    onClick={() => setIsDateChangeNoticeClosed(true)}
+                    className="text-gray-400 hover:text-white transition-colors text-xl leading-none flex-shrink-0"
+                    aria-label="Cerrar aviso"
+                  >
+                    ✕
+                  </button>
+                </div>
+              </div>
+            )}
+            
             {/* Product Image/Video */}
             <div className="relative w-full h-64 rounded-none overflow-hidden mb-6">
               {/* Botón Pausar Ventas - Esquina inferior izquierda */}
@@ -949,10 +1152,10 @@ export default function ClientProductModal({
                       console.warn('Error cargando video')
                     }}
                   />
-                ) : (
+                ) : getValidImageUrl() ? (
                   <>
                     <Image
-                      src={getValidImageUrl() || '/placeholder.svg?height=256&width=400&query=fitness'}
+                      src={getValidImageUrl()!}
                       alt={product.title || 'Imagen del producto'}
                       fill
                       className="object-cover"
@@ -969,15 +1172,31 @@ export default function ClientProductModal({
                       </div>
                     </button>
                   </>
+                ) : (
+                  // Logo de Omnia cuando no hay imagen (igual que cuando no hay video en ejercicios)
+                  <div className="w-full h-full bg-[rgba(255,255,255,0.02)] flex items-center justify-center flex-col gap-3">
+                    <div className="w-20 h-20 bg-[#FF7939] rounded-xl flex items-center justify-center">
+                      <Flame className="w-10 h-10 text-black" />
+                    </div>
+                    <h1 className="text-gray-400 text-2xl font-bold">OMNIA</h1>
+                  </div>
                 )}
               </div>
-            ) : (
+            ) : getValidImageUrl() ? (
               <Image
-                src={getValidImageUrl() || '/placeholder.svg?height=256&width=400&query=fitness'}
+                src={getValidImageUrl()!}
                 alt={product.title || 'Imagen del producto'}
                 fill
                 className="object-cover"
               />
+            ) : (
+              // Logo de Omnia cuando no hay imagen (igual que cuando no hay video en ejercicios)
+              <div className="w-full h-full bg-[rgba(255,255,255,0.02)] flex items-center justify-center flex-col gap-3">
+                <div className="w-20 h-20 bg-[#FF7939] rounded-xl flex items-center justify-center">
+                  <Flame className="w-10 h-10 text-black" />
+                </div>
+                <h1 className="text-gray-400 text-2xl font-bold">OMNIA</h1>
+              </div>
             )}
               
               {/* Overlay Badges */}
@@ -1105,16 +1324,19 @@ export default function ClientProductModal({
                   <span className="text-gray-300">Sesiones: {statsLoading ? '...' : totalSessions}</span>
                 </div>
                 
-                <div className={`flex items-center gap-2 ${exceedsActivities ? 'border-2 border-red-500 rounded-lg' : ''}`}>
-                  {product.categoria === 'nutricion' || product.categoria === 'nutrition' ? (
-                    <UtensilsCrossed className={`h-5 w-5 ${exceedsActivities ? 'text-red-500' : 'text-[#FF7939]'}`} />
-                  ) : (
-                    <Zap className={`h-5 w-5 ${exceedsActivities ? 'text-red-500' : 'text-[#FF7939]'}`} />
-                  )}
-                  <span className={exceedsActivities ? 'text-red-500 font-bold' : 'text-gray-300'}>
-                    {product.categoria === 'nutricion' || product.categoria === 'nutrition' ? 'Platos' : 'Ejercicios'}: {statsLoading ? '...' : planLimits?.activitiesLimit ? `${exercisesCount}/${planLimits.activitiesLimit}` : exercisesCount}
-                  </span>
-                </div>
+                {/* No mostrar ejercicios/platos para talleres */}
+                {product.type !== 'workshop' && (
+                  <div className={`flex items-center gap-2 ${exceedsActivities ? 'border-2 border-red-500 rounded-lg' : ''}`}>
+                    {product.categoria === 'nutricion' || product.categoria === 'nutrition' ? (
+                      <UtensilsCrossed className={`h-5 w-5 ${exceedsActivities ? 'text-red-500' : 'text-[#FF7939]'}`} />
+                    ) : (
+                      <Zap className={`h-5 w-5 ${exceedsActivities ? 'text-red-500' : 'text-[#FF7939]'}`} />
+                    )}
+                    <span className={exceedsActivities ? 'text-red-500 font-bold' : 'text-gray-300'}>
+                      {product.categoria === 'nutricion' || product.categoria === 'nutrition' ? 'Platos' : 'Ejercicios'}: {statsLoading ? '...' : planLimits?.activitiesLimit ? `${exercisesCount}/${planLimits.activitiesLimit}` : exercisesCount}
+                    </span>
+                  </div>
+                )}
                 
                 {/* Fila 2 */}
                 {productCapacity && (
@@ -1129,7 +1351,11 @@ export default function ClientProductModal({
                 <div className={`flex items-center gap-2 ${exceedsWeeks ? 'border-2 border-red-500 rounded-lg' : ''}`}>
                   <Clock className={`h-5 w-5 ${exceedsWeeks ? 'text-red-500' : 'text-[#FF7939]'}`} />
                   <span className={exceedsWeeks ? 'text-red-500 font-bold' : 'text-gray-300'}>
-                    Semanas: {planningStatsLoading ? '...' : planLimits?.weeksLimit ? `${weeksCount}/${planLimits.weeksLimit}` : (weeksCount || 'N/A')}
+                    Semanas: {
+                      product.type === 'workshop' 
+                        ? (loadingWorkshopTopics ? '...' : (planLimits?.weeksLimit ? `${calculateWorkshopWeeks}/${planLimits.weeksLimit}` : calculateWorkshopWeeks || 0))
+                        : (planningStatsLoading ? '...' : planLimits?.weeksLimit ? `${weeksCount}/${planLimits.weeksLimit}` : (weeksCount || 'N/A'))
+                    }
                   </span>
                 </div>
                 
@@ -1267,6 +1493,88 @@ export default function ClientProductModal({
                 </>
               )}
 
+              {/* Workshop Topics and Schedules Section - Solo para talleres, antes de comentarios */}
+              {product.type === 'workshop' && (
+                <div className="border-t border-gray-800 pt-4">
+                  <h4 className="text-white font-semibold mb-3">Temas y Horarios</h4>
+                  {loadingWorkshopTopics ? (
+                    <div className="text-gray-400 text-sm">
+                      <p>Cargando temas y horarios...</p>
+                    </div>
+                  ) : workshopTopics.length > 0 ? (
+                    <div className="space-y-4">
+                      {workshopTopics.map((tema: any, index: number) => {
+                        const originales = tema.originales?.fechas_horarios || []
+                        const secundarios = tema.secundarios?.fechas_horarios || []
+                        const allHorarios = [...originales, ...secundarios]
+                        
+                        // Formatear fechas para mostrar
+                        const formatFecha = (fechaString: string) => {
+                          try {
+                            const [year, month, day] = fechaString.split('-').map(Number)
+                            const date = new Date(year, month - 1, day)
+                            return date.toLocaleDateString('es-ES', { 
+                              weekday: 'short',
+                              day: 'numeric', 
+                              month: 'short'
+                            })
+                          } catch {
+                            return fechaString
+                          }
+                        }
+                        
+                        // Agrupar horarios por fecha
+                        const horariosPorFecha = new Map<string, any[]>()
+                        allHorarios.forEach((horario: any) => {
+                          if (horario.fecha) {
+                            if (!horariosPorFecha.has(horario.fecha)) {
+                              horariosPorFecha.set(horario.fecha, [])
+                            }
+                            horariosPorFecha.get(horario.fecha)!.push(horario)
+                          }
+                        })
+                        
+                        // Ordenar fechas
+                        const fechasOrdenadas = Array.from(horariosPorFecha.keys()).sort()
+                        
+                        return (
+                          <div key={tema.id || index} className="bg-gray-800/50 rounded-lg p-4">
+                            <h5 className="text-white font-medium mb-2">{tema.nombre || `Tema ${index + 1}`}</h5>
+                            {tema.descripcion && (
+                              <p className="text-gray-400 text-sm mb-3">{tema.descripcion}</p>
+                            )}
+                            {fechasOrdenadas.length > 0 ? (
+                              <div className="space-y-2">
+                                {fechasOrdenadas.map((fecha) => (
+                                  <div key={fecha} className="text-gray-300 text-sm">
+                                    <div className="flex items-center gap-2 mb-1">
+                                      <Calendar className="h-4 w-4 text-[#FF7939]" />
+                                      <span className="font-medium">{formatFecha(fecha)}</span>
+                                    </div>
+                                    <div className="ml-6 space-y-1">
+                                      {horariosPorFecha.get(fecha)!.map((horario: any, idx: number) => (
+                                        <div key={idx} className="flex items-center gap-2 text-gray-400">
+                                          <Clock className="h-3 w-3" />
+                                          <span>{horario.hora_inicio} - {horario.hora_fin}</span>
+                                        </div>
+                                      ))}
+                                    </div>
+                                  </div>
+                                ))}
+                              </div>
+                            ) : (
+                              <p className="text-gray-400 text-sm">No hay horarios disponibles</p>
+                            )}
+                          </div>
+                        )
+                      })}
+                    </div>
+                  ) : (
+                    <p className="text-gray-400 text-sm">No hay temas configurados para este taller</p>
+                  )}
+                </div>
+              )}
+
               {/* Comments Section */}
               <div className="border-t border-gray-800 pt-4">
                 <h4 className="text-white font-semibold mb-3">Comentarios</h4>
@@ -1358,7 +1666,7 @@ export default function ClientProductModal({
       <>
         {purchaseCompleted && (
           // Botón después de compra exitosa
-          <div className="fixed bottom-24 right-4 z-[9999] bg-green-600/20 border border-green-500/30 rounded-full px-4 py-2 mb-3">
+          <div className="fixed bottom-20 right-4 z-[9999] bg-green-600/20 border border-green-500/30 rounded-full px-4 py-2">
             <div className="flex items-center space-x-2">
               <div className="w-2 h-2 bg-green-500 rounded-full"></div>
               <span className="text-green-400 text-xs font-medium">
@@ -1368,11 +1676,11 @@ export default function ClientProductModal({
           </div>
         )}
         
-        {/* Botón flotante de compra con precio integrado - Movido más arriba para no tapar el menú */}
+        {/* Botón flotante de compra con precio integrado - A la misma altura que el círculo de navegación */}
         <button
           onClick={purchaseCompleted ? handleGoToActivity : handlePurchase}
           disabled={isProcessingPurchase}
-          className="fixed bottom-20 right-4 z-[9999] bg-[#FF7939] hover:bg-[#FF6B00] text-white rounded-full px-4 py-3 shadow-lg hover:shadow-xl transition-all duration-200 hover:scale-110 disabled:bg-gray-600 disabled:cursor-not-allowed flex items-center space-x-2"
+          className="fixed bottom-8 right-4 z-[9999] bg-[#FF7939] hover:bg-[#FF6B00] text-white rounded-full px-4 py-3 shadow-lg hover:shadow-xl transition-all duration-200 hover:scale-110 disabled:bg-gray-600 disabled:cursor-not-allowed flex items-center space-x-2"
         >
           {purchaseCompleted ? (
             <>

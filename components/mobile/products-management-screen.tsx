@@ -2,13 +2,17 @@
 
 import { useState, useEffect, useCallback, useMemo, memo, useRef } from "react"
 import { Button } from "@/components/ui/button"
-import { Plus, TrendingUp, Users, DollarSign, Package, Filter, ArrowUpDown, ArrowUp, ArrowDown, ChevronDown, Edit, Trash2, X, Coffee, Clock, Pencil } from "lucide-react"
+import { Textarea } from "@/components/ui/textarea"
+import { Plus, TrendingUp, Users, DollarSign, Package, Filter, ArrowUpDown, ArrowUp, ArrowDown, ChevronDown, Edit, Trash2, X, Coffee, MessageCircle, Video, Calendar, Clock, Flame } from "lucide-react"
 import { Badge } from "@/components/ui/badge"
+import { toast } from "sonner"
 import CreateProductModal from '@/components/shared/products/create-product-modal-refactored'
 import ActivityCard from '@/components/shared/activities/ActivityCard'
 import ClientProductModal from '@/components/client/activities/client-product-modal'
 import { API_ENDPOINTS } from '@/lib/config/api-config'
-import { useUser } from '@/contexts/user-context'
+import { useAuth } from '@/contexts/auth-context'
+import { StorageUsageWidget } from '@/components/coach/storage-usage-widget'
+import { CSVManagerEnhanced } from '@/components/shared/csv/csv-manager-enhanced'
 
 type Product = {
   id: number
@@ -68,25 +72,57 @@ interface ProductsManagementScreenProps {
 }
 
 export default function ProductsManagementScreen({ onTabChange }: ProductsManagementScreenProps = {}) {
-  const { user } = useUser()
+  const { user } = useAuth()
   const [isModalOpen, setIsModalOpen] = useState(false)
   const [editingProduct, setEditingProduct] = useState<Product | null>(null)
+  const [activeSubTab, setActiveSubTab] = useState<'fitness' | 'nutrition'>('fitness')
   const [selectedProduct, setSelectedProduct] = useState<Product | null>(null)
   const [isProductModalOpen, setIsProductModalOpen] = useState(false)
   const [products, setProducts] = useState<Product[]>([])
   const [loading, setLoading] = useState(true)
-  const [typeFilter, setTypeFilter] = useState<'todos' | 'fitness' | 'nutrition' | 'consultation' | 'workshop' | 'document' | 'program'>('todos')
+  const [typeFilter, setTypeFilter] = useState<'todos' | 'fitness' | 'nutrition' | 'workshop' | 'document' | 'program'>('todos')
   const [sortField, setSortField] = useState<SortField>('title')
   const [sortDirection, setSortDirection] = useState<SortDirection>('asc')
   const [showTypeDropdown, setShowTypeDropdown] = useState(false)
   
-  // Estado para consultas
-  const [consultations, setConsultations] = useState({
-    cafe: { active: false, price: 0 },
-    meet30: { active: false, price: 0 },
-    meet60: { active: false, price: 0 }
+  // Estado para tabs principales
+  const [activeMainTab, setActiveMainTab] = useState<'products' | 'exercises' | 'storage'>('products')
+  
+  // Estado para consulta de café
+  const [cafeConsultation, setCafeConsultation] = useState({
+    active: false,
+    price: 0
   })
-  const [isEditingPrices, setIsEditingPrices] = useState(false)
+  const [isEditingCafePrice, setIsEditingCafePrice] = useState(false)
+  const [isCafeModalOpen, setIsCafeModalOpen] = useState(false)
+  const [isTogglingCafe, setIsTogglingCafe] = useState(false)
+  const [cafeSalesCount, setCafeSalesCount] = useState(0) // Contador de ventas
+  const [cafeSales, setCafeSales] = useState<any[]>([]) // Lista de ventas
+  const [isMeetModalOpen, setIsMeetModalOpen] = useState(false)
+  const [selectedSaleForMeet, setSelectedSaleForMeet] = useState<any>(null)
+  const [meetSchedule, setMeetSchedule] = useState({
+    date: '',
+    time1: '',
+    time2: '',
+    meetingName: ''
+  })
+  const [coachPhone, setCoachPhone] = useState('') // Teléfono del coach
+  const [isWorkshopRestartModalOpen, setIsWorkshopRestartModalOpen] = useState(false)
+  const [workshopToRestart, setWorkshopToRestart] = useState<Product | null>(null)
+  const [showDateChangeNotice, setShowDateChangeNotice] = useState(false)
+  const [shouldOpenWorkshopSchedule, setShouldOpenWorkshopSchedule] = useState(false)
+  const [shouldShowDateChangeNoticeAfterStep5, setShouldShowDateChangeNoticeAfterStep5] = useState(false)
+  // Talleres para los que el coach ya completó la encuesta en esta sesión (clave: activity_id)
+  const [completedCoachSurveys, setCompletedCoachSurveys] = useState<Record<number, boolean>>({})
+  
+  // Estados para modal de encuesta en el detalle
+  const [showSurveyModalInDetail, setShowSurveyModalInDetail] = useState(false)
+  const [surveyModalProduct, setSurveyModalProduct] = useState<Product | null>(null)
+  const [surveyModalBlocking, setSurveyModalBlocking] = useState(false) // true = bloqueante (al editar), false = cerrable (al abrir detalle)
+  const [workshopRating, setWorkshopRating] = useState(0)
+  const [workshopFeedback, setWorkshopFeedback] = useState('')
+  const [isSubmittingSurvey, setIsSubmittingSurvey] = useState(false)
+  const [surveySubmitted, setSurveySubmitted] = useState(false)
   
   // Estado para modal de confirmación de eliminación
   const [deleteConfirmationOpen, setDeleteConfirmationOpen] = useState(false)
@@ -152,17 +188,34 @@ export default function ProductsManagementScreen({ onTabChange }: ProductsManage
     }
   }, []) // Sin dependencias para evitar loops
 
-  // Cargar consultas del coach desde Supabase - Memoizado
-  // NOTA: API eliminada - usando valores por defecto
-  const fetchConsultations = useCallback(async () => {
-    // API eliminada - usar valores por defecto
-    const defaultConsultations = {
-      cafe: { active: false, price: 0 },
-      meet30: { active: false, price: 0 },
-      meet60: { active: false, price: 0 }
+  // Cargar consulta de café del coach desde Supabase - Memoizado
+  const fetchCafeConsultation = useCallback(async () => {
+    if (!user?.id) {
+      setCafeConsultation({ active: false, price: 0 })
+      return
     }
-    setConsultations(defaultConsultations)
-  }, [])
+
+    try {
+      const response = await fetch('/api/coach/cafe')
+      if (response.ok) {
+        const result = await response.json()
+        if (result.success && result.cafe) {
+          setCafeConsultation({
+            active: result.cafe.enabled || false,
+            price: result.cafe.price || 0
+          })
+        } else {
+          setCafeConsultation({ active: false, price: 0 })
+        }
+      } else {
+        console.error('Error cargando café:', response.statusText)
+        setCafeConsultation({ active: false, price: 0 })
+      }
+    } catch (error) {
+      console.error('Error cargando café:', error)
+      setCafeConsultation({ active: false, price: 0 })
+    }
+  }, [user?.id])
 
   // Cargar/derivar estadísticas del coach a partir de los productos obtenidos
   const fetchStats = useCallback(async () => {
@@ -188,24 +241,24 @@ export default function ProductsManagementScreen({ onTabChange }: ProductsManage
     })
   }, [products])
 
-  // Guardar consultas del coach en Supabase
+  // Guardar consulta de café del coach en Supabase
   // NOTA: API eliminada - función deshabilitada
-  const saveConsultations = async () => {
+  const saveCafeConsultation = async () => {
     // API eliminada - no se puede guardar
     console.warn('⚠️ API de consultas eliminada - no se puede guardar')
   }
 
   // Usar refs para mantener referencias estables a las funciones
   const fetchProductsRef = useRef(fetchProducts)
-  const fetchConsultationsRef = useRef(fetchConsultations)
+  const fetchCafeConsultationRef = useRef(fetchCafeConsultation)
   const fetchStatsRef = useRef(fetchStats)
   
   // Actualizar refs cuando las funciones cambian
   useEffect(() => {
     fetchProductsRef.current = fetchProducts
-    fetchConsultationsRef.current = fetchConsultations
+    fetchCafeConsultationRef.current = fetchCafeConsultation
     fetchStatsRef.current = fetchStats
-  }, [fetchProducts, fetchConsultations, fetchStats])
+  }, [fetchProducts, fetchCafeConsultation, fetchStats])
   
   useEffect(() => {
     // Cargar datos de forma secuencial para evitar sobrecarga
@@ -214,7 +267,7 @@ export default function ProductsManagementScreen({ onTabChange }: ProductsManage
         // Esperar un poco para que la autenticación se complete
         await new Promise(resolve => setTimeout(resolve, 1000))
         await fetchProductsRef.current()
-        await fetchConsultationsRef.current()
+        await fetchCafeConsultationRef.current()
         await fetchStatsRef.current()
       } catch (error) {
         console.error('Error cargando datos iniciales:', error)
@@ -274,40 +327,200 @@ export default function ProductsManagementScreen({ onTabChange }: ProductsManage
     setIsModalOpen(true)
   }, [])
 
-  // Funciones para manejar consultas
-  // NOTA: API eliminada - solo actualiza estado local
-  const toggleConsultation = async (type: 'cafe' | 'meet30' | 'meet60') => {
-    const newConsultations = {
-      ...consultations,
-      [type]: {
-        ...consultations[type],
-        active: !consultations[type].active
-      }
+  // Funciones para manejar consulta de café
+  const toggleCafeConsultation = async () => {
+    if (isTogglingCafe) return // Evitar múltiples clics
+    
+    console.log('🔄 toggleCafeConsultation llamado', { userId: user?.id, currentState: cafeConsultation.active })
+    
+    if (!user?.id) {
+      console.error('❌ No hay usuario autenticado')
+      alert('No estás autenticado. Por favor, inicia sesión.')
+      return
     }
-    setConsultations(newConsultations)
-    // API eliminada - solo actualiza estado local, no se guarda en BD
+
+    setIsTogglingCafe(true)
+    const newActiveState = !cafeConsultation.active
+    console.log('🔄 Nuevo estado:', newActiveState)
+    
+    // Optimistic update
+    setCafeConsultation(prev => ({
+      ...prev,
+      active: newActiveState
+    }))
+
+    try {
+      console.log('📡 Enviando request a /api/coach/cafe', { enabled: newActiveState })
+      const response = await fetch('/api/coach/cafe', {
+        method: 'PUT',
+        headers: {
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({
+          enabled: newActiveState
+        })
+      })
+
+      console.log('📡 Respuesta recibida:', { ok: response.ok, status: response.status })
+
+      if (!response.ok) {
+        const error = await response.json()
+        console.error('❌ Error actualizando café:', error)
+        // Revertir cambio si falla
+        setCafeConsultation(prev => ({
+          ...prev,
+          active: !newActiveState
+        }))
+        alert(`Error al actualizar el estado del café: ${error.error || 'Error desconocido'}`)
+      } else {
+        const result = await response.json()
+        console.log('✅ Café actualizado exitosamente:', result)
+        // Actualizar con los datos del servidor para estar seguros
+        if (result.success && result.cafe) {
+          setCafeConsultation({
+            active: result.cafe.enabled || false,
+            price: result.cafe.price || cafeConsultation.price
+          })
+        }
+      }
+    } catch (error) {
+      console.error('❌ Error en catch:', error)
+      // Revertir cambio si falla
+      setCafeConsultation(prev => ({
+        ...prev,
+        active: !newActiveState
+      }))
+      alert(`Error al actualizar el estado del café: ${error instanceof Error ? error.message : 'Error desconocido'}`)
+    } finally {
+      setIsTogglingCafe(false)
+    }
   }
 
-  const updateConsultationPrice = async (type: 'cafe' | 'meet30' | 'meet60', price: number) => {
-    const newConsultations = {
-      ...consultations,
-      [type]: {
-        ...consultations[type],
+  const updateCafeConsultationPrice = async (price: number) => {
+    if (!user?.id) return
+
+    // Optimistic update
+    setCafeConsultation(prev => ({
+      ...prev,
         price: price
+    }))
+
+    try {
+      const response = await fetch('/api/coach/cafe', {
+        method: 'PUT',
+        headers: {
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({
+          price: price
+        })
+      })
+
+      if (!response.ok) {
+        // Revertir cambio si falla
+        const error = await response.json()
+        console.error('Error actualizando precio del café:', error)
+        alert('Error al actualizar el precio del café')
+      }
+    } catch (error) {
+      console.error('Error actualizando precio del café:', error)
+      alert('Error al actualizar el precio del café')
+    }
+  }
+
+  const handleEditCafe = () => {
+    // Abrir modal de edición para el café
+    // Por ahora solo permitimos editar el precio desde la card
+  }
+
+  // Función para manejar clic en WhatsApp
+  const handleWhatsAppClick = (sale: any) => {
+    if (coachPhone) {
+      const message = `Hola! Te contacto desde Omnia. ¿Podemos coordinar la consulta de café?`
+      const whatsappUrl = `https://wa.me/${coachPhone.replace(/\D/g, '')}?text=${encodeURIComponent(message)}`
+      window.open(whatsappUrl, '_blank')
+    } else {
+      alert('No se encontró el número de teléfono del coach')
+    }
+  }
+
+  // Función para manejar clic en Meet
+  const handleMeetClick = (sale: any) => {
+    setSelectedSaleForMeet(sale)
+    setIsMeetModalOpen(true)
+    setMeetSchedule({
+      date: '',
+      time1: '',
+      time2: '',
+      meetingName: `Consulta de Café con ${sale.userName || 'Cliente'}`
+    })
+  }
+
+  // Función para enviar Meet
+  const handleSendMeet = () => {
+    if (!meetSchedule.date || !meetSchedule.time1 || !meetSchedule.time2) {
+      alert('Por favor completa todos los campos')
+      return
+    }
+    // Aquí se enviaría la información al cliente
+    console.log('Enviando Meet:', {
+      sale: selectedSaleForMeet,
+      schedule: meetSchedule
+    })
+    // Por ahora solo cerramos el modal
+    setIsMeetModalOpen(false)
+    setSelectedSaleForMeet(null)
+    setMeetSchedule({ date: '', time1: '', time2: '', meetingName: '' })
+  }
+
+  // Cargar teléfono del coach y ventas de café
+  useEffect(() => {
+    const loadCafeData = async () => {
+      if (!user?.id || !isCafeModalOpen) return
+      
+      try {
+        // Cargar teléfono del coach desde el endpoint combinado
+        const coachResponse = await fetch(`/api/profile/combined`)
+        if (coachResponse.ok) {
+          const combinedData = await coachResponse.json()
+          // El endpoint devuelve { profile: { phone, ... } }
+          if (combinedData?.profile?.phone) {
+            setCoachPhone(combinedData.profile.phone)
+          }
+        }
+
+        // TODO: Cargar ventas de café desde API
+        // const salesResponse = await fetch(`/api/coach/cafe/sales`)
+        // if (salesResponse.ok) {
+        //   const salesData = await salesResponse.json()
+        //   setCafeSales(salesData.sales || [])
+        //   setCafeSalesCount(salesData.sales?.length || 0)
+        // }
+      } catch (error) {
+        console.error('Error cargando datos del café:', error)
       }
     }
-    setConsultations(newConsultations)
-    // API eliminada - solo actualiza estado local, no se guarda en BD
-  }
+
+    loadCafeData()
+  }, [user?.id, isCafeModalOpen])
 
   const handleCloseModal = useCallback(async () => {
-    setIsModalOpen(false)
     const editingProductId = editingProduct?.id
+    const wasEditingWorkshop = editingProduct?.type === 'workshop'
+    
+    setIsModalOpen(false)
     
     // Recargar productos para obtener los datos actualizados
     await fetchProducts()
     
     setEditingProduct(null)
+    setShouldOpenWorkshopSchedule(false)
+    setShouldShowDateChangeNoticeAfterStep5(false)
+    setShowDateChangeNotice(false)
+    
+    // IMPORTANTE: Si cerró sin guardar cambios, la encuesta ya completada NO debe aparecer de nuevo
+    // El estado de completedCoachSurveys se mantiene para evitar que aparezca la encuesta en la misma sesión
+    // La verificación en el backend también previene que aparezca (encuesta guardada con workshop_version)
     
     // Disparar evento de actualización después de un pequeño delay para que los productos se hayan recargado
     if (editingProductId) {
@@ -330,10 +543,105 @@ export default function ProductsManagementScreen({ onTabChange }: ProductsManage
     }
   }, [fetchProducts, editingProduct, selectedProduct, products])
 
-  const handlePreviewProduct = useCallback((product: Product) => {
+  // Mostrar el aviso después de 1 segundo cuando se abre el paso 5
+  useEffect(() => {
+    if (isModalOpen && shouldOpenWorkshopSchedule && shouldShowDateChangeNoticeAfterStep5 && editingProduct) {
+      const timer = setTimeout(() => {
+        setShowDateChangeNotice(true)
+      }, 1000) // Esperar 1 segundo después de abrir el paso 5
+
+      return () => {
+        clearTimeout(timer)
+      }
+    }
+  }, [isModalOpen, shouldOpenWorkshopSchedule, shouldShowDateChangeNoticeAfterStep5, editingProduct])
+
+  const handlePreviewProduct = useCallback(async (product: Product) => {
+    // Verificar si es un taller finalizado
+    const isWorkshopFinished = product.type === 'workshop' && 
+      ((product as any).is_finished === true || (product as any).taller_activo === false)
+    
+    console.log('🔍 handlePreviewProduct:', {
+      productId: product.id,
+      isWorkshopFinished,
+      is_finished: (product as any).is_finished,
+      taller_activo: (product as any).taller_activo,
+      hasCachedSurvey: completedCoachSurveys[product.id]
+    })
+    
+    if (isWorkshopFinished) {
+      // Si ya sabemos que la encuesta fue completada en esta sesión, no volver a mostrarla
+      if (completedCoachSurveys[product.id]) {
+        console.log('✅ Encuesta ya completada (caché), abriendo detalle sin encuesta')
+        setSelectedProduct(product)
+        setIsProductModalOpen(true)
+        // Asegurar que el modal de encuesta esté cerrado
+        setShowSurveyModalInDetail(false)
+        setSurveyModalProduct(null)
+        return
+      }
+
+      // Verificar si ya tiene encuesta completada
+      try {
+        console.log('🔍 Verificando encuesta en backend para producto:', product.id)
+        const response = await fetch(`/api/activities/${product.id}/check-coach-survey`)
+        const result = await response.json()
+        
+        console.log('📥 Respuesta de check-coach-survey:', result)
+        
+        if (!result.success) {
+          console.error('❌ Error en respuesta de check-coach-survey:', result.error)
+          // En caso de error, mostrar el detalle sin encuesta
+          setSelectedProduct(product)
+          setIsProductModalOpen(true)
+          setShowSurveyModalInDetail(false)
+          setSurveyModalProduct(null)
+          return
+        }
+        
+        if (!result.hasSurvey) {
+          console.log('⚠️ No tiene encuesta, mostrando encuesta cerrable')
+          // No tiene encuesta, mostrar el detalle PERO con el modal de encuesta (cerrable)
+          setSelectedProduct(product)
+          setIsProductModalOpen(true)
+          setSurveyModalProduct(product)
+          setSurveyModalBlocking(false) // Cerrable
+          setShowSurveyModalInDetail(true)
+          setSurveySubmitted(false)
+          setWorkshopRating(0)
+          setWorkshopFeedback('')
+          return
+        }
+
+        // Si el backend confirma que tiene encuesta, guardar en caché local y NO mostrar encuesta
+        console.log('✅ Encuesta ya completada (backend), guardando en caché y abriendo detalle sin encuesta')
+        setCompletedCoachSurveys((prev) => ({
+          ...prev,
+          [product.id]: true
+        }))
+        // Asegurar que el modal de encuesta esté cerrado
+        setShowSurveyModalInDetail(false)
+        setSurveyModalProduct(null)
+      } catch (error) {
+        console.error('❌ Error verificando encuesta:', error)
+        // En caso de error, mostrar el detalle sin encuesta
+        setSelectedProduct(product)
+        setIsProductModalOpen(true)
+        setShowSurveyModalInDetail(false)
+        setSurveyModalProduct(null)
+      }
+    }
+    
+    // Preview normal o taller con encuesta ya completada
+    console.log('📖 Abriendo detalle del producto (preview normal)')
     setSelectedProduct(product)
     setIsProductModalOpen(true)
-  }, [])
+    // Asegurar que el modal de encuesta esté cerrado si no es un taller finalizado
+    if (!isWorkshopFinished) {
+      setShowSurveyModalInDetail(false)
+      setSurveyModalProduct(null)
+    }
+  }, [completedCoachSurveys])
 
   // Función para convertir Product a Activity para ActivityCard - Memoizada
   const convertProductToActivity = useCallback((product: Product) => {
@@ -345,12 +653,12 @@ export default function ProductsManagementScreen({ onTabChange }: ProductsManage
                       product.media?.image_url || 
                       product.activity_media?.[0]?.image_url
       
-      if (imageUrl && !imageUrl.includes('via.placeholder.com')) {
+      if (imageUrl && !imageUrl.includes('via.placeholder.com') && !imageUrl.includes('placeholder.svg') && imageUrl.trim() !== '') {
         return imageUrl
       }
       
-      // Usar placeholder por defecto como en ActivityCard
-      return '/placeholder.svg?height=200&width=200&query=activity'
+      // Si no hay imagen real, devolver null para mostrar logo de Omnia
+      return null
     }
 
     return {
@@ -427,11 +735,64 @@ export default function ProductsManagementScreen({ onTabChange }: ProductsManage
   }, [])
 
   const handleEditProduct = useCallback(async (product: Product) => {
-    // Por ahora, usar los datos básicos del producto
-    // TODO: Implementar llamada al endpoint GET cuando se resuelva el problema de autenticación
-    setEditingProduct(product)
-    setIsModalOpen(true)
-  }, [])
+    // Verificar si es un taller finalizado
+    // Puede estar finalizado si: is_finished === true O taller_activo === false
+    const isWorkshopFinished = product.type === 'workshop' && 
+      ((product as any).is_finished === true || (product as any).taller_activo === false)
+    
+    if (isWorkshopFinished) {
+      // Si ya sabemos que la encuesta fue completada en esta sesión, permitir editar directamente
+      if (completedCoachSurveys[product.id]) {
+        // Ya tiene encuesta para esta versión, permitir editar directamente
+        setEditingProduct(product)
+        setIsModalOpen(true)
+        setShouldOpenWorkshopSchedule(false)
+        setShouldShowDateChangeNoticeAfterStep5(false)
+        return
+      }
+
+      // Verificar si ya tiene encuesta completada para la versión actual
+      try {
+        const response = await fetch(`/api/activities/${product.id}/check-coach-survey`)
+        const result = await response.json()
+        
+        if (result.hasSurvey) {
+          // Ya tiene encuesta para esta versión, permitir editar directamente
+          // Guardar en caché local para no depender solo del backend
+          setCompletedCoachSurveys((prev) => ({
+            ...prev,
+            [product.id]: true
+          }))
+          // Permitir editar directamente sin mostrar encuesta
+          setEditingProduct(product)
+          setIsModalOpen(true)
+          setShouldOpenWorkshopSchedule(false)
+          setShouldShowDateChangeNoticeAfterStep5(false)
+        } else {
+          // No tiene encuesta, mostrar modal de encuesta BLOQUEANTE (no se puede cerrar hasta completarla)
+          setSurveyModalProduct(product)
+          setSurveyModalBlocking(true) // Bloqueante
+          setShowSurveyModalInDetail(true)
+          setSurveySubmitted(false)
+          setWorkshopRating(0)
+          setWorkshopFeedback('')
+        }
+      } catch (error) {
+        console.error('Error verificando encuesta:', error)
+        // Por defecto, mostrar modal de encuesta bloqueante
+        setSurveyModalProduct(product)
+        setSurveyModalBlocking(true)
+        setShowSurveyModalInDetail(true)
+        setSurveySubmitted(false)
+      }
+    } else {
+      // Edición normal (taller no finalizado o no es taller)
+      setEditingProduct(product)
+      setIsModalOpen(true)
+      setShouldOpenWorkshopSchedule(false)
+      setShouldShowDateChangeNoticeAfterStep5(false)
+    }
+  }, [completedCoachSurveys])
 
   const handleDeleteProduct = useCallback(async (product: Product) => {
     setProductToDelete(product)
@@ -608,12 +969,6 @@ export default function ProductsManagementScreen({ onTabChange }: ProductsManage
         ? products.filter(p => p.type === 'nutrition').reduce((sum, p) => sum + p.price, 0) / products.filter(p => p.type === 'nutrition').length 
         : 0
     },
-    consultation: {
-      count: products.filter(p => p.type === 'consultation').length,
-      avgPrice: products.filter(p => p.type === 'consultation').length > 0 
-        ? products.filter(p => p.type === 'consultation').reduce((sum, p) => sum + p.price, 0) / products.filter(p => p.type === 'consultation').length 
-        : 0
-    },
     workshop: {
       count: products.filter(p => p.type === 'workshop').length,
       avgPrice: products.filter(p => p.type === 'workshop').length > 0 
@@ -632,7 +987,6 @@ export default function ProductsManagementScreen({ onTabChange }: ProductsManage
     switch (type) {
       case 'fitness': return 'bg-orange-500'
       case 'nutrition': return 'bg-green-500'
-      case 'consultation': return 'bg-blue-500'
       case 'workshop': return 'bg-purple-500'
       case 'document': return 'bg-violet-500'
       case 'program': return 'bg-indigo-500'
@@ -644,7 +998,6 @@ export default function ProductsManagementScreen({ onTabChange }: ProductsManage
     switch (type) {
       case 'fitness': return 'Fitness'
       case 'nutrition': return 'Nutrición'
-      case 'consultation': return 'Consulta'
       case 'workshop': return 'Taller'
       case 'document': return 'Documento'
       case 'program': return 'Programa'
@@ -681,172 +1034,57 @@ export default function ProductsManagementScreen({ onTabChange }: ProductsManage
 
       {/* Contenido principal */}
       <div>
-        {/* Header de productos */}
-        <div className="flex justify-between items-center mb-8">
-          <div>
-            <h2 className="text-3xl font-bold text-white mb-1">Mis Productos</h2>
-            <p className="text-gray-400 text-sm">Gestiona tus productos y servicios</p>
-          </div>
-          <Button
-            className="bg-[#FF7939] hover:bg-[#E66829] text-white px-6 py-3 rounded-xl font-medium shadow-lg hover:shadow-[#FF7939]/25 transition-all duration-200"
-            onClick={handleOpenModal}
-          >
-            <Plus className="h-5 w-5 mr-2" />
-            Crear
-          </Button>
-        </div>
-
-        {/* Estadísticas - Diseño minimalista */}
-        <div className="flex justify-between items-center mb-6">
-          <div className="flex items-center justify-between w-full space-x-2">
-            <div className="flex items-center space-x-1 flex-1">
-              <DollarSign className="h-4 w-4 text-[#FF7939] flex-shrink-0" />
-              <span className="text-gray-400 text-xs">Ingresos:</span>
-              <span className="text-white font-semibold text-sm">${totalRevenue.toFixed(0)}</span>
-            </div>
-            <div className="flex items-center space-x-1 flex-1">
-              <Package className="h-4 w-4 text-[#FF7939] flex-shrink-0" />
-              <span className="text-gray-400 text-xs">Productos:</span>
-              <span className="text-white font-semibold text-sm">{totalProducts}</span>
-            </div>
-            <div className="flex items-center space-x-1 flex-1">
-              <Users className="h-4 w-4 text-[#FF7939] flex-shrink-0" />
-              <span className="text-gray-400 text-xs">Rating:</span>
-              <span className="text-white font-semibold text-sm">{avgRating.toFixed(1)}</span>
-            </div>
-          </div>
-        </div>
-
-        {/* Consultas Disponibles */}
-        <div className="bg-[#0F0F0F] rounded-2xl border border-[#1A1A1A] p-4 mb-6">
-          <div className="flex items-center justify-between mb-4">
-            <h3 className="text-white font-semibold text-base">Consultas Disponibles</h3>
+        {/* Header con tabs */}
+          <div className="mt-8 mb-10">
+            {/* Tabs principales - Estilo sutil, menú centrado y botón Crear a la derecha */}
+            <div className="flex items-center justify-between mb-4 relative">
+              {/* Menú centrado absolutamente */}
+              <div className="absolute left-1/2 transform -translate-x-1/2 flex items-center gap-6">
             <button
-              onClick={() => setIsEditingPrices(!isEditingPrices)}
-              className={`p-2 rounded-lg transition-colors duration-200 ${
-                isEditingPrices 
-                  ? 'bg-[#FF7939] text-white' 
-                  : 'bg-gray-700/50 text-gray-400 hover:text-white hover:bg-gray-600/50'
+              onClick={() => setActiveMainTab('products')}
+                  className={`text-sm transition-all ${
+                activeMainTab === 'products'
+                      ? 'text-[#FF7939] font-medium'
+                      : 'text-gray-500 hover:text-gray-400'
               }`}
             >
-              <Pencil className="h-4 w-4" />
+                  Productos
             </button>
-          </div>
-          <div className="flex space-x-3">
-            {/* Café */}
-            <div className={`rounded-lg p-3 flex-1 flex flex-col items-center text-center transition-all duration-200 ${
-              consultations.cafe.active ? 'bg-[#FF7939]/10 border border-[#FF7939]/30' : 'bg-gray-800/20 border border-gray-700/30'
-            }`}>
-              <div className="flex items-center justify-between w-full mb-2">
-                <Coffee className={`w-5 h-5 ${consultations.cafe.active ? 'text-[#FF7939]' : 'text-gray-500'}`} />
-                <button
-                  onClick={() => toggleConsultation('cafe')}
-                  className={`w-8 h-4 rounded-full transition-colors duration-200 ${
-                    consultations.cafe.active ? 'bg-[#FF7939]' : 'bg-gray-600'
-                  }`}
-                >
-                  <div className={`w-3 h-3 bg-white rounded-full transition-transform duration-200 ${
-                    consultations.cafe.active ? 'translate-x-4' : 'translate-x-0.5'
-                  }`} />
-                </button>
+            <button
+              onClick={() => setActiveMainTab('exercises')}
+                  className={`text-sm transition-all ${
+                activeMainTab === 'exercises'
+                      ? 'text-[#FF7939] font-medium'
+                      : 'text-gray-500 hover:text-gray-400'
+              }`}
+            >
+                  Ejercicios/Platos
+            </button>
+            <button
+              onClick={() => setActiveMainTab('storage')}
+                  className={`text-sm transition-all ${
+                activeMainTab === 'storage'
+                      ? 'text-[#FF7939] font-medium'
+                      : 'text-gray-500 hover:text-gray-400'
+              }`}
+            >
+              Almacenamiento
+            </button>
               </div>
-              <p className="text-white font-medium text-sm mb-1">Café</p>
-              <p className="text-gray-400 text-xs mb-2">Consulta informal</p>
-              {!consultations.cafe.active && isEditingPrices ? (
-                <input
-                  type="number"
-                  value={consultations.cafe.price}
-                  onChange={(e) => updateConsultationPrice('cafe', parseInt(e.target.value) || 0)}
-                  className="w-full text-center bg-transparent border border-[#FF7939]/30 rounded px-2 py-1 text-[#FF7939] font-bold text-lg focus:outline-none focus:border-[#FF7939]"
-                  placeholder="0"
-                />
-              ) : (
-                <span className={`font-bold text-lg ${consultations.cafe.active ? 'text-[#FF7939]' : 'text-gray-500'}`}>
-                  ${consultations.cafe.price}
-                </span>
-              )}
-            </div>
-
-            {/* Meet 30 min */}
-            <div className={`rounded-lg p-3 flex-1 flex flex-col items-center text-center transition-all duration-200 ${
-              consultations.meet30.active ? 'bg-[#FF7939]/10 border border-[#FF7939]/30' : 'bg-gray-800/20 border border-gray-700/30'
-            }`}>
-              <div className="flex items-center justify-between w-full mb-2">
-                <Clock className={`w-5 h-5 ${consultations.meet30.active ? 'text-[#FF7939]' : 'text-gray-500'}`} />
-                <button
-                  onClick={() => toggleConsultation('meet30')}
-                  className={`w-8 h-4 rounded-full transition-colors duration-200 ${
-                    consultations.meet30.active ? 'bg-[#FF7939]' : 'bg-gray-600'
-                  }`}
-                >
-                  <div className={`w-3 h-3 bg-white rounded-full transition-transform duration-200 ${
-                    consultations.meet30.active ? 'translate-x-4' : 'translate-x-0.5'
-                  }`} />
-                </button>
-              </div>
-              <p className="text-white font-medium text-sm mb-1">Meet 30 min</p>
-              <p className="text-gray-400 text-xs mb-2">Consulta de 30 minutos</p>
-              {!consultations.meet30.active && isEditingPrices ? (
-                <input
-                  type="number"
-                  value={consultations.meet30.price}
-                  onChange={(e) => updateConsultationPrice('meet30', parseInt(e.target.value) || 0)}
-                  className="w-full text-center bg-transparent border border-[#FF7939]/30 rounded px-2 py-1 text-[#FF7939] font-bold text-lg focus:outline-none focus:border-[#FF7939]"
-                  placeholder="0"
-                />
-              ) : (
-                <span className={`font-bold text-lg ${consultations.meet30.active ? 'text-[#FF7939]' : 'text-gray-500'}`}>
-                  ${consultations.meet30.price}
-                </span>
-              )}
-            </div>
-
-            {/* Meet 1 hora */}
-            <div className={`rounded-lg p-3 flex-1 flex flex-col items-center text-center transition-all duration-200 ${
-              consultations.meet60.active ? 'bg-[#FF7939]/10 border border-[#FF7939]/30' : 'bg-gray-800/20 border border-gray-700/30'
-            }`}>
-              <div className="flex items-center justify-between w-full mb-2">
-                <Users className={`w-5 h-5 ${consultations.meet60.active ? 'text-[#FF7939]' : 'text-gray-500'}`} />
-                <button
-                  onClick={() => toggleConsultation('meet60')}
-                  className={`w-8 h-4 rounded-full transition-colors duration-200 ${
-                    consultations.meet60.active ? 'bg-[#FF7939]' : 'bg-gray-600'
-                  }`}
-                >
-                  <div className={`w-3 h-3 bg-white rounded-full transition-transform duration-200 ${
-                    consultations.meet60.active ? 'translate-x-4' : 'translate-x-0.5'
-                  }`} />
-                </button>
-              </div>
-              <p className="text-white font-medium text-sm mb-1">Meet 1 hora</p>
-              <p className="text-gray-400 text-xs mb-2">Consulta completa de 1 hora</p>
-              {!consultations.meet60.active && isEditingPrices ? (
-                <input
-                  type="number"
-                  value={consultations.meet60.price}
-                  onChange={(e) => updateConsultationPrice('meet60', parseInt(e.target.value) || 0)}
-                  className="w-full text-center bg-transparent border border-[#FF7939]/30 rounded px-2 py-1 text-[#FF7939] font-bold text-lg focus:outline-none focus:border-[#FF7939]"
-                  placeholder="0"
-                />
-              ) : (
-                <span className={`font-bold text-lg ${consultations.meet60.active ? 'text-[#FF7939]' : 'text-gray-500'}`}>
-                  ${consultations.meet60.price}
-                </span>
-              )}
-            </div>
           </div>
         </div>
 
+        {/* Contenido según tab activo */}
+        {activeMainTab === 'products' && (
+          <>
 
         {/* Tabla de productos con filtros integrados */}
         <div className="bg-[#0F0F0F] rounded-2xl border border-[#1A1A1A] overflow-hidden">
           {/* Header de tabla con filtros */}
           <div className="p-4 border-b border-[#1A1A1A]">
                           <div className="flex flex-col space-y-3">
-                  <div className="flex justify-between items-center">
-                    <h3 className="text-lg font-semibold text-white">Productos</h3>
-                
-                {/* Dropdown de categoría */}
+              <div className="flex items-center justify-between relative">
+                {/* Dropdown de categoría a la izquierda */}
                 <div className="relative">
                   <Button
                     variant="outline"
@@ -859,7 +1097,7 @@ export default function ProductsManagementScreen({ onTabChange }: ProductsManage
                   </Button>
                   
                   {showTypeDropdown && (
-                    <div className="absolute right-0 top-full mt-2 bg-[#0F0F0F] border border-[#1A1A1A] rounded-xl shadow-lg z-10 min-w-[150px]">
+                    <div className="absolute left-0 top-full mt-2 bg-[#0F0F0F] border border-[#1A1A1A] rounded-xl shadow-lg z-10 min-w-[150px]">
                       <div className="p-2">
                         <button
                           onClick={() => { setTypeFilter('todos'); setShowTypeDropdown(false); }}
@@ -885,18 +1123,50 @@ export default function ProductsManagementScreen({ onTabChange }: ProductsManage
                         >
                           Programa
                         </button>
-                        <button
-                          onClick={() => { setTypeFilter('consultation'); setShowTypeDropdown(false); }}
-                          className="w-full text-left px-3 py-2 rounded-lg hover:bg-[#1A1A1A] text-gray-400 hover:text-white transition-colors text-sm"
-                        >
-                          Consultas
-                        </button>
                       </div>
                     </div>
                   )}
                 </div>
-              </div>
-              
+                
+                {/* Icono de Café centrado y Botón Crear */}
+                {activeMainTab === 'products' && (
+                  <>
+                    {/* Icono de Café centrado */}
+                    <div className="absolute left-1/2 transform -translate-x-1/2">
+                        <button
+                        onClick={() => setIsCafeModalOpen(true)}
+                        className="relative w-10 h-10 rounded-full flex items-center justify-center bg-transparent border-2 transition-all duration-200 hover:bg-[#0A0A0A]/50"
+                        style={{
+                          borderColor: cafeConsultation.active ? '#FF7939' : '#4B5563'
+                        }}
+                      >
+                        <Coffee 
+                          className="h-5 w-5 transition-colors duration-200" 
+                          style={{
+                            color: cafeConsultation.active ? '#FF7939' : '#9CA3AF'
+                          }}
+                        />
+                        {cafeSalesCount > 0 && (
+                          <span className="absolute -top-1 -right-1 bg-[#FF7939] text-white text-xs font-bold rounded-full w-5 h-5 flex items-center justify-center">
+                            {cafeSalesCount > 9 ? '9+' : cafeSalesCount}
+                          </span>
+                        )}
+                        </button>
+                      </div>
+                    
+                    {/* Botón Crear a la derecha */}
+                    <div className="ml-auto">
+                      <Button
+                        className="bg-[#FF7939] hover:bg-[#E66829] text-white px-2.5 py-1 rounded-lg font-bold text-xs shadow-md hover:shadow-[#FF7939]/25 transition-all duration-200"
+                        onClick={handleOpenModal}
+                      >
+                        <Plus className="h-3 w-3 mr-1" />
+                        Crear
+                      </Button>
+                    </div>
+                  </>
+                  )}
+                </div>
             </div>
           </div>
           
@@ -915,6 +1185,7 @@ export default function ProductsManagementScreen({ onTabChange }: ProductsManage
                 ) : (
                   <div className="overflow-x-auto pb-2">
                     <div className="flex -space-x-4" style={{ minWidth: "min-content" }}>
+                      {/* Productos */}
                       {sortedProducts.map((product) => (
                         <ProductCard
                           key={product.id}
@@ -930,6 +1201,50 @@ export default function ProductsManagementScreen({ onTabChange }: ProductsManage
                 )}
           </div>
         </div>
+          </>
+        )}
+
+        {activeMainTab === 'exercises' && (
+          <>
+            {/* Sub-tabs: Fitness / Nutrición - Centrados y más separados */}
+            <div className="flex items-center justify-center gap-8 mb-6">
+              <button
+                onClick={() => setActiveSubTab('fitness')}
+                className={`text-base transition-all px-4 py-2 ${
+                  activeSubTab === 'fitness'
+                    ? 'text-[#FF7939] font-medium'
+                    : 'text-gray-500 hover:text-gray-400'
+                }`}
+              >
+                Fitness
+              </button>
+              <button
+                onClick={() => setActiveSubTab('nutrition')}
+                className={`text-base transition-all px-4 py-2 ${
+                  activeSubTab === 'nutrition'
+                    ? 'text-[#FF7939] font-medium'
+                    : 'text-gray-500 hover:text-gray-400'
+                }`}
+              >
+                Nutrición
+              </button>
+            </div>
+            <div key={activeSubTab}>
+              <CSVManagerEnhanced
+                activityId={0}
+                coachId={user?.id || ""}
+                productCategory={activeSubTab === 'fitness' ? 'fitness' : 'nutricion'}
+                onSuccess={() => {
+                  console.log('Ejercicios/platos actualizados exitosamente')
+                }}
+              />
+            </div>
+          </>
+        )}
+
+        {activeMainTab === 'storage' && (
+            <StorageUsageWidget />
+        )}
       </div>
 
       {/* Modal placeholder */}
@@ -938,14 +1253,65 @@ export default function ProductsManagementScreen({ onTabChange }: ProductsManage
           isOpen={isModalOpen}
           onClose={handleCloseModal}
           editingProduct={editingProduct}
+          initialStep={shouldOpenWorkshopSchedule ? 'workshopSchedule' : undefined}
+          showDateChangeNotice={shouldShowDateChangeNoticeAfterStep5}
         />
       )}
+
+      {/* Modal de confirmación para reiniciar taller - SOLO si ya tiene encuesta */}
+      {isWorkshopRestartModalOpen && workshopToRestart && (
+        <div className="fixed inset-0 bg-black/60 z-50 flex items-center justify-center p-4" onClick={() => setIsWorkshopRestartModalOpen(false)}>
+          <div className="bg-[#0A0A0A] rounded-2xl p-6 max-w-md w-full border border-[#1A1A1A] shadow-2xl" onClick={(e) => e.stopPropagation()}>
+            <div className="flex flex-col items-center text-center">
+              <h3 className="text-white font-semibold text-lg mb-4">Reiniciar taller con nuevas fechas</h3>
+              <p className="text-gray-400 text-sm mb-6">
+                Este taller ha finalizado. ¿Quieres reiniciarlo y agregar nuevas fechas?
+              </p>
+              <div className="flex gap-3 w-full">
+                <Button
+                  onClick={() => {
+                    setIsWorkshopRestartModalOpen(false)
+                    // Abrir el detalle de la actividad para poder editarla normalmente
+                    const workshop = workshopToRestart
+                    setWorkshopToRestart(null)
+                    setSelectedProduct(workshop)
+                    setIsProductModalOpen(true)
+                  }}
+                  className="flex-1 bg-gray-700 hover:bg-gray-600 text-white py-2 rounded-lg"
+                >
+                  Cancelar
+                </Button>
+                <Button
+                  onClick={() => {
+                    setIsWorkshopRestartModalOpen(false)
+                    // Abrir el modal de edición directamente en el paso 5
+                    const workshop = workshopToRestart
+                    setEditingProduct(workshop)
+                    setShouldOpenWorkshopSchedule(true)
+                    setShouldShowDateChangeNoticeAfterStep5(true)
+                    setIsModalOpen(true)
+                    setWorkshopToRestart(null)
+                  }}
+                  className="flex-1 bg-[#FF7939] hover:bg-[#E66829] text-white py-2 rounded-lg"
+                >
+                  Ir
+                </Button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
 
       {/* Product Modal - Usando el mismo modal que el cliente */}
       {selectedProduct && (
         <ClientProductModal
           isOpen={isProductModalOpen}
           onClose={async () => {
+            // Cerrar también el modal de encuesta si está abierto
+            setShowSurveyModalInDetail(false)
+            setSurveyModalProduct(null)
+            
             // Refrescar el producto desde la API antes de cerrar
             try {
               console.log('🔄 Refrescando producto al cerrar modal:', selectedProduct.id)
@@ -977,6 +1343,9 @@ export default function ProductsManagementScreen({ onTabChange }: ProductsManage
             
             setIsProductModalOpen(false)
             setSelectedProduct(null)
+            // Cerrar también el modal de encuesta si está abierto
+            setShowSurveyModalInDetail(false)
+            setSurveyModalProduct(null)
           }}
           product={{
             ...convertProductToActivity(selectedProduct),
@@ -984,14 +1353,309 @@ export default function ProductsManagementScreen({ onTabChange }: ProductsManage
           }}
           navigationContext={null}
           showEditButton={true}
-          onEdit={(product) => {
-            // console.log('🔍 Editando producto:', product)
-            setEditingProduct(selectedProduct)
-            setIsProductModalOpen(false)
-            setIsModalOpen(true)
+          onEdit={async () => {
+            // Desde el detalle, especialmente desde el aviso "Agregar nuevas fechas"
+            // Si es un taller finalizado con encuesta, abrir directamente en paso 5
+            if (selectedProduct) {
+              const isWorkshopFinished = selectedProduct.type === 'workshop' && 
+                ((selectedProduct as any).is_finished === true || (selectedProduct as any).taller_activo === false)
+              
+              if (isWorkshopFinished) {
+                // Verificar si tiene encuesta (primero en caché, luego en backend)
+                const hasSurveyInCache = completedCoachSurveys[selectedProduct.id]
+                
+                if (hasSurveyInCache) {
+                  // Ya tiene encuesta en caché, abrir directamente en paso 5 con aviso de cambio de fechas
+                  setEditingProduct(selectedProduct)
+                  setShouldOpenWorkshopSchedule(true)
+                  setShouldShowDateChangeNoticeAfterStep5(true)
+                  setIsProductModalOpen(false)
+                  setIsModalOpen(true)
+                  return
+                }
+                
+                // Si no está en caché, verificar en backend
+                try {
+                  const response = await fetch(`/api/activities/${selectedProduct.id}/check-coach-survey`)
+                  const result = await response.json()
+                  
+                  if (result.hasSurvey) {
+                    // Guardar en caché
+                    setCompletedCoachSurveys((prev) => ({
+                      ...prev,
+                      [selectedProduct.id]: true
+                    }))
+                    // Abrir directamente en paso 5 con aviso de cambio de fechas
+                    setEditingProduct(selectedProduct)
+                    setShouldOpenWorkshopSchedule(true)
+                    setShouldShowDateChangeNoticeAfterStep5(true)
+                    setIsProductModalOpen(false)
+                    setIsModalOpen(true)
+                    return
+                  }
+                } catch (error) {
+                  console.error('Error verificando encuesta:', error)
+                }
+              }
+              
+              // Para otros casos o si no tiene encuesta, usar la lógica normal de edición
+              handleEditProduct(selectedProduct)
+              setIsProductModalOpen(false)
+            }
           }}
           onDelete={handleDeleteProduct}
         />
+      )}
+
+      {/* Modal de encuesta del taller finalizado - Puede ser cerrable (al abrir detalle) o bloqueante (al editar) */}
+      {showSurveyModalInDetail && surveyModalProduct && (
+        <div 
+          className="fixed inset-0 bg-black/60 z-[100] flex items-center justify-center p-4"
+          onClick={() => {
+            // Solo permitir cerrar si NO es bloqueante
+            if (!surveyModalBlocking) {
+              setShowSurveyModalInDetail(false)
+              setSurveyModalProduct(null)
+            }
+          }}
+        >
+          <div 
+            className="bg-[#0A0A0A] rounded-2xl p-6 max-w-lg w-full border border-[#1A1A1A] shadow-2xl max-h-[90vh] overflow-y-auto"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="flex flex-col space-y-4">
+              {/* Header con botón de cerrar solo si no es bloqueante */}
+              <div className="flex items-center justify-between">
+                <h3 className="text-white font-semibold text-lg">Taller finalizado</h3>
+                {!surveyModalBlocking && (
+                  <button
+                    onClick={() => {
+                      setShowSurveyModalInDetail(false)
+                      setSurveyModalProduct(null)
+                    }}
+                    className="text-gray-400 hover:text-white transition-colors"
+                  >
+                    <X className="h-5 w-5" />
+                  </button>
+                )}
+              </div>
+              
+              {!surveySubmitted ? (
+                <>
+                  <p className="text-gray-400 text-sm mb-4">
+                    {surveyModalBlocking 
+                      ? "Para poder editar este taller, primero debes completar la encuesta."
+                      : "Este taller ha finalizado. Te recomendamos completar la encuesta para poder editarlo."}
+                  </p>
+                  
+                  {/* Encuesta del coach */}
+                  <div className="space-y-4 pt-4 border-t border-gray-800">
+                    <div>
+                      <label className="text-white text-sm font-medium mb-2 block">
+                        ¿Cómo estuvo el taller? (Puntuación)
+                      </label>
+                      <div className="flex gap-2">
+                        {[1, 2, 3, 4, 5].map((star) => (
+                          <button
+                            key={star}
+                            type="button"
+                            onClick={() => setWorkshopRating(star)}
+                            className={`w-10 h-10 rounded-lg transition-all ${
+                              star <= workshopRating
+                                ? 'bg-[#FF7939] text-white'
+                                : 'bg-gray-800 text-gray-400 hover:bg-gray-700'
+                            }`}
+                          >
+                            {star}
+                          </button>
+                        ))}
+                      </div>
+                      {workshopRating > 0 && (
+                        <p className="text-xs text-gray-500 mt-1">
+                          {workshopRating === 1 && 'Muy malo'}
+                          {workshopRating === 2 && 'Malo'}
+                          {workshopRating === 3 && 'Regular'}
+                          {workshopRating === 4 && 'Bueno'}
+                          {workshopRating === 5 && 'Excelente'}
+                        </p>
+                      )}
+                    </div>
+                    
+                    <div>
+                      <label className="text-white text-sm font-medium mb-2 block">
+                        Comentarios sobre el taller
+                      </label>
+                      <Textarea
+                        value={workshopFeedback}
+                        onChange={(e) => setWorkshopFeedback(e.target.value)}
+                        placeholder="Comparte tus comentarios sobre cómo estuvo el taller..."
+                        className="w-full bg-gray-900 border border-gray-700 rounded-lg px-3 py-2 text-white text-sm placeholder-gray-500 focus:outline-none focus:border-[#FF7939] resize-none"
+                        rows={4}
+                      />
+                    </div>
+                  </div>
+                  
+                  <div className="flex gap-3 pt-2">
+                    <Button
+                      onClick={async () => {
+                        if (!surveyModalProduct?.id) return
+                        
+                        setIsSubmittingSurvey(true)
+                        try {
+                          const response = await fetch(`/api/activities/${surveyModalProduct.id}/finish-workshop`, {
+                            method: 'POST',
+                            headers: { 'Content-Type': 'application/json' },
+                            body: JSON.stringify({
+                              is_finished: true,
+                              coach_rating: workshopRating || null,
+                              coach_feedback: workshopFeedback.trim() || null
+                            })
+                          })
+                          
+                          const result = await response.json()
+                          
+                          console.log('📤 Respuesta de finish-workshop:', result)
+                          
+                          if (result.success) {
+                            console.log('✅ Encuesta guardada exitosamente, versión:', result.version)
+                            toast.success('Encuesta enviada exitosamente')
+                            setSurveySubmitted(true)
+                            // Marcar encuesta como completada localmente para este taller
+                            // Esto es CRÍTICO: una vez completada, NO debe aparecer de nuevo para esta versión
+                            if (surveyModalProduct?.id) {
+                              setCompletedCoachSurveys((prev) => ({
+                                ...prev,
+                                [surveyModalProduct.id]: true
+                              }))
+                              console.log('✅ Encuesta marcada como completada localmente para taller:', surveyModalProduct.id, 'versión:', result.version)
+                            }
+                            // Recargar productos para actualizar el estado
+                            await fetchProducts()
+                          } else {
+                            console.error('❌ Error al enviar encuesta:', result.error)
+                            toast.error(result.error || 'Error al enviar la encuesta')
+                          }
+                        } catch (error) {
+                          console.error('Error enviando encuesta:', error)
+                          toast.error('Error al enviar la encuesta')
+                        } finally {
+                          setIsSubmittingSurvey(false)
+                        }
+                      }}
+                      disabled={isSubmittingSurvey || workshopRating === 0}
+                      className="flex-1 bg-[#FF7939] hover:bg-[#E66829] text-white py-2 rounded-lg disabled:opacity-50"
+                    >
+                      {isSubmittingSurvey ? 'Enviando...' : 'Enviar encuesta'}
+                    </Button>
+                    {!surveyModalBlocking && (
+                      <Button
+                        onClick={() => {
+                          setShowSurveyModalInDetail(false)
+                          setSurveyModalProduct(null)
+                        }}
+                        className="flex-1 bg-gray-700 hover:bg-gray-600 text-white py-2 rounded-lg"
+                      >
+                        Cerrar
+                      </Button>
+                    )}
+                  </div>
+                </>
+              ) : (
+                <>
+                  <div className="text-center">
+                    <div className="w-16 h-16 bg-green-500/20 rounded-full flex items-center justify-center mx-auto mb-4">
+                      <Flame className="w-8 h-8 text-green-400" />
+                    </div>
+                    <h3 className="text-white font-semibold text-lg mb-2">Encuesta enviada</h3>
+                    <p className="text-gray-400 text-sm mb-6">
+                      Tu encuesta ha sido guardada exitosamente. ¿Deseas reiniciar el taller con nuevas fechas?
+                    </p>
+                  </div>
+                  <div className="flex gap-3">
+                    <Button
+                      onClick={() => {
+                        const product = surveyModalProduct
+                        // Cerrar el modal de encuesta completamente
+                        setShowSurveyModalInDetail(false)
+                        setSurveyModalProduct(null)
+                        setSurveySubmitted(false)
+                        setWorkshopRating(0)
+                        setWorkshopFeedback('')
+                        // Si estaba bloqueante (desde editar), ahora puede editar normalmente
+                        // Pero solo si realmente quiere editar, no forzar el modal de reiniciar
+                        // El coach puede cerrar y luego editar cuando quiera
+                      }}
+                      className="flex-1 bg-gray-700 hover:bg-gray-600 text-white py-2 rounded-lg"
+                    >
+                      {surveyModalBlocking ? 'Continuar' : 'No, cerrar'}
+                    </Button>
+                    <Button
+                      onClick={async () => {
+                        const product = surveyModalProduct
+                        console.log('🔄 Clic en "Agregar nuevas fechas" para producto:', product?.id)
+                        
+                        if (!product) return
+                        
+                        // Cerrar primero el modal de encuesta completamente
+                        console.log('🔒 Cerrando modal de encuesta antes de abrir modal de edición')
+                        setShowSurveyModalInDetail(false)
+                        setSurveyModalProduct(null)
+                        setSurveySubmitted(false)
+                        setWorkshopRating(0)
+                        setWorkshopFeedback('')
+                        
+                        // Usar un pequeño delay para asegurar que el modal de encuesta se cierre primero
+                        await new Promise(resolve => setTimeout(resolve, 150))
+                        console.log('✅ Modal de encuesta cerrado, procediendo a abrir modal de edición')
+                        
+                        // Abrir modal de edición en paso 5
+                        // Primero refrescar el producto para asegurar que tiene la encuesta actualizada
+                        try {
+                          const response = await fetch(API_ENDPOINTS.PRODUCTS)
+                          if (response.ok) {
+                            const result = await response.json()
+                            if (result.success && result.products) {
+                              const refreshedProduct = result.products.find((p: Product) => p.id === product.id)
+                              if (refreshedProduct) {
+                                // Usar el producto refrescado que ya tiene la encuesta
+                                console.log('✅ Producto refrescado, abriendo modal en paso 5')
+                                // Establecer estados primero
+                                setEditingProduct(refreshedProduct)
+                                setShouldOpenWorkshopSchedule(true)
+                                setShouldShowDateChangeNoticeAfterStep5(true)
+                                // Abrir modal después de un pequeño delay para asegurar que el modal de encuesta se cerró
+                                setTimeout(() => {
+                                  console.log('🚀 Abriendo CreateProductModal con initialStep=workshopSchedule')
+                                  setIsModalOpen(true)
+                                }, 100)
+                                return
+                              }
+                            }
+                          }
+                        } catch (error) {
+                          console.error('❌ Error refrescando producto:', error)
+                        }
+                        // Fallback: usar el producto original
+                        console.log('⚠️ Usando producto original (fallback), abriendo modal en paso 5')
+                        setEditingProduct(product)
+                        setShouldOpenWorkshopSchedule(true)
+                        setShouldShowDateChangeNoticeAfterStep5(true)
+                        // Abrir modal después de un pequeño delay
+                        setTimeout(() => {
+                          console.log('🚀 Abriendo CreateProductModal con initialStep=workshopSchedule (fallback)')
+                          setIsModalOpen(true)
+                        }, 100)
+                      }}
+                      className="flex-1 bg-[#FF7939] hover:bg-[#E66829] text-white py-2 rounded-lg"
+                    >
+                      Agregar nuevas fechas
+                    </Button>
+                  </div>
+                </>
+              )}
+            </div>
+          </div>
+        </div>
       )}
 
       {/* Modal de confirmación de eliminación */}
@@ -1067,6 +1731,247 @@ export default function ProductsManagementScreen({ onTabChange }: ProductsManage
               >
                 Entendido
               </Button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Modal del Café */}
+      {isCafeModalOpen && (
+        <div className="fixed inset-0 bg-black/60 z-50 flex items-center justify-center p-4" onClick={() => setIsCafeModalOpen(false)}>
+          <div className="bg-[#0A0A0A] rounded-2xl p-5 max-w-md w-full border border-[#1A1A1A] shadow-2xl max-h-[90vh] overflow-y-auto" onClick={(e) => e.stopPropagation()}>
+            <div className="flex flex-col">
+              {/* Header compacto */}
+              <div className="flex items-center justify-between mb-4">
+                <div className="flex items-center gap-2">
+                  <div 
+                    className="w-10 h-10 rounded-full bg-transparent border-2 flex items-center justify-center transition-all duration-200"
+                    style={{
+                      borderColor: cafeConsultation.active ? '#FF7939' : '#4B5563'
+                    }}
+                  >
+                    <Coffee 
+                      className="w-5 h-5 transition-colors duration-200" 
+                      style={{
+                        color: cafeConsultation.active ? '#FF7939' : '#9CA3AF'
+                      }}
+                    />
+                  </div>
+                  <div>
+                    <h3 className="text-white font-semibold text-base">Café</h3>
+                    <p className="text-gray-400 text-xs">Consulta informal</p>
+                  </div>
+                </div>
+                <button
+                  onClick={() => setIsCafeModalOpen(false)}
+                  className="text-gray-400 hover:text-white transition-colors"
+                >
+                  <X className="h-5 w-5" />
+                </button>
+              </div>
+
+              {/* Controles: Activar/Desactivar y Precio */}
+              <div className="flex items-center justify-between gap-4 mb-6">
+                {/* Toggle de activación */}
+                <div className="flex items-center gap-2">
+                  <span className="text-white text-xs">Activar</span>
+                  <button
+                    onClick={(e) => {
+                      e.preventDefault()
+                      e.stopPropagation()
+                      console.log('🖱️ Click en toggle de café')
+                      toggleCafeConsultation()
+                    }}
+                    type="button"
+                    role="switch"
+                    aria-checked={cafeConsultation.active}
+                    disabled={isTogglingCafe}
+                    className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors duration-300 focus:outline-none focus:ring-2 focus:ring-[#FF7939] focus:ring-offset-2 focus:ring-offset-[#0A0A0A] ${
+                      cafeConsultation.active ? 'bg-[#FF7939]' : 'bg-gray-600'
+                    } ${isTogglingCafe ? 'opacity-50 cursor-not-allowed' : 'cursor-pointer'}`}
+                  >
+                    <span
+                      className={`inline-block h-5 w-5 transform rounded-full bg-white transition-transform duration-300 ease-in-out ${
+                        cafeConsultation.active ? 'translate-x-5' : 'translate-x-0.5'
+                      }`}
+                    />
+                  </button>
+                </div>
+
+                {/* Precio sin fondo y más grande */}
+                <div className="flex flex-col items-end gap-1">
+                  <button
+                    onClick={() => setIsEditingCafePrice(!isEditingCafePrice)}
+                    className="text-gray-400 hover:text-[#FF7939] transition-colors"
+                    title="Editar precio"
+                  >
+                    <Edit className="w-3 h-3" />
+                  </button>
+                  {isEditingCafePrice ? (
+                    <div className="flex items-center gap-1">
+                      <span className="text-gray-400 text-sm">$</span>
+                      <input
+                        type="number"
+                        value={cafeConsultation.price}
+                        onChange={(e) => {
+                          const newPrice = parseInt(e.target.value) || 0
+                          setCafeConsultation(prev => ({ ...prev, price: newPrice }))
+                        }}
+                        className="bg-transparent border-none text-[#FF7939] font-bold text-xl focus:outline-none w-20"
+                        placeholder="0"
+                        min="0"
+                        autoFocus
+                        onBlur={() => {
+                          updateCafeConsultationPrice(cafeConsultation.price)
+                          setIsEditingCafePrice(false)
+                        }}
+                        onKeyDown={(e) => {
+                          if (e.key === 'Enter') {
+                            updateCafeConsultationPrice(cafeConsultation.price)
+                            setIsEditingCafePrice(false)
+                          }
+                        }}
+                      />
+                    </div>
+                  ) : (
+                    <div className="flex items-center gap-1">
+                      <span className="text-gray-400 text-sm">$</span>
+                      <span className="text-[#FF7939] font-bold text-xl">{cafeConsultation.price}</span>
+                    </div>
+                  )}
+                </div>
+              </div>
+
+              {/* Estadísticas compactas sin frames */}
+              <div className="flex gap-6 mb-6">
+                <div className="flex items-center gap-2">
+                  <span className="text-gray-400 text-xs">Ventas</span>
+                  <span className="text-white font-semibold text-sm">{cafeSales.length}</span>
+                </div>
+                <div className="flex items-center gap-2">
+                  <span className="text-gray-400 text-xs">Ingresos</span>
+                  <span className="text-[#FF7939] font-semibold text-sm">
+                    ${cafeSales.reduce((sum, sale) => sum + (sale.price || cafeConsultation.price), 0)}
+                  </span>
+                </div>
+              </div>
+
+              {/* Ventas recientes sin frames */}
+              <div>
+                <h4 className="text-white font-medium text-sm mb-3">Ventas recientes</h4>
+                {cafeSales.length === 0 ? (
+                  <p className="text-gray-500 text-xs text-center py-8">No hay ventas aún</p>
+                ) : (
+                  <div className="space-y-3 max-h-[300px] overflow-y-auto">
+                    {cafeSales.map((sale, index) => (
+                      <div key={index} className="flex items-center justify-between py-2">
+                        <div className="flex-1">
+                          <p className="text-white font-medium text-sm">{sale.userName || 'Cliente'}</p>
+                          <p className="text-gray-400 text-xs">{new Date(sale.date).toLocaleDateString()}</p>
+                        </div>
+                        <div className="flex items-center gap-2">
+                          <button
+                            onClick={() => handleWhatsAppClick(sale)}
+                            className="p-2 hover:bg-green-500/10 rounded-lg transition-colors"
+                            title="WhatsApp"
+                          >
+                            <MessageCircle className="w-4 h-4 text-green-500" />
+                          </button>
+                          <button
+                            onClick={() => handleMeetClick(sale)}
+                            className="p-2 hover:bg-blue-500/10 rounded-lg transition-colors"
+                            title="Meet"
+                          >
+                            <Video className="w-4 h-4 text-blue-500" />
+                          </button>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Modal de Meet */}
+      {isMeetModalOpen && selectedSaleForMeet && (
+        <div className="fixed inset-0 bg-black/60 z-50 flex items-center justify-center p-4" onClick={() => setIsMeetModalOpen(false)}>
+          <div className="bg-[#0A0A0A] rounded-2xl p-5 max-w-md w-full border border-[#1A1A1A] shadow-2xl" onClick={(e) => e.stopPropagation()}>
+            <div className="flex flex-col">
+              <div className="flex items-center justify-between mb-4">
+                <h3 className="text-white font-semibold text-base">Programar Meet</h3>
+                <button
+                  onClick={() => setIsMeetModalOpen(false)}
+                  className="text-gray-400 hover:text-white transition-colors"
+                >
+                  <X className="h-5 w-5" />
+                </button>
+              </div>
+
+              <div className="space-y-4">
+                {/* Fecha */}
+                <div>
+                  <label className="text-gray-400 text-xs mb-2 block">Seleccionar fecha</label>
+                  <input
+                    type="date"
+                    value={meetSchedule.date}
+                    onChange={(e) => setMeetSchedule({...meetSchedule, date: e.target.value})}
+                    min={new Date().toISOString().split('T')[0]}
+                    className="w-full bg-[#1A1A1A] border border-[#1A1A1A] rounded-lg px-3 py-2 text-white text-sm focus:outline-none focus:border-[#FF7939]"
+                  />
+                </div>
+
+                {/* Horario 1 */}
+                <div>
+                  <label className="text-gray-400 text-xs mb-2 block">Horario 1</label>
+                  <input
+                    type="time"
+                    value={meetSchedule.time1}
+                    onChange={(e) => setMeetSchedule({...meetSchedule, time1: e.target.value})}
+                    className="w-full bg-[#1A1A1A] border border-[#1A1A1A] rounded-lg px-3 py-2 text-white text-sm focus:outline-none focus:border-[#FF7939]"
+                  />
+                </div>
+
+                {/* Horario 2 */}
+                <div>
+                  <label className="text-gray-400 text-xs mb-2 block">Horario 2</label>
+                  <input
+                    type="time"
+                    value={meetSchedule.time2}
+                    onChange={(e) => setMeetSchedule({...meetSchedule, time2: e.target.value})}
+                    className="w-full bg-[#1A1A1A] border border-[#1A1A1A] rounded-lg px-3 py-2 text-white text-sm focus:outline-none focus:border-[#FF7939]"
+                  />
+                </div>
+
+                {/* Nombre de la meet */}
+                <div>
+                  <label className="text-gray-400 text-xs mb-2 block">Nombre de la reunión</label>
+                  <input
+                    type="text"
+                    value={meetSchedule.meetingName}
+                    onChange={(e) => setMeetSchedule({...meetSchedule, meetingName: e.target.value})}
+                    placeholder="Ej: Consulta de Café con [Nombre]"
+                    className="w-full bg-[#1A1A1A] border border-[#1A1A1A] rounded-lg px-3 py-2 text-white text-sm focus:outline-none focus:border-[#FF7939]"
+                  />
+                </div>
+              </div>
+
+              <div className="flex gap-3 mt-6">
+                <Button
+                  onClick={() => setIsMeetModalOpen(false)}
+                  className="flex-1 bg-gray-700 hover:bg-gray-600 text-white py-2 rounded-lg text-sm"
+                >
+                  Cancelar
+                </Button>
+                <Button
+                  onClick={handleSendMeet}
+                  className="flex-1 bg-[#FF7939] hover:bg-[#E66829] text-white py-2 rounded-lg text-sm"
+                >
+                  Enviar
+                </Button>
+              </div>
             </div>
           </div>
         </div>

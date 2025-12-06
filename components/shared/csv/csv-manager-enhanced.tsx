@@ -85,6 +85,12 @@ export function CSVManagerEnhanced({
   const [existingCatalog, setExistingCatalog] = useState<any[]>([])
   const [selectedExisting, setSelectedExisting] = useState('')
   const [planLimits, setPlanLimits] = useState<{ planType?: string, activitiesLimit?: number } | null>(planLimitsProp)
+  // Estado para almacenar el uso de cada ejercicio/plato (solo en modo genérico)
+  const [exerciseUsage, setExerciseUsage] = useState<Record<number, { activities: Array<{ id: number; name: string }> }>>({})
+  // Mapa de actividades del coach (id -> name) para mostrar nombres en lugar de IDs
+  const [activityNamesMap, setActivityNamesMap] = useState<Record<number, string>>({})
+  // Mapa de imágenes de portada de actividades (id -> image_url)
+  const [activityImagesMap, setActivityImagesMap] = useState<Record<number, string | null>>({})
   const updateErrorState = useCallback((message: string | null, rows: string[] = []) => {
     setError(message)
     setInvalidRows(rows)
@@ -130,9 +136,11 @@ export function CSVManagerEnhanced({
     partes_cuerpo: '',
     calorias: '',
     comida: '',
+    tipo: '',
     proteinas: '',
     carbohidratos: '',
     grasas: '',
+    dificultad: 'Principiante',
     peso: '',
     receta: '',
     ingredientes: '',
@@ -153,6 +161,9 @@ export function CSVManagerEnhanced({
   const [seriesList, setSeriesList] = useState<Array<{peso:number, repeticiones:number, series:number}>>([])
   const [equipoList, setEquipoList] = useState<string[]>([])
   const [equipoInput, setEquipoInput] = useState('')
+  // Estado para pasos de receta (nutrición)
+  const [recipeSteps, setRecipeSteps] = useState<string[]>([])
+  const [recipeStepInput, setRecipeStepInput] = useState('')
   const topScrollRef = useRef<HTMLDivElement | null>(null)
   const bottomScrollRef = useRef<HTMLDivElement | null>(null)
   const topScrollbarInnerRef = useRef<HTMLDivElement | null>(null)
@@ -330,31 +341,327 @@ export function CSVManagerEnhanced({
   const mealTypes = ['Desayuno', 'Almuerzo', 'Cena', 'Snack', 'Colación']
   const nutritionCategories = ['Proteína', 'Carbohidrato', 'Grasa', 'Fibra', 'Vitaminas', 'Minerales']
   const fileInputRef = useRef<HTMLInputElement>(null)
+  const justDeletedRef = useRef<boolean>(false)
+  const hasUserInteractedRef = useRef<boolean>(false) // Flag para saber si el usuario ya interactuó con el paso 4
   const [currentPage, setCurrentPage] = useState(1)
   const itemsPerPage = 15
 
-  // Cargar datos existentes al montar el componente
+  // Recargar datos cuando cambia productCategory (modo genérico)
   useEffect(() => {
-    if (activityId && activityId > 0) {
-      loadExistingData()
+    if (activityId === 0) {
+      console.log('🔄 productCategory cambió a:', productCategory, '- Recargando datos')
+      // Limpiar datos actuales
+      setCsvData([])
+      setExistingData([])
+      setExerciseUsage({})
+      // Limpiar sessionStorage
+      try {
+        sessionStorage.removeItem(`activities_draft_${activityId}`)
+        sessionStorage.removeItem(`activities_draft_${activityId}_interacted`)
+      } catch (error) {
+        console.warn('⚠️ No se pudo limpiar sessionStorage:', error)
+      }
+      // Forzar recarga usando la función loadExistingData existente
+      // La llamaremos directamente aquí
+      setLoadingExisting(true)
+      
+      // Primero cargar las actividades del coach para tener el mapa de nombres
+      fetch(`/api/coach/activities?coachId=${coachId}`)
+        .then(activitiesResponse => {
+          if (activitiesResponse.ok) {
+            return activitiesResponse.json()
+          }
+          return null
+        })
+        .then((activitiesData: any) => {
+          if (Array.isArray(activitiesData)) {
+            const namesMap: Record<number, string> = {}
+            const imagesMap: Record<number, string | null> = {}
+            activitiesData.forEach((activity: any) => {
+              if (activity.id && activity.title) {
+                namesMap[activity.id] = activity.title
+                // Obtener la imagen de portada de la actividad
+                // La API formatea la respuesta y agrega: media: activity.activity_media?.[0] || null
+                // La imagen de portada está específicamente en activity.media?.image_url
+                let imageUrl: string | null = null
+                
+                // Prioridad 1: media?.image_url (formateado por la API)
+                if (activity.media?.image_url) {
+                  imageUrl = activity.media.image_url
+                }
+                // Prioridad 2: activity_media array directo (por si la API no formateó)
+                else if (activity.activity_media && Array.isArray(activity.activity_media) && activity.activity_media.length > 0) {
+                  imageUrl = activity.activity_media[0]?.image_url || null
+                }
+                
+                imagesMap[activity.id] = imageUrl
+              }
+            })
+            setActivityNamesMap(namesMap)
+            setActivityImagesMap(imagesMap)
+            console.log(`✅ Mapa de actividades cargado: ${Object.keys(namesMap).length} actividades con ${Object.keys(imagesMap).filter(k => imagesMap[parseInt(k)]).length} imágenes`)
+          }
+        })
+        .catch((err) => {
+          console.warn('⚠️ Error cargando actividades del coach:', err)
+        })
+      
+      const category = productCategory === 'nutricion' ? 'nutricion' : 'fitness'
+      // Para nutrición en modo genérico, no filtrar por active para mostrar todos los platos
+      const activeParam = productCategory === 'nutricion' ? '' : '&active=true'
+      fetch(`/api/coach/exercises?category=${category}${activeParam}`)
+        .then(response => {
+          if (!response.ok) {
+            throw new Error(`HTTP ${response.status}: ${response.statusText}`)
+          }
+          return response.json()
+        })
+        .then(catalogJson => {
+          if (catalogJson && catalogJson.success && Array.isArray(catalogJson.data)) {
+            const items = catalogJson.data
+            console.log(`✅ ${category === 'nutricion' ? 'Platos' : 'Ejercicios'} de catálogo cargados:`, items.length)
+            
+            // Transformar datos para nutrición específicamente
+            const transformed = productCategory === 'nutricion' 
+              ? items.map((item: any) => {
+                  // Manejar ingredientes
+                  let ingredientesValue = ''
+                  if (item.ingredientes !== undefined && item.ingredientes !== null && item.ingredientes !== '') {
+                    if (Array.isArray(item.ingredientes)) {
+                      ingredientesValue = item.ingredientes.join('; ')
+                    } else if (typeof item.ingredientes === 'string' && item.ingredientes.startsWith('[')) {
+                      try {
+                        const parsed = JSON.parse(item.ingredientes)
+                        if (Array.isArray(parsed)) {
+                          ingredientesValue = parsed.map((ing: any) => String(ing)).join('; ')
+                        } else {
+                          ingredientesValue = item.ingredientes
+                        }
+                      } catch {
+                        ingredientesValue = item.ingredientes
+                      }
+                    } else {
+                      ingredientesValue = String(item.ingredientes)
+                    }
+                  }
+                  
+                  return {
+                    ...item,
+                    'Nombre': item.nombre || item.nombre_plato || '',
+                    'Receta': item.receta || item.descripcion || '',
+                    'Calorías': item.calorias !== undefined && item.calorias !== null ? Number(item.calorias) : 0,
+                    'Proteínas (g)': item.proteinas !== undefined && item.proteinas !== null ? Number(item.proteinas) : 0,
+                    'Carbohidratos (g)': item.carbohidratos !== undefined && item.carbohidratos !== null ? Number(item.carbohidratos) : 0,
+                    'Grasas (g)': item.grasas !== undefined && item.grasas !== null ? Number(item.grasas) : 0,
+                    'Ingredientes': ingredientesValue,
+                    'Porciones': item.porciones !== undefined && item.porciones !== null && item.porciones !== '' ? item.porciones : '',
+                    'Minutos': item.minutos !== undefined && item.minutos !== null && item.minutos !== '' ? item.minutos : '',
+                    isExisting: true,
+                    is_active: item.is_active !== false,
+                    activo: item.is_active !== false,
+                    activity_id_new: item.activity_id_new || item.activity_id || null,
+                    activity_id: item.activity_id || null,
+                    nombre: item.nombre || item.nombre_plato || '',
+                    receta: item.receta || item.descripcion || '',
+                    calorias: item.calorias !== undefined && item.calorias !== null ? Number(item.calorias) : 0,
+                    proteinas: item.proteinas !== undefined && item.proteinas !== null ? Number(item.proteinas) : 0,
+                    carbohidratos: item.carbohidratos !== undefined && item.carbohidratos !== null ? Number(item.carbohidratos) : 0,
+                    grasas: item.grasas !== undefined && item.grasas !== null ? Number(item.grasas) : 0,
+                    ingredientes: ingredientesValue,
+                    porciones: item.porciones || '',
+                    minutos: item.minutos || ''
+                  }
+                })
+              : items.map((item: any) => ({
+                  ...item,
+                  'Nombre de la Actividad': item.nombre_ejercicio || item.nombre || '',
+                  isExisting: true,
+                  is_active: item.is_active !== false,
+                  activo: item.is_active !== false
+                }))
+            
+            console.log(`✅ ${category === 'nutricion' ? 'Platos' : 'Ejercicios'} transformados para tabla:`, transformed.length)
+            setExistingData(transformed)
+            setCsvData(transformed)
+            if (parentSetCsvData) {
+              parentSetCsvData(transformed)
+            }
+            
+            // Cargar uso de cada ejercicio/plato
+            if (transformed.length > 0) {
+              const usagePromises = transformed
+                .filter((item: any) => item.id && typeof item.id === 'number')
+                .map(async (item: any) => {
+                  try {
+                    const usageResponse = await fetch(`/api/coach/exercises/usage?exerciseId=${item.id}&category=${category}`)
+                    if (usageResponse.ok) {
+                      const usageData = await usageResponse.json()
+                      if (usageData.success) {
+                        return { exerciseId: item.id, usage: usageData }
+                      }
+                    }
+                  } catch (error) {
+                    console.error(`❌ Error cargando uso para ${category} ${item.id}:`, error)
+                  }
+                  return null
+                })
+              
+              Promise.all(usagePromises).then(usageResults => {
+                const usageMap: Record<number, { activities: Array<{ id: number; name: string }> }> = {}
+                usageResults.forEach((result) => {
+                  if (result) {
+                    usageMap[result.exerciseId] = {
+                      activities: result.usage.activities || []
+                    }
+                  }
+                })
+                setExerciseUsage(usageMap)
+                console.log(`✅ Uso cargado para ${Object.keys(usageMap).length} ${category === 'nutricion' ? 'platos' : 'ejercicios'}`)
+              })
+            }
+          } else {
+            console.error(`❌ No se pudieron cargar ${category === 'nutricion' ? 'platos' : 'ejercicios'}`)
+            setExistingData([])
+            setCsvData([])
+          }
+        })
+        .catch(error => {
+          console.error(`❌ Error cargando ${category}:`, error)
+          setExistingData([])
+          setCsvData([])
+        })
+        .finally(() => {
+          setLoadingExisting(false)
+        })
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [productCategory, activityId])
+
+  // Cargar datos existentes al montar el componente
+  // IMPORTANTE: Solo cargar si NO hay datos persistentes del padre
+  // Esto evita perder cambios cuando se navega entre pasos
+  useEffect(() => {
+    // Si acabamos de eliminar, no recargar los datos
+    if (justDeletedRef.current) {
+      console.log('🚫 Saltando recarga - acabamos de eliminar filas')
+      justDeletedRef.current = false
+      hasUserInteractedRef.current = true // Marcar que el usuario interactuó
+      return
+    }
+    
+    // ✅ PRIORIDAD 1: Si parentCsvData es undefined, SIEMPRE cargar desde backend
+    // Esto ocurre cuando se abre un producto para edición y se limpia el estado
+    if (parentCsvData === undefined) {
+      console.log('🔄 parentCsvData es undefined - forzando carga desde servidor (producto recién abierto)')
+      // Limpiar sessionStorage para asegurar que no haya datos obsoletos
+      try {
+        sessionStorage.removeItem(`activities_draft_${activityId}`)
+        sessionStorage.removeItem(`activities_draft_${activityId}_interacted`)
+        console.log('🧹 SessionStorage limpiado para forzar recarga desde backend')
+      } catch (error) {
+        console.warn('⚠️ No se pudo limpiar sessionStorage:', error)
+      }
+      hasUserInteractedRef.current = false // Resetear flag de interacción
+      // En modo genérico (activityId === 0) también cargar datos
+      if (activityId === 0 || (activityId && activityId > 0)) {
+        loadExistingData()
+      }
+      return
+    }
+    
+    // Verificar si el usuario ya interactuó con este paso (incluso si eliminó todo)
+    // En modo genérico (activityId === 0) no usar sessionStorage
+    const hasInteracted = activityId !== 0 ? sessionStorage.getItem(`activities_draft_${activityId}_interacted`) === 'true' : false
+    
+    // ✅ PRIORIDAD 2: Si hay datos persistentes del padre Y tiene contenido, NO recargar desde el servidor
+    if (parentCsvData && parentCsvData.length > 0) {
+      console.log('📦 Usando datos persistentes del padre, NO recargando desde servidor', {
+        parentDataLength: parentCsvData.length,
+        hasParentData: true
+      })
+      hasUserInteractedRef.current = true
+      setExistingData([])
+      return
+    }
+    
+    // ✅ PRIORIDAD 3: Si parentCsvData está definido pero vacío Y el usuario ya interactuó, NO recargar
+    // Esto significa que el usuario eliminó todas las filas intencionalmente
+    if (parentCsvData.length === 0) {
+      if (hasInteracted || hasUserInteractedRef.current) {
+        console.log('📦 parentCsvData está vacío PERO usuario ya interactuó - NO recargando (eliminaciones intencionales)')
+        hasUserInteractedRef.current = true
+        setExistingData([])
+        setCsvData([])
+        return
+      }
+      console.log('📦 parentCsvData está vacío y es primera vez - cargando desde servidor para mostrar platos existentes')
+    }
+
+    // Cargar borrador desde sessionStorage primero (puede contener eliminaciones)
+    // Solo si NO es undefined (ya manejado arriba) y NO es modo genérico (activityId !== 0)
+    if (activityId !== 0) {
+      try {
+        const saved = sessionStorage.getItem(`activities_draft_${activityId}`)
+        if (saved !== null) { // Verificar explícitamente que existe (incluso si es array vacío)
+          const parsed = JSON.parse(saved)
+          if (Array.isArray(parsed)) {
+            console.log('📦 Cargando datos desde sessionStorage (incluye eliminaciones):', parsed.length, 'filas')
+            hasUserInteractedRef.current = true
+            setCsvData(parsed)
+            // Si hay datos en sessionStorage, actualizar el padre para mantener consistencia
+            if (parentSetCsvData) {
+              parentSetCsvData(parsed)
+            }
+            setExistingData([])
+            return // No cargar desde servidor si hay datos en sessionStorage (incluso si está vacío)
+          }
+        }
+      } catch (error) {
+        console.error('❌ Error cargando desde sessionStorage:', error)
+      }
+    }
+
+    // ✅ PRIORIDAD 4: Cargar desde el servidor si no hay datos persistentes ni en sessionStorage
+    // En modo genérico (activityId === 0) siempre cargar si no hay datos
+    if (activityId === 0) {
+      // Modo genérico: siempre cargar si no hay datos del padre
+      if (parentCsvData.length === 0 && !hasInteracted && !hasUserInteractedRef.current) {
+        console.log('🔄 Modo genérico: parentCsvData vacío - cargando desde servidor')
+        loadExistingData()
+      } else if (parentCsvData.length > 0) {
+        console.log('📦 Modo genérico: Usando datos del padre, no recargando')
+        setExistingData([])
+      }
+    } else if (activityId && activityId > 0) {
+      // Si parentCsvData está vacío y no hay interacción previa, cargar
+      if (parentCsvData.length === 0 && !hasInteracted && !hasUserInteractedRef.current) {
+        console.log('🔄 parentCsvData vacío y primera vez - cargando desde servidor')
+        loadExistingData()
+      } 
+      // Si hay datos pero no hay interacción, también cargar para asegurar que estén actualizados
+      else if (parentCsvData.length > 0 && !hasInteracted && !hasUserInteractedRef.current) {
+        console.log('🔄 Hay datos pero es primera vez - verificando si hay más en servidor')
+        loadExistingData()
+      } else {
+        console.log('📦 Usando datos existentes, no recargando desde servidor')
+        setExistingData([])
+      }
     } else {
       setExistingData([])
     }
-    // Cargar borrador desde sessionStorage
-    try {
-      const saved = sessionStorage.getItem(`activities_draft_${activityId}`)
-      if (saved) {
-        const parsed = JSON.parse(saved)
-        if (Array.isArray(parsed)) setCsvData(parsed)
-      }
-    } catch {}
-  }, [activityId])
+  }, [activityId, parentCsvData])
 
   // Persistir borrador al cambiar
   useEffect(() => {
     try {
-      sessionStorage.setItem(`activities_draft_${activityId}`,(JSON.stringify(csvData)))
-    } catch {}
+      sessionStorage.setItem(`activities_draft_${activityId}`, JSON.stringify(csvData))
+      // Marcar que el usuario ya interactuó con este paso
+      sessionStorage.setItem(`activities_draft_${activityId}_interacted`, 'true')
+      hasUserInteractedRef.current = true
+      console.log('💾 Datos guardados en sessionStorage:', csvData.length, 'filas')
+    } catch (error) {
+      console.error('❌ Error guardando en sessionStorage:', error)
+    }
   }, [csvData, activityId])
 
   useEffect(() => {
@@ -386,23 +693,78 @@ export function CSVManagerEnhanced({
   }, [planLimitsProp])
 
   useEffect(() => {
-    if (!parentCsvData) {
-      setCsvData([])
-      setExistingData([])
-      console.log('🔄 CSVManagerEnhanced - Estado sincronizado desde padre (csvData vaciado)')
-      if (typeof window !== 'undefined') {
-        ;(window as any).__CSV_MANAGER_PARENT__ = []
+    // Si acabamos de eliminar, no sincronizar para evitar recargas
+    if (justDeletedRef.current) {
+      console.log('🚫 Saltando sincronización con parentCsvData - acabamos de eliminar')
+      return
+    }
+    
+    // Verificar si hay datos en sessionStorage que tienen prioridad
+    try {
+      const saved = sessionStorage.getItem(`activities_draft_${activityId}`)
+      if (saved !== null) {
+        const parsed = JSON.parse(saved)
+        if (Array.isArray(parsed)) {
+          // Si sessionStorage tiene datos, usarlos en lugar de parentCsvData
+          // Esto asegura que las eliminaciones persistan
+          const currentLocalData = csvData
+          const savedData = parsed
+          
+          // Solo sincronizar si los datos guardados son diferentes a los locales
+          // Esto evita loops infinitos
+          if (JSON.stringify(currentLocalData) !== JSON.stringify(savedData)) {
+            console.log('📦 Sincronizando desde sessionStorage (prioridad sobre parentCsvData):', savedData.length, 'filas')
+            setCsvData(savedData)
+            if (parentSetCsvData) {
+              parentSetCsvData(savedData)
+            }
+            return
+          }
+        }
+      }
+    } catch (error) {
+      console.error('❌ Error verificando sessionStorage en sincronización:', error)
+    }
+    
+    // Si parentCsvData es undefined, no hacer nada (esperar a que se carguen los datos)
+    // PERO no limpiar existingData ni csvData si ya tienen datos cargados
+    if (parentCsvData === undefined) {
+      console.log('⏳ parentCsvData es undefined - esperando carga de datos, manteniendo datos locales si existen')
+      // Si ya tenemos datos en existingData o csvData, mantenerlos
+      if (existingData.length > 0 || csvData.length > 0) {
+        console.log('📦 Manteniendo datos locales mientras se carga parentCsvData:', {
+          existingData: existingData.length,
+          csvData: csvData.length
+        })
+      }
+      return
+    }
+    
+    // Si parentCsvData está definido pero vacío, solo limpiar si no hay datos locales
+    if (parentCsvData && parentCsvData.length === 0) {
+      // Solo limpiar si realmente no hay datos (no si están cargando o si hay datos locales)
+      if (!loadingExisting && existingData.length === 0 && csvData.length === 0) {
+        setCsvData([])
+        setExistingData([])
+        console.log('🔄 CSVManagerEnhanced - Estado sincronizado desde padre (csvData vaciado)')
+        if (typeof window !== 'undefined') {
+          ;(window as any).__CSV_MANAGER_PARENT__ = []
+        }
+      } else {
+        console.log('📦 parentCsvData vacío pero hay datos locales - manteniendo datos locales')
       }
       return
     }
 
+    // IMPORTANTE: Usar los datos persistentes del padre directamente
+    // Estos datos ya contienen todos los cambios del usuario (eliminaciones, agregados, etc.)
     setCsvData(parentCsvData as any)
     if (typeof window !== 'undefined') {
       ;(window as any).__CSV_MANAGER_PARENT__ = parentCsvData
     }
 
     console.log(
-      '🧾 CSVManagerEnhanced - parentCsvData recibido',
+      '🧾 CSVManagerEnhanced - parentCsvData recibido (datos persistentes con cambios del usuario)',
       (parentCsvData as any[])
         ?.slice(0, 3)
         .map((row, idx) => ({
@@ -419,6 +781,9 @@ export function CSVManagerEnhanced({
         })) ?? []
     )
 
+    // Actualizar existingData para reflejar solo los items que están en parentCsvData
+    // PERO solo si parentCsvData tiene menos items que existingData (indicando eliminaciones)
+    // Si parentCsvData tiene los mismos o más items, mantener existingData intacto
     const idsInParent = new Set(
       parentCsvData
         .map((row: any) => row?.id)
@@ -427,63 +792,445 @@ export function CSVManagerEnhanced({
     )
 
     setExistingData(prev => {
-      if (idsInParent.size === 0) {
+      // Si existingData está vacío pero parentCsvData tiene datos con isExisting,
+      // restaurar existingData desde parentCsvData
+      if (prev.length === 0 && parentCsvData.length > 0) {
+        const existingItems = parentCsvData.filter((row: any) => row?.isExisting === true)
+        if (existingItems.length > 0) {
+          console.log('🔄 Restaurando existingData desde parentCsvData:', existingItems.length, 'items')
+          return existingItems
+        }
+      }
+      
+      // Si no hay IDs en parent, solo limpiar si realmente no hay datos
+      if (idsInParent.size === 0 && parentCsvData.length === 0) {
         return []
       }
-      return prev.filter(item => {
-        const id = (item as any)?.id
-        if (id === undefined || id === null) {
-          return false
-        }
-        return idsInParent.has(String(id))
-      })
+      
+      // Si parentCsvData tiene menos items que existingData, filtrar
+      // Esto indica que se eliminaron items
+      if (idsInParent.size < prev.length) {
+        console.log('🔄 Filtrando existingData (eliminaciones detectadas):', {
+          antes: prev.length,
+          despues: idsInParent.size
+        })
+        return prev.filter(item => {
+          const id = (item as any)?.id
+          if (id === undefined || id === null) {
+            return false
+          }
+          return idsInParent.has(String(id))
+        })
+      }
+      
+      // Si parentCsvData tiene los mismos o más items, mantener existingData
+      // Esto evita limpiar datos que ya están cargados
+      return prev
     })
 
-    console.log('🔄 CSVManagerEnhanced - Estado actual sincronizado desde padre (csvData)', parentCsvData.length)
-  }, [parentCsvData])
+    console.log('🔄 CSVManagerEnhanced - Estado actual sincronizado desde padre (csvData)', {
+      filas: parentCsvData.length,
+      primeros3: parentCsvData.slice(0, 3).map((row: any) => ({
+        id: row.id,
+        tempId: row.tempId,
+        nombre: row['Nombre'] || row.nombre || row.nombre_plato,
+        isExisting: row.isExisting,
+        is_active: row.is_active,
+        activo: row.activo
+      }))
+    })
+  }, [parentCsvData, activityId, loadingExisting])
 
   const loadExistingData = async () => {
-    if (!activityId || activityId <= 0) {
-      console.log('🚫 No cargando datos existentes - activityId inválido:', activityId)
+    // Modo genérico: activityId = 0 significa cargar todos los ejercicios/platos del coach
+    if (activityId === 0) {
+      console.log('🔄 Modo genérico: Cargando todos los ejercicios/platos del coach')
+      setLoadingExisting(true)
+      try {
+        // Primero cargar las actividades del coach para tener el mapa de nombres
+        try {
+          const activitiesResponse = await fetch(`/api/coach/activities?coachId=${coachId}`)
+          if (activitiesResponse.ok) {
+            const activitiesData = await activitiesResponse.json()
+            if (Array.isArray(activitiesData)) {
+              const namesMap: Record<number, string> = {}
+              const imagesMap: Record<number, string | null> = {}
+              activitiesData.forEach((activity: any) => {
+                if (activity.id && activity.title) {
+                  namesMap[activity.id] = activity.title
+                  // Obtener la imagen de portada de la actividad
+                  // La API formatea la respuesta y agrega: media: activity.activity_media?.[0] || null
+                  // La imagen de portada está específicamente en activity.media?.image_url
+                  let imageUrl: string | null = null
+                  
+                  // Prioridad 1: media?.image_url (formateado por la API)
+                  if (activity.media?.image_url) {
+                    imageUrl = activity.media.image_url
+                  }
+                  // Prioridad 2: activity_media array directo (por si la API no formateó)
+                  else if (activity.activity_media && Array.isArray(activity.activity_media) && activity.activity_media.length > 0) {
+                    imageUrl = activity.activity_media[0]?.image_url || null
+                  }
+                  
+                  imagesMap[activity.id] = imageUrl
+                }
+              })
+              setActivityNamesMap(namesMap)
+              setActivityImagesMap(imagesMap)
+              console.log(`✅ Mapa de actividades cargado: ${Object.keys(namesMap).length} actividades con ${Object.keys(imagesMap).filter(k => imagesMap[parseInt(k)]).length} imágenes`)
+            }
+          }
+        } catch (err) {
+          console.warn('⚠️ Error cargando actividades del coach:', err)
+        }
+        
+        const category = productCategory === 'nutricion' ? 'nutricion' : 'fitness'
+        // Para nutrición en modo genérico, no filtrar por active para mostrar todos los platos
+        // Para fitness, mantener el filtro de active=true
+        const activeParam = productCategory === 'nutricion' ? '' : '&active=true'
+        const catalogResponse = await fetch(`/api/coach/exercises?category=${category}${activeParam}`)
+        console.log('📡 Respuesta catálogo genérico:', {
+          endpoint: `/api/coach/exercises?category=${category}`,
+          status: catalogResponse.status
+        })
+        if (!catalogResponse.ok) {
+          const errorText = await catalogResponse.text().catch(() => 'Error desconocido')
+          console.error('❌ Error HTTP en catálogo genérico:', {
+            status: catalogResponse.status,
+            statusText: catalogResponse.statusText,
+            error: errorText
+          })
+          setLoadingExisting(false)
+          return
+        }
+
+        const catalogJson = await catalogResponse.json().catch((err) => {
+          console.error('❌ Error parseando JSON de catálogo genérico:', err)
+          setLoadingExisting(false)
+          return
+        })
+
+        if (catalogJson && catalogJson.success && Array.isArray(catalogJson.data)) {
+          const items = catalogJson.data
+          console.log(`✅ ${category === 'nutricion' ? 'Platos' : 'Ejercicios'} de catálogo cargados:`, items.length)
+
+          // Transformar datos según la categoría
+          const transformed = category === 'nutricion'
+            ? items.map((item: any) => {
+                // Manejar ingredientes: puede ser JSONB (array), string separado por ;, o string simple
+                let ingredientesValue = ''
+                if (item.ingredientes !== undefined && item.ingredientes !== null && item.ingredientes !== '') {
+                  if (Array.isArray(item.ingredientes)) {
+                    ingredientesValue = item.ingredientes.join('; ')
+                  } else if (typeof item.ingredientes === 'string' && item.ingredientes.trim().startsWith('[')) {
+                    try {
+                      const parsed = JSON.parse(item.ingredientes)
+                      if (Array.isArray(parsed)) {
+                        ingredientesValue = parsed.map((ing: any) => String(ing)).join('; ')
+                      } else {
+                        ingredientesValue = item.ingredientes
+                      }
+                    } catch {
+                      ingredientesValue = item.ingredientes
+                    }
+                  } else {
+                    ingredientesValue = String(item.ingredientes)
+                  }
+                }
+                
+                // Función auxiliar para obtener número o 0
+                const getNumberValue = (value: any) => {
+                  if (value !== undefined && value !== null && value !== '' && value !== 'null') {
+                    const num = Number(value)
+                    return isNaN(num) ? 0 : num
+                  }
+                  return 0
+                }
+                
+                // Función auxiliar para obtener string o ''
+                const getStringValue = (value: any) => {
+                  if (value !== undefined && value !== null && value !== '' && value !== 'null') {
+                    return String(value)
+                  }
+                  return ''
+                }
+                
+                return {
+                  ...item,
+                  'Nombre': item.nombre || item.nombre_plato || '',
+                  'Nombre de la Actividad': item.nombre || item.nombre_plato || '',
+                  tipo: item.tipo || '',
+                  'Receta': getStringValue(item.receta || item.descripcion),
+                  'Calorías': getNumberValue(item.calorias),
+                  'Proteínas (g)': getNumberValue(item.proteinas),
+                  'Carbohidratos (g)': getNumberValue(item.carbohidratos),
+                  'Grasas (g)': getNumberValue(item.grasas),
+                  'Ingredientes': ingredientesValue,
+                  'Porciones': getStringValue(item.porciones),
+                  'Minutos': getStringValue(item.minutos),
+                  'Descripción': getStringValue(item.descripcion || item.receta),
+                  isExisting: true,
+                  is_active: item.is_active !== false,
+                  activo: item.is_active !== false,
+                  activity_id_new: item.activity_id_new || item.activity_id || null,
+                  activity_id: item.activity_id || null,
+                  // Mantener campos en minúsculas para compatibilidad
+                  nombre: item.nombre || item.nombre_plato || '',
+                  receta: getStringValue(item.receta || item.descripcion),
+                  calorias: getNumberValue(item.calorias),
+                  proteinas: getNumberValue(item.proteinas),
+                  carbohidratos: getNumberValue(item.carbohidratos),
+                  grasas: getNumberValue(item.grasas),
+                  ingredientes: ingredientesValue,
+                  porciones: getStringValue(item.porciones),
+                  minutos: getStringValue(item.minutos)
+                }
+              })
+            : items.map((item: any) => ({
+                ...item,
+                // Agregar campos para compatibilidad con CSV
+                'Nombre': item.nombre || item.nombre_ejercicio || item.nombre_plato || '',
+                'Nombre de la Actividad': item.nombre || item.nombre_ejercicio || item.nombre_plato || '',
+                tipo: item.tipo || '',
+                'Receta': item.receta || item.descripcion || '',
+                'Calorías': item.calorias || 0,
+                'Proteínas (g)': item.proteinas || 0,
+                'Carbohidratos (g)': item.carbohidratos || 0,
+                'Grasas (g)': item.grasas || 0,
+                'Ingredientes': item.ingredientes || '',
+                'Porciones': item.porciones || '',
+                'Minutos': item.minutos || 0,
+                'Descripción': item.descripcion || item.receta || '',
+                // Campos de fitness
+                'Duración (min)': item.duracion_min || 0,
+                'Tipo de Ejercicio': item.tipo || '',
+                'Equipo Necesario': item.equipo || '',
+                'Detalle de Series (peso-repeticiones-series)': item.detalle_series || '',
+                'Partes del Cuerpo': item.body_parts || '',
+                'Nivel de Intensidad': item.intensidad || '',
+                isExisting: true,
+                is_active: item.is_active !== false,
+                activo: item.is_active !== false,
+                // Preservar activity_id_new para la columna Estado
+                activity_id_new: item.activity_id_new || item.activity_id || null,
+                activity_id: item.activity_id || null
+              }))
+
+          console.log(`✅ ${category === 'nutricion' ? 'Platos' : 'Ejercicios'} de catálogo transformados para tabla:`, transformed.length)
+          setExistingData(transformed)
+          setCsvData(transformed)
+          if (parentSetCsvData) {
+            console.log(`📤 Enviando ${category === 'nutricion' ? 'platos' : 'ejercicios'} de catálogo al padre:`, transformed.length)
+            parentSetCsvData(transformed)
+          }
+
+          // Cargar uso de cada ejercicio/plato (solo en modo genérico)
+          const usagePromises = transformed
+            .filter((item: any) => item.id && typeof item.id === 'number')
+            .map(async (item: any) => {
+              try {
+                const usageResponse = await fetch(`/api/coach/exercises/usage?exerciseId=${item.id}&category=${category}`)
+                if (usageResponse.ok) {
+                  const usageData = await usageResponse.json()
+                  if (usageData.success) {
+                    return { exerciseId: item.id, usage: usageData }
+                  }
+                }
+              } catch (error) {
+                console.error(`❌ Error cargando uso para ejercicio ${item.id}:`, error)
+              }
+              return null
+            })
+
+          const usageResults = await Promise.all(usagePromises)
+          const usageMap: Record<number, { activities: Array<{ id: number; name: string }> }> = {}
+          usageResults.forEach((result) => {
+            if (result) {
+              usageMap[result.exerciseId] = {
+                activities: result.usage.activities || []
+              }
+            }
+          })
+          setExerciseUsage(usageMap)
+          console.log(`✅ Uso cargado para ${Object.keys(usageMap).length} ${category === 'nutricion' ? 'platos' : 'ejercicios'}`)
+        } else {
+          const errorMessage = catalogJson?.error || `Error ${catalogResponse.status}: ${catalogResponse.statusText}`
+          console.error(`❌ No se pudieron cargar ${category === 'nutricion' ? 'platos' : 'ejercicios'} de catálogo:`, {
+            status: catalogResponse.status,
+            statusText: catalogResponse.statusText,
+            error: errorMessage,
+            catalogJson
+          })
+          updateErrorState(`Error al cargar ${category === 'nutricion' ? 'platos' : 'ejercicios'}: ${errorMessage}`)
+        }
+      } catch (error) {
+        console.error('❌ Error cargando platos de catálogo nutrición:', error)
+      } finally {
+        setLoadingExisting(false)
+      }
       return
     }
-    console.log('🔄 Cargando datos existentes para activityId:', activityId)
+
+    if (!activityId || activityId <= 0) {
+      console.log('🚫 No cargando datos existentes - activityId inválido y categoría no es nutrición:', {
+        activityId,
+        productCategory
+      })
+      return
+    }
+    
+    // NO cargar si ya tenemos datos persistentes del padre
+    // Esto previene sobrescribir cambios del usuario cuando navega entre pasos
+    if (parentCsvData && parentCsvData.length > 0) {
+      console.log('📦 Saltando carga desde servidor - usando datos persistentes del padre (', parentCsvData.length, 'filas)')
+      return
+    }
+    
+    console.log('🔄 Cargando datos existentes para activityId:', activityId, 'productCategory:', productCategory)
     setLoadingExisting(true)
     try {
       const endpoint = productCategory === 'nutricion' 
         ? `/api/activity-nutrition/${activityId}`
         : `/api/activity-exercises/${activityId}`
       const response = await fetch(endpoint)
-      const result = await response.json()
+      console.log('📡 Respuesta de carga de existentes:', {
+        endpoint,
+        status: response.status
+      })
+      const result = await response.json().catch((err) => {
+        console.error('❌ Error parseando JSON de existentes:', err)
+        return null
+      })
       
-      if (result.success) {
+      if (response.ok && result && result.success) {
         console.log('✅ Datos existentes cargados:', result.data.length, 'ejercicios')
         // Datos cargados correctamente
         
         // Transformar datos existentes al formato esperado por la tabla
-        let transformedExistingData = result.data.map((exercise: any) => {
+        let transformedExistingData = result.data.map((item: any) => {
+          // ✅ Normalizar activity map desde múltiples fuentes posibles
+          // Prioridad: activity_assignments > activity_map > activity_id_new > activity_id
           const activityAssignments = normalizeActivityMap(
-            exercise.activity_assignments ?? exercise.activity_map ?? exercise.activity_id
+            item.activity_assignments ?? item.activity_map ?? item.activity_id_new ?? item.activity_id
           )
-          const normalizedType = normalizeExerciseType(exercise.tipo || exercise['Tipo de Ejercicio'] || '')
-          return {
-          ...exercise,
-          'Nombre de la Actividad': exercise.nombre_ejercicio || exercise['Nombre de la Actividad'] || exercise.nombre || '',
-          'Descripción': exercise.descripcion || exercise['Descripción'] || '',
-          'Duración (min)': exercise.duracion_min || exercise['Duración (min)'] || '',
-          'Tipo de Ejercicio': normalizedType,
-          'Nivel de Intensidad': exercise.intensidad || exercise['Nivel de Intensidad'] || '',
-          'Equipo Necesario': exercise.equipo || exercise['Equipo Necesario'] || '',
-          'Detalle de Series (peso-repeticiones-series)': exercise.detalle_series || exercise['Detalle de Series (peso-repeticiones-series)'] || '',
-          'Partes del Cuerpo': exercise.body_parts || exercise['Partes del Cuerpo'] || '',
-          'Calorías': exercise.calorias || exercise['Calorías'] || '',
-          isExisting: true,
-          is_active: exercise.is_active !== false,
-          activo: exercise.is_active !== false,
-          tipo_ejercicio: normalizedType,
-          activity_assignments: activityAssignments,
-          video_file_name: exercise.video_file_name || exercise['video_file_name'] || null
-        }
+          
+          if (productCategory === 'nutricion') {
+            // Transformación para platos de nutrición
+            // Asegurar que todos los campos estén presentes
+            // Manejar ingredientes: puede ser JSONB (array), string separado por ;, o string simple
+            let ingredientesValue = ''
+            if (item.ingredientes !== undefined && item.ingredientes !== null && item.ingredientes !== '') {
+              if (Array.isArray(item.ingredientes)) {
+                // Si es array, unir con punto y coma
+                ingredientesValue = item.ingredientes.join('; ')
+              } else if (typeof item.ingredientes === 'object') {
+                // Si es objeto, intentar convertirlo a string
+                ingredientesValue = JSON.stringify(item.ingredientes)
+              } else {
+                // Si es string, verificar si es un JSON string de array
+                const strValue = String(item.ingredientes).trim()
+                if (strValue.startsWith('[') && strValue.endsWith(']')) {
+                  try {
+                    const parsed = JSON.parse(strValue)
+                    if (Array.isArray(parsed)) {
+                      // Si el array contiene strings que ya tienen punto y coma, unirlos directamente
+                      // Si son strings simples, unirlos con punto y coma
+                      ingredientesValue = parsed.map((ing: any) => String(ing)).join('; ')
+                    } else {
+                      ingredientesValue = strValue
+                    }
+                  } catch {
+                    ingredientesValue = strValue
+                  }
+                } else {
+                  ingredientesValue = strValue
+                }
+              }
+            }
+            
+            // Función auxiliar para obtener valor o default
+            const getValue = (value: any, defaultValue: any = '') => {
+              if (value !== undefined && value !== null && value !== '') {
+                return value
+              }
+              return defaultValue
+            }
+            
+            // Función auxiliar para obtener número o 0
+            const getNumberValue = (value: any) => {
+              if (value !== undefined && value !== null && value !== '' && value !== 'null') {
+                const num = Number(value)
+                return isNaN(num) ? 0 : num
+              }
+              return 0
+            }
+            
+            const transformed = {
+              ...item,
+              'Nombre': item.nombre_plato || item['Nombre'] || item.nombre || '',
+              // Tipo solo como campo interno, no como columna visible
+              tipo: item.tipo || item['Tipo'] || 'otro',
+              'Receta': getValue(item.receta || item['Receta'] || item.descripcion || item['Descripción'] || item.Descripción, ''),
+              'Calorías': getNumberValue(item.calorias || item['Calorías'] || item.calorías),
+              'Proteínas (g)': getNumberValue(item.proteinas || item['Proteínas (g)'] || item['Proteínas']),
+              'Carbohidratos (g)': getNumberValue(item.carbohidratos || item['Carbohidratos (g)'] || item['Carbohidratos']),
+              'Grasas (g)': getNumberValue(item.grasas || item['Grasas (g)'] || item['Grasas']),
+              'Dificultad': getValue(item.dificultad || item['Dificultad'], 'Principiante'),
+              'Ingredientes': ingredientesValue || item['Ingredientes'] || '',
+              'Porciones': getValue(item.porciones || item['Porciones'], ''),
+              'Minutos': getValue(item.minutos || item['Minutos'], ''),
+              isExisting: true,
+              is_active: item.is_active !== false && item.activo !== false,
+              activo: item.is_active !== false && item.activo !== false,
+              activity_assignments: activityAssignments,
+              video_file_name: item.video_file_name || item['video_file_name'] || null,
+              video_url: item.video_url || '',
+              // Mantener campos originales para referencia
+              nombre_plato: item.nombre_plato || item.nombre || '',
+              nombre: item.nombre || item.nombre_plato || '',
+              // También mantener en minúsculas para compatibilidad
+              ingredientes: ingredientesValue || '',
+              receta: getValue(item.receta || item['Receta'] || item.descripcion || item['Descripción'] || item.Descripción, ''),
+              calorias: getNumberValue(item.calorias),
+              proteinas: getNumberValue(item.proteinas),
+              carbohidratos: getNumberValue(item.carbohidratos),
+              grasas: getNumberValue(item.grasas),
+              dificultad: getValue(item.dificultad || item['Dificultad'], 'Principiante'),
+              porciones: getValue(item.porciones, ''),
+              minutos: getValue(item.minutos, '')
+            }
+            
+            console.log('🍽️ Plato transformado:', {
+              id: transformed.id,
+              nombre: transformed['Nombre'],
+              tipo: transformed['Tipo'],
+              is_active: transformed.is_active,
+              activo: transformed.activo
+            })
+            
+            return transformed
+          } else {
+            // Transformación para ejercicios de fitness
+            const normalizedType = normalizeExerciseType(item.tipo || item['Tipo de Ejercicio'] || '')
+            return {
+              ...item,
+              'Nombre de la Actividad': item.nombre_ejercicio || item['Nombre de la Actividad'] || item.nombre || '',
+              'Descripción': item.descripcion || item['Descripción'] || '',
+              'Duración (min)': item.duracion_min || item['Duración (min)'] || '',
+              'Tipo de Ejercicio': normalizedType,
+              'Nivel de Intensidad': item.intensidad || item['Nivel de Intensidad'] || '',
+              'Equipo Necesario': item.equipo || item['Equipo Necesario'] || '',
+              'Detalle de Series (peso-repeticiones-series)': item.detalle_series || item['Detalle de Series (peso-repeticiones-series)'] || '',
+              'Partes del Cuerpo': item.body_parts || item['Partes del Cuerpo'] || '',
+              'Calorías': item.calorias || item['Calorías'] || '',
+              isExisting: true,
+              is_active: item.is_active !== false,
+              activo: item.is_active !== false,
+              tipo_ejercicio: normalizedType,
+              activity_assignments: activityAssignments,
+              video_file_name: item.video_file_name || item['video_file_name'] || null
+            }
+          }
         })
         
         console.log('🔄 Datos existentes transformados:', transformedExistingData.length, 'ejercicios')
@@ -492,9 +1239,41 @@ export function CSVManagerEnhanced({
         const planningActiveMap = new Map<number, boolean>()
         if (activityId > 0) {
           const activityKey = String(activityId)
+          // NO filtrar por is_active aquí - mostrar todos los platos asociados a la actividad
+          // El usuario puede ver y reactivar los platos inactivos
           transformedExistingData = transformedExistingData.filter((item: any) => {
+            // ✅ Verificar en múltiples campos: activity_assignments, activity_id_new, activity_id
             const assignments = item?.activity_assignments || {}
-            return assignments && typeof assignments === 'object' && activityKey in assignments
+            const activityIdNew = item?.activity_id_new || {}
+            const activityId = item?.activity_id
+            
+            // Verificar en activity_assignments (ya normalizado)
+            if (assignments && typeof assignments === 'object' && activityKey in assignments) {
+              return true
+            }
+            
+            // Verificar en activity_id_new (JSONB)
+            if (activityIdNew && typeof activityIdNew === 'object' && activityKey in activityIdNew) {
+              return true
+            }
+            
+            // Verificar en activity_id (integer o JSONB)
+            if (activityId) {
+              if (typeof activityId === 'number' && activityId === Number(activityKey)) {
+                return true
+              }
+              if (typeof activityId === 'object' && activityKey in activityId) {
+                return true
+              }
+            }
+            
+            return false
+          })
+          
+          console.log('📋 Platos filtrados por actividad:', {
+            total: transformedExistingData.length,
+            activos: transformedExistingData.filter((item: any) => item.is_active !== false).length,
+            inactivos: transformedExistingData.filter((item: any) => item.is_active === false).length
           })
         }
 
@@ -514,7 +1293,18 @@ export function CSVManagerEnhanced({
           })
         }
         
+        console.log('✅ Datos transformados listos para mostrar:', transformedExistingData.length, 'platos')
+        console.log('📋 Primeros 3 platos:', transformedExistingData.slice(0, 3).map((item: any) => ({
+          id: item.id,
+          nombre: item['Nombre'] || item.nombre,
+          tipo: item['Tipo'] || item.tipo
+        })))
+        
         setExistingData(transformedExistingData)
+        
+        // IMPORTANTE: Siempre actualizar csvData local con los datos existentes para que se muestren
+        setCsvData(transformedExistingData)
+        console.log('💾 csvData actualizado con', transformedExistingData.length, 'platos')
         
         // Notificar al padre que se cargaron datos existentes
         // Solo sobrescribir si no hay datos persistentes con videos O datos del CSV
@@ -567,15 +1357,26 @@ export function CSVManagerEnhanced({
               parentSetCsvData(updatedParent)
             }
           } else {
-            // Cargando datos existentes transformados
+            // Cargando datos existentes transformados - siempre actualizar el padre
+            console.log('📤 Actualizando padre con datos existentes cargados:', transformedExistingData.length, 'platos')
             parentSetCsvData(transformedExistingData)
+            // Asegurar que también se actualicen en csvData para que se muestren en allData
+            setCsvData(transformedExistingData)
           }
         }
       } else {
-        console.log('❌ Error cargando datos existentes:', result.error)
+        console.warn('⚠️ No se pudieron cargar datos existentes desde el servidor', {
+          endpoint,
+          status: response.status,
+          result
+        })
+        if (result?.error) {
+          setError(`No se pudieron cargar los ${productCategory === 'nutricion' ? 'platos' : 'ejercicios'} existentes (${response.status}): ${result.error}`)
+        }
       }
     } catch (error) {
       console.error('❌ Error cargando datos existentes:', error)
+      setError(`Error obteniendo ${productCategory === 'nutricion' ? 'platos' : 'ejercicios'} existentes: ${(error as any)?.message ?? 'Error desconocido'}`)
     } finally {
       setLoadingExisting(false)
     }
@@ -898,6 +1699,9 @@ export function CSVManagerEnhanced({
       existingDataLength: existingData.length
     })
     
+    // Marcar que estamos eliminando para evitar recargas automáticas
+    justDeletedRef.current = true
+    
     // Obtener todas las filas que NO son existentes (vienen de CSV)
     const allCurrentData = [...csvData, ...(parentCsvData || [])]
     const csvOnlyData = allCurrentData.filter(item => !item.isExisting)
@@ -911,10 +1715,18 @@ export function CSVManagerEnhanced({
     })
     
     // Eliminar de la BD solo las que tienen ID
-    if (idsToDelete.length > 0 && activityId > 0) {
+    // En modo genérico (activityId === 0) también permitimos eliminar
+    if (idsToDelete.length > 0 && (activityId > 0 || activityId === 0)) {
       console.log('🗑️ Eliminando filas del CSV de la base de datos:', idsToDelete.length, 'filas')
       try {
-        const response = await fetch('/api/delete-exercise-items', {
+        // Usar el endpoint correcto según la categoría del producto
+        const endpoint = productCategory === 'nutricion' 
+          ? '/api/delete-nutrition-items'
+          : '/api/delete-exercise-items'
+        
+        console.log('🗑️ Eliminando filas usando endpoint:', endpoint, 'para categoría:', productCategory)
+        
+        const response = await fetch(endpoint, {
           method: 'DELETE',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({
@@ -927,12 +1739,14 @@ export function CSVManagerEnhanced({
           const errorData = await response.json()
           console.error('❌ Error eliminando filas de la BD:', errorData.error)
           updateErrorState(`Error al eliminar filas de la base de datos: ${errorData.error}`)
+          justDeletedRef.current = false // Reset flag si hay error
         } else {
           console.log('✅ Filas eliminadas de la base de datos exitosamente')
         }
       } catch (error) {
         console.error('❌ Error al llamar API de eliminación:', error)
         updateErrorState('Error al eliminar filas de la base de datos')
+        justDeletedRef.current = false // Reset flag si hay error
       }
     }
     
@@ -956,6 +1770,19 @@ export function CSVManagerEnhanced({
       const parentOnlyExisting = (parentCsvData || []).filter((item: any) => item.isExisting)
       parentSetCsvData(parentOnlyExisting)
       console.log('🗑️ Datos del padre limpiados, manteniendo solo existentes:', parentOnlyExisting.length, 'filas')
+      
+      // Actualizar también sessionStorage para persistir las eliminaciones
+      try {
+        // Solo guardar en sessionStorage si no es modo genérico (activityId !== 0)
+        if (activityId && activityId > 0) {
+          sessionStorage.setItem(`activities_draft_${activityId}`, JSON.stringify(parentOnlyExisting))
+          sessionStorage.setItem(`activities_draft_${activityId}_interacted`, 'true')
+          hasUserInteractedRef.current = true
+          console.log('💾 Eliminaciones guardadas en sessionStorage desde handleReset:', parentOnlyExisting.length, 'filas')
+        }
+      } catch (error) {
+        console.error('❌ Error guardando eliminaciones en sessionStorage:', error)
+      }
     }
     
     // Limpiar selección en el padre
@@ -968,14 +1795,18 @@ export function CSVManagerEnhanced({
       onRemoveCSV()
     }
     setLimitWarning(null)
+    
+    // NO resetear el flag inmediatamente - mantenerlo para evitar recargas al navegar
+    justDeletedRef.current = true
+    console.log('🔄 Flag de eliminación activado para prevenir recarga al navegar desde handleReset')
   }
 
   const handleDownloadTemplate = async () => {
     if (productCategory === 'nutricion') {
-      const nutritionTemplate = `Nombre,Descripción,Calorías,Proteínas (g),Carbohidratos (g),Grasas (g),video_url
-Ensalada Keto,Mezcla de lechuga aguacate queso y aceite de oliva,350,15,5,30,
-Pollo a la Plancha,Pechuga de pollo marinada con especias cocida a la plancha,280,45,2,12,
-Batido de Proteína,Batido con proteína en polvo plátano y leche,320,30,25,8,`
+      const nutritionTemplate = `Nombre,Tipo,Descripción,Calorías,Proteínas (g),Carbohidratos (g),Grasas (g),video_url
+Ensalada Keto,Almuerzo,Mezcla de lechuga aguacate queso y aceite de oliva,350,15,5,30,
+Pollo a la Plancha,Almuerzo,Pechuga de pollo marinada con especias cocida a la plancha,280,45,2,12,
+Batido de Proteína,Desayuno,Batido con proteína en polvo plátano y leche,320,30,25,8,`
 
       const blob = new Blob([nutritionTemplate], { type: 'text/csv' })
       const url = window.URL.createObjectURL(blob)
@@ -1218,9 +2049,11 @@ Batido de Proteína,Batido con proteína en polvo plátano y leche,320,30,25,8,`
     setMode('manual')
     
     // Cargar datos del ejercicio en el formulario manual
-    const exerciseData = {
-      nombre: exercise['Nombre de la Actividad'] || exercise.nombre_ejercicio || exercise.nombre || '',
-      descripcion: exercise['Descripción'] || exercise.descripcion || exercise.Descripción || '',
+    const exerciseData: any = {
+      nombre: exercise['Nombre de la Actividad'] || exercise.nombre_ejercicio || exercise.nombre || exercise['Nombre'] || '',
+      descripcion: productCategory === 'nutricion' 
+        ? (exercise['Receta'] || exercise.receta || exercise['Descripción'] || exercise.descripcion || exercise.Descripción || '')
+        : (exercise['Descripción'] || exercise.descripcion || exercise.Descripción || ''),
       duracion_min: exercise['Duración (min)'] || exercise.duracion_min || exercise.Duración || '',
       tipo_ejercicio: normalizeExerciseType(exercise['Tipo de Ejercicio'] || exercise.tipo_ejercicio || ''),
       nivel_intensidad: exercise['Nivel de Intensidad'] || exercise.intensidad || '',
@@ -1236,8 +2069,47 @@ Batido de Proteína,Batido con proteína en polvo plátano y leche,320,30,25,8,`
       video_thumbnail_url: exercise.video_thumbnail_url || ''
     }
     
+    // Agregar campos específicos de nutrición
+    if (productCategory === 'nutricion') {
+      exerciseData.proteinas = exercise['Proteínas (g)'] || exercise['Proteínas'] || exercise.proteinas || ''
+      exerciseData.carbohidratos = exercise['Carbohidratos (g)'] || exercise['Carbohidratos'] || exercise.carbohidratos || ''
+      exerciseData.grasas = exercise['Grasas (g)'] || exercise['Grasas'] || exercise.grasas || ''
+      exerciseData.porciones = exercise['Porciones'] || exercise.porciones || ''
+      exerciseData.minutos = exercise['Minutos'] || exercise.minutos || ''
+      exerciseData.ingredientes = exercise['Ingredientes'] || exercise.ingredientes || ''
+      exerciseData.dificultad = exercise['Dificultad'] || exercise.dificultad || 'Principiante'
+    }
+    
     // Actualizar el formulario manual con los datos del ejercicio
     setManualForm(prev => ({ ...prev, ...exerciseData }))
+    
+    // Para nutrición: parsear pasos de receta desde la descripción
+    if (productCategory === 'nutricion' && exerciseData.descripcion) {
+      const descripcion = exerciseData.descripcion
+      // Intentar parsear pasos numerados (formato: "1. Paso 1\n2. Paso 2")
+      const stepPattern = /^\d+\.\s*(.+)$/gm
+      const matches = descripcion.match(stepPattern)
+      if (matches && matches.length > 0) {
+        // Extraer solo el texto del paso (sin el número)
+        const steps = matches.map(match => {
+          const stepMatch = match.match(/^\d+\.\s*(.+)$/)
+          return stepMatch ? stepMatch[1].trim() : match.replace(/^\d+\.\s*/, '').trim()
+        })
+        setRecipeSteps(steps)
+      } else {
+        // Si no tiene formato de pasos, intentar dividir por saltos de línea
+        const lines = descripcion.split('\n').filter(line => line.trim())
+        if (lines.length > 1) {
+          // Si hay múltiples líneas, tratarlas como pasos
+          setRecipeSteps(lines.map(line => line.replace(/^\d+\.\s*/, '').trim()))
+        } else {
+          // Si es una sola línea, dejarlo vacío para que el usuario agregue pasos
+          setRecipeSteps([])
+        }
+      }
+    } else {
+      setRecipeSteps([])
+    }
     
     // Parsear partes del cuerpo si están en formato string
     if (exerciseData.partes_cuerpo) {
@@ -1293,6 +2165,10 @@ Batido de Proteína,Batido con proteína en polvo plátano y leche,320,30,25,8,`
     setEditingExerciseIndex(null)
     setMode('manual')
     
+    // Limpiar pasos de receta
+    setRecipeSteps([])
+    setRecipeStepInput('')
+    
     // Limpiar formulario
     setManualForm({
       nombre: '',
@@ -1305,9 +2181,11 @@ Batido de Proteína,Batido con proteína en polvo plátano y leche,320,30,25,8,`
       partes_cuerpo: '',
       calorias: '',
       comida: '',
+      tipo: '',
       proteinas: '',
       carbohidratos: '',
       grasas: '',
+      dificultad: 'Principiante',
       peso: '',
       receta: '',
       ingredientes: '',
@@ -1328,6 +2206,9 @@ Batido de Proteína,Batido con proteína en polvo plátano y leche,320,30,25,8,`
     setSeriePeso('')
     setSerieReps('')
     setSerieSeries('')
+    // Limpiar pasos de receta
+    setRecipeSteps([])
+    setRecipeStepInput('')
   }
 
   const handleRemoveVideoFromManualForm = () => {
@@ -1468,9 +2349,17 @@ Batido de Proteína,Batido con proteína en polvo plátano y leche,320,30,25,8,`
     })
     
     // Eliminar de la BD si tienen ID
-    if (idsToDelete.length > 0 && activityId > 0) {
+    // En modo genérico (activityId === 0) también permitimos eliminar
+    if (idsToDelete.length > 0 && (activityId > 0 || activityId === 0)) {
       try {
-        const response = await fetch('/api/delete-exercise-items', {
+        // Usar el endpoint correcto según la categoría del producto
+        const endpoint = productCategory === 'nutricion' 
+          ? '/api/delete-nutrition-items'
+          : '/api/delete-exercise-items'
+        
+        console.log('🗑️ Eliminando filas usando endpoint:', endpoint, 'para categoría:', productCategory)
+        
+        const response = await fetch(endpoint, {
           method: 'DELETE',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({
@@ -1486,6 +2375,8 @@ Batido de Proteína,Batido con proteína en polvo plátano y leche,320,30,25,8,`
           return
         } else {
           console.log('✅ Filas eliminadas de la base de datos exitosamente')
+          // Marcar que acabamos de eliminar para evitar recarga automática
+          justDeletedRef.current = true
         }
       } catch (error) {
         console.error('❌ Error al llamar API de eliminación:', error)
@@ -1511,7 +2402,23 @@ Batido de Proteína,Batido con proteína en polvo plátano y leche,320,30,25,8,`
       const filteredParent = currentParentData.filter((item: any, idx: number) => !shouldRemoveItem(item, idx))
       parentSetCsvData(filteredParent)
       console.log('🗑️ Filas eliminadas del padre:', currentParentData.length - filteredParent.length, 'de', currentParentData.length)
+      
+      // Actualizar también sessionStorage para persistir las eliminaciones
+      try {
+        // Solo guardar en sessionStorage si no es modo genérico (activityId !== 0)
+        if (activityId && activityId > 0) {
+          sessionStorage.setItem(`activities_draft_${activityId}`, JSON.stringify(filteredParent))
+          sessionStorage.setItem(`activities_draft_${activityId}_interacted`, 'true')
+          hasUserInteractedRef.current = true
+          console.log('💾 Eliminaciones guardadas en sessionStorage:', filteredParent.length, 'filas restantes')
+        }
+      } catch (error) {
+        console.error('❌ Error guardando eliminaciones en sessionStorage:', error)
+      }
     }
+    
+    // Actualizar también el estado local
+    setCsvData(prev => prev.filter((item, idx) => !shouldRemoveItem(item, idx)))
     
     // Limpiar selección
     setSelectedRows(new Set())
@@ -1521,6 +2428,11 @@ Batido de Proteína,Batido con proteína en polvo plátano y leche,320,30,25,8,`
     
     console.log('✅ Eliminación completada')
     setLimitWarning(null)
+    
+    // NO resetear el flag inmediatamente - mantenerlo para evitar recargas al navegar
+    // El flag se reseteará solo cuando se monte el componente de nuevo después de navegar
+    justDeletedRef.current = true
+    console.log('🔄 Flag de eliminación activado para prevenir recarga al navegar')
   }
 
   const handleReactivateSelected = () => {
@@ -1653,11 +2565,14 @@ Batido de Proteína,Batido con proteína en polvo plátano y leche,320,30,25,8,`
         'Día': 'Lunes', // Por defecto, se puede cambiar después
         'Comida': 'Desayuno', // Por defecto
         'Nombre': manualForm.nombre,
+        // Tipo se guarda solo como campo interno para planificación (no como columna visible)
+        tipo: manualForm.tipo || 'Desayuno',
         'Receta': manualForm.descripcion, // La receta va en descripción
         'Calorías': manualForm.calorias,
         'Proteínas (g)': manualForm.proteinas,
         'Carbohidratos (g)': manualForm.carbohidratos,
         'Grasas (g)': manualForm.grasas,
+        'Dificultad': manualForm.dificultad || 'Principiante',
         'Ingredientes': manualForm.ingredientes,
         'Porciones': manualForm.porciones,
         'Minutos': manualForm.minutos,
@@ -1864,6 +2779,18 @@ Batido de Proteína,Batido con proteína en polvo plátano y leche,320,30,25,8,`
     return colors[normalized] || colors.general
   }
 
+  // Función para obtener color según tipo de comida en nutrición
+  // Usamos la misma paleta naranja/rosa que en fitness.
+  const getNutritionTypeColor = (rawType: string): string => {
+    const type = (rawType || '').toString().toLowerCase().trim()
+    if (type.includes('desayuno')) return 'bg-orange-200'
+    if (type.includes('snack') || type.includes('colación') || type.includes('colacion')) return 'bg-orange-300'
+    if (type.includes('almuerzo')) return 'bg-orange-400'
+    if (type.includes('cena')) return 'bg-rose-300'
+    // Por defecto, un naranja intermedio
+    return 'bg-orange-300'
+  }
+
   useEffect(() => {
     if (mode !== 'existentes') {
       if (selectedExisting !== '') {
@@ -1961,6 +2888,17 @@ Batido de Proteína,Batido con proteína en polvo plátano y leche,320,30,25,8,`
     const existing = existingData || []
     const csv = csvData || []
     const parent = parentCsvData || []
+    
+    // Debug: Log de los datos disponibles
+    if (existing.length > 0 || csv.length > 0 || (parent && parent.length > 0)) {
+      console.log('📊 allData - Datos disponibles:', {
+        existing: existing.length,
+        csv: csv.length,
+        parent: parent ? parent.length : 0,
+        parentIsUndefined: parentCsvData === undefined,
+        total: existing.length + csv.length + (parent ? parent.length : 0)
+      })
+    }
 
     const existingActiveMap = new Map<number, boolean>()
     existing.forEach((item) => {
@@ -2066,6 +3004,18 @@ Batido de Proteína,Batido con proteína en polvo plátano y leche,320,30,25,8,`
       return item
     })
 
+    // Debug: Log del resultado final
+    if (normalizedCombined.length > 0) {
+      console.log('✅ allData combinado - Total filas para mostrar:', normalizedCombined.length)
+    } else {
+      console.log('⚠️ allData vacío - No hay datos para mostrar', {
+        existing: existing.length,
+        csv: csv.length,
+        parent: parent ? parent.length : 0,
+        combined: combined.length
+      })
+    }
+
     return normalizedCombined
   })()
   
@@ -2155,18 +3105,17 @@ Batido de Proteína,Batido con proteína en polvo plátano y leche,320,30,25,8,`
   // Datos de la tabla procesados
   return (
     <div className="text-white p-4 w-full max-w-none pb-24">
-      {/* Selector de modo */}
-      <div className="mb-4">
-        <div className="inline-flex items-center bg-zinc-900/80 border border-zinc-800 rounded-xl p-1 shadow-inner">
+      {/* Selector de modo - Centrado y más separado */}
+      <div className="mb-6 flex justify-center">
+        <div className="inline-flex items-center bg-zinc-900/80 border border-zinc-800 rounded-xl p-1 shadow-inner gap-2">
           {([
             { key: 'manual', label: productCategory === 'nutricion' ? 'Crear platos manualmente' : 'Crear ejercicios manualmente' },
-            { key: 'csv', label: 'Subir Archivo' },
-            { key: 'existentes', label: 'Agregar existentes' }
+            { key: 'csv', label: 'Subir Archivo' }
           ] as const).map((tab) => (
             <button
               key={tab.key}
               onClick={() => setMode(tab.key)}
-              className={`px-4 py-2 text-xs rounded-lg transition-all ${
+              className={`px-6 py-2.5 text-sm rounded-lg transition-all ${
                 mode === tab.key
                   ? 'bg-gradient-to-r from-orange-600 to-orange-500 text-white shadow-md'
                   : 'text-zinc-300 hover:text-white hover:bg-zinc-800'
@@ -2294,13 +3243,75 @@ Batido de Proteína,Batido con proteína en polvo plátano y leche,320,30,25,8,`
               value={manualForm.nombre || ''} 
               onChange={(e)=>setManualForm({...manualForm, nombre:e.target.value})} 
             />
-            <textarea 
-              className="bg-zinc-900/60 px-3 py-2 rounded text-sm w-full" 
-              rows={2} 
-              placeholder={productCategory === 'nutricion' ? "Receta" : "Descripción"} 
-              value={manualForm.descripcion || ''} 
-              onChange={(e)=>setManualForm({...manualForm, descripcion:e.target.value})} 
-            />
+            {productCategory === 'nutricion' ? (
+              /* Receta con pasos para nutrición */
+              <div className="space-y-2">
+                <div className="flex gap-2">
+                  <input
+                    className="bg-zinc-900/60 px-3 py-2 rounded text-sm flex-1"
+                    placeholder="Agregar paso (ej: Mezclar los ingredientes secos en un bowl)"
+                    value={recipeStepInput}
+                    onChange={(e) => setRecipeStepInput(e.target.value)}
+                    onKeyDown={(e) => {
+                      if (e.key === 'Enter' && recipeStepInput.trim()) {
+                        const newSteps = [...recipeSteps, recipeStepInput.trim()]
+                        setRecipeSteps(newSteps)
+                        // Actualizar descripcion con los pasos
+                        const stepsText = newSteps.map((step, idx) => `${idx + 1}. ${step}`).join('\n')
+                        setManualForm({...manualForm, descripcion: stepsText})
+                        setRecipeStepInput('')
+                        e.preventDefault()
+                      }
+                    }}
+                  />
+                  <Button
+                    onClick={() => {
+                      if (recipeStepInput.trim()) {
+                        const newSteps = [...recipeSteps, recipeStepInput.trim()]
+                        setRecipeSteps(newSteps)
+                        // Actualizar descripcion con los pasos
+                        const stepsText = newSteps.map((step, idx) => `${idx + 1}. ${step}`).join('\n')
+                        setManualForm({...manualForm, descripcion: stepsText})
+                        setRecipeStepInput('')
+                      }
+                    }}
+                    className="bg-orange-600 hover:bg-orange-700 text-white border-0 h-10 px-4 text-xs"
+                  >
+                    +
+                  </Button>
+                </div>
+                {recipeSteps.length > 0 && (
+                  <div className="space-y-2">
+                    {recipeSteps.map((step, idx) => (
+                      <div key={idx} className="flex items-start gap-2 bg-zinc-800/50 px-3 py-2 rounded text-sm">
+                        <span className="text-orange-400 font-semibold min-w-[24px]">{idx + 1}.</span>
+                        <span className="text-white flex-1">{step}</span>
+                        <button
+                          onClick={() => {
+                            const newSteps = recipeSteps.filter((_, i) => i !== idx)
+                            setRecipeSteps(newSteps)
+                            // Actualizar descripcion con los pasos restantes
+                            const stepsText = newSteps.map((step, idx) => `${idx + 1}. ${step}`).join('\n')
+                            setManualForm({...manualForm, descripcion: stepsText})
+                          }}
+                          className="text-zinc-400 hover:text-white ml-2"
+                        >
+                          ×
+                        </button>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
+            ) : (
+              <textarea 
+                className="bg-zinc-900/60 px-3 py-2 rounded text-sm w-full" 
+                rows={2} 
+                placeholder="Descripción" 
+                value={manualForm.descripcion || ''} 
+                onChange={(e)=>setManualForm({...manualForm, descripcion:e.target.value})} 
+              />
+            )}
           </div>
           {productCategory === 'nutricion' ? (
             /* Campos específicos para nutrición */
@@ -2317,6 +3328,17 @@ Batido de Proteína,Batido con proteína en polvo plátano y leche,320,30,25,8,`
                 <input className="bg-zinc-900/60 px-3 py-2 rounded text-sm w-full" placeholder="Proteínas (g)" value={manualForm.proteinas || ''} onChange={(e)=>setManualForm({...manualForm, proteinas:e.target.value})} />
                 <input className="bg-zinc-900/60 px-3 py-2 rounded text-sm w-full" placeholder="Carbohidratos (g)" value={manualForm.carbohidratos || ''} onChange={(e)=>setManualForm({...manualForm, carbohidratos:e.target.value})} />
                 <input className="bg-zinc-900/60 px-3 py-2 rounded text-sm w-full" placeholder="Grasas (g)" value={manualForm.grasas || ''} onChange={(e)=>setManualForm({...manualForm, grasas:e.target.value})} />
+              </div>
+              {/* Dificultad */}
+              <div className="grid grid-cols-1 gap-3">
+                <select className="bg-zinc-900/60 px-3 py-2 rounded text-sm" value={manualForm.dificultad || 'Principiante'} onChange={(e)=>setManualForm({...manualForm, dificultad:e.target.value})}>
+                  <option value="Principiante">Principiante</option>
+                  <option value="Intermedio">Intermedio</option>
+                  <option value="Avanzado">Avanzado</option>
+                  <option value="Bajo">Bajo</option>
+                  <option value="Medio">Medio</option>
+                  <option value="Alto">Alto</option>
+                </select>
               </div>
               {/* Ingredientes, Porciones y Minutos */}
               <div className="grid grid-cols-1 gap-3">
@@ -2513,111 +3535,6 @@ Batido de Proteína,Batido con proteína en polvo plátano y leche,320,30,25,8,`
         </div>
       )}
 
-      {/* Bloque Existentes */}
-      {mode === 'existentes' && (
-        <div className="mb-4 space-y-3">
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-3 items-end">
-            <div className="md:col-span-2">
-              <select
-                className="bg-zinc-900/60 px-3 py-2 rounded text-sm w-full"
-                value={selectedExisting}
-                onChange={(e)=>setSelectedExisting(e.target.value)}
-              >
-                <option value="">{productCategory === 'nutricion' ? 'Selecciona un plato existente' : 'Selecciona un ejercicio existente'}</option>
-                {filteredCatalog.map((ex, idx) => (
-                  <option key={`${ex.name}-${idx}`} value={idx.toString()}>{ex.name}</option>
-                ))}
-              </select>
-              {filteredCatalog.length === 0 && (
-                <p className="mt-2 text-xs text-zinc-400">
-                  Ya agregaste todos los {productCategory === 'nutricion' ? 'platos disponibles' : 'ejercicios disponibles'} para este programa.
-                </p>
-              )}
-            </div>
-            <div>
-              <Button
-                onClick={() => {
-                  if (selectedExisting === '') return
-                  const selectedIndex = parseInt(selectedExisting, 10)
-                  if (Number.isNaN(selectedIndex) || selectedIndex < 0) return
-                  const ex = filteredCatalog[selectedIndex]
-                  if (!ex) return
-                  const { allowed } = evaluateAvailableSlots(1)
-                  if (allowed === 0) {
-                    setLimitWarning(`Límite de ejercicios (${planLimits?.activitiesLimit}) alcanzado. No puedes agregar más ejercicios del catálogo.`)
-                    return
-                  }
-                  clearLimitWarningIfNeeded()
-                  let item: any
-                  if (productCategory === 'nutricion') {
-                    item = {
-                      'Día': 'Lunes',
-                      'Comida': 'Desayuno',
-                      'Nombre': ex.name,
-                      'Receta': ex.receta || ex.descripcion || '',
-                      'Calorías': ex.calorias || '',
-                      'Proteínas (g)': ex.proteinas || '',
-                      'Carbohidratos (g)': ex.carbohidratos || '',
-                      'Grasas (g)': ex.grasas || '',
-                      'Ingredientes': ex.ingredientes || '',
-                      'Porciones': ex.porciones || '',
-                      'Minutos': ex.minutos || '',
-                      video_url: ex.video_url || '',
-                      video_file_name: ex.video_file_name || '',
-                      isExisting: false,
-                      tempRowId: `catalog-${ex.id ?? 'new'}-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`
-                    }
-                  } else {
-                    const normalizedType = normalizeExerciseType(ex.tipo_ejercicio || '')
-                    item = {
-                      'Nombre de la Actividad': ex.name,
-                      'Descripción': ex.descripcion || '',
-                      'Duración (min)': ex.duracion_min || '',
-                      'Tipo de Ejercicio': normalizedType,
-                      'Nivel de Intensidad': ex.nivel_intensidad || '',
-                      'Equipo Necesario': ex.equipo_necesario || '',
-                      'Detalle de Series (peso-repeticiones-series)': ex.detalle_series || '',
-                      'Partes del Cuerpo': ex.partes_cuerpo || '',
-                      'Calorías': ex.calorias || '',
-                      isExisting: false,
-                      tipo_ejercicio: normalizedType,
-                      video_url: ex.video_url || '',
-                      video_file_name: ex.video_file_name || '',
-                      tempRowId: `catalog-${ex.id ?? 'new'}-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`
-                    }
-                  }
-                  setCsvData(prev => {
-                    const newData = [...prev, item]
-                    console.log('➕ Ejercicio existente agregado:', newData.length, 'filas totales')
-                    return newData
-                  })
-                  
-                  // Actualizar estado del padre si está disponible
-                  if (parentSetCsvData) {
-                    const newParentData = [...(parentCsvData || []), item]
-                    console.log('📤 Actualizando estado del padre con ejercicio existente:', newParentData.length, 'filas')
-                    parentSetCsvData(newParentData)
-                  }
-                  
-                  setSelectedExisting('')
-                }}
-                className="bg-transparent text-orange-500 hover:text-orange-400 border-0 h-8 px-2 text-xs w-full text-left"
-                disabled={filteredCatalog.length === 0}
-              >
-                {editingExerciseIndex !== null ? (
-                  <>
-                    <Eye className="h-3 w-3 mr-1 inline" /> Actualizar ejercicio
-                  </>
-                ) : (
-                  <>
-                    <Plus className="h-3 w-3 mr-1 inline" /> Agregar a la tabla
-                  </>
-                )}
-              </Button>
-            </div>
-          </div>
-        </div>
-      )}
 
       {/* Archivos CSV recién subidos - Solo mostrar los nuevos */}
       {uploadedFiles.length > 0 && (
@@ -2666,7 +3583,14 @@ Batido de Proteína,Batido con proteína en polvo plátano y leche,320,30,25,8,`
                       // Eliminar de la BD si tienen ID
                       if (idsToDelete.length > 0 && activityId > 0) {
                         try {
-                          const response = await fetch('/api/delete-exercise-items', {
+                          // Usar el endpoint correcto según la categoría del producto
+                          const endpoint = productCategory === 'nutricion' 
+                            ? '/api/delete-nutrition-items'
+                            : '/api/delete-exercise-items'
+                          
+                          console.log('🗑️ Eliminando filas del archivo usando endpoint:', endpoint, 'para categoría:', productCategory)
+                          
+                          const response = await fetch(endpoint, {
                             method: 'DELETE',
                             headers: { 'Content-Type': 'application/json' },
                             body: JSON.stringify({
@@ -2730,16 +3654,18 @@ Batido de Proteína,Batido con proteína en polvo plátano y leche,320,30,25,8,`
         </div>
       )}
       
-      {/* Contador de ejercicios con barra segmentada - Sin fondo, minimalista */}
-      {allData.length > 0 && (
+      {/* Contador de ejercicios/platos con barra segmentada - Sin fondo, minimalista */}
+      {(allData.length > 0 || existingData.length > 0) && (
         <div className="mb-4 w-full">
           {/* Título y límite en una línea */}
           <div className="flex items-center justify-between mb-2">
-              <h4 className="text-sm font-medium text-gray-300">Resumen de Ejercicios</h4>
+              <h4 className="text-sm font-medium text-gray-300">
+                {productCategory === 'nutricion' ? 'Resumen de Platos' : 'Resumen de Ejercicios'}
+              </h4>
             <div className={`text-xs ${exceedsActivitiesLimit ? 'text-red-400 font-semibold' : 'text-gray-400'}`}>
               {activitiesLimitValue !== null
                 ? `${allData.length}/${activitiesLimitValue}${planLimits?.planType ? ` (Plan ${planLimits.planType})` : ''}`
-                : `${allData.length} ejercicios`}
+                : `${allData.length} ${productCategory === 'nutricion' ? 'platos' : 'ejercicios'}`}
               </div>
             </div>
             
@@ -2981,16 +3907,15 @@ Batido de Proteína,Batido con proteína en polvo plátano y leche,320,30,25,8,`
         }}
       />
 
-      {/* Data Table - Forzar renderizado si hay datos persistentes */}
-      {(allData.length > 0 || csvData.length > 0) && (
-        <div className="w-full">
-          <div ref={topScrollRef} className="overflow-x-auto w-full mb-2">
-            <div ref={topScrollbarInnerRef} className="h-2" />
-          </div>
-          <div ref={bottomScrollRef} className="overflow-x-auto w-full">
-            {/* Renderizando tabla */}
-            <table className="w-full min-w-full">
-              <thead>
+      {/* Data Table - Siempre mostrar tabla con header, incluso si no hay datos */}
+      <div className="w-full">
+        <div ref={topScrollRef} className="overflow-x-auto w-full mb-2">
+          <div ref={topScrollbarInnerRef} className="h-2" />
+        </div>
+        <div ref={bottomScrollRef} className="overflow-x-auto w-full">
+          {/* Renderizando tabla */}
+          <table className="w-full min-w-full">
+            <thead>
                 <tr>
                   {/* Header para numerador de fila */}
                   <th className="px-2 py-3 text-left text-xs font-medium text-white border-b border-gray-600 w-8"></th>
@@ -3029,7 +3954,11 @@ Batido de Proteína,Batido con proteína en polvo plátano y leche,320,30,25,8,`
                   <th className="px-2 py-3 text-left text-xs font-medium text-white border-b border-gray-600 w-12">
                     Editar
                   </th>
-                  <th className="px-3 py-3 text-left text-xs font-medium text-white border-b border-gray-600">Estado</th>
+                  {activityId === 0 && (
+                    <th className="px-3 py-3 text-left text-xs font-medium text-white border-b border-gray-600 w-48">
+                      Estado
+                    </th>
+                  )}
                   <th className="px-3 py-3 text-left text-xs font-medium text-white border-b border-gray-600 w-48">
                     {productCategory === 'nutricion' ? 'Plato' : 'Ejercicio'}
                   </th>
@@ -3042,6 +3971,7 @@ Batido de Proteína,Batido con proteína en polvo plátano y leche,320,30,25,8,`
                       <th className="px-3 py-3 text-left text-xs font-medium text-white border-b border-gray-600 w-24">Proteínas</th>
                       <th className="px-3 py-3 text-left text-xs font-medium text-white border-b border-gray-600 w-24">Carbohidratos</th>
                       <th className="px-3 py-3 text-left text-xs font-medium text-white border-b border-gray-600 w-20">Grasas</th>
+                      <th className="px-3 py-3 text-left text-xs font-medium text-white border-b border-gray-600 w-24">Dificultad</th>
                       <th className="px-3 py-3 text-left text-xs font-medium text-white border-b border-gray-600 w-32">Ingredientes</th>
                       <th className="px-3 py-3 text-left text-xs font-medium text-white border-b border-gray-600 w-20">Porciones</th>
                       <th className="px-3 py-3 text-left text-xs font-medium text-white border-b border-gray-600 w-20">Minutos</th>
@@ -3062,7 +3992,19 @@ Batido de Proteína,Batido con proteína en polvo plátano y leche,320,30,25,8,`
                 </tr>
               </thead>
               <tbody>
-                {paginatedData.map((item, pageIndex) => {
+                {paginatedData.length === 0 ? (
+                  <tr>
+                    <td
+                      colSpan={(productCategory === 'nutricion' ? 15 : 11) + (activityId === 0 ? 1 : 0)}
+                      className="px-4 py-8 text-center text-gray-400"
+                    >
+                      {loadingExisting
+                        ? `Cargando ${productCategory === 'nutricion' ? 'platos' : 'ejercicios'} existentes...`
+                        : `No hay ${productCategory === 'nutricion' ? 'platos' : 'ejercicios'} para mostrar`}
+                    </td>
+                  </tr>
+                ) : (
+                  paginatedData.map((item, pageIndex) => {
                   const actualIndex = startIndex + pageIndex
                   const exerciseName = getExerciseName(item)
                   const isDuplicate = duplicateNames.includes(exerciseName)
@@ -3110,35 +4052,107 @@ Batido de Proteína,Batido con proteína en polvo plátano y leche,320,30,25,8,`
                       </Button>
                     </td>
                     
-                    {/* Columna Estado */}
-                    <td className="px-3 py-3">
-                      <div className="flex gap-1 items-center">
-                        {/* Estado Existente/Nuevo */}
-                        <span className={`text-[10px] font-light w-4 h-4 flex items-center justify-center rounded-full border ${
-                          item.isExisting 
-                            ? 'text-white border-white' 
-                            : 'text-[#FF7939] border-[#FF7939]'
-                        }`}>
-                          {item.isExisting ? 'E' : 'N'}
-                        </span>
-                        {/* Estado Activo/Inactivo */}
-                        <span className={`text-[10px] font-light w-4 h-4 flex items-center justify-center rounded-full border ${
-                          item.is_active !== false 
-                            ? 'text-[#FF7939] border-[#FF7939]' 
-                            : 'text-gray-400 border-gray-600'
-                        }`}>
-                          {item.is_active !== false ? 'A' : 'D'}
-                        </span>
-                        {validationErrors.length > 0 && (
-                          <span
-                            className="text-[10px] font-light w-4 h-4 flex items-center justify-center rounded-full border border-red-500 text-red-400"
-                            title={validationErrors.join('\n')}
-                          >
-                            !
-                          </span>
-                        )}
-                      </div>
-                    </td>
+                    {/* Columna Estado (solo en modo genérico) */}
+                    {activityId === 0 && (
+                      <td className="px-3 py-3 text-xs text-white">
+                        {(() => {
+                          const itemId = item.id && typeof item.id === 'number' ? item.id : null
+                          const usage = itemId ? exerciseUsage[itemId] : null
+                          
+                          // Obtener actividades desde activity_id_new o activity_id para el estado
+                          const activityIdNew = item.activity_id_new || item.activity_id
+                          const activityStatus: Record<number, boolean> = {}
+                          
+                          if (activityIdNew) {
+                            if (typeof activityIdNew === 'object' && !Array.isArray(activityIdNew)) {
+                              // Es JSONB: {"93": {"activo": true}, "94": {"activo": false}}
+                              Object.keys(activityIdNew).forEach((key) => {
+                                const activityIdNum = parseInt(key, 10)
+                                if (!isNaN(activityIdNum)) {
+                                  const activityData = activityIdNew[key]
+                                  activityStatus[activityIdNum] = activityData?.activo !== false
+                                }
+                              })
+                            } else if (typeof activityIdNew === 'number') {
+                              // Es integer: solo un ID, asumimos activo
+                              activityStatus[activityIdNew] = true
+                            }
+                          }
+                          
+                          // Combinar datos de usage (nombres) con activityStatus (estado)
+                          const activities: Array<{ id: number; name: string; activo: boolean }> = []
+                          
+                          if (usage && usage.activities && usage.activities.length > 0) {
+                            usage.activities.forEach((act: any) => {
+                              // Remover prefijo "Actividad: " si existe
+                              let cleanName = act.name || `${act.id}`
+                              cleanName = cleanName.replace(/^Actividad:\s*/i, '').replace(/^Actividad\s+/i, '')
+                              activities.push({
+                                id: act.id,
+                                name: cleanName,
+                                activo: activityStatus[act.id] !== false
+                              })
+                            })
+                          } else if (Object.keys(activityStatus).length > 0) {
+                            // Si no hay usage pero hay activityStatus, usar el mapa de nombres de actividades
+                            Object.keys(activityStatus).forEach((key) => {
+                              const activityIdNum = parseInt(key, 10)
+                              if (!isNaN(activityIdNum)) {
+                                // Buscar el nombre de la actividad en el mapa
+                                const activityName = activityNamesMap[activityIdNum] || `Actividad ${activityIdNum}`
+                                activities.push({
+                                  id: activityIdNum,
+                                  name: activityName,
+                                  activo: activityStatus[activityIdNum]
+                                })
+                              }
+                            })
+                          }
+                          
+                          if (activities.length === 0) {
+                            return <span className="text-gray-500">-</span>
+                          }
+                          
+                          return (
+                            <div className={`flex flex-wrap gap-2 ${activities.length > 3 ? 'max-h-20 overflow-y-auto' : ''}`}>
+                              {activities.map((act) => {
+                                const imageUrl = activityImagesMap[act.id] || null
+                                return (
+                                  <div
+                                    key={act.id}
+                                    className="relative inline-flex items-center"
+                                    title={act.activo ? `${act.name} (ID: ${act.id}) - Activa` : `${act.name} (ID: ${act.id}) - Inactiva`}
+                                  >
+                                    {/* Imagen circular de la actividad */}
+                                    <div className="relative w-8 h-8 rounded-full overflow-hidden">
+                                      {imageUrl ? (
+                                        <img
+                                          src={imageUrl}
+                                          alt={act.name}
+                                          className="w-full h-full object-cover"
+                                        />
+                                      ) : (
+                                        <div className="w-full h-full bg-gradient-to-br from-[#FF7939] to-[#E66829] flex items-center justify-center">
+                                          <span className="text-xs font-bold text-white">
+                                            {act.name.charAt(0).toUpperCase()}
+                                          </span>
+                                        </div>
+                                      )}
+                                    </div>
+                                    {/* Punto de estado (verde o rojo) */}
+                                    <div
+                                      className={`absolute -bottom-0.5 -right-0.5 w-3 h-3 rounded-full border-2 border-gray-900 ${
+                                        act.activo ? 'bg-green-500' : 'bg-red-500'
+                                      }`}
+                                    />
+                                  </div>
+                                )
+                              })}
+                            </div>
+                          )
+                        })()}
+                      </td>
+                    )}
                     {/* Columna Ejercicio/Plato */}
                     <td className="px-3 py-3 text-xs font-medium whitespace-pre-wrap break-words">
                       <span className={isDuplicate ? 'text-red-400' : 'text-white'}>
@@ -3150,48 +4164,135 @@ Batido de Proteína,Batido con proteína en polvo plátano y leche,320,30,25,8,`
                     </td>
                     
                     {/* Columna Descripción/Receta */}
-                    <td className="px-3 py-3 text-xs text-white whitespace-pre-wrap break-words">
-                      {productCategory === 'nutricion' 
-                        ? (item['Receta'] || item.receta || item['Descripción'] || item.descripcion || item.Descripción || '-')
-                        : (item['Descripción'] || item.descripcion || item.Descripción || '-')
-                      }
+                    <td className="px-3 py-3 text-xs text-white">
+                      <div className="max-h-32 overflow-y-auto">
+                        {productCategory === 'nutricion' 
+                          ? (() => {
+                              const receta = item['Receta'] || item.receta || item['Descripción'] || item.descripcion || item.Descripción || '-'
+                              if (receta === '-') return <span>-</span>
+                              // Separar por ; y mostrar cada paso en una línea
+                              const pasos = receta.split(';').map((p: string) => p.trim()).filter((p: string) => p)
+                              return (
+                                <div className="space-y-1 break-words">
+                                  {pasos.map((paso: string, idx: number) => (
+                                    <div key={idx} className="text-white/90">
+                                      {paso}
+                                    </div>
+                                  ))}
+                                </div>
+                              )
+                            })()
+                          : <span className="break-words">{item['Descripción'] || item.descripcion || item.Descripción || '-'}</span>
+                        }
+                      </div>
                     </td>
                     
                     {productCategory === 'nutricion' ? (
                       <>
                         {/* Columna Calorías */}
                         <td className="px-3 py-3 text-xs text-white">
-                          {item['Calorías'] || item.calorias || '-'}
+                          {(() => {
+                            const calorias = item['Calorías'] ?? item.calorias ?? item.calorías
+                            const numValue = Number(calorias)
+                            return (calorias !== undefined && calorias !== null && calorias !== '' && !isNaN(numValue) && numValue > 0) ? numValue : '-'
+                          })()}
                         </td>
                         
                         {/* Columna Proteínas */}
                         <td className="px-3 py-3 text-xs text-white">
-                          {item['Proteínas (g)'] || item.proteinas || '-'}g
+                          {(() => {
+                            const proteinas = item['Proteínas (g)'] ?? item['Proteínas'] ?? item.proteinas
+                            const numValue = Number(proteinas)
+                            const value = (proteinas !== undefined && proteinas !== null && proteinas !== '' && !isNaN(numValue) && numValue > 0) ? numValue : null
+                            return value === null ? '-' : `${value}g`
+                          })()}
                         </td>
                         
                         {/* Columna Carbohidratos */}
                         <td className="px-3 py-3 text-xs text-white">
-                          {item['Carbohidratos (g)'] || item.carbohidratos || '-'}g
+                          {(() => {
+                            const carbohidratos = item['Carbohidratos (g)'] ?? item['Carbohidratos'] ?? item.carbohidratos
+                            const numValue = Number(carbohidratos)
+                            const value = (carbohidratos !== undefined && carbohidratos !== null && carbohidratos !== '' && !isNaN(numValue) && numValue > 0) ? numValue : null
+                            return value === null ? '-' : `${value}g`
+                          })()}
                         </td>
                         
                         {/* Columna Grasas */}
                         <td className="px-3 py-3 text-xs text-white">
-                          {item['Grasas (g)'] || item.grasas || '-'}g
+                          {(() => {
+                            const grasas = item['Grasas (g)'] ?? item['Grasas'] ?? item.grasas
+                            const numValue = Number(grasas)
+                            const value = (grasas !== undefined && grasas !== null && grasas !== '' && !isNaN(numValue) && numValue > 0) ? numValue : null
+                            return value === null ? '-' : `${value}g`
+                          })()}
+                        </td>
+                        
+                        {/* Columna Dificultad */}
+                        <td className="px-3 py-3 text-xs text-white">
+                          {(() => {
+                            const dificultad = item['Dificultad'] ?? item.dificultad ?? '-'
+                            return dificultad || '-'
+                          })()}
                         </td>
                         
                         {/* Columna Ingredientes */}
-                        <td className="px-3 py-3 text-xs text-white whitespace-pre-wrap break-words">
-                          {item['Ingredientes'] || item.ingredientes || '-'}
+                        <td className="px-3 py-3 text-xs text-white">
+                          <div className="max-h-32 overflow-y-auto">
+                            {(() => {
+                              let ingredientes = item['Ingredientes'] || item.ingredientes
+                              
+                              // Si ingredientes es un array, convertirlo a string
+                              if (Array.isArray(ingredientes)) {
+                                ingredientes = ingredientes.join('; ')
+                              } else if (typeof ingredientes === 'object' && ingredientes !== null) {
+                                // Si es un objeto, intentar convertirlo
+                                try {
+                                  ingredientes = JSON.stringify(ingredientes)
+                                } catch {
+                                  ingredientes = String(ingredientes)
+                                }
+                              } else if (ingredientes === undefined || ingredientes === null || ingredientes === '') {
+                                ingredientes = '-'
+                              } else {
+                                ingredientes = String(ingredientes)
+                              }
+                              
+                              if (ingredientes === '-' || !ingredientes) return <span>-</span>
+                              
+                              // Separar por ; o , y mostrar cada ingrediente en una línea con viñeta
+                              const items = ingredientes.split(/[;,]/).map((i: string) => i.trim()).filter((i: string) => i)
+                              if (items.length === 0) return <span>-</span>
+                              
+                              return (
+                                <div className="space-y-0.5 break-words">
+                                  {items.map((ing: string, idx: number) => (
+                                    <div key={idx} className="text-white/90 flex items-start">
+                                      <span className="text-[#FF7939] mr-1.5 flex-shrink-0">•</span>
+                                      <span className="break-words">{ing}</span>
+                                    </div>
+                                  ))}
+                                </div>
+                              )
+                            })()}
+                          </div>
                         </td>
                         
                         {/* Columna Porciones */}
                         <td className="px-3 py-3 text-xs text-white">
-                          {item['Porciones'] || item.porciones || '-'}
+                          {(() => {
+                            const porciones = item['Porciones'] ?? item.porciones
+                            return (porciones !== undefined && porciones !== null && porciones !== '') ? porciones : '-'
+                          })()}
                         </td>
                         
                         {/* Columna Minutos */}
                         <td className="px-3 py-3 text-xs text-white">
-                          {item['Minutos'] || item.minutos || '-'} min
+                          {(() => {
+                            const minutos = item['Minutos'] ?? item.minutos
+                            const value = (minutos !== undefined && minutos !== null && minutos !== '') ? minutos : '-'
+                            return value === '-' ? '-' : `${value} min`
+                          })()}
                         </td>
                       </>
                     ) : (
@@ -3309,7 +4410,8 @@ Batido de Proteína,Batido con proteína en polvo plátano y leche,320,30,25,8,`
                     
                   </tr>
                   )
-                })}
+                })
+                )}
               </tbody>
             </table>
             
@@ -3371,7 +4473,6 @@ Batido de Proteína,Batido con proteína en polvo plátano y leche,320,30,25,8,`
             <div className="h-1 rounded-full bg-zinc-800/70"></div>
           </div>
         </div>
-      )}
 
       
     </div>

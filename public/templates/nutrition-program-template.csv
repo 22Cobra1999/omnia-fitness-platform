@@ -1,7 +1,7 @@
-Día,Comida,Nombre,Descripción,Calorías,Proteínas (g),Carbohidratos (g),Grasas (g),video_url
-Lunes,Desayuno,Avena con frutas,"1. Cocina la avena con agua o leche. 2. Agrega frutas frescas por encima. 3. Endulza con miel si deseas.",300,10,50,8,https://vimeo.com/avena_demo
-Lunes,Almuerzo,Pollo a la plancha,"1. Sazona el pollo con sal y pimienta. 2. Cocina en sartén sin aceite. 3. Sirve con ensalada verde.",450,35,25,12,https://vimeo.com/pollo_demo
-Lunes,Cena,Salmón al horno,"1. Precalienta el horno a 180°C. 2. Coloca el salmón en papel aluminio. 3. Cocina por 20 minutos.",380,28,15,22,https://vimeo.com/salmon_demo
-Martes,Desayuno,Yogur con granola,"1. Mezcla yogur natural con granola. 2. Agrega frutos secos. 3. Endulza con stevia si es necesario.",280,15,40,6,https://vimeo.com/yogur_demo
-Martes,Almuerzo,Ensalada de quinoa,"1. Cocina la quinoa según instrucciones. 2. Mezcla con vegetales frescos. 3. Aliña con limón y aceite de oliva.",320,12,55,10,https://vimeo.com/quinoa_demo
+Nombre,Tipo,Descripción,Calorías,Proteínas (g),Carbohidratos (g),Grasas (g),video_url
+Avena con frutas,Desayuno,"1. Cocina la avena con agua o leche. 2. Agrega frutas frescas por encima. 3. Endulza con miel si deseas.",300,10,50,8,https://vimeo.com/avena_demo
+Pollo a la plancha,Almuerzo,"1. Sazona el pollo con sal y pimienta. 2. Cocina en sartén sin aceite. 3. Sirve con ensalada verde.",450,35,25,12,https://vimeo.com/pollo_demo
+Salmón al horno,Cena,"1. Precalienta el horno a 180°C. 2. Coloca el salmón en papel aluminio. 3. Cocina por 20 minutos.",380,28,15,22,https://vimeo.com/salmon_demo
+Yogur con granola,Desayuno,"1. Mezcla yogur natural con granola. 2. Agrega frutos secos. 3. Endulza con stevia si es necesario.",280,15,40,6,https://vimeo.com/yogur_demo
+Ensalada de quinoa,Almuerzo,"1. Cocina la quinoa según instrucciones. 2. Mezcla con vegetales frescos. 3. Aliña con limón y aceite de oliva.",320,12,55,10,https://vimeo.com/quinoa_demo
 

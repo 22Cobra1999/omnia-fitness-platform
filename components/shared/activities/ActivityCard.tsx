@@ -27,8 +27,56 @@ const ActivityCard: React.FC<ActivityCardProps> = ({
   
   // Si hay previewStats, usar esos valores (paso 6 del modal de creación)
   const previewStats = (activity as any).previewStats
-  const totalWeeks = previewStats?.semanas || activity.totalSessions || 0
-  const uniqueExercises = previewStats?.ejerciciosUnicos || activity.exercisesCount || 0
+  // Para talleres: usar cantidad de temas y días
+  const isWorkshop = activity.type === 'workshop'
+  const cantidadTemas = (activity as any).cantidadTemas
+  const cantidadDias = (activity as any).cantidadDias
+  
+  // Calcular sesiones totales - usar previewStats.sesiones si existe, sino totalSessions
+  // Para talleres: usar cantidad de días (cada tema = 1 día)
+  const sessionsToShow = isWorkshop && cantidadDias !== undefined
+    ? cantidadDias
+    : (previewStats?.sesiones || previewStats?.totalSessions || activity.totalSessions || 0)
+  
+  // ✅ Para platos únicos: SI hay previewStats (paso 6 del modal), usar SIEMPRE ejerciciosUnicos
+  // (platos únicos realmente usados en la planificación del paso 5), incluso si es 0.
+  // Solo usar exercisesCount como fallback cuando NO hay previewStats (card fuera del modal).
+  // Para talleres: usar cantidad de temas para el icono de rayo
+  const uniqueExercises = (() => {
+    // Para talleres: usar cantidad de temas
+    if (isWorkshop && cantidadTemas !== undefined) {
+      return cantidadTemas
+    }
+    
+    // Si hay previewStats, siempre usar ejerciciosUnicos (platos únicos en planificación)
+    if (previewStats !== undefined && previewStats !== null) {
+      const previewUnicos = previewStats.ejerciciosUnicos
+      // Usar ejerciciosUnicos incluso si es 0 (significa que no hay platos en la planificación)
+      if (previewUnicos !== undefined && previewUnicos !== null) {
+        return previewUnicos
+      }
+      // Si ejerciciosUnicos no está definido, intentar ejerciciosTotales
+      if (previewStats.ejerciciosTotales !== undefined && previewStats.ejerciciosTotales !== null) {
+        return previewStats.ejerciciosTotales
+      }
+    }
+    
+    // Solo si NO hay previewStats, usar exercisesCount (total de platos disponibles)
+    return activity.exercisesCount || 0
+  })()
+  
+  // Log para debug (solo en desarrollo)
+  if (process.env.NODE_ENV === 'development' && activity.categoria === 'nutricion') {
+    console.log('🍽️ [ActivityCard] Platos únicos calculados:', {
+      previewStatsEjerciciosUnicos: previewStats?.ejerciciosUnicos,
+      previewStatsEjerciciosTotales: previewStats?.ejerciciosTotales,
+      activityExercisesCount: activity.exercisesCount,
+      uniqueExercisesFinal: uniqueExercises,
+      hasPreviewStats: !!previewStats,
+      activityId: activity.id
+    })
+  }
+  
   const totalSessions = activity.totalSessions || 0
   
   const productCapacity = activity.capacity
@@ -36,6 +84,31 @@ const ActivityCard: React.FC<ActivityCardProps> = ({
   const productModality = activity.modality || (activity as any).type || null
   const isWorkshopFinished = false // To be reimplemented if needed
   
+  // Parsear objetivos desde workshop_type si no vienen parseados desde la API
+  let objetivos = (activity as any).objetivos
+  if (!objetivos || !Array.isArray(objetivos)) {
+    objetivos = []
+    if ((activity as any).workshop_type) {
+      try {
+        let parsed: any = (activity as any).workshop_type
+        if (typeof (activity as any).workshop_type === 'string') {
+          const ws = (activity as any).workshop_type.trim()
+          if (ws.startsWith('{') || ws.startsWith('[')) {
+            parsed = JSON.parse(ws)
+          }
+        }
+        
+        if (parsed && typeof parsed === 'object' && !Array.isArray(parsed) && parsed.objetivos) {
+          objetivos = String(parsed.objetivos).split(';').map((obj: string) => obj.trim()).filter((obj: string) => obj.length > 0)
+        } else if (Array.isArray(parsed)) {
+          objetivos = parsed
+        }
+      } catch (e) {
+        console.warn('Error parseando objetivos en ActivityCard:', e)
+        objetivos = []
+      }
+    }
+  }
   
   // Debug: Verificar valores de capacity
   const capacityNumber = productCapacity ? parseInt(productCapacity.toString()) : null
@@ -48,11 +121,18 @@ const ActivityCard: React.FC<ActivityCardProps> = ({
                     activity.image_url || 
                     (activity as any).activity_media?.[0]?.image_url
     
-    if (imageUrl && !imageUrl.includes('via.placeholder.com')) {
+    // Verificar si hay una imagen válida (no placeholder, no vacía)
+    if (imageUrl && 
+        imageUrl.trim() !== '' && 
+        !imageUrl.includes('via.placeholder.com') && 
+        !imageUrl.includes('placeholder.svg') &&
+        !imageUrl.includes('placeholder') &&
+        !imageUrl.startsWith('/placeholder')) {
       return imageUrl
     }
     
-    return '/placeholder.svg?height=200&width=200&query=activity'
+    // Si no hay imagen real, devolver null para mostrar logo de Omnia
+    return null
   }
 
   const getRatingDisplay = (rating?: number | null, totalReviews?: number | null) => {
@@ -282,30 +362,30 @@ const ActivityCard: React.FC<ActivityCardProps> = ({
     }
   }
 
+  // Convertir valores técnicos de dieta a texto amigable reutilizable
+  const getFriendlyDietName = (diet: string) => {
+    switch (diet.toLowerCase()) {
+      case 'baja_carbohidratos':
+        return 'Baja en carbohidratos'
+      case 'keto':
+        return 'Keto'
+      case 'paleo':
+        return 'Paleo'
+      case 'vegana':
+        return 'Vegana'
+      case 'vegetariana':
+        return 'Vegetariana'
+      case 'mediterranea':
+        return 'Mediterránea'
+      case 'balanceada':
+        return 'Balanceada'
+      default:
+        return diet
+    }
+  }
+
   const getDietTypeDisplay = (dietType?: string) => {
     if (!dietType) return null
-    
-    // Convertir valores técnicos a texto amigable
-    const getFriendlyDietName = (diet: string) => {
-      switch (diet.toLowerCase()) {
-        case 'baja_carbohidratos':
-          return 'Baja en carbohidratos'
-        case 'keto':
-          return 'Keto'
-        case 'paleo':
-          return 'Paleo'
-        case 'vegana':
-          return 'Vegana'
-        case 'vegetariana':
-          return 'Vegetariana'
-        case 'mediterranea':
-          return 'Mediterránea'
-        case 'balanceada':
-          return 'Balanceada'
-        default:
-          return diet
-      }
-    }
     
     const friendlyName = getFriendlyDietName(dietType)
     const truncatedName = friendlyName.length > 12 ? `${friendlyName.substring(0, 12)}...` : friendlyName
@@ -354,13 +434,23 @@ const ActivityCard: React.FC<ActivityCardProps> = ({
       <div className={`bg-[#1A1A1A] rounded-2xl overflow-hidden border border-gray-800 hover:border-[#FF7939]/30 transition-all duration-200 hover:scale-[1.02] h-full flex flex-col relative ${shouldShowAsInactive ? 'opacity-50 grayscale' : ''}`}>
         {/* Activity Image */}
         <div className="relative w-full h-48 flex-shrink-0">
-          <Image
-            src={getValidImageUrl(activity)}
-            alt={activity.title || 'Imagen de actividad'}
-            width={200}
-            height={200}
-            className="object-cover w-full h-full"
-          />
+          {getValidImageUrl(activity) ? (
+            <Image
+              src={getValidImageUrl(activity)!}
+              alt={activity.title || 'Imagen de actividad'}
+              width={200}
+              height={200}
+              className="object-cover w-full h-full"
+            />
+          ) : (
+            // Logo de Omnia cuando no hay imagen (igual que cuando no hay video en ejercicios)
+            <div className="w-full h-full bg-[rgba(255,255,255,0.02)] flex items-center justify-center flex-col gap-3">
+              <div className="w-16 h-16 bg-[#FF7939] rounded-xl flex items-center justify-center">
+                <Flame className="w-8 h-8 text-black" />
+              </div>
+              <h1 className="text-gray-400 text-xl font-bold">OMNIA</h1>
+            </div>
+          )}
           {/* Badge en la esquina inferior izquierda - Rating */}
           <div className="absolute bottom-3 left-3">
             <span className="bg-black/80 text-white text-xs px-2 py-1 rounded-full">
@@ -427,7 +517,7 @@ const ActivityCard: React.FC<ActivityCardProps> = ({
            <div className="flex items-center gap-2 text-[#FF7939]">
             {/* Para productos de nutrición, mostrar tipo de dieta en lugar de dificultad */}
             {activity.categoria === 'nutricion' || activity.categoria === 'nutrition' ?
-              getDietTypeDisplay((activity as any).dieta || undefined) :
+              getDietTypeDisplay(((activity as any).dieta ?? undefined) as string | undefined) :
               <div className="flex items-center gap-1">
                 {getDifficultyFires(activity.difficulty)}
               </div>
@@ -448,11 +538,12 @@ const ActivityCard: React.FC<ActivityCardProps> = ({
 
          {/* 5. 3 ICONOS - Sección fija */}
          <div className="flex items-center justify-between text-gray-300 mb-2">
-            {/* Semanas (si hay previewStats) o Sesiones (modo normal) */}
+            {/* Sesiones - Siempre mostrar sesiones, con "d" en naranja pequeña */}
             <div className="flex items-center gap-1">
               <Calendar className="w-4 h-4 text-[#FF7939]" />
-              <span className="text-sm font-medium">
-                {loading ? '...' : (previewStats ? totalWeeks : totalSessions)}
+              <span className="text-sm font-medium text-gray-300">
+                {loading ? '...' : (sessionsToShow || totalSessions || 0)}
+                <span className="text-[#FF7939] text-[10px]"> d</span>
               </span>
             </div>
             
@@ -486,10 +577,18 @@ const ActivityCard: React.FC<ActivityCardProps> = ({
 
          {/* 6. OBJETIVOS/TAGS - Sección fija (siempre presente para mantener alineación) */}
          <div className="flex gap-1 mb-1 justify-start overflow-x-auto h-6">
-            {(activity as any).objetivos && Array.isArray((activity as any).objetivos) && (activity as any).objetivos.length > 0 ? (
+            {/* Para productos de nutrición, usar tipo de dieta como “objetivo” principal */}
+            {((activity.categoria === 'nutricion' || activity.categoria === 'nutrition') && (activity as any).dieta) ? (
+              <span
+                className="bg-[#FF7939]/20 text-[#FF7939] text-[10px] px-1.5 py-0.5 rounded-full font-medium border border-[#FF7939]/30 whitespace-nowrap flex-shrink-0"
+                title={getFriendlyDietName((activity as any).dieta as string)}
+              >
+                {getFriendlyDietName((activity as any).dieta as string)}
+              </span>
+            ) : objetivos && Array.isArray(objetivos) && objetivos.length > 0 ? (
               (() => {
                 // Filtrar objetivos válidos (no vacíos, no nulos, no "Enel" o valores incompletos)
-                const objetivosValidos = (activity as any).objetivos.filter((objetivo: string) => 
+                const objetivosValidos = objetivos.filter((objetivo: string) => 
                   objetivo && 
                   objetivo.trim() !== '' && 
                   objetivo !== 'Enel' && 

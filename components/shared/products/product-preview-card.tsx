@@ -130,21 +130,12 @@ export function ProductPreviewCard({
 
   const getProductImage = () => {
     // Priorizar imagen real del producto
-    if (product.image) {
+    if (product.image && product.image.trim() !== '') {
       return product.image
     }
     
-    // Si no hay imagen real, usar placeholder
-    switch (product.type) {
-      case 'workshop':
-        return "https://images.unsplash.com/photo-1571019613454-1cb2f99b2d8b?w=400&h=300&fit=crop&crop=center"
-      case 'program':
-        return "https://images.unsplash.com/photo-1571019613454-1cb2f99b2d8b?w=400&h=300&fit=crop&crop=center"
-      case 'document':
-        return "https://images.unsplash.com/photo-1571019613454-1cb2f99b2d8b?w=400&h=300&fit=crop&crop=center"
-      default:
-        return "https://images.unsplash.com/photo-1571019613454-1cb2f99b2d8b?w=400&h=300&fit=crop&crop=center"
-    }
+    // Si no hay imagen real, devolver null para mostrar logo de Omnia
+    return null
   }
 
   const handleMouseDown = (e: React.MouseEvent) => {
@@ -407,18 +398,29 @@ export function ProductPreviewCard({
     >
       <Card className="bg-[#1E1E1E] border-none overflow-hidden shadow-lg">
         <CardContent className="p-0">
-          {/* Background Image Section - Always Show Image */}
+          {/* Background Image Section - Show Image or Omnia Logo */}
           <div className="relative h-48 w-full overflow-hidden">
-              <Image
-                src={getProductImage()}
-                alt={product.title}
-                fill
-                className="object-cover transition-transform duration-300 hover:scale-105"
-                sizes="(max-width: 768px) 100vw, (max-width: 1200px) 50vw, 33vw"
-              />
-            
-            {/* Overlay for better text readability - solo si es imagen */}
-            {!product.videoUrl && <div className="absolute inset-0 bg-black/40" />}
+            {getProductImage() ? (
+              <>
+                <Image
+                  src={getProductImage()!}
+                  alt={product.title}
+                  fill
+                  className="object-cover transition-transform duration-300 hover:scale-105"
+                  sizes="(max-width: 768px) 100vw, (max-width: 1200px) 50vw, 33vw"
+                />
+                {/* Overlay for better text readability - solo si es imagen */}
+                {!product.videoUrl && <div className="absolute inset-0 bg-black/40" />}
+              </>
+            ) : (
+              // Logo de Omnia cuando no hay imagen (igual que cuando no hay video en ejercicios)
+              <div className="w-full h-full bg-[rgba(255,255,255,0.02)] flex items-center justify-center flex-col gap-3">
+                <div className="w-16 h-16 bg-[#FF7939] rounded-xl flex items-center justify-center">
+                  <Flame className="w-8 h-8 text-black" />
+                </div>
+                <h1 className="text-gray-400 text-xl font-bold">OMNIA</h1>
+              </div>
+            )}
             
             {/* Type Badge */}
             <Badge className={`absolute top-3 left-3 ${getTypeColor()} text-white font-medium`}>

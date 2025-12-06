@@ -1,7 +1,7 @@
 
 "use client"
 
-import { useState, useEffect, useMemo } from "react"
+import { useState, useEffect, useMemo, useCallback } from "react"
 import { useRouter } from "next/navigation"
 import {
   Star,
@@ -488,8 +488,8 @@ export function SearchScreen({ onTabChange }: SearchScreenProps) {
   }
 
   // Función para manejar el cierre de modales con pila de navegación
-  const handleModalClose = () => {
-    
+  const handleModalClose = useCallback(() => {
+    // Cerrar inmediatamente sin esperar operaciones
     if (navigationStack.length === 0) {
       // Si no hay nada en la pila, cerrar todo y volver al search
       setIsPreviewModalOpen(false)
@@ -546,7 +546,7 @@ export function SearchScreen({ onTabChange }: SearchScreenProps) {
         setNavigationContext(null)
       }
     }
-  }
+  }, [navigationStack])
 
   // Función para manejar el click en el coach desde una actividad
   const handleCoachClickFromActivity = async (coachId: string) => {

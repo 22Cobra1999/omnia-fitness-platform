@@ -1,13 +1,13 @@
 "use client"
 
-import React, { useState, useEffect, useMemo, useCallback } from "react"
+import React, { useState, useEffect, useMemo, useCallback, useRef } from "react"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Textarea } from "@/components/ui/textarea"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Switch } from "@/components/ui/switch"
-import { ChevronLeft, ChevronRight, ChevronDown, Plus, X, Upload, Calendar, Clock, Users, FileText, Eye, Edit, Check, Video, Image as ImageIcon, Globe, MapPin, Trash2, Target, DollarSign, Eye as EyeIcon, EyeOff, Pencil, Flame, Lock, Unlock, Coins, MonitorSmartphone, Loader2, RotateCcw } from "lucide-react"
+import { ChevronLeft, ChevronRight, ChevronDown, Plus, X, Upload, Calendar, Clock, Users, FileText, Eye, Edit, Check, Video, Play, Image as ImageIcon, Globe, MapPin, Trash2, Target, DollarSign, Eye as EyeIcon, EyeOff, Pencil, Flame, Lock, Unlock, Coins, MonitorSmartphone, Loader2, RotateCcw } from "lucide-react"
 import { motion, AnimatePresence } from "framer-motion"
 import { ProductPreviewCard } from '@/components/shared/products/product-preview-card'
 import ActivityCard from '@/components/shared/activities/ActivityCard'
@@ -34,6 +34,8 @@ interface CreateProductModalProps {
   isOpen: boolean
   onClose: () => void
   editingProduct?: any
+  initialStep?: 'type' | 'programType' | 'general' | 'specific' | 'workshopMaterial' | 'workshopSchedule' | 'weeklyPlan' | 'preview'
+  showDateChangeNotice?: boolean
 }
 
 type ProductType = 'workshop' | 'program' | 'document'
@@ -47,7 +49,29 @@ const FITNESS_OBJECTIVE_OPTIONS = [
   'Rehabilitación',
   'Bienestar general',
   'Movilidad',
-  'Mindfulness'
+  'Mindfulness',
+  'Fuerza',
+  'Velocidad',
+  'Coordinación',
+  'Equilibrio',
+  'Potencia'
+]
+
+// Opciones específicas de nutrición: más alineadas a tipos de dieta / enfoque alimentario
+const NUTRITION_OBJECTIVE_OPTIONS = [
+  'Déficit calórico',
+  'Mantenimiento',
+  'Superávit calórico',
+  'Baja en carbohidratos',
+  'Keto',
+  'Paleo',
+  'Vegana',
+  'Vegetariana',
+  'Mediterránea',
+  'Balanceada',
+  'Mejorar hábitos',
+  'Salud digestiva',
+  'Rendimiento deportivo'
 ]
 
 const INTENSITY_CHOICES = [
@@ -76,28 +100,132 @@ const PLAN_LABELS: Record<PlanType, string> = {
   premium: 'Premium'
 }
 
-export default function CreateProductModal({ isOpen, onClose, editingProduct }: CreateProductModalProps) {
+export default function CreateProductModal({ isOpen, onClose, editingProduct, initialStep, showDateChangeNotice = false }: CreateProductModalProps) {
   const [selectedType, setSelectedType] = useState<ProductType | null>(null)
   const [selectedProgramType, setSelectedProgramType] = useState<ProgramSubType | null>(null)
   const [productCategory, setProductCategory] = useState<'fitness' | 'nutricion'>('fitness')
-  const [currentStep, setCurrentStep] = useState<'type' | 'programType' | 'general' | 'specific' | 'workshopMaterial' | 'workshopSchedule' | 'activities' | 'weeklyPlan' | 'preview'>('type')
+  const [currentStep, setCurrentStep] = useState<'type' | 'programType' | 'general' | 'specific' | 'workshopMaterial' | 'workshopSchedule' | 'weeklyPlan' | 'preview'>(initialStep || 'type')
+  const [showDateChangeNoticeLocal, setShowDateChangeNoticeLocal] = useState(showDateChangeNotice)
   
   // Estado para selección de videos
   const [isVideoModalOpen, setIsVideoModalOpen] = useState(false)
+  const [isVideoPreviewActive, setIsVideoPreviewActive] = useState(false)
   const [csvDataWithVideos, setCsvDataWithVideos] = useState<string[][]>([])
 
   // Estado para selección de media de portada
   const [isMediaModalOpen, setIsMediaModalOpen] = useState(false)
   const [mediaModalType, setMediaModalType] = useState<'image' | 'video'>('image')
 
+  // Estado para lista inline de media (imagen / video) en el paso 3
+  type InlineMediaType = 'image' | 'video'
+  interface InlineMediaItem {
+    id: string
+    filename: string
+    url: string
+    mediaType: InlineMediaType
+    size?: number
+    mimeType?: string
+  }
+
+  const [inlineMediaType, setInlineMediaType] = useState<InlineMediaType | null>(null)
+  const [inlineMediaItems, setInlineMediaItems] = useState<InlineMediaItem[]>([])
+  const [inlineMediaLoading, setInlineMediaLoading] = useState(false)
+  const [inlineMediaError, setInlineMediaError] = useState<string | null>(null)
+  const [inlineSelectedId, setInlineSelectedId] = useState<string | null>(null)
+  const inlineFileInputRef = useRef<HTMLInputElement | null>(null)
+
+  const truncateInlineFileName = (name: string, maxLength = 50) => {
+    if (!name) return ''
+    return name.length > maxLength ? name.slice(0, maxLength - 3) + '...' : name
+  }
+
+  // Bloquear scroll del contenido detrás cuando el modal está abierto
+  useEffect(() => {
+    if (typeof document === 'undefined') return
+
+    if (isOpen) {
+      const previousOverflow = document.body.style.overflow
+      document.body.style.overflow = 'hidden'
+      return () => {
+        document.body.style.overflow = previousOverflow
+      }
+    }
+  }, [isOpen])
+
+  const handleInlineUploadChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0]
+    if (!file) return
+
+    const mediaType: InlineMediaType = inlineMediaType || 'video'
+    setInlineMediaLoading(true)
+    setInlineMediaError(null)
+
+    try {
+      const formData = new FormData()
+      formData.append('file', file)
+      formData.append('mediaType', mediaType)
+      formData.append('category', 'product')
+
+      const response = await fetch('/api/upload-organized', {
+        method: 'POST',
+        body: formData
+      })
+
+      const data = await response.json()
+
+      if (!response.ok) {
+        throw new Error(data.error || 'Error al subir el archivo')
+      }
+
+      const newItem: InlineMediaItem = {
+        id: `inline-${Date.now()}`,
+        filename: data.fileName || file.name,
+        url: data.url,
+        mediaType,
+        size: file.size,
+        mimeType: file.type
+      }
+
+      setInlineMediaItems((prev) => [newItem, ...prev])
+      setInlineSelectedId(newItem.id)
+
+      if (mediaType === 'image') {
+        setGeneralFormWithLogs({
+          ...generalForm,
+          image: { url: data.url }
+        })
+        setIsVideoPreviewActive(false)
+      } else {
+        setGeneralFormWithLogs({
+          ...generalForm,
+          videoUrl: data.url
+        })
+        setIsVideoPreviewActive(true)
+      }
+    } catch (error: any) {
+      console.error('❌ Error subiendo archivo inline:', error)
+      setInlineMediaError(error.message || 'Error al subir el archivo')
+    } finally {
+      setInlineMediaLoading(false)
+      if (inlineFileInputRef.current) {
+        inlineFileInputRef.current.value = ''
+      }
+    }
+  }
+
   // Estado persistente del CSV que se mantiene durante toda la sesión
-  const [persistentCsvData, setPersistentCsvData] = useState<any[]>([])
+  // Usar undefined inicialmente para que CSVManagerEnhanced detecte primera carga
+  const [persistentCsvData, setPersistentCsvData] = useState<any[] | undefined>(undefined)
   const [persistentSelectedRows, setPersistentSelectedRows] = useState<Set<number>>(new Set())
   const [persistentCsvFileName, setPersistentCsvFileName] = useState<string>('')
   const [persistentCsvLoadedFromFile, setPersistentCsvLoadedFromFile] = useState(false)
   
-  // Estado persistente del calendario
-  const [persistentCalendarSchedule, setPersistentCalendarSchedule] = useState<any[]>([])
+  // Estado persistente del calendario (debe ser objeto, no array)
+  const [persistentCalendarSchedule, setPersistentCalendarSchedule] = useState<any>({})
+  
+  // Flag para saber si la planificación se limpió explícitamente por un cambio fuerte de contenido (eliminar + reemplazar platos/ejercicios)
+  // Cuando es true, no debemos volver a cargar la planificación vieja desde el backend en esta sesión de edición
+  const [planningClearedByContentChange, setPlanningClearedByContentChange] = useState(false)
   
   // Estado para los períodos del planificador semanal
   const [periods, setPeriods] = useState(1)
@@ -109,9 +237,103 @@ export default function CreateProductModal({ isOpen, onClose, editingProduct }: 
     ejerciciosTotales: 0,
     ejerciciosUnicos: 0
   })
+
+  // 🔍 Logs para entender carga de platos/ejercicios existentes en el PASO 4/5
+  useEffect(() => {
+    // Paso 4 (activities) removido - ahora se gestiona en tab "Mis Ejercicios/Platos"
+    // Este useEffect ya no es necesario pero lo mantenemos comentado por si acaso
+    if (false && currentStep === 'activities') {
+      console.log('🔎 [PASO 4/5] Entrando a sección de actividades/platos', {
+        activityIdForCsv: editingProduct?.id || 0,
+        hasEditingProduct: !!editingProduct,
+        persistentCsvDataLength: persistentCsvData?.length || 0,
+        productCategory
+      })
+    }
+  }, [currentStep, editingProduct, persistentCsvData, productCategory])
+
+  // Cargar media inline (imagen / video) reutilizando los mismos endpoints que el modal
+  const loadInlineMedia = async (type: InlineMediaType) => {
+    // Si ya estamos mostrando este tipo y ya hay items cargados, no recargar
+    if (type === inlineMediaType && inlineMediaItems.length > 0) {
+      console.log('📦 InlineMedia: reutilizando lista ya cargada', {
+        type,
+        items: inlineMediaItems.length
+      })
+      return
+    }
+
+    try {
+      setInlineMediaLoading(true)
+      setInlineMediaError(null)
+      setInlineMediaType(type)
+
+      if (type === 'image') {
+        const response = await fetch('/api/coach/storage-files')
+        const data = await response.json()
+
+        if (!response.ok || !data.success || !Array.isArray(data.files)) {
+          throw new Error(data.error || 'Error al cargar imágenes')
+        }
+
+        const imageFiles = data.files.filter((file: any) => file.concept === 'image') || []
+
+        const items: InlineMediaItem[] = imageFiles.map((file: any) => ({
+          id: file.fileId || `image-${file.fileName}`,
+          filename: file.fileName || '',
+          url: file.url || '',
+          mediaType: 'image',
+          size: file.sizeBytes || undefined,
+          mimeType: 'image/' + (file.fileName?.split('.').pop()?.toLowerCase() || 'jpeg')
+        }))
+
+        setInlineMediaItems(items)
+      } else {
+        const response = await fetch('/api/coach-media?all=true')
+        const data = await response.json()
+
+        if (!response.ok) {
+          throw new Error(data.error || 'Error al cargar videos')
+        }
+
+        const filteredMedia = data.media?.filter((item: any) => {
+          const hasVideoUrl = item.video_url && item.video_url.trim() !== ''
+          const hasBunnyId = item.bunny_video_id && item.bunny_video_id.trim() !== ''
+          return hasVideoUrl || hasBunnyId
+        }) || []
+
+        const items: InlineMediaItem[] = filteredMedia.map((item: any) => ({
+          id: item.id || item.bunny_video_id || `video-${item.filename}`,
+          filename: item.filename || 'Video',
+          url: item.video_url || '',
+          mediaType: 'video'
+        }))
+
+        setInlineMediaItems(items)
+      }
+    } catch (error: any) {
+      console.error('❌ Error cargando media inline:', error)
+      setInlineMediaError(error.message || 'Error al cargar archivos')
+    } finally {
+      setInlineMediaLoading(false)
+    }
+  }
   
   // Estado para controlar si se puede deshacer en el paso 5
   const [canUndoWeeklyPlan, setCanUndoWeeklyPlan] = useState(false)
+  
+  // Callback memoizado para onUndoAvailable para evitar loops infinitos
+  const handleUndoAvailable = useCallback((canUndo: boolean) => {
+    setCanUndoWeeklyPlan(canUndo)
+  }, [])
+  
+  // Callback memoizado para onUndo para evitar loops infinitos
+  const handleUndo = useCallback(() => {
+    // Llamar a la función de undo del WeeklyExercisePlanner
+    if (typeof window !== 'undefined' && (window as any).weeklyPlannerUndo) {
+      (window as any).weeklyPlannerUndo()
+    }
+  }, [])
   
   // Estado para taller - Material opcional (Paso 4)
   const [workshopMaterial, setWorkshopMaterial] = useState({
@@ -130,6 +352,18 @@ export default function CreateProductModal({ isOpen, onClose, editingProduct }: 
     duration: number
     isPrimary?: boolean
   }>>([])
+  
+  // Estado para confirmación de finalización del taller
+  const [showWorkshopFinishedConfirm, setShowWorkshopFinishedConfirm] = useState(false)
+  const [workshopFinishedConfirmed, setWorkshopFinishedConfirmed] = useState(false)
+  const [existingWorkshopDates, setExistingWorkshopDates] = useState<string[]>([])
+  // Estado para encuesta de finalización del taller
+  const [workshopRating, setWorkshopRating] = useState<number>(0)
+  const [workshopFeedback, setWorkshopFeedback] = useState<string>('')
+  const [isSubmittingFeedback, setIsSubmittingFeedback] = useState(false)
+  const [feedbackSubmitted, setFeedbackSubmitted] = useState(false)
+  const [showAddNewDatesPrompt, setShowAddNewDatesPrompt] = useState(false)
+  const [workshopIsFinished, setWorkshopIsFinished] = useState(false)
   
   // Estado para confirmación de cierre y acciones pendientes
   const [showCloseConfirmation, setShowCloseConfirmation] = useState(false)
@@ -200,10 +434,18 @@ export default function CreateProductModal({ isOpen, onClose, editingProduct }: 
   // Contexto de autenticación
   const { user } = useAuth()
 
+  // Log de usuario que abrió el modal (para debug de caché / carga de platos)
+  useEffect(() => {
+    console.log('👤 [CreateProductModal] Usuario autenticado en modal de producto:', {
+      userId: user?.id,
+      email: user?.email
+    })
+  }, [user?.id, user?.email])
+
   // Función para verificar si hay cambios sin guardar
   const hasUnsavedChanges = () => {
     // Verificar si estamos en paso 3 o superior
-    const stepIndex = ['type', 'programType', 'general', 'specific', 'activities', 'weeklyPlan', 'preview'].indexOf(currentStep)
+    const stepIndex = ['type', 'programType', 'general', 'specific', 'weeklyPlan', 'preview'].indexOf(currentStep)
     console.log(`🔍 Verificando cambios sin guardar - Paso actual: ${currentStep} (índice: ${stepIndex})`)
     
     if (stepIndex < 2) {
@@ -233,16 +475,16 @@ export default function CreateProductModal({ isOpen, onClose, editingProduct }: 
     })
     
     // Verificar si hay datos de CSV
-    const hasCsvData = persistentCsvData.length > 0
+    const hasCsvData = persistentCsvData && persistentCsvData.length > 0
     console.log(`📊 Datos CSV:`, {
-      csvLength: persistentCsvData.length,
+      csvLength: persistentCsvData?.length || 0,
       hasCsvData
     })
     
     // Verificar si hay datos de calendario
-    const hasCalendarData = persistentCalendarSchedule.length > 0
+    const hasCalendarData = persistentCalendarSchedule && Object.keys(persistentCalendarSchedule).length > 0
     console.log(`📅 Datos calendario:`, {
-      calendarLength: persistentCalendarSchedule.length,
+      calendarLength: persistentCalendarSchedule ? Object.keys(persistentCalendarSchedule).length : 0,
       hasCalendarData
     })
     
@@ -272,7 +514,9 @@ export default function CreateProductModal({ isOpen, onClose, editingProduct }: 
       setShowCloseConfirmation(true)
       console.log(`⚠️ Estado showCloseConfirmation después de set: ${showCloseConfirmation}`)
     } else {
-      console.log(`✅ Cerrando sin confirmación`)
+      console.log(`✅ Cerrando sin confirmación - Limpiando estado local`)
+      // Limpiar estado local incluso si no hay cambios para evitar que persista entre sesiones
+      clearPersistentState()
       onClose()
     }
   }
@@ -327,17 +571,48 @@ export default function CreateProductModal({ isOpen, onClose, editingProduct }: 
   // Función para limpiar estado persistente del CSV y calendario
   const clearPersistentState = () => {
     console.log('🧹 Limpiando estado persistente del CSV y calendario')
-    setPersistentCsvData([])
+    setPersistentCsvData(undefined) // undefined para forzar carga desde backend en próxima apertura
     setPersistentSelectedRows(new Set())
     setPersistentCsvFileName('')
     setPersistentCsvLoadedFromFile(false)
-    setPersistentCalendarSchedule([])
+    setPersistentCalendarSchedule({})
+    setPlanningClearedByContentChange(false)
+    // ✅ Limpiar cache de planificación
+    cachedPlanningFromDBRef.current = null
     // ✅ Limpiar también archivos pendientes
     setPendingImageFile(null)
     setPendingVideoFile(null)
     setExerciseVideoFiles({})
     setVideosPendingDeletion([])
     console.log('🧹 Archivos pendientes limpiados al cerrar modal')
+
+    // 🧹 Limpiar también borradores en sessionStorage para evitar que
+    // eliminaciones "provisorias" persistan después de cerrar sin guardar.
+    if (typeof window !== 'undefined' && typeof sessionStorage !== 'undefined') {
+      try {
+        // Para productos en edición: usar su id real de actividad
+        const activityId = editingProduct?.id
+        if (activityId) {
+          const draftKey = `activities_draft_${activityId}`
+          const draftInteractedKey = `activities_draft_${activityId}_interacted`
+          console.log('🧹 Eliminando borradores de sesión para actividad:', {
+            activityId,
+            draftKey,
+            draftInteractedKey
+          })
+          sessionStorage.removeItem(draftKey)
+          sessionStorage.removeItem(draftInteractedKey)
+        }
+
+        // También limpiar el posible borrador genérico con id 0 (caso programas nuevos)
+        const draftKeyZero = 'activities_draft_0'
+        const draftInteractedKeyZero = 'activities_draft_0_interacted'
+        sessionStorage.removeItem(draftKeyZero)
+        sessionStorage.removeItem(draftInteractedKeyZero)
+      } catch (error) {
+        console.warn('⚠️ No se pudieron limpiar borradores de sesión:', error)
+      }
+    }
   }
 
   // Función para obtener el número del paso actual
@@ -357,9 +632,8 @@ export default function CreateProductModal({ isOpen, onClose, editingProduct }: 
         'type': 1,
         'programType': 2,
         'general': 3,
-        'activities': 4,
-        'weeklyPlan': 5,
-        'preview': 6
+        'weeklyPlan': 4,
+        'preview': 5
       }
       return programStepMap[step] || 1
     }
@@ -383,9 +657,8 @@ export default function CreateProductModal({ isOpen, onClose, editingProduct }: 
         1: 'type',
         2: 'programType', 
         3: 'general',
-        4: 'activities',
-        5: 'weeklyPlan',
-        6: 'preview'
+        4: 'weeklyPlan',
+        5: 'preview'
       }
     }
     
@@ -1037,10 +1310,25 @@ export default function CreateProductModal({ isOpen, onClose, editingProduct }: 
   // Funciones para manejar selección de media de portada
   const openMediaModal = (type: 'image' | 'video') => {
     console.log('🔄 openMediaModal llamado con tipo:', type)
+    // En el paso 3 usamos la lista inline en lugar de abrir un modal
+    if (currentStep === 'general') {
+      loadInlineMedia(type)
+      return
+    }
     console.log('🔄 Estado actual isMediaModalOpen:', isMediaModalOpen)
     setMediaModalType(type)
     setIsMediaModalOpen(true)
     console.log('🔄 Estado después de setIsMediaModalOpen(true):', true)
+  }
+
+  // Botón "+" para subir nuevo media desde carpetas locales
+  const handleInlinePlusClick = () => {
+    if (!inlineFileInputRef.current) return
+    // Ajustar tipos aceptados según el tipo actual
+    const mediaType: InlineMediaType = inlineMediaType || 'video'
+    inlineFileInputRef.current.accept =
+      mediaType === 'image' ? 'image/*' : 'video/mp4,video/webm,video/quicktime'
+    inlineFileInputRef.current.click()
   }
 
   const handleMediaSelection = (mediaUrl: string, mediaType: 'image' | 'video', mediaFile?: File) => {
@@ -1113,8 +1401,8 @@ export default function CreateProductModal({ isOpen, onClose, editingProduct }: 
         hasVideo: !!generalForm.videoUrl
       },
       specificForm: specificForm,
-      csvData: persistentCsvData.length,
-      schedule: persistentCalendarSchedule.length
+      csvData: persistentCsvData?.length || 0,
+      schedule: persistentCalendarSchedule ? Object.keys(persistentCalendarSchedule).length : 0
     })
     
     try {
@@ -1236,8 +1524,25 @@ export default function CreateProductModal({ isOpen, onClose, editingProduct }: 
       }
 
       // Calcular valores dinámicos
-      const totalSessions = persistentCalendarSchedule.length || 1
-      const totalExercises = persistentCsvData.length || 0
+      // Contar días con ejercicios en el schedule
+      let totalSessions = 1
+      if (persistentCalendarSchedule && Object.keys(persistentCalendarSchedule).length > 0) {
+        totalSessions = 0
+        Object.values(persistentCalendarSchedule).forEach((week: any) => {
+          if (week && typeof week === 'object') {
+            Object.values(week).forEach((day: any) => {
+              if (day) {
+                const exercises = Array.isArray(day) ? day : (day.ejercicios || day.exercises || [])
+                if (exercises && exercises.length > 0) {
+                  totalSessions++
+                }
+              }
+            })
+          }
+        })
+        if (totalSessions === 0) totalSessions = 1
+      }
+      const totalExercises = persistentCsvData?.length || 0
       const capacity = (() => {
         // Priorizar specificForm.capacity si está definido (para edición)
         if (specificForm.capacity) {
@@ -1742,20 +2047,56 @@ export default function CreateProductModal({ isOpen, onClose, editingProduct }: 
                 try {
                   if (item['Ingredientes'] || item.ingredientes) {
                     const ingredientesRaw = item['Ingredientes'] || item.ingredientes
-                    ingredientes = typeof ingredientesRaw === 'string' 
-                      ? JSON.parse(ingredientesRaw) 
-                      : ingredientesRaw
+                    
+                    // ✅ Si ya es un array u objeto, usarlo directamente
+                    if (Array.isArray(ingredientesRaw) || (typeof ingredientesRaw === 'object' && ingredientesRaw !== null)) {
+                      ingredientes = ingredientesRaw
+                    } 
+                    // ✅ Si es string, intentar parsear como JSON primero
+                    else if (typeof ingredientesRaw === 'string') {
+                      // Verificar si parece JSON (empieza con [ o {)
+                      const trimmed = ingredientesRaw.trim()
+                      if ((trimmed.startsWith('[') && trimmed.endsWith(']')) || 
+                          (trimmed.startsWith('{') && trimmed.endsWith('}'))) {
+                        try {
+                          ingredientes = JSON.parse(ingredientesRaw)
+                        } catch (parseError) {
+                          // Si falla el parse, usar el string tal cual
+                          ingredientes = ingredientesRaw
+                        }
+                      } else {
+                        // No es JSON, usar el string tal cual
+                        ingredientes = ingredientesRaw
+                      }
+                    } else {
+                      ingredientes = ingredientesRaw
+                    }
                   }
                 } catch (e) {
                   console.error('Error parseando ingredientes:', e)
+                  // En caso de error, usar el valor original
+                  ingredientes = item['Ingredientes'] || item.ingredientes || null
+                }
+                
+                // Mapear nombre con múltiples variantes posibles
+                const nombreValue = item['Nombre'] || 
+                                   item['Nombre del Plato'] || 
+                                   item.nombre || 
+                                   item.nombre_plato || 
+                                   item.title || 
+                                   ''
+                
+                if (!nombreValue || nombreValue.trim() === '') {
+                  console.warn('⚠️ BULK: Plato sin nombre en índice', index, 'item:', item)
                 }
                 
                 return {
-                  id: isExistingRecord ? resolvedId : tempIdString || `nutrition-${index + 1}`,
-                  tempId: tempIdString || `nutrition-${index + 1}`,
+                  id: isExistingRecord ? resolvedId : tempIdString || `nutrition-${index}`,
+                  tempId: tempIdString || `nutrition-${index}`,
                   isExisting: isExistingRecord,
                   is_active: item.is_active !== undefined ? item.is_active : true,
-                  nombre: item['Nombre'] || item.nombre || '',
+                  nombre: nombreValue,
+                  tipo: item['Tipo'] || item.tipo || '',
                   receta: item['Receta'] || item['Descripción'] || item.Descripción || item.descripcion || item.receta || '',
                   descripcion: item['Receta'] || item['Descripción'] || item.Descripción || item.descripcion || item.receta || '',
                   calorias: item['Calorías'] || item.Calorías || item.calorias || '0',
@@ -1795,6 +2136,19 @@ export default function CreateProductModal({ isOpen, onClose, editingProduct }: 
               }
             })
 
+            // Log de datos antes de enviar
+            console.log('📤 BULK: Enviando datos al endpoint:', {
+              endpoint,
+              activityId: result.product?.id,
+              totalPlates: plates.length,
+              firstPlate: plates[0] ? {
+                id: plates[0].id,
+                tempId: plates[0].tempId,
+                nombre: plates[0].nombre,
+                isExisting: plates[0].isExisting
+              } : null
+            })
+
             const bulkResponse = await fetch(endpoint, {
               method: 'POST',
               headers: { 'Content-Type': 'application/json' },
@@ -1805,10 +2159,70 @@ export default function CreateProductModal({ isOpen, onClose, editingProduct }: 
               })
             })
 
+            if (!bulkResponse.ok) {
+              const errorText = await bulkResponse.text()
+              console.error('❌ BULK: Error en respuesta HTTP:', {
+                status: bulkResponse.status,
+                statusText: bulkResponse.statusText,
+                error: errorText
+              })
+              alert(`❌ Error al guardar platos/ejercicios: ${bulkResponse.status} ${bulkResponse.statusText}`)
+              setIsPublishing(false)
+              setPublishProgress('')
+              return
+            }
+
             const bulkResult = await bulkResponse.json()
             
-            if (bulkResult.success) {
-              console.log('✅ Platos/ejercicios guardados exitosamente:', bulkResult.count || plates.length)
+            console.log('📥 BULK: Respuesta recibida:', {
+              success: bulkResult.success,
+              count: bulkResult.count,
+              failuresCount: bulkResult.failures?.length || 0,
+              firstFailure: bulkResult.failures?.[0] || null
+            })
+            
+            // ✅ Verificar si hay errores en la respuesta
+            const successCount = bulkResult.count || 0
+            const failureCount = bulkResult.failures?.length || 0
+            const allFailed = successCount === 0 && failureCount === plates.length
+            
+            if (bulkResult.failures && bulkResult.failures.length > 0) {
+              console.error('❌ ERRORES al guardar platos/ejercicios:', {
+                total: plates.length,
+                exitosos: successCount,
+                fallidos: failureCount,
+                allFailed: allFailed,
+                failures: bulkResult.failures.map((f: any) => ({
+                  tempId: f.tempId,
+                  nombre: f.nombre,
+                  motivo: f.motivo,
+                  detalles: f.detalles,
+                  rawId: f.rawId
+                }))
+              })
+              
+              // Mostrar errores al usuario con detalles completos
+              const errorMessages = bulkResult.failures.map((f: any, idx: number) => 
+                `${idx + 1}. ${f.nombre || f.tempId || 'Plato desconocido'}: ${f.detalles || f.motivo || 'Error desconocido'}`
+              ).join('\n')
+              
+              if (allFailed) {
+                alert(`❌ Error: No se pudo guardar ningún plato/ejercicio.\n\nErrores:\n${errorMessages}\n\nPor favor, revisa los datos e intenta nuevamente.`)
+                setIsPublishing(false)
+                setPublishProgress('')
+                return
+              } else {
+                alert(`⚠️ Se encontraron errores al guardar algunos platos:\n\n${errorMessages}`)
+              }
+            }
+            
+            if (bulkResult.success && successCount > 0) {
+              console.log('✅ Platos/ejercicios guardados exitosamente:', {
+                count: successCount,
+                total: plates.length,
+                failures: failureCount,
+                data: bulkResult.data
+              })
               
               // Crear mapeo temporal de IDs temporales a IDs reales (para ambos: nutricion y fitness)
               if (bulkResult.data && Array.isArray(bulkResult.data)) {
@@ -1823,8 +2237,15 @@ export default function CreateProductModal({ isOpen, onClose, editingProduct }: 
                   if (plate?.id !== undefined) {
                     const idString = String(plate.id)
                     tempCandidates.push(idString)
-                    if (!idString.startsWith('exercise-')) {
+                    // ✅ Agregar soporte para IDs que empiezan con "nutrition-"
+                    if (idString.startsWith('nutrition-')) {
+                      tempCandidates.push(idString)
+                    } else if (!idString.startsWith('exercise-')) {
                       tempCandidates.push(`exercise-${idString}`)
+                      // ✅ También agregar variante "nutrition-" para compatibilidad
+                      if (productCategory === 'nutricion') {
+                        tempCandidates.push(`nutrition-${idString}`)
+                      }
                     }
                   }
 
@@ -1835,11 +2256,20 @@ export default function CreateProductModal({ isOpen, onClose, editingProduct }: 
                       .forEach((temp) => {
                         const key = String(temp)
                         mappedIds[key] = realId
+                        // ✅ Manejar IDs que empiezan con "nutrition-"
+                        if (key.startsWith('nutrition-')) {
+                          mappedIds[key] = realId
+                          mappedIds[key.replace(/^nutrition-/, '')] = realId
+                        }
                         if (key.startsWith('exercise-')) {
                           mappedIds[key.replace(/^exercise-/, '')] = realId
                         }
                         mappedIds[String(realId)] = realId
                         mappedIds[`exercise-${realId}`] = realId
+                        // ✅ Agregar variante "nutrition-" para nutrición
+                        if (productCategory === 'nutricion') {
+                          mappedIds[`nutrition-${realId}`] = realId
+                        }
                       })
                   }
                 })
@@ -1854,7 +2284,12 @@ export default function CreateProductModal({ isOpen, onClose, editingProduct }: 
                 if (missingTempIds.length > 0 && result.product?.id) {
                   console.warn('⚠️ IDs temporales sin mapear tras inserción inicial:', missingTempIds)
                   try {
-                    const exercisesResponse = await fetch(`/api/activity-exercises/${result.product.id}?t=${Date.now()}`)
+                    // ✅ Usar el endpoint correcto según la categoría
+                    const endpoint = productCategory === 'nutricion'
+                      ? `/api/activity-nutrition/${result.product.id}?t=${Date.now()}`
+                      : `/api/activity-exercises/${result.product.id}?t=${Date.now()}`
+                    
+                    const exercisesResponse = await fetch(endpoint)
                     if (exercisesResponse.ok) {
                       const exercisesResult = await exercisesResponse.json()
                       const exerciseList: any[] = Array.isArray(exercisesResult?.data)
@@ -1863,27 +2298,48 @@ export default function CreateProductModal({ isOpen, onClose, editingProduct }: 
                           ? exercisesResult.exercises
                           : []
 
-                      exerciseList.forEach((exercise: any) => {
+                      console.log(`🔍 Obtenidos ${exerciseList.length} ejercicios/platos para completar mapeo`)
+
+                      exerciseList.forEach((exercise: any, listIndex: number) => {
                         const normalized = normalizeName(
                           exercise?.nombre_ejercicio ||
                           exercise?.nombre ||
+                          exercise?.nombre_plato ||
                           exercise?.name ||
                           ''
                         )
                         if (!normalized) return
                         const potentialTempIds = nameToTempIds[normalized] || []
+                        
+                        // ✅ También agregar IDs temporales basados en el índice si no hay nombre
+                        if (potentialTempIds.length === 0) {
+                          if (productCategory === 'nutricion') {
+                            potentialTempIds.push(`nutrition-${listIndex}`)
+                          } else {
+                            potentialTempIds.push(`exercise-${listIndex}`)
+                          }
+                        }
+                        
                         potentialTempIds.forEach((tempKey) => {
                           if (idMapping[tempKey] === undefined) {
                             idMapping[tempKey] = exercise.id
                             idMapping[String(exercise.id)] = exercise.id
                             idMapping[`exercise-${exercise.id}`] = exercise.id
+                            if (productCategory === 'nutricion') {
+                              idMapping[`nutrition-${exercise.id}`] = exercise.id
+                            }
                             if (tempKey.startsWith('exercise-')) {
                               idMapping[tempKey.replace(/^exercise-/, '')] = exercise.id
+                            }
+                            if (tempKey.startsWith('nutrition-')) {
+                              idMapping[tempKey.replace(/^nutrition-/, '')] = exercise.id
                             }
                             console.log(`🔁 Mapeo completado vía listado: ${tempKey} -> ${exercise.id}`)
                           }
                         })
                       })
+                      
+                      console.log('🔄 Mapeo actualizado después de obtener listado:', idMapping)
                     } else {
                       console.warn('⚠️ No se pudo obtener ejercicios para completar mapeo:', exercisesResponse.status)
                     }
@@ -1900,6 +2356,13 @@ export default function CreateProductModal({ isOpen, onClose, editingProduct }: 
                     typeof entry.id === 'number' ? `exercise-${entry.id}` : null,
                     typeof entry.id === 'string' && entry.id.startsWith('exercise-')
                       ? entry.id.replace(/^exercise-/, '')
+                      : null,
+                    // ✅ Agregar soporte para IDs que empiezan con "nutrition-"
+                    typeof entry.id === 'string' && entry.id.startsWith('nutrition-')
+                      ? entry.id.replace(/^nutrition-/, '')
+                      : null,
+                    typeof entry.id === 'string' && entry.id.startsWith('nutrition-')
+                      ? entry.id
                       : null
                   ]
 
@@ -1907,6 +2370,7 @@ export default function CreateProductModal({ isOpen, onClose, editingProduct }: 
                     if (key === undefined || key === null) continue
                     const mapped = idMapping[String(key)]
                     if (mapped !== undefined) {
+                      console.log(`✅ ID mapeado: ${key} -> ${mapped}`)
                       return mapped
                     }
                   }
@@ -1923,11 +2387,13 @@ export default function CreateProductModal({ isOpen, onClose, editingProduct }: 
                     for (const tempKey of nameToTempIds[normalizedEntryName]) {
                       const mapped = idMapping[tempKey]
                       if (mapped !== undefined) {
+                        console.log(`✅ ID mapeado por nombre: ${tempKey} -> ${mapped}`)
                         return mapped
                       }
                     }
                   }
 
+                  console.warn(`⚠️ ID no mapeado para entrada:`, { id: entry.id, tempId: entry.tempId, name: normalizedEntryName })
                   return entry.id
                 }
 
@@ -1985,41 +2451,58 @@ export default function CreateProductModal({ isOpen, onClose, editingProduct }: 
           let scheduleToSave = persistentCalendarSchedule
           if (idMapping && Object.keys(idMapping).length > 0) {
             scheduleToSave = JSON.parse(JSON.stringify(persistentCalendarSchedule))
+            let totalUpdated = 0
             for (const weekKey in scheduleToSave) {
               for (const dayKey in scheduleToSave[weekKey]) {
                 const dayData = scheduleToSave[weekKey][dayKey]
                 if (!dayData) continue
 
-                if (Array.isArray(dayData.ejercicios)) {
-                  dayData.ejercicios = dayData.ejercicios.map((ex: any) => {
-                    const resolvedId = resolveMappedIdForEntry(ex)
-                    const finalId =
-                      typeof resolvedId === 'string' && /^\d+$/.test(resolvedId)
-                        ? parseInt(resolvedId, 10)
-                        : resolvedId
-                    if (finalId !== ex.id) {
-                      console.log(`🔧 Actualizando ID en planificación: ${ex.id} -> ${finalId}`)
-                    }
+                // ✅ Función helper para actualizar ID de un ejercicio
+                const updateExerciseId = (ex: any): any => {
+                  if (!ex || !ex.id) return ex
+                  
+                  const resolvedId = resolveMappedIdForEntry(ex)
+                  let finalId = resolvedId
+                  
+                  // ✅ Convertir string numérico a número
+                  if (typeof resolvedId === 'string' && /^\d+$/.test(resolvedId)) {
+                    finalId = parseInt(resolvedId, 10)
+                  }
+                  
+                  // ✅ Si el ID cambió, actualizarlo
+                  if (finalId !== ex.id && finalId !== undefined && finalId !== null) {
+                    console.log(`🔧 Actualizando ID en planificación: ${ex.id} -> ${finalId}`, {
+                      week: weekKey,
+                      day: dayKey,
+                      originalId: ex.id,
+                      newId: finalId,
+                      name: ex.name || ex.nombre || ex['Nombre de la Actividad']
+                    })
+                    totalUpdated++
                     return { ...ex, id: finalId }
-                  })
+                  }
+                  
+                  return ex
+                }
+
+                if (Array.isArray(dayData.ejercicios)) {
+                  dayData.ejercicios = dayData.ejercicios.map(updateExerciseId)
                 }
 
                 if (Array.isArray(dayData.exercises)) {
-                  dayData.exercises = dayData.exercises.map((ex: any) => {
-                    const resolvedId = resolveMappedIdForEntry(ex)
-                    const finalId =
-                      typeof resolvedId === 'string' && /^\d+$/.test(resolvedId)
-                        ? parseInt(resolvedId, 10)
-                        : resolvedId
-                    if (finalId !== ex.id) {
-                      console.log(`🔧 Actualizando ID en planificación (exercises): ${ex.id} -> ${finalId}`)
-                    }
-                    return { ...ex, id: finalId }
-                  })
+                  dayData.exercises = dayData.exercises.map(updateExerciseId)
+                }
+                
+                // ✅ También actualizar si los ejercicios están en un objeto con estructura diferente
+                if (dayData.ejercicios && !Array.isArray(dayData.ejercicios) && typeof dayData.ejercicios === 'object') {
+                  const ejerciciosObj = dayData.ejercicios as any
+                  if (Array.isArray(ejerciciosObj.ejercicios)) {
+                    ejerciciosObj.ejercicios = ejerciciosObj.ejercicios.map(updateExerciseId)
+                  }
                 }
               }
             }
-            console.log('✅ Planificación actualizada con IDs reales antes de enviar')
+            console.log(`✅ Planificación actualizada con IDs reales: ${totalUpdated} IDs actualizados`)
           }
           
           try {
@@ -2574,6 +3057,9 @@ export default function CreateProductModal({ isOpen, onClose, editingProduct }: 
           isPrimary?: boolean
         }> = []
         
+        // Extraer todas las fechas existentes para verificar si ya pasaron
+        const allExistingDates: string[] = []
+        
         // Procesar cada tema de taller
         tallerDetalles.forEach((tema: any) => {
           console.log('🎯 Procesando tema:', tema.nombre)
@@ -2581,6 +3067,9 @@ export default function CreateProductModal({ isOpen, onClose, editingProduct }: 
           // Procesar horarios originales
           if (tema.originales?.fechas_horarios && Array.isArray(tema.originales.fechas_horarios)) {
             tema.originales.fechas_horarios.forEach((horario: any) => {
+              if (horario.fecha) {
+                allExistingDates.push(horario.fecha)
+              }
               sessions.push({
                 title: tema.nombre,
                 description: tema.descripcion || '',
@@ -2596,6 +3085,35 @@ export default function CreateProductModal({ isOpen, onClose, editingProduct }: 
         
         console.log('✅ Sesiones procesadas desde taller_detalles:', sessions)
         setWorkshopSchedule(sessions)
+        setExistingWorkshopDates(allExistingDates)
+        
+        // Verificar si todas las fechas existentes ya pasaron (solo si se está editando un taller existente)
+        // NO mostrar confirmación si se abre desde "Agregar nuevas fechas" (initialStep === 'workshopSchedule')
+        console.log('🔍 loadWorkshopData - Verificando fechas:', { 
+          allExistingDatesCount: allExistingDates.length, 
+          editingProductId: editingProduct?.id, 
+          initialStep,
+          currentStep 
+        })
+        
+        if (allExistingDates.length > 0 && editingProduct?.id && initialStep !== 'workshopSchedule' && currentStep !== 'workshopSchedule') {
+          const now = new Date()
+          now.setHours(0, 0, 0, 0)
+          
+          const allDatesPassed = allExistingDates.every((dateStr: string) => {
+            const date = new Date(dateStr)
+            date.setHours(0, 0, 0, 0)
+            return date < now
+          })
+          
+          if (allDatesPassed) {
+            // Todas las fechas existentes ya pasaron, mostrar confirmación
+            console.log('📅 Todas las fechas existentes del taller ya pasaron, solicitando confirmación')
+            setShowWorkshopFinishedConfirm(true)
+          }
+        } else if (initialStep === 'workshopSchedule' || currentStep === 'workshopSchedule') {
+          console.log('✅ Abriendo desde paso 5 (workshopSchedule), no mostrar confirmación de fechas pasadas', { initialStep, currentStep })
+        }
       }
       
     } catch (error) {
@@ -2603,10 +3121,106 @@ export default function CreateProductModal({ isOpen, onClose, editingProduct }: 
     }
   }
 
+  // Limpiar estado de confirmación cuando cambia el producto o se cierra el modal
+  useEffect(() => {
+    if (!isOpen || !editingProduct) {
+      setShowWorkshopFinishedConfirm(false)
+      setWorkshopFinishedConfirmed(false)
+      setExistingWorkshopDates([])
+    }
+  }, [isOpen, editingProduct?.id])
+
   // Cargar datos del producto a editar
   useEffect(() => {
     if (editingProduct) {
-      console.log('Cargando datos para edición:', editingProduct)
+      console.log('🔄 Cargando datos para edición:', editingProduct)
+      
+      // Limpiar confirmación previa al cargar nuevo producto
+      setShowWorkshopFinishedConfirm(false)
+      setWorkshopFinishedConfirmed(false)
+      setExistingWorkshopDates([])
+      setFeedbackSubmitted(false)
+      setShowAddNewDatesPrompt(false)
+      
+      // Verificar si el taller está finalizado
+      if (editingProduct.type === 'workshop' && ((editingProduct as any).is_finished || (editingProduct as any).taller_activo === false)) {
+        setWorkshopIsFinished(true)
+        // Limpiar estados de encuesta antes de verificar
+        setShowWorkshopFinishedConfirm(false)
+        setWorkshopFinishedConfirmed(false)
+        setFeedbackSubmitted(false)
+        setShowAddNewDatesPrompt(false)
+        
+        // Si estamos en el paso 5 (workshopSchedule), significa que ya pasamos por la encuesta
+        // No mostrar el modal de encuesta en este caso
+        if (initialStep === 'workshopSchedule') {
+          console.log('✅ Abriendo desde paso 5 (workshopSchedule), no mostrar encuesta')
+          setShowWorkshopFinishedConfirm(false)
+          setFeedbackSubmitted(true)
+          setShowAddNewDatesPrompt(false)
+          // No hacer return, continuar con la carga normal
+        } else {
+          // Verificar si el coach ya completó la encuesta
+          // El rating se guarda en activity_surveys, necesitamos verificar si existe
+          const checkCoachSurvey = async () => {
+            try {
+              const response = await fetch(`/api/activities/${editingProduct.id}/check-coach-survey`)
+              const result = await response.json()
+              if (result.hasSurvey) {
+                // Ya tiene encuesta, mostrar opción de reiniciar
+                setFeedbackSubmitted(true)
+                setShowAddNewDatesPrompt(true)
+                setShowWorkshopFinishedConfirm(false)
+              } else {
+                // No tiene encuesta, mostrar encuesta primero
+                setShowWorkshopFinishedConfirm(true)
+                setWorkshopFinishedConfirmed(true) // Ir directo a la encuesta
+              }
+            } catch (error) {
+              console.error('Error verificando encuesta del coach:', error)
+              // Por defecto, mostrar encuesta si hay error
+              setShowWorkshopFinishedConfirm(true)
+              setWorkshopFinishedConfirmed(true)
+            }
+          }
+          checkCoachSurvey()
+        }
+      } else {
+        setWorkshopIsFinished(false)
+        // Limpiar estados si no es taller finalizado
+        setShowWorkshopFinishedConfirm(false)
+        setWorkshopFinishedConfirmed(false)
+        setFeedbackSubmitted(false)
+        setShowAddNewDatesPrompt(false)
+      }
+      
+      // ✅ LIMPIAR ESTADO LOCAL PRIMERO para evitar que datos de sesiones anteriores persistan
+      console.log('🧹 Limpiando estado local antes de cargar datos del backend')
+      
+      // Limpiar sessionStorage PRIMERO (síncrono) antes de limpiar estado
+      if (typeof window !== 'undefined' && editingProduct.id) {
+        try {
+          const draftKey = `activities_draft_${editingProduct.id}`
+          const draftInteractedKey = `activities_draft_${editingProduct.id}_interacted`
+          sessionStorage.removeItem(draftKey)
+          sessionStorage.removeItem(draftInteractedKey)
+          console.log('🧹 SessionStorage limpiado para producto (ANTES de limpiar estado):', editingProduct.id)
+        } catch (error) {
+          console.warn('⚠️ No se pudo limpiar sessionStorage:', error)
+        }
+      }
+      
+      // Ahora limpiar estado local - usar undefined para forzar carga desde backend
+      // NO establecer a [] porque eso hace que CSVManagerEnhanced piense que ya hay datos (vacíos)
+      // Mantener undefined hasta que los datos se carguen desde el backend
+      setPersistentCsvData(undefined) // undefined hace que CSVManagerEnhanced cargue desde backend
+      setPersistentSelectedRows(new Set())
+      setPersistentCsvFileName('')
+      setPersistentCsvLoadedFromFile(false)
+      setPersistentCalendarSchedule({})
+      setExerciseVideoFiles({})
+      // ✅ Limpiar cache de planificación al cambiar de producto
+      cachedPlanningFromDBRef.current = null
       
       // Determinar el tipo de producto
       let productType: ProductType = 'workshop'
@@ -2617,7 +3231,8 @@ export default function CreateProductModal({ isOpen, onClose, editingProduct }: 
       }
       
       setSelectedType(productType)
-      setCurrentStep('general')
+      // Si hay initialStep, usarlo; si no, ir a 'general' para edición normal
+      setCurrentStep(initialStep || 'general')
       
       // ✅ ESTABLECER CATEGORÍA DEL PRODUCTO (fitness o nutricion)
       if (editingProduct.categoria) {
@@ -2711,18 +3326,221 @@ export default function CreateProductModal({ isOpen, onClose, editingProduct }: 
         pages: editingProduct.pages || ''
       })
       
-      // Si es un programa, cargar datos del CSV
+      // Si es un programa, cargar datos del CSV desde el backend (NO desde cache local)
       if (productType === 'program' && editingProduct.csvData) {
-        // // console.log('📊 Cargando datos CSV del programa:', editingProduct.csvData.length, 'filas')
-        csvManagement.setCsvData(editingProduct.csvData)
-        csvManagement.setCsvFileName(editingProduct.csvFileName || 'program.csv')
-        csvManagement.setCsvLoadedFromFile(true)
+        console.log('📊 Cargando datos CSV del backend (NO desde cache):', editingProduct.csvData.length, 'filas')
+        // Usar setPersistentCsvData directamente en lugar de csvManagement para asegurar que se limpia primero
+        setPersistentCsvData(editingProduct.csvData || [])
+        setPersistentCsvFileName(editingProduct.csvFileName || 'program.csv')
+        setPersistentCsvLoadedFromFile(true)
+      } else if (productType === 'program') {
+        // Si no hay csvData en editingProduct, cargar desde el backend
+        console.log('📊 No hay datos CSV en editingProduct, cargando desde backend')
+        
+        // Cargar ejercicios/platos desde el backend
+        const loadExercisesFromBackend = async () => {
+          try {
+            if (!editingProduct.id) return
+            
+            // ✅ IMPORTANTE: Usar editingProduct.categoria directamente porque productCategory puede no estar actualizado aún
+            const categoria = editingProduct.categoria || 'fitness'
+            const isNutrition = categoria === 'nutricion'
+            const endpoint = isNutrition
+              ? `/api/activity-nutrition/${editingProduct.id}`
+              : `/api/activity-exercises/${editingProduct.id}`
+            
+            console.log(`🔄 Cargando ${isNutrition ? 'platos' : 'ejercicios'} desde backend:`, endpoint, { categoria, productCategory, id: editingProduct.id })
+            
+            const response = await fetch(endpoint)
+            const result = await response.json()
+            
+            if (result.success && Array.isArray(result.data) && result.data.length > 0) {
+              // Transformar los datos al formato esperado por el planificador
+              const transformedData = result.data.map((item: any) => {
+                if (isNutrition) {
+                  return {
+                    id: item.id,
+                    Nombre: item.nombre || item['Nombre'] || '',
+                    Descripción: item.receta || item['Receta'] || item.descripcion || '',
+                    Tipo: item.tipo || item['Tipo'] || 'otro',
+                    Calorías: item.calorias || item['Calorías'] || 0,
+                    'Proteínas (g)': item.proteinas || item['Proteínas (g)'] || 0,
+                    'Carbohidratos (g)': item.carbohidratos || item['Carbohidratos (g)'] || 0,
+                    'Grasas (g)': item.grasas || item['Grasas (g)'] || 0,
+                    activo: item.activo !== false && item.is_active !== false,
+                    is_active: item.is_active !== false && item.activo !== false
+                  }
+                } else {
+                  return {
+                    id: item.id,
+                    'Nombre de la Actividad': item.nombre_ejercicio || item['Nombre de la Actividad'] || '',
+                    'Descripción': item.descripcion || item['Descripción'] || '',
+                    'Duración (min)': item.duracion_min || item['Duración (min)'] || 30,
+                    'Tipo de Ejercicio': item.tipo || item['Tipo de Ejercicio'] || 'General',
+                    'Nivel de Intensidad': item.intensidad || item['Nivel de Intensidad'] || 'Media',
+                    'Equipo Necesario': item.equipo || item['Equipo Necesario'] || 'Ninguno',
+                    'Partes del Cuerpo': item.body_parts || item['Partes del Cuerpo'] || '',
+                    'Calorías': item.calorias || item['Calorías'] || 0,
+                    'Detalle de Series (peso-repeticiones-series)': item.detalle_series || item['Detalle de Series (peso-repeticiones-series)'] || '',
+                    activo: item.activo !== false && item.is_active !== false,
+                    is_active: item.is_active !== false && item.activo !== false
+                  }
+                }
+              })
+              
+              console.log(`✅ ${isNutrition ? 'Platos' : 'Ejercicios'} cargados desde backend:`, transformedData.length)
+              setPersistentCsvData(transformedData)
+              setPersistentCsvFileName(`${isNutrition ? 'platos' : 'ejercicios'}.csv`)
+              setPersistentCsvLoadedFromFile(false)
+            } else {
+              console.log(`⚠️ No se encontraron ${isNutrition ? 'platos' : 'ejercicios'} en el backend`)
+              setPersistentCsvData([])
+              setPersistentCsvFileName('')
+              setPersistentCsvLoadedFromFile(false)
+            }
+          } catch (error) {
+            const categoria = editingProduct.categoria || 'fitness'
+            const isNutritionLocal = categoria === 'nutricion'
+            console.error(`❌ Error cargando ${isNutritionLocal ? 'platos' : 'ejercicios'} desde backend:`, error)
+            setPersistentCsvData([])
+            setPersistentCsvFileName('')
+            setPersistentCsvLoadedFromFile(false)
+          }
+        }
+        
+        loadExercisesFromBackend()
       }
       
       // Cargar ejercicios existentes si es un programa
+      // Los ejercicios/platos se cargarán automáticamente en el CSVManagerEnhanced desde el backend
       if (productType === 'program' && editingProduct.id) {
-        console.log('🔄 Cargando ejercicios existentes para producto:', editingProduct.id)
-        // Los ejercicios se cargarán automáticamente en el CSVManagerEnhanced
+        console.log(`🔄 Los ${productCategory === 'nutricion' ? 'platos' : 'ejercicios'} se cargarán automáticamente desde el backend en CSVManagerEnhanced para producto:`, editingProduct.id)
+        
+        // ✅ Cargar planificación semanal desde el backend SOLO si no hay datos locales
+        // Si ya hay datos locales (cambios sin guardar), NO cargar desde backend para preservar cambios
+        const loadWeeklyPlanning = async () => {
+          try {
+            // Si la planificación fue limpiada explícitamente por un cambio de contenido (el coach reemplazó todos los ejercicios/platos),
+            // NO volver a cargar la planificación vieja desde el backend en esta sesión de edición.
+            if (planningClearedByContentChange) {
+              console.log('✅ [CreateProductModal] Planificación limpiada por cambios de contenido, NO recargando planificación vieja desde backend en esta sesión')
+              return
+            }
+
+            // ✅ Verificar si ya hay datos locales antes de cargar desde backend
+            const hasLocalData = persistentCalendarSchedule && Object.keys(persistentCalendarSchedule).length > 0
+            if (hasLocalData) {
+              console.log('✅ [CreateProductModal] Ya hay datos locales de planificación, NO cargando desde backend para preservar cambios', {
+                semanasLocales: Object.keys(persistentCalendarSchedule).length
+              })
+              return
+            }
+            
+            const response = await fetch(`/api/get-product-planning?actividad_id=${editingProduct.id}`)
+            const result = await response.json()
+            
+            if (result.success && result.data) {
+              const { weeklySchedule, periods: backendPeriods } = result.data
+              
+              // ✅ Verificar nuevamente si hay datos locales antes de sobrescribir
+              const stillHasLocalData = persistentCalendarSchedule && Object.keys(persistentCalendarSchedule).length > 0
+              if (stillHasLocalData) {
+                console.log('✅ [CreateProductModal] Datos locales detectados durante la carga, cancelando sobrescritura desde backend')
+                return
+              }
+              
+              console.log('📅 Planificación semanal cargada desde backend:', {
+                semanas: Object.keys(weeklySchedule || {}).length,
+                periodos: backendPeriods,
+                schedule: weeklySchedule
+              })
+              
+              // ✅ Actualizar estado con la planificación del backend SOLO si no hay datos locales
+              // Ya verificamos antes, pero verificamos nuevamente por si acaso cambió durante la carga
+              const stillHasLocalDataCheck = persistentCalendarSchedule && Object.keys(persistentCalendarSchedule).length > 0
+              if (!stillHasLocalDataCheck && weeklySchedule && Object.keys(weeklySchedule).length > 0) {
+                setPersistentCalendarSchedule(weeklySchedule)
+                // ✅ Cachear los datos cargados
+                cachedPlanningFromDBRef.current = {
+                  schedule: weeklySchedule,
+                  periods: backendPeriods || 1,
+                  activityId: editingProduct.id
+                }
+              } else if (stillHasLocalDataCheck) {
+                console.log('✅ [CreateProductModal] Datos locales detectados, NO sobrescribiendo con datos del backend para preservar cambios del usuario')
+              }
+              
+              // Actualizar períodos si vienen del backend
+              if (backendPeriods && backendPeriods > 0) {
+                setPeriods(backendPeriods)
+              }
+            }
+          } catch (error) {
+            console.error('❌ Error cargando planificación semanal desde backend:', error)
+          }
+        }
+        
+        loadWeeklyPlanning()
+      } else if (productType === 'program' && editingProduct.id && productCategory === 'nutricion') {
+        // Para nutrición, también cargar la planificación del backend
+        console.log(`🔄 Cargando planificación semanal para producto de nutrición:`, editingProduct.id)
+        
+        const loadWeeklyPlanning = async () => {
+          try {
+            if (planningClearedByContentChange) {
+              console.log('✅ [CreateProductModal] Planificación limpiada por cambios de contenido, NO recargando planificación vieja desde backend en esta sesión')
+              return
+            }
+
+            const hasLocalData = persistentCalendarSchedule && Object.keys(persistentCalendarSchedule).length > 0
+            if (hasLocalData) {
+              console.log('✅ [CreateProductModal] Ya hay datos locales de planificación, NO cargando desde backend para preservar cambios', {
+                semanasLocales: Object.keys(persistentCalendarSchedule).length
+              })
+              return
+            }
+            
+            const response = await fetch(`/api/get-product-planning?actividad_id=${editingProduct.id}`)
+            const result = await response.json()
+            
+            if (result.success && result.data) {
+              const { weeklySchedule, periods: backendPeriods } = result.data
+              
+              const stillHasLocalData = persistentCalendarSchedule && Object.keys(persistentCalendarSchedule).length > 0
+              if (stillHasLocalData) {
+                console.log('✅ [CreateProductModal] Datos locales detectados durante la carga, cancelando sobrescritura desde backend')
+                return
+              }
+              
+              console.log('📅 Planificación semanal cargada desde backend (nutrición):', {
+                semanas: Object.keys(weeklySchedule || {}).length,
+                periodos: backendPeriods,
+                schedule: weeklySchedule
+              })
+              
+              const stillHasLocalDataCheck = persistentCalendarSchedule && Object.keys(persistentCalendarSchedule).length > 0
+              if (!stillHasLocalDataCheck && weeklySchedule && Object.keys(weeklySchedule).length > 0) {
+                setPersistentCalendarSchedule(weeklySchedule)
+                // ✅ Cachear los datos cargados
+                cachedPlanningFromDBRef.current = {
+                  schedule: weeklySchedule,
+                  periods: backendPeriods || 1,
+                  activityId: editingProduct.id
+                }
+              } else if (stillHasLocalDataCheck) {
+                console.log('✅ [CreateProductModal] Datos locales detectados, NO sobrescribiendo con datos del backend para preservar cambios del usuario')
+              }
+              
+              if (backendPeriods && backendPeriods > 0) {
+                setPeriods(backendPeriods)
+              }
+            }
+          } catch (error) {
+            console.error('❌ Error cargando planificación semanal desde backend (nutrición):', error)
+          }
+        }
+        
+        loadWeeklyPlanning()
       }
 
       // ✅ Cargar datos de talleres si es un workshop
@@ -2731,7 +3549,169 @@ export default function CreateProductModal({ isOpen, onClose, editingProduct }: 
         loadWorkshopData(editingProduct.id)
       }
     }
-  }, [editingProduct])
+  }, [editingProduct?.id, initialStep]) // Re-ejecutar cuando cambia el ID del producto o el initialStep
+
+  // ✅ Ref para cachear la planificación cargada desde BD (evitar recargas innecesarias)
+  const cachedPlanningFromDBRef = useRef<{ schedule: any; periods: number; activityId: number | undefined } | null>(null)
+
+  // ✅ Recargar planificación desde BD cuando se vuelve al paso 4 (weeklyPlan) si no hay datos locales
+  useEffect(() => {
+    // Solo ejecutar si estamos en el paso 4 (weeklyPlan) y estamos editando un producto
+    if (currentStep !== 'weeklyPlan' || !editingProduct?.id) {
+      return
+    }
+
+    const productType = editingProduct.type === 'program' || editingProduct.type === 'fitness' ? 'program' : 'workshop'
+    if (productType !== 'program') {
+      return
+    }
+
+    // Si la planificación fue limpiada explícitamente por un cambio de contenido, NO recargar
+    if (planningClearedByContentChange) {
+      console.log('✅ [CreateProductModal] Planificación limpiada por cambios de contenido, NO recargando desde BD')
+      return
+    }
+
+    // Si ya hay datos locales, NO recargar desde BD
+    const hasLocalData = persistentCalendarSchedule && Object.keys(persistentCalendarSchedule).length > 0
+    if (hasLocalData) {
+      console.log('✅ [CreateProductModal] Ya hay datos locales de planificación, NO recargando desde BD', {
+        semanasLocales: Object.keys(persistentCalendarSchedule).length
+      })
+      return
+    }
+
+    // Si tenemos datos cacheados para este producto, usarlos
+    if (cachedPlanningFromDBRef.current && cachedPlanningFromDBRef.current.activityId === editingProduct.id) {
+      const cached = cachedPlanningFromDBRef.current
+      console.log('📦 [CreateProductModal] Usando planificación cacheada desde BD:', {
+        semanas: Object.keys(cached.schedule || {}).length,
+        periodos: cached.periods
+      })
+      
+      // Verificar nuevamente si hay datos locales antes de aplicar el cache
+      const stillHasLocalData = persistentCalendarSchedule && Object.keys(persistentCalendarSchedule).length > 0
+      if (!stillHasLocalData && cached.schedule && Object.keys(cached.schedule).length > 0) {
+        setPersistentCalendarSchedule(cached.schedule)
+        if (cached.periods && cached.periods > 0) {
+          setPeriods(cached.periods)
+        }
+      }
+      return
+    }
+
+    // Cargar desde BD si no hay cache
+    const loadWeeklyPlanning = async () => {
+      try {
+        console.log('🔄 [CreateProductModal] Cargando planificación desde BD al volver al paso 4:', editingProduct.id)
+        
+        const response = await fetch(`/api/get-product-planning?actividad_id=${editingProduct.id}`)
+        const result = await response.json()
+        
+        if (result.success && result.data) {
+          const { weeklySchedule, periods: backendPeriods } = result.data
+          
+          // Verificar nuevamente si hay datos locales antes de aplicar
+          const stillHasLocalData = persistentCalendarSchedule && Object.keys(persistentCalendarSchedule).length > 0
+          if (stillHasLocalData) {
+            console.log('✅ [CreateProductModal] Datos locales detectados durante la carga, cancelando sobrescritura desde BD')
+            return
+          }
+          
+          console.log('📅 [CreateProductModal] Planificación cargada desde BD al volver al paso 4:', {
+            semanas: Object.keys(weeklySchedule || {}).length,
+            periodos: backendPeriods
+          })
+          
+          // Cachear los datos cargados
+          cachedPlanningFromDBRef.current = {
+            schedule: weeklySchedule,
+            periods: backendPeriods || 1,
+            activityId: editingProduct.id
+          }
+          
+          // Aplicar solo si no hay datos locales
+          const stillHasLocalDataCheck = persistentCalendarSchedule && Object.keys(persistentCalendarSchedule).length > 0
+          if (!stillHasLocalDataCheck && weeklySchedule && Object.keys(weeklySchedule).length > 0) {
+            setPersistentCalendarSchedule(weeklySchedule)
+            if (backendPeriods && backendPeriods > 0) {
+              setPeriods(backendPeriods)
+            }
+          }
+        }
+      } catch (error) {
+        console.error('❌ [CreateProductModal] Error cargando planificación desde BD al volver al paso 4:', error)
+      }
+    }
+    
+    loadWeeklyPlanning()
+  }, [currentStep, editingProduct?.id, planningClearedByContentChange, persistentCalendarSchedule])
+
+  // Efecto para manejar el initialStep cuando el modal se abre
+  useEffect(() => {
+    console.log('🔍 useEffect initialStep:', { isOpen, initialStep, editingProductId: editingProduct?.id, editingProductType: editingProduct?.type })
+    if (isOpen && initialStep && editingProduct && editingProduct.type === 'workshop') {
+      // Si hay initialStep y es workshop, ir directamente al paso especificado
+      if (initialStep === 'workshopSchedule') {
+        console.log('✅ Estableciendo currentStep a workshopSchedule desde initialStep')
+        setCurrentStep('workshopSchedule')
+        // Sincronizar el estado local del mensaje de cambio de fechas
+        setShowDateChangeNoticeLocal(showDateChangeNotice)
+      }
+    } else if (isOpen && !editingProduct) {
+      // Si se abre sin producto, resetear al paso inicial
+      setCurrentStep(initialStep || 'type')
+    }
+  }, [isOpen, initialStep, editingProduct, showDateChangeNotice])
+
+  // ✅ Limpiar planificación semanal cuando no hay ejercicios/platos disponibles
+  // PERO solo si realmente no hay planificación del backend (para no limpiar datos existentes antes de que se carguen los ejercicios)
+  // y marcar que esta limpieza viene de un cambio fuerte de contenido
+  // Ref para rastrear si ya se limpió el schedule para evitar loops infinitos
+  const scheduleClearedRef = useRef(false)
+  
+  useEffect(() => {
+    if (persistentCsvData !== undefined && persistentCsvData.length === 0) {
+      // Si estamos editando y hay planificación cargada del backend, NO limpiar todavía
+      // Esto evita limpiar la planificación antes de que se carguen los ejercicios/platos
+      const hasScheduleFromBackend = persistentCalendarSchedule && Object.keys(persistentCalendarSchedule).length > 0
+      if (hasScheduleFromBackend && editingProduct?.id) {
+        console.log('⏸️ [CreateProductModal] No hay ejercicios/platos disponibles aún, pero hay planificación del backend. Esperando a que se carguen los ejercicios/platos antes de decidir si limpiar.')
+        scheduleClearedRef.current = false // Resetear el flag cuando hay schedule del backend
+        return
+      }
+      
+      // Verificar si el schedule ya está vacío para evitar loops infinitos
+      const scheduleIsEmpty = !persistentCalendarSchedule || Object.keys(persistentCalendarSchedule).length === 0
+      if (scheduleIsEmpty && scheduleClearedRef.current) {
+        // Ya está vacío y ya se limpió, no hacer nada más
+        return
+      }
+      
+      console.log('🧹 [CreateProductModal] No hay ejercicios/platos disponibles, limpiando planificación semanal')
+      setPersistentCalendarSchedule({})
+      setPeriods(1)
+      setPlanningClearedByContentChange(true)
+      scheduleClearedRef.current = true
+    } else if (persistentCsvData && persistentCsvData.length > 0) {
+      // Si hay datos CSV, resetear el flag para permitir limpieza futura si es necesario
+      scheduleClearedRef.current = false
+    }
+  }, [persistentCsvData, editingProduct?.id])
+
+  // ✅ Limpiar estado cuando se cierra el modal (incluso si se cierra sin pasar por handleClose)
+  useEffect(() => {
+    if (!isOpen) {
+      console.log('🚪 Modal cerrado - Limpiando estado local para evitar persistencia entre sesiones')
+      // Limpiar estado local cuando el modal se cierra
+      // Esto asegura que si se cierra sin guardar, los cambios no persistan
+      clearPersistentState()
+    } else if (isOpen && !editingProduct) {
+      // Si se abre el modal para crear un producto nuevo, también limpiar estado
+      console.log('🆕 Modal abierto para crear producto nuevo - Limpiando estado local')
+      clearPersistentState()
+    }
+  }, [isOpen, editingProduct?.id])
 
   // Escuchar cambios en generalForm.image para actualizar la imagen mostrada
   useEffect(() => {
@@ -2794,19 +3774,19 @@ export default function CreateProductModal({ isOpen, onClose, editingProduct }: 
       }
       
       console.log('✅ Paso 3 → Siguiente: Todos los campos completados')
-      // Para taller, ir a material PDF; para programa, ir a actividades
+      // Para taller, ir a material PDF; para programa, ir a planificación semanal
       if (selectedType === 'workshop') {
         setCurrentStep('workshopMaterial')
       } else {
-        setCurrentStep('activities')
+        setCurrentStep('weeklyPlan')
       }
     } else if (currentStep === 'specific') {
-      console.log('✅ Paso 4 → 5: Saltando paso eliminado')
+      console.log('✅ Paso 4 → 5: Yendo directamente a planificación semanal')
       // Para taller, ir a material opcional; para programa, ir a actividades
       if (selectedType === 'workshop') {
         setCurrentStep('workshopMaterial')
       } else {
-        setCurrentStep('activities')
+        setCurrentStep('weeklyPlan')
       }
     } else if (currentStep === 'workshopMaterial') {
       console.log('✅ Taller - Paso 4 → 5: Material completado')
@@ -2823,13 +3803,32 @@ export default function CreateProductModal({ isOpen, onClose, editingProduct }: 
         alert('Todas las sesiones deben tener una fecha asignada')
         return
       }
+      
+      // Validar que cada tema tiene al menos 2 fechas
+      const topicsMap = new Map<string, number>()
+      workshopSchedule.forEach(session => {
+        if (session.title && session.date) {
+          const count = topicsMap.get(session.title) || 0
+          topicsMap.set(session.title, count + 1)
+        }
+      })
+      
+      const topicsWithLessThan2Dates: string[] = []
+      topicsMap.forEach((count, topic) => {
+        if (count < 2) {
+          topicsWithLessThan2Dates.push(topic)
+        }
+      })
+      
+      if (topicsWithLessThan2Dates.length > 0) {
+        alert(`Cada tema debe tener al menos 2 fechas. Los siguientes temas tienen menos de 2 fechas: ${topicsWithLessThan2Dates.join(', ')}`)
+        return
+      }
+      
       console.log('✅ Taller - Paso 5 → 6: Horarios completados')
       setCurrentStep('preview')
-    } else if (currentStep === 'activities') {
-       console.log('✅ Programa - Paso 5 → 6: Actividades completadas')
-       setCurrentStep('weeklyPlan')
-     } else if (currentStep === 'weeklyPlan') {
-       console.log('✅ Programa - Paso 6 → 7: Plan semanal completado')
+    } else if (currentStep === 'weeklyPlan') {
+       console.log('✅ Programa - Paso 4 → 5: Plan semanal completado')
        setCurrentStep('preview')
      }
   }
@@ -2844,13 +3843,11 @@ export default function CreateProductModal({ isOpen, onClose, editingProduct }: 
         setCurrentStep('type')
       }
      } else if (currentStep === 'workshopMaterial') {
-       setCurrentStep('specific')
+       setCurrentStep('general')
      } else if (currentStep === 'workshopSchedule') {
        setCurrentStep('workshopMaterial')
-     } else if (currentStep === 'activities') {
-       setCurrentStep('specific')
      } else if (currentStep === 'weeklyPlan') {
-       setCurrentStep('activities')
+       setCurrentStep('general')
      } else if (currentStep === 'preview') {
        // Para taller, volver a horarios; para programa, volver a plan semanal
        if (selectedType === 'workshop') {
@@ -3219,12 +4216,182 @@ export default function CreateProductModal({ isOpen, onClose, editingProduct }: 
 
   return (
     <AnimatePresence>
+      {/* Modal de encuesta enviada y opción de agregar fechas - Aparece siempre que corresponda */}
+      {showAddNewDatesPrompt && (
+        <div className="fixed inset-0 bg-black/60 z-[90] flex items-center justify-center p-4">
+          <div className="bg-[#0A0A0A] rounded-2xl p-6 max-w-md w-full border border-[#1A1A1A] shadow-2xl">
+            <div className="flex flex-col space-y-4">
+              <div className="text-center">
+                <div className="w-16 h-16 bg-green-500/20 rounded-full flex items-center justify-center mx-auto mb-4">
+                  <Check className="w-8 h-8 text-green-400" />
+                </div>
+                <h3 className="text-white font-semibold text-lg mb-2">Encuesta enviada</h3>
+                <p className="text-gray-400 text-sm mb-6">
+                  Tu encuesta ha sido guardada exitosamente. ¿Deseas reiniciar el taller con nuevas fechas?
+                </p>
+              </div>
+              <div className="flex gap-3">
+                <Button
+                  onClick={() => {
+                    setShowAddNewDatesPrompt(false)
+                    onClose?.()
+                  }}
+                  className="flex-1 bg-gray-700 hover:bg-gray-600 text-white py-2 rounded-lg"
+                >
+                  No, cerrar
+                </Button>
+                <Button
+                  onClick={() => {
+                    setShowAddNewDatesPrompt(false)
+                    // Ir al paso 5 para agregar nuevas fechas
+                    setCurrentStep('workshopSchedule')
+                    if (editingProduct?.id) {
+                      loadWorkshopData(editingProduct.id)
+                    }
+                  }}
+                  className="flex-1 bg-[#FF7939] hover:bg-[#E66829] text-white py-2 rounded-lg"
+                >
+                  Confirmar
+                </Button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Modal de encuesta del taller finalizado - Aparece siempre que corresponda */}
+      {showWorkshopFinishedConfirm && !showAddNewDatesPrompt && (
+        <div className="fixed inset-0 bg-black/60 z-[90] flex items-center justify-center p-4">
+          <div className="bg-[#0A0A0A] rounded-2xl p-6 max-w-lg w-full border border-[#1A1A1A] shadow-2xl max-h-[90vh] overflow-y-auto">
+            <div className="flex flex-col space-y-4">
+              <h3 className="text-white font-semibold text-lg mb-2">Taller finalizado</h3>
+              <p className="text-gray-400 text-sm mb-4">
+                Este taller ha finalizado. Para poder ver el detalle y editarlo, primero debes completar la encuesta.
+              </p>
+              
+              {/* Encuesta del coach */}
+              {workshopFinishedConfirmed && (
+                <div className="space-y-4 pt-4 border-t border-gray-800">
+                  <div>
+                    <label className="text-white text-sm font-medium mb-2 block">
+                      ¿Cómo estuvo el taller? (Puntuación)
+                    </label>
+                    <div className="flex gap-2">
+                      {[1, 2, 3, 4, 5].map((star) => (
+                        <button
+                          key={star}
+                          type="button"
+                          onClick={() => setWorkshopRating(star)}
+                          className={`w-10 h-10 rounded-lg transition-all ${
+                            star <= workshopRating
+                              ? 'bg-[#FF7939] text-white'
+                              : 'bg-gray-800 text-gray-400 hover:bg-gray-700'
+                          }`}
+                        >
+                          {star}
+                        </button>
+                      ))}
+                    </div>
+                    {workshopRating > 0 && (
+                      <p className="text-xs text-gray-500 mt-1">
+                        {workshopRating === 1 && 'Muy malo'}
+                        {workshopRating === 2 && 'Malo'}
+                        {workshopRating === 3 && 'Regular'}
+                        {workshopRating === 4 && 'Bueno'}
+                        {workshopRating === 5 && 'Excelente'}
+                      </p>
+                    )}
+                  </div>
+                  
+                  <div>
+                    <label className="text-white text-sm font-medium mb-2 block">
+                      Comentarios sobre el taller
+                    </label>
+                    <Textarea
+                      value={workshopFeedback}
+                      onChange={(e) => setWorkshopFeedback(e.target.value)}
+                      placeholder="Comparte tus comentarios sobre cómo estuvo el taller..."
+                      className="w-full bg-gray-900 border border-gray-700 rounded-lg px-3 py-2 text-white text-sm placeholder-gray-500 focus:outline-none focus:border-[#FF7939] resize-none"
+                      rows={4}
+                    />
+                  </div>
+                </div>
+              )}
+              
+              <div className="flex gap-3 pt-2">
+                {!workshopFinishedConfirmed ? (
+                  <Button
+                    onClick={() => {
+                      setWorkshopFinishedConfirmed(true)
+                    }}
+                    className="flex-1 bg-[#FF7939] hover:bg-[#E66829] text-white py-2 rounded-lg"
+                  >
+                    Completar encuesta
+                  </Button>
+                ) : (
+                  <>
+                    <Button
+                      onClick={async () => {
+                        if (!editingProduct?.id) return
+                        
+                        setIsSubmittingFeedback(true)
+                        try {
+                          const response = await fetch(`/api/activities/${editingProduct.id}/finish-workshop`, {
+                            method: 'POST',
+                            headers: { 'Content-Type': 'application/json' },
+                            body: JSON.stringify({
+                              is_finished: true,
+                              coach_rating: workshopRating || null,
+                              coach_feedback: workshopFeedback.trim() || null
+                            })
+                          })
+                          
+                          const result = await response.json()
+                          
+                          if (result.success) {
+                            toast.success('Encuesta enviada exitosamente')
+                            setFeedbackSubmitted(true)
+                            setShowWorkshopFinishedConfirm(false)
+                            setShowAddNewDatesPrompt(true)
+                          } else {
+                            toast.error(result.error || 'Error al enviar la encuesta')
+                          }
+                        } catch (error) {
+                          console.error('Error enviando encuesta:', error)
+                          toast.error('Error al enviar la encuesta')
+                        } finally {
+                          setIsSubmittingFeedback(false)
+                        }
+                      }}
+                      disabled={isSubmittingFeedback}
+                      className="flex-1 bg-[#FF7939] hover:bg-[#E66829] text-white py-2 rounded-lg disabled:opacity-50"
+                    >
+                      {isSubmittingFeedback ? 'Enviando...' : 'Enviar encuesta'}
+                    </Button>
+                    <Button
+                      onClick={() => {
+                        setWorkshopFinishedConfirmed(false)
+                        setWorkshopRating(0)
+                        setWorkshopFeedback('')
+                      }}
+                      className="flex-1 bg-gray-700 hover:bg-gray-600 text-white py-2 rounded-lg"
+                    >
+                      Volver
+                    </Button>
+                  </>
+                )}
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
       <motion.div
         key="overlay"
         initial={{ opacity: 0 }}
         animate={{ opacity: 1 }}
         exit={{ opacity: 0 }}
-        className="fixed inset-0 bg-black/60 z-40 flex items-start justify-center pt-0 backdrop-blur-sm"
+        className="fixed inset-0 bg-black/60 z-[110] flex items-start justify-center pt-0 backdrop-blur-sm"
         onClick={handleClose}
       >
         <motion.div
@@ -3249,20 +4416,21 @@ export default function CreateProductModal({ isOpen, onClose, editingProduct }: 
         {/* Menu de pasos - Siempre visible en la misma posición */}
         <div className="flex justify-start items-center py-2 pl-6 mt-2">
           {[
-            { step: 1, key: 'type' },
-            { step: 2, key: 'programType' },
-            { step: 3, key: 'general' },
-            { step: 4, key: selectedType === 'workshop' ? 'workshopMaterial' : 'activities' },
-            { step: 5, key: selectedType === 'workshop' ? 'workshopSchedule' : 'weeklyPlan' },
-            { step: 6, key: 'preview' }
-          ].filter(({ key }) => {
-            // Filtrar pasos según el tipo de producto
-            if (selectedType === 'workshop') {
-              return ['type', 'programType', 'general', 'workshopMaterial', 'workshopSchedule', 'preview'].includes(key)
-            } else {
-              return ['type', 'programType', 'general', 'activities', 'weeklyPlan', 'preview'].includes(key)
-            }
-          }).map(({ step, key }, index) => {
+            ...(selectedType === 'workshop' ? [
+              { step: 1, key: 'type' },
+              { step: 2, key: 'programType' },
+              { step: 3, key: 'general' },
+              { step: 4, key: 'workshopMaterial' },
+              { step: 5, key: 'workshopSchedule' },
+              { step: 6, key: 'preview' }
+            ] : [
+              { step: 1, key: 'type' },
+              { step: 2, key: 'programType' },
+              { step: 3, key: 'general' },
+              { step: 4, key: 'weeklyPlan' },
+              { step: 5, key: 'preview' }
+            ])
+          ].map(({ step, key }, index) => {
             const isActive = currentStep === key
             const isCompleted = getStepNumber(currentStep) > step
             
@@ -3282,7 +4450,7 @@ export default function CreateProductModal({ isOpen, onClose, editingProduct }: 
                 >
                   {step}
                 </div>
-                {index < 5 && (
+                {index < (selectedType === 'workshop' ? 5 : 4) && (
                   <div className="w-4 h-0.5 bg-gray-600 mx-1"></div>
                 )}
               </div>
@@ -3302,12 +4470,25 @@ export default function CreateProductModal({ isOpen, onClose, editingProduct }: 
           </Button>
         </div>
 
+        {/* Botón siguiente paso flotante (fuera de la zona de scroll principal) - REMOVIDO: Paso 4 ya no existe */}
+        {false && currentStep === 'activities' && (
+          <div className="absolute top-16 right-6 z-10">
+            <button
+              type="button"
+              onClick={() => setCurrentStep('weeklyPlan')}
+              className="w-12 h-12 bg-[#FF7939] hover:bg-[#FF6B35] rounded-full flex items-center justify-center shadow-lg transition-all duration-200 hover:scale-105"
+            >
+              <ChevronRight className="h-5 w-5 text-white" />
+            </button>
+          </div>
+        )}
+
         {/* Header - Ocultado completamente */}
 
           {/* Content */}
           <div className="p-6">
             {/* Content */}
-            <div className="space-y-6">
+                  <div className="space-y-6">
             {currentStep === 'type' && (
               <motion.div
                 key="type"
@@ -3430,64 +4611,165 @@ export default function CreateProductModal({ isOpen, onClose, editingProduct }: 
                 className="flex flex-col gap-8 pb-24"
               >
                 <div className="space-y-6">
-                  <div className="relative aspect-[4/3] w-full overflow-hidden rounded-2xl">
-                    {generalForm.image ? (
+                  {/* Vista previa unificada: foto y video comparten el mismo espacio.
+                      - Foto: proporción vertical similar a ActivityCard.
+                      - Video: se muestra en 16:9 centrado dentro de ese espacio.
+                  */}
+                  <div
+                    className={`relative w-full mx-auto overflow-hidden rounded-2xl bg-[#111111] transition-all duration-200 ${
+                      isVideoPreviewActive && generalForm.videoUrl
+                        ? 'aspect-video max-w-[380px]' // Modo video: aún más ancho, 16:9
+                        : 'aspect-[3/4] max-w-[190px]' // Modo foto: más angosto, vertical
+                    }`}
+                  >
+                    {isVideoPreviewActive && generalForm.videoUrl ? (
+                      // Vista de VIDEO ocupando todo el contenedor (que ya es 16:9)
+                      <video
+                        src={generalForm.videoUrl}
+                        className="h-full w-full object-cover"
+                        controls
+                      />
+                    ) : generalForm.image ? (
+                      // Vista de FOTO vertical (ocupa todo el contenedor)
                       <>
                         <img
-                          src={typeof generalForm.image === 'object' && 'url' in generalForm.image ? generalForm.image.url : URL.createObjectURL(generalForm.image as File)}
+                          src={
+                            typeof generalForm.image === "object" && "url" in generalForm.image
+                              ? (generalForm.image as any).url
+                              : URL.createObjectURL(generalForm.image as File)
+                          }
                           alt="Preview"
                           className="h-full w-full object-cover"
                         />
                         <div className="absolute inset-0 bg-gradient-to-t from-black/50 via-black/0 to-transparent" />
-                        <button
-                          type="button"
-                          onClick={() => openMediaModal('image')}
-                          className="absolute bottom-4 right-4 inline-flex items-center gap-2 rounded-full bg-black/40 px-4 py-2 text-xs font-medium text-white backdrop-blur-sm transition hover:bg-black/55"
-                        >
-                          <Pencil className="h-4 w-4" />
-                          Cambiar portada
-                        </button>
                       </>
-                    ) : generalForm.videoUrl ? (
-                      <div className="flex h-full w-full flex-col items-center justify-center gap-4 text-white/70">
-                        <Video className="h-12 w-12 text-[#FF7939]" />
-                        <button
-                          type="button"
-                          onClick={() => openMediaModal('video')}
-                          className="inline-flex items-center gap-2 rounded-full bg-black/40 px-4 py-2 text-xs font-medium text-white backdrop-blur-sm transition hover:bg-black/55"
-                        >
-                          <Pencil className="h-4 w-4" />
-                          Cambiar video
-                        </button>
-                      </div>
                     ) : (
+                      // Placeholder si no hay imagen aún
                       <div className="flex h-full w-full flex-col items-center justify-center gap-3 text-white/55">
                         <ImageIcon className="h-12 w-12" strokeWidth={1.2} />
-                        <p className="text-sm">Añadí una portada o video</p>
+                        <p className="text-sm">Añadí una imagen de portada</p>
                         <div className="flex gap-3 text-xs font-semibold text-white/75">
                           <button
                             type="button"
-                            onClick={() => openMediaModal('image')}
+                            onClick={() => loadInlineMedia('image')}
                             className="underline-offset-4 hover:text-white hover:underline"
                           >
                             Subir imagen
                           </button>
-                          <button
-                            type="button"
-                            onClick={() => openMediaModal('video')}
-                            className="underline-offset-4 hover:text-white hover:underline"
-                          >
-                            Elegir video
-                          </button>
                         </div>
                       </div>
                     )}
+
+                    {/* Botón de edición (solo ícono de lápiz), esquina superior derecha para foto o video */}
+                    {(generalForm.image || generalForm.videoUrl) && (
+                      <button
+                        type="button"
+                        onClick={() => {
+                          const typeToLoad: 'image' | 'video' =
+                            isVideoPreviewActive && generalForm.videoUrl
+                              ? 'video'
+                              : generalForm.image
+                              ? 'image'
+                              : 'video'
+                          loadInlineMedia(typeToLoad)
+                        }}
+                        className="absolute top-3 right-3 inline-flex items-center justify-center rounded-full bg-black/70 p-2 text-white shadow-md hover:bg-black/90"
+                      >
+                        <Pencil className="h-4 w-4" />
+                      </button>
+                    )}
+
+                    {/* Botón para alternar entre foto y video en el mismo lugar (esquina superior izquierda) */}
+                    {generalForm.videoUrl && (
+                      <button
+                        type="button"
+                        onClick={() => setIsVideoPreviewActive((prev) => !prev)}
+                        className="absolute top-3 left-3 inline-flex items-center justify-center rounded-full bg-black/70 p-2 text-white shadow-md hover:bg-black/90"
+                      >
+                        {isVideoPreviewActive ? (
+                          <ImageIcon className="h-4 w-4" />
+                        ) : (
+                          <Play className="h-4 w-4" />
+                        )}
+                      </button>
+                    )}
                   </div>
+
+                  {/* Lista inline de archivos debajo del frame */}
+                  {inlineMediaLoading ? (
+                    <div className="flex items-center justify-center py-2 text-xs text-white/60">
+                      <Loader2 className="h-3 w-3 mr-2 animate-spin" />
+                      Cargando archivos...
+                    </div>
+                  ) : inlineMediaError ? (
+                    <div className="text-xs text-red-400 text-center py-2">
+                      {inlineMediaError}
+                    </div>
+                  ) : inlineMediaItems.length > 0 ? (
+                    <div className="flex items-center gap-2 pb-2 pt-1">
+                      {/* Lista scrollable de nombres (a la izquierda) */}
+                      <div className="overflow-x-auto overflow-y-hidden flex-1">
+                        <div className="flex gap-2 pr-1" style={{ minWidth: 'min-content' }}>
+                          {inlineMediaItems.map((item) => {
+                            const isSelected = inlineSelectedId === item.id
+                            return (
+                              <button
+                                key={item.id}
+                                type="button"
+                                onClick={() => {
+                                  setInlineSelectedId(item.id)
+                                  if (item.mediaType === 'image') {
+                                    setGeneralFormWithLogs({
+                                      ...generalForm,
+                                      image: { url: item.url }
+                                    })
+                                    setIsVideoPreviewActive(false)
+                                  } else {
+                                    setGeneralFormWithLogs({
+                                      ...generalForm,
+                                      videoUrl: item.url
+                                    })
+                                    setIsVideoPreviewActive(true)
+                                  }
+                                }}
+                                className={`px-2.5 py-1.5 rounded-full text-[11px] font-medium transition-all duration-200 flex-shrink-0 flex flex-col items-start ${
+                                  isSelected
+                                    ? 'bg-[#FF7939]/40 text-[#FF7939] border border-[#FF7939]/50'
+                                    : 'bg-[#1A1A1A] text-gray-300 border border-[#2A2A2A]'
+                                }`}
+                              >
+                                <span className="whitespace-nowrap">
+                                  {truncateInlineFileName(item.filename)}
+                                </span>
+                              </button>
+                            )
+                          })}
+                        </div>
+                      </div>
+
+                      {/* Botón "+" fijo a la derecha */}
+                      <button
+                        type="button"
+                        onClick={handleInlinePlusClick}
+                        className="inline-flex items-center justify-center rounded-full bg-[#FF7939]/20 text-[#FF7939] border border-[#FF7939]/40 w-8 h-8 flex-shrink-0 hover:bg-[#FF7939]/30 transition-colors"
+                      >
+                        <Plus className="h-4 w-4" />
+                      </button>
+                    </div>
+                  ) : null}
+
+                  {/* Input oculto para subir archivos desde el botón "+" */}
+                  <input
+                    ref={inlineFileInputRef}
+                    type="file"
+                    className="hidden"
+                    onChange={handleInlineUploadChange}
+                  />
 
                   <div className="grid grid-cols-2 gap-3">
                     <button
                       type="button"
-                      onClick={() => openMediaModal('image')}
+                      onClick={() => loadInlineMedia('image')}
                       className={`group flex items-center justify-center gap-2 rounded-full px-4 py-3 text-xs font-medium text-white/65 transition hover:text-white ${
                         generalForm.image ? '!text-white' : ''
                       }`}
@@ -3497,7 +4779,7 @@ export default function CreateProductModal({ isOpen, onClose, editingProduct }: 
                     </button>
                     <button
                       type="button"
-                      onClick={() => openMediaModal('video')}
+                      onClick={() => loadInlineMedia('video')}
                       className={`group flex items-center justify-center gap-2 rounded-full px-4 py-3 text-xs font-medium text-white/65 transition hover:text-white ${
                         generalForm.videoUrl ? '!text-white' : ''
                       }`}
@@ -3560,7 +4842,11 @@ export default function CreateProductModal({ isOpen, onClose, editingProduct }: 
                     </Label>
                     <div className="-mx-2 overflow-x-auto px-2">
                       <div className="flex gap-3 min-w-max">
-                        {FITNESS_OBJECTIVE_OPTIONS.map((objetivo) => {
+                        {(
+                          productCategory === 'nutricion' 
+                            ? NUTRITION_OBJECTIVE_OPTIONS 
+                            : FITNESS_OBJECTIVE_OPTIONS
+                        ).map((objetivo) => {
                           const isSelected = generalForm.objetivos.includes(objetivo)
                           return (
                             <button
@@ -3584,7 +4870,6 @@ export default function CreateProductModal({ isOpen, onClose, editingProduct }: 
                         })}
                       </div>
                     </div>
-                    {generalForm.objetivos.length === 0 && <p className="text-sm text-yellow-500/70">Selecciona al menos un objetivo</p>}
                   </div>
 
                   <div className="grid gap-8 md:grid-cols-2">
@@ -3870,6 +5155,15 @@ export default function CreateProductModal({ isOpen, onClose, editingProduct }: 
             exit={{ opacity: 0, x: -20 }}
             className="space-y-4"
           >
+
+
+            {/* Mensaje aclaratorio sobre fechas por tema */}
+            <div className="bg-[#FF7939]/10 border border-[#FF7939]/30 rounded-lg p-3 mb-4">
+              <p className="text-[#FF7939] text-xs font-medium">
+                ⚠️ Cada tema debe tener al menos 2 fechas programadas para poder reactivar las ventas del taller.
+              </p>
+            </div>
+
             {/* Componente de calendario - Sin títulos */}
             <WorkshopSimpleScheduler 
               sessions={workshopSchedule}
@@ -3892,8 +5186,8 @@ export default function CreateProductModal({ isOpen, onClose, editingProduct }: 
           </motion.div>
         )}
 
-            {/* Paso de Actividades para Programas */}
-            {currentStep === 'activities' && (
+            {/* Paso de Actividades para Programas - REMOVIDO: Ahora se gestiona en la tab "Mis Ejercicios/Platos" */}
+            {false && currentStep === 'activities' && (
               <motion.div
                 key="activities"
                 initial={{ opacity: 0, x: 20 }}
@@ -3908,7 +5202,8 @@ export default function CreateProductModal({ isOpen, onClose, editingProduct }: 
                   </h3>
                 </div>
 
-                {/* CSV Manager - Para todos los tipos de productos */}
+                {/* CSV Manager - REMOVIDO: Paso 4 ya no existe, se gestiona en tab "Mis Ejercicios/Platos" */}
+                {/* 
                 <CSVManagerEnhanced
                     activityId={editingProduct?.id || 0}
                     coachId={user?.id || "b16c4f8c-f47b-4df0-ad2b-13dcbd76263f"}
@@ -3947,14 +5242,6 @@ export default function CreateProductModal({ isOpen, onClose, editingProduct }: 
                         console.log(`💾 CSVManagerEnhanced: Guardando archivo de video inmediatamente para ejercicio ${index} (key: ${key}):`, videoFile.name)
                       }
                     }}
-                    renderAfterTable={
-                      <button
-                        onClick={() => setCurrentStep('weeklyPlan')}
-                        className="w-12 h-12 bg-[#FF7939] hover:bg-[#FF6B35] rounded-full flex items-center justify-center transition-all duration-200 hover:scale-105"
-                      >
-                        <ChevronRight className="h-5 w-5 text-white" />
-                      </button>
-                    }
                     onItemsStatusChange={async (items, action) => {
                       console.log(`🗂️ Cambio de estado recibido desde CSVManager (${action}):`, items.length, 'elementos')
 
@@ -4036,13 +5323,14 @@ export default function CreateProductModal({ isOpen, onClose, editingProduct }: 
                       }
                     }}
                   />
+                */}
               </motion.div>
             )}
 
             {/* Paso 5: Planificación Semanal */}
             {currentStep === 'weeklyPlan' && selectedType === 'program' && (
               <motion.div
-                key="weeklyPlan"
+                key={`weeklyPlan-${selectedType}-${productCategory}-${persistentCsvData?.length || 0}`}
                 initial={{ opacity: 0, x: 20 }}
                 animate={{ opacity: 1, x: 0 }}
                 exit={{ opacity: 0, x: -20 }}
@@ -4055,26 +5343,44 @@ export default function CreateProductModal({ isOpen, onClose, editingProduct }: 
                     activitiesLimit: getPlanLimit(planType, 'activitiesPerProduct'),
                     stockLimit: stockLimitFromPlan
                   }}
-                  onUndo={() => {
-                    // Llamar a la función de undo del WeeklyExercisePlanner
-                    if (typeof window !== 'undefined' && (window as any).weeklyPlannerUndo) {
-                      (window as any).weeklyPlannerUndo()
-                    }
-                  }}
-                  onUndoAvailable={(canUndo) => {
-                    // Actualizar estado del botón de undo
-                    setCanUndoWeeklyPlan(canUndo)
-                  }}
+                  onUndo={handleUndo}
+                  onUndoAvailable={handleUndoAvailable}
                   exercises={(() => {
                     // Convertir persistentCsvData a ejercicios para el planificador
-                    
-                    // Usar persistentCsvData directamente
-                    const dataToUse = persistentCsvData || []
-                    
-                    if (!dataToUse || dataToUse.length === 0) {
-                      console.log('⚠️ No hay datos CSV para el planificador semanal')
+                    // NOTA: La limpieza de planificación vieja cuando solo hay IDs temporales
+                    // ya está manejada en WeeklyExercisePlanner, no se debe hacer aquí
+                    // porque se ejecuta en cada render y borraría el schedule nuevo del usuario
+                    const allData = persistentCsvData || []
+
+                    if (!allData || allData.length === 0) {
+                      console.log('⚠️ [WeeklyPlan] No hay datos CSV para el planificador semanal')
                       return []
                     }
+
+                    // Filtrar filas eliminadas / inactivas
+                    const dataToUse = allData.filter((row: any) => {
+                      const isActive =
+                        row &&
+                        row.activo !== false &&
+                        row.is_active !== false &&
+                        row._deleted !== true
+                      if (!isActive) {
+                        console.log('🗑️ [WeeklyPlan] Ignorando fila inactiva/eliminada para el planificador:', {
+                          id: row.id,
+                          tempId: row.tempId,
+                          nombre: row['Nombre'] || row.nombre || row.nombre_plato,
+                          activo: row.activo,
+                          is_active: row.is_active,
+                          _deleted: row._deleted,
+                        })
+                      }
+                      return isActive
+                    })
+
+                    console.log('📊 [WeeklyPlan] Construyendo ejercicios para planificador:', {
+                      totalCsv: allData.length,
+                      usadosEnPlanificador: dataToUse.length,
+                    })
                     
                     const exercises = dataToUse.map((row, index) => {
                       // Detectar si es nutrición por la presencia de campos específicos
@@ -4087,13 +5393,22 @@ export default function CreateProductModal({ isOpen, onClose, editingProduct }: 
                       
                       // Si es nutrición, usar campos específicos de nutrición
                       if (isNutrition || productCategory === 'nutricion') {
+                        // Obtener el tipo del plato
+                        const rawTipo = row['Tipo'] || row.tipo || row.tipo_plato || (row as any)?.tipo || 'otro'
+                        
+                        // ✅ NO usar nombres genéricos - si no hay nombre, usar string vacío y filtrar después
+                        const nombre = row['Nombre'] || row['nombre'] || row.nombre || ''
+                        if (!nombre || nombre.trim() === '') {
+                          return null // Filtrar platos sin nombre
+                        }
                         
                         return {
                           id: row.id || `nutrition-${index}`,
-                          name: row['Nombre'] || row['nombre'] || row.nombre || `Plato ${index + 1}`,
+                          name: nombre.trim(),
                           description: row['Descripción'] || row['Receta'] || row.descripcion || row.receta || '',
+                          type: rawTipo, // Incluir el tipo del plato (Desayuno, Almuerzo, Cena, etc.)
+                          tipo: rawTipo, // También en formato alternativo
                           duration: 0, // Los platos no tienen duración
-                          type: 'Nutrición', // Tipo específico para nutrición
                           intensity: 'N/A', // No aplica para nutrición
                           equipment: 'N/A', // No aplica para nutrición
                           bodyParts: '', // No aplica para nutrición
@@ -4144,7 +5459,7 @@ export default function CreateProductModal({ isOpen, onClose, editingProduct }: 
                         is_active: row.is_active !== undefined ? row.is_active : (row.activo !== undefined ? row.activo : true),
                         activo: row.activo !== undefined ? row.activo : (row.is_active !== undefined ? row.is_active : true)
                       }
-                    })
+                    }).filter((ex: any) => ex !== null) // ✅ Filtrar platos sin nombre
                     
                     return exercises
                   })()}
@@ -4152,18 +5467,45 @@ export default function CreateProductModal({ isOpen, onClose, editingProduct }: 
                     setPersistentCalendarSchedule(schedule)
                   }}
                   onStatsChange={(stats: any) => {
-                    setWeeklyStats(stats)
+                    console.log('📊 [CreateProductModal] onStatsChange recibido:', stats)
+                    // Mapear las estadísticas del formato de getPatternStats al formato de weeklyStats
+                    setWeeklyStats({
+                      semanas: stats.totalWeeks || 1,
+                      sesiones: stats.totalSessions || stats.totalDays || 0,
+                      ejerciciosTotales: stats.totalExercisesReplicated || stats.totalExercises || 0,
+                      ejerciciosUnicos: stats.uniqueExercises || 0 // ✅ Platos únicos realmente usados en la planificación
+                    })
                   }}
                   onPeriodsChange={(periods: number) => {
                     setPeriods(periods)
                   }}
-                  initialSchedule={persistentCalendarSchedule}
+                  initialSchedule={(() => {
+                    // Si todos los IDs son temporales, verificar si ya hay planificación del usuario
+                    const hasOnlyTemporaryIds =
+                      Array.isArray(persistentCsvData) &&
+                      persistentCsvData.length > 0 &&
+                      persistentCsvData.every((row: any) => {
+                        const id = row?.id
+                        return !id || typeof id !== 'number'
+                      })
+                    
+                    // Si hay IDs temporales PERO el usuario ya creó planificación, preservarla
+                    // Solo pasar {} si no hay planificación del usuario (para ignorar planificación vieja del backend)
+                    if (hasOnlyTemporaryIds) {
+                      const hasUserSchedule = persistentCalendarSchedule && Object.keys(persistentCalendarSchedule).length > 0
+                      return hasUserSchedule ? persistentCalendarSchedule : {}
+                    }
+                    
+                    // Si hay IDs reales, usar siempre persistentCalendarSchedule
+                    return persistentCalendarSchedule || {}
+                  })()}
+                  initialPeriods={periods}
                   activityId={editingProduct?.id}
                   isEditing={!!editingProduct}
                   productCategory={productCategory}
                 />
                 
-                {/* Botón de continuar al paso 6 */}
+                {/* Botón de continuar al paso de preview */}
                 <div className="flex justify-end mt-6">
                   <button
                     onClick={() => setCurrentStep('preview')}
@@ -4181,7 +5523,7 @@ export default function CreateProductModal({ isOpen, onClose, editingProduct }: 
                 initial={{ opacity: 0, x: 20 }}
                 animate={{ opacity: 1, x: 0 }}
                 exit={{ opacity: 0, x: -20 }}
-                className="space-y-6"
+                className="space-y-6 pb-32"
               >
                 <div className="bg-[#0A0A0A] rounded-2xl p-8 border border-[#1A1A1A]">
                   <div className="flex justify-center mb-8">
@@ -4213,8 +5555,69 @@ export default function CreateProductModal({ isOpen, onClose, editingProduct }: 
                           },
                           consultation_info: null,
                           tags: null,
-                          exercisesCount: persistentCsvData.length,
-                          totalSessions: persistentCalendarSchedule.length || 1,
+                          exercisesCount: (() => {
+                            // Para talleres: calcular cantidad de temas únicos
+                            if (selectedType === 'workshop' && workshopSchedule && workshopSchedule.length > 0) {
+                              const temasUnicos = new Set(workshopSchedule.map((s: any) => s.title).filter(Boolean))
+                              const cantidadTemas = temasUnicos.size
+                              console.log('📊 [Paso 6] Taller - cantidadTemas calculado:', {
+                                workshopScheduleLength: workshopSchedule.length,
+                                temasUnicos: Array.from(temasUnicos),
+                                cantidadTemas
+                              })
+                              return cantidadTemas
+                            }
+                            
+                            // Para programas: usar persistentCsvData
+                            const count = persistentCsvData?.length || 0
+                            console.log('📊 [Paso 6] exercisesCount calculado:', {
+                              persistentCsvDataLength: persistentCsvData?.length,
+                              exercisesCount: count,
+                              hasPersistentCsvData: !!persistentCsvData,
+                              isArray: Array.isArray(persistentCsvData)
+                            })
+                            return count
+                          })(),
+                          totalSessions: (() => {
+                            // Para talleres: cantidad de días = cantidad de temas (cada tema = 1 día)
+                            if (selectedType === 'workshop' && workshopSchedule && workshopSchedule.length > 0) {
+                              const temasUnicos = new Set(workshopSchedule.map((s: any) => s.title).filter(Boolean))
+                              const cantidadDias = temasUnicos.size
+                              console.log('📊 [Paso 6] Taller - cantidadDias calculado:', {
+                                cantidadDias,
+                                temasUnicos: Array.from(temasUnicos)
+                              })
+                              return cantidadDias
+                            }
+                            
+                            // Para programas: calcular desde persistentCalendarSchedule
+                            if (!persistentCalendarSchedule || Object.keys(persistentCalendarSchedule).length === 0) return 1
+                            let count = 0
+                            Object.values(persistentCalendarSchedule).forEach((week: any) => {
+                              if (week && typeof week === 'object') {
+                                Object.values(week).forEach((day: any) => {
+                                  if (day) {
+                                    const exercises = Array.isArray(day) ? day : (day.ejercicios || day.exercises || [])
+                                    if (exercises && exercises.length > 0) count++
+                                  }
+                                })
+                              }
+                            })
+                            return count > 0 ? count : 1
+                          })(),
+                          // Para talleres: agregar cantidadTemas y cantidadDias para que ActivityCard los use
+                          cantidadTemas: selectedType === 'workshop' && workshopSchedule && workshopSchedule.length > 0
+                            ? (() => {
+                                const temasUnicos = new Set(workshopSchedule.map((s: any) => s.title).filter(Boolean))
+                                return temasUnicos.size
+                              })()
+                            : undefined,
+                          cantidadDias: selectedType === 'workshop' && workshopSchedule && workshopSchedule.length > 0
+                            ? (() => {
+                                const temasUnicos = new Set(workshopSchedule.map((s: any) => s.title).filter(Boolean))
+                                return temasUnicos.size // Cada tema = 1 día
+                              })()
+                            : undefined,
                           modality: generalForm.modality || 'online',
                           // Debug: Log para verificar modalidad pasada a ActivityCard
                           // console.log('🏷️ Paso 6 - Modalidad pasada a ActivityCard:', generalForm.modality),
@@ -4236,11 +5639,16 @@ export default function CreateProductModal({ isOpen, onClose, editingProduct }: 
                           objetivos: generalForm.objetivos && generalForm.objetivos.length > 0 ? generalForm.objetivos : [],
                           // Valores del resumen del paso 5
                           previewStats: (() => {
+                            console.log('📊 [Paso 6] previewStats calculado:', {
+                              weeklyStats,
+                              ejerciciosUnicos: weeklyStats.ejerciciosUnicos,
+                              ejerciciosTotales: weeklyStats.ejerciciosTotales
+                            })
                             return {
-                              semanas: weeklyStats.totalWeeks || 1,
-                              sesiones: weeklyStats.totalDays || 0,
-                              ejerciciosTotales: weeklyStats.totalExercises || 0,
-                              ejerciciosUnicos: weeklyStats.uniqueExercises || 0
+                              semanas: weeklyStats.semanas || 1,
+                              sesiones: weeklyStats.sesiones || 0,
+                              ejerciciosTotales: weeklyStats.ejerciciosTotales || 0,
+                              ejerciciosUnicos: weeklyStats.ejerciciosUnicos || 0 // ✅ Platos únicos realmente usados en la planificación
                             }
                           })()
                         }}
@@ -4274,8 +5682,8 @@ export default function CreateProductModal({ isOpen, onClose, editingProduct }: 
         </motion.div>
       </motion.div>
 
-      {/* Modals */}
-      {isVideoModalOpen && (
+      {/* Modals (deshabilitados en el paso 3: usamos lista inline en lugar de ventana) */}
+      {isVideoModalOpen && currentStep !== 'general' && (
         <VideoSelectionModal
           isOpen={isVideoModalOpen}
           onClose={() => setIsVideoModalOpen(false)}
@@ -4284,7 +5692,7 @@ export default function CreateProductModal({ isOpen, onClose, editingProduct }: 
         />
       )}
 
-      {isMediaModalOpen && (
+      {isMediaModalOpen && currentStep !== 'general' && (
         <MediaSelectionModal
           isOpen={isMediaModalOpen}
           onClose={() => setIsMediaModalOpen(false)}
@@ -4299,7 +5707,7 @@ export default function CreateProductModal({ isOpen, onClose, editingProduct }: 
           initial={{ opacity: 0 }}
           animate={{ opacity: 1 }}
           exit={{ opacity: 0 }}
-          className="fixed inset-0 bg-black/90 z-40 flex items-center justify-center backdrop-blur-sm"
+          className="fixed inset-0 bg-black/90 z-[110] flex items-center justify-center backdrop-blur-sm"
         >
           <motion.div
             initial={{ scale: 0.9, opacity: 0 }}

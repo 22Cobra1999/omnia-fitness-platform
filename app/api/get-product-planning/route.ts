@@ -30,6 +30,25 @@ export async function GET(request: NextRequest) {
       )
     }
 
+    // 0. Obtener categoría del producto para determinar qué tabla usar
+    const { data: actividadInfo, error: actividadError } = await supabase
+      .from('activities')
+      .select('categoria')
+      .eq('id', actividadIdNumber)
+      .single()
+
+    if (actividadError) {
+      console.error('Error obteniendo información de la actividad:', actividadError)
+      return NextResponse.json({ 
+        success: false, 
+        error: 'Error obteniendo información de la actividad' 
+      }, { status: 500 })
+    }
+
+    const isNutrition = actividadInfo?.categoria === 'nutricion' || actividadInfo?.categoria === 'nutrition'
+    const tableName = isNutrition ? 'nutrition_program_details' : 'ejercicios_detalles'
+    console.log(`📊 [get-product-planning] Producto ${actividadIdNumber}: categoría=${actividadInfo?.categoria}, tabla=${tableName}`)
+
     // 1. Obtener planificación de ejercicios
     const { data: planificacion, error: planificacionError } = await supabase
       .from('planificacion_ejercicios')
@@ -240,11 +259,14 @@ export async function GET(request: NextRequest) {
 
     const ejerciciosMap = new Map<string, any>()
     if (exerciseIds.size > 0) {
-    const { data: ejercicios, error: ejerciciosError } = await supabase
-      .from('ejercicios_detalles')
-        .select(
-          'id, nombre_ejercicio, tipo, descripcion, calorias, intensidad, video_url, equipo, body_parts, detalle_series, duracion_min, is_active, activity_id'
-        )
+      // Consultar la tabla correcta según la categoría
+      const camposSelect = isNutrition
+        ? 'id, nombre_plato, tipo, descripcion, calorias, proteinas, carbohidratos, grasas, video_url, receta, is_active, activity_id'
+        : 'id, nombre_ejercicio, tipo, descripcion, calorias, intensidad, video_url, equipo, body_parts, detalle_series, duracion_min, is_active, activity_id'
+      
+      const { data: ejercicios, error: ejerciciosError } = await supabase
+        .from(tableName)
+        .select(camposSelect)
         .in('id', Array.from(exerciseIds))
 
     if (ejerciciosError) {
@@ -320,9 +342,13 @@ export async function GET(request: NextRequest) {
 
     // Consultar todos los ejercicios faltantes de una vez
     if (ejerciciosFaltantes.size > 0) {
+      const camposSelectFaltantes = isNutrition
+        ? 'id, nombre_plato, tipo, descripcion, calorias, proteinas, carbohidratos, grasas, video_url, receta, is_active, activity_id'
+        : 'id, nombre_ejercicio, tipo, descripcion, calorias, intensidad, video_url, equipo, body_parts, detalle_series, duracion_min, is_active, activity_id'
+      
       const { data: ejerciciosFromDb, error: ejerciciosError } = await supabase
-        .from('ejercicios_detalles')
-        .select('id, nombre_ejercicio, tipo, descripcion, calorias, intensidad, video_url, equipo, body_parts, detalle_series, duracion_min, is_active, activity_id')
+        .from(tableName)
+        .select(camposSelectFaltantes)
         .in('id', Array.from(ejerciciosFaltantes))
 
       if (!ejerciciosError && ejerciciosFromDb) {
@@ -335,8 +361,12 @@ export async function GET(request: NextRequest) {
             ejercicioFromDb.is_active !== false
           ) : true
           
+          const nombreItem = isNutrition ? ejercicioFromDb.nombre_plato : ejercicioFromDb.nombre_ejercicio
           const ejercicioInfo = {
             ...ejercicioFromDb,
+            // Normalizar nombre para uso genérico
+            nombre_ejercicio: nombreItem,
+            nombre_plato: nombreItem,
             activity_map: activityMap,
             is_active: isActive
           }
@@ -395,32 +425,61 @@ export async function GET(request: NextRequest) {
               explicitActivo !== undefined
                     ? explicitActivo
                 : ejercicioInfo.is_active !== false
-            uniqueExercises.add(
-              ejercicioInfo.nombre_ejercicio || `Ejercicio ${ordenDesdeData}`
-            )
-                  todosEjercicios.push({
-              id: ejercicioInfo.id,
-              name: ejercicioInfo.nombre_ejercicio,
-              type: ejercicioInfo.tipo,
-              description: ejercicioInfo.descripcion,
-              calories: ejercicioInfo.calorias,
-              intensity: ejercicioInfo.intensidad,
-              video_url: ejercicioInfo.video_url,
-              equipo: ejercicioInfo.equipo,
-              body_parts: ejercicioInfo.body_parts,
-              detalle_series: ejercicioInfo.detalle_series,
-              duracion_min: ejercicioInfo.duracion_min,
-              series: seriesValue,
-                    block: blockFromData,
-                    orden: ordenDesdeData,
-                    activo: finalActivo,
-                    is_active: finalActivo
-                  })
+            
+            const nombreItem = ejercicioInfo.nombre_plato || ejercicioInfo.nombre_ejercicio || (isNutrition ? `Plato ${ordenDesdeData}` : `Ejercicio ${ordenDesdeData}`)
+            uniqueExercises.add(nombreItem)
+            
+            if (isNutrition) {
+              // Formato para platos
+              todosEjercicios.push({
+                id: ejercicioInfo.id,
+                name: nombreItem,
+                nombre_plato: nombreItem,
+                nombre_ejercicio: nombreItem, // Para compatibilidad
+                type: ejercicioInfo.tipo,
+                tipo: ejercicioInfo.tipo,
+                description: ejercicioInfo.descripcion || ejercicioInfo.receta || '',
+                descripcion: ejercicioInfo.descripcion || ejercicioInfo.receta || '',
+                receta: ejercicioInfo.receta || '',
+                calories: ejercicioInfo.calorias || 0,
+                calorias: ejercicioInfo.calorias || 0,
+                proteinas: ejercicioInfo.proteinas || 0,
+                carbohidratos: ejercicioInfo.carbohidratos || 0,
+                grasas: ejercicioInfo.grasas || 0,
+                video_url: ejercicioInfo.video_url || null,
+                block: blockFromData,
+                orden: ordenDesdeData,
+                activo: finalActivo,
+                is_active: finalActivo
+              })
+            } else {
+              // Formato para ejercicios
+              todosEjercicios.push({
+                id: ejercicioInfo.id,
+                name: nombreItem,
+                nombre_ejercicio: nombreItem,
+                type: ejercicioInfo.tipo,
+                description: ejercicioInfo.descripcion,
+                calories: ejercicioInfo.calorias,
+                intensity: ejercicioInfo.intensidad,
+                video_url: ejercicioInfo.video_url,
+                equipo: ejercicioInfo.equipo,
+                body_parts: ejercicioInfo.body_parts,
+                detalle_series: ejercicioInfo.detalle_series,
+                duracion_min: ejercicioInfo.duracion_min,
+                series: seriesValue,
+                block: blockFromData,
+                orden: ordenDesdeData,
+                activo: finalActivo,
+                is_active: finalActivo
+              })
+            }
           } else {
             const fallbackName =
               ejercicioData.name ||
+              ejercicioData.nombre_plato ||
               ejercicioData.nombre_ejercicio ||
-              `Ejercicio ${ordenDesdeData}`
+              (isNutrition ? `Plato ${ordenDesdeData}` : `Ejercicio ${ordenDesdeData}`)
             uniqueExercises.add(fallbackName)
             const finalActivo =
               explicitActivo !== undefined ? explicitActivo : true
@@ -439,36 +498,56 @@ export async function GET(request: NextRequest) {
             }
 
                     // Usar datos del fallback pero incluir el ID para que el frontend pueda buscarlo
-                    todosEjercicios.push({
-              id: ejercicioData.id,
-              name: ejercicioInfo?.nombre_ejercicio || fallbackName,
-              nombre_ejercicio: ejercicioInfo?.nombre_ejercicio || fallbackName,
-              type: ejercicioInfo?.tipo || ejercicioData.type || ejercicioData.tipo || 'General',
-              tipo: ejercicioInfo?.tipo || ejercicioData.type || ejercicioData.tipo || 'General',
-              description:
-                ejercicioInfo?.descripcion || ejercicioData.description || ejercicioData.descripcion || '',
-              descripcion:
-                ejercicioInfo?.descripcion || ejercicioData.description || ejercicioData.descripcion || '',
-              calories: ejercicioInfo?.calorias || ejercicioData.calories || ejercicioData.calorias || 0,
-              calorias: ejercicioInfo?.calorias || ejercicioData.calories || ejercicioData.calorias || 0,
-              intensity:
-                ejercicioInfo?.intensidad || ejercicioData.intensity || ejercicioData.intensidad || 'Medio',
-              intensidad:
-                ejercicioInfo?.intensidad || ejercicioData.intensity || ejercicioData.intensidad || 'Medio',
-              video_url: ejercicioInfo?.video_url || ejercicioData.video_url || null,
-              equipo: ejercicioInfo?.equipo || ejercicioData.equipo || ejercicioData.equipment || '',
-              body_parts: ejercicioInfo?.body_parts || ejercicioData.body_parts || '',
-              detalle_series: ejercicioInfo?.detalle_series || (detalleSeriesRaw ?? null),
-              duracion_min: ejercicioInfo?.duracion_min || (ejercicioData.duracion_min ?? null),
-              duration: ejercicioInfo?.duracion_min || (ejercicioData.duracion_min ?? null),
-              series: ejercicioInfo?.detalle_series || seriesValue,
-              block: blockFromData,
-              orden: ordenDesdeData,
-                      activo: finalActivo,
-                      is_active: finalActivo
-                  })
-                }
-              })
+                    if (isNutrition) {
+                      todosEjercicios.push({
+                        id: ejercicioData.id,
+                        name: fallbackName,
+                        nombre_plato: fallbackName,
+                        nombre_ejercicio: fallbackName,
+                        type: ejercicioData.type || ejercicioData.tipo || 'General',
+                        tipo: ejercicioData.type || ejercicioData.tipo || 'General',
+                        description: ejercicioData.description || ejercicioData.descripcion || ejercicioData.receta || '',
+                        descripcion: ejercicioData.description || ejercicioData.descripcion || ejercicioData.receta || '',
+                        receta: ejercicioData.receta || '',
+                        calories: ejercicioData.calories || ejercicioData.calorias || 0,
+                        calorias: ejercicioData.calories || ejercicioData.calorias || 0,
+                        proteinas: ejercicioData.proteinas || 0,
+                        carbohidratos: ejercicioData.carbohidratos || 0,
+                        grasas: ejercicioData.grasas || 0,
+                        video_url: ejercicioData.video_url || null,
+                        block: blockFromData,
+                        orden: ordenDesdeData,
+                        activo: finalActivo,
+                        is_active: finalActivo
+                      })
+                    } else {
+                      todosEjercicios.push({
+                        id: ejercicioData.id,
+                        name: fallbackName,
+                        nombre_ejercicio: fallbackName,
+                        type: ejercicioData.type || ejercicioData.tipo || 'General',
+                        tipo: ejercicioData.type || ejercicioData.tipo || 'General',
+                        description: ejercicioData.description || ejercicioData.descripcion || '',
+                        descripcion: ejercicioData.description || ejercicioData.descripcion || '',
+                        calories: ejercicioData.calories || ejercicioData.calorias || 0,
+                        calorias: ejercicioData.calories || ejercicioData.calorias || 0,
+                        intensity: ejercicioData.intensity || ejercicioData.intensidad || 'Medio',
+                        intensidad: ejercicioData.intensity || ejercicioData.intensidad || 'Medio',
+                        video_url: ejercicioData.video_url || null,
+                        equipo: ejercicioData.equipo || ejercicioData.equipment || '',
+                        body_parts: ejercicioData.body_parts || '',
+                        detalle_series: detalleSeriesRaw ?? null,
+                        duracion_min: ejercicioData.duracion_min ?? null,
+                        duration: ejercicioData.duracion_min ?? null,
+                        series: seriesValue,
+                        block: blockFromData,
+                        orden: ordenDesdeData,
+                        activo: finalActivo,
+                        is_active: finalActivo
+                      })
+                    }
+                  }
+                })
 
         todosEjercicios.sort(
           (a, b) => (a.orden ?? index + 1) - (b.orden ?? index + 1)
@@ -508,6 +587,45 @@ export async function GET(request: NextRequest) {
       }
     }
 
+    // Log detallado para debugging
+    console.log('📊 [get-product-planning] Resultado final:', {
+      actividad_id: actividadIdNumber,
+      categoria: actividadInfo?.categoria,
+      isNutrition,
+      semanas: Object.keys(weeklySchedule).length,
+      totalSessions,
+      uniqueExercises: Array.from(uniqueExercises).length,
+      sampleWeek: Object.keys(weeklySchedule)[0] ? {
+        semana: Object.keys(weeklySchedule)[0],
+        dias: Object.keys(weeklySchedule[Object.keys(weeklySchedule)[0]] || {}),
+        primerDia: (() => {
+          const primeraSemana = weeklySchedule[Object.keys(weeklySchedule)[0]]
+          if (!primeraSemana) return null
+          const primerDiaKey = Object.keys(primeraSemana)[0]
+          if (!primerDiaKey) return null
+          const primerDia = primeraSemana[primerDiaKey]
+          return {
+            dia: primerDiaKey,
+            estructura: Array.isArray(primerDia) ? 'array' : typeof primerDia,
+            tieneEjercicios: Array.isArray(primerDia) 
+              ? primerDia.length 
+              : (primerDia?.ejercicios?.length || primerDia?.exercises?.length || 0),
+            primerosEjercicios: (() => {
+              const ejercicios = Array.isArray(primerDia) 
+                ? primerDia 
+                : (primerDia?.ejercicios || primerDia?.exercises || [])
+              return ejercicios.slice(0, 2).map((ex: any) => ({
+                id: ex.id,
+                name: ex.name,
+                tieneName: !!ex.name,
+                tieneNombreEjercicio: !!ex.nombre_ejercicio,
+                tieneNombrePlato: !!ex.nombre_plato
+              }))
+            })()
+          }
+        })()
+      } : null
+    })
 
     return NextResponse.json(result)
 

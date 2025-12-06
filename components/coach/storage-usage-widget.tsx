@@ -81,7 +81,7 @@ export function StorageUsageWidget(props: StorageUsageWidgetProps = {}) {
   const [collapsed, setCollapsed] = useState(true)
   const [viewMode, setViewMode] = useState<ViewMode>('usage')
   const [currentPlan, setCurrentPlan] = useState<PlanType | null>(null)
-  const [editing, setEditing] = useState(false)
+  const [editing, setEditing] = useState(true) // Siempre en modo edición
   const [fileToDelete, setFileToDelete] = useState<StorageFile | null>(null)
   const [showDeleteWarning, setShowDeleteWarning] = useState(false)
   const [editingFileName, setEditingFileName] = useState<string | null>(null)
@@ -240,7 +240,6 @@ export function StorageUsageWidget(props: StorageUsageWidgetProps = {}) {
       if (response.ok && result.success) {
         // Recargar datos
         await loadStorageUsage()
-        setEditing(false)
         setShowDeleteWarning(false)
         setFileToDelete(null)
       } else {
@@ -372,7 +371,7 @@ export function StorageUsageWidget(props: StorageUsageWidgetProps = {}) {
   const availablePercent = storageLimitGB > 0 ? (remainingGB / storageLimitGB) * 100 : 100
 
   return (
-    <div className="bg-[#1A1C1F] rounded-2xl p-4">
+    <div className="bg-black p-4">
       {/* Header */}
       <div className="flex items-center justify-between mb-3">
         <h3 className="text-sm font-medium text-gray-300">Almacenamiento</h3>
@@ -398,43 +397,63 @@ export function StorageUsageWidget(props: StorageUsageWidgetProps = {}) {
       ) : storageData ? (
         <>
           {/* Barra con Videos, Imágenes, PDFs y Disponible */}
-          <div className="relative h-8 rounded-xl overflow-hidden border-2 border-gray-700 bg-white shadow-inner mb-4">
+          <div className="relative h-8 rounded-xl overflow-hidden border-2 border-gray-700 bg-gray-600 shadow-inner mb-4">
             <div className="flex h-full items-center">
-              {/* Videos - Naranja más oscuro #FF7939 */}
+              {/* Videos - Naranja más oscuro #FF6B35 */}
               {videoPercent > 0 && (
                 <div 
-                  className="bg-[#FF7939] h-full transition-all"
+                  className="bg-[#FF6B35] h-full transition-all"
                   style={{ width: `${videoPercent}%`, minWidth: videoPercent > 0.5 ? '4px' : '0px' }}
                   title={`Videos: ${formatMB(videoGB)}`}
                 />
               )}
               
-              {/* Imágenes - Naranja medio #FF8C42 */}
+              {/* Imágenes - Naranja semi claro #FF9F5A */}
               {imagePercent > 0 && (
                 <div 
-                  className="bg-[#FF8C42] h-full transition-all"
+                  className="bg-[#FF9F5A] h-full transition-all"
                   style={{ width: `${imagePercent}%`, minWidth: imagePercent > 0.5 ? '4px' : '0px' }}
                   title={`Imágenes: ${formatMB(imageGB)}`}
                 />
               )}
               
-              {/* PDFs - Naranja claro #FF9F5A */}
+              {/* PDFs - Naranja muy claro #FFC999 */}
               {pdfPercent > 0 && (
                 <div 
-                  className="bg-[#FF9F5A] h-full transition-all"
+                  className="bg-[#FFC999] h-full transition-all"
                   style={{ width: `${pdfPercent}%`, minWidth: pdfPercent > 0.5 ? '4px' : '0px' }}
                   title={`PDFs: ${formatMB(pdfGB)}`}
                 />
               )}
               
-              {/* Disponible - Blanco */}
+              {/* Disponible - Gris */}
               {availablePercent > 0 && (
                 <div 
-                  className="bg-white h-full transition-all"
+                  className="bg-gray-600 h-full transition-all"
                   style={{ width: `${availablePercent}%`, minWidth: availablePercent > 0.5 ? '4px' : '0px' }}
                   title={`Disponible: ${formatGB(remainingGB)}`}
                 />
               )}
+            </div>
+          </div>
+
+          {/* Leyenda de colores - Video naranja oscuro, Imagen naranja semi claro, PDF naranja claro */}
+          <div className="flex items-center justify-center gap-4 mb-3 text-xs">
+            <div className="flex items-center gap-1.5">
+              <div className="w-3 h-3 rounded bg-[#FF6B35]"></div>
+              <span className="text-gray-400">Video</span>
+            </div>
+            <div className="flex items-center gap-1.5">
+              <div className="w-3 h-3 rounded bg-[#FF9F5A]"></div>
+              <span className="text-gray-400">Imagen</span>
+            </div>
+            <div className="flex items-center gap-1.5">
+              <div className="w-3 h-3 rounded bg-[#FFC999]"></div>
+              <span className="text-gray-400">PDF</span>
+            </div>
+            <div className="flex items-center gap-1.5">
+              <div className="w-3 h-3 rounded bg-gray-600"></div>
+              <span className="text-gray-400">Disponible</span>
             </div>
           </div>
 
@@ -456,8 +475,8 @@ export function StorageUsageWidget(props: StorageUsageWidgetProps = {}) {
             </div>
           </div>
 
-          {/* Botón expandir/colapsar */}
-          <div className="mb-2 flex items-center justify-between">
+          {/* Botón expandir/colapsar - Centrado, negrita y naranja */}
+          <div className="mb-2 flex items-center justify-center">
             <button
               onClick={() => {
                 setCollapsed(!collapsed)
@@ -466,7 +485,7 @@ export function StorageUsageWidget(props: StorageUsageWidgetProps = {}) {
                   setViewMode('usage')
                 }
               }}
-              className="flex items-center justify-center gap-1 text-xs text-gray-400 hover:text-white transition-colors py-1"
+              className="flex items-center justify-center gap-1 text-sm font-bold text-[#FF7939] hover:text-[#FF8C42] transition-colors py-1"
             >
               {collapsed ? (
                 <>
@@ -478,14 +497,6 @@ export function StorageUsageWidget(props: StorageUsageWidgetProps = {}) {
                 </>
               )}
             </button>
-            {!collapsed && (
-              <button
-                onClick={() => setEditing(!editing)}
-                className="text-xs text-[#FF7939] hover:text-[#FF8C42] transition-colors font-medium"
-              >
-                {editing ? 'Cancelar' : 'Editar'}
-              </button>
-            )}
           </div>
 
           {/* Tabs (solo cuando expandido) */}

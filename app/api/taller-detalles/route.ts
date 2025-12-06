@@ -29,6 +29,7 @@ export async function GET(request: NextRequest) {
         nombre,
         descripcion,
         originales,
+        activo,
         created_at,
         updated_at
       `)

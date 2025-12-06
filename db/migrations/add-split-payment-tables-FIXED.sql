@@ -172,3 +172,9 @@ COMMENT ON FUNCTION calculate_marketplace_commission IS 'Calcula la comisión de
 
 
 
+
+
+
+
+
+

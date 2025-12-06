@@ -5,7 +5,7 @@ import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import Image from "next/image"
 import { motion } from "framer-motion"
-import { Star, ShoppingCart } from "lucide-react"
+import { Star, ShoppingCart, Flame } from "lucide-react"
 
 interface Product {
   id: number
@@ -77,13 +77,23 @@ export function ProductGrid({ category }: { category: "fitness" | "courses" }) {
           <Card className="bg-[#1E1E1E] border-none overflow-hidden">
             <CardContent className="p-0">
               <div className="relative">
-                <Image
-                  src={product.image || "/placeholder.svg"}
-                  alt={product.title}
-                  width={400}
-                  height={300}
-                  className="w-full h-48 object-cover"
-                />
+                {product.image && product.image.trim() !== '' && !product.image.includes('placeholder') ? (
+                  <Image
+                    src={product.image}
+                    alt={product.title}
+                    width={400}
+                    height={300}
+                    className="w-full h-48 object-cover"
+                  />
+                ) : (
+                  // Logo de Omnia cuando no hay imagen
+                  <div className="w-full h-48 bg-[rgba(255,255,255,0.02)] flex items-center justify-center flex-col gap-3">
+                    <div className="w-16 h-16 bg-[#FF7939] rounded-xl flex items-center justify-center">
+                      <Flame className="w-8 h-8 text-black" />
+                    </div>
+                    <h1 className="text-gray-400 text-xl font-bold">OMNIA</h1>
+                  </div>
+                )}
                 <Badge className="absolute top-2 left-2 bg-[#FF7939]">
                   {category === "courses" ? "Course" : "Product"}
                 </Badge>

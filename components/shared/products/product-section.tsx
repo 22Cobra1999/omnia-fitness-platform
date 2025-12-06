@@ -4,7 +4,7 @@ import { Card, CardContent } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
 import { ScrollArea, ScrollBar } from "@/components/ui/scroll-area"
-import { ChevronLeft, ChevronRight, Star, ShoppingCart } from "lucide-react"
+import { ChevronLeft, ChevronRight, Star, ShoppingCart, Flame } from "lucide-react"
 import Image from "next/image"
 import { useState } from "react"
 import { motion, AnimatePresence } from "framer-motion"
@@ -103,13 +103,23 @@ export function ProductSection({ title, category, type }: ProductSectionProps) {
                 <Card className="bg-[#1E1E1E] border-none overflow-hidden h-full">
                   <CardContent className="p-0">
                     <div className="relative">
-                      <Image
-                        src={product.image || "/placeholder.svg"}
-                        alt={product.title}
-                        width={280}
-                        height={200}
-                        className="w-full h-[200px] object-cover"
-                      />
+                      {product.image && product.image.trim() !== '' && !product.image.includes('placeholder') ? (
+                        <Image
+                          src={product.image}
+                          alt={product.title}
+                          width={280}
+                          height={200}
+                          className="w-full h-[200px] object-cover"
+                        />
+                      ) : (
+                        // Logo de Omnia cuando no hay imagen
+                        <div className="w-full h-[200px] bg-[rgba(255,255,255,0.02)] flex items-center justify-center flex-col gap-3">
+                          <div className="w-16 h-16 bg-[#FF7939] rounded-xl flex items-center justify-center">
+                            <Flame className="w-8 h-8 text-black" />
+                          </div>
+                          <h1 className="text-gray-400 text-xl font-bold">OMNIA</h1>
+                        </div>
+                      )}
                       {product.discount && (
                         <Badge className="absolute top-2 right-2 bg-[#FF7939]">{product.discount}% OFF</Badge>
                       )}

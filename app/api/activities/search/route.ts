@@ -186,20 +186,108 @@ export async function GET(request: NextRequest) {
         let periodosUnicos = 1
 
         if (isNutrition) {
-          // Para nutrición: usar nutrition_program_details
-          const { data: platos } = await supabase
-            .from('nutrition_program_details')
-            .select('id')
-            .eq('activity_id', activityId)
-
-          ejerciciosCount = platos?.length || 0
-          // Para nutrición, cada plato es una "sesión" (día de comida)
-          totalSessions = ejerciciosCount
+          // Para nutrición: obtener platos ÚNICOS realmente usados en la planificación
+          // Obtener planificación desde planificacion_ejercicios
+          const { data: planificacion } = await supabase
+            .from('planificacion_ejercicios')
+            .select('lunes, martes, miercoles, jueves, viernes, sabado, domingo')
+            .eq('actividad_id', activityId)
           
-          console.log(`🥗 Actividad ${activityId} (Nutrición):`, {
-            platos: ejerciciosCount,
-            totalSessions
-          })
+          // Extraer todos los IDs únicos de platos de la planificación
+          const uniquePlateIds = new Set<number>()
+          
+          if (planificacion && planificacion.length > 0) {
+            const dias = ['lunes', 'martes', 'miercoles', 'jueves', 'viernes', 'sabado', 'domingo']
+            
+            planificacion.forEach((semana: any) => {
+              dias.forEach((dia: string) => {
+                const diaData = semana[dia]
+                if (diaData && typeof diaData === 'object') {
+                  // El día puede ser un objeto con ejercicios o un array directo
+                  let ejercicios: any[] = []
+                  if (Array.isArray(diaData)) {
+                    ejercicios = diaData
+                  } else if (Array.isArray(diaData.ejercicios)) {
+                    ejercicios = diaData.ejercicios
+                  } else if (Array.isArray(diaData.exercises)) {
+                    ejercicios = diaData.exercises
+                  }
+                  
+                  // Extraer IDs de los ejercicios (solo IDs numéricos válidos)
+                  ejercicios.forEach((ej: any) => {
+                    if (ej && ej.id !== undefined && ej.id !== null) {
+                      const id = typeof ej.id === 'number' ? ej.id : Number(ej.id)
+                      if (!isNaN(id) && id > 0) {
+                        uniquePlateIds.add(id)
+                      }
+                    }
+                  })
+                }
+              })
+            })
+          }
+          
+          ejerciciosCount = uniquePlateIds.size
+          
+          // Calcular sesiones desde la planificación
+          if (planificacion && planificacion.length > 0) {
+            const diasConEjercicios = new Set<string>()
+            planificacion.forEach((semana: any) => {
+              ['lunes', 'martes', 'miercoles', 'jueves', 'viernes', 'sabado', 'domingo'].forEach((dia: string) => {
+                const diaData = semana[dia]
+                if (diaData && typeof diaData === 'object') {
+                  let ejercicios: any[] = []
+                  if (Array.isArray(diaData)) {
+                    ejercicios = diaData
+                  } else if (Array.isArray(diaData.ejercicios)) {
+                    ejercicios = diaData.ejercicios
+                  } else if (Array.isArray(diaData.exercises)) {
+                    ejercicios = diaData.exercises
+                  }
+                  
+                  // Solo contar el día si tiene al menos un ejercicio válido
+                  if (ejercicios.length > 0) {
+                    // Verificar que al menos uno tenga ID válido
+                    const hasValidExercise = ejercicios.some((ej: any) => {
+                      if (ej && ej.id !== undefined && ej.id !== null) {
+                        const id = typeof ej.id === 'number' ? ej.id : Number(ej.id)
+                        return !isNaN(id) && id > 0
+                      }
+                      return false
+                    })
+                    
+                    if (hasValidExercise) {
+                      diasConEjercicios.add(dia)
+                    }
+                  }
+                }
+              })
+            })
+            
+            const diasUnicos = diasConEjercicios.size
+            
+            // Obtener períodos
+            const { data: periodosData } = await supabase
+              .from('periodos')
+              .select('cantidad_periodos')
+              .eq('actividad_id', activityId)
+              .maybeSingle()
+            
+            periodosUnicos = periodosData?.cantidad_periodos || 1
+            totalSessions = diasUnicos * periodosUnicos
+            
+            console.log(`🥗 Actividad ${activityId} (Nutrición):`, {
+              platosUnicos: ejerciciosCount,
+              diasUnicos,
+              periodosUnicos,
+              totalSessions,
+              planificacion: planificacion.length
+            })
+          } else {
+            // Si no hay planificación, usar 0
+            totalSessions = 0
+            console.log(`🥗 Actividad ${activityId} (Nutrición): Sin planificación`)
+          }
         } else {
           // Para fitness: usar ejercicios_detalles y planificacion_ejercicios
           const { data: ejercicios } = await supabase

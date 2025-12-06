@@ -44,6 +44,71 @@ export async function POST(
 
     // Para talleres: actualizar 'activo' en taller_detalles
     if (product.type === 'workshop') {
+      // Si se intenta activar (is_paused = false), validar que tenga fechas nuevas
+      if (!is_paused) {
+        // Obtener detalles del taller para validar fechas
+        const { data: tallerDetalles, error: detallesError } = await supabaseService
+          .from('taller_detalles')
+          .select('nombre, originales')
+          .eq('actividad_id', productId)
+
+        if (detallesError) {
+          console.error('Error obteniendo detalles del taller:', detallesError)
+          return NextResponse.json({ 
+            error: 'Error al validar fechas del taller',
+            details: detallesError.message 
+          }, { status: 500 })
+        }
+
+        if (!tallerDetalles || tallerDetalles.length === 0) {
+          return NextResponse.json({ 
+            error: 'No se pueden reactivar las ventas',
+            details: 'El taller no tiene temas configurados. Agrega al menos un tema con fechas nuevas para reactivar las ventas.'
+          }, { status: 400 })
+        }
+
+        // Validar fechas: verificar que tenga al menos una fecha futura
+        const now = new Date()
+        now.setHours(0, 0, 0, 0)
+        
+        let hasAnyFutureDate = false
+
+        for (const tema of tallerDetalles) {
+          try {
+            let originales = tema.originales
+            if (typeof originales === 'string') {
+              originales = JSON.parse(originales)
+            }
+
+            if (!originales?.fechas_horarios || !Array.isArray(originales.fechas_horarios)) {
+              continue
+            }
+
+            const fechasFuturas = originales.fechas_horarios.filter((h: any) => {
+              if (!h.fecha) return false
+              const fechaDate = new Date(h.fecha)
+              fechaDate.setHours(0, 0, 0, 0)
+              return fechaDate >= now
+            })
+
+            if (fechasFuturas.length > 0) {
+              hasAnyFutureDate = true
+              break // Ya encontramos al menos una fecha futura, no necesitamos seguir
+            }
+          } catch (error) {
+            console.error('Error procesando tema:', error)
+          }
+        }
+
+        // Si no tiene ninguna fecha futura, no permitir activar
+        if (!hasAnyFutureDate) {
+          return NextResponse.json({ 
+            error: 'No se pueden reactivar las ventas',
+            details: 'El taller no tiene fechas futuras. Agrega al menos una fecha futura para reactivar las ventas.'
+          }, { status: 400 })
+        }
+      }
+
       // Actualizar TODOS los temas del taller con el mismo valor de 'activo'
       const { error: updateError } = await supabaseService
         .from('taller_detalles')
@@ -124,6 +189,15 @@ export async function POST(
     }, { status: 500 })
   }
 }
+
+
+
+
+
+
+
+
+
 
 
 

@@ -74,11 +74,17 @@ export default function TodayScreen({ activityId, onBack }: { activityId: string
     calorias?: number | null;
   } | null>(null);
   
+  // Motion value para el drag del video expandido
+  const videoExpandY = useMotionValue(0);
+  
   // Estados para navegación por deslizamiento
   const [touchStart, setTouchStart] = React.useState<{x: number, y: number} | null>(null);
   const [touchEnd, setTouchEnd] = React.useState<{x: number, y: number} | null>(null);
   const [isTransitioning, setIsTransitioning] = React.useState(false);
   const [swipeDirection, setSwipeDirection] = React.useState<'left' | 'right' | null>(null);
+  
+  // Motion value para el swipe horizontal (cambio de ejercicios)
+  const videoExpandX = useMotionValue(0);
   
   // Estado para valores editables de series/bloques
   const [editableSeries, setEditableSeries] = React.useState<Array<{id: number, reps: string, kg: string, series: string}>>([]);
@@ -423,7 +429,44 @@ export default function TodayScreen({ activityId, onBack }: { activityId: string
   const collapseVideo = () => {
     setIsVideoExpanded(false);
     setSelectedVideo(null);
+    videoExpandY.set(0); // Resetear la posición del drag vertical
+    videoExpandX.set(0); // Resetear la posición del drag horizontal
   };
+
+  // Handler para cuando se termina de arrastrar el video expandido
+  const handleVideoExpandDragEnd = (event: any, info: PanInfo) => {
+    const threshold = 150; // Píxeles necesarios para cerrar
+    
+    if (info.offset.y > threshold) {
+      // Si se arrastró lo suficiente hacia abajo, cerrar
+      collapseVideo();
+    } else {
+      // Si no, volver a la posición inicial
+      animate(videoExpandY, 0, { type: 'spring', stiffness: 400, damping: 40 });
+    }
+  };
+
+  // Bloquear scroll del body cuando el video está expandido
+  React.useEffect(() => {
+    if (isVideoExpanded) {
+      // Guardar el scroll actual del body
+      const scrollY = window.scrollY;
+      // Bloquear el scroll
+      document.body.style.position = 'fixed';
+      document.body.style.top = `-${scrollY}px`;
+      document.body.style.width = '100%';
+      document.body.style.overflow = 'hidden';
+      
+      return () => {
+        // Restaurar el scroll cuando se cierra
+        document.body.style.position = '';
+        document.body.style.top = '';
+        document.body.style.width = '';
+        document.body.style.overflow = '';
+        window.scrollTo(0, scrollY);
+      };
+    }
+  }, [isVideoExpanded]);
 
   // Funciones de navegación para "Actividades de hoy" (día por día)
   function handleNextDay() {
@@ -1651,7 +1694,7 @@ export default function TodayScreen({ activityId, onBack }: { activityId: string
   }
 
   return (
-    <div style={{ height: '100vh', background: '#0F1012', color: '#fff', position: 'relative', overflow: 'hidden' }}>
+    <div style={{ height: '100vh', background: '#0F1012', color: '#fff', position: 'relative', overflow: 'hidden', zIndex: 1 }}>
       {/* Header de Omnia */}
       <div 
         className="fixed top-0 left-0 right-0 z-50 bg-black rounded-b-[32px] px-5 py-3 flex justify-between items-center"
@@ -1680,9 +1723,10 @@ export default function TodayScreen({ activityId, onBack }: { activityId: string
           overflowY: 'auto', 
           overflowX: 'hidden', 
           paddingTop: '56px',
-          paddingBottom: calendarExpanded ? '80px' : '60px',
+          paddingBottom: calendarExpanded ? '120px' : '60px',
           WebkitOverflowScrolling: 'touch',
-          position: 'relative'
+          position: 'relative',
+          background: '#0F1012' // Fondo sólido para evitar que se vea contenido detrás
         }}>
         {/* HERO DE PROGRESO */}
         <motion.div
@@ -1690,7 +1734,7 @@ export default function TodayScreen({ activityId, onBack }: { activityId: string
             padding: calendarExpanded ? '0px 24px 20px' : '0px 24px 20px',
             minHeight: 'calc(100vh - 120px)',
             backgroundImage: backgroundImage && backgroundImage.trim() !== ''
-              ? `linear-gradient(180deg, rgba(15, 16, 18, 0.3) 0%, rgba(15, 16, 18, 0.6) 100%), url(${backgroundImage})`
+              ? `linear-gradient(180deg, rgba(15, 16, 18, 0.85) 0%, rgba(15, 16, 18, 0.95) 100%), url(${backgroundImage})`
               : 'radial-gradient(120% 140% at 20% -20%, #1c1f23 0%, #111418 55%, #0b0c0e 100%)',
             backgroundSize: 'cover',
             backgroundPosition: 'center',
@@ -1700,6 +1744,8 @@ export default function TodayScreen({ activityId, onBack }: { activityId: string
             opacity: heroOpacity,
             filter: heroBlur,
             transformOrigin: 'center top',
+            position: 'relative',
+            zIndex: 1
           }}
       >
           {/* Flecha de retorno y botón de calificar */}
@@ -1838,6 +1884,34 @@ export default function TodayScreen({ activityId, onBack }: { activityId: string
         position: 'relative',
         minHeight: '24px'
       }}>
+        {/* Flecha a la izquierda para expandir descripción */}
+        {programInfo?.description && (
+          <div 
+            style={{
+              cursor: 'pointer',
+              padding: '2px 4px',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              flexShrink: 0,
+              marginRight: 8
+            }}
+            onClick={() => {
+              setDescriptionExpanded(!descriptionExpanded)
+            }}
+          >
+            <div style={{
+              fontSize: 10,
+              color: '#9CA3AF',
+              transition: 'transform 0.3s ease, color 0.2s ease',
+              transform: descriptionExpanded ? 'rotate(180deg)' : 'rotate(0deg)',
+              userSelect: 'none'
+            }}>
+              ▼
+            </div>
+          </div>
+        )}
+        
         {/* Tags a la derecha */}
         <div style={{
           display: 'flex',
@@ -1871,37 +1945,6 @@ export default function TodayScreen({ activityId, onBack }: { activityId: string
             })()}
           </span>
         </div>
-        
-        {/* Flecha centrada - posicionada absolutamente */}
-        {programInfo?.description && (
-          <div 
-            style={{
-              position: 'absolute',
-              left: '50%',
-              top: '50%',
-              transform: 'translate(-50%, -50%)',
-              cursor: 'pointer',
-              padding: '2px',
-              display: 'flex',
-              alignItems: 'center',
-              justifyContent: 'center',
-              zIndex: 10
-            }}
-            onClick={() => {
-              setDescriptionExpanded(!descriptionExpanded)
-            }}
-          >
-            <div style={{
-              fontSize: 10,
-              color: '#9CA3AF',
-              transition: 'transform 0.3s ease, color 0.2s ease',
-              transform: descriptionExpanded ? 'rotate(180deg)' : 'rotate(0deg)',
-              userSelect: 'none'
-            }}>
-              ▼
-            </div>
-          </div>
-        )}
       </div>
         
       {programInfo?.description && (
@@ -1935,7 +1978,7 @@ export default function TodayScreen({ activityId, onBack }: { activityId: string
           border: '1px solid rgba(255, 255, 255, 0.15)',
           borderRadius: 24,
           padding: 28,
-          paddingBottom: calendarExpanded ? 28 : 28,
+          paddingBottom: calendarExpanded ? 68 : 28,
           marginBottom: 0,
           position: 'relative',
           boxShadow: '0 12px 40px rgba(0, 0, 0, 0.4), inset 0 1px 0 rgba(255, 255, 255, 0.1), 0 0 0 1px rgba(255, 255, 255, 0.05)'
@@ -2502,7 +2545,7 @@ export default function TodayScreen({ activityId, onBack }: { activityId: string
           height: EXPANDED,
           maxHeight: '100vh',
           minHeight: COLLAPSED,
-          background: 'rgba(15, 16, 18, 0.85)',
+          background: 'rgba(15, 16, 18, 0.98)',
           backdropFilter: 'blur(20px) saturate(180%)',
           WebkitBackdropFilter: 'blur(20px) saturate(180%)',
           borderTopLeftRadius: sheetRadius as any,
@@ -2554,7 +2597,7 @@ export default function TodayScreen({ activityId, onBack }: { activityId: string
               left: 0,
               right: 0,
               bottom: 0,
-              background: 'rgba(0, 0, 0, 0.95)',
+              background: 'rgba(0, 0, 0, 0.98)',
               backdropFilter: 'blur(10px)',
               display: 'flex',
               flexDirection: 'column',
@@ -2562,24 +2605,51 @@ export default function TodayScreen({ activityId, onBack }: { activityId: string
               height: '100vh',
               width: '100vw',
               overflow: 'hidden', // ✅ Mantener hidden en el contenedor principal
-              display: 'flex',
-              flexDirection: 'column',
-              transform: isTransitioning 
-                ? `translateX(${swipeDirection === 'left' ? '-20px' : swipeDirection === 'right' ? '20px' : '0'})` 
-                : 'translateX(0)',
-              transition: isTransitioning ? 'transform 0.15s ease-out' : 'none',
+              y: videoExpandY,
+              x: videoExpandX,
               opacity: isTransitioning ? 0.8 : 1
             }}
             onTouchStart={onTouchStart}
             onTouchMove={onTouchMove}
             onTouchEnd={onTouchEnd}
           >
+            {/* Handle para arrastrar hacia abajo */}
+            <motion.div 
+              drag="y"
+              dragConstraints={{ top: 0, bottom: 0 }}
+              dragElastic={{ top: 0, bottom: 0.3 }}
+              dragMomentum={false}
+              onDrag={(event, info) => {
+                // Actualizar el motion value para que todo el contenedor se mueva
+                videoExpandY.set(Math.max(0, info.offset.y));
+              }}
+              onDragEnd={handleVideoExpandDragEnd}
+              dragDirectionLock={true}
+              style={{
+                display: 'flex',
+                justifyContent: 'center',
+                paddingTop: '8px',
+                paddingBottom: '4px',
+                flexShrink: 0,
+                cursor: 'grab',
+                touchAction: 'none'
+              }}
+            >
+              <div style={{
+                width: 40,
+                height: 4,
+                borderRadius: 2,
+                background: 'rgba(255, 255, 255, 0.3)',
+                transition: 'background 0.2s ease'
+              }} />
+            </motion.div>
+            
             {/* Header con información del ejercicio */}
             <div style={{
               display: 'flex',
               justifyContent: 'space-between',
               alignItems: 'center',
-              padding: '16px 20px 0',
+              padding: '8px 20px 0',
               flexShrink: 0
             }}>
               <div style={{ flex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center', textAlign: 'center' }}>
@@ -2693,7 +2763,7 @@ export default function TodayScreen({ activityId, onBack }: { activityId: string
                 overflow: 'auto',
                 overflowY: 'scroll',
                 WebkitOverflowScrolling: 'touch',
-                padding: '0 20px 120px',
+                padding: '0 20px 200px',
                 display: 'flex',
                 flexDirection: 'column',
                 gap: 20,

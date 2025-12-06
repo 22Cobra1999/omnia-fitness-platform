@@ -24,6 +24,7 @@ import { useCoachStorageInitialization } from '@/hooks/coach/use-coach-storage-i
 import { UsageReportButton } from '@/components/shared/admin/usage-report-button'
 import { AutoUsageTracker } from '@/components/shared/admin/auto-usage-tracker'
 import { trackComponent } from '@/lib/logging/usage-tracker'
+import { logUsage } from '@/lib/logging/usage-logger'
 
 
 export default function MobileApp() {
@@ -114,18 +115,30 @@ export default function MobileApp() {
 
   // Debug logging optimizado
   useEffect(() => {
-    // Log optimizado - solo en desarrollo
+    // Seguimiento de navegación del usuario y pestaña activa
+    try {
+      const path = typeof window !== 'undefined' ? window.location.pathname : ''
+      const userId = user?.id
+
+      logUsage('navigation', 'navigate', {
+        path,
+        tab: activeTab,
+        userId,
+        role: userRole,
+      })
+
     if (process.env.NODE_ENV === 'development') {
-      // console.log("MobileApp render:", {
-      //   isAuthenticated,
-      //   loading,
-      //   activeTab,
-      //   isAuthPopupOpen,
-      //   showWelcomeMessage,
-      //   userRole,
-      // })
+        console.log('🧭 NAVIGATE', {
+          path,
+          tab: activeTab,
+          userId,
+          role: userRole,
+        })
+      }
+    } catch (error) {
+      console.error('Error registrando navegación del usuario', error)
     }
-  }, [isAuthenticated, loading, activeTab, isAuthPopupOpen, showWelcomeMessage, userRole])
+  }, [activeTab, isAuthenticated, loading, isAuthPopupOpen, showWelcomeMessage, user, userRole])
 
   // Manejar parámetros de logout
   useEffect(() => {

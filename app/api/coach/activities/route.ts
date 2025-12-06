@@ -84,43 +84,144 @@ export async function GET(request: NextRequest) {
       }
     }
 
-    // Obtener datos de fitness para cada actividad
+    // Obtener datos de fitness/nutrición para cada actividad
     const fitnessData: any = {}
     for (const activity of activities) {
       if (activity.categoria === 'fitness' || activity.categoria === 'nutrition') {
         try {
-          // Obtener estadísticas de la actividad
-          const { data: stats, error: statsError } = await supabase
-            .from('planificacion_ejercicios')
-            .select('*')
-            .eq('activity_id', activity.id)
+          const isNutrition = activity.categoria === 'nutrition' || activity.categoria === 'nutricion'
           
-          if (!statsError && stats) {
-            const uniqueExercises = new Set()
-            const totalSessions = stats.length
-            const uniqueDays = new Set()
-            const uniquePeriods = new Set()
+          if (isNutrition) {
+            // Para nutrición: obtener platos ÚNICOS realmente usados en la planificación
+            const activityId = activity.id
             
-            stats.forEach((stat: any) => {
-              if (stat.ejercicios_ids) {
-                stat.ejercicios_ids.forEach((id: any) => uniqueExercises.add(id))
-              }
-              if (stat.dia) uniqueDays.add(stat.dia)
-              if (stat.periodo) uniquePeriods.add(stat.periodo)
+            // Obtener planificación desde planificacion_ejercicios
+            // La tabla planificacion_ejercicios usa 'actividad_id' (no 'activity_id')
+            const { data: planificacion, error: planError } = await supabase
+              .from('planificacion_ejercicios')
+              .select('lunes, martes, miercoles, jueves, viernes, sabado, domingo')
+              .eq('actividad_id', activityId)
+            
+            if (planError) {
+              console.error(`❌ COACH/ACTIVITIES: Error obteniendo planificación para actividad ${activityId}:`, planError)
+            }
+            
+            console.log(`🔍 COACH/ACTIVITIES: Planificación para actividad ${activityId}:`, {
+              encontrada: planificacion?.length || 0,
+              error: planError?.message
             })
             
-            fitnessData[activity.id] = {
-              exercisesCount: uniqueExercises.size,
-              totalSessions,
-              uniqueDays: uniqueDays.size,
-              uniquePeriods: uniquePeriods.size
+            // Extraer todos los IDs únicos de platos de la planificación
+            const uniquePlateIds = new Set<number>()
+            let totalSessions = 0
+            
+            if (planificacion && planificacion.length > 0) {
+              const dias = ['lunes', 'martes', 'miercoles', 'jueves', 'viernes', 'sabado', 'domingo']
+              const diasConEjercicios = new Set<string>()
+              
+              planificacion.forEach((semana: any) => {
+                dias.forEach((dia: string) => {
+                  const diaData = semana[dia]
+                  if (diaData && typeof diaData === 'object') {
+                    // El día puede ser un objeto con ejercicios o un array directo
+                    let ejercicios: any[] = []
+                    if (Array.isArray(diaData)) {
+                      ejercicios = diaData
+                    } else if (Array.isArray(diaData.ejercicios)) {
+                      ejercicios = diaData.ejercicios
+                    } else if (Array.isArray(diaData.exercises)) {
+                      ejercicios = diaData.exercises
+                    }
+                    
+                    // Extraer IDs de los ejercicios
+                    ejercicios.forEach((ej: any) => {
+                      if (ej && ej.id !== undefined && ej.id !== null) {
+                        const id = typeof ej.id === 'number' ? ej.id : Number(ej.id)
+                        if (!isNaN(id) && id > 0) {
+                          uniquePlateIds.add(id)
+                        }
+                      }
+                    })
+                    
+                    // Contar días con ejercicios válidos
+                    if (ejercicios.length > 0) {
+                      const hasValidExercise = ejercicios.some((ej: any) => {
+                        if (ej && ej.id !== undefined && ej.id !== null) {
+                          const id = typeof ej.id === 'number' ? ej.id : Number(ej.id)
+                          return !isNaN(id) && id > 0
+                        }
+                        return false
+                      })
+                      
+                      if (hasValidExercise) {
+                        diasConEjercicios.add(dia)
+                      }
+                    }
+                  }
+                })
+              })
+              
+              // Obtener períodos (usar actividad_id o activity_id)
+              // La tabla periodos usa 'actividad_id'
+              const { data: periodosData, error: periodosError } = await supabase
+                .from('periodos')
+                .select('cantidad_periodos')
+                .eq('actividad_id', activityId)
+                .maybeSingle()
+              
+              if (periodosError) {
+                console.error(`❌ COACH/ACTIVITIES: Error obteniendo períodos para actividad ${activityId}:`, periodosError)
+              }
+              
+              const periodosUnicos = periodosData?.cantidad_periodos || 1
+              const diasUnicos = diasConEjercicios.size
+              totalSessions = diasUnicos * periodosUnicos
             }
-          } else {
+            
+            const exercisesCount = uniquePlateIds.size
+            
             fitnessData[activity.id] = {
-              exercisesCount: 0,
-              totalSessions: 0,
+              exercisesCount, // ✅ Platos únicos realmente usados en la planificación
+              totalSessions,
               uniqueDays: 0,
               uniquePeriods: 0
+            }
+            
+            console.log(`🥗 COACH/ACTIVITIES: Actividad ${activityId} (Nutrición) - Platos únicos: ${exercisesCount}, Sesiones: ${totalSessions}, Planificación encontrada: ${planificacion?.length || 0} semanas`)
+          } else {
+            // Para fitness: obtener ejercicios desde planificacion_ejercicios
+            const { data: stats, error: statsError } = await supabase
+              .from('planificacion_ejercicios')
+              .select('*')
+              .eq('activity_id', activity.id)
+            
+            if (!statsError && stats) {
+              const uniqueExercises = new Set()
+              const totalSessions = stats.length
+              const uniqueDays = new Set()
+              const uniquePeriods = new Set()
+              
+              stats.forEach((stat: any) => {
+                if (stat.ejercicios_ids) {
+                  stat.ejercicios_ids.forEach((id: any) => uniqueExercises.add(id))
+                }
+                if (stat.dia) uniqueDays.add(stat.dia)
+                if (stat.periodo) uniquePeriods.add(stat.periodo)
+              })
+              
+              fitnessData[activity.id] = {
+                exercisesCount: uniqueExercises.size,
+                totalSessions,
+                uniqueDays: uniqueDays.size,
+                uniquePeriods: uniquePeriods.size
+              }
+            } else {
+              fitnessData[activity.id] = {
+                exercisesCount: 0,
+                totalSessions: 0,
+                uniqueDays: 0,
+                uniquePeriods: 0
+              }
             }
           }
         } catch (error) {

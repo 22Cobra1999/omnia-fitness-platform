@@ -160,29 +160,10 @@ export async function updateFinishedWorkshops(coachId: string): Promise<{ update
           console.log(`⚠️ [updateFinishedWorkshops] Taller ${workshop.id} (${workshop.title}) está finalizado pero la columna 'activo' no existe. Ejecuta la migración SQL.`)
         }
       } else {
-        // Si NO está finalizado pero está desactivado, reactivarlo (por si se agregaron nuevas fechas)
+        // Si NO está finalizado, NO reactivar automáticamente - el coach debe hacerlo manualmente
         if (columnaExiste) {
-          if (activoActual === false) {
-            console.log(`🔄 [updateFinishedWorkshops] Taller ${workshop.id} (${workshop.title}) tiene fechas futuras - reactivando...`)
-            
-            // Actualizar TODOS los temas del taller a activo = true
-            const { error: updateError } = await supabaseService
-              .from('taller_detalles')
-              .update({
-                activo: true,
-                updated_at: new Date().toISOString()
-              })
-              .eq('actividad_id', workshop.id)
-            
-            if (!updateError) {
-              console.log(`✅ [updateFinishedWorkshops] Taller ${workshop.id} (${workshop.title}) reactivado - todos los temas marcados como activos`)
-              updatedCount++
-            } else {
-              console.error(`❌ [updateFinishedWorkshops] Error reactivando taller ${workshop.id}:`, updateError)
-            }
-          } else {
-            console.log(`✅ [updateFinishedWorkshops] Taller ${workshop.id} (${workshop.title}) está activo y tiene fechas pendientes`)
-          }
+          // Ya no reactivamos automáticamente - el coach debe activar manualmente las ventas
+          console.log(`ℹ️ [updateFinishedWorkshops] Taller ${workshop.id} (${workshop.title}) no está finalizado. El coach debe activar las ventas manualmente.`)
         }
       }
     }

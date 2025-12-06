@@ -1195,6 +1195,7 @@ Reembolso = (Porcentaje del tema cancelado) × 3
 | **Productos activos** | 3 | 5 | 10 | 20 |
 | **Clientes por producto** | 10 | 30 | 70 | 150 |
 | **Actividades por producto** | 20 | 40 | 60 | 100 |
+| **Ejercicios/Platos únicos activos por producto** | 20 | 40 | 60 | 100 |
 | **Comisión por venta** | 8% | 8% | 6% | 5% |
 | **Duración de video (máx)** | — | 30 s | 60 s | 120 s |
 | **Duración de producto (uso por cliente)** | 7–14 días | 30 días | 60 días | 90–120 días |
@@ -1554,9 +1555,17 @@ Plan Básico (nuevo):                                    |==== 31 días ====|
 
 #### **2. Ejercicios y Platos**
 - **`POST /api/activities/exercises/bulk`** - Insertar ejercicios en bulk
-- **`POST /api/activity-nutrition/bulk`** - Insertar platos en bulk
-- **`DELETE /api/delete-exercise-items`** - Desactivar ejercicios (UPDATE `is_active=FALSE`)
-- **`DELETE /api/delete-nutrition-items`** - Desactivar platos (UPDATE `is_active=FALSE`)
+- **`POST /api/activity-nutrition/bulk`** - Insertar platos en bulk (versión actual del programa)
+- **`DELETE /api/delete-exercise-items`**  
+  - Marca ejercicios como **inactivos** para una actividad:
+    - Actualiza el JSONB `activity_id` con `activo=false` para esa `actividad_id`.
+    - Si ningún activity del mapa queda activo, puede además poner `is_active=false`.
+  - No borra filas inmediatamente; se dejan para que clientes históricos sigan viendo sus ejercicios originales.
+- **`DELETE /api/delete-nutrition-items`**  
+  - Igual lógica que `delete-exercise-items` pero para `nutrition_program_details`.
+  - Soporta el caso donde:
+    - Clientes que compraron antes mantienen sus X platos y Z días originales.
+    - Nuevas compras usan la versión X.2 / Z.2 del programa.
 - **`GET /api/activity-exercises/[id]`** - Obtener ejercicios (coach ve todos)
 - **`GET /api/activity-nutrition/[id]`** - Obtener platos activos (filtrado automático)
 
@@ -1600,7 +1609,7 @@ Plan Básico (nuevo):                                    |==== 31 días ====|
 - **`activities.id`** → **`taller_detalles.activity_id`**
 - **`activities.id`** → **`activity_resources.activity_id`**
 
-#### **3. Sistema de Estados (is_active):**
+#### **3. Sistema de Estados (is_active) y versiones X/Z**
 ```
 ejercicios_detalles
 ├── id
@@ -1618,11 +1627,26 @@ nutrition_program_details
 ```
 
 **Comportamiento:**
-- **Coach ve:** TODOS los ejercicios/platos (activos y desactivados) para gestionar
-- **Cliente ve:** SOLO ejercicios/platos con `is_active = TRUE`
-- **Desactivar:** UPDATE `is_active = FALSE` (NO DELETE)
-- **Reactivar:** UPDATE `is_active = TRUE`
-- **Clientes existentes:** Siguen viendo sus ejercicios/platos aunque estén desactivados (ya están en su planificación)
+- **Coach ve:** TODOS los ejercicios/platos (activos e inactivos) para gestionar.
+- **Cliente ve en catálogo / nuevas compras:** solo ejercicios/platos donde:
+  - `is_active = TRUE` **y**
+  - `getActiveFlagForActivity(activity_id, actividad_id, true) = true`.
+- **Límites del plan (ejercicios/platos únicos por producto):**
+  - Solo cuentan los elementos **activos** según la regla anterior.
+  - Ejercicios/platos históricos marcados como `activo=false` para esa actividad **no consumen cupo** del plan.
+- **Desactivar (flujo de edición de programa):**
+  - Se actualiza el JSONB `activity_id` marcando `activo=false` para esa `actividad_id`.
+  - Opcionalmente se pone `is_active=false` si ya no está activo para ninguna actividad.
+  - No se borra la fila para preservar:
+    - Triggers de creación de progreso.
+    - Posibilidad de que un cliente cambie un ejercicio/plato solo entre sus opciones originales.
+- **Reactivar:** se vuelve a marcar `activo=true` para una actividad o `is_active=true` a nivel global.
+- **Clientes que ya compraron:**
+  - Al empezar la actividad, sus filas de `progreso_cliente` se generan usando la versión **vigente para su compra** (X, Z).
+  - Cuando el coach modifica el programa (X.2, Z.2), los clientes antiguos mantienen su versión y solo las nuevas compras usan la nueva.
+
+Para el detalle completo de este flujo (compras, modificaciones, limpieza diferida de datos históricos) ver  
+`docs/diagramas/FLUJO_COMPRAS_Y_MODIFICACIONES_ACTIVIDADES.md`.
 
 **Migración:** `db/migrations/add-is-active-to-exercises-and-nutrition.sql`
 

@@ -98,14 +98,39 @@ export async function POST(request: NextRequest) {
         console.log('⚠️ No se pudo crear mapa de estado activo desde JSON, usando valores del frontend')
       }
     } else {
-      const { data, error } = await supabase
+      // Para nutrición, buscar en activity_id_new (JSONB) o activity_id (integer)
+      const activityKeyObj = { [activityId.toString()]: {} }
+      // ✅ Intentar buscar en activity_id_new primero (JSONB)
+      let { data, error } = await supabase
         .from(tableName)
-        .select('id, is_active')
-        .eq('activity_id', activityId)
+        .select('id, activity_id, activity_id_new')
+        .contains('activity_id_new', activityKeyObj)
+      
+      // Si no hay resultados en activity_id_new, buscar en activity_id (integer)
+      if ((!data || data.length === 0) && !error) {
+        const { data: dataInteger, error: errorInteger } = await supabase
+          .from(tableName)
+          .select('id, activity_id, activity_id_new')
+          .eq('activity_id', activityId)
+        
+        if (!errorInteger && dataInteger) {
+          data = dataInteger
+        } else if (errorInteger) {
+          error = errorInteger
+        }
+      }
 
       if (!error && data) {
+        // Para nutrición, extraer el flag activo del JSONB activity_id_new o activity_id usando la función helper
         exerciseActiveMap = new Map(
-          data.map(ex => [ex.id, ex.is_active !== false])
+          data.map((ex: any) => {
+            // ✅ Usar activity_id_new si existe (JSONB), sino activity_id
+            const activityIdData = ex.activity_id_new || ex.activity_id
+            const isActive = isNutrition && activityIdData
+              ? getActiveFlagForActivity(activityIdData, activityId, true)
+              : true
+            return [ex.id, isActive]
+          })
         )
         console.log(`✅ Mapa de estado activo creado: ${exerciseActiveMap.size} registros de nutrición`)
       } else {
@@ -132,31 +157,38 @@ export async function POST(request: NextRequest) {
         domingo: {}
       }
 
-      // Procesar cada período (no días de la semana)
-      for (const [periodNumber, periodData] of Object.entries(weekData)) {
-        const periodNum = parseInt(periodNumber)
+      // Procesar cada día de la semana (las claves son días 1-7, no períodos)
+      for (const [dayNumber, dayData] of Object.entries(weekData as Record<string, any>)) {
+        const dayNum = parseInt(dayNumber)
         
-        console.log('🔍 PROCESANDO PERÍODO:', periodNumber, '->', periodNum)
-        console.log('📊 DATOS DEL PERÍODO:', JSON.stringify(periodData, null, 2))
+        // Validar que sea un día válido (1-7)
+        if (isNaN(dayNum) || dayNum < 1 || dayNum > 7) {
+          console.log('⚠️ DÍA INVÁLIDO IGNORADO:', dayNumber, 'debe ser 1-7')
+          continue
+        }
         
-        // El período puede venir como array directo o como objeto {exercises: [], blockCount: N}
-        let periodExercises: any[] = []
-        if (Array.isArray(periodData)) {
-          periodExercises = periodData
-          console.log('✅ PERÍODO COMO ARRAY:', periodExercises.length, 'ejercicios')
-        } else if (periodData && typeof periodData === 'object' && Array.isArray(periodData.ejercicios)) {
-          periodExercises = periodData.ejercicios
-          console.log('✅ PERÍODO COMO OBJETO CON EJERCICIOS:', periodExercises.length, 'ejercicios')
-        } else if (periodData && typeof periodData === 'object' && Array.isArray((periodData as any).exercises)) {
-          periodExercises = (periodData as any).exercises
-          console.log('✅ PERÍODO COMO OBJETO (exercises) CON EJERCICIOS:', periodExercises.length, 'ejercicios')
+        console.log('🔍 PROCESANDO DÍA:', dayNumber, '->', dayNum)
+        console.log('📊 DATOS DEL DÍA:', JSON.stringify(dayData, null, 2))
+        
+        // El día puede venir como array directo o como objeto {exercises: [], blockCount: N}
+        let dayExercises: any[] = []
+        if (Array.isArray(dayData)) {
+          dayExercises = dayData
+          console.log('✅ DÍA COMO ARRAY:', dayExercises.length, 'ejercicios')
+        } else if (dayData && typeof dayData === 'object' && Array.isArray((dayData as any).ejercicios)) {
+          dayExercises = (dayData as any).ejercicios
+          console.log('✅ DÍA COMO OBJETO CON EJERCICIOS:', dayExercises.length, 'ejercicios')
+        } else if (dayData && typeof dayData === 'object' && Array.isArray((dayData as any).exercises)) {
+          dayExercises = (dayData as any).exercises
+          console.log('✅ DÍA COMO OBJETO (exercises) CON EJERCICIOS:', dayExercises.length, 'ejercicios')
         } else {
-          console.log('❌ FORMATO DE PERÍODO NO RECONOCIDO:', typeof periodData, periodData)
+          console.log('❌ FORMATO DE DÍA NO RECONOCIDO:', typeof dayData, dayData)
+          continue
         }
         
         // Convertir ejercicios a formato esperado por la base de datos
         // Solo guardar ID, orden y bloque (numérico) - los detalles están en ejercicios_detalles
-        const exercisesData = await Promise.all(periodExercises.map(async (exercise: any, index: number) => {
+        const exercisesData = await Promise.all(dayExercises.map(async (exercise: any, index: number) => {
           console.log('🔍 EJERCICIO RECIBIDO:', JSON.stringify(exercise, null, 2))
           
           // Mapear IDs temporales a reales si es necesario
@@ -166,30 +198,66 @@ export async function POST(request: NextRequest) {
           if (typeof exerciseId === 'string' && (exerciseId.startsWith('exercise-') || exerciseId.startsWith('nutrition-'))) {
             console.log('🔄 ID TEMPORAL DETECTADO:', exerciseId, 'buscando ID real...')
             
+            // ✅ Intentar extraer el índice del ID temporal
+            const tempIndexMatch = exerciseId.match(/(\d+)$/)
+            const tempIndex = tempIndexMatch ? parseInt(tempIndexMatch[1], 10) : null
+            
             // Buscar ejercicio por nombre en la base de datos
-            const exerciseName = exercise.name || exercise['Nombre de la Actividad']
+            const exerciseName = exercise.name || exercise['Nombre de la Actividad'] || exercise.nombre || exercise['Nombre']
             if (exerciseName) {
               try {
-                // Determinar qué tabla usar según el tipo de actividad
-                const { data: activityData } = await supabase
-                  .from('activities')
-                  .select('type')
-                  .eq('id', activityId)
-                  .single()
-                
-                const isNutrition = activityData?.type === 'nutricion' || activityData?.type === 'nutrition_program'
+                // Determinar qué tabla usar según la categoría de actividad
+                // Usar la variable isNutrition ya obtenida al inicio del endpoint
                 const tableName = isNutrition ? 'nutrition_program_details' : 'ejercicios_detalles'
-                const nameField = isNutrition ? 'nombre' : 'nombre_ejercicio'
+                const nameField = isNutrition ? 'nombre' : 'nombre_ejercicio' // ✅ Campo correcto: 'nombre' no 'nombre_plato'
                 
                 console.log('🔍 Buscando en tabla:', tableName, 'campo:', nameField, 'para:', exerciseName)
                 
                 // Buscar ejercicio por nombre en la actividad actual
-                const { data: realExercise, error: searchError } = await supabase
-                  .from(tableName)
-                  .select('id')
-                  .eq('activity_id', activityId)
-                  .ilike(nameField, exerciseName)
-                  .maybeSingle()
+                // Para nutrición, buscar en activity_id_new (JSONB) o activity_id (integer)
+                let realExercise: any = null
+                let searchError: any = null
+                
+                if (isNutrition) {
+                  // ✅ Intentar buscar en activity_id_new primero (JSONB)
+                  const activityKeyObj = { [activityId.toString()]: {} }
+                  const { data: dataNew, error: errorNew } = await supabase
+                    .from(tableName)
+                    .select('id')
+                    .ilike(nameField, exerciseName)
+                    .contains('activity_id_new', activityKeyObj)
+                    .maybeSingle()
+                  
+                  if (dataNew && !errorNew) {
+                    realExercise = dataNew
+                  } else {
+                    // Si no se encuentra, buscar en activity_id (integer)
+                    const { data: dataInteger, error: errorInteger } = await supabase
+                      .from(tableName)
+                      .select('id')
+                      .ilike(nameField, exerciseName)
+                      .eq('activity_id', activityId)
+                      .maybeSingle()
+                    
+                    if (dataInteger && !errorInteger) {
+                      realExercise = dataInteger
+                    } else if (errorInteger) {
+                      searchError = errorInteger
+                    }
+                  }
+                } else {
+                  // Para fitness, buscar en activity_id JSONB
+                  const activityKeyObj = { [activityId.toString()]: {} }
+                  const { data: dataFitness, error: errorFitness } = await supabase
+                    .from(tableName)
+                    .select('id')
+                    .ilike(nameField, exerciseName)
+                    .contains('activity_id', activityKeyObj)
+                    .maybeSingle()
+                  
+                  realExercise = dataFitness
+                  searchError = errorFitness
+                }
                 
                 console.log('🔍 RESULTADO BÚSQUEDA:', { realExercise, searchError })
                 
@@ -197,9 +265,45 @@ export async function POST(request: NextRequest) {
                   exerciseId = realExercise.id
                   console.log('✅ ID REAL ENCONTRADO:', exerciseId, 'para plato/ejercicio:', exerciseName)
                 } else {
-                  console.log('⚠️ NO SE ENCONTRÓ ID REAL para:', exerciseName, 'usando temporal:', exerciseId)
-                  // Si no se encuentra, devolver error
-                  console.error('❌ NO SE PUEDE MAPEAR ID TEMPORAL A REAL:', exerciseName)
+                  // ✅ Si no se encuentra por nombre, intentar buscar por índice (orden de inserción)
+                  if (tempIndex !== null && isNutrition) {
+                    console.log(`🔍 Intentando buscar por índice temporal: ${tempIndex}`)
+                    const activityKeyObj = { [activityId.toString()]: {} }
+                    // ✅ Intentar buscar en activity_id_new primero (JSONB)
+                    let { data: allExercises, error: listError } = await supabase
+                      .from(tableName)
+                      .select('id')
+                      .contains('activity_id_new', activityKeyObj)
+                      .order('created_at', { ascending: true })
+                      .limit(100)
+                    
+                    // Si no hay resultados, buscar en activity_id (integer)
+                    if ((!allExercises || allExercises.length === 0) && !listError) {
+                      const { data: dataInteger, error: errorInteger } = await supabase
+                        .from(tableName)
+                        .select('id')
+                        .eq('activity_id', activityId)
+                        .order('created_at', { ascending: true })
+                        .limit(100)
+                      
+                      if (!errorInteger && dataInteger) {
+                        allExercises = dataInteger
+                      } else if (errorInteger) {
+                        listError = errorInteger
+                      }
+                    }
+                    
+                    if (!listError && allExercises && allExercises.length > tempIndex) {
+                      exerciseId = allExercises[tempIndex].id
+                      console.log(`✅ ID REAL ENCONTRADO POR ÍNDICE: ${exerciseId} (índice ${tempIndex})`)
+                    } else {
+                      console.log('⚠️ NO SE ENCONTRÓ ID REAL para:', exerciseName, 'usando temporal:', exerciseId)
+                      console.error('❌ NO SE PUEDE MAPEAR ID TEMPORAL A REAL:', exerciseName)
+                    }
+                  } else {
+                    console.log('⚠️ NO SE ENCONTRÓ ID REAL para:', exerciseName, 'usando temporal:', exerciseId)
+                    console.error('❌ NO SE PUEDE MAPEAR ID TEMPORAL A REAL:', exerciseName)
+                  }
                 }
               } catch (error) {
                 console.log('❌ ERROR buscando ID real:', error, 'usando temporal:', exerciseId)
@@ -238,13 +342,13 @@ export async function POST(request: NextRequest) {
           }
         }))
 
-        const blockNamesForDay = (periodData as any)?.blockNames || blockNames || {}
+        const blockNamesForDay = (dayData as any)?.blockNames || blockNames || {}
         const blockCountValue = (() => {
-          if (periodData && typeof periodData === 'object' && typeof (periodData as any).blockCount === 'number') {
-            return Math.max(1, (periodData as any).blockCount)
+          if (dayData && typeof dayData === 'object' && typeof (dayData as any).blockCount === 'number') {
+            return Math.max(1, (dayData as any).blockCount)
           }
-          if (periodExercises.length > 0) {
-            return Math.max(1, Math.max(...periodExercises.map((ex: any) => ex.block || ex.bloque || 1)))
+          if (dayExercises.length > 0) {
+            return Math.max(1, Math.max(...dayExercises.map((ex: any) => ex.block || ex.bloque || 1)))
           }
           if (exercisesData.length > 0) {
             return Math.max(1, Math.max(...exercisesData.map((ex: any) => ex.bloque || 1)))
@@ -252,7 +356,7 @@ export async function POST(request: NextRequest) {
           return 1
         })()
 
-        const dayData = { 
+        const dayDataToSave = { 
           ejercicios: exercisesData,
           blockNames: blockNamesForDay,
           blockCount: blockCountValue
@@ -264,20 +368,20 @@ export async function POST(request: NextRequest) {
           blockCountValue > 1
 
         if (hasContent) {
-          console.log('📅 APLICANDO PERÍODO AL DÍA ESPECÍFICO:', periodNum, 'ejercicios:', exercisesData.length)
+          console.log('📅 APLICANDO DÍA AL DÍA ESPECÍFICO:', dayNum, 'ejercicios:', exercisesData.length)
           
-          // Aplicar ejercicios solo al día correspondiente al período
-          // Período 2 = Martes, Período 3 = Miércoles, etc.
-          switch (periodNum) {
-            case 2: weekPlanning.martes = dayData; break
-            case 3: weekPlanning.miercoles = dayData; break
-            case 4: weekPlanning.jueves = dayData; break
-            case 5: weekPlanning.viernes = dayData; break
-            case 6: weekPlanning.sabado = dayData; break
-            case 7: weekPlanning.domingo = dayData; break
-            case 1: weekPlanning.lunes = dayData; break
+          // Aplicar ejercicios al día correspondiente
+          // Día 1 = Lunes, Día 2 = Martes, Día 3 = Miércoles, etc.
+          switch (dayNum) {
+            case 1: weekPlanning.lunes = dayDataToSave; break
+            case 2: weekPlanning.martes = dayDataToSave; break
+            case 3: weekPlanning.miercoles = dayDataToSave; break
+            case 4: weekPlanning.jueves = dayDataToSave; break
+            case 5: weekPlanning.viernes = dayDataToSave; break
+            case 6: weekPlanning.sabado = dayDataToSave; break
+            case 7: weekPlanning.domingo = dayDataToSave; break
             default:
-              console.log('⚠️ PERÍODO NO RECONOCIDO:', periodNum, 'no se asignará a ningún día')
+              console.log('⚠️ DÍA NO RECONOCIDO:', dayNum, 'no se asignará a ningún día')
           }
         }
       }

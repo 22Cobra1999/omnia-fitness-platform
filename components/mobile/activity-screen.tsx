@@ -1396,7 +1396,7 @@ export function ActivityScreen() {
               const isWorkshop = activityType?.toLowerCase().includes('workshop')
               
               return (
-                <div className="fixed inset-0 z-50 bg-black">
+                <div className="fixed inset-0 z-50" style={{ backgroundColor: '#0F1012' }}>
                   {isWorkshop ? (
                     <div className="h-full overflow-y-auto">
                       <div className="fixed top-4 left-4 z-20">

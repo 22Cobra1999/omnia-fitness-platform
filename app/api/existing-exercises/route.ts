@@ -106,11 +106,13 @@ export async function GET(request: NextRequest) {
     }
 
     if (isNutritionCategory) {
+      // 📌 Catálogo de platos de nutrición:
+      // Usamos todos los platos del coach en `nutrition_program_details`
+      // como base para "Agregar existentes" (independiente del programa concreto).
       const { data: dishes, error: dishesError } = await supabase
-        .from('platos_detalles')
-        .select('id, activity_id, coach_id, nombre_plato, descripcion, receta, calorias, proteinas, carbohidratos, grasas, ingredientes, porciones, minutos, video_url')
+        .from('nutrition_program_details')
+        .select('id, coach_id, nombre, receta, calorias, proteinas, carbohidratos, grasas, ingredientes, porciones, minutos, video_url')
         .eq('coach_id', coach.id)
-        .in('activity_id', activityIds)
 
       if (dishesError) {
         console.error('Error obteniendo platos existentes:', dishesError)
@@ -124,7 +126,7 @@ export async function GET(request: NextRequest) {
       const uniqueDishesMap = new Map<string, any>()
 
       dishes?.forEach((dish: any) => {
-        const name = dish?.nombre_plato || ''
+        const name = dish?.nombre || ''
         const key = normalizeName(name)
         if (!key) return
 

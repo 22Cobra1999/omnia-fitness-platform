@@ -209,9 +209,9 @@ export async function GET(request: NextRequest) {
             activitiesCountCheck = count || 0
           } else {
             const { count } = await supabase
-              .from(tableNameCheck)
-              .select('*', { count: 'exact', head: true })
-              .eq('activity_id', product.id)
+            .from(tableNameCheck)
+            .select('*', { count: 'exact', head: true })
+            .contains('activity_id', { [product.id.toString()]: {} })
             activitiesCountCheck = count || 0
           }
           
@@ -254,35 +254,65 @@ export async function GET(request: NextRequest) {
         let exercisesCount = 0
         let totalSessions = 0
         
-        // Verificar si es nutrición
-        const isNutrition = product.categoria === 'nutricion' || product.categoria === 'nutrition' || product.type === 'nutrition'
+        // Verificar si es nutrición - usar categoria, no type
+        const isNutrition = product.categoria === 'nutricion' || product.categoria === 'nutrition'
         
         if (isNutrition) {
-          // Para nutrición: obtener platos de nutrition_program_details
-          const { data: platos } = await supabase
-            .from('nutrition_program_details')
-            .select('id')
-            .eq('activity_id', product.id)
+          // Para nutrición: obtener platos ÚNICOS realmente usados en la planificación
+          const activityId = product.id
           
-          exercisesCount = platos?.length || 0
+          // Usar la planificación ya obtenida arriba (no hacer consulta duplicada)
+          // Extraer todos los IDs únicos de platos de la planificación
+          const uniquePlateIds = new Set<number>()
+          const diasConEjercicios = new Set<string>()
           
           if (planificacion && planificacion.length > 0) {
-            const diasConEjercicios = new Set()
-            planificacion.forEach(semana => {
-              ['lunes', 'martes', 'miercoles', 'jueves', 'viernes', 'sabado', 'domingo'].forEach(dia => {
-                if (semana[dia] && typeof semana[dia] === 'object' && semana[dia].ejercicios && Array.isArray(semana[dia].ejercicios) && semana[dia].ejercicios.length > 0) {
-                  diasConEjercicios.add(dia)
+            const dias = ['lunes', 'martes', 'miercoles', 'jueves', 'viernes', 'sabado', 'domingo']
+            
+            planificacion.forEach((semana: any) => {
+              dias.forEach((dia: string) => {
+                const diaData = semana[dia]
+                if (diaData && typeof diaData === 'object') {
+                  // El día puede ser un objeto con ejercicios o un array directo
+                  let ejercicios: any[] = []
+                  if (Array.isArray(diaData)) {
+                    ejercicios = diaData
+                  } else if (Array.isArray(diaData.ejercicios)) {
+                    ejercicios = diaData.ejercicios
+                  } else if (Array.isArray(diaData.exercises)) {
+                    ejercicios = diaData.exercises
+                  }
+                  
+                  // Extraer IDs de los ejercicios y contar días con ejercicios válidos
+                  let hasValidExercise = false
+                  ejercicios.forEach((ej: any) => {
+                    if (ej && ej.id !== undefined && ej.id !== null) {
+                      const id = typeof ej.id === 'number' ? ej.id : Number(ej.id)
+                      if (!isNaN(id) && id > 0) {
+                        uniquePlateIds.add(id)
+                        hasValidExercise = true
+                      }
+                    }
+                  })
+                  
+                  // Solo contar el día si tiene al menos un ejercicio válido
+                  if (hasValidExercise) {
+                    diasConEjercicios.add(dia)
+                  }
                 }
               })
             })
             
+            exercisesCount = uniquePlateIds.size
             const diasUnicos = diasConEjercicios.size
             const periodosUnicos = periodos?.cantidad_periodos || 1
             totalSessions = diasUnicos * periodosUnicos
             
-            console.log(`🥗 PRODUCTOS: Actividad ${product.id} (Nutrición) - Platos: ${exercisesCount}, Días: ${diasUnicos}, Períodos: ${periodosUnicos}, Sesiones: ${totalSessions}`)
+            console.log(`🥗 PRODUCTOS: Actividad ${activityId} (Nutrición) - Platos: ${exercisesCount}, Días: ${diasUnicos}, Períodos: ${periodosUnicos}, Sesiones: ${totalSessions}, Planificación encontrada: ${planificacion.length} semanas`)
+          } else {
+            console.log(`🥗 PRODUCTOS: Actividad ${activityId} (Nutrición) - Sin planificación encontrada`)
           }
-        } else if (product.type === 'program' || product.type === 'fitness') {
+        } else if (product.type === 'program' && product.categoria === 'fitness') {
           // Obtener ejercicios
           const { data: ejercicios } = await supabase
             .from('ejercicios_detalles')
@@ -355,9 +385,27 @@ export async function GET(request: NextRequest) {
         // Para talleres: obtener el estado 'activo' desde taller_detalles
         // Todos los temas de un taller deben tener el mismo valor de 'activo'
         let tallerActivo: boolean | null = null
+        let cantidadTemas = 0 // Cantidad de temas únicos para el icono de rayo
+        let cantidadDias = 0 // Cantidad de días (cada tema cuenta como 1 día)
         if (product.type === 'workshop') {
           try {
-            // Obtener 'activo' y 'originales' desde la BD
+            // Obtener todos los temas con 'activo' y 'nombre' desde la BD para contar temas
+            const { data: todosLosTemas, error: temasError } = await supabase
+              .from('taller_detalles')
+              .select('activo, originales, nombre')
+              .eq('actividad_id', product.id)
+            
+            // Contar temas únicos (por nombre)
+            if (todosLosTemas && todosLosTemas.length > 0) {
+              const temasUnicos = new Set(todosLosTemas.map((tema: any) => tema.nombre).filter(Boolean))
+              cantidadTemas = temasUnicos.size
+              // Cada tema cuenta como 1 día
+              cantidadDias = cantidadTemas
+              
+              console.log(`📊 Taller ${product.id}: ${cantidadTemas} temas únicos, ${cantidadDias} días`)
+            }
+            
+            // Obtener 'activo' y 'originales' desde la BD (solo para estado activo)
             const { data: tallerDetalles, error: tallerError } = await supabase
               .from('taller_detalles')
               .select('activo, originales')
@@ -408,8 +456,8 @@ export async function GET(request: NextRequest) {
                   console.log(`📅 Taller ${product.id}: Sin fechas, inactivo`)
                 }
               } else {
-                tallerActivo = true // Sin temas = activo por defecto
-                console.log(`ℹ️ Taller ${product.id}: sin temas, activo por defecto`)
+                tallerActivo = false // Sin temas = inactivo (no puede estar activo sin fechas)
+                console.log(`ℹ️ Taller ${product.id}: sin temas, inactivo`)
               }
             } else if (tallerDetalles && tallerDetalles.length > 0) {
               // Verificar si la columna 'activo' existe en los resultados
@@ -465,13 +513,13 @@ export async function GET(request: NextRequest) {
                 }
               }
             } else {
-              // Si no hay temas, considerar como activo por defecto
-              tallerActivo = true
-              console.log(`ℹ️ Taller ${product.id}: sin temas, activo por defecto`)
+              // Si no hay temas, considerar como inactivo (no puede estar activo sin fechas)
+              tallerActivo = false
+              console.log(`ℹ️ Taller ${product.id}: sin temas, inactivo`)
             }
           } catch (error) {
             console.error(`❌ Error procesando taller ${product.id}:`, error)
-            tallerActivo = true // Por defecto activo si hay error
+            tallerActivo = false // Por defecto inactivo si hay error (más seguro)
           }
         }
         
@@ -511,14 +559,22 @@ export async function GET(request: NextRequest) {
           location_url: product.location_url,
           location_name: product.location_name,
           // Estadísticas calculadas dinámicamente
-          exercisesCount: exercisesCount,
-          totalSessions: totalSessions,
+          exercisesCount: product.type === 'workshop' ? cantidadTemas : exercisesCount,
+          totalSessions: product.type === 'workshop' ? cantidadDias : totalSessions,
+          // Para talleres: cantidad de temas y días
+          cantidadTemas: product.type === 'workshop' ? cantidadTemas : undefined,
+          cantidadDias: product.type === 'workshop' ? cantidadDias : undefined,
           // Estado de pausa
           is_paused: product.is_paused || false,
           // Para talleres: estado 'activo' desde taller_detalles (indica si está disponible para nuevas ventas)
           taller_activo: product.type === 'workshop' 
             ? (tallerActivo !== null ? tallerActivo : undefined)
             : undefined,
+          // Estado de finalización del taller
+          is_finished: product.is_finished || false,
+          finished_at: product.finished_at || null,
+          is_active: product.is_active !== undefined ? product.is_active : true,
+          workshop_versions: product.workshop_versions || null,
           // Obtener semanas para validar límites (semanas base * períodos)
           weeks: (() => {
             // Obtener semanas base desde planificacion_ejercicios
@@ -645,9 +701,12 @@ export async function POST(request: NextRequest) {
         title: body.name, // Usar title en lugar de name
         description: body.description,
         price: body.price,
-        type: body.modality, // type = tipo de producto (program/workshop)
-        modality: body.type, // modality = modalidad (online/presencial/híbrido)
-        categoria: body.categoria || 'fitness', // ✅ GUARDAR CATEGORIA (fitness o nutricion)
+        // ✅ type = tipo de producto (workshop/program/document) - solo estos 3 valores
+        type: body.modality === 'workshop' ? 'workshop' : (body.modality === 'document' ? 'document' : 'program'),
+        // ✅ modality = modalidad (online/presencial/híbrido)
+        modality: body.type || 'online',
+        // ✅ categoria = fitness o nutricion (no confundir con type)
+        categoria: body.categoria || 'fitness',
         difficulty: body.level, // Usar difficulty en lugar de level
         is_public: body.is_public,
         capacity: adjustedCapacity,
@@ -855,6 +914,53 @@ export async function PUT(request: NextRequest) {
       }
     }
     
+    // Obtener producto actual ANTES de actualizarlo para comparar cambios
+    const { data: productoActual, error: productoActualError } = await supabase
+      .from('activities')
+      .select('title, description, price, type, modality, categoria, difficulty, is_public, capacity, dieta, workshop_type, location_name, location_url, dias_acceso, is_finished, workshop_versions, created_at')
+      .eq('id', body.editingProductId)
+      .eq('coach_id', user.id)
+      .single()
+    
+    if (productoActualError) {
+      console.error('❌ Error obteniendo producto actual:', productoActualError)
+      return NextResponse.json({ error: 'No se pudo obtener el producto actual' }, { status: 500 })
+    }
+    
+    // Comparar campos para detectar si hay cambios además de las fechas
+    const objetivosActual = productoActual?.workshop_type ? 
+      (() => {
+        try {
+          const parsed = typeof productoActual.workshop_type === 'string' 
+            ? JSON.parse(productoActual.workshop_type) 
+            : productoActual.workshop_type
+          return Array.isArray(parsed) ? parsed : (parsed?.objetivos ? String(parsed.objetivos).split(';') : [])
+        } catch {
+          return []
+        }
+      })() : []
+    
+    const objetivosNuevos = body.objetivos && Array.isArray(body.objetivos) && body.objetivos.length > 0
+      ? body.objetivos
+      : []
+    
+    const hayCambiosEnOtrosCampos = (
+      productoActual?.title !== body.name ||
+      productoActual?.description !== body.description ||
+      productoActual?.price !== body.price ||
+      productoActual?.type !== (body.modality === 'workshop' ? 'workshop' : (body.modality === 'document' ? 'document' : 'program')) ||
+      productoActual?.modality !== (body.type || 'online') ||
+      productoActual?.categoria !== (body.categoria || 'fitness') ||
+      productoActual?.difficulty !== body.level ||
+      productoActual?.is_public !== body.is_public ||
+      productoActual?.capacity !== adjustedCapacity ||
+      productoActual?.dieta !== (body.dieta || null) ||
+      JSON.stringify(objetivosActual.sort()) !== JSON.stringify(objetivosNuevos.sort()) ||
+      productoActual?.location_name !== (body.location_name || null) ||
+      productoActual?.location_url !== (body.location_url || null) ||
+      productoActual?.dias_acceso !== (body.dias_acceso || 30)
+    )
+    
     // Actualizar producto en activities
     const { data: product, error: productError } = await supabase
       .from('activities')
@@ -862,9 +968,12 @@ export async function PUT(request: NextRequest) {
         title: body.name,
         description: body.description,
         price: body.price,
-        type: body.modality, // type = tipo de producto (program/workshop)
-        modality: body.type, // modality = modalidad (online/presencial/híbrido)
-        categoria: body.categoria || 'fitness', // ✅ ACTUALIZAR CATEGORIA
+        // ✅ type = tipo de producto (workshop/program/document) - solo estos 3 valores
+        type: body.modality === 'workshop' ? 'workshop' : (body.modality === 'document' ? 'document' : 'program'),
+        // ✅ modality = modalidad (online/presencial/híbrido)
+        modality: body.type || 'online',
+        // ✅ categoria = fitness o nutricion (no confundir con type)
+        categoria: body.categoria || 'fitness',
         difficulty: body.level,
         is_public: body.is_public,
         capacity: adjustedCapacity,
@@ -951,17 +1060,100 @@ export async function PUT(request: NextRequest) {
     
     if (body.modality === 'workshop' && body.workshopSchedule && Array.isArray(body.workshopSchedule)) {
       
-      // Primero, eliminar temas existentes para este taller
-      const { error: deleteError } = await supabase
-        .from('taller_detalles')
-        .delete()
-        .eq('actividad_id', body.editingProductId)
+      console.log('🔄 Procesando horarios de taller - REEMPLAZANDO fechas anteriores')
       
-      if (deleteError) {
-        console.error('❌ Error eliminando temas:', deleteError)
+      // 1. Crear nueva versión SOLO si hay cambios en otros campos además de las fechas
+      let nuevaVersionCreada = false
+      if (productoActual) {
+        // Solo crear nueva versión si:
+        // - El taller está finalizado Y
+        // - Hay cambios en otros campos además de las fechas
+        if (productoActual.is_finished === true && hayCambiosEnOtrosCampos) {
+          const currentVersions = productoActual.workshop_versions?.versions || []
+          const nextVersion = currentVersions.length + 1
+          
+          // Obtener la fecha de inicio (created_at de la actividad o fecha de la última versión)
+          const fechaInicio = productoActual.created_at
+          
+          // Obtener la fecha de finalización (finished_at o usar la fecha actual)
+          const fechaFin = new Date().toISOString()
+          
+          // Función helper para formatear fecha a dd/mm/aa (español)
+          const formatDateSpanish = (date: string | Date) => {
+            const d = typeof date === 'string' ? new Date(date) : date
+            const day = String(d.getDate()).padStart(2, '0')
+            const month = String(d.getMonth() + 1).padStart(2, '0')
+            const year = String(d.getFullYear()).slice(-2)
+            return `${day}/${month}/${year}`
+          }
+          
+          const newVersion = {
+            version: nextVersion,
+            empezada_el: formatDateSpanish(fechaInicio),
+            finalizada_el: formatDateSpanish(fechaFin)
+          }
+          
+          const updatedVersions = {
+            versions: [...currentVersions, newVersion]
+          }
+          
+          // Actualizar workshop_versions en activities (NO reactivar automáticamente - el coach debe hacerlo manualmente)
+          const { error: versionError } = await supabase
+            .from('activities')
+            .update({
+              workshop_versions: updatedVersions
+              // NO cambiar is_finished ni finished_at - el coach debe reactivar manualmente
+            })
+            .eq('id', body.editingProductId)
+          
+          if (versionError) {
+            console.error('❌ Error creando nueva versión:', versionError)
+          } else {
+            console.log(`✅ Nueva versión ${nextVersion} creada para el taller (hay cambios en otros campos). El coach debe reactivar manualmente las ventas.`)
+            nuevaVersionCreada = true
+          }
+        } else if (productoActual.is_finished === true && !hayCambiosEnOtrosCampos) {
+          // Solo cambiar fechas: actualizar fechas sin crear nueva versión
+          console.log('📅 Solo se actualizan fechas, NO se crea nueva versión. El coach debe reactivar manualmente las ventas.')
+          // NO reactivar automáticamente - el coach debe hacerlo manualmente con el botón
+        }
       }
       
-      // Agrupar sesiones por tema
+      // 2. Obtener temas existentes (NO eliminar todavía)
+      const actividadId = parseInt(String(body.editingProductId))
+      
+      console.log(`🔍 Obteniendo temas existentes para actividad_id: ${actividadId} (tipo: ${typeof actividadId})`)
+      
+      if (isNaN(actividadId)) {
+        console.error('❌ ID de actividad inválido:', body.editingProductId)
+        return NextResponse.json({ 
+          error: 'ID de actividad inválido', 
+          details: `El ID "${body.editingProductId}" no es un número válido`
+        }, { status: 400 })
+      }
+      
+      // Seleccionar solo las columnas que definitivamente existen
+      const { data: temasExistentes, error: fetchError } = await supabaseService
+        .from('taller_detalles')
+        .select('id, nombre, descripcion, originales, activo')
+        .eq('actividad_id', actividadId)
+      
+      if (fetchError) {
+        console.error('❌ Error obteniendo temas existentes:', fetchError)
+        console.error('❌ Detalles del error:', JSON.stringify(fetchError, null, 2))
+        console.error('❌ actividad_id usado:', actividadId)
+        return NextResponse.json({ 
+          error: 'Error al obtener temas existentes', 
+          details: fetchError.message || 'Error desconocido al consultar la base de datos'
+        }, { status: 500 })
+      }
+      
+      console.log(`📋 Temas existentes encontrados: ${temasExistentes?.length || 0}`)
+      if (temasExistentes && temasExistentes.length > 0) {
+        console.log(`📋 Nombres de temas: ${temasExistentes.map((t: any) => t.nombre).join(', ')}`)
+      }
+      
+      // 3. Agrupar sesiones NUEVAS por tema
       const topicGroups = new Map()
       
       for (const session of body.workshopSchedule) {
@@ -983,20 +1175,24 @@ export async function PUT(request: NextRequest) {
           cupo: 20 // Cupo por defecto
         }
         
-        if (session.isPrimary) {
-          topic.originales.push(horarioItem)
-        } else {
+        // Si no tiene isPrimary definido, por defecto va a originales
+        // Solo va a secundarios si explícitamente isPrimary === false
+        if (session.isPrimary === false) {
           topic.secundarios.push(horarioItem)
+        } else {
+          topic.originales.push(horarioItem)
         }
       }
       
-      // Verificar si hay fechas futuras en todos los temas para determinar si el taller está activo
+      // 4. Verificar si hay fechas futuras en los temas nuevos para determinar si el taller está activo
       const now = new Date()
       now.setHours(0, 0, 0, 0)
       let hasAnyFutureDates = false
       
+      // Verificar fechas futuras en temas nuevos (tanto en originales como en secundarios)
       for (const [topicTitle, topicData] of topicGroups) {
-        const hasFutureDates = topicData.originales.some((horario: any) => {
+        const allHorarios = [...topicData.originales, ...topicData.secundarios]
+        const hasFutureDates = allHorarios.some((horario: any) => {
           const fecha = new Date(horario.fecha)
           fecha.setHours(0, 0, 0, 0)
           return fecha >= now
@@ -1007,7 +1203,33 @@ export async function PUT(request: NextRequest) {
         }
       }
       
+      // 5. Procesar temas: UPDATE de existentes, INSERT de nuevos
+      const temasActualizadosIds: number[] = []
+      const temasInsertadosIds: number[] = []
+      const temasNombresProcesados = new Set<string>()
+      let primerError: any = null
+      
+      // Crear mapa de temas existentes por nombre para búsqueda rápida
+      const temasExistentesMap = new Map<string, any>()
+      temasExistentes?.forEach((tema: any) => {
+        temasExistentesMap.set(tema.nombre, tema)
+      })
+      
       for (const [topicTitle, topicData] of topicGroups) {
+        // Validar que el tema tenga al menos un horario
+        if (topicData.originales.length === 0 && topicData.secundarios.length === 0) {
+          console.error('❌ Error: Tema sin horarios:', topicTitle)
+          primerError = new Error(`El tema "${topicTitle}" no tiene horarios asignados`)
+          continue
+        }
+        
+        // Si originales está vacío pero secundarios tiene datos, moverlos a originales
+        if (topicData.originales.length === 0 && topicData.secundarios.length > 0) {
+          console.warn(`⚠️ Tema "${topicTitle}" tiene horarios solo en secundarios, moviendo a originales`)
+          topicData.originales = [...topicData.secundarios]
+          topicData.secundarios = []
+        }
+        
         const originalesJson = {
           fechas_horarios: topicData.originales
         }
@@ -1016,26 +1238,127 @@ export async function PUT(request: NextRequest) {
           fechas_horarios: topicData.secundarios
         }
         
-        // Insertar en taller_detalles con activo = true si hay fechas futuras
-        // Todos los temas del taller deben tener el mismo valor de 'activo'
-        const topicInsert = {
-          actividad_id: body.editingProductId,
-          nombre: topicData.nombre || 'Sin título',
-          descripcion: topicData.descripcion || '',
-          originales: originalesJson,
-          secundarios: secundariosJson,
-          activo: hasAnyFutureDates // Todos los temas tienen el mismo valor
-        }
+        const temaExistente = temasExistentesMap.get(topicTitle)
         
-        const { error: topicError } = await supabase
-          .from('taller_detalles')
-          .insert(topicInsert)
-        
-        if (topicError) {
-          console.error('❌ Error creando tema en taller_detalles:', topicError)
+        if (temaExistente) {
+          // ACTUALIZAR tema existente
+          console.log('🔄 Actualizando tema existente:', topicTitle)
+          
+          // Preparar objeto de actualización - intentar incluir secundarios pero manejarlo si falla
+          // NO cambiar 'activo' automáticamente - mantener el valor actual (el coach debe activarlo manualmente)
+          const updateData: any = {
+            descripcion: topicData.descripcion || '',
+            originales: originalesJson,
+            // Mantener el valor actual de 'activo' del tema existente - NO reactivar automáticamente
+            activo: temaExistente.activo !== undefined ? temaExistente.activo : false,
+            updated_at: new Date().toISOString()
+          }
+          
+          // Solo agregar secundarios si tiene datos (evitar problemas si la columna no existe)
+          if (secundariosJson.fechas_horarios && secundariosJson.fechas_horarios.length > 0) {
+            updateData.secundarios = secundariosJson
+          }
+          
+          console.log('🔄 Actualizando tema con datos:', JSON.stringify(updateData, null, 2))
+          
+          const { data: updatedData, error: updateError } = await supabaseService
+            .from('taller_detalles')
+            .update(updateData)
+            .eq('id', temaExistente.id)
+            .select()
+          
+          if (updateError) {
+            console.error('❌ Error actualizando tema:', topicTitle)
+            console.error('❌ Error completo:', JSON.stringify(updateError, null, 2))
+            console.error('❌ Código del error:', updateError.code)
+            console.error('❌ Mensaje del error:', updateError.message)
+            console.error('❌ Detalles del error:', updateError.details)
+            console.error('❌ Hint del error:', updateError.hint)
+            console.error('❌ Datos que intentaron actualizarse:', JSON.stringify(updateData, null, 2))
+            if (!primerError) {
+              primerError = updateError
+            }
+          } else {
+            console.log('✅ Tema actualizado:', topicTitle)
+            temasActualizadosIds.push(temaExistente.id)
+            temasNombresProcesados.add(topicTitle)
+          }
         } else {
+          // INSERTAR tema nuevo
+          console.log('➕ Insertando tema nuevo:', topicTitle)
+          
+          const topicInsert = {
+            actividad_id: actividadId,
+            nombre: topicData.nombre || 'Sin título',
+            descripcion: topicData.descripcion || '',
+            originales: originalesJson,
+            secundarios: secundariosJson,
+            activo: false // NO reactivar automáticamente - el coach debe activarlo manualmente
+          }
+          
+          const { data: insertedData, error: insertError } = await supabaseService
+            .from('taller_detalles')
+            .insert(topicInsert)
+            .select()
+          
+          if (insertError) {
+            console.error('❌ Error insertando tema:', topicTitle, insertError)
+            console.error('❌ Detalles del error:', JSON.stringify(insertError, null, 2))
+            if (!primerError) {
+              primerError = insertError
+            }
+          } else {
+            console.log('✅ Tema insertado:', topicTitle)
+            if (insertedData && insertedData.length > 0) {
+              insertedData.forEach((item: any) => {
+                if (item.id) {
+                  temasInsertadosIds.push(item.id)
+                }
+              })
+            }
+            temasNombresProcesados.add(topicTitle)
+          }
         }
       }
+      
+      // 6. Si hubo errores, NO eliminar nada y retornar error
+      if (primerError) {
+        console.error('❌ Hubo errores al procesar temas. NO se eliminarán temas existentes.')
+        console.error('❌ Error completo:', JSON.stringify(primerError, null, 2))
+        console.error('❌ Temas procesados exitosamente:', temasNombresProcesados.size)
+        console.error('❌ Temas actualizados:', temasActualizadosIds.length)
+        console.error('❌ Temas insertados:', temasInsertadosIds.length)
+        return NextResponse.json({ 
+          error: 'Error al procesar temas. Los temas originales se mantienen intactos.', 
+          details: primerError?.message || primerError?.details || JSON.stringify(primerError) || 'Error desconocido',
+          errorCode: primerError?.code,
+          errorHint: primerError?.hint
+        }, { status: 500 })
+      }
+      
+      // 7. SOLO AHORA, después de que todo fue exitoso, eliminar temas que ya no están en el nuevo schedule
+      const temasParaEliminar = temasExistentes?.filter((tema: any) => 
+        !temasNombresProcesados.has(tema.nombre)
+      ) || []
+      
+      if (temasParaEliminar.length > 0) {
+        console.log(`🗑️ Eliminando ${temasParaEliminar.length} temas que ya no están en el nuevo schedule...`)
+        const idsParaEliminar = temasParaEliminar.map((t: any) => t.id)
+        
+        const { error: deleteError } = await supabaseService
+          .from('taller_detalles')
+          .delete()
+          .in('id', idsParaEliminar)
+        
+        if (deleteError) {
+          console.error('❌ Error eliminando temas obsoletos:', deleteError)
+          // No es crítico, los temas nuevos ya están insertados
+        } else {
+          console.log(`✅ ${temasParaEliminar.length} temas obsoletos eliminados`)
+        }
+      }
+      
+      console.log(`✅ Proceso completado: ${temasActualizadosIds.length} temas actualizados, ${temasInsertadosIds.length} temas insertados.`)
     }
     
     // Devolver formato esperado por el modal

@@ -276,3 +276,9 @@ Ejecuta esas queries en Supabase SQL Editor para entender tu situación actual.
 
 
 
+
+
+
+
+
+

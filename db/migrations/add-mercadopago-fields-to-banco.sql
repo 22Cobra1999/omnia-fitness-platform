@@ -50,3 +50,9 @@ COMMENT ON COLUMN banco.webhook_data IS 'Datos completos del webhook recibido de
 
 
 
+
+
+
+
+
+
