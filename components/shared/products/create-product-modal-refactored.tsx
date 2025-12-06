@@ -3349,10 +3349,32 @@ export default function CreateProductModal({ isOpen, onClose, editingProduct, in
               ? `/api/activity-nutrition/${editingProduct.id}`
               : `/api/activity-exercises/${editingProduct.id}`
             
-            console.log(`🔄 Cargando ${isNutrition ? 'platos' : 'ejercicios'} desde backend:`, endpoint, { categoria, productCategory, id: editingProduct.id })
+            console.log(`🔄 [CreateProductModal] Cargando ${isNutrition ? 'platos' : 'ejercicios'} desde backend:`, endpoint, { 
+              categoria, 
+              productCategory, 
+              id: editingProduct.id,
+              isOpen,
+              currentStep,
+              env: typeof window !== 'undefined' ? window.location.hostname : 'server'
+            })
             
             const response = await fetch(endpoint)
+            console.log(`📡 [CreateProductModal] Respuesta del fetch para ${isNutrition ? 'platos' : 'ejercicios'}:`, {
+              ok: response.ok,
+              status: response.status,
+              statusText: response.statusText,
+              url: response.url
+            })
+            
             const result = await response.json()
+            console.log(`📦 [CreateProductModal] Resultado parseado del fetch:`, {
+              success: result.success,
+              tieneData: !!result.data,
+              esArray: Array.isArray(result.data),
+              dataLength: result.data ? (Array.isArray(result.data) ? result.data.length : 'no es array') : 'no hay data',
+              error: result.error,
+              primerosItems: Array.isArray(result.data) && result.data.length > 0 ? result.data.slice(0, 2) : null
+            })
             
             if (result.success && Array.isArray(result.data) && result.data.length > 0) {
               // Transformar los datos al formato esperado por el planificador
@@ -3388,8 +3410,19 @@ export default function CreateProductModal({ isOpen, onClose, editingProduct, in
                 }
               })
               
-              console.log(`✅ ${isNutrition ? 'Platos' : 'Ejercicios'} cargados desde backend:`, transformedData.length)
+              console.log(`✅ [CreateProductModal] ${isNutrition ? 'Platos' : 'Ejercicios'} cargados desde backend:`, {
+                count: transformedData.length,
+                primerosItems: transformedData.slice(0, 3).map((item: any) => ({
+                  id: item.id,
+                  nombre: item.Nombre || item['Nombre'] || item.nombre,
+                  tieneId: !!item.id,
+                  activo: item.activo,
+                  is_active: item.is_active
+                })),
+                todosActivos: transformedData.every((item: any) => item.activo !== false && item.is_active !== false)
+              })
               setPersistentCsvData(transformedData)
+              console.log(`💾 [CreateProductModal] persistentCsvData actualizado con ${transformedData.length} items`)
               setPersistentCsvFileName(`${isNutrition ? 'platos' : 'ejercicios'}.csv`)
               setPersistentCsvLoadedFromFile(false)
             } else {
@@ -5411,9 +5444,25 @@ export default function CreateProductModal({ isOpen, onClose, editingProduct, in
                     // ya está manejada en WeeklyExercisePlanner, no se debe hacer aquí
                     // porque se ejecuta en cada render y borraría el schedule nuevo del usuario
                     const allData = persistentCsvData || []
+                    
+                    console.log(`🔍 [WeeklyPlan] Construyendo exercises prop:`, {
+                      allDataLength: allData.length,
+                      allDataType: typeof allData,
+                      esArray: Array.isArray(allData),
+                      productCategory,
+                      currentStep,
+                      editingProductId: editingProduct?.id,
+                      env: typeof window !== 'undefined' ? window.location.hostname : 'server',
+                      primerosItems: Array.isArray(allData) && allData.length > 0 ? allData.slice(0, 2) : null
+                    })
 
                     if (!allData || allData.length === 0) {
-                      console.log('⚠️ [WeeklyPlan] No hay datos CSV para el planificador semanal')
+                      console.log('⚠️ [WeeklyPlan] No hay datos CSV para el planificador semanal', {
+                        persistentCsvData: persistentCsvData,
+                        isUndefined: persistentCsvData === undefined,
+                        isNull: persistentCsvData === null,
+                        isEmptyArray: Array.isArray(persistentCsvData) && persistentCsvData.length === 0
+                      })
                       return []
                     }
 
@@ -5440,6 +5489,12 @@ export default function CreateProductModal({ isOpen, onClose, editingProduct, in
                     console.log('📊 [WeeklyPlan] Construyendo ejercicios para planificador:', {
                       totalCsv: allData.length,
                       usadosEnPlanificador: dataToUse.length,
+                      filtrados: allData.length - dataToUse.length,
+                      productCategory,
+                      muestraFiltrados: allData.filter((row: any) => {
+                        const isActive = row && row.activo !== false && row.is_active !== false && row._deleted !== true
+                        return !isActive
+                      }).slice(0, 2)
                     })
                     
                     const exercises = dataToUse.map((row, index) => {
@@ -5521,6 +5576,19 @@ export default function CreateProductModal({ isOpen, onClose, editingProduct, in
                       }
                     }).filter((ex: any) => ex !== null) // ✅ Filtrar platos sin nombre
                     
+                    console.log(`✅ [WeeklyPlan] Exercises finales construidos:`, {
+                      totalExercises: exercises.length,
+                      productCategory,
+                      primerosExercises: exercises.slice(0, 3).map((ex: any) => ({
+                        id: ex.id,
+                        name: ex.name,
+                        type: ex.type,
+                        tieneId: !!ex.id
+                      })),
+                      todosConId: exercises.every((ex: any) => ex.id),
+                      env: typeof window !== 'undefined' ? window.location.hostname : 'server'
+                    })
+                    
                     return exercises
                   })()}
                   onScheduleChange={(schedule: any) => {
@@ -5549,15 +5617,39 @@ export default function CreateProductModal({ isOpen, onClose, editingProduct, in
                         return !id || typeof id !== 'number'
                       })
                     
+                    const hasUserSchedule = persistentCalendarSchedule && Object.keys(persistentCalendarSchedule).length > 0
+                    
+                    console.log(`🔍 [WeeklyPlan] Calculando initialSchedule:`, {
+                      hasOnlyTemporaryIds,
+                      hasUserSchedule,
+                      scheduleKeys: persistentCalendarSchedule ? Object.keys(persistentCalendarSchedule).length : 0,
+                      persistentCsvDataLength: persistentCsvData?.length || 0,
+                      env: typeof window !== 'undefined' ? window.location.hostname : 'server'
+                    })
+                    
                     // Si hay IDs temporales PERO el usuario ya creó planificación, preservarla
                     // Solo pasar {} si no hay planificación del usuario (para ignorar planificación vieja del backend)
                     if (hasOnlyTemporaryIds) {
-                      const hasUserSchedule = persistentCalendarSchedule && Object.keys(persistentCalendarSchedule).length > 0
-                      return hasUserSchedule ? persistentCalendarSchedule : {}
+                      const result = hasUserSchedule ? persistentCalendarSchedule : {}
+                      console.log(`📅 [WeeklyPlan] hasOnlyTemporaryIds=true, initialSchedule:`, {
+                        result: result === persistentCalendarSchedule ? 'persistentCalendarSchedule' : '{}',
+                        keys: Object.keys(result).length
+                      })
+                      return result
                     }
                     
                     // Si hay IDs reales, usar siempre persistentCalendarSchedule
-                    return persistentCalendarSchedule || {}
+                    const result = persistentCalendarSchedule || {}
+                    console.log(`📅 [WeeklyPlan] hasOnlyTemporaryIds=false, initialSchedule:`, {
+                      result: result === persistentCalendarSchedule ? 'persistentCalendarSchedule' : '{}',
+                      keys: Object.keys(result).length,
+                      estructura: Object.keys(result).slice(0, 2).map(key => ({
+                        semana: key,
+                        dias: Object.keys(result[key] || {}),
+                        totalDias: Object.keys(result[key] || {}).length
+                      }))
+                    })
+                    return result
                   })()}
                   initialPeriods={periods}
                   activityId={editingProduct?.id}
