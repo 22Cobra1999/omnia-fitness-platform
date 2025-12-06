@@ -3483,7 +3483,7 @@ export default function CreateProductModal({ isOpen, onClose, editingProduct, in
         loadWeeklyPlanning()
       } else if (productType === 'program' && editingProduct.id && productCategory === 'nutricion') {
         // Para nutrición, también cargar la planificación del backend
-        console.log(`🔄 Cargando planificación semanal para producto de nutrición:`, editingProduct.id)
+        console.log(`🔄 [CreateProductModal] Cargando planificación semanal para producto de nutrición:`, editingProduct.id)
         
         const loadWeeklyPlanning = async () => {
           try {
@@ -3500,43 +3500,74 @@ export default function CreateProductModal({ isOpen, onClose, editingProduct, in
               return
             }
             
+            console.log(`📡 [CreateProductModal] Haciendo fetch a /api/get-product-planning?actividad_id=${editingProduct.id}`)
             const response = await fetch(`/api/get-product-planning?actividad_id=${editingProduct.id}`)
+            
+            if (!response.ok) {
+              console.error(`❌ [CreateProductModal] Error en respuesta HTTP: ${response.status} ${response.statusText}`)
+              return
+            }
+            
             const result = await response.json()
+            console.log('📦 [CreateProductModal] Resultado del fetch:', {
+              success: result.success,
+              tieneData: !!result.data,
+              semanasEnData: result.data ? Object.keys(result.data.weeklySchedule || {}).length : 0
+            })
             
             if (result.success && result.data) {
               const { weeklySchedule, periods: backendPeriods } = result.data
               
+              // Verificar una vez más si hay datos locales (puede haber cambiado durante el fetch)
               const stillHasLocalData = persistentCalendarSchedule && Object.keys(persistentCalendarSchedule).length > 0
               if (stillHasLocalData) {
                 console.log('✅ [CreateProductModal] Datos locales detectados durante la carga, cancelando sobrescritura desde backend')
                 return
               }
               
-              console.log('📅 Planificación semanal cargada desde backend (nutrición):', {
+              console.log('📅 [CreateProductModal] Planificación semanal cargada desde backend (nutrición):', {
                 semanas: Object.keys(weeklySchedule || {}).length,
                 periodos: backendPeriods,
-                schedule: weeklySchedule
+                estructuraSemanas: weeklySchedule ? Object.keys(weeklySchedule).map(week => ({
+                  semana: week,
+                  dias: Object.keys(weeklySchedule[week] || {}),
+                  totalDias: Object.keys(weeklySchedule[week] || {}).length
+                })) : []
               })
               
-              const stillHasLocalDataCheck = persistentCalendarSchedule && Object.keys(persistentCalendarSchedule).length > 0
-              if (!stillHasLocalDataCheck && weeklySchedule && Object.keys(weeklySchedule).length > 0) {
-                setPersistentCalendarSchedule(weeklySchedule)
-                // ✅ Cachear los datos cargados
-                cachedPlanningFromDBRef.current = {
-                  schedule: weeklySchedule,
-                  periods: backendPeriods || 1,
-                  activityId: editingProduct.id
+              // ✅ SIEMPRE actualizar si hay datos del backend, incluso si weeklySchedule está vacío (puede que no haya planificación guardada)
+              if (weeklySchedule) {
+                const stillHasLocalDataCheck = persistentCalendarSchedule && Object.keys(persistentCalendarSchedule).length > 0
+                if (!stillHasLocalDataCheck) {
+                  console.log('✅ [CreateProductModal] Aplicando planificación desde backend al estado', {
+                    semanas: Object.keys(weeklySchedule).length,
+                    tieneContenido: Object.keys(weeklySchedule).length > 0
+                  })
+                  setPersistentCalendarSchedule(weeklySchedule)
+                  // ✅ Cachear los datos cargados
+                  cachedPlanningFromDBRef.current = {
+                    schedule: weeklySchedule,
+                    periods: backendPeriods || 1,
+                    activityId: editingProduct.id
+                  }
+                } else {
+                  console.log('⚠️ [CreateProductModal] Datos locales detectados, NO sobrescribiendo con datos del backend para preservar cambios del usuario')
                 }
-              } else if (stillHasLocalDataCheck) {
-                console.log('✅ [CreateProductModal] Datos locales detectados, NO sobrescribiendo con datos del backend para preservar cambios del usuario')
+              } else {
+                console.log('⚠️ [CreateProductModal] weeklySchedule es null/undefined, no hay planificación guardada')
               }
               
               if (backendPeriods && backendPeriods > 0) {
                 setPeriods(backendPeriods)
               }
+            } else {
+              console.warn('⚠️ [CreateProductModal] La respuesta del backend no fue exitosa o no tiene data:', result)
             }
           } catch (error) {
-            console.error('❌ Error cargando planificación semanal desde backend (nutrición):', error)
+            console.error('❌ [CreateProductModal] Error cargando planificación semanal desde backend (nutrición):', error)
+            if (error instanceof Error) {
+              console.error('❌ [CreateProductModal] Stack trace:', error.stack)
+            }
           }
         }
         
@@ -3606,7 +3637,18 @@ export default function CreateProductModal({ isOpen, onClose, editingProduct, in
         console.log('🔄 [CreateProductModal] Cargando planificación desde BD al volver al paso 4:', editingProduct.id)
         
         const response = await fetch(`/api/get-product-planning?actividad_id=${editingProduct.id}`)
+        
+        if (!response.ok) {
+          console.error(`❌ [CreateProductModal] Error en respuesta HTTP al volver al paso 4: ${response.status} ${response.statusText}`)
+          return
+        }
+        
         const result = await response.json()
+        console.log('📦 [CreateProductModal] Resultado del fetch al volver al paso 4:', {
+          success: result.success,
+          tieneData: !!result.data,
+          semanasEnData: result.data ? Object.keys(result.data.weeklySchedule || {}).length : 0
+        })
         
         if (result.success && result.data) {
           const { weeklySchedule, periods: backendPeriods } = result.data
@@ -3620,7 +3662,12 @@ export default function CreateProductModal({ isOpen, onClose, editingProduct, in
           
           console.log('📅 [CreateProductModal] Planificación cargada desde BD al volver al paso 4:', {
             semanas: Object.keys(weeklySchedule || {}).length,
-            periodos: backendPeriods
+            periodos: backendPeriods,
+            estructuraSemanas: weeklySchedule ? Object.keys(weeklySchedule).map(week => ({
+              semana: week,
+              dias: Object.keys(weeklySchedule[week] || {}),
+              totalDias: Object.keys(weeklySchedule[week] || {}).length
+            })) : []
           })
           
           // Cachear los datos cargados
@@ -3630,17 +3677,30 @@ export default function CreateProductModal({ isOpen, onClose, editingProduct, in
             activityId: editingProduct.id
           }
           
-          // Aplicar solo si no hay datos locales
+          // Aplicar solo si no hay datos locales y hay un schedule válido
           const stillHasLocalDataCheck = persistentCalendarSchedule && Object.keys(persistentCalendarSchedule).length > 0
-          if (!stillHasLocalDataCheck && weeklySchedule && Object.keys(weeklySchedule).length > 0) {
+          if (!stillHasLocalDataCheck && weeklySchedule) {
+            console.log('✅ [CreateProductModal] Aplicando planificación desde BD al estado (al volver al paso 4)', {
+              semanas: Object.keys(weeklySchedule).length,
+              tieneContenido: Object.keys(weeklySchedule).length > 0
+            })
             setPersistentCalendarSchedule(weeklySchedule)
             if (backendPeriods && backendPeriods > 0) {
               setPeriods(backendPeriods)
             }
+          } else if (stillHasLocalDataCheck) {
+            console.log('⚠️ [CreateProductModal] Datos locales detectados, preservando cambios del usuario')
+          } else {
+            console.log('⚠️ [CreateProductModal] weeklySchedule es null/undefined, no hay planificación guardada')
           }
+        } else {
+          console.warn('⚠️ [CreateProductModal] La respuesta del backend no fue exitosa o no tiene data (al volver al paso 4):', result)
         }
       } catch (error) {
         console.error('❌ [CreateProductModal] Error cargando planificación desde BD al volver al paso 4:', error)
+        if (error instanceof Error) {
+          console.error('❌ [CreateProductModal] Stack trace:', error.stack)
+        }
       }
     }
     
