@@ -1095,12 +1095,6 @@ export function SearchScreen({ onTabChange }: SearchScreenProps) {
       {/* Activity Preview Modal */}
       {selectedActivity && (
         <>
-            hasSelectedActivity: !!selectedActivity,
-            isPreviewModalOpen,
-            activityTitle: selectedActivity?.title,
-            coachModalOpen: isCoachProfileModalOpen,
-            navigationContext: navigationContext
-          })}
           <ClientProductModal
             product={selectedActivity}
             isOpen={isPreviewModalOpen}
