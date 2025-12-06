@@ -3613,11 +3613,27 @@ export default function CreateProductModal({ isOpen, onClose, editingProduct, in
         loadWorkshopData(editingProduct.id)
       }
     }
-  }, [editingProduct?.id, initialStep]) // Re-ejecutar cuando cambia el ID del producto o el initialStep
+    
+    // ✅ Resetear flag de cambios del usuario solo cuando cambia el producto (nuevo producto o producto diferente)
+    // NO resetear cuando solo cambia el initialStep (navegación entre pasos del mismo producto)
+    hasUserMadeChangesRef.current = false
+  }, [editingProduct?.id]) // Solo re-ejecutar cuando cambia el ID del producto, NO cuando cambia initialStep
 
   // ✅ Ref para cachear la planificación cargada desde BD (evitar recargas innecesarias)
   const cachedPlanningFromDBRef = useRef<{ schedule: any; periods: number; activityId: number | undefined } | null>(null)
 
+  // ✅ Ref para rastrear si el usuario ya hizo cambios en la planificación (para preservar cambios al cambiar de paso)
+  const hasUserMadeChangesRef = useRef<boolean>(false)
+  
+  // ✅ Actualizar el ref cuando el usuario hace cambios en la planificación
+  useEffect(() => {
+    const hasData = persistentCalendarSchedule && Object.keys(persistentCalendarSchedule).length > 0
+    if (hasData) {
+      hasUserMadeChangesRef.current = true
+      console.log('✅ [CreateProductModal] Cambios del usuario detectados en planificación, marcando como modificado')
+    }
+  }, [persistentCalendarSchedule])
+  
   // ✅ Recargar planificación desde BD cuando se vuelve al paso 4 (weeklyPlan) si no hay datos locales
   useEffect(() => {
     // Solo ejecutar si estamos en el paso 4 (weeklyPlan) y estamos editando un producto
@@ -3636,12 +3652,20 @@ export default function CreateProductModal({ isOpen, onClose, editingProduct, in
       return
     }
 
-    // Si ya hay datos locales, NO recargar desde BD
+    // ✅ PRIORIDAD 1: Si el usuario ya hizo cambios, NUNCA recargar desde BD (preservar cambios)
+    if (hasUserMadeChangesRef.current) {
+      console.log('✅ [CreateProductModal] Usuario ya hizo cambios en planificación, NO recargando desde BD para preservar cambios')
+      return
+    }
+
+    // ✅ PRIORIDAD 2: Si ya hay datos locales, NO recargar desde BD
     const hasLocalData = persistentCalendarSchedule && Object.keys(persistentCalendarSchedule).length > 0
     if (hasLocalData) {
       console.log('✅ [CreateProductModal] Ya hay datos locales de planificación, NO recargando desde BD', {
         semanasLocales: Object.keys(persistentCalendarSchedule).length
       })
+      // Marcar que hay cambios del usuario
+      hasUserMadeChangesRef.current = true
       return
     }
 
@@ -5592,7 +5616,14 @@ export default function CreateProductModal({ isOpen, onClose, editingProduct, in
                     return exercises
                   })()}
                   onScheduleChange={(schedule: any) => {
+                    console.log('💾 [CreateProductModal] onScheduleChange llamado, actualizando persistentCalendarSchedule:', {
+                      semanas: Object.keys(schedule || {}).length,
+                      tieneContenido: schedule && Object.keys(schedule).length > 0
+                    })
                     setPersistentCalendarSchedule(schedule)
+                    // ✅ Marcar que el usuario hizo cambios para preservarlos al cambiar de paso
+                    hasUserMadeChangesRef.current = true
+                    console.log('✅ [CreateProductModal] Cambios del usuario marcados, se preservarán al cambiar de paso')
                   }}
                   onStatsChange={(stats: any) => {
                     console.log('📊 [CreateProductModal] onStatsChange recibido:', stats)
