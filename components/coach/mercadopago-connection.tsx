@@ -115,6 +115,31 @@ export function MercadoPagoConnection() {
   const handleConnect = async () => {
     if (!user?.id) return;
 
+    // Primero, abrir la página de logout de Mercado Pago en una nueva pestaña
+    // y pedirle al usuario que cierre sesión manualmente
+    const logoutUrl = 'https://www.mercadopago.com.ar/logout';
+    const logoutWindow = window.open(logoutUrl, '_blank');
+    
+    // Mostrar mensaje con instrucciones
+    const userConfirmed = window.confirm(
+      'IMPORTANTE: Para conectar con Mercado Pago, necesitas cerrar sesión primero.\n\n' +
+      'Se ha abierto una nueva pestaña con la página de Mercado Pago.\n\n' +
+      'Por favor:\n' +
+      '1. Ve a la pestaña que se abrió\n' +
+      '2. Cierra sesión en Mercado Pago\n' +
+      '3. Vuelve aquí y haz clic en "Aceptar"\n\n' +
+      '¿Ya cerraste sesión en Mercado Pago?'
+    );
+    
+    // Cerrar la ventana de logout si el usuario canceló
+    if (!userConfirmed) {
+      if (logoutWindow) {
+        logoutWindow.close();
+      }
+      return;
+    }
+    
+    // Si el usuario confirmó, proceder con la autorización
     setConnecting(true);
     try {
       // Obtener la URL de autorización del endpoint (sin hacer redirect)
@@ -138,13 +163,14 @@ export function MercadoPagoConnection() {
         throw new Error('No se recibió la URL de autorización');
       }
       
-      // Usar página intermedia que fuerza logout antes de autorizar
-      // Esta página se abre en popup y limpia la sesión antes de redirigir
-      const logoutPageUrl = `${baseUrl}/mercadopago-logout?auth_url=${encodeURIComponent(authUrl)}`;
+      // Cerrar la ventana de logout si aún está abierta
+      if (logoutWindow && !logoutWindow.closed) {
+        logoutWindow.close();
+      }
       
-      // Abrir popup con la página intermedia
+      // Abrir popup con la URL de autorización
       const popup = window.open(
-        logoutPageUrl,
+        authUrl,
         'MercadoPagoAuth',
         'width=600,height=700,scrollbars=yes,resizable=yes'
       );
