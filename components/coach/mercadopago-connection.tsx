@@ -115,31 +115,6 @@ export function MercadoPagoConnection() {
   const handleConnect = async () => {
     if (!user?.id) return;
 
-    // Primero, abrir la página de logout de Mercado Pago en una nueva pestaña
-    // y pedirle al usuario que cierre sesión manualmente
-    const logoutUrl = 'https://www.mercadopago.com.ar/logout';
-    const logoutWindow = window.open(logoutUrl, '_blank');
-    
-    // Mostrar mensaje con instrucciones
-    const userConfirmed = window.confirm(
-      'IMPORTANTE: Para conectar con Mercado Pago, necesitas cerrar sesión primero.\n\n' +
-      'Se ha abierto una nueva pestaña con la página de Mercado Pago.\n\n' +
-      'Por favor:\n' +
-      '1. Ve a la pestaña que se abrió\n' +
-      '2. Cierra sesión en Mercado Pago\n' +
-      '3. Vuelve aquí y haz clic en "Aceptar"\n\n' +
-      '¿Ya cerraste sesión en Mercado Pago?'
-    );
-    
-    // Cerrar la ventana de logout si el usuario canceló
-    if (!userConfirmed) {
-      if (logoutWindow) {
-        logoutWindow.close();
-      }
-      return;
-    }
-    
-    // Si el usuario confirmó, proceder con la autorización
     setConnecting(true);
     try {
       // Obtener la URL de autorización del endpoint (sin hacer redirect)
@@ -163,12 +138,15 @@ export function MercadoPagoConnection() {
         throw new Error('No se recibió la URL de autorización');
       }
       
-      // Cerrar la ventana de logout si aún está abierta
-      if (logoutWindow && !logoutWindow.closed) {
-        logoutWindow.close();
-      }
+      // Mostrar mensaje informativo antes de abrir
+      toast.info('Se abrirá una ventana para conectar con Mercado Pago. Si ya tienes sesión activa, se conectará automáticamente. Si quieres usar otra cuenta, cierra sesión en Mercado Pago primero.', {
+        duration: 5000,
+      });
       
-      // Abrir popup con la URL de autorización
+      // Pequeño delay para que el usuario vea el mensaje
+      await new Promise(resolve => setTimeout(resolve, 500));
+      
+      // Abrir popup con la URL de autorización directamente
       const popup = window.open(
         authUrl,
         'MercadoPagoAuth',
