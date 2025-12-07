@@ -34,6 +34,16 @@ export async function GET(request: NextRequest) {
     // Verificar variables de entorno con mejor mensaje de error
     const googleClientId = process.env.GOOGLE_CLIENT_ID?.trim();
     
+    console.log('🔵 [Google OAuth Authorize] Verificando configuración:', {
+      hasGoogleClientId: !!googleClientId,
+      clientIdLength: googleClientId?.length || 0,
+      clientIdPrefix: googleClientId?.substring(0, 20) || 'N/A',
+      clientIdSuffix: googleClientId?.substring(googleClientId.length - 30) || 'N/A',
+      hasGoogleClientSecret: !!process.env.GOOGLE_CLIENT_SECRET?.trim(),
+      nextPublicAppUrl: process.env.NEXT_PUBLIC_APP_URL,
+      nodeEnv: process.env.NODE_ENV,
+    });
+    
     if (!googleClientId) {
       console.error('❌ GOOGLE_CLIENT_ID no configurado. Variables de entorno disponibles:', {
         hasGoogleClientId: !!process.env.GOOGLE_CLIENT_ID,
@@ -44,8 +54,8 @@ export async function GET(request: NextRequest) {
       
       return NextResponse.json({ 
         error: 'GOOGLE_CLIENT_ID no configurado',
-        details: 'Por favor, verifica que la variable de entorno GOOGLE_CLIENT_ID esté configurada en tu archivo .env.local',
-        hint: 'Si ya tienes Google Meet funcionando, verifica que la variable tenga exactamente el nombre GOOGLE_CLIENT_ID'
+        details: 'Por favor, verifica que la variable de entorno GOOGLE_CLIENT_ID esté configurada en Vercel',
+        hint: 'Ve a Vercel Dashboard → Settings → Environment Variables y verifica que GOOGLE_CLIENT_ID esté configurado para producción'
       }, { status: 500 });
     }
 
