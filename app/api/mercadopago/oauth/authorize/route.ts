@@ -41,15 +41,15 @@ export async function GET(request: NextRequest) {
     }
 
     // Construir URL de autorización de Mercado Pago
-    // Usar el dominio .com en lugar de .com.ar para evitar cookies de sesión
+    // Primero hacer logout para limpiar sesión, luego redirigir a login
+    const stateWithTimestamp = `${coachId}_${Date.now()}`;
+    
+    // URL de autorización con todos los parámetros para forzar login
     const authUrl = new URL('https://auth.mercadopago.com/authorization');
     authUrl.searchParams.set('client_id', clientId);
     authUrl.searchParams.set('response_type', 'code');
     authUrl.searchParams.set('platform_id', 'mp');
     authUrl.searchParams.set('redirect_uri', redirectUri);
-    
-    // Agregar timestamp único al state para evitar reutilización de sesión
-    const stateWithTimestamp = `${coachId}_${Date.now()}`;
     authUrl.searchParams.set('state', stateWithTimestamp);
     
     // Forzar pantalla de login siempre - múltiples parámetros para asegurar
@@ -59,15 +59,15 @@ export async function GET(request: NextRequest) {
     // force_login: fuerza mostrar la pantalla de login incluso si hay sesión activa
     authUrl.searchParams.set('force_login', 'true');
     
-    // Agregar parámetro adicional para invalidar sesión existente
-    // login_hint vacío fuerza a mostrar la pantalla de login
-    authUrl.searchParams.set('login_hint', '');
-    
     // Agregar parámetro de no-cache para evitar reutilización de sesión
     authUrl.searchParams.set('_', Date.now().toString());
     
-    // Agregar parámetro adicional para forzar logout primero
-    authUrl.searchParams.set('logout', 'true');
+    // Primero hacer logout para limpiar cualquier sesión existente
+    // Luego redirigir a la página de autorización
+    const logoutUrl = new URL('https://auth.mercadopago.com/logout');
+    logoutUrl.searchParams.set('redirect_uri', authUrl.toString());
+    
+    const finalAuthUrl = logoutUrl.toString();
 
     const finalAuthUrl = authUrl.toString();
     console.log('🔗 URL de autorización de Mercado Pago:', finalAuthUrl);

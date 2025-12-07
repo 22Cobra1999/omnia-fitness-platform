@@ -120,7 +120,11 @@ export function MercadoPagoConnection() {
       // Obtener la URL de autorización del endpoint (sin hacer redirect)
       const baseUrl = typeof window !== 'undefined' ? window.location.origin : '';
       const response = await fetch(
-        `${baseUrl}/api/mercadopago/oauth/authorize?coach_id=${user.id}&return_url=true`
+        `${baseUrl}/api/mercadopago/oauth/authorize?coach_id=${user.id}&return_url=true`,
+        {
+          method: 'GET',
+          credentials: 'same-origin', // No enviar cookies a otros dominios
+        }
       );
       
       if (!response.ok) {
@@ -134,20 +138,24 @@ export function MercadoPagoConnection() {
         throw new Error('No se recibió la URL de autorización');
       }
       
-      // Abrir en una nueva ventana para evitar que use cookies de sesión existentes
-      // Esto fuerza a Mercado Pago a mostrar la pantalla de login
+      // Abrir en una nueva ventana SIN cookies compartidas
+      // Usar about:blank primero para evitar que se comparta la sesión
       const popup = window.open(
-        authUrl,
+        'about:blank',
         'MercadoPagoAuth',
-        'width=600,height=700,scrollbars=yes,resizable=yes,noopener,noreferrer'
+        'width=600,height=700,scrollbars=yes,resizable=yes'
       );
       
-      // Si el popup fue bloqueado, usar redirección normal
       if (!popup || popup.closed || typeof popup.closed === 'undefined') {
-        // Fallback: redirigir en la misma ventana
-        window.location.href = authUrl;
+        // Si el popup fue bloqueado, mostrar mensaje
+        setConnecting(false);
+        toast.error('Por favor, permite las ventanas emergentes para conectar Mercado Pago');
         return;
       }
+      
+      // Ahora navegar a la URL de autorización en el popup
+      // Esto evita que se compartan cookies de sesión
+      popup.location.href = authUrl;
       
       // Monitorear cuando se cierre la ventana o cuando se complete la autorización
       const checkClosed = setInterval(() => {
@@ -165,7 +173,7 @@ export function MercadoPagoConnection() {
               const popupUrl = popup.location.href;
               if (popupUrl.includes('/api/mercadopago/oauth/callback')) {
                 clearInterval(checkClosed);
-                popup.close();
+                // No cerrar inmediatamente, dejar que el callback lo haga
                 setConnecting(false);
                 // Recargar credenciales
                 setTimeout(() => {
@@ -173,7 +181,7 @@ export function MercadoPagoConnection() {
                 }, 500);
               }
             } catch (e) {
-              // Cross-origin error, ignorar
+              // Cross-origin error, ignorar - esto es normal cuando está en Mercado Pago
             }
           }
         } catch (e) {
