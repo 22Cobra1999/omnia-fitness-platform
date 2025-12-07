@@ -671,10 +671,17 @@ export default function CoachCalendarScreen() {
                       // Horarios clave: 6am, 12pm, 6pm, 12am (0)
                       const keyHours = [6, 12, 18, 0]
                       
-                      // Combinar horarios clave con horarios de eventos, eliminar duplicados y ordenar
-                      const allHours = Array.from(new Set([...keyHours, ...eventHours])).sort((a, b) => a - b)
+                      // Combinar horarios clave con horarios de eventos, eliminar duplicados
+                      const allHoursSet = new Set([...keyHours, ...eventHours])
+                      
+                      // Separar horarios antes y después de medianoche
+                      const hoursBeforeMidnight = Array.from(allHoursSet).filter(h => h !== 0).sort((a, b) => a - b)
+                      const midnight = allHoursSet.has(0) ? [0] : []
+                      
+                      // Ordenar: todos los horarios antes de medianoche, luego 00:00 al final
+                      const allHoursOrdered = [...hoursBeforeMidnight, ...midnight]
 
-                      return allHours.map(hour => {
+                      return allHoursOrdered.map(hour => {
                         const hourEvents = getEventsForHour(hour)
                         const hourStart = new Date(viewDate)
                         hourStart.setHours(hour, 0, 0, 0)
