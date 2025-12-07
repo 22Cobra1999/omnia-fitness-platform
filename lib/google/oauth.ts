@@ -66,14 +66,27 @@ export class GoogleOAuth {
     code: string, 
     redirectUri: string
   ): Promise<GoogleTokenResponse> {
+    const clientId = process.env.GOOGLE_CLIENT_ID?.trim() || '';
+    const clientSecret = process.env.GOOGLE_CLIENT_SECRET?.trim() || '';
+
+    if (!clientId || !clientSecret) {
+      throw new Error('GOOGLE_CLIENT_ID o GOOGLE_CLIENT_SECRET no configurados');
+    }
+
+    console.log('🔄 [GoogleOAuth] Intercambiando código por tokens:', {
+      redirectUri,
+      clientIdPrefix: clientId.substring(0, 20),
+      hasClientSecret: !!clientSecret,
+    });
+
     const response = await fetch(this.GOOGLE_TOKEN_URL, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/x-www-form-urlencoded',
       },
       body: new URLSearchParams({
-        client_id: process.env.GOOGLE_CLIENT_ID || '',
-        client_secret: process.env.GOOGLE_CLIENT_SECRET || '',
+        client_id: clientId,
+        client_secret: clientSecret,
         code,
         grant_type: 'authorization_code',
         redirect_uri: redirectUri,
@@ -81,7 +94,13 @@ export class GoogleOAuth {
     });
 
     if (!response.ok) {
-      throw new Error(`Token exchange failed: ${response.statusText}`);
+      const errorText = await response.text();
+      console.error('❌ [GoogleOAuth] Error en intercambio de tokens:', {
+        status: response.status,
+        statusText: response.statusText,
+        error: errorText,
+      });
+      throw new Error(`Token exchange failed: ${response.status} ${response.statusText} - ${errorText}`);
     }
 
     return await response.json();

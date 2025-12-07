@@ -45,18 +45,33 @@ export async function GET(request: NextRequest) {
     const redirectUri = process.env.NEXT_PUBLIC_GOOGLE_REDIRECT_URI?.trim() || 
                        `${appUrl}/api/google/oauth/callback`;
 
+    const googleClientId = process.env.GOOGLE_CLIENT_ID?.trim();
+    const googleClientSecret = process.env.GOOGLE_CLIENT_SECRET?.trim();
+
     console.log('🔵 [Google OAuth Callback] Configuración:', {
       coachId,
       redirectUri,
       appUrl,
-      hasClientId: !!process.env.GOOGLE_CLIENT_ID?.trim(),
-      hasClientSecret: !!process.env.GOOGLE_CLIENT_SECRET?.trim(),
+      clientIdPrefix: googleClientId?.substring(0, 20),
+      clientIdSuffix: googleClientId?.substring((googleClientId?.length || 0) - 10),
+      hasClientId: !!googleClientId,
+      hasClientSecret: !!googleClientSecret,
     });
 
-    if (!process.env.GOOGLE_CLIENT_ID?.trim() || !process.env.GOOGLE_CLIENT_SECRET?.trim()) {
-      console.error('❌ [Google OAuth Callback] Credenciales de Google no configuradas');
+    if (!googleClientId || !googleClientSecret) {
+      console.error('❌ [Google OAuth Callback] Credenciales de Google no configuradas:', {
+        hasClientId: !!googleClientId,
+        hasClientSecret: !!googleClientSecret,
+      });
       return NextResponse.redirect(
         `${appUrl}/?tab=profile&google_calendar_auth=error&error=config_error`
+      );
+    }
+
+    if (!googleClientId.endsWith('.apps.googleusercontent.com')) {
+      console.error('❌ [Google OAuth Callback] GOOGLE_CLIENT_ID tiene formato inválido');
+      return NextResponse.redirect(
+        `${appUrl}/?tab=profile&google_calendar_auth=error&error=invalid_client_id`
       );
     }
 

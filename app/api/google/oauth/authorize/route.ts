@@ -33,35 +33,42 @@ export async function GET(request: NextRequest) {
 
     // Verificar variables de entorno con mejor mensaje de error
     const googleClientId = process.env.GOOGLE_CLIENT_ID?.trim();
-    
-    console.log('🔵 [Google OAuth Authorize] Verificando configuración:', {
-      hasGoogleClientId: !!googleClientId,
-      clientIdLength: googleClientId?.length || 0,
-      clientIdPrefix: googleClientId?.substring(0, 20) || 'N/A',
-      clientIdSuffix: googleClientId?.substring(googleClientId.length - 30) || 'N/A',
-      hasGoogleClientSecret: !!process.env.GOOGLE_CLIENT_SECRET?.trim(),
-      nextPublicAppUrl: process.env.NEXT_PUBLIC_APP_URL,
-      nodeEnv: process.env.NODE_ENV,
-    });
+    const googleClientSecret = process.env.GOOGLE_CLIENT_SECRET?.trim();
     
     if (!googleClientId) {
-      console.error('❌ GOOGLE_CLIENT_ID no configurado. Variables de entorno disponibles:', {
-        hasGoogleClientId: !!process.env.GOOGLE_CLIENT_ID,
-        hasGoogleClientSecret: !!process.env.GOOGLE_CLIENT_SECRET,
-        nextPublicAppUrl: process.env.NEXT_PUBLIC_APP_URL,
-        nodeEnv: process.env.NODE_ENV,
-      });
-      
+      console.error('❌ [Google OAuth Authorize] GOOGLE_CLIENT_ID no configurado');
       return NextResponse.json({ 
         error: 'GOOGLE_CLIENT_ID no configurado',
-        details: 'Por favor, verifica que la variable de entorno GOOGLE_CLIENT_ID esté configurada en Vercel',
-        hint: 'Ve a Vercel Dashboard → Settings → Environment Variables y verifica que GOOGLE_CLIENT_ID esté configurado para producción'
+        details: 'Por favor, verifica que la variable de entorno GOOGLE_CLIENT_ID esté configurada',
+        hint: 'Verifica que la variable tenga exactamente el nombre GOOGLE_CLIENT_ID'
+      }, { status: 500 });
+    }
+
+    if (!googleClientId.endsWith('.apps.googleusercontent.com')) {
+      console.error('❌ [Google OAuth Authorize] GOOGLE_CLIENT_ID tiene formato inválido');
+      return NextResponse.json({ 
+        error: 'GOOGLE_CLIENT_ID inválido',
+        details: 'El Client ID debe terminar en .apps.googleusercontent.com',
+        hint: `Client ID recibido: ${googleClientId.substring(0, 30)}...`
       }, { status: 500 });
     }
 
     // Construir URL de autorización de Google directamente para tener control del state
+    const clientId = googleClientId;
+    
+    console.log('🔵 [Google OAuth Authorize] Configuración:', {
+      coachId,
+      redirectUri,
+      appUrl,
+      clientIdPrefix: clientId.substring(0, 20),
+      clientIdSuffix: clientId.substring(clientId.length - 10),
+      clientIdLength: clientId.length,
+      hasClientId: !!clientId,
+      hasClientSecret: !!googleClientSecret,
+    });
+
     const params = new URLSearchParams({
-      client_id: process.env.GOOGLE_CLIENT_ID || '',
+      client_id: clientId,
       redirect_uri: redirectUri,
       response_type: 'code',
       scope: 'https://www.googleapis.com/auth/calendar https://www.googleapis.com/auth/calendar.events',
@@ -72,13 +79,8 @@ export async function GET(request: NextRequest) {
 
     const authUrl = `https://accounts.google.com/o/oauth2/v2/auth?${params.toString()}`;
 
-    console.log('🔗 Redirigiendo a Google Calendar OAuth:', authUrl);
-    console.log('📋 Parámetros:', {
-      coachId,
-      redirectUri,
-      appUrl,
-      hasClientId: !!process.env.GOOGLE_CLIENT_ID
-    });
+    console.log('🔗 [Google OAuth Authorize] Redirigiendo a Google Calendar OAuth');
+    console.log('📋 [Google OAuth Authorize] Redirect URI:', redirectUri);
 
     // Redirigir a Google con headers explícitos
     return NextResponse.redirect(authUrl, {
