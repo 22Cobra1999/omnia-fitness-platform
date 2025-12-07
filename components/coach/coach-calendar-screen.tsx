@@ -419,7 +419,7 @@ export default function CoachCalendarScreen() {
                     {hasEvents && (
                       <div className="flex items-center justify-center gap-1 mt-0.5">
                         {googleCount > 0 && (
-                          <span className="text-[10px] font-semibold text-[#FFB366] leading-none">
+                          <span className="text-[10px] font-semibold text-blue-400 leading-none">
                             {googleCount}
                           </span>
                         )}
@@ -824,8 +824,19 @@ export default function CoachCalendarScreen() {
                       <Calendar className="h-4 w-4 text-[#FF7939]" />
                       <span className="text-sm font-medium text-white">Resumen de Hoy</span>
                     </div>
-                    <div className="text-xs text-gray-400">
-                      {todayEvents.length} {todayEvents.length === 1 ? 'evento' : 'eventos'}
+                    <div className="flex items-center gap-4 text-xs">
+                      <div className="flex items-center gap-1">
+                        <span className="text-blue-400 font-medium">
+                          {todayEvents.filter(e => e.is_google_event || e.source === 'google_calendar').length}
+                        </span>
+                        <span className="text-gray-400">de calendar</span>
+                      </div>
+                      <div className="flex items-center gap-1">
+                        <span className="text-[#FF7939] font-medium">
+                          {todayEvents.filter(e => !e.is_google_event && e.source !== 'google_calendar').length}
+                        </span>
+                        <span className="text-gray-400">eventos de omnia</span>
+                      </div>
                     </div>
                   </div>
                 </CardContent>
