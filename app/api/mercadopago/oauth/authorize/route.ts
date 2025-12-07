@@ -46,7 +46,8 @@ export async function GET(request: NextRequest) {
     const timestamp = Date.now();
     
     // URL de autorización con todos los parámetros para forzar login
-    const authUrl = new URL('https://auth.mercadopago.com/authorization');
+    // Usar auth.mercadopago.com.ar en lugar de .com para Argentina
+    const authUrl = new URL('https://auth.mercadopago.com.ar/authorization');
     authUrl.searchParams.set('client_id', clientId);
     authUrl.searchParams.set('response_type', 'code');
     authUrl.searchParams.set('platform_id', 'mp');
@@ -65,6 +66,12 @@ export async function GET(request: NextRequest) {
     
     // Agregar parámetro adicional para forzar nueva sesión
     authUrl.searchParams.set('approval_prompt', 'force');
+    
+    // Agregar parámetro para forzar selección de cuenta
+    authUrl.searchParams.set('select_account', 'true');
+    
+    // Agregar parámetro adicional para evitar reutilización de sesión
+    authUrl.searchParams.set('session_id', `omnia_${timestamp}`);
     
     const finalAuthUrl = authUrl.toString();
     console.log('🔗 URL de autorización de Mercado Pago:', finalAuthUrl);

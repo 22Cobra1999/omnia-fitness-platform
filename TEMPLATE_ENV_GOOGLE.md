@@ -56,3 +56,4 @@ NEXT_PUBLIC_APP_URL=http://localhost:3000
 - Después de configurar, considera rotar el Client Secret en Google Cloud Console
 
 
+

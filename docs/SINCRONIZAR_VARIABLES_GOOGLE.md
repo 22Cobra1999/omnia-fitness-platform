@@ -126,3 +126,4 @@ Después de agregar las variables:
 ¿Necesitas ayuda? Verifica que todas las variables estén configuradas correctamente.
 
 
+
