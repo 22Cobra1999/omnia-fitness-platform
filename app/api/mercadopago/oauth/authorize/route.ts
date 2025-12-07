@@ -47,18 +47,14 @@ export async function GET(request: NextRequest) {
     authUrl.searchParams.set('redirect_uri', redirectUri);
     authUrl.searchParams.set('state', coachId); // Pasar coach_id en el state
     
-    // Forzar pantalla de selección de cuenta/login
-    // prompt=select_account: muestra selector de cuenta para elegir entre cuentas o loguearse con otra
-    // Esto permite al usuario elegir si usar la cuenta logueada o iniciar sesión con otra
-    authUrl.searchParams.set('prompt', 'select_account');
+    // Forzar pantalla de login siempre
+    // prompt=login: fuerza mostrar la pantalla de login incluso si hay sesión activa
+    // Esto asegura que el usuario siempre tenga que iniciar sesión
+    authUrl.searchParams.set('prompt', 'login');
     
-    // Parámetros adicionales para asegurar que se muestre la pantalla de selección
+    // Parámetros adicionales para asegurar que se muestre la pantalla de login
     // force_login: fuerza mostrar la pantalla de login incluso si hay sesión activa
     authUrl.searchParams.set('force_login', 'true');
-    
-    // Agregar parámetro adicional para forzar la pantalla de selección
-    // Algunas implementaciones OAuth usan este parámetro
-    authUrl.searchParams.set('approval_prompt', 'force');
 
     const finalAuthUrl = authUrl.toString();
     console.log('🔗 Redirigiendo a Mercado Pago:', finalAuthUrl);
