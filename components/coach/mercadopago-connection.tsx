@@ -54,6 +54,17 @@ export function MercadoPagoConnection() {
       loadCredentials();
       window.history.replaceState({}, '', window.location.pathname);
     }
+    
+    // Escuchar mensajes del popup
+    const handleMessage = (event: MessageEvent) => {
+      if (event.data?.type === 'MP_AUTH_SUCCESS') {
+        loadCredentials();
+        setConnecting(false);
+      }
+    };
+    
+    window.addEventListener('message', handleMessage);
+    return () => window.removeEventListener('message', handleMessage);
   }, []);
 
 
@@ -107,13 +118,64 @@ export function MercadoPagoConnection() {
     setConnecting(true);
     try {
       // Usar el endpoint intermedio que construye la URL de Mercado Pago
-      // y redirige correctamente. Abrir en la misma ventana para que funcione.
       const baseUrl = typeof window !== 'undefined' ? window.location.origin : '';
       const authUrl = `${baseUrl}/api/mercadopago/oauth/authorize?coach_id=${user.id}`;
       
-      // Abrir directamente en la misma ventana para que la redirección funcione correctamente
-      // Esto asegura que Mercado Pago se abra y el usuario pueda loguearse
-      window.location.href = authUrl;
+      // Abrir en una nueva ventana para evitar que use cookies de sesión existentes
+      // Esto fuerza a Mercado Pago a mostrar la pantalla de login
+      const popup = window.open(
+        authUrl,
+        'MercadoPagoAuth',
+        'width=600,height=700,scrollbars=yes,resizable=yes,noopener,noreferrer'
+      );
+      
+      // Si el popup fue bloqueado, usar redirección normal
+      if (!popup || popup.closed || typeof popup.closed === 'undefined') {
+        // Fallback: redirigir en la misma ventana
+        window.location.href = authUrl;
+        return;
+      }
+      
+      // Monitorear cuando se cierre la ventana o cuando se complete la autorización
+      const checkClosed = setInterval(() => {
+        try {
+          if (popup.closed) {
+            clearInterval(checkClosed);
+            setConnecting(false);
+            // Recargar credenciales después de que se cierre la ventana
+            setTimeout(() => {
+              loadCredentials();
+            }, 1000);
+          } else {
+            // Verificar si la ventana fue redirigida a nuestro callback
+            try {
+              const popupUrl = popup.location.href;
+              if (popupUrl.includes('/api/mercadopago/oauth/callback')) {
+                clearInterval(checkClosed);
+                popup.close();
+                setConnecting(false);
+                // Recargar credenciales
+                setTimeout(() => {
+                  loadCredentials();
+                }, 500);
+              }
+            } catch (e) {
+              // Cross-origin error, ignorar
+            }
+          }
+        } catch (e) {
+          // Error al acceder a popup, puede ser cross-origin
+        }
+      }, 500);
+      
+      // Timeout de seguridad: cerrar después de 5 minutos
+      setTimeout(() => {
+        clearInterval(checkClosed);
+        if (popup && !popup.closed) {
+          popup.close();
+        }
+        setConnecting(false);
+      }, 5 * 60 * 1000);
       
     } catch (error) {
       console.error('Error al conectar:', error);

@@ -40,7 +40,8 @@ export async function GET(request: NextRequest) {
     }
 
     // Construir URL de autorización de Mercado Pago
-    const authUrl = new URL('https://auth.mercadopago.com.ar/authorization');
+    // Usar el dominio .com en lugar de .com.ar para evitar cookies de sesión
+    const authUrl = new URL('https://auth.mercadopago.com/authorization');
     authUrl.searchParams.set('client_id', clientId);
     authUrl.searchParams.set('response_type', 'code');
     authUrl.searchParams.set('platform_id', 'mp');
@@ -63,6 +64,9 @@ export async function GET(request: NextRequest) {
     
     // Agregar parámetro de no-cache para evitar reutilización de sesión
     authUrl.searchParams.set('_', Date.now().toString());
+    
+    // Agregar parámetro adicional para forzar logout primero
+    authUrl.searchParams.set('logout', 'true');
 
     const finalAuthUrl = authUrl.toString();
     console.log('🔗 Redirigiendo a Mercado Pago:', finalAuthUrl);
