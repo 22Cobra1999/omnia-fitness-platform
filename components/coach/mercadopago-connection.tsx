@@ -140,7 +140,6 @@ export function MercadoPagoConnection() {
       
       // Usar página intermedia que intenta aislar la sesión usando iframe con sandbox
       // Esto intenta crear una sesión independiente sin cookies compartidas
-      const baseUrl = typeof window !== 'undefined' ? window.location.origin : '';
       const isolatedPageUrl = `${baseUrl}/mercadopago-logout?auth_url=${encodeURIComponent(authUrl)}`;
       
       // Abrir popup con la página intermedia que intenta aislar la sesión
