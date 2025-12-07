@@ -23,7 +23,7 @@ if [ -f .env.local ]; then
         fi
         
         # Verificar que sea el Client ID correcto
-        EXPECTED_ID="839231165191-tuk2lnjn2e9upjfj42o4msrkv9tf9puf.apps.googleusercontent.com"
+        EXPECTED_ID="839231165191-20rhurcr1eure60noskn447i86jh95j3.apps.googleusercontent.com"
         if [ "$CLIENT_ID" == "$EXPECTED_ID" ]; then
             echo "✅ Client ID coincide con el esperado"
         else
@@ -57,7 +57,7 @@ fi
 echo ""
 echo "📋 Verificaciones en Google Cloud Console:"
 echo "   1. Ve a: https://console.cloud.google.com/apis/credentials"
-echo "   2. Verifica que el Client ID sea: 839231165191-tuk2lnjn2e9upjfj42o4msrkv9tf9puf.apps.googleusercontent.com"
+echo "   2. Verifica que el Client ID sea: 839231165191-20rhurcr1eure60noskn447i86jh95j3.apps.googleusercontent.com"
 echo "   3. Verifica que los Redirect URIs incluyan:"
 echo "      - http://localhost:3000/api/google/oauth/callback"
 echo "      - https://omnia-app.vercel.app/api/google/oauth/callback"
