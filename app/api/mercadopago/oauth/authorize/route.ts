@@ -68,8 +68,6 @@ export async function GET(request: NextRequest) {
     logoutUrl.searchParams.set('redirect_uri', authUrl.toString());
     
     const finalAuthUrl = logoutUrl.toString();
-
-    const finalAuthUrl = authUrl.toString();
     console.log('🔗 URL de autorización de Mercado Pago:', finalAuthUrl);
     console.log('📋 Parámetros:', {
       clientId,
