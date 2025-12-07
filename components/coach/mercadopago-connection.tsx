@@ -115,6 +115,17 @@ export function MercadoPagoConnection() {
   const handleConnect = async () => {
     if (!user?.id) return;
 
+    // Mostrar confirmación antes de abrir el popup
+    // Informar al usuario que si tiene sesión activa en Mercado Pago, se conectará automáticamente
+    const confirmMessage = 
+      'Si ya tienes una sesión activa en Mercado Pago, se conectará automáticamente a esa cuenta.\n\n' +
+      'Si quieres usar una cuenta diferente, cierra sesión en Mercado Pago primero.\n\n' +
+      '¿Deseas continuar?';
+    
+    if (!window.confirm(confirmMessage)) {
+      return;
+    }
+
     setConnecting(true);
     try {
       // Obtener la URL de autorización del endpoint (sin hacer redirect)
@@ -138,8 +149,8 @@ export function MercadoPagoConnection() {
         throw new Error('No se recibió la URL de autorización');
       }
       
-      // Abrir en una nueva ventana SIN cookies compartidas
-      // Usar about:blank primero para evitar que se comparta la sesión
+      // Intentar abrir primero una página de logout de Mercado Pago en el popup
+      // Luego redirigir a la autorización
       const popup = window.open(
         'about:blank',
         'MercadoPagoAuth',
@@ -153,9 +164,26 @@ export function MercadoPagoConnection() {
         return;
       }
       
-      // Ahora navegar a la URL de autorización en el popup
-      // Esto evita que se compartan cookies de sesión
-      popup.location.href = authUrl;
+      // Primero intentar abrir logout (si existe) y luego autorización
+      // Si el logout no funciona, simplemente ir a autorización
+      const logoutUrl = 'https://www.mercadopago.com.ar/logout';
+      
+      // Abrir logout primero, luego después de un breve delay, ir a autorización
+      popup.location.href = logoutUrl;
+      
+      // Esperar un momento y luego redirigir a autorización
+      // Esto intenta limpiar la sesión antes de autorizar
+      setTimeout(() => {
+        try {
+          if (popup && !popup.closed) {
+            popup.location.href = authUrl;
+          }
+        } catch (e) {
+          // Si hay error, intentar directamente con autorización
+          console.log('Error al redirigir después de logout, usando autorización directa');
+          popup.location.href = authUrl;
+        }
+      }, 1000);
       
       // Monitorear cuando se cierre la ventana o cuando se complete la autorización
       const checkClosed = setInterval(() => {
