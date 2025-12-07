@@ -125,9 +125,42 @@ export async function GET(request: NextRequest) {
     }
     
     // Redirigir a la página de perfil con éxito (flujo normal de conexión)
-    return NextResponse.redirect(
-      `${appUrl}/?tab=profile&mp_auth=success`
-    );
+    // Si viene de un popup, cerrar la ventana automáticamente
+    const returnUrl = `${appUrl}/?tab=profile&mp_auth=success`;
+    
+    // Crear página HTML que cierra la ventana si es popup
+    const html = `
+      <!DOCTYPE html>
+      <html>
+        <head>
+          <title>Autorización completada</title>
+        </head>
+        <body>
+          <script>
+            // Cerrar ventana si es popup
+            if (window.opener) {
+              window.opener.postMessage({ type: 'MP_AUTH_SUCCESS' }, '*');
+              setTimeout(() => {
+                window.close();
+              }, 500);
+            } else {
+              // Si no es popup, redirigir normalmente
+              window.location.href = '${returnUrl}';
+            }
+          </script>
+          <p style="text-align: center; padding: 20px; font-family: Arial, sans-serif;">
+            Autorización completada. Cerrando ventana...
+          </p>
+        </body>
+      </html>
+    `;
+    
+    return new NextResponse(html, {
+      status: 200,
+      headers: {
+        'Content-Type': 'text/html',
+      },
+    });
 
   } catch (error: any) {
     console.error('Error en OAuth callback:', error);
