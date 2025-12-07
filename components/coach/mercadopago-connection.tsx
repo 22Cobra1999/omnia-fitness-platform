@@ -138,17 +138,14 @@ export function MercadoPagoConnection() {
         throw new Error('No se recibió la URL de autorización');
       }
       
-      // Mostrar mensaje informativo antes de abrir
-      toast.info('Se abrirá una ventana para conectar con Mercado Pago. Si ya tienes sesión activa, se conectará automáticamente. Si quieres usar otra cuenta, cierra sesión en Mercado Pago primero.', {
-        duration: 5000,
-      });
+      // Usar página intermedia que intenta aislar la sesión usando iframe con sandbox
+      // Esto intenta crear una sesión independiente sin cookies compartidas
+      const baseUrl = typeof window !== 'undefined' ? window.location.origin : '';
+      const isolatedPageUrl = `${baseUrl}/mercadopago-logout?auth_url=${encodeURIComponent(authUrl)}`;
       
-      // Pequeño delay para que el usuario vea el mensaje
-      await new Promise(resolve => setTimeout(resolve, 500));
-      
-      // Abrir popup con la URL de autorización directamente
+      // Abrir popup con la página intermedia que intenta aislar la sesión
       const popup = window.open(
-        authUrl,
+        isolatedPageUrl,
         'MercadoPagoAuth',
         'width=600,height=700,scrollbars=yes,resizable=yes'
       );
