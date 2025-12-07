@@ -396,6 +396,10 @@ export default function CoachCalendarScreen() {
             <div className="grid grid-cols-7 gap-2">
               {daysInMonth.map(day => {
                 const dayEvents = getEventsForDate(day)
+                const googleEvents = dayEvents.filter(e => e.is_google_event || e.source === 'google_calendar')
+                const omniaEvents = dayEvents.filter(e => !e.is_google_event && e.source !== 'google_calendar')
+                const googleCount = googleEvents.length
+                const omniaCount = omniaEvents.length
                 const hasEvents = dayEvents.length > 0
                 const isSelected = selectedDate && isSameDay(day, selectedDate)
                 const isTodayDate = isToday(day)
@@ -405,17 +409,25 @@ export default function CoachCalendarScreen() {
                     key={day.toISOString()}
                     onClick={() => setSelectedDate(day)}
                     className={`
-                      aspect-square p-2 rounded-lg text-sm font-medium transition-colors
+                      aspect-square p-2 rounded-lg text-sm font-medium transition-colors flex flex-col items-center justify-center
                       ${isSelected ? 'bg-[#FF7939] text-white' : ''}
                       ${isTodayDate && !isSelected ? 'bg-zinc-800 text-white' : ''}
                       ${!isSelected && !isTodayDate ? 'text-gray-400 hover:bg-zinc-800' : ''}
-                      ${hasEvents && !isSelected ? 'border border-[#FF7939]' : ''}
                     `}
                   >
-                    <div>{format(day, 'd')}</div>
+                    <div className="text-center">{format(day, 'd')}</div>
                     {hasEvents && (
-                      <div className="flex justify-center mt-1">
-                        <div className="w-1 h-1 rounded-full bg-[#FF7939]"></div>
+                      <div className="flex items-center justify-center gap-1 mt-0.5">
+                        {googleCount > 0 && (
+                          <span className="text-[10px] font-semibold text-[#FFB366] leading-none">
+                            {googleCount}
+                          </span>
+                        )}
+                        {omniaCount > 0 && (
+                          <span className="text-[10px] font-semibold text-[#FF7939] leading-none">
+                            {omniaCount}
+                          </span>
+                        )}
                       </div>
                     )}
                   </button>
@@ -433,25 +445,20 @@ export default function CoachCalendarScreen() {
               <span className="text-sm font-medium text-white">Resumen del Mes</span>
             </div>
             <div className="flex items-center gap-4 text-xs">
-              <div className="flex items-center gap-1">
-                <span className="text-white font-medium">{events.length}</span>
-                <span className="text-gray-400">eventos</span>
+              <div className="flex items-center gap-2">
+                <div className="flex items-center gap-1">
+                  <span className="text-[#FFB366] font-medium">
+                    {events.filter(e => e.is_google_event || e.source === 'google_calendar').length}
+                  </span>
+                  <span className="text-gray-400">Calendar</span>
+                </div>
+                <div className="flex items-center gap-1">
+                  <span className="text-[#FF7939] font-medium">
+                    {events.filter(e => !e.is_google_event && e.source !== 'google_calendar').length}
+                  </span>
+                  <span className="text-gray-400">Omnia</span>
+                </div>
               </div>
-              <div className="flex items-center gap-1">
-                <span className="text-[#FF7939] font-medium">
-                  {events.filter(e => e.status === 'scheduled').length}
-                </span>
-                <span className="text-gray-400">programadas</span>
-              </div>
-              {/* TEMPORALMENTE DESHABILITADO HASTA EJECUTAR SQL */}
-              {/* 
-              <div className="flex items-center gap-1">
-                <span className="text-blue-400 font-medium">
-                  {events.filter(e => e.meet_link).length}
-                </span>
-                <span className="text-gray-400">con Meet</span>
-              </div>
-              */}
             </div>
           </div>
         </div>
@@ -649,40 +656,57 @@ export default function CoachCalendarScreen() {
                     })}
                   </div>
                 ) : (
-                  // Vista completa: mostrar todas las horas si hay eventos
+                  // Vista completa: mostrar horarios clave (6am, 12pm, 6pm, 12am) más horarios de eventos
                   <div className="divide-y divide-zinc-800">
-                    {hoursOfDay.map(hour => {
-                      const hourEvents = getEventsForHour(hour)
-                      const hourStart = new Date(viewDate)
-                      hourStart.setHours(hour, 0, 0, 0)
-                      const hourEnd = new Date(viewDate)
-                      hourEnd.setHours(hour, 59, 59, 999)
-                      const now = new Date()
-                      const isPast = hourEnd < now && !isSameDay(hourEnd, now) || (isSameDay(hourEnd, now) && hourEnd < now)
-                      const isCurrentHour = isSameDay(viewDate, now) && now.getHours() === hour
+                    {(() => {
+                      // Obtener horarios únicos de los eventos
+                      const eventHours = new Set<number>()
+                      todayEvents.forEach(event => {
+                        const eventDate = new Date(event.start_time)
+                        if (isSameDay(eventDate, viewDate)) {
+                          eventHours.add(eventDate.getHours())
+                        }
+                      })
 
-                      return (
-                        <div
-                          key={hour}
-                          className={`
-                            min-h-[80px] p-3 flex gap-4
-                            ${isPast ? 'opacity-50' : ''}
-                            ${isCurrentHour ? 'bg-zinc-800/30' : ''}
-                          `}
-                        >
-                          {/* Hora */}
-                          <div className="w-16 flex-shrink-0">
-                            <div className="text-sm font-medium text-gray-400">
-                              {format(hourStart, 'HH:mm')}
+                      // Horarios clave: 6am, 12pm, 6pm, 12am (0)
+                      const keyHours = [6, 12, 18, 0]
+                      
+                      // Combinar horarios clave con horarios de eventos, eliminar duplicados y ordenar
+                      const allHours = Array.from(new Set([...keyHours, ...eventHours])).sort((a, b) => a - b)
+
+                      return allHours.map(hour => {
+                        const hourEvents = getEventsForHour(hour)
+                        const hourStart = new Date(viewDate)
+                        hourStart.setHours(hour, 0, 0, 0)
+                        const hourEnd = new Date(viewDate)
+                        hourEnd.setHours(hour, 59, 59, 999)
+                        const now = new Date()
+                        const isPast = hourEnd < now && !isSameDay(hourEnd, now) || (isSameDay(hourEnd, now) && hourEnd < now)
+                        const isCurrentHour = isSameDay(viewDate, now) && now.getHours() === hour
+                        const isKeyHour = keyHours.includes(hour)
+
+                        return (
+                          <div
+                            key={hour}
+                            className={`
+                              min-h-[80px] p-3 flex gap-4
+                              ${isPast ? 'opacity-50' : ''}
+                              ${isCurrentHour ? 'bg-zinc-800/30' : ''}
+                            `}
+                          >
+                            {/* Hora */}
+                            <div className="w-16 flex-shrink-0">
+                              <div className={`text-sm font-medium ${isKeyHour ? 'text-gray-300' : 'text-gray-400'}`}>
+                                {format(hourStart, 'HH:mm')}
+                              </div>
                             </div>
-                          </div>
 
-                          {/* Eventos de esta hora */}
-                          <div className="flex-1 space-y-2">
-                            {hourEvents.length === 0 ? (
-                              <div className="text-xs text-gray-600">Sin eventos</div>
-                            ) : (
-                              hourEvents.map(event => {
+                            {/* Eventos de esta hora */}
+                            <div className="flex-1 space-y-2">
+                              {hourEvents.length === 0 ? (
+                                <div className="text-xs text-gray-600">Sin eventos</div>
+                              ) : (
+                                hourEvents.map(event => {
                                 const isGoogleEvent = event.is_google_event || event.source === 'google_calendar'
                                 return (
                                   <div
@@ -777,7 +801,8 @@ export default function CoachCalendarScreen() {
                           </div>
                         </div>
                       )
-                    })}
+                    })
+                    })()}
                   </div>
                 )}
               </CardContent>
