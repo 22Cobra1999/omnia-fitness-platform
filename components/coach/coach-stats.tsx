@@ -12,6 +12,7 @@ import {
   TrendingDown,
   Loader2
 } from 'lucide-react';
+import { useAuth } from '@/contexts/auth-context';
 
 interface CoachStats {
   responseRate: number;
@@ -73,31 +74,27 @@ function StatCard({ title, value, subtitle, icon, status, trend }: StatCardProps
 }
 
 export function CoachStats() {
+  const { user } = useAuth();
   const [stats, setStats] = useState<CoachStats | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
     const fetchStats = async () => {
+      if (!user?.id) {
+        setLoading(false);
+        return;
+      }
+
       try {
         setLoading(true);
         setError(null);
 
-        // Obtener el coach_id del usuario actual
-        const response = await fetch('/api/auth/user');
-        if (!response.ok) {
-          throw new Error('Error al obtener usuario');
-        }
-        const user = await response.json();
-
-        if (!user?.id) {
-          throw new Error('Usuario no encontrado');
-        }
-
         // Obtener estadísticas
         const statsResponse = await fetch(`/api/coach/stats?coach_id=${user.id}`);
         if (!statsResponse.ok) {
-          throw new Error('Error al obtener estadísticas');
+          const errorData = await statsResponse.json();
+          throw new Error(errorData.error || 'Error al obtener estadísticas');
         }
 
         const statsData = await statsResponse.json();
@@ -111,7 +108,7 @@ export function CoachStats() {
     };
 
     fetchStats();
-  }, []);
+  }, [user?.id]);
 
   if (loading) {
     return (
