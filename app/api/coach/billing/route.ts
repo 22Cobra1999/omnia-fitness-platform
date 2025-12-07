@@ -201,10 +201,14 @@ export async function GET(request: NextRequest) {
     });
 
   } catch (error: any) {
-    console.error('Error en billing endpoint:', error);
+    console.error('❌ [Billing] Error en billing endpoint:', {
+      error: error.message,
+      stack: error.stack,
+      name: error.name,
+    });
     return NextResponse.json({ 
       error: 'Error interno del servidor',
-      details: error.message 
+      details: process.env.NODE_ENV === 'development' ? error.message : 'Error procesando facturación'
     }, { status: 500 });
   }
 }
