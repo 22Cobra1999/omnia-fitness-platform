@@ -29,7 +29,8 @@ export async function GET(request: NextRequest) {
       );
     }
 
-    const coachId = state;
+    // Extraer coachId del state (puede tener formato coachId o coachId_timestamp)
+    const coachId = state.split('_')[0];
     const clientId = process.env.MERCADOPAGO_CLIENT_ID?.trim();
     const clientSecret = process.env.MERCADOPAGO_CLIENT_SECRET?.trim();
     const redirectUri = process.env.NEXT_PUBLIC_MERCADOPAGO_REDIRECT_URI?.trim() || 

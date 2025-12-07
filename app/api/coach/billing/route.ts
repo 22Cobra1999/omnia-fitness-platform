@@ -66,8 +66,32 @@ export async function GET(request: NextRequest) {
 
     // Construir filtro de fecha primero (necesario para suscripciones)
     const now = new Date();
-    const targetMonth = month ? parseInt(month.split('-')[1]) : now.getMonth() + 1;
-    const targetYear = year ? parseInt(year) : now.getFullYear();
+    let targetMonth: number;
+    let targetYear: number;
+    
+    if (month) {
+      // month viene como "YYYY-MM"
+      const parts = month.split('-');
+      targetYear = parseInt(parts[0]);
+      targetMonth = parseInt(parts[1]);
+    } else {
+      targetMonth = now.getMonth() + 1;
+      targetYear = now.getFullYear();
+    }
+    
+    if (year) {
+      targetYear = parseInt(year);
+    }
+    
+    // Validar que el mes y año sean válidos
+    if (isNaN(targetMonth) || targetMonth < 1 || targetMonth > 12) {
+      return NextResponse.json({ error: 'Mes inválido' }, { status: 400 });
+    }
+    
+    if (isNaN(targetYear) || targetYear < 2000 || targetYear > 2100) {
+      return NextResponse.json({ error: 'Año inválido' }, { status: 400 });
+    }
+    
     const startDate = new Date(targetYear, targetMonth - 1, 1).toISOString();
     const endDate = new Date(targetYear, targetMonth, 0, 23, 59, 59).toISOString();
 

@@ -45,16 +45,24 @@ export async function GET(request: NextRequest) {
     authUrl.searchParams.set('response_type', 'code');
     authUrl.searchParams.set('platform_id', 'mp');
     authUrl.searchParams.set('redirect_uri', redirectUri);
-    authUrl.searchParams.set('state', coachId); // Pasar coach_id en el state
     
-    // Forzar pantalla de login siempre
+    // Agregar timestamp único al state para evitar reutilización de sesión
+    const stateWithTimestamp = `${coachId}_${Date.now()}`;
+    authUrl.searchParams.set('state', stateWithTimestamp);
+    
+    // Forzar pantalla de login siempre - múltiples parámetros para asegurar
     // prompt=login: fuerza mostrar la pantalla de login incluso si hay sesión activa
-    // Esto asegura que el usuario siempre tenga que iniciar sesión
     authUrl.searchParams.set('prompt', 'login');
     
-    // Parámetros adicionales para asegurar que se muestre la pantalla de login
     // force_login: fuerza mostrar la pantalla de login incluso si hay sesión activa
     authUrl.searchParams.set('force_login', 'true');
+    
+    // Agregar parámetro adicional para invalidar sesión existente
+    // login_hint vacío fuerza a mostrar la pantalla de login
+    authUrl.searchParams.set('login_hint', '');
+    
+    // Agregar parámetro de no-cache para evitar reutilización de sesión
+    authUrl.searchParams.set('_', Date.now().toString());
 
     const finalAuthUrl = authUrl.toString();
     console.log('🔗 Redirigiendo a Mercado Pago:', finalAuthUrl);
