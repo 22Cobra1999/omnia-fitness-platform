@@ -117,9 +117,22 @@ export function MercadoPagoConnection() {
 
     setConnecting(true);
     try {
-      // Usar el endpoint intermedio que construye la URL de Mercado Pago
+      // Obtener la URL de autorización del endpoint (sin hacer redirect)
       const baseUrl = typeof window !== 'undefined' ? window.location.origin : '';
-      const authUrl = `${baseUrl}/api/mercadopago/oauth/authorize?coach_id=${user.id}`;
+      const response = await fetch(
+        `${baseUrl}/api/mercadopago/oauth/authorize?coach_id=${user.id}&return_url=true`
+      );
+      
+      if (!response.ok) {
+        const error = await response.json();
+        throw new Error(error.error || 'Error al obtener URL de autorización');
+      }
+      
+      const { authUrl } = await response.json();
+      
+      if (!authUrl) {
+        throw new Error('No se recibió la URL de autorización');
+      }
       
       // Abrir en una nueva ventana para evitar que use cookies de sesión existentes
       // Esto fuerza a Mercado Pago a mostrar la pantalla de login

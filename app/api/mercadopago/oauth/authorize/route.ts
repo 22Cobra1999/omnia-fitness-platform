@@ -9,6 +9,7 @@ export async function GET(request: NextRequest) {
   try {
     const { searchParams } = new URL(request.url);
     const coachId = searchParams.get('coach_id');
+    const returnUrl = searchParams.get('return_url'); // Si viene este parámetro, devolver JSON en lugar de redirect
 
     if (!coachId) {
       return NextResponse.json({ error: 'coach_id es requerido' }, { status: 400 });
@@ -69,13 +70,27 @@ export async function GET(request: NextRequest) {
     authUrl.searchParams.set('logout', 'true');
 
     const finalAuthUrl = authUrl.toString();
-    console.log('🔗 Redirigiendo a Mercado Pago:', finalAuthUrl);
+    console.log('🔗 URL de autorización de Mercado Pago:', finalAuthUrl);
     console.log('📋 Parámetros:', {
       clientId,
       redirectUri,
       coachId,
-      appUrl
+      appUrl,
+      returnUrl
     });
+
+    // Si se solicita la URL (para popup), devolver JSON en lugar de redirect
+    if (returnUrl === 'true') {
+      return NextResponse.json({ 
+        authUrl: finalAuthUrl 
+      }, {
+        headers: {
+          'Cache-Control': 'no-cache, no-store, must-revalidate',
+          'Pragma': 'no-cache',
+          'Expires': '0',
+        }
+      });
+    }
 
     // Redirigir a Mercado Pago con headers explícitos
     // Usar 307 (Temporary Redirect) para mantener el método GET
