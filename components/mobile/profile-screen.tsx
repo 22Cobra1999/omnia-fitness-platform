@@ -45,10 +45,10 @@ import { DailyActivityRings } from "@/components/mobile/daily-activity-rings"
 import ActivityCalendar from "@/components/mobile/activity-calendar"
 import InjuriesModal from "@/components/mobile/injuries-modal"
 import { ConfirmationModal } from "@/components/ui/confirmation-modal"
-import { StorageUsageWidget } from "@/components/coach/storage-usage-widget"
 import { PlanManagement } from "@/components/coach/plan-management"
 import { MercadoPagoConnection } from "@/components/coach/mercadopago-connection"
 import { GoogleCalendarConnection } from "@/components/coach/google-calendar-connection"
+import { CoachStats } from "@/components/coach/coach-stats"
 
 interface ActivityRing {
   type: string
@@ -751,6 +751,9 @@ export function ProfileScreen() {
       {/* Suscripción, Mercado Pago y Google Calendar - Solo para coaches */}
       {isCoach && (
         <div className="space-y-3">
+          {/* Estadísticas del Coach */}
+          <CoachStats />
+          
           {/* Suscripción del Coach */}
           <PlanManagement />
           
@@ -766,10 +769,6 @@ export function ProfileScreen() {
         </div>
       )}
 
-      {/* Almacenamiento - Solo para coaches */}
-      {isCoach && (
-        <StorageUsageWidget />
-      )}
 
       {/* Anillos de actividad - Solo para clientes */}
       {!isCoach && (
