@@ -41,8 +41,9 @@ export async function GET(request: NextRequest) {
     }
 
     // Construir URL de autorización de Mercado Pago
-    // Primero hacer logout para limpiar sesión, luego redirigir a login
+    // Usar timestamp único para evitar reutilización de sesión
     const stateWithTimestamp = `${coachId}_${Date.now()}`;
+    const timestamp = Date.now();
     
     // URL de autorización con todos los parámetros para forzar login
     const authUrl = new URL('https://auth.mercadopago.com/authorization');
@@ -60,14 +61,12 @@ export async function GET(request: NextRequest) {
     authUrl.searchParams.set('force_login', 'true');
     
     // Agregar parámetro de no-cache para evitar reutilización de sesión
-    authUrl.searchParams.set('_', Date.now().toString());
+    authUrl.searchParams.set('_', timestamp.toString());
     
-    // Primero hacer logout para limpiar cualquier sesión existente
-    // Luego redirigir a la página de autorización
-    const logoutUrl = new URL('https://auth.mercadopago.com/logout');
-    logoutUrl.searchParams.set('redirect_uri', authUrl.toString());
+    // Agregar parámetro adicional para forzar nueva sesión
+    authUrl.searchParams.set('approval_prompt', 'force');
     
-    const finalAuthUrl = logoutUrl.toString();
+    const finalAuthUrl = authUrl.toString();
     console.log('🔗 URL de autorización de Mercado Pago:', finalAuthUrl);
     console.log('📋 Parámetros:', {
       clientId,
