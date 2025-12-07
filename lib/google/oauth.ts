@@ -271,5 +271,45 @@ export class GoogleOAuth {
   static isTokenExpired(expiresAt: Date): boolean {
     return new Date() >= expiresAt;
   }
+
+  /**
+   * List Google Calendar events within a time range
+   */
+  static async listCalendarEvents(
+    accessToken: string,
+    timeMin?: string,
+    timeMax?: string,
+    maxResults: number = 250
+  ): Promise<{ items: GoogleCalendarEvent[] }> {
+    const params = new URLSearchParams({
+      maxResults: maxResults.toString(),
+      singleEvents: 'true',
+      orderBy: 'startTime',
+    });
+
+    if (timeMin) {
+      params.append('timeMin', timeMin);
+    }
+    if (timeMax) {
+      params.append('timeMax', timeMax);
+    }
+
+    const response = await fetch(
+      `${this.GOOGLE_CALENDAR_API}/calendars/primary/events?${params.toString()}`,
+      {
+        headers: {
+          'Authorization': `Bearer ${accessToken}`,
+        },
+      }
+    );
+
+    if (!response.ok) {
+      const error = await response.text();
+      console.error('Google Calendar API error:', error);
+      throw new Error(`Failed to list calendar events: ${error}`);
+    }
+
+    return await response.json();
+  }
 }
 

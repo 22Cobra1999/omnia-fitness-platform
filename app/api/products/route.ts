@@ -75,11 +75,46 @@ export async function GET(request: NextRequest) {
   try {
     const supabase = await createRouteHandlerClient()
     
-    // Verificar autenticación
-    const { data: { user }, error: authError } = await supabase.auth.getUser()
-    if (authError || !user) {
-      return NextResponse.json({ error: 'No autorizado' }, { status: 401 })
+    // Intentar obtener sesión primero (más confiable en algunos casos)
+    const { data: sessionData, error: sessionError } = await supabase.auth.getSession()
+    
+    if (sessionError) {
+      console.error('❌ [GET /api/products] Error obteniendo sesión:', {
+        error: sessionError.message,
+        code: sessionError.status,
+        name: sessionError.name
+      })
     }
+    
+    // Verificar autenticación con getUser (más seguro)
+    const { data: { user }, error: authError } = await supabase.auth.getUser()
+    
+    if (authError) {
+      console.error('❌ [GET /api/products] Error de autenticación:', {
+        error: authError.message,
+        code: authError.status,
+        name: authError.name,
+        hasSession: !!sessionData?.session,
+        sessionError: sessionError?.message
+      })
+      return NextResponse.json({ 
+        error: 'No autorizado',
+        details: authError.message 
+      }, { status: 401 })
+    }
+    
+    if (!user) {
+      console.warn('⚠️ [GET /api/products] Usuario no encontrado en sesión', {
+        hasSession: !!sessionData?.session,
+        sessionUserId: sessionData?.session?.user?.id
+      })
+      return NextResponse.json({ 
+        error: 'No autorizado',
+        details: 'Usuario no autenticado'
+      }, { status: 401 })
+    }
+    
+    console.log('✅ [GET /api/products] Usuario autenticado:', user.id)
     
     // Obtener productos básicos (incluyendo is_paused)
     const { data: products, error: productsError } = await supabase
@@ -883,6 +918,15 @@ export async function PUT(request: NextRequest) {
       .reduce((sum, activity) => sum + normalizeCapacity(activity.capacity), 0)
     
     // Ajustar capacity (stock) automáticamente si excede los límites
+    console.log('📊 [PUT /api/products] Recepción de capacidad:', {
+      capacityFromBody: body.capacity,
+      capacityType: typeof body.capacity,
+      isNull: body.capacity === null,
+      isUndefined: body.capacity === undefined,
+      editingProductId: body.editingProductId,
+      isDocumentProduct
+    })
+    
     let adjustedCapacity = body.capacity ?? null
     
     if (isDocumentProduct) {
@@ -962,6 +1006,14 @@ export async function PUT(request: NextRequest) {
     )
     
     // Actualizar producto en activities
+    console.log('💾 [PUT /api/products] Actualizando capacidad:', {
+      capacityFromBody: body.capacity,
+      adjustedCapacity,
+      editingProductId: body.editingProductId,
+      capacityType: typeof body.capacity,
+      willUpdate: adjustedCapacity !== null && adjustedCapacity !== undefined
+    })
+    
     const { data: product, error: productError } = await supabase
       .from('activities')
       .update({

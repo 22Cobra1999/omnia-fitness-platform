@@ -6,12 +6,46 @@ export async function GET(request: NextRequest) {
   try {
     const supabase = await createRouteHandlerClient()
     
-    // Verificar autenticación
+    // Intentar obtener sesión primero (más confiable en algunos casos)
+    const { data: sessionData, error: sessionError } = await supabase.auth.getSession()
+    
+    if (sessionError) {
+      console.error('❌ [GET /api/coach/cafe] Error obteniendo sesión:', {
+        error: sessionError.message,
+        code: sessionError.status,
+        name: sessionError.name
+      })
+    }
+    
+    // Verificar autenticación con getUser (más seguro)
     const { data: { user }, error: authError } = await supabase.auth.getUser()
     
-    if (authError || !user) {
-      return NextResponse.json({ error: 'No autenticado' }, { status: 401 })
+    if (authError) {
+      console.error('❌ [GET /api/coach/cafe] Error de autenticación:', {
+        error: authError.message,
+        code: authError.status,
+        name: authError.name,
+        hasSession: !!sessionData?.session,
+        sessionError: sessionError?.message
+      })
+      return NextResponse.json({ 
+        error: 'No autenticado',
+        details: authError.message 
+      }, { status: 401 })
     }
+    
+    if (!user) {
+      console.warn('⚠️ [GET /api/coach/cafe] Usuario no encontrado en sesión', {
+        hasSession: !!sessionData?.session,
+        sessionUserId: sessionData?.session?.user?.id
+      })
+      return NextResponse.json({ 
+        error: 'No autenticado',
+        details: 'Usuario no autenticado'
+      }, { status: 401 })
+    }
+    
+    console.log('✅ [GET /api/coach/cafe] Usuario autenticado:', user.id)
 
     // Obtener información del café desde la tabla coaches
     const { data: coach, error: coachError } = await supabase

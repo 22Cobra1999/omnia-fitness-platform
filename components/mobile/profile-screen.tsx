@@ -48,6 +48,7 @@ import { ConfirmationModal } from "@/components/ui/confirmation-modal"
 import { StorageUsageWidget } from "@/components/coach/storage-usage-widget"
 import { PlanManagement } from "@/components/coach/plan-management"
 import { MercadoPagoConnection } from "@/components/coach/mercadopago-connection"
+import { GoogleCalendarConnection } from "@/components/coach/google-calendar-connection"
 
 interface ActivityRing {
   type: string
@@ -747,17 +748,20 @@ export function ProfileScreen() {
         </div>
       )}
 
-      {/* Suscripción y Mercado Pago - Solo para coaches */}
+      {/* Suscripción, Mercado Pago y Google Calendar - Solo para coaches */}
       {isCoach && (
-        <div className="flex gap-3">
-          {/* Suscripción del Coach - Ocupa más espacio */}
-          <div className="flex-[1.4] min-w-0">
-            <PlanManagement />
-          </div>
+        <div className="space-y-3">
+          {/* Suscripción del Coach */}
+          <PlanManagement />
           
-          {/* Mercado Pago - Ocupa menos espacio */}
-          <div className="flex-1 min-w-0">
-            <MercadoPagoConnection />
+          {/* Mercado Pago y Google Calendar lado a lado */}
+          <div className="flex gap-3">
+            <div className="flex-1 min-w-0">
+              <MercadoPagoConnection />
+            </div>
+            <div className="flex-1 min-w-0">
+              <GoogleCalendarConnection />
+            </div>
           </div>
         </div>
       )}

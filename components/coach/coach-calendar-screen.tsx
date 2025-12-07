@@ -3,7 +3,7 @@
 import { useState, useEffect, useCallback, useMemo } from "react"
 import { createClient } from "@/lib/supabase/supabase-client"
 import { Calendar, Clock, Video, ExternalLink, Users } from "lucide-react"
-import { format, startOfMonth, endOfMonth, eachDayOfInterval, isSameDay, isToday, addMonths, subMonths } from "date-fns"
+import { format, startOfMonth, endOfMonth, eachDayOfInterval, isSameDay, isToday, addMonths, subMonths, addDays, subDays } from "date-fns"
 import { es } from "date-fns/locale"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
@@ -35,6 +35,11 @@ interface CalendarEvent {
   max_participants?: number
   current_participants?: number
   activity_name?: string
+  // Google Calendar fields
+  is_google_event?: boolean
+  source?: string
+  location?: string
+  attendees?: Array<{ email: string; displayName?: string }>
 }
 
 export default function CoachCalendarScreen() {
@@ -46,6 +51,7 @@ export default function CoachCalendarScreen() {
   const [googleConnected, setGoogleConnected] = useState(false)
   const [selectedEvent, setSelectedEvent] = useState<CalendarEvent | null>(null)
   const [showEventModal, setShowEventModal] = useState(false)
+  const [viewMode, setViewMode] = useState<'month' | 'today'>('month') // ✅ Vista: mes o hoy
 
   const supabase = createClient()
 
@@ -71,7 +77,7 @@ export default function CoachCalendarScreen() {
 
   // Nota: La creación de Google Meet ahora es automática al crear eventos
 
-  // Obtener eventos del coach
+  // Obtener eventos del coach (Omnia + Google Calendar)
   const getCoachEvents = useCallback(async () => {
     try {
       setLoading(true)
@@ -88,7 +94,10 @@ export default function CoachCalendarScreen() {
       // 2. Obtener eventos del calendario del coach para el mes actual
       const monthStart = startOfMonth(currentDate)
       const monthEnd = endOfMonth(currentDate)
+      const monthNum = currentDate.getMonth()
+      const year = currentDate.getFullYear()
 
+      // Obtener eventos de Omnia
       const { data: calendarEvents, error: eventsError } = await supabase
         .from('calendar_events')
         .select(`
@@ -123,6 +132,36 @@ export default function CoachCalendarScreen() {
         return
       }
 
+      // Obtener eventos de Google Calendar en paralelo
+      let googleEvents: CalendarEvent[] = []
+      try {
+        const googleResponse = await fetch(
+          `/api/google/calendar/events?monthNum=${monthNum}&year=${year}`,
+          { credentials: 'include' }
+        )
+        const googleData = await googleResponse.json()
+        
+        if (googleData.success && googleData.events) {
+          googleEvents = googleData.events.map((event: any) => ({
+            ...event,
+            is_google_event: true,
+            source: 'google_calendar',
+          }))
+          setGoogleConnected(true)
+          console.log(`📅 Eventos de Google Calendar obtenidos: ${googleEvents.length}`)
+        } else if (googleData.connected === false) {
+          setGoogleConnected(false)
+        }
+      } catch (googleError) {
+        console.error("Error obteniendo eventos de Google Calendar:", googleError)
+        // No fallar si Google Calendar no está disponible
+        setGoogleConnected(false)
+      }
+
+      // Combinar eventos de Omnia y Google Calendar
+      let allEvents: CalendarEvent[] = []
+
+      // Procesar eventos de Omnia
       if (calendarEvents && calendarEvents.length > 0) {
         // Obtener nombres de clientes
         const clientIds = [...new Set(calendarEvents.map(e => e.client_id).filter(Boolean))]
@@ -160,25 +199,30 @@ export default function CoachCalendarScreen() {
           }
         }
 
-        // Formatear eventos con nombres de clientes y actividades
-        const formattedEvents = calendarEvents.map(event => ({
+        // Formatear eventos de Omnia con nombres de clientes y actividades
+        const formattedOmniaEvents = calendarEvents.map(event => ({
           ...event,
           client_name: event.client_id ? clientNames[event.client_id] : undefined,
-          // Usar product_name de la base de datos si existe, sino fallback a activityNames
           product_name: event.product_name || (event.activity_id ? activityNames[event.activity_id] : undefined),
+          is_google_event: false,
+          source: 'omnia',
         }))
 
-        // Debug: Log para verificar product_name
-        console.log('📊 Eventos formateados:', formattedEvents.map(e => ({
-          title: e.title,
-          product_name: e.product_name,
-          activity_id: e.activity_id
-        })))
-
-        setEvents(formattedEvents)
-      } else {
-        setEvents([])
+        allEvents = [...formattedOmniaEvents]
       }
+
+      // Agregar eventos de Google Calendar
+      allEvents = [...allEvents, ...googleEvents]
+
+      // Ordenar todos los eventos por fecha/hora
+      allEvents.sort((a, b) => {
+        const dateA = new Date(a.start_time).getTime()
+        const dateB = new Date(b.start_time).getTime()
+        return dateA - dateB
+      })
+
+      console.log(`📊 Total eventos: ${allEvents.length} (Omnia: ${calendarEvents?.length || 0}, Google: ${googleEvents.length})`)
+      setEvents(allEvents)
 
     } catch (err) {
       console.error("Error in getCoachEvents:", err)
@@ -186,7 +230,7 @@ export default function CoachCalendarScreen() {
     } finally {
       setLoading(false)
     }
-  }, [supabase, currentDate])
+  }, [supabase, currentDate, viewMode])
 
   // Generar días del mes
   const daysInMonth = useMemo(() => {
@@ -246,46 +290,95 @@ export default function CoachCalendarScreen() {
   }
 
   const selectedDateEvents = selectedDate ? getEventsForDate(selectedDate) : []
+  
+  // Fecha para la vista "hoy" - usar selectedDate si existe y estamos en vista hoy, sino usar hoy
+  const viewDate = viewMode === 'today' ? (selectedDate || new Date()) : new Date()
+  const todayEvents = getEventsForDate(viewDate)
+
+  // Función para cambiar la vista
+  const toggleView = () => {
+    if (viewMode === 'month') {
+      setViewMode('today')
+      if (!selectedDate) {
+        setSelectedDate(new Date()) // Seleccionar hoy cuando cambiamos a vista hoy
+      }
+    } else {
+      setViewMode('month')
+    }
+  }
+
+  // Función para ir a hoy
+  const goToToday = () => {
+    setCurrentDate(new Date())
+    setSelectedDate(new Date())
+    if (viewMode === 'month') {
+      setViewMode('today')
+    }
+  }
+
+  // Funciones para navegar días en vista "hoy"
+  const goToPreviousDay = () => {
+    const newDate = subDays(viewDate, 1)
+    setSelectedDate(newDate)
+  }
+
+  const goToNextDay = () => {
+    const newDate = addDays(viewDate, 1)
+    setSelectedDate(newDate)
+  }
+
+  // Generar horas del día (00:00 a 23:00)
+  const hoursOfDay = Array.from({ length: 24 }, (_, i) => i)
+
+  // Obtener eventos para una hora específica del día seleccionado
+  const getEventsForHour = (hour: number) => {
+    const dateToCheck = new Date(viewDate)
+    dateToCheck.setHours(0, 0, 0, 0)
+    return todayEvents.filter(event => {
+      const eventDate = new Date(event.start_time)
+      return eventDate.getHours() === hour && isSameDay(eventDate, viewDate)
+    })
+  }
 
   return (
     <div className="h-screen bg-[#121212] overflow-y-auto pb-20">
       <div className="p-4">
-        {/* Header */}
-        <div className="mb-6">
-          <h1 className="text-2xl font-bold text-white mb-2">Mi Calendario</h1>
-          <p className="text-gray-400 text-sm">Gestiona tus citas y eventos</p>
-        </div>
-
-        {/* Google Meet Integration Status */}
-        {!googleConnected && (
-          <div className="mb-4">
-            {/* Google connection button removed - to be reimplemented if needed */}
-            {/* <ConnectGoogleButton onConnected={checkGoogleConnection} /> */}
-          </div>
-        )}
-
-        {/* Navegación del mes */}
-        <div className="flex items-center justify-between mb-6">
+        {/* Botón de vista Hoy/Mes - Centrado */}
+        <div className="mb-6 flex items-center justify-center">
           <Button
             variant="ghost"
-            size="sm"
-            onClick={goToPreviousMonth}
-            className="text-white hover:bg-zinc-800"
+            onClick={viewMode === 'month' ? goToToday : toggleView}
+            className="text-[#FF7939] hover:bg-transparent hover:text-[#FF7939] font-light text-sm px-2 py-1 h-auto"
           >
-            ←
-          </Button>
-          <h2 className="text-lg font-semibold text-white capitalize">
-            {format(currentDate, 'MMMM yyyy', { locale: es })}
-          </h2>
-          <Button
-            variant="ghost"
-            size="sm"
-            onClick={goToNextMonth}
-            className="text-white hover:bg-zinc-800"
-          >
-            →
+            {viewMode === 'month' ? 'Hoy' : 'Mes'}
           </Button>
         </div>
+
+        {/* Vista Mes */}
+        {viewMode === 'month' && (
+          <>
+            {/* Navegación del mes */}
+            <div className="flex items-center justify-between mb-6">
+              <Button
+                variant="ghost"
+                size="sm"
+                onClick={goToPreviousMonth}
+                className="text-white hover:bg-zinc-800"
+              >
+                ←
+              </Button>
+              <h2 className="text-lg font-semibold text-[#FFB366] capitalize">
+                {format(currentDate, 'MMMM yyyy', { locale: es })}
+              </h2>
+              <Button
+                variant="ghost"
+                size="sm"
+                onClick={goToNextMonth}
+                className="text-white hover:bg-zinc-800"
+              >
+                →
+              </Button>
+            </div>
 
         {/* Calendario */}
         <Card className="bg-zinc-900 border-zinc-800 mb-6">
@@ -378,88 +471,335 @@ export default function CoachCalendarScreen() {
                 </p>
               ) : (
                 <div className="space-y-1">
-                  {selectedDateEvents.map(event => (
-                    <div
-                      key={event.id}
-                      onClick={() => handleEventClick(event)}
-                      className="bg-zinc-800/60 p-2 rounded-lg border border-zinc-700/30 hover:border-[#FF7939]/40 transition-colors cursor-pointer hover:bg-zinc-800/80"
-                    >
-                      {/* Diseño mejorado y más limpio */}
-                      <div className="space-y-3">
-                        {/* Header: Producto y título */}
-                        <div className="space-y-1">
-                          {event.product_name && (
-                            <div className="text-xs text-[#FF7939] font-medium uppercase tracking-wide">
-                              {event.product_name}
-                            </div>
-                          )}
-                          <h3 className="font-semibold text-white text-sm leading-tight">
-                            {event.title}
-                          </h3>
-                        </div>
-                        
-                        {/* Info bar: Compacta y organizada */}
-                        <div className="flex items-center justify-between">
-                          <div className="flex items-center gap-3 text-xs">
-                            {/* Horario */}
-                            <div className="flex items-center gap-1 text-gray-300">
-                              <Clock className="h-3 w-3" />
-                              <span className="font-mono">
-                                {format(new Date(event.start_time), 'HH:mm')}-{format(new Date(event.end_time), 'HH:mm')}
-                              </span>
-                            </div>
-                            
-                            {/* Participantes */}
-                            <div className="flex items-center gap-1 text-gray-300">
-                              <Users className="h-3 w-3" />
-                              <span className="font-medium">
-                                {event.current_participants || 0}/{event.max_participants || 'N/A'}
-                              </span>
-                            </div>
-                            
-                            {/* Tipo */}
-                            <div className="px-2 py-0.5 rounded-full bg-zinc-700 text-gray-300 text-xs font-medium">
-                              {event.event_type === 'workshop' ? 'Taller' : 
-                               event.event_type === 'consultation' ? 'Programa' : 
-                               event.event_type === 'other' ? 'Doc' : event.event_type}
-                            </div>
+                  {selectedDateEvents.map(event => {
+                    const isGoogleEvent = event.is_google_event || event.source === 'google_calendar'
+                    return (
+                      <div
+                        key={event.id}
+                        onClick={() => handleEventClick(event)}
+                        className={`p-2 rounded-lg border transition-colors cursor-pointer hover:bg-zinc-800/80 ${
+                          isGoogleEvent
+                            ? 'bg-blue-950/30 border-blue-700/50 hover:border-blue-600/70'
+                            : 'bg-zinc-800/60 border-zinc-700/30 hover:border-[#FF7939]/40'
+                        }`}
+                      >
+                        {/* Diseño mejorado y más limpio */}
+                        <div className="space-y-3">
+                          {/* Header: Producto y título */}
+                          <div className="space-y-1">
+                            {isGoogleEvent && (
+                              <div className="flex items-center gap-1 mb-1">
+                                <Calendar className="h-3 w-3 text-blue-400" />
+                                <div className="text-xs text-blue-400 font-medium">Google Calendar</div>
+                              </div>
+                            )}
+                            {event.product_name && !isGoogleEvent && (
+                              <div className="text-xs text-[#FF7939] font-medium uppercase tracking-wide">
+                                {event.product_name}
+                              </div>
+                            )}
+                            <h3 className="font-semibold text-white text-sm leading-tight">
+                              {event.title}
+                            </h3>
+                            {event.location && isGoogleEvent && (
+                              <div className="text-xs text-gray-400">{event.location}</div>
+                            )}
                           </div>
                           
-                          {/* Meet Link */}
-                          {event.meet_link && (
-                            <Button
-                              onClick={(e) => {
-                                e.stopPropagation()
-                                window.open(event.meet_link, '_blank')
-                              }}
-                              size="sm"
-                              variant="ghost"
-                              className="h-6 w-6 p-0 hover:bg-[#FF7939]/20 rounded-lg transition-colors"
-                            >
-                              <ExternalLink className="h-3 w-3 text-[#FF7939]" />
-                            </Button>
-                          )}
+                          {/* Info bar: Compacta y organizada */}
+                          <div className="flex items-center justify-between">
+                            <div className="flex items-center gap-3 text-xs">
+                              {/* Horario */}
+                              <div className="flex items-center gap-1 text-gray-300">
+                                <Clock className="h-3 w-3" />
+                                <span className="font-mono">
+                                  {format(new Date(event.start_time), 'HH:mm')}-{format(new Date(event.end_time), 'HH:mm')}
+                                </span>
+                              </div>
+                              
+                              {/* Participantes - Solo para eventos de Omnia */}
+                              {!isGoogleEvent && (
+                                <div className="flex items-center gap-1 text-gray-300">
+                                  <Users className="h-3 w-3" />
+                                  <span className="font-medium">
+                                    {event.current_participants || 0}/{event.max_participants || 'N/A'}
+                                  </span>
+                                </div>
+                              )}
+                              
+                              {/* Tipo - Solo para eventos de Omnia */}
+                              {!isGoogleEvent && (
+                                <div className="px-2 py-0.5 rounded-full bg-zinc-700 text-gray-300 text-xs font-medium">
+                                  {event.event_type === 'workshop' ? 'Taller' : 
+                                   event.event_type === 'consultation' ? 'Programa' : 
+                                   event.event_type === 'other' ? 'Doc' : event.event_type}
+                                </div>
+                              )}
+                              
+                              {/* Badge para eventos de Google */}
+                              {isGoogleEvent && (
+                                <div className="px-2 py-0.5 rounded-full bg-blue-900/50 text-blue-300 text-xs font-medium">
+                                  Google
+                                </div>
+                              )}
+                            </div>
+                            
+                            {/* Meet Link */}
+                            {event.meet_link && (
+                              <Button
+                                onClick={(e) => {
+                                  e.stopPropagation()
+                                  window.open(event.meet_link, '_blank')
+                                }}
+                                size="sm"
+                                variant="ghost"
+                                className="h-6 w-6 p-0 hover:bg-[#FF7939]/20 rounded-lg transition-colors"
+                              >
+                                <ExternalLink className="h-3 w-3 text-[#FF7939]" />
+                              </Button>
+                            )}
+                          </div>
                         </div>
                       </div>
-                    </div>
-                  ))}
+                    )
+                  })}
                 </div>
               )}
             </CardContent>
           </Card>
         )}
 
-        {/* Mensaje cuando no hay eventos en el mes */}
-        {events.length === 0 && (
-          <Card className="bg-zinc-900 border-zinc-800">
-            <CardContent className="p-6 text-center">
-              <Calendar className="h-12 w-12 text-gray-600 mx-auto mb-4" />
-              <p className="text-white font-medium mb-2">No hay eventos este mes</p>
-              <p className="text-gray-400 text-sm mb-4">
-                Tus citas y eventos aparecerán aquí cuando los clientes reserven
-              </p>
-            </CardContent>
-          </Card>
+            {/* Mensaje cuando no hay eventos en el mes */}
+            {events.length === 0 && (
+              <Card className="bg-zinc-900 border-zinc-800">
+                <CardContent className="p-6 text-center">
+                  <Calendar className="h-12 w-12 text-gray-600 mx-auto mb-4" />
+                  <p className="text-white font-medium mb-2">No hay eventos este mes</p>
+                  <p className="text-gray-400 text-sm mb-4">
+                    Tus citas y eventos aparecerán aquí cuando los clientes reserven
+                  </p>
+                </CardContent>
+              </Card>
+            )}
+          </>
+        )}
+
+        {/* Vista Hoy - Detalle de franja horaria */}
+        {viewMode === 'today' && (
+          <div className="space-y-4">
+            {/* Header de hoy - Con navegación */}
+            <div className="mb-6 flex items-center justify-between">
+              <Button
+                variant="ghost"
+                size="sm"
+                onClick={goToPreviousDay}
+                className="text-white hover:bg-zinc-800"
+              >
+                ←
+              </Button>
+              <h2 className="text-lg font-semibold text-[#FFB366] capitalize">
+                {format(viewDate, "EEEE, d 'de' MMMM", { locale: es })}
+              </h2>
+              <Button
+                variant="ghost"
+                size="sm"
+                onClick={goToNextDay}
+                className="text-white hover:bg-zinc-800"
+              >
+                →
+              </Button>
+            </div>
+
+            {/* Calendario de horas */}
+            <Card className="bg-zinc-900 border-zinc-800">
+              <CardContent className="p-0">
+                {todayEvents.length === 0 ? (
+                  // Vista colapsada: solo mostrar horarios clave si no hay eventos
+                  <div className="divide-y divide-zinc-800">
+                    {[6, 12, 18, 24].map(hour => {
+                      const displayHour = hour === 24 ? 0 : hour
+                      const hourStart = new Date(viewDate)
+                      hourStart.setHours(displayHour, 0, 0, 0)
+                      const now = new Date()
+                      const isPast = hourStart < now && !isSameDay(hourStart, now) || (isSameDay(hourStart, now) && hourStart < now)
+                      const isCurrentHour = isSameDay(hourStart, now) && now.getHours() === displayHour
+
+                      return (
+                        <div
+                          key={hour}
+                          className={`
+                            min-h-[60px] p-3 flex gap-4 items-center
+                            ${isPast ? 'opacity-50' : ''}
+                            ${isCurrentHour ? 'bg-zinc-800/30' : ''}
+                          `}
+                        >
+                          {/* Hora */}
+                          <div className="w-16 flex-shrink-0">
+                            <div className="text-sm font-medium text-gray-400">
+                              {format(hourStart, 'HH:mm')}
+                            </div>
+                          </div>
+
+                          {/* Sin eventos */}
+                          <div className="flex-1">
+                            <div className="text-xs text-gray-600">Sin eventos</div>
+                          </div>
+                        </div>
+                      )
+                    })}
+                  </div>
+                ) : (
+                  // Vista completa: mostrar todas las horas si hay eventos
+                  <div className="divide-y divide-zinc-800">
+                    {hoursOfDay.map(hour => {
+                      const hourEvents = getEventsForHour(hour)
+                      const hourStart = new Date(viewDate)
+                      hourStart.setHours(hour, 0, 0, 0)
+                      const hourEnd = new Date(viewDate)
+                      hourEnd.setHours(hour, 59, 59, 999)
+                      const now = new Date()
+                      const isPast = hourEnd < now && !isSameDay(hourEnd, now) || (isSameDay(hourEnd, now) && hourEnd < now)
+                      const isCurrentHour = isSameDay(viewDate, now) && now.getHours() === hour
+
+                      return (
+                        <div
+                          key={hour}
+                          className={`
+                            min-h-[80px] p-3 flex gap-4
+                            ${isPast ? 'opacity-50' : ''}
+                            ${isCurrentHour ? 'bg-zinc-800/30' : ''}
+                          `}
+                        >
+                          {/* Hora */}
+                          <div className="w-16 flex-shrink-0">
+                            <div className="text-sm font-medium text-gray-400">
+                              {format(hourStart, 'HH:mm')}
+                            </div>
+                          </div>
+
+                          {/* Eventos de esta hora */}
+                          <div className="flex-1 space-y-2">
+                            {hourEvents.length === 0 ? (
+                              <div className="text-xs text-gray-600">Sin eventos</div>
+                            ) : (
+                              hourEvents.map(event => {
+                                const isGoogleEvent = event.is_google_event || event.source === 'google_calendar'
+                                return (
+                                  <div
+                                    key={event.id}
+                                    onClick={() => handleEventClick(event)}
+                                    className={`p-3 rounded-lg border transition-colors cursor-pointer hover:bg-zinc-800/80 ${
+                                      isGoogleEvent
+                                        ? 'bg-blue-950/30 border-blue-700/50 hover:border-blue-600/70'
+                                        : 'bg-zinc-800/60 border-zinc-700/30 hover:border-[#FF7939]/40'
+                                    }`}
+                                  >
+                                    <div className="space-y-2">
+                                      {/* Header: Producto y título */}
+                                      <div className="space-y-1">
+                                        {isGoogleEvent && (
+                                          <div className="flex items-center gap-1 mb-1">
+                                            <Calendar className="h-3 w-3 text-blue-400" />
+                                            <div className="text-xs text-blue-400 font-medium">Google Calendar</div>
+                                          </div>
+                                        )}
+                                        {event.product_name && !isGoogleEvent && (
+                                          <div className="text-xs text-[#FF7939] font-medium uppercase tracking-wide">
+                                            {event.product_name}
+                                          </div>
+                                        )}
+                                        <h3 className="font-semibold text-white text-sm leading-tight">
+                                          {event.title}
+                                        </h3>
+                                        {event.location && isGoogleEvent && (
+                                          <div className="text-xs text-gray-400">{event.location}</div>
+                                        )}
+                                      </div>
+                                      
+                                      {/* Info bar: Compacta y organizada */}
+                                      <div className="flex items-center justify-between">
+                                        <div className="flex items-center gap-3 text-xs">
+                                          {/* Horario completo */}
+                                          <div className="flex items-center gap-1 text-gray-300">
+                                            <Clock className="h-3 w-3" />
+                                            <span className="font-mono">
+                                              {format(new Date(event.start_time), 'HH:mm')}-{format(new Date(event.end_time), 'HH:mm')}
+                                            </span>
+                                          </div>
+                                          
+                                          {/* Participantes - Solo para eventos de Omnia */}
+                                          {!isGoogleEvent && (
+                                            <div className="flex items-center gap-1 text-gray-300">
+                                              <Users className="h-3 w-3" />
+                                              <span className="font-medium">
+                                                {event.current_participants || 0}/{event.max_participants || 'N/A'}
+                                              </span>
+                                            </div>
+                                          )}
+                                          
+                                          {/* Tipo - Solo para eventos de Omnia */}
+                                          {!isGoogleEvent && (
+                                            <div className="px-2 py-0.5 rounded-full bg-zinc-700 text-gray-300 text-xs font-medium">
+                                              {event.event_type === 'workshop' ? 'Taller' : 
+                                               event.event_type === 'consultation' ? 'Programa' : 
+                                               event.event_type === 'other' ? 'Doc' : event.event_type}
+                                            </div>
+                                          )}
+                                          
+                                          {/* Badge para eventos de Google */}
+                                          {isGoogleEvent && (
+                                            <div className="px-2 py-0.5 rounded-full bg-blue-900/50 text-blue-300 text-xs font-medium">
+                                              Google
+                                            </div>
+                                          )}
+                                        </div>
+                                        
+                                        {/* Meet Link */}
+                                        {event.meet_link && (
+                                          <Button
+                                            onClick={(e) => {
+                                              e.stopPropagation()
+                                              window.open(event.meet_link, '_blank')
+                                            }}
+                                            size="sm"
+                                            variant="ghost"
+                                            className="h-6 w-6 p-0 hover:bg-[#FF7939]/20 rounded-lg transition-colors"
+                                          >
+                                            <ExternalLink className="h-3 w-3 text-[#FF7939]" />
+                                          </Button>
+                                        )}
+                                      </div>
+                                    </div>
+                                  </div>
+                                )
+                              })
+                            )}
+                          </div>
+                        </div>
+                      )
+                    })}
+                  </div>
+                )}
+              </CardContent>
+            </Card>
+
+            {/* Resumen de hoy */}
+            {todayEvents.length > 0 && (
+              <Card className="bg-zinc-900/50 border border-zinc-800">
+                <CardContent className="p-4">
+                  <div className="flex items-center justify-between">
+                    <div className="flex items-center gap-2">
+                      <Calendar className="h-4 w-4 text-[#FF7939]" />
+                      <span className="text-sm font-medium text-white">Resumen de Hoy</span>
+                    </div>
+                    <div className="text-xs text-gray-400">
+                      {todayEvents.length} {todayEvents.length === 1 ? 'evento' : 'eventos'}
+                    </div>
+                  </div>
+                </CardContent>
+              </Card>
+            )}
+          </div>
         )}
 
         {/* Modal de detalles del evento - removed, to be reimplemented if needed */}

@@ -1544,19 +1544,35 @@ export default function CreateProductModal({ isOpen, onClose, editingProduct, in
       }
       const totalExercises = persistentCsvData?.length || 0
       const capacity = (() => {
-        // Priorizar specificForm.capacity si está definido (para edición)
-        if (specificForm.capacity) {
-          const capNum = parseInt(specificForm.capacity)
-          return isNaN(capNum) ? null : capNum
+        // ✅ SIEMPRE usar generalForm.capacity y generalForm.stockQuantity (valores actuales del formulario)
+        // No usar specificForm.capacity porque puede tener valores obsoletos
+        if (generalForm.capacity === 'ilimitada') {
+          return 500
         }
-        // Fallback a generalForm.capacity (para creación)
-        if (generalForm.capacity === 'ilimitada') return 500
-        if (generalForm.capacity === 'limitada' && generalForm.stockQuantity) {
-          const stockNum = parseInt(generalForm.stockQuantity)
-          return isNaN(stockNum) ? null : stockNum
+        if (generalForm.capacity === 'limitada') {
+          // Si hay stockQuantity, usarlo
+          if (generalForm.stockQuantity) {
+            const stockNum = parseInt(generalForm.stockQuantity)
+            if (!isNaN(stockNum) && stockNum > 0) {
+              return stockNum
+            }
+          }
+          // Si la capacidad es "limitada" pero no hay stockQuantity válido, usar 1 como mínimo
+          // Esto asegura que siempre se guarde un valor cuando la capacidad es limitada
+          console.log('⚠️ [Guardar Producto] Capacidad es limitada pero stockQuantity no es válido, usando valor mínimo 1')
+          return 1
         }
+        // Si no está definido, retornar null (el backend manejará el valor por defecto)
         return null
       })()
+      
+      console.log('📊 [Guardar Producto] Capacity calculada:', {
+        capacityType: generalForm.capacity,
+        stockQuantity: generalForm.stockQuantity,
+        capacityCalculada: capacity,
+        isEditing: !!editingProduct,
+        willBeSent: capacity !== null
+      })
 
       // Verificar que el usuario esté autenticado
       if (!user) {
@@ -1620,6 +1636,9 @@ export default function CreateProductModal({ isOpen, onClose, editingProduct, in
         level: productData.level,
         type: productData.type,
         categoria: productData.categoria,
+        capacity: productData.capacity, // ✅ Incluir capacidad en el log
+        capacityType: generalForm.capacity, // ✅ Tipo de capacidad (ilimitada/limitada)
+        stockQuantity: generalForm.stockQuantity, // ✅ Cantidad de stock
         coach_id: productData.coach_id,
         coach_id_type: typeof productData.coach_id,
         coach_id_length: productData.coach_id?.length,
@@ -3626,13 +3645,30 @@ export default function CreateProductModal({ isOpen, onClose, editingProduct, in
   const hasUserMadeChangesRef = useRef<boolean>(false)
   
   // ✅ Actualizar el ref cuando el usuario hace cambios en la planificación
+  // Este efecto se ejecuta cada vez que cambia persistentCalendarSchedule
   useEffect(() => {
     const hasData = persistentCalendarSchedule && Object.keys(persistentCalendarSchedule).length > 0
     if (hasData) {
+      // ✅ SIEMPRE marcar como modificado si hay datos (incluso si vienen de BD inicialmente)
+      // Una vez que hay datos, se consideran "cambios del usuario" para preservarlos
       hasUserMadeChangesRef.current = true
-      console.log('✅ [CreateProductModal] Cambios del usuario detectados en planificación, marcando como modificado')
+      console.log('✅ [CreateProductModal] Cambios del usuario detectados en planificación, marcando como modificado', {
+        semanas: Object.keys(persistentCalendarSchedule).length,
+        estructura: Object.keys(persistentCalendarSchedule).slice(0, 3).map(key => ({
+          semana: key,
+          dias: Object.keys(persistentCalendarSchedule[key] || {}),
+          totalDias: Object.keys(persistentCalendarSchedule[key] || {}).length
+        }))
+      })
+    } else {
+      // Solo resetear el flag si NO hay datos Y estamos en un producto nuevo (no editando)
+      // Si estamos editando, mantener el flag para preservar cambios previos
+      if (!editingProduct?.id) {
+        hasUserMadeChangesRef.current = false
+        console.log('🔄 [CreateProductModal] Producto nuevo sin datos, reseteando flag de cambios')
+      }
     }
-  }, [persistentCalendarSchedule])
+  }, [persistentCalendarSchedule, editingProduct?.id])
   
   // ✅ Recargar planificación desde BD cuando se vuelve al paso 4 (weeklyPlan) si no hay datos locales
   useEffect(() => {
@@ -3646,6 +3682,15 @@ export default function CreateProductModal({ isOpen, onClose, editingProduct, in
       return
     }
 
+    console.log('🔍 [CreateProductModal] Verificando si recargar planificación desde BD:', {
+      currentStep,
+      editingProductId: editingProduct.id,
+      hasUserMadeChanges: hasUserMadeChangesRef.current,
+      hasLocalData: persistentCalendarSchedule && Object.keys(persistentCalendarSchedule).length > 0,
+      semanasLocales: persistentCalendarSchedule ? Object.keys(persistentCalendarSchedule).length : 0,
+      planningClearedByContentChange
+    })
+
     // Si la planificación fue limpiada explícitamente por un cambio de contenido, NO recargar
     if (planningClearedByContentChange) {
       console.log('✅ [CreateProductModal] Planificación limpiada por cambios de contenido, NO recargando desde BD')
@@ -3654,7 +3699,9 @@ export default function CreateProductModal({ isOpen, onClose, editingProduct, in
 
     // ✅ PRIORIDAD 1: Si el usuario ya hizo cambios, NUNCA recargar desde BD (preservar cambios)
     if (hasUserMadeChangesRef.current) {
-      console.log('✅ [CreateProductModal] Usuario ya hizo cambios en planificación, NO recargando desde BD para preservar cambios')
+      console.log('✅ [CreateProductModal] Usuario ya hizo cambios en planificación, NO recargando desde BD para preservar cambios', {
+        semanasLocales: persistentCalendarSchedule ? Object.keys(persistentCalendarSchedule).length : 0
+      })
       return
     }
 
@@ -3662,9 +3709,14 @@ export default function CreateProductModal({ isOpen, onClose, editingProduct, in
     const hasLocalData = persistentCalendarSchedule && Object.keys(persistentCalendarSchedule).length > 0
     if (hasLocalData) {
       console.log('✅ [CreateProductModal] Ya hay datos locales de planificación, NO recargando desde BD', {
-        semanasLocales: Object.keys(persistentCalendarSchedule).length
+        semanasLocales: Object.keys(persistentCalendarSchedule).length,
+        estructura: Object.keys(persistentCalendarSchedule).slice(0, 3).map(key => ({
+          semana: key,
+          dias: Object.keys(persistentCalendarSchedule[key] || {}),
+          totalDias: Object.keys(persistentCalendarSchedule[key] || {}).length
+        }))
       })
-      // Marcar que hay cambios del usuario
+      // Marcar que hay cambios del usuario para preservarlos en futuras navegaciones
       hasUserMadeChangesRef.current = true
       return
     }
@@ -3672,14 +3724,28 @@ export default function CreateProductModal({ isOpen, onClose, editingProduct, in
     // Si tenemos datos cacheados para este producto, usarlos
     if (cachedPlanningFromDBRef.current && cachedPlanningFromDBRef.current.activityId === editingProduct.id) {
       const cached = cachedPlanningFromDBRef.current
+      
+      // ✅ Verificar primero si el usuario ya hizo cambios
+      if (hasUserMadeChangesRef.current) {
+        console.log('✅ [CreateProductModal] Usuario ya hizo cambios, NO aplicando cache para preservar cambios')
+        return
+      }
+      
+      // ✅ Verificar si hay datos locales antes de aplicar el cache
+      const stillHasLocalData = persistentCalendarSchedule && Object.keys(persistentCalendarSchedule).length > 0
+      if (stillHasLocalData) {
+        console.log('✅ [CreateProductModal] Datos locales detectados, NO aplicando cache para preservar cambios', {
+          semanasLocales: Object.keys(persistentCalendarSchedule).length
+        })
+        return
+      }
+      
       console.log('📦 [CreateProductModal] Usando planificación cacheada desde BD:', {
         semanas: Object.keys(cached.schedule || {}).length,
         periodos: cached.periods
       })
       
-      // Verificar nuevamente si hay datos locales antes de aplicar el cache
-      const stillHasLocalData = persistentCalendarSchedule && Object.keys(persistentCalendarSchedule).length > 0
-      if (!stillHasLocalData && cached.schedule && Object.keys(cached.schedule).length > 0) {
+      if (cached.schedule && Object.keys(cached.schedule).length > 0) {
         setPersistentCalendarSchedule(cached.schedule)
         if (cached.periods && cached.periods > 0) {
           setPeriods(cached.periods)
@@ -3710,10 +3776,21 @@ export default function CreateProductModal({ isOpen, onClose, editingProduct, in
         if (result.success && result.data) {
           const { weeklySchedule, periods: backendPeriods } = result.data
           
-          // Verificar nuevamente si hay datos locales antes de aplicar
+          // ✅ Verificar múltiples veces si hay datos locales o cambios del usuario antes de aplicar
+          // Verificar 1: Ref de cambios del usuario
+          if (hasUserMadeChangesRef.current) {
+            console.log('✅ [CreateProductModal] Cambios del usuario detectados durante carga, cancelando sobrescritura desde BD')
+            return
+          }
+          
+          // Verificar 2: Datos locales en estado
           const stillHasLocalData = persistentCalendarSchedule && Object.keys(persistentCalendarSchedule).length > 0
           if (stillHasLocalData) {
-            console.log('✅ [CreateProductModal] Datos locales detectados durante la carga, cancelando sobrescritura desde BD')
+            console.log('✅ [CreateProductModal] Datos locales detectados durante la carga, cancelando sobrescritura desde BD', {
+              semanasLocales: Object.keys(persistentCalendarSchedule).length
+            })
+            // Marcar que hay cambios para preservarlos
+            hasUserMadeChangesRef.current = true
             return
           }
           
@@ -3734,9 +3811,11 @@ export default function CreateProductModal({ isOpen, onClose, editingProduct, in
             activityId: editingProduct.id
           }
           
-          // Aplicar solo si no hay datos locales y hay un schedule válido
-          const stillHasLocalDataCheck = persistentCalendarSchedule && Object.keys(persistentCalendarSchedule).length > 0
-          if (!stillHasLocalDataCheck && weeklySchedule) {
+          // ✅ Verificar una vez más antes de aplicar (por si cambió durante la carga asíncrona)
+          const finalCheckHasLocalData = persistentCalendarSchedule && Object.keys(persistentCalendarSchedule).length > 0
+          const finalCheckHasUserChanges = hasUserMadeChangesRef.current
+          
+          if (!finalCheckHasLocalData && !finalCheckHasUserChanges && weeklySchedule) {
             console.log('✅ [CreateProductModal] Aplicando planificación desde BD al estado (al volver al paso 4)', {
               semanas: Object.keys(weeklySchedule).length,
               tieneContenido: Object.keys(weeklySchedule).length > 0
@@ -3745,8 +3824,11 @@ export default function CreateProductModal({ isOpen, onClose, editingProduct, in
             if (backendPeriods && backendPeriods > 0) {
               setPeriods(backendPeriods)
             }
-          } else if (stillHasLocalDataCheck) {
-            console.log('⚠️ [CreateProductModal] Datos locales detectados, preservando cambios del usuario')
+          } else if (finalCheckHasLocalData || finalCheckHasUserChanges) {
+            console.log('⚠️ [CreateProductModal] Datos locales o cambios del usuario detectados, preservando cambios del usuario', {
+              hasLocalData: finalCheckHasLocalData,
+              hasUserChanges: finalCheckHasUserChanges
+            })
           } else {
             console.log('⚠️ [CreateProductModal] weeklySchedule es null/undefined, no hay planificación guardada')
           }
@@ -3762,7 +3844,9 @@ export default function CreateProductModal({ isOpen, onClose, editingProduct, in
     }
     
     loadWeeklyPlanning()
-  }, [currentStep, editingProduct?.id, planningClearedByContentChange, persistentCalendarSchedule])
+    // ✅ NO incluir persistentCalendarSchedule en dependencias para evitar recargas cuando el usuario hace cambios
+    // El ref hasUserMadeChangesRef y las verificaciones dentro del efecto son suficientes
+  }, [currentStep, editingProduct?.id, planningClearedByContentChange])
 
   // Efecto para manejar el initialStep cuando el modal se abre
   useEffect(() => {
@@ -3782,19 +3866,34 @@ export default function CreateProductModal({ isOpen, onClose, editingProduct, in
   }, [isOpen, initialStep, editingProduct, showDateChangeNotice])
 
   // ✅ Limpiar planificación semanal cuando no hay ejercicios/platos disponibles
-  // PERO solo si realmente no hay planificación del backend (para no limpiar datos existentes antes de que se carguen los ejercicios)
-  // y marcar que esta limpieza viene de un cambio fuerte de contenido
+  // PERO NUNCA limpiar si el usuario ya hizo cambios o hay datos existentes
   // Ref para rastrear si ya se limpió el schedule para evitar loops infinitos
   const scheduleClearedRef = useRef(false)
   
   useEffect(() => {
     if (persistentCsvData !== undefined && persistentCsvData.length === 0) {
-      // Si estamos editando y hay planificación cargada del backend, NO limpiar todavía
-      // Esto evita limpiar la planificación antes de que se carguen los ejercicios/platos
-      const hasScheduleFromBackend = persistentCalendarSchedule && Object.keys(persistentCalendarSchedule).length > 0
-      if (hasScheduleFromBackend && editingProduct?.id) {
-        console.log('⏸️ [CreateProductModal] No hay ejercicios/platos disponibles aún, pero hay planificación del backend. Esperando a que se carguen los ejercicios/platos antes de decidir si limpiar.')
-        scheduleClearedRef.current = false // Resetear el flag cuando hay schedule del backend
+      // ✅ PRIORIDAD 1: Si el usuario ya hizo cambios, NUNCA limpiar
+      if (hasUserMadeChangesRef.current) {
+        console.log('✅ [CreateProductModal] Usuario ya hizo cambios, NO limpiando planificación aunque no haya CSV')
+        scheduleClearedRef.current = false
+        return
+      }
+      
+      // ✅ PRIORIDAD 2: Si hay planificación (del backend o del usuario), NO limpiar
+      const hasSchedule = persistentCalendarSchedule && Object.keys(persistentCalendarSchedule).length > 0
+      if (hasSchedule) {
+        console.log('✅ [CreateProductModal] Hay planificación existente, NO limpiando aunque no haya CSV', {
+          semanas: Object.keys(persistentCalendarSchedule).length,
+          editingProductId: editingProduct?.id
+        })
+        scheduleClearedRef.current = false
+        return
+      }
+      
+      // ✅ PRIORIDAD 3: Si estamos editando un producto, NO limpiar todavía (puede que los ejercicios se estén cargando)
+      if (editingProduct?.id) {
+        console.log('⏸️ [CreateProductModal] Editando producto sin CSV aún, esperando antes de limpiar')
+        scheduleClearedRef.current = false
         return
       }
       
@@ -3805,7 +3904,8 @@ export default function CreateProductModal({ isOpen, onClose, editingProduct, in
         return
       }
       
-      console.log('🧹 [CreateProductModal] No hay ejercicios/platos disponibles, limpiando planificación semanal')
+      // Solo limpiar si realmente no hay nada (producto nuevo sin datos)
+      console.log('🧹 [CreateProductModal] No hay ejercicios/platos y no hay planificación, limpiando planificación semanal')
       setPersistentCalendarSchedule({})
       setPeriods(1)
       setPlanningClearedByContentChange(true)
@@ -3814,7 +3914,7 @@ export default function CreateProductModal({ isOpen, onClose, editingProduct, in
       // Si hay datos CSV, resetear el flag para permitir limpieza futura si es necesario
       scheduleClearedRef.current = false
     }
-  }, [persistentCsvData, editingProduct?.id])
+  }, [persistentCsvData, editingProduct?.id, persistentCalendarSchedule])
 
   // ✅ Limpiar estado cuando se cierra el modal (incluso si se cierra sin pasar por handleClose)
   useEffect(() => {

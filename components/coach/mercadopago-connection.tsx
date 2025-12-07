@@ -183,20 +183,6 @@ export function MercadoPagoConnection() {
           >
             {connecting ? 'Conectando...' : 'Conectar'}
           </button>
-          
-          {/* Ayuda para cuentas de prueba */}
-          <div className="mt-3 p-2.5 bg-[#FF7939]/10 border border-[#FF7939]/20 rounded-lg text-left">
-            <p className="text-xs text-white/70 font-medium mb-1.5">💡 ¿Usando cuenta de prueba?</p>
-            <p className="text-xs text-white/60 leading-relaxed">
-              Si Mercado Pago te pide verificar por email:
-              <br />
-              • <strong>Primero intenta</strong>: Últimos 6 dígitos del User ID
-              <br />
-              • <strong>Si no funciona</strong>: Últimos 6 dígitos del Access Token de producción
-              <br />
-              <span className="text-[#FF7939] mt-1 block">Ejemplo: ronaldinho (2995219181) → 5219181</span>
-            </p>
-          </div>
         </div>
       </div>
     );
@@ -217,7 +203,7 @@ export function MercadoPagoConnection() {
             )}
           </div>
 
-          {/* Nombre del usuario con icono de persona - Si no hay nombre, solo icono */}
+          {/* Nombre del usuario con icono de persona - Solo muestra el nombre, sin ID */}
           {isConnected && (
             <div className="flex items-center gap-2 mb-3 pb-3 border-b border-white/5 flex-1">
               <User className="w-3.5 h-3.5 text-white/50 flex-shrink-0" />

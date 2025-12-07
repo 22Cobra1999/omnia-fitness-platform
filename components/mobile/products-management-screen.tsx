@@ -155,6 +155,7 @@ export default function ProductsManagementScreen({ onTabChange }: ProductsManage
       
       const response = await fetch(API_ENDPOINTS.PRODUCTS, {
         signal: controller.signal,
+        credentials: 'include', // ✅ Incluir cookies en la petición
         headers: {
           'Content-Type': 'application/json',
         }
@@ -196,7 +197,9 @@ export default function ProductsManagementScreen({ onTabChange }: ProductsManage
     }
 
     try {
-      const response = await fetch('/api/coach/cafe')
+      const response = await fetch('/api/coach/cafe', {
+        credentials: 'include' // ✅ Incluir cookies en la petición
+      })
       if (response.ok) {
         const result = await response.json()
         if (result.success && result.cafe) {
@@ -353,6 +356,7 @@ export default function ProductsManagementScreen({ onTabChange }: ProductsManage
       console.log('📡 Enviando request a /api/coach/cafe', { enabled: newActiveState })
       const response = await fetch('/api/coach/cafe', {
         method: 'PUT',
+        credentials: 'include', // ✅ Incluir cookies en la petición
         headers: {
           'Content-Type': 'application/json'
         },
@@ -408,6 +412,7 @@ export default function ProductsManagementScreen({ onTabChange }: ProductsManage
     try {
       const response = await fetch('/api/coach/cafe', {
         method: 'PUT',
+        credentials: 'include', // ✅ Incluir cookies en la petición
         headers: {
           'Content-Type': 'application/json'
         },
@@ -1315,7 +1320,9 @@ export default function ProductsManagementScreen({ onTabChange }: ProductsManage
             // Refrescar el producto desde la API antes de cerrar
             try {
               console.log('🔄 Refrescando producto al cerrar modal:', selectedProduct.id)
-              const response = await fetch(API_ENDPOINTS.PRODUCTS)
+              const response = await fetch(API_ENDPOINTS.PRODUCTS, {
+                credentials: 'include' // ✅ Incluir cookies en la petición
+              })
               if (response.ok) {
                 const result = await response.json()
                 if (result.success && result.products && result.products.length > 0) {
@@ -1611,7 +1618,9 @@ export default function ProductsManagementScreen({ onTabChange }: ProductsManage
                         // Abrir modal de edición en paso 5
                         // Primero refrescar el producto para asegurar que tiene la encuesta actualizada
                         try {
-                          const response = await fetch(API_ENDPOINTS.PRODUCTS)
+                          const response = await fetch(API_ENDPOINTS.PRODUCTS, {
+                            credentials: 'include' // ✅ Incluir cookies en la petición
+                          })
                           if (response.ok) {
                             const result = await response.json()
                             if (result.success && result.products) {
