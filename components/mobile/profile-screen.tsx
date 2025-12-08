@@ -702,6 +702,13 @@ export function ProfileScreen() {
         </div>
       )}
 
+      {/* Estadísticas del Coach - Solo para coaches */}
+      {isCoach && (
+        <div className="bg-[#1A1C1F] rounded-2xl p-4">
+          <CoachStats />
+        </div>
+      )}
+
       {/* Movimientos Recientes - Solo para coaches */}
       {isCoach && (
         <div className="bg-[#1A1C1F] rounded-2xl p-4">
@@ -751,9 +758,6 @@ export function ProfileScreen() {
       {/* Suscripción, Mercado Pago y Google Calendar - Solo para coaches */}
       {isCoach && (
         <div className="space-y-3">
-          {/* Estadísticas del Coach */}
-          <CoachStats />
-          
           {/* Suscripción del Coach */}
           <PlanManagement />
           

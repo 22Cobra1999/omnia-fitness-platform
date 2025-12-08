@@ -29,46 +29,36 @@ interface StatCardProps {
   value: string | number;
   subtitle?: string;
   icon: React.ReactNode;
-  status: 'good' | 'warning' | 'critical';
-  trend?: 'up' | 'down';
+  colorIndex: number;
 }
 
-function StatCard({ title, value, subtitle, icon, status, trend }: StatCardProps) {
-  const statusColors = {
-    good: 'border-green-500/50 bg-green-500/10',
-    warning: 'border-yellow-500/50 bg-yellow-500/10',
-    critical: 'border-red-500/50 bg-red-500/10'
-  };
+// Tonos de naranja para diferenciar las tarjetas
+const orangeTones = [
+  'text-[#FF7939]', // Naranja principal
+  'text-[#FF8C42]', // Naranja claro
+  'text-[#FF6B2B]', // Naranja oscuro
+  'text-[#FF9F5A]', // Naranja muy claro
+  'text-[#FF5A1F]', // Naranja muy oscuro
+  'text-[#FFA366]', // Naranja medio claro
+];
 
-  const textColors = {
-    good: 'text-green-400',
-    warning: 'text-yellow-400',
-    critical: 'text-red-400'
-  };
+function StatCard({ title, value, subtitle, icon, colorIndex }: StatCardProps) {
+  const orangeColor = orangeTones[colorIndex % orangeTones.length];
 
   return (
-    <div className={`backdrop-blur-xl bg-black/40 border rounded-2xl p-4 ${statusColors[status]}`}>
-      <div className="flex items-start justify-between mb-3">
-        <div className="flex items-center gap-2">
-          <div className={`p-2 rounded-lg ${statusColors[status]}`}>
-            {icon}
-          </div>
-          <div>
-            <h3 className="text-sm font-medium text-white/90">{title}</h3>
-            {subtitle && (
-              <p className="text-xs text-white/60 mt-0.5">{subtitle}</p>
-            )}
-          </div>
+    <div className="p-3">
+      <div className="flex items-center gap-2 mb-2">
+        <div className={orangeColor}>
+          {icon}
         </div>
-        {trend && (
-          <div className={trend === 'up' ? 'text-green-400' : 'text-red-400'}>
-            {trend === 'up' ? <TrendingUp className="w-4 h-4" /> : <TrendingDown className="w-4 h-4" />}
-          </div>
-        )}
+        <h3 className="text-xs font-medium text-white/70">{title}</h3>
       </div>
-      <div className={`text-2xl font-bold ${textColors[status]}`}>
+      <div className={`text-xl font-bold ${orangeColor}`}>
         {value}
       </div>
+      {subtitle && (
+        <p className="text-xs text-white/50 mt-1">{subtitle}</p>
+      )}
     </div>
   );
 }
