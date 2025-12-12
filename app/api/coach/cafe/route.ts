@@ -50,12 +50,23 @@ export async function GET(request: NextRequest) {
     // Obtener información del café desde la tabla coaches
     const { data: coach, error: coachError } = await supabase
       .from('coaches')
-      .select('cafe, cafe_enabled')
+      .select('cafe, cafe_enabled, meet_30, meet_30_enabled, meet_1, meet_1_enabled')
       .eq('id', user.id)
       .single()
 
     if (coachError) {
       console.error('Error obteniendo información del café:', coachError)
+      // Si las columnas no existen, devolver valores por defecto
+      if (coachError.code === 'PGRST116' || coachError.message?.includes('column') || coachError.message?.includes('does not exist')) {
+        return NextResponse.json({
+          cafe: 0,
+          cafe_enabled: false,
+          meet_30: 0,
+          meet_30_enabled: false,
+          meet_1: 0,
+          meet_1_enabled: false
+        })
+      }
       return NextResponse.json({
         success: false,
         error: 'Error al obtener información del café',

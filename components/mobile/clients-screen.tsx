@@ -1,7 +1,7 @@
 "use client"
 
-import { useState, useEffect } from "react"
-import { Search, Filter, Users, TrendingUp, Clock, X, MessageCircle, Calendar, Target, AlertTriangle, Flame, MessageSquare } from "lucide-react"
+import { useState, useEffect, useRef } from "react"
+import { Search, Filter, Users, TrendingUp, Clock, X, MessageCircle, Calendar, Target, AlertTriangle, Flame, MessageSquare, MapPin } from "lucide-react"
 import { ClientCalendar } from "@/components/coach/client-calendar"
 
 interface Client {
@@ -42,6 +42,12 @@ export function ClientsScreen() {
   const [showBiometrics, setShowBiometrics] = useState(false)
   const [showObjectives, setShowObjectives] = useState(false)
   const [showCalendar, setShowCalendar] = useState(false)
+  const [activeTab, setActiveTab] = useState<'calendar' | 'info'>('calendar')
+  const [hiddenActivities, setHiddenActivities] = useState<Set<number>>(new Set())
+  const [scrollPositions, setScrollPositions] = useState<{ calendar: number; info: number }>({ calendar: 0, info: 0 })
+  const calendarScrollRef = useRef<HTMLDivElement>(null)
+  const calendarContainerRef = useRef<HTMLDivElement>(null)
+  const exercisesListRef = useRef<HTMLDivElement>(null)
 
   // Cargar clientes reales
   useEffect(() => {
@@ -351,128 +357,156 @@ export function ClientsScreen() {
       {/* Modal del cliente - Pantalla completa */}
       {selectedClient && (
         <div className="fixed inset-0 bg-black z-30 flex flex-col">
-          {/* Contenido del modal - Pantalla completa */}
-          <div className="flex-1 bg-black text-white p-4 pt-20 overflow-y-auto">
-            {/* Información básica - compacta */}
-            <div className="flex items-center gap-3 mb-4">
-              <img
-                src={selectedClient.avatar_url || "/placeholder.svg"}
-                alt={selectedClient.name}
-                className="w-12 h-12 rounded-full object-cover border border-zinc-700"
-              />
-              <div className="flex-1">
-                <div className="flex items-center justify-between">
+          {/* Contenedor scrollable */}
+          <div className="flex-1 overflow-y-auto" ref={calendarScrollRef}>
+            {/* Header con imagen centrada y blur de fondo */}
+            <div 
+              className="relative bg-black pt-16 pb-4 px-4"
+              style={{
+                backgroundImage: selectedClient.avatar_url 
+                  ? `linear-gradient(rgba(0, 0, 0, 0.4), rgba(0, 0, 0, 0.5)), url(${selectedClient.avatar_url})`
+                  : undefined,
+                backgroundSize: 'cover',
+                backgroundPosition: 'center',
+                backgroundRepeat: 'no-repeat'
+              }}
+            >
+              {/* Fondo blur adicional más visible */}
+              {selectedClient.avatar_url && (
+                <div 
+                  className="absolute inset-0 opacity-40"
+                  style={{
+                    backgroundImage: `url(${selectedClient.avatar_url})`,
+                    backgroundSize: 'cover',
+                    backgroundPosition: 'center',
+                    filter: 'blur(12px)',
+                    transform: 'scale(1.1)'
+                  }}
+                />
+              )}
+              
+              {/* Contenido sobre el blur */}
+              <div className="relative z-10">
+                {/* Botón cerrar */}
+                <button
+                  onClick={closeClientModal}
+                  className="absolute top-0 right-0 p-2 hover:bg-black/20 rounded-full transition-colors z-30"
+                >
+                  <X className="h-5 w-5 text-white" />
+                </button>
+
+                {/* Imagen centrada sin círculo */}
+                <div className="flex flex-col items-center mb-3">
+                  <div className="relative w-20 h-20 rounded-full overflow-hidden mb-2">
+                    <img
+                      src={selectedClient.avatar_url || "/placeholder.svg"}
+                      alt={selectedClient.name}
+                      className="w-full h-full object-cover"
+                    />
+                  </div>
+                  
+                  {/* Nombre */}
                   <div className="flex items-center gap-2">
-                    <h3 className="font-semibold text-lg">{selectedClient.name}</h3>
-                    <button className="p-1 hover:bg-zinc-800/50 rounded-full transition-colors">
-                      <MessageSquare className="h-4 w-4 text-gray-400 hover:text-white" />
+                    <h3 className="font-semibold text-lg text-white">{selectedClient.name}</h3>
+                    <button className="p-1 hover:bg-black/20 rounded-full transition-colors">
+                      <MessageSquare className="h-4 w-4 text-white/80 hover:text-white" />
                     </button>
                   </div>
-                  <button
-                    onClick={closeClientModal}
-                    className="p-2 hover:bg-zinc-800/50 rounded-lg transition-colors"
-                  >
-                    <X className="h-5 w-5" />
-                  </button>
-                </div>
-                <p className="text-sm text-gray-400">{selectedClient.email}</p>
-                <div className="flex items-center gap-2 text-xs text-gray-400 mt-0.5">
-                  <span className={`inline-block w-1.5 h-1.5 rounded-full ${selectedClient.status === "active" ? "bg-green-500" : selectedClient.status === "pending" ? "bg-yellow-500" : "bg-gray-500"}`}></span>
-                  <span>Última ejercitación: {selectedClient.lastActive}</span>
+                  
+                  {/* Email y última ejercitación */}
+                  <p className="text-sm text-white/70 mt-0.5">{selectedClient.email}</p>
+                  <div className="flex items-center gap-2 text-xs text-white/60 mt-0.5">
+                    <span className={`inline-block w-1.5 h-1.5 rounded-full ${selectedClient.status === "active" ? "bg-green-500" : selectedClient.status === "pending" ? "bg-yellow-500" : "bg-gray-500"}`}></span>
+                    <span>Última ejercitación: {selectedClient.lastActive}</span>
+                  </div>
                 </div>
               </div>
             </div>
 
-            {/* Métricas principales - compactas */}
-            <div className="flex justify-between items-center mb-4 px-2">
-              <div className="text-center">
-                <div className="text-lg font-bold text-[#FF7939]">{clientDetail?.client?.progress || selectedClient.progress}%</div>
-                <div className="text-xs text-gray-400">Progreso</div>
-              </div>
-              <div className="text-center">
-                <div className="text-lg font-bold">{clientDetail?.client?.activitiesCount || selectedClient.activitiesCount}</div>
-                <div className="text-xs text-gray-400">Actividades</div>
-              </div>
-              <div 
-                className="text-center cursor-pointer hover:bg-zinc-800/50 rounded-lg p-2 -m-2 transition-colors"
-                onClick={() => {
-                  if (!showTodoSection && selectedClient) loadTodoTasks(selectedClient.id)
-                  setShowTodoSection(!showTodoSection)
-                }}
-              >
-                <div className="text-lg font-bold">{clientDetail?.client?.todoCount || 0}</div>
-                <div className="text-xs text-gray-400">To Do</div>
-              </div>
-              <div className="text-center">
-                <div className="text-lg font-bold">${clientDetail?.client?.totalRevenue || selectedClient.totalRevenue}</div>
-                <div className="text-xs text-gray-400">Ingresos</div>
-              </div>
+            {/* Estadísticas - fondo negro, sticky arriba */}
+            <div className="flex justify-between items-center bg-black px-4 py-3 border-b border-zinc-800 sticky top-0 z-20">
+            <div className="text-center flex-1">
+              <div className="text-lg font-bold text-[#FF7939]">{clientDetail?.client?.progress || selectedClient.progress}%</div>
+              <div className="text-xs text-gray-400">Progreso</div>
             </div>
+            <div className="text-center flex-1 border-l border-zinc-800">
+              <div className="text-lg font-bold text-white">{clientDetail?.client?.activitiesCount || selectedClient.activitiesCount}</div>
+              <div className="text-xs text-gray-400">Actividades</div>
+            </div>
+            <div className="text-center flex-1 border-l border-zinc-800">
+              <div className="text-lg font-bold text-white">{clientDetail?.client?.todoCount || 0}</div>
+              <div className="text-xs text-gray-400">To Do</div>
+            </div>
+            <div className="text-center flex-1 border-l border-zinc-800">
+              <div className="text-lg font-bold text-white">${clientDetail?.client?.totalRevenue || selectedClient.totalRevenue}</div>
+              <div className="text-xs text-gray-400">Ingresos</div>
+            </div>
+          </div>
 
-            {/* To Do expandido */}
-            {showTodoSection && (
-              <div className="mb-4 bg-zinc-900/40 rounded-lg p-3">
-                <div className="text-sm font-medium text-gray-300 mb-2">Tareas ({clientDetail?.client?.todoCount || 0}/4)</div>
-                <div className="space-y-2">
-                  {/* Lista de tareas */}
-                  {todoTasks.map((task, index) => (
-                    <div key={index} className="flex items-center gap-2 py-2 px-3 bg-zinc-800/50 rounded">
-                      <button
-                        onClick={() => completeTask(index)}
-                        className="bg-transparent border-none cursor-pointer p-1 rounded transition-all duration-200 flex items-center justify-center flex-shrink-0"
-                        style={{
-                          color: '#FF7939',
-                          padding: '4px',
-                          borderRadius: '4px',
-                        }}
-                        disabled={loadingTodo}
-                        aria-label="Completar tarea"
-                        title="Completar"
-                      >
-                        <Flame size={20} />
-                      </button>
-                      <span className="text-sm flex-1">{task}</span>
-                    </div>
-                  ))}
+            {/* Tabs - sticky debajo de estadísticas */}
+            <div className="flex bg-[#1A1C1F] border-b border-zinc-800 sticky top-[60px] z-10">
+            <button
+              onClick={() => {
+                // Guardar posición de scroll actual antes de cambiar
+                if (calendarScrollRef.current) {
+                  if (activeTab === 'calendar') {
+                    setScrollPositions(prev => ({ ...prev, calendar: calendarScrollRef.current!.scrollTop }))
+                  } else if (activeTab === 'info') {
+                    setScrollPositions(prev => ({ ...prev, info: calendarScrollRef.current!.scrollTop }))
+                  }
+                }
+                setActiveTab('calendar')
+                // Hacer scroll automático hacia el calendario después del render
+                setTimeout(() => {
+                  if (calendarScrollRef.current && calendarContainerRef.current) {
+                    const calendarTop = calendarContainerRef.current.offsetTop
+                    calendarScrollRef.current.scrollTo({
+                      top: calendarTop - 100, // Offset para dejar espacio arriba
+                      behavior: 'smooth'
+                    })
+                  }
+                }, 100)
+              }}
+              className={`flex-1 py-3 text-sm font-medium transition-colors ${
+                activeTab === 'calendar'
+                  ? 'text-[#FF7939] border-b-2 border-[#FF7939]'
+                  : 'text-gray-400 hover:text-white'
+              }`}
+            >
+              Calendario de actividades
+            </button>
+            <button
+              onClick={() => {
+                // Guardar posición de scroll actual antes de cambiar
+                if (calendarScrollRef.current) {
+                  if (activeTab === 'calendar') {
+                    setScrollPositions(prev => ({ ...prev, calendar: calendarScrollRef.current!.scrollTop }))
+                  } else if (activeTab === 'info') {
+                    setScrollPositions(prev => ({ ...prev, info: calendarScrollRef.current!.scrollTop }))
+                  }
+                }
+                setActiveTab('info')
+                // Restaurar posición después del render
+                setTimeout(() => {
+                  if (calendarScrollRef.current) {
+                    calendarScrollRef.current.scrollTop = scrollPositions.info
+                  }
+                }, 50)
+              }}
+              className={`flex-1 py-3 text-sm font-medium transition-colors ${
+                activeTab === 'info'
+                  ? 'text-[#FF7939] border-b-2 border-[#FF7939]'
+                  : 'text-gray-400 hover:text-white'
+              }`}
+            >
+              Información
+            </button>
+          </div>
 
-                  {/* Agregar nueva tarea */}
-                  {todoTasks.length < 4 && (
-                    <div className="flex items-center gap-2 py-2 px-3 bg-zinc-800/30 rounded border border-dashed border-zinc-600">
-                      <input
-                        type="text"
-                        value={newTask}
-                        onChange={(e) => setNewTask(e.target.value)}
-                        placeholder="Nueva tarea..."
-                        className="flex-1 bg-transparent text-sm placeholder-gray-500 focus:outline-none"
-                        onKeyDown={(e) => e.key === 'Enter' && addNewTask()}
-                        disabled={loadingTodo}
-                      />
-                      <button
-                        onClick={addNewTask}
-                        disabled={!newTask.trim() || loadingTodo}
-                        className="text-[#FF7939] hover:text-[#FF7939]/80 disabled:text-gray-500 disabled:cursor-not-allowed"
-                        aria-label="Agregar tarea"
-                        title="Agregar"
-                      >
-                        +
-                      </button>
-                    </div>
-                  )}
-
-                  {loadingTodo && (
-                    <div className="text-center py-2">
-                      <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-[#FF7939] mx-auto"></div>
-                    </div>
-                  )}
-                </div>
-              </div>
-            )}
-
-
-
-            {/* Detalles adicionales del cliente */}
+            {/* Contenido del modal - scrollable */}
+            <div className="bg-black text-white pb-20">
             {loadingDetail && (
-              <div className="mb-6 text-center py-4">
+              <div className="py-8 text-center">
                 <div className="animate-spin rounded-full h-6 w-6 border-b-2 border-[#FF7939] mx-auto mb-2"></div>
                 <p className="text-sm text-gray-400">Cargando detalles del cliente...</p>
               </div>
@@ -480,172 +514,339 @@ export function ClientsScreen() {
 
             {clientDetail && clientDetail.success && (
               <>
-                {/* Secciones colapsables */}
-                <div className="space-y-2 mb-4">
-                  {/* Lesiones del cliente - colapsable */}
-                  {clientDetail.client.injuries && clientDetail.client.injuries.length > 0 && (
-                    <div className="bg-zinc-900/40 rounded-lg">
-                      <div 
-                        className="flex items-center justify-between p-3 cursor-pointer hover:bg-zinc-800/50 transition-colors"
-                        onClick={() => setShowInjuries(!showInjuries)}
-                      >
-                        <div className="flex items-center gap-2">
-                          <AlertTriangle className="h-4 w-4 text-yellow-500" />
-                          <span className="text-sm font-medium text-gray-300">Lesiones ({clientDetail.client.injuries.length})</span>
+                {/* Tab: Calendario de actividades */}
+                {activeTab === 'calendar' && (
+                  <div className="p-4">
+                    {/* Actividades arriba con opción de ocultar */}
+                    {clientDetail.client.activities && clientDetail.client.activities.length > 0 && (
+                      <div className="mb-4">
+                        <div className="flex items-center justify-between mb-3">
+                          <h4 className="text-sm font-medium text-gray-300">
+                            Actividades ({clientDetail.client.activities.length})
+                          </h4>
                         </div>
-                        <div className="text-xs text-gray-500">{showInjuries ? 'Ocultar' : 'Ver'}</div>
-                      </div>
-                      {showInjuries && (
-                        <div className="px-3 pb-3 space-y-2">
-                          {clientDetail.client.injuries.map((injury: any, index: number) => (
-                            <div key={index} className="p-3 bg-zinc-800/50 rounded">
-                              <div className="flex justify-between items-center mb-2">
-                                <div className="font-medium text-sm">{injury.name}</div>
-                                <span className={`text-xs px-2 py-1 rounded ${
-                                  injury.severity === 'high' ? 'bg-red-900/50 text-red-400' :
-                                  injury.severity === 'medium' ? 'bg-yellow-900/50 text-yellow-400' :
-                                  'bg-green-900/50 text-green-400'
-                                }`}>
-                                  {injury.severity === 'high' ? 'Alta' : injury.severity === 'medium' ? 'Media' : 'Baja'}
-                                </span>
+                        <div className="space-y-2">
+                          {clientDetail.client.activities.map((activity: any, index: number) => (
+                            <div 
+                              key={activity.id || index} 
+                              className={`flex items-center justify-between py-2 px-3 bg-zinc-900/40 rounded ${
+                                hiddenActivities.has(activity.id) ? 'opacity-50' : ''
+                              }`}
+                            >
+                              <div className="flex-1">
+                                <div className="font-medium text-sm">{activity.title}</div>
+                                <div className="text-xs text-gray-400">${activity.amountPaid || 0}</div>
                               </div>
-                              
-                              {/* Información estandarizada */}
-                              {(injury.muscle_name || injury.pain_level) && (
-                                <div className="space-y-1 text-xs text-gray-300">
-                                  {injury.muscle_name && (
-                                    <div className="flex items-center space-x-1">
-                                      <span className="text-[#FF7939]">📍</span>
-                                      <span>{injury.muscle_name}</span>
-                                      {injury.muscle_group && (
-                                        <span className="text-gray-500">({injury.muscle_group})</span>
-                                      )}
-                                    </div>
-                                  )}
-                                  
-                                  {injury.pain_level && (
-                                    <div className="flex items-center space-x-1">
-                                      <span className="text-[#FF7939]">⚡</span>
-                                      <span>Dolor {injury.pain_level}/3</span>
-                                      {injury.pain_description && (
-                                        <span className="text-gray-500">- {injury.pain_description}</span>
-                                      )}
-                                    </div>
-                                  )}
-                                  
-                                </div>
-                              )}
-                              
-                              {/* Descripción adicional */}
-                              {injury.description && (
-                                <div className="mt-2 text-xs text-gray-400 bg-zinc-900/30 p-2 rounded">
-                                  {injury.description}
-                                </div>
-                              )}
+                              <button
+                                onClick={() => {
+                                  const newHidden = new Set(hiddenActivities)
+                                  if (newHidden.has(activity.id)) {
+                                    newHidden.delete(activity.id)
+                                  } else {
+                                    newHidden.add(activity.id)
+                                  }
+                                  setHiddenActivities(newHidden)
+                                }}
+                                className="text-xs text-gray-400 hover:text-[#FF7939] ml-2"
+                              >
+                                {hiddenActivities.has(activity.id) ? 'Mostrar' : 'Ocultar'}
+                              </button>
                             </div>
                           ))}
                         </div>
-                      )}
-                    </div>
-                  )}
-
-                  {/* Biométricas del cliente - colapsable */}
-                  {clientDetail.client.biometrics && clientDetail.client.biometrics.length > 0 && (
-                    <div className="bg-zinc-900/40 rounded-lg">
-                      <div 
-                        className="flex items-center justify-between p-3 cursor-pointer hover:bg-zinc-800/50 transition-colors"
-                        onClick={() => setShowBiometrics(!showBiometrics)}
-                      >
-                        <div className="flex items-center gap-2">
-                          <TrendingUp className="h-4 w-4 text-blue-500" />
-                          <span className="text-sm font-medium text-gray-300">Biométricas ({clientDetail.client.biometrics.length})</span>
-                        </div>
-                        <div className="text-xs text-gray-500">{showBiometrics ? 'Ocultar' : 'Ver'}</div>
-                      </div>
-                      {showBiometrics && (
-                        <div className="px-3 pb-3 space-y-1">
-                          {clientDetail.client.biometrics.map((biometric: any, index: number) => (
-                            <div key={index} className="flex justify-between items-center py-2 px-3 bg-zinc-800/50 rounded">
-                              <div className="font-medium text-sm">{biometric.name}</div>
-                              <div className="text-sm font-semibold text-white">
-                                {biometric.value} {biometric.unit}
-                              </div>
-                      </div>
-                    ))}
-                        </div>
-                      )}
-                    </div>
-                  )}
-
-                  {/* Objetivos del cliente - colapsable */}
-                  {clientDetail.client.objectives && clientDetail.client.objectives.length > 0 && (
-                    <div className="bg-zinc-900/40 rounded-lg">
-                      <div 
-                        className="flex items-center justify-between p-3 cursor-pointer hover:bg-zinc-800/50 transition-colors"
-                        onClick={() => setShowObjectives(!showObjectives)}
-                      >
-                        <div className="flex items-center gap-2">
-                          <Target className="h-4 w-4 text-green-500" />
-                          <span className="text-sm font-medium text-gray-300">Objetivos ({clientDetail.client.objectives.length})</span>
-                        </div>
-                        <div className="text-xs text-gray-500">{showObjectives ? 'Ocultar' : 'Ver'}</div>
-                      </div>
-                      {showObjectives && (
-                        <div className="px-3 pb-3 space-y-1">
-                          {clientDetail.client.objectives.map((objective: any, index: number) => (
-                            <div key={index} className="py-2 px-3 bg-zinc-800/50 rounded">
-                              <div className="font-medium text-sm mb-1">{objective.exercise_title}</div>
-                              <div className="flex justify-between items-center text-xs text-gray-400">
-                                <span>Actual: {objective.current_value} {objective.unit}</span>
-                                <span>Objetivo: {objective.objective} {objective.unit}</span>
-                              </div>
-                            </div>
-                          ))}
-                        </div>
-                      )}
-                    </div>
-                  )}
-                </div>
-
-                {/* Actividades Activas - debajo de las secciones colapsables */}
-                {selectedClient.activities && selectedClient.activities.length > 0 && (
-                  <div className="mb-4">
-                    <div className="text-sm font-medium text-gray-300 mb-2">Actividades Activas ({selectedClient.activities.length})</div>
-                    <div className="space-y-1">
-                      {selectedClient.activities.map((activity, index) => (
-                        <div key={index} className="flex justify-between items-center py-2 px-3 bg-zinc-900/40 rounded">
-                          <div className="font-medium text-sm">{activity.title}</div>
-                          <div className="text-xs text-gray-400">${activity.amountPaid}</div>
-                        </div>
-                      ))}
-                    </div>
                       </div>
                     )}
 
-                {/* Calendario de actividades - colapsable */}
-                <div className="bg-zinc-900/40 rounded-lg mb-4">
-                  <div 
-                    className="flex items-center justify-between p-3 cursor-pointer hover:bg-zinc-800/50 transition-colors"
-                    onClick={() => setShowCalendar(!showCalendar)}
-                  >
-                    <div className="flex items-center gap-2">
-                      <Calendar className="h-4 w-4 text-blue-500" />
-                      <span className="text-sm font-medium text-gray-300">Calendario de Actividades</span>
+                    {/* Calendario */}
+                    <div className="mt-4" ref={calendarContainerRef}>
+                      <ClientCalendar 
+                        clientId={selectedClient.id} 
+                        onDaySelected={() => {
+                          // Hacer scroll automático hacia la lista de ejercicios
+                          setTimeout(() => {
+                            if (calendarScrollRef.current && exercisesListRef.current) {
+                              const exercisesTop = exercisesListRef.current.offsetTop
+                              calendarScrollRef.current.scrollTo({
+                                top: exercisesTop - 100, // Offset para dejar espacio arriba
+                                behavior: 'smooth'
+                              })
+                            }
+                          }, 200)
+                        }}
+                        exercisesListRef={exercisesListRef}
+                      />
                     </div>
-                    <div className="text-xs text-gray-500">{showCalendar ? 'Ocultar' : 'Ver'}</div>
                   </div>
-                  {showCalendar && (
-                    <div className="px-3 pb-3 overflow-y-auto" style={{ maxHeight: 'calc(100vh - 200px)', minHeight: 'calc(100vh + 500px)' }}>
-                      <ClientCalendar clientId={selectedClient.id} />
-                    </div>
-                  )}
-                </div>
+                )}
+
+                {/* Tab: Información */}
+                {activeTab === 'info' && (
+                  <div className="p-3 space-y-2 pb-32">
+                    {/* Información personal */}
+                    {clientDetail.client.physicalData && (
+                      <div className="bg-zinc-900/40 rounded-lg p-3 space-y-2">
+                        <h4 className="text-sm font-semibold text-white mb-2">Información Personal</h4>
+                        
+                        <div className="grid grid-cols-2 gap-2">
+                          {/* Edad */}
+                          {clientDetail.client.physicalData.age && (
+                            <div className="flex items-center gap-2">
+                              <Calendar className="h-3.5 w-3.5 text-[#FF7939] flex-shrink-0" />
+                              <div>
+                                <div className="text-xs text-gray-400">Edad</div>
+                                <div className="text-xs text-white font-medium">{clientDetail.client.physicalData.age} años</div>
+                              </div>
+                            </div>
+                          )}
+                          
+                          {/* Género */}
+                          {clientDetail.client.physicalData.gender && (
+                            <div className="flex items-center gap-2">
+                              <Users className="h-3.5 w-3.5 text-[#FF7939] flex-shrink-0" />
+                              <div>
+                                <div className="text-xs text-gray-400">Género</div>
+                                <div className="text-xs text-white font-medium">
+                                  {clientDetail.client.physicalData.gender === 'male' ? 'Masculino' : 
+                                   clientDetail.client.physicalData.gender === 'female' ? 'Femenino' : 
+                                   clientDetail.client.physicalData.gender}
+                                </div>
+                              </div>
+                            </div>
+                          )}
+                          
+                          {/* Peso */}
+                          {clientDetail.client.physicalData.weight && (
+                            <div className="flex items-center gap-2">
+                              <TrendingUp className="h-3.5 w-3.5 text-[#FF7939] flex-shrink-0" />
+                              <div>
+                                <div className="text-xs text-gray-400">Peso</div>
+                                <div className="text-xs text-white font-medium">{clientDetail.client.physicalData.weight} kg</div>
+                              </div>
+                            </div>
+                          )}
+                          
+                          {/* Altura */}
+                          {clientDetail.client.physicalData.height && (
+                            <div className="flex items-center gap-2">
+                              <TrendingUp className="h-3.5 w-3.5 text-[#FF7939] flex-shrink-0" />
+                              <div>
+                                <div className="text-xs text-gray-400">Altura</div>
+                                <div className="text-xs text-white font-medium">{clientDetail.client.physicalData.height} cm</div>
+                              </div>
+                            </div>
+                          )}
+                          
+                          {/* IMC */}
+                          {clientDetail.client.physicalData.bmi && (
+                            <div className="flex items-center gap-2">
+                              <Target className="h-3.5 w-3.5 text-[#FF7939] flex-shrink-0" />
+                              <div>
+                                <div className="text-xs text-gray-400">IMC</div>
+                                <div className="text-xs text-white font-medium">{clientDetail.client.physicalData.bmi}</div>
+                              </div>
+                            </div>
+                          )}
+                          
+                          {/* Ubicación */}
+                          {clientDetail.client.physicalData.location && (
+                            <div className="flex items-center gap-2">
+                              <MapPin className="h-3.5 w-3.5 text-[#FF7939] flex-shrink-0" />
+                              <div>
+                                <div className="text-xs text-gray-400">Ubicación</div>
+                                <div className="text-xs text-white font-medium">{clientDetail.client.physicalData.location}</div>
+                              </div>
+                            </div>
+                          )}
+                        </div>
+                        
+                        {/* Teléfono */}
+                        {clientDetail.client.physicalData.phone && (
+                          <div className="flex items-center gap-2 pt-2 border-t border-zinc-800">
+                            <MessageSquare className="h-3.5 w-3.5 text-[#FF7939] flex-shrink-0" />
+                            <div>
+                              <div className="text-xs text-gray-400">Teléfono</div>
+                              <div className="text-xs text-white font-medium">{clientDetail.client.physicalData.phone}</div>
+                            </div>
+                          </div>
+                        )}
+                        
+                        {/* Contacto de emergencia */}
+                        {clientDetail.client.physicalData.emergencyContact && (
+                          <div className="flex items-center gap-2">
+                            <AlertTriangle className="h-3.5 w-3.5 text-[#FF7939] flex-shrink-0" />
+                            <div>
+                              <div className="text-xs text-gray-400">Contacto de emergencia</div>
+                              <div className="text-xs text-white font-medium">{clientDetail.client.physicalData.emergencyContact}</div>
+                            </div>
+                          </div>
+                        )}
+                        
+                        {/* Nivel de actividad */}
+                        {clientDetail.client.physicalData.activityLevel && (
+                          <div className="flex items-center gap-2 pt-2 border-t border-zinc-800">
+                            <TrendingUp className="h-3.5 w-3.5 text-[#FF7939] flex-shrink-0" />
+                            <div>
+                              <div className="text-xs text-gray-400">Nivel de actividad</div>
+                              <div className="text-xs text-white font-medium">
+                                {clientDetail.client.physicalData.activityLevel === 'sedentary' ? 'Sedentario' :
+                                 clientDetail.client.physicalData.activityLevel === 'lightly_active' ? 'Ligeramente activo' :
+                                 clientDetail.client.physicalData.activityLevel === 'moderately_active' ? 'Moderadamente activo' :
+                                 clientDetail.client.physicalData.activityLevel === 'very_active' ? 'Muy activo' :
+                                 clientDetail.client.physicalData.activityLevel === 'extremely_active' ? 'Extremadamente activo' :
+                                 clientDetail.client.physicalData.activityLevel}
+                              </div>
+                            </div>
+                          </div>
+                        )}
+                        
+                        {/* Fitness Goals */}
+                        {clientDetail.client.physicalData.fitnessGoals && clientDetail.client.physicalData.fitnessGoals.length > 0 && (
+                          <div className="pt-2 border-t border-zinc-800">
+                            <div className="text-xs text-gray-400 mb-1">Objetivos de fitness</div>
+                            <div className="flex flex-wrap gap-1">
+                              {clientDetail.client.physicalData.fitnessGoals.map((goal: string, index: number) => (
+                                <span key={index} className="text-xs px-2 py-1 bg-[#FF7939]/20 text-[#FF7939] rounded">
+                                  {goal}
+                                </span>
+                              ))}
+                            </div>
+                          </div>
+                        )}
+                        
+                        {/* Descripción */}
+                        {clientDetail.client.physicalData.description && (
+                          <div className="pt-2 border-t border-zinc-800">
+                            <div className="text-xs text-gray-400 mb-1">Descripción</div>
+                            <div className="text-xs text-white leading-relaxed">{clientDetail.client.physicalData.description}</div>
+                          </div>
+                        )}
+                      </div>
+                    )}
+
+                    {/* Lesiones */}
+                    {clientDetail.client.injuries && clientDetail.client.injuries.length > 0 && (
+                      <div className="bg-zinc-900/40 rounded-lg">
+                        <div 
+                          className="flex items-center justify-between p-2 cursor-pointer hover:bg-zinc-800/50 transition-colors"
+                          onClick={() => setShowInjuries(!showInjuries)}
+                        >
+                          <div className="flex items-center gap-2">
+                            <AlertTriangle className="h-3.5 w-3.5 text-yellow-500 flex-shrink-0" />
+                            <span className="text-xs font-medium text-gray-300">Lesiones ({clientDetail.client.injuries.length})</span>
+                          </div>
+                          <div className="text-xs text-gray-500">{showInjuries ? 'Ocultar' : 'Ver'}</div>
+                        </div>
+                        {showInjuries && (
+                          <div className="px-2 pb-2 space-y-1.5">
+                            {clientDetail.client.injuries.map((injury: any, index: number) => (
+                              <div key={index} className="p-2 bg-zinc-800/50 rounded">
+                                <div className="flex justify-between items-center mb-1">
+                                  <div className="font-medium text-xs">{injury.name}</div>
+                                  <span className={`text-xs px-1.5 py-0.5 rounded ${
+                                    injury.severity === 'high' ? 'bg-red-900/50 text-red-400' :
+                                    injury.severity === 'medium' ? 'bg-yellow-900/50 text-yellow-400' :
+                                    'bg-green-900/50 text-green-400'
+                                  }`}>
+                                    {injury.severity === 'high' ? 'Alta' : injury.severity === 'medium' ? 'Media' : 'Baja'}
+                                  </span>
+                                </div>
+                                {(injury.muscle_name || injury.pain_level) && (
+                                  <div className="space-y-0.5 text-xs text-gray-300">
+                                    {injury.muscle_name && (
+                                      <div className="flex items-center space-x-1">
+                                        <span className="text-[#FF7939]">📍</span>
+                                        <span>{injury.muscle_name}</span>
+                                        {injury.muscle_group && (
+                                          <span className="text-gray-500">({injury.muscle_group})</span>
+                                        )}
+                                      </div>
+                                    )}
+                                    {injury.pain_level && (
+                                      <div className="flex items-center space-x-1">
+                                        <span className="text-[#FF7939]">⚡</span>
+                                        <span>Dolor {injury.pain_level}/3</span>
+                                        {injury.pain_description && (
+                                          <span className="text-gray-500">- {injury.pain_description}</span>
+                                        )}
+                                      </div>
+                                    )}
+                                  </div>
+                                )}
+                                {injury.description && (
+                                  <div className="mt-1.5 text-xs text-gray-400 bg-zinc-900/30 p-1.5 rounded">
+                                    {injury.description}
+                                  </div>
+                                )}
+                              </div>
+                            ))}
+                          </div>
+                        )}
+                      </div>
+                    )}
+
+                    {/* Biométricas */}
+                    {clientDetail.client.biometrics && clientDetail.client.biometrics.length > 0 && (
+                      <div className="bg-zinc-900/40 rounded-lg">
+                        <div 
+                          className="flex items-center justify-between p-2 cursor-pointer hover:bg-zinc-800/50 transition-colors"
+                          onClick={() => setShowBiometrics(!showBiometrics)}
+                        >
+                          <div className="flex items-center gap-2">
+                            <TrendingUp className="h-3.5 w-3.5 text-blue-500" />
+                            <span className="text-xs font-medium text-gray-300">Biométricas ({clientDetail.client.biometrics.length})</span>
+                          </div>
+                          <div className="text-xs text-gray-500">{showBiometrics ? 'Ocultar' : 'Ver'}</div>
+                        </div>
+                        {showBiometrics && (
+                          <div className="px-2 pb-2 space-y-0.5">
+                            {clientDetail.client.biometrics.map((biometric: any, index: number) => (
+                              <div key={index} className="flex justify-between items-center py-1.5 px-2 bg-zinc-800/50 rounded">
+                                <div className="font-medium text-xs">{biometric.name}</div>
+                                <div className="text-xs font-semibold text-white">
+                                  {biometric.value} {biometric.unit}
+                                </div>
+                              </div>
+                            ))}
+                          </div>
+                        )}
+                      </div>
+                    )}
+
+                    {/* Objetivos */}
+                    {clientDetail.client.objectives && clientDetail.client.objectives.length > 0 && (
+                      <div className="bg-zinc-900/40 rounded-lg">
+                        <div 
+                          className="flex items-center justify-between p-2 cursor-pointer hover:bg-zinc-800/50 transition-colors"
+                          onClick={() => setShowObjectives(!showObjectives)}
+                        >
+                          <div className="flex items-center gap-2">
+                            <Target className="h-3.5 w-3.5 text-green-500" />
+                            <span className="text-xs font-medium text-gray-300">Objetivos ({clientDetail.client.objectives.length})</span>
+                          </div>
+                          <div className="text-xs text-gray-500">{showObjectives ? 'Ocultar' : 'Ver'}</div>
+                        </div>
+                        {showObjectives && (
+                          <div className="px-2 pb-2 space-y-0.5">
+                            {clientDetail.client.objectives.map((objective: any, index: number) => (
+                              <div key={index} className="py-1.5 px-2 bg-zinc-800/50 rounded">
+                                <div className="font-medium text-xs mb-0.5">{objective.exercise_title}</div>
+                                <div className="flex justify-between items-center text-xs text-gray-400">
+                                  <span>Actual: {objective.current_value} {objective.unit}</span>
+                                  <span>Objetivo: {objective.objective} {objective.unit}</span>
+                                </div>
+                              </div>
+                            ))}
+                          </div>
+                        )}
+                      </div>
+                    )}
+                  </div>
+                )}
               </>
             )}
-
-
+            </div>
           </div>
-      </div>
+        </div>
       )}
     </div>
   )

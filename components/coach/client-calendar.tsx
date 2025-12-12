@@ -1,6 +1,6 @@
 "use client"
 
-import { useState, useEffect } from "react"
+import { useState, useEffect, useRef } from "react"
 import { ChevronLeft, ChevronRight, Calendar, Clock, Flame, Edit, RotateCcw, ChevronDown } from "lucide-react"
 import { Switch } from '@/components/ui/switch'
 import { createClient } from '@/lib/supabase/supabase-client'
@@ -8,6 +8,8 @@ import { createClient } from '@/lib/supabase/supabase-client'
 interface ClientCalendarProps {
   clientId: string
   onLastWorkoutUpdate?: (lastWorkoutDate: string | null) => void
+  onDaySelected?: () => void
+  exercisesListRef?: React.RefObject<HTMLDivElement>
 }
 
 interface ExerciseExecution {
@@ -24,6 +26,8 @@ interface ExerciseExecution {
   enrollment_id?: number
   version?: number
   detalle_series?: any[]
+  ejercicioKeys?: string[] // Keys en detalles_series para este ejercicio (ej: ["1042_1", "1042_2"])
+  minutosJson?: any // Minutos JSON del registro para acceder a minutos por bloque
 }
 
 interface DayData {
@@ -34,7 +38,7 @@ interface DayData {
   activities: string[]
 }
 
-export function ClientCalendar({ clientId, onLastWorkoutUpdate }: ClientCalendarProps) {
+export function ClientCalendar({ clientId, onLastWorkoutUpdate, onDaySelected, exercisesListRef }: ClientCalendarProps) {
   const [currentDate, setCurrentDate] = useState(new Date())
   const [selectedDate, setSelectedDate] = useState<Date | null>(null)
   const [dayData, setDayData] = useState<{ [key: string]: DayData }>({})
@@ -71,27 +75,193 @@ export function ClientCalendar({ clientId, onLastWorkoutUpdate }: ClientCalendar
     return null
   }
 
+  // Función para parsear el formato de detalle_series: "(peso-reps-series);(peso-reps-series)"
+  const parseDetalleSeries = (detalleSeriesStr: string): any[] => {
+    if (!detalleSeriesStr || typeof detalleSeriesStr !== 'string') return []
+    
+    // Formato: "(peso-reps-series);(peso-reps-series)"
+    const matches = detalleSeriesStr.match(/\(([^)]+)\)/g)
+    if (!matches) return []
+    
+    return matches.map(match => {
+      const content = match.replace(/[()]/g, '') // Remover paréntesis
+      const parts = content.split('-')
+      if (parts.length >= 3) {
+        return {
+          peso: parseFloat(parts[0]) || 0,
+          repeticiones: parseInt(parts[1]) || 0,
+          series: parseInt(parts[2]) || 0
+        }
+      }
+      return null
+    }).filter(Boolean)
+  }
+
+  // Función para obtener bloques de series con minutos
+  const getSeriesBlocks = (detalleSeries: any, duracion?: number, ejercicioId?: string, minutosJson?: any): Array<{bloque: number, peso: number, reps: number, series: number, minutos?: number}> => {
+    const blocks: Array<{bloque: number, peso: number, reps: number, series: number, minutos?: number}> = []
+    
+    if (!detalleSeries) {
+      return blocks
+    }
+    
+    // Función para obtener minutos de un bloque específico
+    const getMinutosForBlock = (blockKey: string): number | undefined => {
+      if (!minutosJson || !ejercicioId) return undefined
+      
+      // Parsear minutosJson si es string
+      let minutosData: any = minutosJson
+      if (typeof minutosJson === 'string') {
+        try {
+          minutosData = JSON.parse(minutosJson)
+        } catch (e) {
+          return undefined
+        }
+      }
+      
+      if (!minutosData || typeof minutosData !== 'object') return undefined
+      
+      // Buscar minutos por key exacta (ej: "1042_1")
+      let minutos = minutosData[blockKey]
+      
+      // Si no se encuentra, buscar por ID base con sufijos
+      if (minutos === undefined && ejercicioId) {
+        const baseId = ejercicioId.split('_')[0]
+        const matchingKey = Object.keys(minutosData).find(key => {
+          const keyBaseId = key.split('_')[0]
+          const keySuffix = key.split('_')[1]
+          return keyBaseId === baseId && keySuffix === blockKey.split('_')[1]
+        })
+        if (matchingKey) {
+          minutos = minutosData[matchingKey]
+        }
+      }
+      
+      return minutos !== undefined && minutos !== null ? Number(minutos) : undefined
+    }
+    
+    // Si es un string con formato "(peso-reps-series);(peso-reps-series)"
+    if (typeof detalleSeries === 'string' && detalleSeries.includes('(')) {
+      const parsed = parseDetalleSeries(detalleSeries)
+      if (parsed.length > 0) {
+        return parsed.map((serie, index) => {
+          // Intentar obtener minutos específicos por bloque usando el índice
+          const blockKey = ejercicioId ? `${ejercicioId.split('_')[0]}_${index + 1}` : undefined
+          const minutosBlock = blockKey ? getMinutosForBlock(blockKey) : undefined
+          // Si no se encontró, usar duración total dividida
+          const minutos = minutosBlock !== undefined ? minutosBlock : (duracion ? Math.floor(duracion / parsed.length) : undefined)
+          return {
+            bloque: index + 1,
+            peso: serie.peso,
+            reps: serie.repeticiones,
+            series: serie.series,
+            minutos: minutos
+          }
+        })
+      }
+    }
+    
+    // Si es un objeto con los campos directamente
+    if (typeof detalleSeries === 'object' && detalleSeries.series && detalleSeries.repeticiones) {
+      const peso = detalleSeries.peso || detalleSeries.descanso || 0
+      const blockKey = ejercicioId || '1'
+      const minutos = getMinutosForBlock(blockKey) || duracion
+      return [{
+        bloque: 1,
+        peso: peso,
+        reps: detalleSeries.repeticiones,
+        series: detalleSeries.series,
+        minutos: minutos
+      }]
+    }
+    
+    // Si es un array de series
+    if (Array.isArray(detalleSeries) && detalleSeries.length > 0) {
+      return detalleSeries.map((serie, index) => {
+        const blockKey = ejercicioId ? `${ejercicioId.split('_')[0]}_${index + 1}` : undefined
+        const minutos = blockKey ? getMinutosForBlock(blockKey) : (duracion ? Math.floor(duracion / detalleSeries.length) : undefined)
+        return {
+          bloque: index + 1,
+          peso: serie.peso || 0,
+          reps: serie.repeticiones || 0,
+          series: serie.series || 0,
+          minutos: minutos
+        }
+      })
+    }
+
+    // Si es un objeto con detalle_series dentro
+    if (typeof detalleSeries === 'object' && detalleSeries.detalle_series) {
+      if (typeof detalleSeries.detalle_series === 'string') {
+        const parsed = parseDetalleSeries(detalleSeries.detalle_series)
+        if (parsed.length > 0) {
+          return parsed.map((serie, index) => {
+            const blockKey = ejercicioId ? `${ejercicioId.split('_')[0]}_${index + 1}` : undefined
+            const minutos = blockKey ? getMinutosForBlock(blockKey) : (duracion ? Math.floor(duracion / parsed.length) : undefined)
+            return {
+              bloque: index + 1,
+              peso: serie.peso,
+              reps: serie.repeticiones,
+              series: serie.series,
+              minutos: minutos
+            }
+          })
+        }
+      }
+    }
+
+    return blocks
+  }
+
   // Función para formatear las series en el formato del cliente
   const formatSeries = (detalleSeries: any): string => {
     if (!detalleSeries) {
       return 'Sin series'
     }
     
+    // Si es un string con formato "(peso-reps-series);(peso-reps-series)"
+    if (typeof detalleSeries === 'string' && detalleSeries.includes('(')) {
+      const parsed = parseDetalleSeries(detalleSeries)
+      if (parsed.length > 0) {
+        return parsed
+          .map((serie, index) => {
+            const prefix = parsed.length > 1 ? `S${index + 1}: ` : ''
+            return `${prefix}${serie.series}s × ${serie.repeticiones}r × ${serie.peso}kg`
+          })
+          .join(' | ')
+      }
+    }
+    
     // Si es un objeto con los campos directamente (estructura actual)
     if (typeof detalleSeries === 'object' && detalleSeries.series && detalleSeries.repeticiones) {
-      const peso = detalleSeries.peso || detalleSeries.descanso || '-' // Fallback for old data
-      return `${detalleSeries.series} series × ${detalleSeries.repeticiones} reps × ${peso}kg`
+      const peso = detalleSeries.peso || detalleSeries.descanso || 0
+      return `${detalleSeries.series}s × ${detalleSeries.repeticiones}r × ${peso}kg`
     }
     
     // Si es un array de series (nueva estructura para múltiples bloques)
     if (Array.isArray(detalleSeries) && detalleSeries.length > 0) {
       return detalleSeries
         .map((serie, index) => {
-          const peso = serie.peso || '-'
+          const peso = serie.peso || 0
           const prefix = detalleSeries.length > 1 ? `B${index + 1}: ` : ''
-          return `${prefix}${serie.series || 0} series × ${serie.repeticiones || 0} reps × ${peso}kg`
+          return `${prefix}${serie.series || 0}s × ${serie.repeticiones || 0}r × ${peso}kg`
         })
         .join(' | ')
+    }
+
+    // Si es un objeto con detalle_series dentro
+    if (typeof detalleSeries === 'object' && detalleSeries.detalle_series) {
+      if (typeof detalleSeries.detalle_series === 'string') {
+        const parsed = parseDetalleSeries(detalleSeries.detalle_series)
+        if (parsed.length > 0) {
+          return parsed
+            .map((serie, index) => {
+              const prefix = parsed.length > 1 ? `S${index + 1}: ` : ''
+              return `${prefix}${serie.series}s × ${serie.repeticiones}r × ${serie.peso}kg`
+            })
+            .join(' | ')
+        }
+      }
     }
 
     return 'Sin series'
@@ -99,10 +269,24 @@ export function ClientCalendar({ clientId, onLastWorkoutUpdate }: ClientCalendar
 
   // Función para iniciar edición de series
   const handleEditSeries = async (exerciseId: string, currentSeries: any) => {
-    setEditingExerciseId(exerciseId)
-    
     // Cargar ejercicios disponibles del programa
     const currentExercise = selectedDayExercises.find(ex => ex.id === exerciseId)
+    
+    // Verificar que la fecha del ejercicio sea futura (desde mañana)
+    if (!currentExercise) return
+    
+    const today = new Date()
+    today.setHours(0, 0, 0, 0)
+    const exerciseDate = new Date(currentExercise.fecha_ejercicio)
+    exerciseDate.setHours(0, 0, 0, 0)
+    
+    if (exerciseDate <= today) {
+      console.log('No se pueden editar ejercicios de días pasados o de hoy')
+      return
+    }
+    
+    setEditingExerciseId(exerciseId)
+    
     if (currentExercise) {
       // Intentar obtener activity_id de diferentes formas
       let activityId = currentExercise.actividad_id
@@ -150,21 +334,28 @@ export function ClientCalendar({ clientId, onLastWorkoutUpdate }: ClientCalendar
       } else {
         console.warn('⚠️ No se pudo encontrar activity_id para el ejercicio:', currentExercise)
       }
-    }
-    
-    // Si currentSeries es un objeto (estructura actual), guardarlo directamente
-    if (currentSeries && typeof currentSeries === 'object' && !Array.isArray(currentSeries)) {
-      // Convertir descanso a peso si existe (compatibilidad con datos antiguos)
-      const serie = {
-        series: currentSeries.series || '',
-        repeticiones: currentSeries.repeticiones || '',
-        peso: currentSeries.peso || currentSeries.descanso || ''
+      
+      // Usar getSeriesBlocks para parsear correctamente todos los bloques
+      const blocks = getSeriesBlocks(
+        currentSeries, 
+        currentExercise.duracion, 
+        currentExercise.ejercicio_id, 
+        currentExercise.minutosJson
+      )
+      
+      if (blocks.length > 0) {
+        // Convertir bloques al formato del editor
+        const seriesForEditor = blocks.map(block => ({
+          series: String(block.series || ''),
+          repeticiones: String(block.reps || ''),
+          peso: String(block.peso || ''),
+          minutos: block.minutos ? String(block.minutos) : ''
+        }))
+        setEditingSeries(seriesForEditor)
+      } else {
+        // Si no hay bloques, crear uno vacío
+        setEditingSeries([{ series: '', repeticiones: '', peso: '', minutos: '' }])
       }
-      setEditingSeries([serie])
-    } else if (Array.isArray(currentSeries)) {
-      setEditingSeries(currentSeries)
-    } else {
-      setEditingSeries([{ series: '', repeticiones: '', peso: '' }])
     }
   }
 
@@ -200,7 +391,7 @@ export function ClientCalendar({ clientId, onLastWorkoutUpdate }: ClientCalendar
 
   // Función para agregar una nueva serie
   const handleAddSeries = () => {
-    setEditingSeries([...editingSeries, { series: '', repeticiones: '', peso: '' }])
+    setEditingSeries([...editingSeries, { series: '', repeticiones: '', peso: '', minutos: '' }])
   }
 
   // Función para cambiar el ejercicio
@@ -272,7 +463,7 @@ export function ClientCalendar({ clientId, onLastWorkoutUpdate }: ClientCalendar
       }
 
       // Resetear la edición de series
-      setEditingSeries([{ series: '', repeticiones: '', peso: '' }])
+      setEditingSeries([{ series: '', repeticiones: '', peso: '', minutos: '' }])
       setShowExerciseDropdown(false)
       
       // Recargar datos
@@ -304,14 +495,25 @@ export function ClientCalendar({ clientId, onLastWorkoutUpdate }: ClientCalendar
       // Buscar el ejercicio en los datos actuales
       const exercise = selectedDayExercises.find(ex => ex.id === editingExerciseId)
       if (!exercise) return
+      
+      // Verificar que la fecha del ejercicio sea futura (desde mañana)
+      const today = new Date()
+      today.setHours(0, 0, 0, 0)
+      const exerciseDate = new Date(exercise.fecha_ejercicio)
+      exerciseDate.setHours(0, 0, 0, 0)
+      
+      if (exerciseDate <= today) {
+        console.log('No se pueden guardar cambios en ejercicios de días pasados o de hoy')
+        return
+      }
 
       // Obtener el ID del ejercicio (quitar el prefijo del ID compuesto)
       const ejercicioIdStr = exercise.ejercicio_id
 
-      // Obtener detalles_series actual desde la BD
+      // Obtener detalles_series y minutos_json actuales desde la BD
       const { data: currentRecord, error: fetchError } = await supabase
         .from('progreso_cliente')
-        .select('detalles_series')
+        .select('detalles_series, minutos_json')
         .eq('cliente_id', clientId)
         .eq('fecha', exercise.fecha_ejercicio)
         .single()
@@ -331,6 +533,20 @@ export function ClientCalendar({ clientId, onLastWorkoutUpdate }: ClientCalendar
         }
       }
 
+      // Parsear minutos_json existente
+      let allMinutos: any = {}
+      if (currentRecord?.minutos_json) {
+        if (typeof currentRecord.minutos_json === 'string') {
+          try {
+            allMinutos = JSON.parse(currentRecord.minutos_json)
+          } catch (e) {
+            allMinutos = {}
+          }
+        } else if (typeof currentRecord.minutos_json === 'object') {
+          allMinutos = { ...currentRecord.minutos_json }
+        }
+      }
+
       // Actualizar solo el ejercicio actual
       // Filtrar series válidas (que tengan series y repeticiones)
       const validSeries = editingSeries.filter(serie => 
@@ -338,33 +554,72 @@ export function ClientCalendar({ clientId, onLastWorkoutUpdate }: ClientCalendar
         parseInt(serie.series) > 0 && parseInt(serie.repeticiones) > 0
       )
 
+      // Buscar todas las keys relacionadas con este ejercicio en detalles_series
+      const ejercicioKeys = exercise.ejercicioKeys || []
+      const baseEjId = ejercicioIdStr.split('_')[0]
+
+      // Limpiar minutos_json antiguos de este ejercicio
+      ejercicioKeys.forEach(key => {
+        delete allMinutos[key]
+      })
+      // También eliminar por base ID
+      Object.keys(allMinutos).forEach(key => {
+        if (key.split('_')[0] === baseEjId) {
+          delete allMinutos[key]
+        }
+      })
+
       if (validSeries.length > 0) {
         // Si solo hay una serie válida, guardarla como objeto directo (compatibilidad)
         if (validSeries.length === 1) {
           const serie = validSeries[0]
-          allDetalles[ejercicioIdStr] = {
-            series: parseInt(serie.series) || 0,
-            repeticiones: parseInt(serie.repeticiones) || 0,
-            peso: parseFloat(serie.peso) || 0
+          const detailKey = `${baseEjId}_1`
+          allDetalles[detailKey] = {
+            orden: 1,
+            bloque: 1,
+            ejercicio_id: parseInt(baseEjId),
+            detalle_series: `(${serie.peso || 0}-${serie.repeticiones}-${serie.series})`
+          }
+          
+          // Agregar minutos si existen
+          if (serie.minutos && parseInt(serie.minutos) > 0) {
+            allMinutos[detailKey] = parseInt(serie.minutos)
           }
         } else {
-          // Si hay múltiples series, guardarlas como array
-          allDetalles[ejercicioIdStr] = validSeries.map(serie => ({
-            series: parseInt(serie.series) || 0,
-            repeticiones: parseInt(serie.repeticiones) || 0,
-            peso: parseFloat(serie.peso) || 0
-          }))
+          // Si hay múltiples series, guardarlas con formato de bloques
+          validSeries.forEach((serie, index) => {
+            const detailKey = `${baseEjId}_${index + 1}`
+            allDetalles[detailKey] = {
+              orden: index + 1,
+              bloque: index + 1,
+              ejercicio_id: parseInt(baseEjId),
+              detalle_series: `(${serie.peso || 0}-${serie.repeticiones}-${serie.series})`
+            }
+            
+            // Agregar minutos si existen
+            if (serie.minutos && parseInt(serie.minutos) > 0) {
+              allMinutos[detailKey] = parseInt(serie.minutos)
+            }
+          })
         }
       } else {
         // Eliminar si no tiene datos válidos
-        delete allDetalles[ejercicioIdStr]
+        ejercicioKeys.forEach(key => {
+          delete allDetalles[key]
+        })
+        Object.keys(allDetalles).forEach(key => {
+          if (key.split('_')[0] === baseEjId) {
+            delete allDetalles[key]
+          }
+        })
       }
 
       // Actualizar en la base de datos
       const { error } = await supabase
         .from('progreso_cliente')
         .update({ 
-          detalles_series: allDetalles
+          detalles_series: allDetalles,
+          minutos_json: allMinutos
         })
         .eq('cliente_id', clientId)
         .eq('fecha', exercise.fecha_ejercicio)
@@ -494,29 +749,48 @@ export function ClientCalendar({ clientId, onLastWorkoutUpdate }: ClientCalendar
         // ✅ Obtener progreso del cliente desde la nueva tabla
         const { data: progressRecords, error } = await supabase
           .from('progreso_cliente')
-          .select('id, fecha, actividad_id, ejercicios_completados, ejercicios_pendientes, detalles_series')
+          .select('id, fecha, actividad_id, ejercicios_completados, ejercicios_pendientes, detalles_series, minutos_json, calorias_json')
+          .eq('cliente_id', clientId)
+          .order('fecha', { ascending: false })
+
+        // ✅ Obtener progreso de nutrición también
+        const { data: nutritionRecords, error: nutritionError } = await supabase
+          .from('progreso_cliente_nutricion')
+          .select('id, fecha, actividad_id, ejercicios_completados, ejercicios_pendientes')
           .eq('cliente_id', clientId)
           .order('fecha', { ascending: false })
 
         // ✅ Obtener IDs de ejercicios y platos desde progreso_cliente
         const ejercicioIds = new Set<string>()
         const actividadIds = new Set<number>()
+        const fechasConRegistros = new Set<string>() // Para rastrear fechas con registros reales
         
+        // Procesar registros de progreso_cliente
         progressRecords?.forEach((record: any) => {
+          fechasConRegistros.add(record.fecha)
+          
           let completados: any[] = []
           let pendientes: any[] = []
           
           try {
+            // Completados puede ser objeto {} o array
             if (Array.isArray(record.ejercicios_completados)) {
-              completados = record.ejercicios_completados
+              completados = record.ejercicios_completados.map((id: string) => String(id))
+            } else if (typeof record.ejercicios_completados === 'object' && record.ejercicios_completados) {
+              completados = Object.keys(record.ejercicios_completados)
             } else if (typeof record.ejercicios_completados === 'string') {
-              completados = JSON.parse(record.ejercicios_completados || '[]')
+              const parsed = JSON.parse(record.ejercicios_completados || '{}')
+              completados = Array.isArray(parsed) ? parsed : Object.keys(parsed)
             }
             
+            // Pendientes puede ser objeto {} o array
             if (Array.isArray(record.ejercicios_pendientes)) {
-              pendientes = record.ejercicios_pendientes
+              pendientes = record.ejercicios_pendientes.map((id: string) => String(id))
+            } else if (typeof record.ejercicios_pendientes === 'object' && record.ejercicios_pendientes) {
+              pendientes = Object.keys(record.ejercicios_pendientes)
             } else if (typeof record.ejercicios_pendientes === 'string') {
-              pendientes = JSON.parse(record.ejercicios_pendientes || '[]')
+              const parsed = JSON.parse(record.ejercicios_pendientes || '{}')
+              pendientes = Array.isArray(parsed) ? parsed : Object.keys(parsed)
             }
           } catch (err) {
             // Ignorar errores de parsing
@@ -527,6 +801,44 @@ export function ClientCalendar({ clientId, onLastWorkoutUpdate }: ClientCalendar
           })
           
           // ✅ Guardar actividad_id para determinar el tipo
+          if (record.actividad_id) {
+            actividadIds.add(record.actividad_id)
+          }
+        })
+
+        // Procesar registros de progreso_cliente_nutricion
+        nutritionRecords?.forEach((record: any) => {
+          fechasConRegistros.add(record.fecha)
+          
+          let completados: any[] = []
+          let pendientes: any[] = []
+          
+          try {
+            if (Array.isArray(record.ejercicios_completados)) {
+              completados = record.ejercicios_completados.map((id: string) => String(id))
+            } else if (typeof record.ejercicios_completados === 'object' && record.ejercicios_completados) {
+              completados = Object.keys(record.ejercicios_completados)
+            } else if (typeof record.ejercicios_completados === 'string') {
+              const parsed = JSON.parse(record.ejercicios_completados || '{}')
+              completados = Array.isArray(parsed) ? parsed : Object.keys(parsed)
+            }
+            
+            if (Array.isArray(record.ejercicios_pendientes)) {
+              pendientes = record.ejercicios_pendientes.map((id: string) => String(id))
+            } else if (typeof record.ejercicios_pendientes === 'object' && record.ejercicios_pendientes) {
+              pendientes = Object.keys(record.ejercicios_pendientes)
+            } else if (typeof record.ejercicios_pendientes === 'string') {
+              const parsed = JSON.parse(record.ejercicios_pendientes || '{}')
+              pendientes = Array.isArray(parsed) ? parsed : Object.keys(parsed)
+            }
+          } catch (err) {
+            // Ignorar errores de parsing
+          }
+          
+          [...completados, ...pendientes].forEach((id: string) => {
+            ejercicioIds.add(String(id))
+          })
+          
           if (record.actividad_id) {
             actividadIds.add(record.actividad_id)
           }
@@ -668,29 +980,57 @@ export function ClientCalendar({ clientId, onLastWorkoutUpdate }: ClientCalendar
         progressRecords?.forEach((record: any) => {
           const fecha = record.fecha
           
-          // Manejar tanto arrays nativos de PostgreSQL como strings JSON
+          // Manejar tanto arrays nativos de PostgreSQL como strings JSON u objetos
           let completados: any[] = []
           let pendientes: any[] = []
           
           try {
-            if (Array.isArray(record.ejercicios_completados)) {
-              completados = record.ejercicios_completados
-            } else if (typeof record.ejercicios_completados === 'string') {
-              completados = JSON.parse(record.ejercicios_completados || '[]')
+            // Parsear ejercicios_completados
+            let completadosParsed: any = record.ejercicios_completados
+            if (typeof record.ejercicios_completados === 'string') {
+              completadosParsed = JSON.parse(record.ejercicios_completados || '{}')
             }
             
-            if (Array.isArray(record.ejercicios_pendientes)) {
-              pendientes = record.ejercicios_pendientes
-            } else if (typeof record.ejercicios_pendientes === 'string') {
-              pendientes = JSON.parse(record.ejercicios_pendientes || '[]')
+            if (Array.isArray(completadosParsed)) {
+              completados = completadosParsed.map((id: any) => String(id))
+            } else if (completadosParsed && typeof completadosParsed === 'object') {
+              // Si es un objeto, obtener las keys
+              completados = Object.keys(completadosParsed).map(key => {
+                // Extraer el ID base del ejercicio (ej: "1042_1" -> "1042")
+                const baseId = key.split('_')[0]
+                return baseId
+              })
+              // Remover duplicados
+              completados = [...new Set(completados)]
+            }
+            
+            // Parsear ejercicios_pendientes
+            let pendientesParsed: any = record.ejercicios_pendientes
+            if (typeof record.ejercicios_pendientes === 'string') {
+              pendientesParsed = JSON.parse(record.ejercicios_pendientes || '{}')
+            }
+            
+            if (Array.isArray(pendientesParsed)) {
+              pendientes = pendientesParsed.map((id: any) => String(id))
+            } else if (pendientesParsed && typeof pendientesParsed === 'object') {
+              // Si es un objeto, obtener las keys
+              pendientes = Object.keys(pendientesParsed).map(key => {
+                // Extraer el ID base del ejercicio
+                const baseId = key.split('_')[0]
+                return baseId
+              })
+              // Remover duplicados
+              pendientes = [...new Set(pendientes)]
             }
           } catch (err) {
-            console.warn('Error parseando ejercicios:', err)
+            console.warn('Error parseando ejercicios:', err, record)
             completados = []
             pendientes = []
           }
           
           const allEjercicios = [...completados, ...pendientes]
+          // Remover duplicados de allEjercicios
+          const allEjerciciosUnique = [...new Set(allEjercicios)]
 
           if (!processedData[fecha]) {
             processedData[fecha] = {
@@ -702,7 +1042,7 @@ export function ClientCalendar({ clientId, onLastWorkoutUpdate }: ClientCalendar
             }
           }
 
-          allEjercicios.forEach((ejId: string) => {
+          allEjerciciosUnique.forEach((ejId: string) => {
             const isCompleted = completados.includes(ejId)
             
             // ✅ Buscar el nombre del ejercicio o plato desde el mapa combinado
@@ -721,19 +1061,41 @@ export function ClientCalendar({ clientId, onLastWorkoutUpdate }: ClientCalendar
             const version = enrollmentId ? enrollmentVersions.get(enrollmentId) : undefined
             const actividadTitulo = record.actividad_id ? actividadTitulos.get(record.actividad_id) : undefined
 
+            // Buscar todas las keys relacionadas con este ejercicio en detalles_series
+            const ejercicioKeys: string[] = []
+            try {
+              let detalles: any = null
+              if (typeof record.detalles_series === 'string') {
+                detalles = JSON.parse(record.detalles_series)
+              } else if (typeof record.detalles_series === 'object') {
+                detalles = record.detalles_series
+              }
+              
+              if (detalles && typeof detalles === 'object') {
+                const ejIdStr = String(ejId)
+                // Buscar keys que empiecen con este ID (ej: "1042", "1042_1", "1042_2")
+                ejercicioKeys.push(...Object.keys(detalles).filter(key => {
+                  const baseId = key.split('_')[0]
+                  return baseId === ejIdStr
+                }))
+              }
+            } catch (err) {
+              // Ignorar errores
+            }
+
             const exerciseData: ExerciseExecution = {
               id: `${record.id}-${ejId}`,
               ejercicio_id: ejId,
               completado: isCompleted,
               fecha_ejercicio: fecha,
-              duracion: undefined,
-              calorias_estimadas: undefined,
               nota_cliente: undefined,
               ejercicio_nombre: nombre || defaultNombre,
               actividad_titulo: actividadTitulo,
               actividad_id: record.actividad_id,
               enrollment_id: enrollmentId,
               version: version,
+              ejercicioKeys: ejercicioKeys,
+              minutosJson: record.minutos_json,
               detalle_series: (() => {
                 try {
                   if (!record.detalles_series) {
@@ -756,17 +1118,98 @@ export function ClientCalendar({ clientId, onLastWorkoutUpdate }: ClientCalendar
                     detalles = record.detalles_series
                   }
                   
-                  // detalles_series está estructurado como: { "1042": { series: 3, repeticiones: 15, descanso: "30s" } }
-                  // Buscar por ejId (como string)
-                  if (detalles && typeof detalles === 'object' && !Array.isArray(detalles)) {
-                    const ejIdStr = String(ejId)
-                    return detalles[ejIdStr] || null
+                  if (!detalles || typeof detalles !== 'object' || Array.isArray(detalles)) {
+                    return null
                   }
                   
-                  return null
+                  // Buscar por ejId directo o con sufijos (1042, 1042_1, 1042_2, etc.)
+                  const ejIdStr = String(ejId)
+                  let detalle = detalles[ejIdStr]
+                  
+                  // Si no se encuentra directamente, buscar con sufijos
+                  if (!detalle) {
+                    const matchingKey = Object.keys(detalles).find(key => {
+                      const baseId = key.split('_')[0]
+                      return baseId === ejIdStr
+                    })
+                    if (matchingKey) {
+                      detalle = detalles[matchingKey]
+                    }
+                  }
+                  
+                  // Si el detalle tiene un campo detalle_series (formato nuevo), usarlo
+                  if (detalle && typeof detalle === 'object' && detalle.detalle_series) {
+                    return detalle.detalle_series
+                  }
+                  
+                  return detalle || null
                 } catch (err) {
                   console.warn('Error parseando detalles_series:', err)
                   return null
+                }
+              })(),
+              duracion: (() => {
+                try {
+                  if (!record.minutos_json) return undefined
+                  let minutos: any = null
+                  
+                  if (typeof record.minutos_json === 'string') {
+                    minutos = JSON.parse(record.minutos_json)
+                  } else if (typeof record.minutos_json === 'object') {
+                    minutos = record.minutos_json
+                  }
+                  
+                  if (!minutos || typeof minutos !== 'object') return undefined
+                  
+                  // Buscar por ejId directo o con sufijos
+                  const ejIdStr = String(ejId)
+                  let minutosEjercicio = minutos[ejIdStr]
+                  
+                  if (!minutosEjercicio) {
+                    const matchingKey = Object.keys(minutos).find(key => {
+                      const baseId = key.split('_')[0]
+                      return baseId === ejIdStr
+                    })
+                    if (matchingKey) {
+                      minutosEjercicio = minutos[matchingKey]
+                    }
+                  }
+                  
+                  return minutosEjercicio ? Number(minutosEjercicio) : undefined
+                } catch (err) {
+                  return undefined
+                }
+              })(),
+              calorias_estimadas: (() => {
+                try {
+                  if (!record.calorias_json) return undefined
+                  let calorias: any = null
+                  
+                  if (typeof record.calorias_json === 'string') {
+                    calorias = JSON.parse(record.calorias_json)
+                  } else if (typeof record.calorias_json === 'object') {
+                    calorias = record.calorias_json
+                  }
+                  
+                  if (!calorias || typeof calorias !== 'object') return undefined
+                  
+                  // Buscar por ejId directo o con sufijos
+                  const ejIdStr = String(ejId)
+                  let caloriasEjercicio = calorias[ejIdStr]
+                  
+                  if (!caloriasEjercicio) {
+                    const matchingKey = Object.keys(calorias).find(key => {
+                      const baseId = key.split('_')[0]
+                      return baseId === ejIdStr
+                    })
+                    if (matchingKey) {
+                      caloriasEjercicio = calorias[matchingKey]
+                    }
+                  }
+                  
+                  return caloriasEjercicio ? Number(caloriasEjercicio) : undefined
+                } catch (err) {
+                  return undefined
                 }
               })()
             }
@@ -779,6 +1222,32 @@ export function ClientCalendar({ clientId, onLastWorkoutUpdate }: ClientCalendar
           })
         })
 
+        // ✅ Solo mostrar días con registros reales, NO agregar planificación futura
+        // Filtrar processedData para incluir solo días con registros reales
+        const processedDataFiltered: { [key: string]: DayData } = {}
+        Object.keys(processedData).forEach(fecha => {
+          if (fechasConRegistros.has(fecha)) {
+            processedDataFiltered[fecha] = processedData[fecha]
+          }
+        })
+
+        setDayData(processedDataFiltered)
+
+        // Calcular la última ejercitación (último día que completó al menos un ejercicio)
+        const lastWorkoutDate = calculateLastWorkoutDate(processedDataFiltered)
+        if (onLastWorkoutUpdate) {
+          onLastWorkoutUpdate(lastWorkoutDate)
+        }
+      } catch (error) {
+        console.error('❌ [CLIENT CALENDAR] Error general:', error)
+      } finally {
+        setLoading(false)
+      }
+    }
+
+    // CÓDIGO COMENTADO: Ya no agregamos planificación futura automáticamente
+    // Solo mostramos días con registros reales en progreso_cliente o progreso_cliente_nutricion
+    /*
         // ✅ Cargar planificación semanal desde planificacion_ejercicios para cada actividad
         if (enrollments && enrollments.length > 0) {
           const currentMonth = currentDate.getMonth()
@@ -967,19 +1436,7 @@ export function ClientCalendar({ clientId, onLastWorkoutUpdate }: ClientCalendar
           }
         }
 
-        setDayData(processedData)
-
-        // Calcular la última ejercitación (último día que completó al menos un ejercicio)
-        const lastWorkoutDate = calculateLastWorkoutDate(processedData)
-        if (onLastWorkoutUpdate) {
-          onLastWorkoutUpdate(lastWorkoutDate)
-        }
-      } catch (error) {
-        console.error('❌ [CLIENT CALENDAR] Error general:', error)
-      } finally {
-        setLoading(false)
-      }
-    }
+        */
 
   // Obtener datos de ejercicios del cliente
   useEffect(() => {
@@ -1057,6 +1514,11 @@ export function ClientCalendar({ clientId, onLastWorkoutUpdate }: ClientCalendar
       setSelectedDayExercises(data.exercises)
       setSelectedDayForEdit(null)
       setTargetDayForEdit(null)
+      
+      // Llamar callback para hacer scroll automático
+      if (onDaySelected) {
+        onDaySelected()
+      }
     }
   }
 
@@ -1245,7 +1707,7 @@ export function ClientCalendar({ clientId, onLastWorkoutUpdate }: ClientCalendar
 
         {/* Detalle del día seleccionado */}
         {selectedDate && selectedDayExercises.length > 0 && (
-          <div className="w-full">
+          <div className="w-full" ref={exercisesListRef}>
             <div className="flex items-center justify-between mb-4">
               <div className="flex items-center gap-2">
                 <Clock className="h-4 w-4 text-[#FF7939]" />
@@ -1265,18 +1727,16 @@ export function ClientCalendar({ clientId, onLastWorkoutUpdate }: ClientCalendar
           </div>
           
           <div className="space-y-3">
-            {selectedDayExercises.map((exercise, index) => (
+            {selectedDayExercises.map((exercise, index) => {
+              const seriesBlocks = getSeriesBlocks(exercise.detalle_series, exercise.duracion, exercise.ejercicio_id, exercise.minutosJson)
+              const isCompleted = exercise.completado
+              
+              return (
               <div key={exercise.id} className="w-full flex items-start py-3 border-b border-zinc-700/30 last:border-b-0">
-                {/* Estado completado con logo OMNIA */}
+                {/* Ícono de fuego - naranja si completado, gris si no */}
                 <div className="flex items-center justify-center w-12 pt-1">
-                  <div className={`w-8 h-8 rounded-full flex items-center justify-center ${
-                    exercise.completado 
-                      ? 'bg-[#FF7939] text-white' 
-                      : 'bg-gray-600 text-gray-300'
-                  }`}>
-                    <Flame className="h-5 w-5" />
-        </div>
-      </div>
+                  <Flame className={`h-5 w-5 ${isCompleted ? 'text-[#FF7939]' : 'text-gray-600'}`} />
+                </div>
 
                 {/* Nombre del ejercicio y detalle de series */}
                 <div className="flex-1 px-4">
@@ -1315,26 +1775,38 @@ export function ClientCalendar({ clientId, onLastWorkoutUpdate }: ClientCalendar
                       )}
                     </div>
                   ) : (
-                    <div className="font-semibold text-white mb-1">
-                      {exercise.ejercicio_nombre}
-                    </div>
-                  )}
-                  
-                  {/* ✅ Mostrar nombre de actividad y versión */}
-                  {exercise.actividad_titulo && (
-                    <div className="text-xs text-[#FF7939] mt-1 font-medium">
-                      {exercise.actividad_titulo}
-                      {exercise.version && exercise.version > 1 && (
-                        <span className="text-gray-400 ml-1">(Versión {exercise.version})</span>
+                    <>
+                      {/* Nombre del ejercicio en blanco */}
+                      <div className="font-semibold text-white mb-1">
+                        {exercise.ejercicio_nombre || `Ejercicio ${exercise.ejercicio_id}`}
+                      </div>
+                      
+                      {/* Nombre de actividad en naranja */}
+                      {exercise.actividad_titulo && (
+                        <div className="text-xs text-[#FF7939] font-medium mb-2">
+                          {exercise.actividad_titulo}
+                          {exercise.version && exercise.version > 1 && (
+                            <span className="text-gray-400 ml-1">(Versión {exercise.version})</span>
+                          )}
+                        </div>
                       )}
-                    </div>
-                  )}
-                  
-                  {/* ✅ Mostrar series si existen */}
-                  {exercise.detalle_series && (
-                    <div className="text-xs text-gray-400 mt-1">
-                      {formatSeries(exercise.detalle_series)}
-                    </div>
+                      
+                      {/* Bloques de series con minutos en gris */}
+                      {seriesBlocks.length > 0 ? (
+                        <div className="space-y-0.5">
+                          {seriesBlocks.map((block) => (
+                            <div key={block.bloque} className="text-xs text-gray-400">
+                              Bloque {block.bloque} P:{block.peso}kg|R:{block.reps}|S:{block.series}
+                              {block.minutos !== undefined && block.minutos > 0 && ` - ${block.minutos}min`}
+                            </div>
+                          ))}
+                        </div>
+                      ) : exercise.duracion ? (
+                        <div className="text-xs text-gray-400">
+                          {exercise.duracion}min
+                        </div>
+                      ) : null}
+                    </>
                   )}
                   
                   {/* Editor de series expandido */}
@@ -1376,6 +1848,17 @@ export function ClientCalendar({ clientId, onLastWorkoutUpdate }: ClientCalendar
                               placeholder="50"
                               value={serie.peso}
                               onChange={(e) => handleUpdateSeries(index, 'peso', e.target.value)}
+                              className="w-14 px-2 py-1 text-xs bg-[#2A2A2A] border border-[#3A3A3A] rounded text-white placeholder:text-gray-400"
+                            />
+                          </div>
+                          <span className="text-gray-400 text-xs mt-4">|</span>
+                          <div className="flex flex-col">
+                            <label className="text-[10px] text-gray-500 mb-0.5">Min (min)</label>
+                            <input
+                              type="number"
+                              placeholder="10"
+                              value={serie.minutos || ''}
+                              onChange={(e) => handleUpdateSeries(index, 'minutos', e.target.value)}
                               className="w-14 px-2 py-1 text-xs bg-[#2A2A2A] border border-[#3A3A3A] rounded text-white placeholder:text-gray-400"
                             />
                           </div>
@@ -1424,30 +1907,31 @@ export function ClientCalendar({ clientId, onLastWorkoutUpdate }: ClientCalendar
                       </div>
                     </div>
                   ) : (
-                    <div className="flex items-center justify-between">
-                  <div className="text-xs text-gray-400">
-                        {exercise.detalle_series ? (
-                      <span className="text-[#FF7939]">
-                        {formatSeries(exercise.detalle_series)}
-                      </span>
-                    ) : (
-                      <span className="text-gray-500">Sin series</span>
-                    )}
-                  </div>
-                      
-                      {/* Botón de editar series */}
-                      <button
-                        onClick={() => handleEditSeries(exercise.id, exercise.detalle_series)}
-                        className="p-1 text-gray-400 hover:text-[#FF7939] transition-colors"
-                        title="Editar series"
-                      >
-                        <Edit className="h-3 w-3" />
-                      </button>
+                    <div className="flex items-center justify-between mt-1">
+                      {/* Botón de editar series - solo si la fecha es futura */}
+                      {(() => {
+                        const today = new Date()
+                        today.setHours(0, 0, 0, 0)
+                        const exerciseDate = new Date(exercise.fecha_ejercicio)
+                        exerciseDate.setHours(0, 0, 0, 0)
+                        const isFutureDate = exerciseDate > today
+                        
+                        return isFutureDate ? (
+                          <button
+                            onClick={() => handleEditSeries(exercise.id, exercise.detalle_series)}
+                            className="p-1 text-gray-400 hover:text-[#FF7939] transition-colors ml-auto"
+                            title="Editar series"
+                          >
+                            <Edit className="h-3 w-3" />
+                          </button>
+                        ) : null
+                      })()}
                     </div>
                   )}
                 </div>
               </div>
-            ))}
+              )
+            })}
           </div>
         </div>
       )}

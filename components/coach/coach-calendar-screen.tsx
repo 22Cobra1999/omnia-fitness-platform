@@ -2,16 +2,18 @@
 
 import { useState, useEffect, useCallback, useMemo } from "react"
 import { createClient } from "@/lib/supabase/supabase-client"
-import { Calendar, Clock, Video, ExternalLink, Users } from "lucide-react"
+import { Calendar, Clock, Video, ExternalLink, Users, RefreshCw } from "lucide-react"
 import { format, startOfMonth, endOfMonth, eachDayOfInterval, isSameDay, isToday, addMonths, subMonths, addDays, subDays } from "date-fns"
 import { es } from "date-fns/locale"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
+import { toast } from 'sonner'
 // Google components removed - functionality to be reimplemented if needed
 // import { ConnectGoogleButton } from "@/components/google/ConnectGoogleButton"
 // import { MeetingJoinButton } from "@/components/google/MeetingJoinButton"
-// import { EventDetailModal } from "./EventDetailModal"
+import { WorkshopEventModal } from "./workshop-event-modal"
+import { WorkshopEventDetailModal } from "./workshop-event-detail-modal"
 
 interface CalendarEvent {
   id: string
@@ -19,8 +21,7 @@ interface CalendarEvent {
   start_time: string
   end_time: string
   event_type: 'workshop' | 'consultation' | 'other'
-  status: 'scheduled' | 'completed' | 'cancelled'
-  consultation_type?: string
+  status: 'scheduled' | 'completed' | 'cancelled' | 'rescheduled'
   client_id?: string
   client_name?: string
   activity_id?: number
@@ -32,6 +33,7 @@ interface CalendarEvent {
   attendance_tracked?: boolean
   // Additional fields for modal
   description?: string
+  notes?: string
   max_participants?: number
   current_participants?: number
   activity_name?: string
@@ -52,6 +54,7 @@ export default function CoachCalendarScreen() {
   const [selectedEvent, setSelectedEvent] = useState<CalendarEvent | null>(null)
   const [showEventModal, setShowEventModal] = useState(false)
   const [viewMode, setViewMode] = useState<'month' | 'today'>('month') // ✅ Vista: mes o hoy
+  const [syncing, setSyncing] = useState(false)
 
   const supabase = createClient()
 
@@ -107,18 +110,12 @@ export default function CoachCalendarScreen() {
           end_time,
           event_type,
           status,
-          consultation_type,
           client_id,
           activity_id,
           meet_link,
           meet_link_id,
           google_event_id,
-          attendance_tracked,
-          product_name,
-          description,
-          max_participants,
-          current_participants,
-          activity_name
+          attendance_tracked
         `)
         .eq('coach_id', user.id)
         .gte('start_time', monthStart.toISOString())
@@ -203,7 +200,7 @@ export default function CoachCalendarScreen() {
         const formattedOmniaEvents = calendarEvents.map(event => ({
           ...event,
           client_name: event.client_id ? clientNames[event.client_id] : undefined,
-          product_name: event.product_name || (event.activity_id ? activityNames[event.activity_id] : undefined),
+          product_name: event.activity_id ? activityNames[event.activity_id] : undefined,
           is_google_event: false,
           source: 'omnia',
         }))
@@ -224,13 +221,60 @@ export default function CoachCalendarScreen() {
       console.log(`📊 Total eventos: ${allEvents.length} (Omnia: ${calendarEvents?.length || 0}, Google: ${googleEvents.length})`)
       setEvents(allEvents)
 
+      // Si hay un evento seleccionado, actualizarlo con los datos frescos
+      // Esto se hace después de que todos los eventos se hayan cargado
+      setSelectedEvent(prevEvent => {
+        if (!prevEvent) return null
+        const updatedEvent = allEvents.find(e => e.id === prevEvent.id)
+        return updatedEvent || prevEvent
+      })
+
+      // Crear Meets automáticamente para eventos de taller que no tienen Meet
+      // Solo si Google Calendar está conectado
+      if (googleConnected && calendarEvents && calendarEvents.length > 0) {
+        const eventosSinMeet = calendarEvents.filter(
+          (e: any) => 
+            e.event_type === 'workshop' && 
+            !e.meet_link && 
+            !e.google_event_id
+        );
+
+        if (eventosSinMeet.length > 0) {
+          console.log(`🔗 Creando Meets automáticamente para ${eventosSinMeet.length} talleres...`);
+          
+          // Crear Meets en paralelo (sin bloquear la UI)
+          eventosSinMeet.forEach(async (event: any) => {
+            try {
+              const response = await fetch('/api/google/calendar/auto-create-meet', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ eventId: event.id }),
+              });
+
+              const result = await response.json();
+              if (result.success) {
+                console.log(`✅ Meet creado automáticamente para: ${event.title}`);
+                // Recargar eventos después de un breve delay
+                setTimeout(() => {
+                  getCoachEvents();
+                }, 1000);
+              } else {
+                console.log(`⚠️  Meet no creado para: ${event.title} - ${result.message || 'Error desconocido'}`);
+              }
+            } catch (error: any) {
+              console.error(`❌ Error creando Meet para: ${event.title}`, error);
+            }
+          });
+        }
+      }
+
     } catch (err) {
       console.error("Error in getCoachEvents:", err)
       setEvents([])
     } finally {
       setLoading(false)
     }
-  }, [supabase, currentDate, viewMode])
+  }, [supabase, currentDate, viewMode, googleConnected])
 
   // Generar días del mes
   const daysInMonth = useMemo(() => {
@@ -258,19 +302,82 @@ export default function CoachCalendarScreen() {
 
   // Manejar click en evento
   const handleEventClick = (event: CalendarEvent) => {
-    setSelectedEvent(event)
-    setShowEventModal(true)
+    // Solo abrir modal para eventos de taller (workshop)
+    if (event.event_type === 'workshop') {
+      setSelectedEvent(event)
+      setShowEventModal(true)
+    }
   }
+
+  const handleEventUpdate = useCallback(async () => {
+    // Recargar eventos después de actualizar
+    await getCoachEvents()
+    
+    // No actualizar selectedEvent aquí porque el modal se cerrará
+    // y selectedEvent se limpiará en handleCloseModal
+  }, [getCoachEvents])
 
   // Manejar cerrar modal
   const handleCloseModal = () => {
     setShowEventModal(false)
+    // Limpiar el evento seleccionado para evitar mostrar datos antiguos
     setSelectedEvent(null)
   }
 
   // Manejar conectar Google
   const handleConnectGoogle = () => {
     checkGoogleConnection()
+  }
+
+  // Sincronizar con Google Calendar
+  const handleSyncGoogleCalendar = async () => {
+    if (!googleConnected) {
+      toast.error('Google Calendar no está conectado')
+      return
+    }
+
+    setSyncing(true)
+    try {
+      // Crear un AbortController para timeout
+      const controller = new AbortController()
+      const timeoutId = setTimeout(() => controller.abort(), 60000) // 60 segundos timeout
+
+      const response = await fetch('/api/google/calendar/sync', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        credentials: 'include',
+        signal: controller.signal
+      })
+
+      clearTimeout(timeoutId)
+
+      if (!response.ok) {
+        const errorData = await response.json().catch(() => ({ error: 'Error desconocido' }))
+        throw new Error(errorData.error || `Error ${response.status}`)
+      }
+
+      const result = await response.json()
+
+      if (result.success) {
+        const errorMsg = result.errors && result.errors.length > 0 
+          ? ` (${result.errors.length} errores)` 
+          : ''
+        toast.success(`Sincronización completada: ${result.synced || 0} eventos sincronizados${errorMsg}`)
+        // Recargar eventos después de sincronizar
+        await getCoachEvents()
+      } else {
+        toast.error(result.error || 'Error al sincronizar con Google Calendar')
+      }
+    } catch (error: any) {
+      console.error('Error sincronizando:', error)
+      if (error.name === 'AbortError') {
+        toast.error('La sincronización tardó demasiado. Intenta de nuevo con menos eventos.')
+      } else {
+        toast.error(error.message || 'Error al sincronizar con Google Calendar')
+      }
+    } finally {
+      setSyncing(false)
+    }
   }
 
   if (loading) {
@@ -343,8 +450,8 @@ export default function CoachCalendarScreen() {
   return (
     <div className="h-screen bg-[#121212] overflow-y-auto pb-20">
       <div className="p-4">
-        {/* Botón de vista Hoy/Mes - Centrado */}
-        <div className="mb-6 flex items-center justify-center">
+        {/* Botón de vista Hoy/Mes y Sincronizar - Centrado */}
+        <div className="mb-6 flex items-center justify-center gap-4">
           <Button
             variant="ghost"
             onClick={viewMode === 'month' ? goToToday : toggleView}
@@ -352,6 +459,17 @@ export default function CoachCalendarScreen() {
           >
             {viewMode === 'month' ? 'Hoy' : 'Mes'}
           </Button>
+          {googleConnected && (
+            <Button
+              variant="ghost"
+              onClick={handleSyncGoogleCalendar}
+              disabled={syncing}
+              className="text-[#FF7939] hover:bg-transparent hover:text-[#FF7939] font-light text-sm px-2 py-1 h-auto flex items-center gap-2"
+            >
+              <RefreshCw className={`h-4 w-4 ${syncing ? 'animate-spin' : ''}`} />
+              {syncing ? 'Sincronizando...' : 'Sincronizar'}
+            </Button>
+          )}
         </div>
 
         {/* Vista Mes */}
@@ -446,18 +564,18 @@ export default function CoachCalendarScreen() {
             </div>
             <div className="flex items-center gap-4 text-xs">
               <div className="flex items-center gap-2">
-                <div className="flex items-center gap-1">
+              <div className="flex items-center gap-1">
                   <span className="text-[#FFB366] font-medium">
                     {events.filter(e => e.is_google_event || e.source === 'google_calendar').length}
                   </span>
                   <span className="text-gray-400">Calendar</span>
-                </div>
-                <div className="flex items-center gap-1">
-                  <span className="text-[#FF7939] font-medium">
+              </div>
+              <div className="flex items-center gap-1">
+                <span className="text-[#FF7939] font-medium">
                     {events.filter(e => !e.is_google_event && e.source !== 'google_calendar').length}
-                  </span>
+                </span>
                   <span className="text-gray-400">Omnia</span>
-                </div>
+              </div>
               </div>
             </div>
           </div>
@@ -551,8 +669,11 @@ export default function CoachCalendarScreen() {
                               )}
                             </div>
                             
-                            {/* Meet Link */}
-                            {event.meet_link && (
+                            {/* Meet Link - Solo mostrar si es un link válido de Google Meet */}
+                            {event.meet_link && 
+                             event.meet_link.includes('meet.google.com/') && 
+                             !event.meet_link.includes('test-') && 
+                             !event.meet_link.includes('xxx-') && (
                               <Button
                                 onClick={(e) => {
                                   e.stopPropagation()
@@ -560,9 +681,11 @@ export default function CoachCalendarScreen() {
                                 }}
                                 size="sm"
                                 variant="ghost"
-                                className="h-6 w-6 p-0 hover:bg-[#FF7939]/20 rounded-lg transition-colors"
+                                className="h-7 px-2 gap-1.5 hover:bg-[#FF7939]/20 rounded-lg transition-colors text-[#FF7939]"
+                                title="Abrir Google Meet"
                               >
-                                <ExternalLink className="h-3 w-3 text-[#FF7939]" />
+                                <Video className="h-3.5 w-3.5" />
+                                <span className="text-xs font-medium">Meet</span>
                               </Button>
                             )}
                           </div>
@@ -682,38 +805,38 @@ export default function CoachCalendarScreen() {
                       const allHoursOrdered = [...hoursBeforeMidnight, ...midnight]
 
                       return allHoursOrdered.map(hour => {
-                        const hourEvents = getEventsForHour(hour)
-                        const hourStart = new Date(viewDate)
-                        hourStart.setHours(hour, 0, 0, 0)
-                        const hourEnd = new Date(viewDate)
-                        hourEnd.setHours(hour, 59, 59, 999)
-                        const now = new Date()
-                        const isPast = hourEnd < now && !isSameDay(hourEnd, now) || (isSameDay(hourEnd, now) && hourEnd < now)
-                        const isCurrentHour = isSameDay(viewDate, now) && now.getHours() === hour
+                      const hourEvents = getEventsForHour(hour)
+                      const hourStart = new Date(viewDate)
+                      hourStart.setHours(hour, 0, 0, 0)
+                      const hourEnd = new Date(viewDate)
+                      hourEnd.setHours(hour, 59, 59, 999)
+                      const now = new Date()
+                      const isPast = hourEnd < now && !isSameDay(hourEnd, now) || (isSameDay(hourEnd, now) && hourEnd < now)
+                      const isCurrentHour = isSameDay(viewDate, now) && now.getHours() === hour
                         const isKeyHour = keyHours.includes(hour)
 
-                        return (
-                          <div
-                            key={hour}
-                            className={`
-                              min-h-[80px] p-3 flex gap-4
-                              ${isPast ? 'opacity-50' : ''}
-                              ${isCurrentHour ? 'bg-zinc-800/30' : ''}
-                            `}
-                          >
-                            {/* Hora */}
-                            <div className="w-16 flex-shrink-0">
+                      return (
+                        <div
+                          key={hour}
+                          className={`
+                            min-h-[80px] p-3 flex gap-4
+                            ${isPast ? 'opacity-50' : ''}
+                            ${isCurrentHour ? 'bg-zinc-800/30' : ''}
+                          `}
+                        >
+                          {/* Hora */}
+                          <div className="w-16 flex-shrink-0">
                               <div className={`text-sm font-medium ${isKeyHour ? 'text-gray-300' : 'text-gray-400'}`}>
-                                {format(hourStart, 'HH:mm')}
-                              </div>
+                              {format(hourStart, 'HH:mm')}
                             </div>
+                          </div>
 
-                            {/* Eventos de esta hora */}
-                            <div className="flex-1 space-y-2">
-                              {hourEvents.length === 0 ? (
-                                <div className="text-xs text-gray-600">Sin eventos</div>
-                              ) : (
-                                hourEvents.map(event => {
+                          {/* Eventos de esta hora */}
+                          <div className="flex-1 space-y-2">
+                            {hourEvents.length === 0 ? (
+                              <div className="text-xs text-gray-600">Sin eventos</div>
+                            ) : (
+                              hourEvents.map(event => {
                                 const isGoogleEvent = event.is_google_event || event.source === 'google_calendar'
                                 return (
                                   <div
@@ -785,8 +908,11 @@ export default function CoachCalendarScreen() {
                                           )}
                                         </div>
                                         
-                                        {/* Meet Link */}
-                                        {event.meet_link && (
+                                        {/* Meet Link - Solo mostrar si es un link válido de Google Meet */}
+                                        {event.meet_link && 
+                                         event.meet_link.includes('meet.google.com/') && 
+                                         !event.meet_link.includes('test-') && 
+                                         !event.meet_link.includes('xxx-') && (
                                           <Button
                                             onClick={(e) => {
                                               e.stopPropagation()
@@ -794,9 +920,11 @@ export default function CoachCalendarScreen() {
                                             }}
                                             size="sm"
                                             variant="ghost"
-                                            className="h-6 w-6 p-0 hover:bg-[#FF7939]/20 rounded-lg transition-colors"
+                                            className="h-7 px-2 gap-1.5 hover:bg-[#FF7939]/20 rounded-lg transition-colors text-[#FF7939]"
+                                            title="Abrir Google Meet"
                                           >
-                                            <ExternalLink className="h-3 w-3 text-[#FF7939]" />
+                                            <Video className="h-3.5 w-3.5" />
+                                            <span className="text-xs font-medium">Meet</span>
                                           </Button>
                                         )}
                                       </div>
@@ -845,13 +973,15 @@ export default function CoachCalendarScreen() {
           </div>
         )}
 
-        {/* Modal de detalles del evento - removed, to be reimplemented if needed */}
-        {/* <EventDetailModal
-          event={selectedEvent}
-          isOpen={showEventModal}
-          onClose={handleCloseModal}
-          onConnectGoogle={handleConnectGoogle}
-        /> */}
+        {/* Modal para editar eventos de taller */}
+        {selectedEvent && selectedEvent.event_type === 'workshop' && (
+          <WorkshopEventDetailModal
+            event={selectedEvent}
+            isOpen={showEventModal}
+            onClose={handleCloseModal}
+            onUpdate={handleEventUpdate}
+          />
+        )}
       </div>
     </div>
   )

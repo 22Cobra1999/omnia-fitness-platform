@@ -107,8 +107,29 @@ export async function GET(request: NextRequest) {
         250
       );
 
+      // Obtener google_event_ids de eventos que ya están en Omnia para evitar duplicados
+      const { data: existingEvents } = await supabase
+        .from('calendar_events')
+        .select('google_event_id')
+        .eq('coach_id', coachId)
+        .not('google_event_id', 'is', null)
+        .gte('start_time', timeMin)
+        .lte('start_time', timeMax);
+
+      const existingGoogleEventIds = new Set(
+        (existingEvents || [])
+          .map(e => e.google_event_id)
+          .filter(Boolean)
+      );
+
       // Transformar eventos de Google Calendar al formato de Omnia
-      const formattedEvents = (calendarData.items || []).map((event: any) => {
+      // FILTRAR eventos que ya están en Omnia para evitar duplicados
+      const formattedEvents = (calendarData.items || [])
+        .filter((event: any) => {
+          // Excluir eventos que ya están en Omnia
+          return !existingGoogleEventIds.has(event.id);
+        })
+        .map((event: any) => {
         // Manejar tanto dateTime como date (eventos de todo el día)
         // Si es evento de todo el día, usar date y agregar hora 00:00
         let startTime: string;

@@ -7,7 +7,7 @@ import { Label } from "@/components/ui/label"
 import { Textarea } from "@/components/ui/textarea"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Switch } from "@/components/ui/switch"
-import { ChevronLeft, ChevronRight, ChevronDown, Plus, X, Upload, Calendar, Clock, Users, FileText, Eye, Edit, Check, Video, Play, Image as ImageIcon, Globe, MapPin, Trash2, Target, DollarSign, Eye as EyeIcon, EyeOff, Pencil, Flame, Lock, Unlock, Coins, MonitorSmartphone, Loader2, RotateCcw } from "lucide-react"
+import { ChevronLeft, ChevronRight, ChevronDown, Plus, X, Upload, Calendar, Clock, Users, FileText, Eye, Edit, Check, Video, Play, Image as ImageIcon, Globe, MapPin, Trash2, Target, DollarSign, Eye as EyeIcon, EyeOff, Pencil, Flame, Lock, Unlock, Coins, MonitorSmartphone, Loader2, RotateCcw, RefreshCw, ExternalLink } from "lucide-react"
 import { motion, AnimatePresence } from "framer-motion"
 import { ProductPreviewCard } from '@/components/shared/products/product-preview-card'
 import ActivityCard from '@/components/shared/activities/ActivityCard'
@@ -335,14 +335,18 @@ export default function CreateProductModal({ isOpen, onClose, editingProduct, in
     }
   }, [])
   
-  // Estado para taller - Material opcional (Paso 4)
+  // Estado para taller - Material opcional (Paso 5)
   const [workshopMaterial, setWorkshopMaterial] = useState({
-    hasPdf: false,
+    pdfType: 'none' as 'none' | 'general' | 'by-topic', // Tipo de PDF: ninguno, general, o por tema
     pdfFile: null as File | null,
-    pdfUrl: null as string | null
+    pdfUrl: null as string | null,
+    topicPdfs: {} as Record<string, { file: File | null, url: string | null, fileName: string | null }> // PDFs por tema
   })
   
-  // Estado para taller - Fechas y horarios (Paso 5)
+  // Estado para selección de temas en la tabla
+  const [selectedTopics, setSelectedTopics] = useState<Set<string>>(new Set())
+  
+  // Estado para taller - Fechas y horarios (Paso 4)
   const [workshopSchedule, setWorkshopSchedule] = useState<Array<{
     title?: string
     description?: string
@@ -369,6 +373,11 @@ export default function CreateProductModal({ isOpen, onClose, editingProduct, in
   const [showCloseConfirmation, setShowCloseConfirmation] = useState(false)
   const [pendingAction, setPendingAction] = useState<'close' | 'tab' | null>(null)
   const [pendingTab, setPendingTab] = useState<string | null>(null)
+  
+  // Estado para confirmación de eliminación de PDF por tema
+  const [showDeletePdfConfirm, setShowDeletePdfConfirm] = useState(false)
+  const [pdfToDelete, setPdfToDelete] = useState<string | null>(null)
+  const [pdfToDeleteType, setPdfToDeleteType] = useState<'topic' | 'general' | null>(null)
   
   // Estado para validación y errores
   const [validationErrors, setValidationErrors] = useState<string[]>([])
@@ -622,8 +631,8 @@ export default function CreateProductModal({ isOpen, onClose, editingProduct, in
         'type': 1,
         'programType': 2,
         'general': 3,
-        'workshopMaterial': 4,
-        'workshopSchedule': 5,
+        'workshopSchedule': 4,
+        'workshopMaterial': 5,
         'preview': 6
       }
       return workshopStepMap[step] || 1
@@ -648,8 +657,8 @@ export default function CreateProductModal({ isOpen, onClose, editingProduct, in
         1: 'type',
         2: 'programType', 
         3: 'general',
-        4: 'workshopMaterial',
-        5: 'workshopSchedule',
+        4: 'workshopSchedule',
+        5: 'workshopMaterial',
         6: 'preview'
       }
     } else {
@@ -1523,6 +1532,125 @@ export default function CreateProductModal({ isOpen, onClose, editingProduct, in
         }
       }
 
+      // Subir PDFs del taller si existen
+      let finalWorkshopMaterial = workshopMaterial
+      if (selectedType === 'workshop' && workshopMaterial.pdfType !== 'none') {
+        // Subir PDF general si existe
+        if (workshopMaterial.pdfType === 'general' && workshopMaterial.pdfFile) {
+          setPublishProgress('Subiendo PDF general...')
+          try {
+            const formData = new FormData()
+            formData.append('file', workshopMaterial.pdfFile)
+            formData.append('mediaType', 'pdf')
+            formData.append('category', 'product')
+            
+            const uploadResponse = await fetch('/api/upload-organized', {
+              method: 'POST',
+              body: formData
+            })
+            
+            if (uploadResponse.ok) {
+              const uploadResult = await uploadResponse.json()
+              if (uploadResult.success) {
+                finalWorkshopMaterial = {
+                  ...workshopMaterial,
+                  pdfUrl: uploadResult.url
+                }
+                console.log('✅ PDF general subido exitosamente:', uploadResult.url)
+              }
+            } else {
+              console.error('❌ Error subiendo PDF general')
+              alert('Error al subir el PDF general')
+              setIsPublishing(false)
+              setPublishProgress('')
+              return
+            }
+          } catch (uploadError) {
+            console.error('❌ Error en upload de PDF general:', uploadError)
+            alert('Error al subir el PDF general')
+            setIsPublishing(false)
+            setPublishProgress('')
+            return
+          }
+        }
+        
+        // Subir PDFs por tema si existen
+        if (workshopMaterial.pdfType === 'by-topic' && Object.keys(workshopMaterial.topicPdfs).length > 0) {
+          setPublishProgress('Subiendo PDFs por tema...')
+          const uploadedTopicPdfs: Record<string, { file: File | null, url: string | null, fileName: string | null }> = {}
+          
+          for (const [topicTitle, topicPdf] of Object.entries(workshopMaterial.topicPdfs)) {
+            // Solo subir PDFs nuevos (que tienen file pero no url)
+            // Si ya tiene URL, significa que ya está subido o viene de la BD
+            if (topicPdf && topicPdf.file && !topicPdf.url) {
+              try {
+                const formData = new FormData()
+                formData.append('file', topicPdf.file)
+                formData.append('mediaType', 'pdf')
+                formData.append('category', 'product')
+                
+                console.log(`📤 Subiendo PDF para tema "${topicTitle}":`, {
+                  fileName: topicPdf.fileName,
+                  fileSize: topicPdf.file.size,
+                  fileType: topicPdf.file.type
+                })
+                
+                const uploadResponse = await fetch('/api/upload-organized', {
+                  method: 'POST',
+                  body: formData
+                })
+                
+                if (uploadResponse.ok) {
+                  const uploadResult = await uploadResponse.json()
+                  if (uploadResult.success) {
+                    uploadedTopicPdfs[topicTitle] = {
+                      file: null, // Ya no necesitamos el archivo después de subirlo
+                      url: uploadResult.url,
+                      fileName: topicPdf.fileName || uploadResult.fileName
+                    }
+                    console.log(`✅ PDF para tema "${topicTitle}" subido exitosamente:`, uploadResult.url)
+                  } else {
+                    const errorMsg = uploadResult.error || 'Error desconocido'
+                    console.error(`❌ Error subiendo PDF para tema "${topicTitle}":`, errorMsg)
+                    alert(`Error al subir el PDF para el tema "${topicTitle}": ${errorMsg}`)
+                    setIsPublishing(false)
+                    setPublishProgress('')
+                    return
+                  }
+                } else {
+                  const errorData = await uploadResponse.json().catch(() => ({ error: 'Error desconocido' }))
+                  const errorMsg = errorData.error || `Error ${uploadResponse.status}`
+                  console.error(`❌ Error subiendo PDF para tema "${topicTitle}":`, errorMsg, errorData)
+                  alert(`Error al subir el PDF para el tema "${topicTitle}": ${errorMsg}`)
+                  setIsPublishing(false)
+                  setPublishProgress('')
+                  return
+                }
+              } catch (uploadError: any) {
+                console.error(`❌ Error en upload de PDF para tema "${topicTitle}":`, uploadError)
+                alert(`Error al subir el PDF para el tema "${topicTitle}": ${uploadError.message || 'Error de conexión'}`)
+                setIsPublishing(false)
+                setPublishProgress('')
+                return
+              }
+            } else if (topicPdf && topicPdf.url) {
+              // Si ya tiene URL, solo copiar la información (ya está subido o viene de la BD)
+              uploadedTopicPdfs[topicTitle] = {
+                file: null,
+                url: topicPdf.url,
+                fileName: topicPdf.fileName
+              }
+              console.log(`✅ PDF para tema "${topicTitle}" ya tiene URL (no se necesita subir):`, topicPdf.url)
+            }
+          }
+          
+          finalWorkshopMaterial = {
+            ...workshopMaterial,
+            topicPdfs: uploadedTopicPdfs
+          }
+        }
+      }
+
       // Calcular valores dinámicos
       // Contar días con ejercicios en el schedule
       let totalSessions = 1
@@ -1544,35 +1672,19 @@ export default function CreateProductModal({ isOpen, onClose, editingProduct, in
       }
       const totalExercises = persistentCsvData?.length || 0
       const capacity = (() => {
-        // ✅ SIEMPRE usar generalForm.capacity y generalForm.stockQuantity (valores actuales del formulario)
-        // No usar specificForm.capacity porque puede tener valores obsoletos
-        if (generalForm.capacity === 'ilimitada') {
-          return 500
+        // Priorizar specificForm.capacity si está definido (para edición)
+        if (specificForm.capacity) {
+          const capNum = parseInt(specificForm.capacity)
+          return isNaN(capNum) ? null : capNum
         }
-        if (generalForm.capacity === 'limitada') {
-          // Si hay stockQuantity, usarlo
-          if (generalForm.stockQuantity) {
-            const stockNum = parseInt(generalForm.stockQuantity)
-            if (!isNaN(stockNum) && stockNum > 0) {
-              return stockNum
-            }
-          }
-          // Si la capacidad es "limitada" pero no hay stockQuantity válido, usar 1 como mínimo
-          // Esto asegura que siempre se guarde un valor cuando la capacidad es limitada
-          console.log('⚠️ [Guardar Producto] Capacidad es limitada pero stockQuantity no es válido, usando valor mínimo 1')
-          return 1
+        // Fallback a generalForm.capacity (para creación)
+        if (generalForm.capacity === 'ilimitada') return 500
+        if (generalForm.capacity === 'limitada' && generalForm.stockQuantity) {
+          const stockNum = parseInt(generalForm.stockQuantity)
+          return isNaN(stockNum) ? null : stockNum
         }
-        // Si no está definido, retornar null (el backend manejará el valor por defecto)
         return null
       })()
-      
-      console.log('📊 [Guardar Producto] Capacity calculada:', {
-        capacityType: generalForm.capacity,
-        stockQuantity: generalForm.stockQuantity,
-        capacityCalculada: capacity,
-        isEditing: !!editingProduct,
-        willBeSent: capacity !== null
-      })
 
       // Verificar que el usuario esté autenticado
       if (!user) {
@@ -1609,7 +1721,7 @@ export default function CreateProductModal({ isOpen, onClose, editingProduct, in
         editingProductId: editingProduct?.id,
         // ✅ INCLUIR DATOS DE TALLERES
         workshopSchedule: selectedType === 'workshop' ? workshopSchedule : null,
-        workshopMaterial: selectedType === 'workshop' ? workshopMaterial : null,
+        workshopMaterial: selectedType === 'workshop' ? finalWorkshopMaterial : null,
         // ✅ ENVIAR OBJETIVOS COMO ARRAY (la API los guardará en workshop_type)
         objetivos: generalForm.objetivos && generalForm.objetivos.length > 0 ? generalForm.objetivos : [],
         // ✅ CONSTRUIR WORKSHOP_TYPE CON TIPO DE DIETA (objetivos se manejan por separado)
@@ -1636,9 +1748,6 @@ export default function CreateProductModal({ isOpen, onClose, editingProduct, in
         level: productData.level,
         type: productData.type,
         categoria: productData.categoria,
-        capacity: productData.capacity, // ✅ Incluir capacidad en el log
-        capacityType: generalForm.capacity, // ✅ Tipo de capacidad (ilimitada/limitada)
-        stockQuantity: generalForm.stockQuantity, // ✅ Cantidad de stock
         coach_id: productData.coach_id,
         coach_id_type: typeof productData.coach_id,
         coach_id_length: productData.coach_id?.length,
@@ -3106,6 +3215,9 @@ export default function CreateProductModal({ isOpen, onClose, editingProduct, in
         setWorkshopSchedule(sessions)
         setExistingWorkshopDates(allExistingDates)
         
+        // Cargar PDFs existentes (general y por tema)
+        await loadWorkshopPdfs(activityId, tallerDetalles)
+        
         // Verificar si todas las fechas existentes ya pasaron (solo si se está editando un taller existente)
         // NO mostrar confirmación si se abre desde "Agregar nuevas fechas" (initialStep === 'workshopSchedule')
         console.log('🔍 loadWorkshopData - Verificando fechas:', { 
@@ -3131,7 +3243,7 @@ export default function CreateProductModal({ isOpen, onClose, editingProduct, in
             setShowWorkshopFinishedConfirm(true)
           }
         } else if (initialStep === 'workshopSchedule' || currentStep === 'workshopSchedule') {
-          console.log('✅ Abriendo desde paso 5 (workshopSchedule), no mostrar confirmación de fechas pasadas', { initialStep, currentStep })
+          console.log('✅ Abriendo desde paso 4 (workshopSchedule), no mostrar confirmación de fechas pasadas', { initialStep, currentStep })
         }
       }
       
@@ -3139,6 +3251,138 @@ export default function CreateProductModal({ isOpen, onClose, editingProduct, in
       console.error('❌ Error cargando datos del taller:', error)
     }
   }
+
+  // Cargar PDFs existentes del taller (general y por tema)
+  const loadWorkshopPdfs = async (activityId: number, tallerDetalles: any[]) => {
+    try {
+      // Cargar PDF general desde editingProduct o activity_media
+      let generalPdfUrl = null
+      if (editingProduct) {
+        generalPdfUrl = editingProduct.activity_media?.find((m: any) => m.pdf_url)?.pdf_url || 
+                        editingProduct.media?.pdf_url
+        
+        if (generalPdfUrl) {
+          setWorkshopMaterial(prev => ({
+            ...prev,
+            pdfType: 'general',
+            pdfUrl: generalPdfUrl,
+            pdfFile: null // No tenemos el archivo, solo la URL
+          }))
+          return // Si hay PDF general, no cargar por tema
+        }
+      }
+      
+      // Cargar PDFs por tema desde taller_detalles
+      const topicPdfs: Record<string, { file: File | null, url: string | null, fileName: string | null }> = {}
+      let hasTopicPdfs = false
+      
+      console.log('🔍 Buscando PDFs en taller_detalles:', tallerDetalles.map((t: any) => ({
+        nombre: t.nombre,
+        tienePdf: !!t.pdf_url,
+        pdf_url: t.pdf_url ? t.pdf_url.substring(0, 50) + '...' : null,
+        pdf_file_name: t.pdf_file_name
+      })))
+      
+      tallerDetalles.forEach((tema: any) => {
+        if (tema.pdf_url) {
+          topicPdfs[tema.nombre] = {
+            file: null, // No tenemos el archivo, solo la URL
+            url: tema.pdf_url,
+            fileName: tema.pdf_file_name || 'PDF adjunto'
+          }
+          hasTopicPdfs = true
+          console.log(`✅ PDF encontrado para tema "${tema.nombre}":`, {
+            fileName: tema.pdf_file_name || 'PDF adjunto',
+            url: tema.pdf_url?.substring(0, 50) + '...'
+          })
+        } else {
+          console.log(`ℹ️ Tema "${tema.nombre}" no tiene PDF (pdf_url: ${tema.pdf_url})`)
+        }
+      })
+      
+      if (hasTopicPdfs) {
+        console.log('📦 Estableciendo pdfType a "by-topic" y cargando PDFs:', Object.keys(topicPdfs))
+        console.log('📦 Detalles de PDFs cargados:', Object.entries(topicPdfs).map(([key, value]) => ({
+          tema: key,
+          fileName: value.fileName,
+          url: value.url ? value.url.substring(0, 50) + '...' : null,
+          hasFile: !!value.file,
+          hasUrl: !!value.url
+        })))
+        setWorkshopMaterial(prev => {
+          // Preservar PDFs que ya están cargados como archivos (no sobrescribirlos)
+          const preservedPdfs: Record<string, { file: File | null, url: string | null, fileName: string | null }> = {}
+          Object.entries(prev.topicPdfs).forEach(([key, value]) => {
+            // Si hay un archivo cargado (no solo URL), preservarlo
+            if (value.file) {
+              preservedPdfs[key] = value
+              console.log(`📦 Preservando PDF con archivo para tema "${key}"`)
+            }
+          })
+          
+          // Combinar: primero los preservados, luego los de la BD (solo si no hay archivo preservado)
+          const mergedPdfs: Record<string, { file: File | null, url: string | null, fileName: string | null }> = {
+            ...preservedPdfs
+          }
+          
+          // Agregar PDFs de la BD solo si no hay uno preservado para ese tema
+          Object.entries(topicPdfs).forEach(([key, value]) => {
+            if (!preservedPdfs[key]) {
+              mergedPdfs[key] = value
+            }
+          })
+          
+          const newState = {
+            ...prev,
+            pdfType: 'by-topic', // Forzar a 'by-topic' si hay PDFs por tema
+            topicPdfs: mergedPdfs
+          }
+          console.log('📦 Nuevo estado de workshopMaterial:', {
+            pdfType: newState.pdfType,
+            topicPdfsKeys: Object.keys(newState.topicPdfs),
+            topicPdfsDetails: Object.entries(newState.topicPdfs).map(([key, value]) => ({
+              tema: key,
+              fileName: value.fileName,
+              hasUrl: !!value.url,
+              hasFile: !!value.file
+            }))
+          })
+          return newState
+        })
+        console.log('✅ PDFs por tema cargados en estado:', Object.keys(topicPdfs))
+      } else {
+        console.log('ℹ️ No se encontraron PDFs por tema en taller_detalles')
+      }
+    } catch (error) {
+      console.error('❌ Error cargando PDFs del taller:', error)
+    }
+  }
+
+  // Cargar PDFs cuando se entra al paso 5 (workshopMaterial) si estamos editando
+  // IMPORTANTE: Siempre recargar cuando se entra al paso 5 para asegurar que los PDFs se muestren
+  useEffect(() => {
+    if (currentStep === 'workshopMaterial' && editingProduct?.id && selectedType === 'workshop') {
+      console.log('🔄 [Paso 5] Cargando PDFs para taller:', editingProduct.id)
+      const loadPdfsIfNeeded = async () => {
+        try {
+          const response = await fetch(`/api/taller-detalles?actividad_id=${editingProduct.id}`)
+          if (response.ok) {
+            const { success, data: tallerDetalles } = await response.json()
+            console.log('📥 [Paso 5] Respuesta de taller_detalles:', { success, count: tallerDetalles?.length })
+            if (success && Array.isArray(tallerDetalles)) {
+              // Siempre recargar los PDFs, incluso si ya estaban cargados
+              await loadWorkshopPdfs(editingProduct.id, tallerDetalles)
+            }
+          } else {
+            console.error('❌ [Paso 5] Error en respuesta de taller_detalles:', response.status)
+          }
+        } catch (error) {
+          console.error('❌ Error cargando PDFs en paso 5:', error)
+        }
+      }
+      loadPdfsIfNeeded()
+    }
+  }, [currentStep, editingProduct?.id, selectedType])
 
   // Limpiar estado de confirmación cuando cambia el producto o se cierra el modal
   useEffect(() => {
@@ -3170,10 +3414,10 @@ export default function CreateProductModal({ isOpen, onClose, editingProduct, in
         setFeedbackSubmitted(false)
         setShowAddNewDatesPrompt(false)
         
-        // Si estamos en el paso 5 (workshopSchedule), significa que ya pasamos por la encuesta
+        // Si estamos en el paso 4 (workshopSchedule), significa que ya pasamos por la encuesta
         // No mostrar el modal de encuesta en este caso
         if (initialStep === 'workshopSchedule') {
-          console.log('✅ Abriendo desde paso 5 (workshopSchedule), no mostrar encuesta')
+          console.log('✅ Abriendo desde paso 4 (workshopSchedule), no mostrar encuesta')
           setShowWorkshopFinishedConfirm(false)
           setFeedbackSubmitted(true)
           setShowAddNewDatesPrompt(false)
@@ -3645,30 +3889,13 @@ export default function CreateProductModal({ isOpen, onClose, editingProduct, in
   const hasUserMadeChangesRef = useRef<boolean>(false)
   
   // ✅ Actualizar el ref cuando el usuario hace cambios en la planificación
-  // Este efecto se ejecuta cada vez que cambia persistentCalendarSchedule
   useEffect(() => {
     const hasData = persistentCalendarSchedule && Object.keys(persistentCalendarSchedule).length > 0
     if (hasData) {
-      // ✅ SIEMPRE marcar como modificado si hay datos (incluso si vienen de BD inicialmente)
-      // Una vez que hay datos, se consideran "cambios del usuario" para preservarlos
       hasUserMadeChangesRef.current = true
-      console.log('✅ [CreateProductModal] Cambios del usuario detectados en planificación, marcando como modificado', {
-        semanas: Object.keys(persistentCalendarSchedule).length,
-        estructura: Object.keys(persistentCalendarSchedule).slice(0, 3).map(key => ({
-          semana: key,
-          dias: Object.keys(persistentCalendarSchedule[key] || {}),
-          totalDias: Object.keys(persistentCalendarSchedule[key] || {}).length
-        }))
-      })
-    } else {
-      // Solo resetear el flag si NO hay datos Y estamos en un producto nuevo (no editando)
-      // Si estamos editando, mantener el flag para preservar cambios previos
-      if (!editingProduct?.id) {
-        hasUserMadeChangesRef.current = false
-        console.log('🔄 [CreateProductModal] Producto nuevo sin datos, reseteando flag de cambios')
-      }
+      console.log('✅ [CreateProductModal] Cambios del usuario detectados en planificación, marcando como modificado')
     }
-  }, [persistentCalendarSchedule, editingProduct?.id])
+  }, [persistentCalendarSchedule])
   
   // ✅ Recargar planificación desde BD cuando se vuelve al paso 4 (weeklyPlan) si no hay datos locales
   useEffect(() => {
@@ -3682,15 +3909,6 @@ export default function CreateProductModal({ isOpen, onClose, editingProduct, in
       return
     }
 
-    console.log('🔍 [CreateProductModal] Verificando si recargar planificación desde BD:', {
-      currentStep,
-      editingProductId: editingProduct.id,
-      hasUserMadeChanges: hasUserMadeChangesRef.current,
-      hasLocalData: persistentCalendarSchedule && Object.keys(persistentCalendarSchedule).length > 0,
-      semanasLocales: persistentCalendarSchedule ? Object.keys(persistentCalendarSchedule).length : 0,
-      planningClearedByContentChange
-    })
-
     // Si la planificación fue limpiada explícitamente por un cambio de contenido, NO recargar
     if (planningClearedByContentChange) {
       console.log('✅ [CreateProductModal] Planificación limpiada por cambios de contenido, NO recargando desde BD')
@@ -3699,9 +3917,7 @@ export default function CreateProductModal({ isOpen, onClose, editingProduct, in
 
     // ✅ PRIORIDAD 1: Si el usuario ya hizo cambios, NUNCA recargar desde BD (preservar cambios)
     if (hasUserMadeChangesRef.current) {
-      console.log('✅ [CreateProductModal] Usuario ya hizo cambios en planificación, NO recargando desde BD para preservar cambios', {
-        semanasLocales: persistentCalendarSchedule ? Object.keys(persistentCalendarSchedule).length : 0
-      })
+      console.log('✅ [CreateProductModal] Usuario ya hizo cambios en planificación, NO recargando desde BD para preservar cambios')
       return
     }
 
@@ -3709,14 +3925,9 @@ export default function CreateProductModal({ isOpen, onClose, editingProduct, in
     const hasLocalData = persistentCalendarSchedule && Object.keys(persistentCalendarSchedule).length > 0
     if (hasLocalData) {
       console.log('✅ [CreateProductModal] Ya hay datos locales de planificación, NO recargando desde BD', {
-        semanasLocales: Object.keys(persistentCalendarSchedule).length,
-        estructura: Object.keys(persistentCalendarSchedule).slice(0, 3).map(key => ({
-          semana: key,
-          dias: Object.keys(persistentCalendarSchedule[key] || {}),
-          totalDias: Object.keys(persistentCalendarSchedule[key] || {}).length
-        }))
+        semanasLocales: Object.keys(persistentCalendarSchedule).length
       })
-      // Marcar que hay cambios del usuario para preservarlos en futuras navegaciones
+      // Marcar que hay cambios del usuario
       hasUserMadeChangesRef.current = true
       return
     }
@@ -3724,28 +3935,14 @@ export default function CreateProductModal({ isOpen, onClose, editingProduct, in
     // Si tenemos datos cacheados para este producto, usarlos
     if (cachedPlanningFromDBRef.current && cachedPlanningFromDBRef.current.activityId === editingProduct.id) {
       const cached = cachedPlanningFromDBRef.current
-      
-      // ✅ Verificar primero si el usuario ya hizo cambios
-      if (hasUserMadeChangesRef.current) {
-        console.log('✅ [CreateProductModal] Usuario ya hizo cambios, NO aplicando cache para preservar cambios')
-        return
-      }
-      
-      // ✅ Verificar si hay datos locales antes de aplicar el cache
-      const stillHasLocalData = persistentCalendarSchedule && Object.keys(persistentCalendarSchedule).length > 0
-      if (stillHasLocalData) {
-        console.log('✅ [CreateProductModal] Datos locales detectados, NO aplicando cache para preservar cambios', {
-          semanasLocales: Object.keys(persistentCalendarSchedule).length
-        })
-        return
-      }
-      
       console.log('📦 [CreateProductModal] Usando planificación cacheada desde BD:', {
         semanas: Object.keys(cached.schedule || {}).length,
         periodos: cached.periods
       })
       
-      if (cached.schedule && Object.keys(cached.schedule).length > 0) {
+      // Verificar nuevamente si hay datos locales antes de aplicar el cache
+      const stillHasLocalData = persistentCalendarSchedule && Object.keys(persistentCalendarSchedule).length > 0
+      if (!stillHasLocalData && cached.schedule && Object.keys(cached.schedule).length > 0) {
         setPersistentCalendarSchedule(cached.schedule)
         if (cached.periods && cached.periods > 0) {
           setPeriods(cached.periods)
@@ -3776,21 +3973,10 @@ export default function CreateProductModal({ isOpen, onClose, editingProduct, in
         if (result.success && result.data) {
           const { weeklySchedule, periods: backendPeriods } = result.data
           
-          // ✅ Verificar múltiples veces si hay datos locales o cambios del usuario antes de aplicar
-          // Verificar 1: Ref de cambios del usuario
-          if (hasUserMadeChangesRef.current) {
-            console.log('✅ [CreateProductModal] Cambios del usuario detectados durante carga, cancelando sobrescritura desde BD')
-            return
-          }
-          
-          // Verificar 2: Datos locales en estado
+          // Verificar nuevamente si hay datos locales antes de aplicar
           const stillHasLocalData = persistentCalendarSchedule && Object.keys(persistentCalendarSchedule).length > 0
           if (stillHasLocalData) {
-            console.log('✅ [CreateProductModal] Datos locales detectados durante la carga, cancelando sobrescritura desde BD', {
-              semanasLocales: Object.keys(persistentCalendarSchedule).length
-            })
-            // Marcar que hay cambios para preservarlos
-            hasUserMadeChangesRef.current = true
+            console.log('✅ [CreateProductModal] Datos locales detectados durante la carga, cancelando sobrescritura desde BD')
             return
           }
           
@@ -3811,11 +3997,9 @@ export default function CreateProductModal({ isOpen, onClose, editingProduct, in
             activityId: editingProduct.id
           }
           
-          // ✅ Verificar una vez más antes de aplicar (por si cambió durante la carga asíncrona)
-          const finalCheckHasLocalData = persistentCalendarSchedule && Object.keys(persistentCalendarSchedule).length > 0
-          const finalCheckHasUserChanges = hasUserMadeChangesRef.current
-          
-          if (!finalCheckHasLocalData && !finalCheckHasUserChanges && weeklySchedule) {
+          // Aplicar solo si no hay datos locales y hay un schedule válido
+          const stillHasLocalDataCheck = persistentCalendarSchedule && Object.keys(persistentCalendarSchedule).length > 0
+          if (!stillHasLocalDataCheck && weeklySchedule) {
             console.log('✅ [CreateProductModal] Aplicando planificación desde BD al estado (al volver al paso 4)', {
               semanas: Object.keys(weeklySchedule).length,
               tieneContenido: Object.keys(weeklySchedule).length > 0
@@ -3824,11 +4008,8 @@ export default function CreateProductModal({ isOpen, onClose, editingProduct, in
             if (backendPeriods && backendPeriods > 0) {
               setPeriods(backendPeriods)
             }
-          } else if (finalCheckHasLocalData || finalCheckHasUserChanges) {
-            console.log('⚠️ [CreateProductModal] Datos locales o cambios del usuario detectados, preservando cambios del usuario', {
-              hasLocalData: finalCheckHasLocalData,
-              hasUserChanges: finalCheckHasUserChanges
-            })
+          } else if (stillHasLocalDataCheck) {
+            console.log('⚠️ [CreateProductModal] Datos locales detectados, preservando cambios del usuario')
           } else {
             console.log('⚠️ [CreateProductModal] weeklySchedule es null/undefined, no hay planificación guardada')
           }
@@ -3844,9 +4025,7 @@ export default function CreateProductModal({ isOpen, onClose, editingProduct, in
     }
     
     loadWeeklyPlanning()
-    // ✅ NO incluir persistentCalendarSchedule en dependencias para evitar recargas cuando el usuario hace cambios
-    // El ref hasUserMadeChangesRef y las verificaciones dentro del efecto son suficientes
-  }, [currentStep, editingProduct?.id, planningClearedByContentChange])
+  }, [currentStep, editingProduct?.id, planningClearedByContentChange, persistentCalendarSchedule])
 
   // Efecto para manejar el initialStep cuando el modal se abre
   useEffect(() => {
@@ -3866,34 +4045,19 @@ export default function CreateProductModal({ isOpen, onClose, editingProduct, in
   }, [isOpen, initialStep, editingProduct, showDateChangeNotice])
 
   // ✅ Limpiar planificación semanal cuando no hay ejercicios/platos disponibles
-  // PERO NUNCA limpiar si el usuario ya hizo cambios o hay datos existentes
+  // PERO solo si realmente no hay planificación del backend (para no limpiar datos existentes antes de que se carguen los ejercicios)
+  // y marcar que esta limpieza viene de un cambio fuerte de contenido
   // Ref para rastrear si ya se limpió el schedule para evitar loops infinitos
   const scheduleClearedRef = useRef(false)
   
   useEffect(() => {
     if (persistentCsvData !== undefined && persistentCsvData.length === 0) {
-      // ✅ PRIORIDAD 1: Si el usuario ya hizo cambios, NUNCA limpiar
-      if (hasUserMadeChangesRef.current) {
-        console.log('✅ [CreateProductModal] Usuario ya hizo cambios, NO limpiando planificación aunque no haya CSV')
-        scheduleClearedRef.current = false
-        return
-      }
-      
-      // ✅ PRIORIDAD 2: Si hay planificación (del backend o del usuario), NO limpiar
-      const hasSchedule = persistentCalendarSchedule && Object.keys(persistentCalendarSchedule).length > 0
-      if (hasSchedule) {
-        console.log('✅ [CreateProductModal] Hay planificación existente, NO limpiando aunque no haya CSV', {
-          semanas: Object.keys(persistentCalendarSchedule).length,
-          editingProductId: editingProduct?.id
-        })
-        scheduleClearedRef.current = false
-        return
-      }
-      
-      // ✅ PRIORIDAD 3: Si estamos editando un producto, NO limpiar todavía (puede que los ejercicios se estén cargando)
-      if (editingProduct?.id) {
-        console.log('⏸️ [CreateProductModal] Editando producto sin CSV aún, esperando antes de limpiar')
-        scheduleClearedRef.current = false
+      // Si estamos editando y hay planificación cargada del backend, NO limpiar todavía
+      // Esto evita limpiar la planificación antes de que se carguen los ejercicios/platos
+      const hasScheduleFromBackend = persistentCalendarSchedule && Object.keys(persistentCalendarSchedule).length > 0
+      if (hasScheduleFromBackend && editingProduct?.id) {
+        console.log('⏸️ [CreateProductModal] No hay ejercicios/platos disponibles aún, pero hay planificación del backend. Esperando a que se carguen los ejercicios/platos antes de decidir si limpiar.')
+        scheduleClearedRef.current = false // Resetear el flag cuando hay schedule del backend
         return
       }
       
@@ -3904,8 +4068,7 @@ export default function CreateProductModal({ isOpen, onClose, editingProduct, in
         return
       }
       
-      // Solo limpiar si realmente no hay nada (producto nuevo sin datos)
-      console.log('🧹 [CreateProductModal] No hay ejercicios/platos y no hay planificación, limpiando planificación semanal')
+      console.log('🧹 [CreateProductModal] No hay ejercicios/platos disponibles, limpiando planificación semanal')
       setPersistentCalendarSchedule({})
       setPeriods(1)
       setPlanningClearedByContentChange(true)
@@ -3914,7 +4077,7 @@ export default function CreateProductModal({ isOpen, onClose, editingProduct, in
       // Si hay datos CSV, resetear el flag para permitir limpieza futura si es necesario
       scheduleClearedRef.current = false
     }
-  }, [persistentCsvData, editingProduct?.id, persistentCalendarSchedule])
+  }, [persistentCsvData, editingProduct?.id])
 
   // ✅ Limpiar estado cuando se cierra el modal (incluso si se cierra sin pasar por handleClose)
   useEffect(() => {
@@ -3999,15 +4162,12 @@ export default function CreateProductModal({ isOpen, onClose, editingProduct, in
       }
     } else if (currentStep === 'specific') {
       console.log('✅ Paso 4 → 5: Yendo directamente a planificación semanal')
-      // Para taller, ir a material opcional; para programa, ir a actividades
+      // Para taller, ir a temas y horarios; para programa, ir a actividades
       if (selectedType === 'workshop') {
-        setCurrentStep('workshopMaterial')
+        setCurrentStep('workshopSchedule')
       } else {
         setCurrentStep('weeklyPlan')
       }
-    } else if (currentStep === 'workshopMaterial') {
-      console.log('✅ Taller - Paso 4 → 5: Material completado')
-      setCurrentStep('workshopSchedule')
     } else if (currentStep === 'workshopSchedule') {
       // Validar que hay al menos una sesión programada
       if (workshopSchedule.length === 0) {
@@ -4042,7 +4202,10 @@ export default function CreateProductModal({ isOpen, onClose, editingProduct, in
         return
       }
       
-      console.log('✅ Taller - Paso 5 → 6: Horarios completados')
+      console.log('✅ Taller - Paso 4 → 5: Temas y horarios completados')
+      setCurrentStep('workshopMaterial')
+    } else if (currentStep === 'workshopMaterial') {
+      console.log('✅ Taller - Paso 5 → 6: PDF completado')
       setCurrentStep('preview')
     } else if (currentStep === 'weeklyPlan') {
        console.log('✅ Programa - Paso 4 → 5: Plan semanal completado')
@@ -4059,16 +4222,16 @@ export default function CreateProductModal({ isOpen, onClose, editingProduct, in
       } else {
         setCurrentStep('type')
       }
-     } else if (currentStep === 'workshopMaterial') {
-       setCurrentStep('general')
      } else if (currentStep === 'workshopSchedule') {
-       setCurrentStep('workshopMaterial')
+       setCurrentStep('general')
+     } else if (currentStep === 'workshopMaterial') {
+       setCurrentStep('workshopSchedule')
      } else if (currentStep === 'weeklyPlan') {
        setCurrentStep('general')
      } else if (currentStep === 'preview') {
-       // Para taller, volver a horarios; para programa, volver a plan semanal
+       // Para taller, volver a PDF; para programa, volver a plan semanal
        if (selectedType === 'workshop') {
-         setCurrentStep('workshopSchedule')
+         setCurrentStep('workshopMaterial')
        } else {
          setCurrentStep('weeklyPlan')
        }
@@ -4091,12 +4254,14 @@ export default function CreateProductModal({ isOpen, onClose, editingProduct, in
   }
 
   // Funciones para manejar el material del taller
-  const handleWorkshopMaterialToggle = (hasPdf: boolean) => {
+  const handleWorkshopMaterialToggle = (pdfType: 'none' | 'general' | 'by-topic') => {
     setWorkshopMaterial(prev => ({
       ...prev,
-      hasPdf,
-      pdfFile: hasPdf ? prev.pdfFile : null,
-      pdfUrl: hasPdf ? prev.pdfUrl : null
+      pdfType,
+      // Limpiar PDFs si se cambia el tipo
+      pdfFile: pdfType === 'general' ? prev.pdfFile : null,
+      pdfUrl: pdfType === 'general' ? prev.pdfUrl : null,
+      topicPdfs: pdfType === 'by-topic' ? prev.topicPdfs : {}
     }))
   }
 
@@ -4106,6 +4271,82 @@ export default function CreateProductModal({ isOpen, onClose, editingProduct, in
       pdfFile: file,
       pdfUrl: URL.createObjectURL(file)
     }))
+  }
+
+  const handleTopicPdfUpload = (topicTitle: string, file: File) => {
+    setWorkshopMaterial(prev => ({
+      ...prev,
+      topicPdfs: {
+        ...prev.topicPdfs,
+        [topicTitle]: {
+          file,
+          url: URL.createObjectURL(file),
+          fileName: file.name
+        }
+      }
+    }))
+  }
+
+  const handleTopicPdfRemove = (topicTitle: string) => {
+    setPdfToDelete(topicTitle)
+    setPdfToDeleteType('topic')
+    setShowDeletePdfConfirm(true)
+  }
+  
+  const confirmDeletePdf = () => {
+    if (pdfToDeleteType === 'topic' && pdfToDelete) {
+      setWorkshopMaterial(prev => {
+        const newTopicPdfs = { ...prev.topicPdfs }
+        delete newTopicPdfs[pdfToDelete]
+        return {
+          ...prev,
+          topicPdfs: newTopicPdfs
+        }
+      })
+    } else if (pdfToDeleteType === 'general') {
+      setWorkshopMaterial(prev => ({
+        ...prev,
+        pdfFile: null,
+        pdfUrl: null
+      }))
+    }
+    setShowDeletePdfConfirm(false)
+    setPdfToDelete(null)
+    setPdfToDeleteType(null)
+  }
+  
+  const cancelDeletePdf = () => {
+    setShowDeletePdfConfirm(false)
+    setPdfToDelete(null)
+    setPdfToDeleteType(null)
+  }
+
+  // Manejar selección de temas
+  const handleTopicSelection = (topicTitle: string) => {
+    const newSelected = new Set(selectedTopics)
+    if (newSelected.has(topicTitle)) {
+      newSelected.delete(topicTitle)
+    } else {
+      newSelected.add(topicTitle)
+    }
+    setSelectedTopics(newSelected)
+  }
+
+  // Subir PDF a temas seleccionados
+  const handleBulkPdfUpload = (file: File) => {
+    if (selectedTopics.size === 0) {
+      toast.error('Selecciona al menos un tema')
+      return
+    }
+
+    const count = selectedTopics.size
+    selectedTopics.forEach(topicTitle => {
+      handleTopicPdfUpload(topicTitle, file)
+    })
+    
+    // Limpiar selección después de subir
+    setSelectedTopics(new Set())
+    toast.success(`PDF asignado a ${count} tema${count > 1 ? 's' : ''}`)
   }
 
   // Funciones para manejar los horarios del taller
@@ -4460,7 +4701,7 @@ export default function CreateProductModal({ isOpen, onClose, editingProduct, in
                 <Button
                   onClick={() => {
                     setShowAddNewDatesPrompt(false)
-                    // Ir al paso 5 para agregar nuevas fechas
+                    // Ir al paso 4 para agregar nuevas fechas
                     setCurrentStep('workshopSchedule')
                     if (editingProduct?.id) {
                       loadWorkshopData(editingProduct.id)
@@ -4637,8 +4878,8 @@ export default function CreateProductModal({ isOpen, onClose, editingProduct, in
               { step: 1, key: 'type' },
               { step: 2, key: 'programType' },
               { step: 3, key: 'general' },
-              { step: 4, key: 'workshopMaterial' },
-              { step: 5, key: 'workshopSchedule' },
+              { step: 4, key: 'workshopSchedule' },
+              { step: 5, key: 'workshopMaterial' },
               { step: 6, key: 'preview' }
             ] : [
               { step: 1, key: 'type' },
@@ -5265,7 +5506,7 @@ export default function CreateProductModal({ isOpen, onClose, editingProduct, in
               </motion.div>
             )}
 
-            {/* Paso 4: Material Opcional para Taller */}
+            {/* Paso 5: Material Opcional para Taller */}
             {currentStep === 'workshopMaterial' && (
               <motion.div
                 key="workshopMaterial"
@@ -5280,39 +5521,49 @@ export default function CreateProductModal({ isOpen, onClose, editingProduct, in
                   <p className="text-gray-400">Adjunta opcionalmente un archivo PDF para los asistentes</p>
                 </div>
 
-                <div className="bg-gray-800 rounded-lg p-6 space-y-6">
-                  {/* Toggle para PDF */}
+                <div className="space-y-6 w-full">
+                  {/* Opciones de tipo de PDF */}
                   <div className="space-y-4">
-                    <label className="text-white font-medium">¿Quieres adjuntar un PDF?</label>
-                    <div className="flex gap-4">
+                    <label className="text-white font-medium">¿Cómo quieres adjuntar el PDF?</label>
+                    <div className="grid grid-cols-3 gap-3">
                       <button
-                        onClick={() => handleWorkshopMaterialToggle(true)}
-                        className={`px-4 py-2 rounded-lg font-medium transition-colors ${
-                          workshopMaterial.hasPdf 
+                        onClick={() => handleWorkshopMaterialToggle('none')}
+                        className={`px-4 py-3 rounded-lg font-medium transition-colors ${
+                          workshopMaterial.pdfType === 'none'
                             ? 'bg-[#FF7939] text-white' 
                             : 'bg-gray-700 text-gray-300 hover:bg-gray-600'
                         }`}
                       >
-                        Sí
+                        Sin PDF
                       </button>
                       <button
-                        onClick={() => handleWorkshopMaterialToggle(false)}
-                        className={`px-4 py-2 rounded-lg font-medium transition-colors ${
-                          !workshopMaterial.hasPdf 
+                        onClick={() => handleWorkshopMaterialToggle('general')}
+                        className={`px-4 py-3 rounded-lg font-medium transition-colors ${
+                          workshopMaterial.pdfType === 'general'
                             ? 'bg-[#FF7939] text-white' 
                             : 'bg-gray-700 text-gray-300 hover:bg-gray-600'
                         }`}
                       >
-                        No
+                        PDF General
+                      </button>
+                      <button
+                        onClick={() => handleWorkshopMaterialToggle('by-topic')}
+                        className={`px-4 py-3 rounded-lg font-medium transition-colors ${
+                          workshopMaterial.pdfType === 'by-topic'
+                            ? 'bg-[#FF7939] text-white' 
+                            : 'bg-gray-700 text-gray-300 hover:bg-gray-600'
+                        }`}
+                      >
+                        PDF por Tema
                       </button>
                     </div>
                   </div>
 
-                  {/* Upload de PDF si se selecciona Sí */}
-                  {workshopMaterial.hasPdf && (
-                    <div className="space-y-4">
-                      <label className="text-white font-medium">Subir archivo PDF</label>
-                      <div className="border-2 border-dashed border-gray-600 rounded-lg p-6 text-center">
+                  {/* Upload de PDF General */}
+                  {workshopMaterial.pdfType === 'general' && (
+                    <div className="space-y-4 w-full">
+                      <label className="text-white font-medium">Subir archivo PDF general</label>
+                      <div className="border-2 border-dashed border-gray-700 rounded-lg p-4 sm:p-6 text-center w-full">
                         <input
                           type="file"
                           accept=".pdf"
@@ -5328,25 +5579,204 @@ export default function CreateProductModal({ isOpen, onClose, editingProduct, in
                           className="cursor-pointer flex flex-col items-center space-y-2"
                         >
                           <Upload className="w-8 h-8 text-gray-400" />
-                          <span className="text-gray-300">Haz clic para subir PDF</span>
-                          <span className="text-sm text-gray-500">o arrastra el archivo aquí</span>
+                          <span className="text-gray-300 text-sm sm:text-base">Haz clic para subir PDF</span>
+                          <span className="text-xs sm:text-sm text-gray-500">o arrastra el archivo aquí</span>
                         </label>
                       </div>
                       
-                      {workshopMaterial.pdfFile && (
-                        <div className="bg-gray-700 rounded-lg p-3 flex items-center justify-between">
-                          <div className="flex items-center space-x-3">
-                            <FileText className="w-5 h-5 text-[#FF7939]" />
-                            <span className="text-white">{workshopMaterial.pdfFile.name}</span>
+                      {(workshopMaterial.pdfFile || workshopMaterial.pdfUrl) && (
+                        <div className="bg-gray-900/50 rounded-lg p-3 flex items-center justify-between w-full">
+                          <div className="flex items-center space-x-2 sm:space-x-3 flex-1 min-w-0">
+                            <FileText className="w-4 h-4 sm:w-5 sm:h-5 text-[#FF7939] flex-shrink-0" />
+                            <span className="text-white text-sm sm:text-base truncate">
+                              {workshopMaterial.pdfFile?.name || 'PDF general cargado'}
+                            </span>
+                            {workshopMaterial.pdfUrl && !workshopMaterial.pdfFile && (
+                              <a
+                                href={workshopMaterial.pdfUrl}
+                                target="_blank"
+                                rel="noopener noreferrer"
+                                className="text-[#FF7939] hover:text-[#FF6B35] p-1.5 sm:p-2 rounded hover:bg-[#FF7939]/10 transition-colors flex-shrink-0 ml-1 sm:ml-2"
+                                title="Ver PDF"
+                              >
+                                <ExternalLink className="w-4 h-4 sm:w-3.5 sm:h-3.5" />
+                                <span className="hidden sm:inline text-sm ml-1">Ver PDF</span>
+                              </a>
+                            )}
                           </div>
                           <button
-                            onClick={() => handleWorkshopMaterialToggle(false)}
-                            className="text-red-400 hover:text-red-300"
+                            onClick={() => {
+                              setPdfToDelete(null)
+                              setPdfToDeleteType('general')
+                              setShowDeletePdfConfirm(true)
+                            }}
+                            className="text-red-500 hover:text-red-400 p-1.5 sm:p-2 rounded hover:bg-red-500/10 transition-colors flex-shrink-0"
+                            title="Eliminar PDF"
                           >
-                            <X className="w-4 h-4" />
+                            <Trash2 className="w-4 h-4 sm:w-3.5 sm:h-3.5" />
                           </button>
                         </div>
                       )}
+                    </div>
+                  )}
+
+                  {/* PDFs por Tema - Tabla Minimalista */}
+                  {workshopMaterial.pdfType === 'by-topic' && (
+                    <div className="space-y-4">
+                      {/* Obtener temas únicos del schedule */}
+                      {(() => {
+                        const uniqueTopics = Array.from(new Set(
+                          workshopSchedule
+                            .filter(s => s.title)
+                            .map(s => s.title!)
+                        ))
+                        
+                        if (uniqueTopics.length === 0) {
+                          return (
+                            <div className="bg-yellow-500/10 border border-yellow-500/30 rounded-lg p-4">
+                              <p className="text-yellow-500 text-sm">
+                                ⚠️ Primero debes agregar temas y horarios en el paso anterior
+                              </p>
+                            </div>
+                          )
+                        }
+
+                        return (
+                          <div className="space-y-3">
+                            {/* Botón para subir PDF a temas seleccionados */}
+                            {selectedTopics.size > 0 && (
+                              <div className="flex items-center justify-between bg-[#FF7939]/10 border border-[#FF7939]/30 rounded-lg p-3">
+                                <span className="text-white text-sm">
+                                  {selectedTopics.size} tema{selectedTopics.size > 1 ? 's' : ''} seleccionado{selectedTopics.size > 1 ? 's' : ''}
+                                </span>
+                                <label className="cursor-pointer">
+                                  <input
+                                    type="file"
+                                    accept=".pdf"
+                                    onChange={(e) => {
+                                      const file = e.target.files?.[0]
+                                      if (file) handleBulkPdfUpload(file)
+                                    }}
+                                    className="hidden"
+                                    id="bulk-pdf-upload"
+                                  />
+                                  <span className="bg-[#FF7939] hover:bg-[#FF6B35] text-white px-4 py-2 rounded-lg text-sm font-medium transition-colors">
+                                    Subir PDF a seleccionados
+                                  </span>
+                                </label>
+                              </div>
+                            )}
+
+                            {/* Tabla minimalista - Compacta y Responsive */}
+                            <div className="w-full">
+                              <table className="w-full">
+                                <thead className="bg-gray-900/50 border-b border-gray-800">
+                                  <tr>
+                                    <th className="px-2 py-2 text-left text-xs font-medium text-gray-400 w-8"></th>
+                                    <th className="px-2 py-2 text-left text-xs font-medium text-gray-400">Tema</th>
+                                    <th className="px-2 py-2 text-left text-xs font-medium text-gray-400">PDF</th>
+                                  </tr>
+                                </thead>
+                                <tbody>
+                                  {uniqueTopics.map((topicTitle, index) => {
+                                    const hasPdf = workshopMaterial.topicPdfs[topicTitle]?.file || workshopMaterial.topicPdfs[topicTitle]?.url
+                                    const isSelected = selectedTopics.has(topicTitle)
+                                    
+                                    // Debug: verificar si el tema tiene PDF
+                                    if (process.env.NODE_ENV === 'development' && index === 0) {
+                                      console.log(`🔍 [Paso 5] Verificando PDFs para tema "${topicTitle}":`, {
+                                        hasPdf,
+                                        pdfData: workshopMaterial.topicPdfs[topicTitle],
+                                        allTopicPdfs: Object.keys(workshopMaterial.topicPdfs),
+                                        pdfType: workshopMaterial.pdfType
+                                      })
+                                    }
+                                    
+                                    return (
+                                      <tr 
+                                        key={topicTitle} 
+                                        className={`border-b border-gray-800/50 hover:bg-gray-800/30 transition-colors ${
+                                          isSelected ? 'bg-[#FF7939]/5' : ''
+                                        }`}
+                                      >
+                                        {/* Columna de selección (Flame) */}
+                                        <td className="px-2 py-2">
+                                          <button
+                                            onClick={() => handleTopicSelection(topicTitle)}
+                                            className="p-0.5 hover:bg-gray-700/50 rounded transition-colors"
+                                            title={isSelected ? 'Deseleccionar' : 'Seleccionar'}
+                                          >
+                                            <Flame 
+                                              className={`h-3.5 w-3.5 transition-colors ${
+                                                isSelected 
+                                                  ? 'text-[#FF7939]' 
+                                                  : 'text-gray-500'
+                                              }`} 
+                                            />
+                                          </button>
+                                        </td>
+                                        
+                                        {/* Columna de tema */}
+                                        <td className="px-2 py-2">
+                                          <span className="text-white text-xs sm:text-sm truncate block max-w-[150px] sm:max-w-none">{topicTitle}</span>
+                                        </td>
+                                        
+                                        {/* Columna de PDF */}
+                                        <td className="px-2 py-2">
+                                          {hasPdf ? (
+                                            <div className="flex items-center gap-1.5 flex-wrap">
+                                              <FileText className="w-3.5 h-3.5 text-[#FF7939] flex-shrink-0" />
+                                              <span className="text-gray-300 text-xs truncate max-w-[120px] sm:max-w-[200px]">
+                                                {workshopMaterial.topicPdfs[topicTitle].fileName || 'PDF cargado'}
+                                              </span>
+                                              <div className="flex items-center gap-1 flex-shrink-0 ml-auto">
+                                                {workshopMaterial.topicPdfs[topicTitle]?.url && !workshopMaterial.topicPdfs[topicTitle]?.file && (
+                                                  <a
+                                                    href={workshopMaterial.topicPdfs[topicTitle].url!}
+                                                    target="_blank"
+                                                    rel="noopener noreferrer"
+                                                    className="text-[#FF7939] hover:text-[#FF6B35] p-1 rounded hover:bg-[#FF7939]/10 transition-colors"
+                                                    onClick={(e) => e.stopPropagation()}
+                                                    title="Ver PDF"
+                                                  >
+                                                    <ExternalLink className="w-3.5 h-3.5" />
+                                                  </a>
+                                                )}
+                                                <button
+                                                  onClick={() => handleTopicPdfRemove(topicTitle)}
+                                                  className="text-red-500 hover:text-red-400 transition-colors p-1 rounded hover:bg-red-500/10"
+                                                  title="Eliminar PDF"
+                                                >
+                                                  <Trash2 className="w-3.5 h-3.5" />
+                                                </button>
+                                              </div>
+                                            </div>
+                                          ) : (
+                                            <label className="cursor-pointer inline-flex items-center gap-1.5 text-gray-400 hover:text-[#FF7939] transition-colors text-xs">
+                                              <input
+                                                type="file"
+                                                accept=".pdf"
+                                                onChange={(e) => {
+                                                  const file = e.target.files?.[0]
+                                                  if (file) handleTopicPdfUpload(topicTitle, file)
+                                                }}
+                                                className="hidden"
+                                                id={`topic-pdf-upload-${topicTitle}`}
+                                              />
+                                              <Upload className="w-3.5 h-3.5" />
+                                              <span>Subir</span>
+                                            </label>
+                                          )}
+                                        </td>
+                                      </tr>
+                                    )
+                                  })}
+                                </tbody>
+                              </table>
+                            </div>
+                          </div>
+                        )
+                      })()}
                     </div>
                   )}
                 </div>
@@ -5363,7 +5793,7 @@ export default function CreateProductModal({ isOpen, onClose, editingProduct, in
               </motion.div>
             )}
 
-        {/* Paso 5: Horarios del Taller con Calendario */}
+        {/* Paso 4: Horarios del Taller con Calendario */}
         {currentStep === 'workshopSchedule' && (
           <motion.div
             key="workshopSchedule"
@@ -5862,15 +6292,31 @@ export default function CreateProductModal({ isOpen, onClose, editingProduct, in
                             return count
                           })(),
                           totalSessions: (() => {
-                            // Para talleres: cantidad de días = cantidad de temas (cada tema = 1 día)
+                            // Para talleres: calcular duración desde la primera fecha hasta la última fecha
                             if (selectedType === 'workshop' && workshopSchedule && workshopSchedule.length > 0) {
-                              const temasUnicos = new Set(workshopSchedule.map((s: any) => s.title).filter(Boolean))
-                              const cantidadDias = temasUnicos.size
+                              const fechas = workshopSchedule
+                                .map((s: any) => s.date)
+                                .filter(Boolean)
+                                .map((fecha: string) => new Date(fecha))
+                                .filter((fecha: Date) => !isNaN(fecha.getTime()))
+                                .sort((a: Date, b: Date) => a.getTime() - b.getTime())
+                              
+                              if (fechas.length === 0) {
+                                const temasUnicos = new Set(workshopSchedule.map((s: any) => s.title).filter(Boolean))
+                                return temasUnicos.size // Fallback: cantidad de temas
+                              }
+                              
+                              const primeraFecha = fechas[0]
+                              const ultimaFecha = fechas[fechas.length - 1]
+                              const diferenciaMs = ultimaFecha.getTime() - primeraFecha.getTime()
+                              const diferenciaDias = Math.ceil(diferenciaMs / (1000 * 60 * 60 * 24)) + 1 // +1 para incluir ambos días
+                              
                               console.log('📊 [Paso 6] Taller - cantidadDias calculado:', {
-                                cantidadDias,
-                                temasUnicos: Array.from(temasUnicos)
+                                primeraFecha: primeraFecha.toISOString().split('T')[0],
+                                ultimaFecha: ultimaFecha.toISOString().split('T')[0],
+                                diferenciaDias
                               })
-                              return cantidadDias
+                              return diferenciaDias
                             }
                             
                             // Para programas: calcular desde persistentCalendarSchedule
@@ -5897,8 +6343,25 @@ export default function CreateProductModal({ isOpen, onClose, editingProduct, in
                             : undefined,
                           cantidadDias: selectedType === 'workshop' && workshopSchedule && workshopSchedule.length > 0
                             ? (() => {
-                                const temasUnicos = new Set(workshopSchedule.map((s: any) => s.title).filter(Boolean))
-                                return temasUnicos.size // Cada tema = 1 día
+                                // Calcular duración desde la primera fecha hasta la última fecha
+                                const fechas = workshopSchedule
+                                  .map((s: any) => s.date)
+                                  .filter(Boolean)
+                                  .map((fecha: string) => new Date(fecha))
+                                  .filter((fecha: Date) => !isNaN(fecha.getTime()))
+                                  .sort((a: Date, b: Date) => a.getTime() - b.getTime())
+                                
+                                if (fechas.length === 0) {
+                                  const temasUnicos = new Set(workshopSchedule.map((s: any) => s.title).filter(Boolean))
+                                  return temasUnicos.size // Fallback: cantidad de temas
+                                }
+                                
+                                const primeraFecha = fechas[0]
+                                const ultimaFecha = fechas[fechas.length - 1]
+                                const diferenciaMs = ultimaFecha.getTime() - primeraFecha.getTime()
+                                const diferenciaDias = Math.ceil(diferenciaMs / (1000 * 60 * 60 * 24)) + 1 // +1 para incluir ambos días
+                                
+                                return diferenciaDias
                               })()
                             : undefined,
                           modality: generalForm.modality || 'online',
@@ -6031,6 +6494,60 @@ export default function CreateProductModal({ isOpen, onClose, editingProduct, in
                 className="flex-1 bg-[#FF7939] hover:bg-[#FF6B35] text-black font-bold py-2 rounded-lg text-sm transition-all duration-200"
               >
                 Cerrar sin guardar
+              </Button>
+            </div>
+          </motion.div>
+        </motion.div>
+      )}
+
+      {/* Modal de confirmación de eliminación de PDF */}
+      {showDeletePdfConfirm && (
+        <motion.div
+          initial={{ opacity: 0 }}
+          animate={{ opacity: 1 }}
+          exit={{ opacity: 0 }}
+          className="fixed inset-0 bg-black/90 z-[110] flex items-center justify-center backdrop-blur-sm"
+        >
+          <motion.div
+            initial={{ scale: 0.9, opacity: 0 }}
+            animate={{ scale: 1, opacity: 1 }}
+            exit={{ scale: 0.9, opacity: 0 }}
+            className="bg-black rounded-xl p-6 max-w-sm mx-4 shadow-2xl"
+          >
+            {/* Icono de advertencia */}
+            <div className="flex justify-center mb-4">
+              <div className="w-12 h-12 bg-red-500 rounded-full flex items-center justify-center">
+                <Trash2 className="w-6 h-6 text-white" />
+              </div>
+            </div>
+
+            {/* Título */}
+            <h3 className="text-white text-lg font-bold text-center mb-2">
+              ¿Eliminar el PDF?
+            </h3>
+            
+            {/* Descripción */}
+            <p className="text-gray-300 text-center mb-6 text-sm">
+              {pdfToDeleteType === 'topic' 
+                ? `¿Estás seguro de que quieres eliminar el PDF del tema "${pdfToDelete}"?`
+                : '¿Estás seguro de que quieres eliminar el PDF general?'
+              }
+            </p>
+            
+            {/* Botones */}
+            <div className="flex gap-3">
+              <Button
+                variant="ghost"
+                onClick={cancelDeletePdf}
+                className="flex-1 bg-transparent border border-white text-white hover:bg-white hover:text-black transition-all duration-200 py-2 rounded-lg text-sm font-medium"
+              >
+                Cancelar
+              </Button>
+              <Button
+                onClick={confirmDeletePdf}
+                className="flex-1 bg-red-500 hover:bg-red-600 text-white font-bold py-2 rounded-lg text-sm transition-all duration-200"
+              >
+                Eliminar
               </Button>
             </div>
           </motion.div>

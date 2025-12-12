@@ -3,7 +3,7 @@
 import { useState, useEffect, useCallback, useMemo, memo, useRef } from "react"
 import { Button } from "@/components/ui/button"
 import { Textarea } from "@/components/ui/textarea"
-import { Plus, TrendingUp, Users, DollarSign, Package, Filter, ArrowUpDown, ArrowUp, ArrowDown, ChevronDown, Edit, Trash2, X, Coffee, MessageCircle, Video, Calendar, Clock, Flame } from "lucide-react"
+import { Plus, TrendingUp, Users, DollarSign, Package, Filter, ArrowUpDown, ArrowUp, ArrowDown, ChevronDown, Edit, Trash2, X, Coffee, MessageCircle, Video, Calendar, Clock, Flame, Zap, MessageSquare, Target } from "lucide-react"
 import { Badge } from "@/components/ui/badge"
 import { toast } from "sonner"
 import CreateProductModal from '@/components/shared/products/create-product-modal-refactored'
@@ -13,6 +13,7 @@ import { API_ENDPOINTS } from '@/lib/config/api-config'
 import { useAuth } from '@/contexts/auth-context'
 import { StorageUsageWidget } from '@/components/coach/storage-usage-widget'
 import { CSVManagerEnhanced } from '@/components/shared/csv/csv-manager-enhanced'
+import { createClient } from '@/lib/supabase/supabase-client'
 
 type Product = {
   id: number
@@ -88,16 +89,32 @@ export default function ProductsManagementScreen({ onTabChange }: ProductsManage
   // Estado para tabs principales
   const [activeMainTab, setActiveMainTab] = useState<'products' | 'exercises' | 'storage'>('products')
   
-  // Estado para consulta de café
-  const [cafeConsultation, setCafeConsultation] = useState({
-    active: false,
-    price: 0
+  // Estado para las 3 consultas
+  const [consultations, setConsultations] = useState({
+    express: { active: false, price: 0, time: 15, name: 'Express', icon: 1 },
+    puntual: { active: false, price: 0, time: 30, name: 'Consulta puntual', icon: 2 },
+    profunda: { active: false, price: 0, time: 60, name: 'Sesión profunda', icon: 3 }
   })
-  const [isEditingCafePrice, setIsEditingCafePrice] = useState(false)
+  const [editingPrice, setEditingPrice] = useState<string | null>(null)
   const [isCafeModalOpen, setIsCafeModalOpen] = useState(false)
+  const [isTogglingConsultation, setIsTogglingConsultation] = useState<string | null>(null)
+  const [consultationSales, setConsultationSales] = useState<{
+    express: any[]
+    puntual: any[]
+    profunda: any[]
+  }>({
+    express: [],
+    puntual: [],
+    profunda: []
+  })
+  const [pendingConsultations, setPendingConsultations] = useState<any[]>([])
+  const [consultationError, setConsultationError] = useState<string | null>(null)
+  // Mantener estado anterior para compatibilidad
+  const [cafeConsultation, setCafeConsultation] = useState({ active: false, price: 0 })
+  const [isEditingCafePrice, setIsEditingCafePrice] = useState(false)
   const [isTogglingCafe, setIsTogglingCafe] = useState(false)
-  const [cafeSalesCount, setCafeSalesCount] = useState(0) // Contador de ventas
-  const [cafeSales, setCafeSales] = useState<any[]>([]) // Lista de ventas
+  const [cafeSalesCount, setCafeSalesCount] = useState(0)
+  const [cafeSales, setCafeSales] = useState<any[]>([])
   const [isMeetModalOpen, setIsMeetModalOpen] = useState(false)
   const [selectedSaleForMeet, setSelectedSaleForMeet] = useState<any>(null)
   const [meetSchedule, setMeetSchedule] = useState({
@@ -151,7 +168,7 @@ export default function ProductsManagementScreen({ onTabChange }: ProductsManage
       setLoading(true)
       
       const controller = new AbortController()
-      const timeoutId = setTimeout(() => controller.abort(), 30000) // 30 segundos timeout
+      const timeoutId = setTimeout(() => controller.abort(), 60000) // 60 segundos timeout (aumentado para APIs lentas)
       
       const response = await fetch(API_ENDPOINTS.PRODUCTS, {
         signal: controller.signal,
@@ -162,6 +179,11 @@ export default function ProductsManagementScreen({ onTabChange }: ProductsManage
       })
       
       clearTimeout(timeoutId)
+      
+      if (!response.ok) {
+        throw new Error(`Error HTTP: ${response.status} ${response.statusText}`)
+      }
+      
       const result = await response.json()
       
       if (result.success) {
@@ -177,45 +199,93 @@ export default function ProductsManagementScreen({ onTabChange }: ProductsManage
         })
       } else {
         console.error('Error cargando productos:', result.error)
+        toast.error('Error al cargar productos: ' + (result.error || 'Error desconocido'))
       }
-    } catch (error) {
+    } catch (error: any) {
       if (error.name === 'AbortError') {
         console.error('Timeout al obtener productos')
+        toast.error('La solicitud tardó demasiado tiempo. Por favor, intenta nuevamente.')
+      } else if (error.message) {
+        console.error('Error al obtener productos:', error)
+        toast.error('Error al cargar productos: ' + error.message)
       } else {
         console.error('Error al obtener productos:', error)
+        toast.error('Error desconocido al cargar productos')
       }
     } finally {
       setLoading(false)
     }
   }, []) // Sin dependencias para evitar loops
 
-  // Cargar consulta de café del coach desde Supabase - Memoizado
+  // Cargar las 3 consultas del coach desde Supabase
   const fetchCafeConsultation = useCallback(async () => {
     if (!user?.id) {
-      setCafeConsultation({ active: false, price: 0 })
+      setConsultations({
+        express: { active: false, price: 0, time: 15, name: 'Express', icon: 1 },
+        puntual: { active: false, price: 0, time: 30, name: 'Consulta puntual', icon: 2 },
+        profunda: { active: false, price: 0, time: 60, name: 'Sesión profunda', icon: 3 }
+      })
       return
     }
 
     try {
-      const response = await fetch('/api/coach/cafe', {
-        credentials: 'include' // ✅ Incluir cookies en la petición
-      })
-      if (response.ok) {
-        const result = await response.json()
-        if (result.success && result.cafe) {
-          setCafeConsultation({
-            active: result.cafe.enabled || false,
-            price: result.cafe.price || 0
-          })
-        } else {
-          setCafeConsultation({ active: false, price: 0 })
-        }
-      } else {
-        console.error('Error cargando café:', response.statusText)
+      const supabase = createClient()
+      const { data: coach, error } = await supabase
+        .from('coaches')
+        .select('cafe, cafe_enabled, meet_30, meet_30_enabled, meet_1, meet_1_enabled')
+        .eq('id', user.id)
+        .single()
+
+      if (error) {
+        // Si hay error (probablemente columnas no existen), usar valores por defecto
+        console.warn('⚠️ Error cargando consultas (columnas pueden no existir):', error.message)
+        setConsultations({
+          express: { active: false, price: 0, time: 15, name: 'Express', icon: 1 },
+          puntual: { active: false, price: 0, time: 30, name: 'Consulta puntual', icon: 2 },
+          profunda: { active: false, price: 0, time: 60, name: 'Sesión profunda', icon: 3 }
+        })
         setCafeConsultation({ active: false, price: 0 })
+        return
+      }
+
+      if (coach) {
+        setConsultations({
+          express: {
+            active: coach.cafe_enabled || false,
+            price: coach.cafe || 0,
+            time: 15,
+            name: 'Express',
+            icon: 1
+          },
+          puntual: {
+            active: coach.meet_30_enabled || false,
+            price: coach.meet_30 || 0,
+            time: 30,
+            name: 'Consulta puntual',
+            icon: 2
+          },
+          profunda: {
+            active: coach.meet_1_enabled || false,
+            price: coach.meet_1 || 0,
+            time: 60,
+            name: 'Sesión profunda',
+            icon: 3
+          }
+        })
+        // Mantener compatibilidad con estado anterior
+        setCafeConsultation({
+          active: coach.cafe_enabled || false,
+          price: coach.cafe || 0
+        })
       }
     } catch (error) {
-      console.error('Error cargando café:', error)
+      console.error('Error cargando consultas:', error)
+      // En caso de error, establecer valores por defecto
+      setConsultations({
+        express: { active: false, price: 0, time: 15, name: 'Express', icon: 1 },
+        puntual: { active: false, price: 0, time: 30, name: 'Consulta puntual', icon: 2 },
+        profunda: { active: false, price: 0, time: 60, name: 'Sesión profunda', icon: 3 }
+      })
       setCafeConsultation({ active: false, price: 0 })
     }
   }, [user?.id])
@@ -330,7 +400,99 @@ export default function ProductsManagementScreen({ onTabChange }: ProductsManage
     setIsModalOpen(true)
   }, [])
 
-  // Funciones para manejar consulta de café
+  // Funciones para manejar las 3 consultas
+  const toggleConsultation = async (type: 'express' | 'puntual' | 'profunda') => {
+    if (isTogglingConsultation) return
+    
+    setIsTogglingConsultation(type)
+    setConsultationError(null)
+    
+    const currentState = consultations[type].active
+    const newState = !currentState
+
+    // Validar: no se puede activar si el precio es 0
+    if (newState && consultations[type].price === 0) {
+      setConsultationError('Configura un precio mayor a 0 para activar la consulta')
+      setIsTogglingConsultation(null)
+      return
+    }
+
+    try {
+      const supabase = createClient()
+      const { data: { user } } = await supabase.auth.getUser()
+      if (!user) return
+
+      let updateField = ''
+      let enabledField = ''
+      if (type === 'express') {
+        updateField = 'cafe'
+        enabledField = 'cafe_enabled'
+      } else if (type === 'puntual') {
+        updateField = 'meet_30'
+        enabledField = 'meet_30_enabled'
+      } else {
+        updateField = 'meet_1'
+        enabledField = 'meet_1_enabled'
+      }
+
+      const { error } = await supabase
+        .from('coaches')
+        .update({ [enabledField]: newState })
+        .eq('id', user.id)
+
+      if (!error) {
+        setConsultations(prev => ({
+          ...prev,
+          [type]: { ...prev[type], active: newState }
+        }))
+        // Limpiar error al desactivar
+        if (!newState) {
+          setConsultationError(null)
+        }
+        toast.success(newState ? `${consultations[type].name} activada` : `${consultations[type].name} desactivada`)
+      }
+    } catch (error) {
+      console.error('Error actualizando consulta:', error)
+      toast.error('Error al actualizar')
+    } finally {
+      setIsTogglingConsultation(null)
+    }
+  }
+
+  const updateConsultationPrice = async (type: 'express' | 'puntual' | 'profunda', price: number) => {
+    try {
+      const supabase = createClient()
+      const { data: { user } } = await supabase.auth.getUser()
+      if (!user) return
+
+      let updateField = ''
+      if (type === 'express') {
+        updateField = 'cafe'
+      } else if (type === 'puntual') {
+        updateField = 'meet_30'
+      } else {
+        updateField = 'meet_1'
+      }
+
+      const { error } = await supabase
+        .from('coaches')
+        .update({ [updateField]: price })
+        .eq('id', user.id)
+
+      if (!error) {
+        setConsultations(prev => ({
+          ...prev,
+          [type]: { ...prev[type], price }
+        }))
+        toast.success('Precio actualizado')
+      }
+    } catch (error) {
+      console.error('Error actualizando precio:', error)
+      toast.error('Error al actualizar precio')
+    }
+  }
+
+  // Mantener función anterior para compatibilidad
   const toggleCafeConsultation = async () => {
     if (isTogglingCafe) return // Evitar múltiples clics
     
@@ -438,6 +600,160 @@ export default function ProductsManagementScreen({ onTabChange }: ProductsManage
     // Por ahora solo permitimos editar el precio desde la card
   }
 
+  // Función para renderizar cada sección de consulta
+  const renderConsultationSection = (type: 'express' | 'puntual' | 'profunda') => {
+    const consultation = consultations[type]
+    const sales = consultationSales[type]
+    const isEditing = editingPrice === type
+    const isToggling = isTogglingConsultation === type
+    const totalSales = sales.length
+    const totalIncome = sales.reduce((sum, sale) => sum + (sale.price || consultation.price), 0)
+
+    return (
+      <div key={type} className="py-3 border-b border-gray-700/30 last:border-b-0">
+        {/* Header con icono, nombre y toggle */}
+        <div className="flex items-center justify-between mb-2">
+          <div className="flex items-center gap-2.5">
+            {/* Icono silueta naranja */}
+            {type === 'express' ? (
+              <Zap className="w-5 h-5 text-[#FF7939]" strokeWidth={2} fill="none" />
+            ) : type === 'puntual' ? (
+              <MessageSquare className="w-5 h-5 text-[#FF7939]" strokeWidth={2} fill="none" />
+            ) : (
+              <Target className="w-5 h-5 text-[#FF7939]" strokeWidth={2} fill="none" />
+            )}
+            {/* Nombre y tiempo */}
+            <div>
+              <h4 className="text-white font-semibold text-sm leading-tight">{consultation.name}</h4>
+              <p className="text-gray-400 text-xs">{consultation.time} min</p>
+            </div>
+          </div>
+          
+          {/* Toggle de activación */}
+          <button
+            onClick={(e) => {
+              e.preventDefault()
+              e.stopPropagation()
+              toggleConsultation(type)
+            }}
+            type="button"
+            role="switch"
+            aria-checked={consultation.active}
+            disabled={isToggling}
+            className={`relative inline-flex h-5 w-9 items-center rounded-full transition-colors duration-300 flex-shrink-0 ${
+              consultation.active ? 'bg-[#FF7939]' : 'bg-gray-600'
+            } ${isToggling ? 'opacity-50 cursor-not-allowed' : 'cursor-pointer'}`}
+          >
+            <span
+              className={`inline-block h-4 w-4 transform rounded-full bg-white transition-transform duration-300 ease-in-out ${
+                consultation.active ? 'translate-x-4' : 'translate-x-0.5'
+              }`}
+            />
+          </button>
+        </div>
+
+        {/* Precio, Ventas e Ingresos */}
+        <div className="flex items-center justify-between mb-2 text-xs">
+          <div className="flex items-center gap-4">
+            <span className="text-gray-400">Ventas: <span className="text-white font-semibold">{totalSales}</span></span>
+            <span className="text-gray-400">Ingresos: <span className="text-[#FF7939] font-semibold">${totalIncome}</span></span>
+          </div>
+          <div className="flex items-center gap-2">
+            {isEditing ? (
+              <div className="flex items-center gap-1">
+                <span className="text-gray-400 text-base">$</span>
+                <input
+                  type="number"
+                  value={consultation.price}
+                  onChange={(e) => {
+                    const newPrice = parseInt(e.target.value) || 0
+                    setConsultations(prev => ({
+                      ...prev,
+                      [type]: { ...prev[type], price: newPrice }
+                    }))
+                  }}
+                  className="bg-transparent border-none text-[#FF7939] font-bold text-lg focus:outline-none w-20 text-right"
+                  placeholder="0"
+                  min="0"
+                  autoFocus
+                  onBlur={() => {
+                    updateConsultationPrice(type, consultation.price)
+                    setEditingPrice(null)
+                  }}
+                  onKeyDown={(e) => {
+                    if (e.key === 'Enter') {
+                      updateConsultationPrice(type, consultation.price)
+                      setEditingPrice(null)
+                    }
+                  }}
+                />
+              </div>
+            ) : (
+              <>
+                <div className="flex items-center gap-1">
+                  <span className="text-gray-400 text-base">$</span>
+                  <span className="text-[#FF7939] font-bold text-lg">{consultation.price}</span>
+                </div>
+                <button
+                  onClick={(e) => {
+                    e.preventDefault()
+                    e.stopPropagation()
+                    if (consultation.active) {
+                      setConsultationError('Desactiva la consulta para editar el precio')
+                      // Limpiar el error después de 5 segundos
+                      setTimeout(() => {
+                        setConsultationError(null)
+                      }, 5000)
+                    } else {
+                      setEditingPrice(type)
+                      setConsultationError(null)
+                    }
+                  }}
+                  className={`text-gray-400 hover:text-[#FF7939] transition-colors ${consultation.active ? 'cursor-not-allowed opacity-50' : ''}`}
+                  title={consultation.active ? "Desactiva la consulta para editar el precio" : "Editar precio"}
+                >
+                  <Edit className="w-3 h-3" />
+                </button>
+              </>
+            )}
+          </div>
+        </div>
+
+        {/* Lista de ventas */}
+        {totalSales > 0 && (
+          <div className="mt-2 pt-2 border-t border-gray-700/30 max-h-24 overflow-y-auto">
+            <div className="space-y-1.5">
+              {sales.map((sale, index) => (
+                <div key={index} className="flex items-center justify-between text-xs">
+                  <div>
+                    <p className="text-white">{sale.userName || 'Cliente'}</p>
+                    <p className="text-gray-400">{consultation.name}</p>
+                  </div>
+                  <div className="flex items-center gap-1">
+                    <button
+                      onClick={() => handleWhatsAppClick(sale)}
+                      className="p-1 hover:bg-green-500/10 rounded transition-colors"
+                      title="WhatsApp"
+                    >
+                      <MessageCircle className="w-3 h-3 text-green-500" />
+                    </button>
+                    <button
+                      onClick={() => handleMeetClick(sale)}
+                      className="p-1 hover:bg-blue-500/10 rounded transition-colors"
+                      title="Meet"
+                    >
+                      <Video className="w-3 h-3 text-blue-500" />
+                    </button>
+                  </div>
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
+      </div>
+    )
+  }
+
   // Función para manejar clic en WhatsApp
   const handleWhatsAppClick = (sale: any) => {
     if (coachPhone) {
@@ -494,13 +810,58 @@ export default function ProductsManagementScreen({ onTabChange }: ProductsManage
           }
         }
 
-        // TODO: Cargar ventas de café desde API
-        // const salesResponse = await fetch(`/api/coach/cafe/sales`)
-        // if (salesResponse.ok) {
-        //   const salesData = await salesResponse.json()
-        //   setCafeSales(salesData.sales || [])
-        //   setCafeSalesCount(salesData.sales?.length || 0)
-        // }
+        // Cargar consultas pendientes
+        const supabase = createClient()
+        const { data: pendingEvents, error } = await supabase
+          .from('calendar_events')
+          .select(`
+            id,
+            title,
+            start_time,
+            end_time,
+            consultation_type,
+            status,
+            client_id
+          `)
+          .eq('coach_id', user.id)
+          .eq('event_type', 'consultation')
+          .eq('status', 'scheduled')
+          .gte('start_time', new Date().toISOString())
+          .order('start_time', { ascending: true })
+
+        if (!error && pendingEvents && pendingEvents.length > 0) {
+          // Obtener nombres de clientes
+          const clientIds = [...new Set(pendingEvents.map((e: any) => e.client_id).filter(Boolean))]
+          const { data: profiles } = await supabase
+            .from('user_profiles')
+            .select('id, full_name, email')
+            .in('id', clientIds)
+
+          const profilesMap = new Map((profiles || []).map((p: any) => [p.id, p]))
+
+          const formatted = pendingEvents.map((event: any) => {
+            // Determinar tipo de consulta basado en la duración
+            const duration = new Date(event.end_time).getTime() - new Date(event.start_time).getTime()
+            const minutes = duration / (1000 * 60)
+            let consultationType = 'Express'
+            if (minutes <= 15) consultationType = 'Express'
+            else if (minutes <= 30) consultationType = 'Consulta puntual'
+            else consultationType = 'Sesión profunda'
+
+            const profile = event.client_id ? profilesMap.get(event.client_id) : null
+
+            return {
+              id: event.id,
+              clientName: (profile as any)?.full_name || (profile as any)?.email || 'Cliente',
+              date: event.start_time,
+              consultationType,
+              duration: minutes
+            }
+          })
+          setPendingConsultations(formatted)
+        } else {
+          setPendingConsultations([])
+        }
       } catch (error) {
         console.error('Error cargando datos del café:', error)
       }
@@ -1142,18 +1503,18 @@ export default function ProductsManagementScreen({ onTabChange }: ProductsManage
                         onClick={() => setIsCafeModalOpen(true)}
                         className="relative w-10 h-10 rounded-full flex items-center justify-center bg-transparent border-2 transition-all duration-200 hover:bg-[#0A0A0A]/50"
                         style={{
-                          borderColor: cafeConsultation.active ? '#FF7939' : '#4B5563'
+                          borderColor: (consultations.express.active || consultations.puntual.active || consultations.profunda.active) ? '#FF7939' : '#4B5563'
                         }}
                       >
                         <Coffee 
                           className="h-5 w-5 transition-colors duration-200" 
                           style={{
-                            color: cafeConsultation.active ? '#FF7939' : '#9CA3AF'
+                            color: (consultations.express.active || consultations.puntual.active || consultations.profunda.active) ? '#FF7939' : '#9CA3AF'
                           }}
                         />
-                        {cafeSalesCount > 0 && (
+                        {(consultationSales.express.length + consultationSales.puntual.length + consultationSales.profunda.length) > 0 && (
                           <span className="absolute -top-1 -right-1 bg-[#FF7939] text-white text-xs font-bold rounded-full w-5 h-5 flex items-center justify-center">
-                            {cafeSalesCount > 9 ? '9+' : cafeSalesCount}
+                            {(consultationSales.express.length + consultationSales.puntual.length + consultationSales.profunda.length) > 9 ? '9+' : (consultationSales.express.length + consultationSales.puntual.length + consultationSales.profunda.length)}
                           </span>
                         )}
                         </button>
@@ -1745,160 +2106,79 @@ export default function ProductsManagementScreen({ onTabChange }: ProductsManage
         </div>
       )}
 
-      {/* Modal del Café */}
+      {/* Modal de Consultas */}
       {isCafeModalOpen && (
         <div className="fixed inset-0 bg-black/60 z-50 flex items-center justify-center p-4" onClick={() => setIsCafeModalOpen(false)}>
           <div className="bg-[#0A0A0A] rounded-2xl p-5 max-w-md w-full border border-[#1A1A1A] shadow-2xl max-h-[90vh] overflow-y-auto" onClick={(e) => e.stopPropagation()}>
             <div className="flex flex-col">
-              {/* Header compacto */}
-              <div className="flex items-center justify-between mb-4">
+              {/* Header */}
+              <div className="flex items-center justify-center relative mb-4">
                 <div className="flex items-center gap-2">
-                  <div 
-                    className="w-10 h-10 rounded-full bg-transparent border-2 flex items-center justify-center transition-all duration-200"
-                    style={{
-                      borderColor: cafeConsultation.active ? '#FF7939' : '#4B5563'
-                    }}
-                  >
-                    <Coffee 
-                      className="w-5 h-5 transition-colors duration-200" 
-                      style={{
-                        color: cafeConsultation.active ? '#FF7939' : '#9CA3AF'
-                      }}
-                    />
-                  </div>
-                  <div>
-                    <h3 className="text-white font-semibold text-base">Café</h3>
-                    <p className="text-gray-400 text-xs">Consulta informal</p>
-                  </div>
+                  <Coffee className="w-6 h-6 text-[#FF7939]" />
+                  <h3 className="text-white font-semibold text-lg">Consultas</h3>
                 </div>
                 <button
-                  onClick={() => setIsCafeModalOpen(false)}
-                  className="text-gray-400 hover:text-white transition-colors"
+                  onClick={() => {
+                    setIsCafeModalOpen(false)
+                    setConsultationError(null)
+                  }}
+                  className="absolute right-0 text-gray-400 hover:text-white transition-colors"
                 >
                   <X className="h-5 w-5" />
                 </button>
               </div>
 
-              {/* Controles: Activar/Desactivar y Precio */}
-              <div className="flex items-center justify-between gap-4 mb-6">
-                {/* Toggle de activación */}
-                <div className="flex items-center gap-2">
-                  <span className="text-white text-xs">Activar</span>
-                  <button
-                    onClick={(e) => {
-                      e.preventDefault()
-                      e.stopPropagation()
-                      console.log('🖱️ Click en toggle de café')
-                      toggleCafeConsultation()
-                    }}
-                    type="button"
-                    role="switch"
-                    aria-checked={cafeConsultation.active}
-                    disabled={isTogglingCafe}
-                    className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors duration-300 focus:outline-none focus:ring-2 focus:ring-[#FF7939] focus:ring-offset-2 focus:ring-offset-[#0A0A0A] ${
-                      cafeConsultation.active ? 'bg-[#FF7939]' : 'bg-gray-600'
-                    } ${isTogglingCafe ? 'opacity-50 cursor-not-allowed' : 'cursor-pointer'}`}
-                  >
-                    <span
-                      className={`inline-block h-5 w-5 transform rounded-full bg-white transition-transform duration-300 ease-in-out ${
-                        cafeConsultation.active ? 'translate-x-5' : 'translate-x-0.5'
-                      }`}
-                    />
-                  </button>
+              {/* Mensaje de error */}
+              {consultationError && (
+                <div className="mb-4 px-4 py-2 bg-[#FF7939]/10 border border-[#FF7939]/30 rounded-lg">
+                  <p className="text-[#FF7939] text-sm text-center font-medium">{consultationError}</p>
                 </div>
+              )}
 
-                {/* Precio sin fondo y más grande */}
-                <div className="flex flex-col items-end gap-1">
-                  <button
-                    onClick={() => setIsEditingCafePrice(!isEditingCafePrice)}
-                    className="text-gray-400 hover:text-[#FF7939] transition-colors"
-                    title="Editar precio"
-                  >
-                    <Edit className="w-3 h-3" />
-                  </button>
-                  {isEditingCafePrice ? (
-                    <div className="flex items-center gap-1">
-                      <span className="text-gray-400 text-sm">$</span>
-                      <input
-                        type="number"
-                        value={cafeConsultation.price}
-                        onChange={(e) => {
-                          const newPrice = parseInt(e.target.value) || 0
-                          setCafeConsultation(prev => ({ ...prev, price: newPrice }))
-                        }}
-                        className="bg-transparent border-none text-[#FF7939] font-bold text-xl focus:outline-none w-20"
-                        placeholder="0"
-                        min="0"
-                        autoFocus
-                        onBlur={() => {
-                          updateCafeConsultationPrice(cafeConsultation.price)
-                          setIsEditingCafePrice(false)
-                        }}
-                        onKeyDown={(e) => {
-                          if (e.key === 'Enter') {
-                            updateCafeConsultationPrice(cafeConsultation.price)
-                            setIsEditingCafePrice(false)
-                          }
-                        }}
-                      />
-                    </div>
-                  ) : (
-                    <div className="flex items-center gap-1">
-                      <span className="text-gray-400 text-sm">$</span>
-                      <span className="text-[#FF7939] font-bold text-xl">{cafeConsultation.price}</span>
-                    </div>
-                  )}
-                </div>
-              </div>
-
-              {/* Estadísticas compactas sin frames */}
-              <div className="flex gap-6 mb-6">
-                <div className="flex items-center gap-2">
-                  <span className="text-gray-400 text-xs">Ventas</span>
-                  <span className="text-white font-semibold text-sm">{cafeSales.length}</span>
-                </div>
-                <div className="flex items-center gap-2">
-                  <span className="text-gray-400 text-xs">Ingresos</span>
-                  <span className="text-[#FF7939] font-semibold text-sm">
-                    ${cafeSales.reduce((sum, sale) => sum + (sale.price || cafeConsultation.price), 0)}
-                  </span>
-                </div>
-              </div>
-
-              {/* Ventas recientes sin frames */}
+              {/* 3 Secciones de Consultas */}
               <div>
-                <h4 className="text-white font-medium text-sm mb-3">Ventas recientes</h4>
-                {cafeSales.length === 0 ? (
-                  <p className="text-gray-500 text-xs text-center py-8">No hay ventas aún</p>
-                ) : (
-                  <div className="space-y-3 max-h-[300px] overflow-y-auto">
-                    {cafeSales.map((sale, index) => (
-                      <div key={index} className="flex items-center justify-between py-2">
-                        <div className="flex-1">
-                          <p className="text-white font-medium text-sm">{sale.userName || 'Cliente'}</p>
-                          <p className="text-gray-400 text-xs">{new Date(sale.date).toLocaleDateString()}</p>
-                        </div>
-                        <div className="flex items-center gap-2">
-                          <button
-                            onClick={() => handleWhatsAppClick(sale)}
-                            className="p-2 hover:bg-green-500/10 rounded-lg transition-colors"
-                            title="WhatsApp"
-                          >
-                            <MessageCircle className="w-4 h-4 text-green-500" />
-                          </button>
-                          <button
-                            onClick={() => handleMeetClick(sale)}
-                            className="p-2 hover:bg-blue-500/10 rounded-lg transition-colors"
-                            title="Meet"
-                          >
-                            <Video className="w-4 h-4 text-blue-500" />
-                          </button>
-                        </div>
-                      </div>
-                    ))}
-                  </div>
-                )}
+                {/* Express - 15 min */}
+                {renderConsultationSection('express')}
+                
+                {/* Puntual - 30 min */}
+                {renderConsultationSection('puntual')}
+                
+                {/* Profunda - 60 min */}
+                {renderConsultationSection('profunda')}
               </div>
+
+              {/* Lista de Consultas Pendientes */}
+              {pendingConsultations.length > 0 && (
+                <div className="mt-6 pt-6 border-t border-gray-700/30">
+                  <h4 className="text-white font-semibold text-sm mb-4">Consultas Pendientes</h4>
+                  <div className="space-y-3">
+                    {pendingConsultations.map((consultation) => {
+                      const date = new Date(consultation.date)
+                      const formattedDate = date.toLocaleDateString('es-ES', {
+                        day: '2-digit',
+                        month: '2-digit',
+                        year: 'numeric'
+                      })
+                      const formattedTime = date.toLocaleTimeString('es-ES', {
+                        hour: '2-digit',
+                        minute: '2-digit'
+                      })
+
+                      return (
+                        <div key={consultation.id} className="flex items-center justify-between py-2 border-b border-gray-700/20 last:border-b-0">
+                          <div className="flex-1">
+                            <p className="text-white font-medium text-sm">{consultation.clientName}</p>
+                            <p className="text-gray-400 text-xs mt-1">
+                              {formattedDate} - {formattedTime}
+                            </p>
+                            <p className="text-gray-500 text-xs mt-0.5">{consultation.consultationType}</p>
+                          </div>
+                        </div>
+                      )
+                    })}
+                  </div>
+                </div>
+              )}
             </div>
           </div>
         </div>

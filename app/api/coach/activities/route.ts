@@ -84,6 +84,73 @@ export async function GET(request: NextRequest) {
       }
     }
 
+    // Obtener datos de talleres para calcular cantidadTemas y cantidadDias
+    const workshopData: any = {}
+    const workshopActivityIds = activities.filter((a: any) => a.type === 'workshop').map((a: any) => a.id)
+    if (workshopActivityIds.length > 0) {
+      for (const activityId of workshopActivityIds) {
+        try {
+          const { data: tallerDetallesStats } = await supabase
+            .from('taller_detalles')
+            .select('nombre, originales')
+            .eq('actividad_id', activityId)
+            .eq('activo', true)
+          
+          if (tallerDetallesStats && tallerDetallesStats.length > 0) {
+            // Calcular cantidad de temas únicos
+            const temasUnicos = new Set(tallerDetallesStats.map((t: any) => t.nombre).filter(Boolean))
+            const cantidadTemas = temasUnicos.size
+            
+            // Calcular duración desde la primera fecha hasta la última fecha
+            const allDates: string[] = []
+            tallerDetallesStats.forEach((tema: any) => {
+              try {
+                let originales = tema.originales
+                if (typeof originales === 'string') {
+                  originales = JSON.parse(originales)
+                }
+                if (originales?.fechas_horarios && Array.isArray(originales.fechas_horarios)) {
+                  originales.fechas_horarios.forEach((fecha: any) => {
+                    if (fecha?.fecha) {
+                      allDates.push(fecha.fecha)
+                    }
+                  })
+                }
+              } catch (e) {
+                console.error('Error procesando fechas del tema:', e)
+              }
+            })
+            
+            let cantidadDias = cantidadTemas // Fallback: cantidad de temas
+            if (allDates.length > 0) {
+              const fechas = allDates
+                .map((fecha: string) => new Date(fecha))
+                .filter((fecha: Date) => !isNaN(fecha.getTime()))
+                .sort((a: Date, b: Date) => a.getTime() - b.getTime())
+              
+              if (fechas.length > 0) {
+                const primeraFecha = fechas[0]
+                const ultimaFecha = fechas[fechas.length - 1]
+                const diferenciaMs = ultimaFecha.getTime() - primeraFecha.getTime()
+                cantidadDias = Math.ceil(diferenciaMs / (1000 * 60 * 60 * 24)) + 1 // +1 para incluir ambos días
+              }
+            }
+            
+            workshopData[activityId] = {
+              cantidadTemas,
+              cantidadDias,
+              exercisesCount: cantidadTemas,
+              totalSessions: cantidadDias
+            }
+            
+            console.log(`📊 COACH/ACTIVITIES: Taller ${activityId} - Temas: ${cantidadTemas}, Días: ${cantidadDias}`)
+          }
+        } catch (error) {
+          console.error(`❌ Error calculando estadísticas del taller ${activityId}:`, error)
+        }
+      }
+    }
+
     // Obtener datos de fitness/nutrición para cada actividad
     const fitnessData: any = {}
     for (const activity of activities) {
@@ -241,6 +308,7 @@ export async function GET(request: NextRequest) {
       const rating = ratingsData[activity.id] || { avg_rating: 0, total_reviews: 0 }
       const coach = coachesData[activity.coach_id] || null
       const fitness = fitnessData[activity.id] || { exercisesCount: 0, totalSessions: 0 }
+      const workshop = workshopData[activity.id] || null
       
       // Parsear objetivos desde workshop_type si existe
       let objetivos = []
@@ -273,9 +341,12 @@ export async function GET(request: NextRequest) {
         // Map the rating data from the materialized view
         program_rating: rating.avg_rating || 0,
         total_program_reviews: rating.total_reviews || 0,
-        // Map fitness data
-        exercisesCount: fitness.exercisesCount || 0,
-        totalSessions: fitness.totalSessions || 0,
+        // Map fitness data o workshop data
+        exercisesCount: workshop ? workshop.exercisesCount : (fitness.exercisesCount || 0),
+        totalSessions: workshop ? workshop.totalSessions : (fitness.totalSessions || 0),
+        // Para talleres: agregar cantidadTemas y cantidadDias
+        cantidadTemas: workshop?.cantidadTemas,
+        cantidadDias: workshop?.cantidadDias,
       }
     })
 

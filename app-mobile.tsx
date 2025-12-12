@@ -275,7 +275,7 @@ export default function MobileApp() {
       <WelcomePopup isOpen={showWelcomeMessage} onClose={hideWelcomeMessage} />
       
       {/* Usage Report Button - Solo en desarrollo */}
-      {process.env.NODE_ENV === 'development' && <UsageReportButton />}
+      {false && process.env.NODE_ENV === 'development' && <UsageReportButton />}
       </div>
     </ErrorBoundary>
   )

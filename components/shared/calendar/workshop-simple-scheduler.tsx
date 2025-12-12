@@ -200,17 +200,17 @@ const getTotalHoursForDate = (dateString: string) => {
 
 
   const formatDate = (dateString: string) => {
-    // Parsear la fecha directamente desde YYYY-MM-DD sin problemas de zona horaria
-    const [year, month, day] = dateString.split('-').map(Number)
-    const date = new Date(year, month - 1, day) // month es 0-indexed en Date
+    const date = new Date(dateString)
     return date.toLocaleDateString('es-ES', { day: 'numeric', month: 'short' })
   }
 
   // Función para formatear fechas en formato dd/mm/aa
   const formatDateShort = (date: string) => {
-    // Parsear la fecha directamente desde YYYY-MM-DD sin problemas de zona horaria
-    const [year, month, day] = date.split('-').map(Number)
-    return `${day.toString().padStart(2, '0')}/${month.toString().padStart(2, '0')}/${year.toString().slice(-2)}`
+    const d = new Date(date)
+    const day = d.getDate().toString().padStart(2, '0')
+    const month = (d.getMonth() + 1).toString().padStart(2, '0')
+    const year = d.getFullYear().toString().slice(-2)
+    return `${day}/${month}/${year}`
   }
 
   // Calcular resumen del tema

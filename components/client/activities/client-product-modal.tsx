@@ -1221,7 +1221,14 @@ export default function ClientProductModal({
             <div className="px-6 space-y-6">
               {/* Title and Coach */}
               <div>
-                <h3 className="text-2xl font-bold text-white mb-3">{product.title}</h3>
+                <div className="flex items-center justify-between mb-3">
+                  <h3 className="text-2xl font-bold text-white">{product.title}</h3>
+                  {product.price !== undefined && product.price !== null && (
+                    <span className="text-orange-300 text-xl font-semibold">
+                      ${product.price.toFixed(2)}
+                    </span>
+                  )}
+                </div>
                 
                 {/* Coach Profile Card - Clickeable solo si NO viene del perfil del coach */}
                 <div 

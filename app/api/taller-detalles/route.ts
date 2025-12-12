@@ -30,6 +30,8 @@ export async function GET(request: NextRequest) {
         descripcion,
         originales,
         activo,
+        pdf_url,
+        pdf_file_name,
         created_at,
         updated_at
       `)

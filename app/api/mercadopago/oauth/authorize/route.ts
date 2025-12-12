@@ -72,7 +72,7 @@ export async function GET(request: NextRequest) {
     
     // Agregar parámetro adicional para evitar reutilización de sesión
     authUrl.searchParams.set('session_id', `omnia_${timestamp}`);
-    
+
     const finalAuthUrl = authUrl.toString();
     console.log('🔗 URL de autorización de Mercado Pago:', finalAuthUrl);
     console.log('📋 Parámetros:', {
@@ -93,7 +93,7 @@ export async function GET(request: NextRequest) {
           'Pragma': 'no-cache',
           'Expires': '0',
         }
-      });
+    });
     }
 
     // Redirigir a Mercado Pago con headers explícitos

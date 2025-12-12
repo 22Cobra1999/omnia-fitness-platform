@@ -202,6 +202,45 @@ export async function GET(request: NextRequest) {
       })
     }
 
+    // Recolectar bunny_video_id de platos_detalles (videos de nutrición)
+    const { data: platosDetalles, error: platosError } = await supabase
+      .from('platos_detalles')
+      .select('bunny_video_id, video_url, bunny_library_id, video_thumbnail_url, activity_id, video_file_name, nombre_plato')
+      .eq('coach_id', user.id)
+      .not('video_url', 'is', null)
+      .neq('video_url', '')
+
+    if (platosError) {
+      console.error('Error obteniendo videos de platos:', platosError)
+    } else if (platosDetalles) {
+      platosDetalles.forEach((plato: any) => {
+        // ✅ SOLO agregar si hay bunny_video_id EXPLÍCITO (no extraer de URLs)
+        if (plato.bunny_video_id && plato.bunny_video_id.trim() !== '') {
+          const bunnyId = plato.bunny_video_id.trim()
+          coachBunnyVideoIds.add(bunnyId)
+          
+          const existing = videosMap.get(bunnyId)
+          // Preferir el que tenga video_file_name, video_thumbnail_url o nombre_plato
+          const hasBetterInfo = !existing || 
+            (!existing.video_file_name && plato.video_file_name) ||
+            (!existing.video_thumbnail_url && plato.video_thumbnail_url) ||
+            (!existing.nombre_plato && plato.nombre_plato)
+          
+          if (hasBetterInfo) {
+            videosMap.set(bunnyId, {
+              video_url: plato.video_url,
+              bunny_video_id: bunnyId,
+              bunny_library_id: plato.bunny_library_id,
+              video_thumbnail_url: plato.video_thumbnail_url,
+              activity_id: plato.activity_id,
+              video_file_name: plato.video_file_name || null,
+              nombre_plato: plato.nombre_plato || null
+            })
+          }
+        }
+      })
+    }
+
     console.log(`🔍 [COACH-MEDIA] Coach tiene ${coachBunnyVideoIds.size} videos únicos en BD`, Array.from(coachBunnyVideoIds))
     console.log(`🔍 [COACH-MEDIA] Videos en videosMap: ${videosMap.size}`, Array.from(videosMap.keys()).slice(0, 10))
 
@@ -225,6 +264,15 @@ export async function GET(request: NextRequest) {
         activity_id: e.activity_id,
         bunny_video_id: e.bunny_video_id,
         video_url: e.video_url?.substring(0, 100)
+      })))
+    }
+    console.log(`🔍 [COACH-MEDIA] Platos con video: ${platosDetalles?.length || 0}`)
+    if (platosDetalles && platosDetalles.length > 0) {
+      console.log(`🔍 [COACH-MEDIA] Primeros 3 platos con video:`, platosDetalles.slice(0, 3).map((p: any) => ({
+        id: p.id,
+        activity_id: p.activity_id,
+        bunny_video_id: p.bunny_video_id,
+        video_url: p.video_url?.substring(0, 100)
       })))
     }
     console.log(`🔍 [COACH-MEDIA] Videos únicos recolectados: ${coachBunnyVideoIds.size}`, Array.from(coachBunnyVideoIds).slice(0, 5))
@@ -364,6 +412,7 @@ export async function GET(request: NextRequest) {
           video_file_name: videoFileName,
           activity_title: activity?.title || null,
           nombre_ejercicio: dbInfo.nombre_ejercicio || null,
+          nombre_plato: dbInfo.nombre_plato || null,
           filename: videoFileName,
           media_type: 'video',
           // Información adicional de Bunny
@@ -395,6 +444,7 @@ export async function GET(request: NextRequest) {
           // Obtener nombre del video
           const videoFileName = dbInfo.video_file_name || 
                                dbInfo.nombre_ejercicio || 
+                               dbInfo.nombre_plato ||
                                (dbInfo.bunny_video_id ? `video_${dbInfo.bunny_video_id.substring(0, 12)}.mp4` : 'video.mp4')
           
           return {
@@ -409,6 +459,7 @@ export async function GET(request: NextRequest) {
             video_file_name: videoFileName,
             activity_title: activity?.title || null,
             nombre_ejercicio: dbInfo.nombre_ejercicio || null,
+            nombre_plato: dbInfo.nombre_plato || null,
             filename: videoFileName,
             media_type: 'video'
           }
@@ -448,7 +499,8 @@ export async function GET(request: NextRequest) {
         videosInBunny: allBunnyVideos.length,
         activitiesCount: activities?.length || 0,
         mediaFromActivities: media?.length || 0,
-        exercisesWithVideo: ejerciciosDetalles?.length || 0
+        exercisesWithVideo: ejerciciosDetalles?.length || 0,
+        platosWithVideo: platosDetalles?.length || 0
       }
     })
 

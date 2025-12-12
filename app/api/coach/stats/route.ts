@@ -101,24 +101,19 @@ export async function GET(request: NextRequest) {
     const thirtyDaysAgo = new Date();
     thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30);
 
+    // Solo contar cancelaciones hechas por el coach
     const { count: cancellationsCount } = await adminSupabase
       .from('calendar_events')
       .select('*', { count: 'exact', head: true })
       .eq('coach_id', coachId)
       .eq('status', 'cancelled')
-      .gte('created_at', thirtyDaysAgo.toISOString());
+      .eq('cancelled_by', 'coach')
+      .gte('cancelled_at', thirtyDaysAgo.toISOString());
 
-    // También contar cancelaciones en activity_schedules
-    const { count: scheduleCancellationsCount } = await adminSupabase
-      .from('activity_schedules')
-      .select('*', { count: 'exact', head: true })
-      .eq('coach_id', coachId)
-      .eq('status', 'cancelled')
-      .gte('created_at', thirtyDaysAgo.toISOString());
-
-    const totalCancellations = (cancellationsCount || 0) + (scheduleCancellationsCount || 0);
+    const totalCancellations = cancellationsCount || 0;
 
     // 3. Reprogramaciones tardías (dentro de 12-24h previas)
+    // Solo contar reprogramaciones hechas por el coach dentro de 12-24h antes del evento
     const now = new Date();
     const twelveHoursAgo = new Date(now.getTime() - 12 * 60 * 60 * 1000);
     const twentyFourHoursAgo = new Date(now.getTime() - 24 * 60 * 60 * 1000);
@@ -128,38 +123,48 @@ export async function GET(request: NextRequest) {
       .select('*', { count: 'exact', head: true })
       .eq('coach_id', coachId)
       .eq('status', 'rescheduled')
+      .eq('rescheduled_by', 'coach')
+      .not('rescheduled_at', 'is', null)
       .gte('start_time', twentyFourHoursAgo.toISOString())
       .lte('start_time', twelveHoursAgo.toISOString());
 
-    const { count: scheduleLateReschedulesCount } = await adminSupabase
-      .from('activity_schedules')
-      .select('*', { count: 'exact', head: true })
-      .eq('coach_id', coachId)
-      .eq('status', 'rescheduled')
-      .gte('scheduled_date', twentyFourHoursAgo.toISOString().split('T')[0])
-      .lte('scheduled_date', twelveHoursAgo.toISOString().split('T')[0]);
-
-    const totalLateReschedules = (lateReschedulesCount || 0) + (scheduleLateReschedulesCount || 0);
+    const totalLateReschedules = lateReschedulesCount || 0;
 
     // 4. Asistencia / puntualidad del coach
-    // Contar eventos completados vs programados
-    const { count: completedEvents } = await adminSupabase
+    // Usar coach_attendance_status si está disponible, sino usar status
+    const { count: eventsWithAttendance } = await adminSupabase
       .from('calendar_events')
       .select('*', { count: 'exact', head: true })
       .eq('coach_id', coachId)
-      .eq('status', 'completed')
+      .in('coach_attendance_status', ['present', 'late'])
       .gte('start_time', thirtyDaysAgo.toISOString());
 
-    const { count: scheduledEvents } = await adminSupabase
+    const { count: totalScheduledEvents } = await adminSupabase
       .from('calendar_events')
       .select('*', { count: 'exact', head: true })
       .eq('coach_id', coachId)
-      .in('status', ['scheduled', 'completed', 'cancelled', 'rescheduled'])
+      .in('status', ['scheduled', 'completed'])
       .gte('start_time', thirtyDaysAgo.toISOString());
 
-    const attendanceRate = scheduledEvents && scheduledEvents > 0
-      ? Math.round(((completedEvents || 0) / scheduledEvents) * 100)
-      : 0;
+    // Si no hay datos de asistencia, usar status como fallback
+    let attendanceRate = 0;
+    if (eventsWithAttendance && eventsWithAttendance > 0) {
+      attendanceRate = totalScheduledEvents && totalScheduledEvents > 0
+        ? Math.round((eventsWithAttendance / totalScheduledEvents) * 100)
+        : 0;
+    } else {
+      // Fallback: usar eventos completados
+      const { count: completedEvents } = await adminSupabase
+        .from('calendar_events')
+        .select('*', { count: 'exact', head: true })
+        .eq('coach_id', coachId)
+        .eq('status', 'completed')
+        .gte('start_time', thirtyDaysAgo.toISOString());
+
+      attendanceRate = totalScheduledEvents && totalScheduledEvents > 0
+        ? Math.round(((completedEvents || 0) / totalScheduledEvents) * 100)
+        : 0;
+    }
 
     // 5. Incidentes reportados por clientes
     // Buscar en mensajes que contengan palabras clave de quejas
