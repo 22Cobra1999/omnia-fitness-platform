@@ -18,6 +18,7 @@ export async function GET(request: NextRequest) {
     const { data: { session }, error: sessionError } = await supabase.auth.getSession();
 
     if (sessionError || !session) {
+      console.error('❌ [GET /api/google/calendar/events] Error de sesión:', sessionError);
       return NextResponse.json({ error: 'No autorizado' }, { status: 401 });
     }
 
@@ -30,28 +31,62 @@ export async function GET(request: NextRequest) {
       .eq('coach_id', coachId)
       .maybeSingle();
 
-    if (tokensError || !tokens) {
+    if (tokensError) {
+      console.error('❌ [GET /api/google/calendar/events] Error obteniendo tokens:', tokensError);
+      return NextResponse.json({ 
+        success: false,
+        error: 'Error al obtener tokens de Google Calendar',
+        connected: false
+      }, { status: 200 }); // 200 porque no es un error del servidor, simplemente no está conectado
+    }
+
+    if (!tokens) {
       return NextResponse.json({ 
         success: false,
         error: 'Google Calendar no está conectado',
         connected: false
-      });
+      }, { status: 200 }); // 200 porque no es un error del servidor
     }
 
     // Verificar si el token está expirado y refrescarlo si es necesario
-    let accessToken = decrypt(tokens.access_token);
+    let accessToken: string;
+    try {
+      accessToken = decrypt(tokens.access_token);
+    } catch (decryptError: any) {
+      console.error('❌ [GET /api/google/calendar/events] Error desencriptando token:', decryptError);
+      return NextResponse.json({ 
+        success: false,
+        error: 'Error al procesar tokens de Google Calendar. Por favor, reconecta tu cuenta.',
+        connected: false,
+        needsReconnect: true
+      }, { status: 200 });
+    }
+
     const expiresAt = tokens.expires_at ? new Date(tokens.expires_at) : null;
 
     if (expiresAt && GoogleOAuth.isTokenExpired(expiresAt) && tokens.refresh_token) {
       try {
-        const refreshToken = decrypt(tokens.refresh_token);
+        console.log('🔄 [GET /api/google/calendar/events] Token expirado, refrescando...');
+        let refreshToken: string;
+        try {
+          refreshToken = decrypt(tokens.refresh_token);
+        } catch (decryptRefreshError: any) {
+          console.error('❌ [GET /api/google/calendar/events] Error desencriptando refresh token:', decryptRefreshError);
+          return NextResponse.json({ 
+            success: false,
+            error: 'Error al procesar tokens de Google Calendar. Por favor, reconecta tu cuenta.',
+            connected: false,
+            needsReconnect: true
+          }, { status: 200 });
+        }
+
         const newTokenData = await GoogleOAuth.refreshAccessToken(refreshToken);
         
         // Actualizar tokens en la base de datos
         const { encrypt } = await import('@/lib/utils/encryption');
         const newExpiresAt = new Date(Date.now() + (newTokenData.expires_in * 1000)).toISOString();
         
-        await supabase
+        const { error: updateError } = await supabase
           .from('google_oauth_tokens')
           .update({
             access_token: encrypt(newTokenData.access_token),
@@ -60,16 +95,25 @@ export async function GET(request: NextRequest) {
           })
           .eq('coach_id', coachId);
 
+        if (updateError) {
+          console.error('⚠️ [GET /api/google/calendar/events] Error actualizando tokens en BD:', updateError);
+          // Continuar con el nuevo token aunque no se haya guardado
+        }
+
         accessToken = newTokenData.access_token;
-        console.log('✅ Token de Google Calendar refrescado');
-      } catch (refreshError) {
-        console.error('Error refrescando token:', refreshError);
+        console.log('✅ [GET /api/google/calendar/events] Token de Google Calendar refrescado');
+      } catch (refreshError: any) {
+        console.error('❌ [GET /api/google/calendar/events] Error refrescando token:', {
+          message: refreshError.message,
+          stack: refreshError.stack
+        });
         return NextResponse.json({ 
           success: false,
-          error: 'Error al refrescar el token de Google Calendar',
+          error: 'Error al refrescar el token de Google Calendar. Por favor, reconecta tu cuenta.',
           connected: true,
-          needsReconnect: true
-        });
+          needsReconnect: true,
+          events: []
+        }, { status: 200 }); // 200 porque es un error esperado
       }
     }
 
@@ -100,6 +144,8 @@ export async function GET(request: NextRequest) {
       const timeMin = startDate.toISOString();
       const timeMax = endDate.toISOString();
 
+      console.log(`📅 [GET /api/google/calendar/events] Obteniendo eventos desde ${timeMin} hasta ${timeMax}`);
+
       const calendarData = await GoogleOAuth.listCalendarEvents(
         accessToken,
         timeMin,
@@ -108,13 +154,18 @@ export async function GET(request: NextRequest) {
       );
 
       // Obtener google_event_ids de eventos que ya están en Omnia para evitar duplicados
-      const { data: existingEvents } = await supabase
+      const { data: existingEvents, error: existingEventsError } = await supabase
         .from('calendar_events')
         .select('google_event_id')
         .eq('coach_id', coachId)
         .not('google_event_id', 'is', null)
         .gte('start_time', timeMin)
         .lte('start_time', timeMax);
+
+      if (existingEventsError) {
+        console.error('⚠️ [GET /api/google/calendar/events] Error obteniendo eventos existentes:', existingEventsError);
+        // Continuar sin filtrar duplicados si hay error
+      }
 
       const existingGoogleEventIds = new Set(
         (existingEvents || [])
@@ -135,16 +186,17 @@ export async function GET(request: NextRequest) {
         let startTime: string;
         let endTime: string;
         
-        if (event.start.dateTime) {
+        if (event.start?.dateTime) {
           // Evento con hora específica
           startTime = event.start.dateTime;
-          endTime = event.end.dateTime || event.end.date;
-        } else if (event.start.date) {
+          endTime = event.end?.dateTime || event.end?.date || startTime;
+        } else if (event.start?.date) {
           // Evento de todo el día
           startTime = `${event.start.date}T00:00:00`;
-          endTime = `${event.end.date}T23:59:59`;
+          endTime = `${event.end?.date || event.start.date}T23:59:59`;
         } else {
           // Fallback
+          console.warn('⚠️ [GET /api/google/calendar/events] Evento sin fecha válida:', event.id);
           startTime = new Date().toISOString();
           endTime = new Date().toISOString();
         }
@@ -168,7 +220,7 @@ export async function GET(request: NextRequest) {
         };
       });
 
-      console.log(`✅ Eventos de Google Calendar obtenidos: ${formattedEvents.length} eventos`);
+      console.log(`✅ [GET /api/google/calendar/events] Eventos obtenidos: ${formattedEvents.length} eventos`);
 
       return NextResponse.json({
         success: true,
@@ -178,17 +230,36 @@ export async function GET(request: NextRequest) {
       });
 
     } catch (calendarError: any) {
-      console.error('Error obteniendo eventos de Google Calendar:', calendarError);
+      console.error('❌ [GET /api/google/calendar/events] Error obteniendo eventos de Google Calendar:', {
+        message: calendarError.message,
+        stack: calendarError.stack,
+        name: calendarError.name
+      });
+      
+      // Si el error es de autenticación, indicar que necesita reconectar
+      const needsReconnect = calendarError.message?.includes('401') || 
+                             calendarError.message?.includes('Unauthorized') ||
+                             calendarError.message?.includes('invalid_token') ||
+                             calendarError.message?.includes('expired');
+      
       return NextResponse.json({
         success: false,
         error: calendarError.message || 'Error al obtener eventos de Google Calendar',
         connected: true,
+        needsReconnect,
         events: []
-      });
+      }, { status: 200 }); // 200 porque el error es esperado (token expirado, etc.)
     }
 
   } catch (error: any) {
-    console.error('Error en GET /api/google/calendar/events:', error);
+    console.error('❌ [GET /api/google/calendar/events] Error inesperado:', {
+      message: error.message,
+      stack: error.stack,
+      name: error.name
+    });
+    
+    // Solo devolver 500 para errores realmente inesperados del servidor
+    // La mayoría de errores esperados ya se manejan arriba
     return NextResponse.json({
       success: false,
       error: error.message || 'Error interno del servidor',

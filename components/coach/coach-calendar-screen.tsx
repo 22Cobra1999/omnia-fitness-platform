@@ -136,21 +136,39 @@ export default function CoachCalendarScreen() {
           `/api/google/calendar/events?monthNum=${monthNum}&year=${year}`,
           { credentials: 'include' }
         )
-        const googleData = await googleResponse.json()
         
-        if (googleData.success && googleData.events) {
-          googleEvents = googleData.events.map((event: any) => ({
-            ...event,
-            is_google_event: true,
-            source: 'google_calendar',
-          }))
-          setGoogleConnected(true)
-          console.log(`📅 Eventos de Google Calendar obtenidos: ${googleEvents.length}`)
-        } else if (googleData.connected === false) {
+        if (!googleResponse.ok) {
+          // Si la respuesta no es exitosa, intentar leer el JSON para obtener el mensaje de error
+          try {
+            const errorData = await googleResponse.json()
+            console.warn("⚠️ Error en respuesta de Google Calendar:", errorData.error || `Status ${googleResponse.status}`)
+            if (errorData.needsReconnect) {
+              setGoogleConnected(false)
+            }
+          } catch {
+            console.warn(`⚠️ Error HTTP ${googleResponse.status} obteniendo eventos de Google Calendar`)
+          }
           setGoogleConnected(false)
+        } else {
+          const googleData = await googleResponse.json()
+          
+          if (googleData.success && googleData.events) {
+            googleEvents = googleData.events.map((event: any) => ({
+              ...event,
+              is_google_event: true,
+              source: 'google_calendar',
+            }))
+            setGoogleConnected(true)
+            console.log(`📅 Eventos de Google Calendar obtenidos: ${googleEvents.length}`)
+          } else if (googleData.connected === false) {
+            setGoogleConnected(false)
+          } else if (googleData.needsReconnect) {
+            setGoogleConnected(false)
+            console.warn("⚠️ Google Calendar requiere reconexión")
+          }
         }
       } catch (googleError) {
-        console.error("Error obteniendo eventos de Google Calendar:", googleError)
+        console.error("❌ Error obteniendo eventos de Google Calendar:", googleError)
         // No fallar si Google Calendar no está disponible
         setGoogleConnected(false)
       }
