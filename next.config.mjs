@@ -1,4 +1,5 @@
 /** @type {import('next').NextConfig} */
+// Updated: 2025-12-16 - Force Vercel deployment
 const nextConfig = {
   typescript: {
     ignoreBuildErrors: true,
