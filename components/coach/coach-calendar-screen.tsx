@@ -86,9 +86,11 @@ export default function CoachCalendarScreen() {
       setLoading(true)
 
       // 1. Obtener usuario actual
-      const { data: { user } } = await supabase.auth.getUser()
-      if (!user) {
+      const { data: { user }, error: userError } = await supabase.auth.getUser()
+      if (userError || !user) {
+        console.error('Error obteniendo usuario:', userError)
         setLoading(false)
+        setEvents([])
         return
       }
 
@@ -352,13 +354,14 @@ export default function CoachCalendarScreen() {
       // Asegurar que siempre tengamos un array de eventos, incluso si está vacío
       // Esto previene errores de renderizado en producción
       // IMPORTANTE: En producción, el calendario debe funcionar incluso con errores
-      setEvents(prevEvents => prevEvents.length > 0 ? prevEvents : [])
+      setEvents([])
     } finally {
       // Siempre desactivar loading, incluso si hay errores
       // Esto es crítico para que la UI no se quede en estado de carga
       setLoading(false)
+      console.log('✅ Loading desactivado en getCoachEvents')
     }
-  }, [supabase, currentDate])
+  }, [supabase, currentDate, googleConnected])
 
   // Generar días del mes
   const daysInMonth = useMemo(() => {
@@ -376,12 +379,16 @@ export default function CoachCalendarScreen() {
 
   // Efectos
   useEffect(() => {
-    // Solo cargar eventos si tenemos un usuario
-    if (coachId) {
-      getCoachEvents()
-    }
+    // Cargar eventos al montar el componente
+    // getCoachEvents ya maneja la obtención del usuario
+    getCoachEvents()
     checkGoogleConnection()
-  }, [getCoachEvents, checkGoogleConnection, coachId])
+  }, [currentDate]) // Solo recargar cuando cambia el mes
+
+  // Efecto separado para verificar conexión de Google cuando cambia el usuario
+  useEffect(() => {
+    checkGoogleConnection()
+  }, [checkGoogleConnection])
 
   // Navegar entre meses
   const goToPreviousMonth = () => setCurrentDate(subMonths(currentDate, 1))
