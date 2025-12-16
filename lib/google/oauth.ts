@@ -110,24 +110,47 @@ export class GoogleOAuth {
    * Refresh access token using refresh token
    */
   static async refreshAccessToken(refreshToken: string): Promise<GoogleTokenResponse> {
+    const clientId = process.env.GOOGLE_CLIENT_ID?.trim() || '';
+    const clientSecret = process.env.GOOGLE_CLIENT_SECRET?.trim() || '';
+
+    if (!clientId || !clientSecret) {
+      throw new Error('GOOGLE_CLIENT_ID o GOOGLE_CLIENT_SECRET no configurados');
+    }
+
+    console.log('🔄 [GoogleOAuth] Refrescando token de acceso...');
+
     const response = await fetch(this.GOOGLE_TOKEN_URL, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/x-www-form-urlencoded',
       },
       body: new URLSearchParams({
-        client_id: process.env.GOOGLE_CLIENT_ID || '',
-        client_secret: process.env.GOOGLE_CLIENT_SECRET || '',
+        client_id: clientId,
+        client_secret: clientSecret,
         refresh_token: refreshToken,
         grant_type: 'refresh_token',
       }),
     });
 
     if (!response.ok) {
-      throw new Error(`Token refresh failed: ${response.statusText}`);
+      const errorText = await response.text();
+      console.error('❌ [GoogleOAuth] Error refrescando token:', {
+        status: response.status,
+        statusText: response.statusText,
+        error: errorText
+      });
+      
+      // Si el refresh token es inválido o revocado
+      if (response.status === 400 || errorText.includes('invalid_grant')) {
+        throw new Error('invalid_grant: El refresh token es inválido o ha sido revocado. Por favor, reconecta tu cuenta de Google.');
+      }
+      
+      throw new Error(`Token refresh failed: ${response.status} ${response.statusText} - ${errorText}`);
     }
 
-    return await response.json();
+    const tokenData = await response.json();
+    console.log('✅ [GoogleOAuth] Token refrescado exitosamente');
+    return tokenData;
   }
 
   /**

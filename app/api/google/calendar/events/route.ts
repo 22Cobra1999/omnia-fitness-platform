@@ -105,12 +105,20 @@ export async function GET(request: NextRequest) {
       } catch (refreshError: any) {
         console.error('❌ [GET /api/google/calendar/events] Error refrescando token:', {
           message: refreshError.message,
-          stack: refreshError.stack
+          stack: refreshError.stack,
+          name: refreshError.name,
+          response: refreshError.response ? await refreshError.response.text().catch(() => 'No response body') : 'No response'
         });
+        
+        // Si el refresh token es inválido o revocado, necesita reconexión
+        const needsReconnect = refreshError.message?.includes('invalid_grant') || 
+                               refreshError.message?.includes('invalid_token') ||
+                               refreshError.message?.includes('Token refresh failed');
+        
         return NextResponse.json({ 
           success: false,
-          error: 'Error al refrescar el token de Google Calendar. Por favor, reconecta tu cuenta.',
-          connected: true,
+          error: refreshError.message || 'Error al refrescar el token de Google Calendar. Por favor, reconecta tu cuenta.',
+          connected: false,
           needsReconnect: true,
           events: []
         }, { status: 200 }); // 200 porque es un error esperado

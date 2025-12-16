@@ -173,9 +173,15 @@ export default function CoachCalendarScreen() {
           // Si la respuesta no es exitosa, intentar leer el JSON para obtener el mensaje de error
           try {
             const errorData = await googleResponse.json()
-            console.warn("⚠️ Error en respuesta de Google Calendar:", errorData.error || `Status ${googleResponse.status}`)
+            console.warn("⚠️ Error en respuesta de Google Calendar:", {
+              status: googleResponse.status,
+              error: errorData.error,
+              needsReconnect: errorData.needsReconnect,
+              connected: errorData.connected
+            })
             if (errorData.needsReconnect) {
               setGoogleConnected(false)
+              console.warn("⚠️ Google Calendar requiere reconexión. Ve al perfil para reconectar.")
             }
           } catch (parseError) {
             console.warn(`⚠️ Error HTTP ${googleResponse.status} obteniendo eventos de Google Calendar. El calendario continuará funcionando sin eventos de Google.`)
@@ -197,7 +203,11 @@ export default function CoachCalendarScreen() {
               setGoogleConnected(false)
             } else if (googleData.needsReconnect) {
               setGoogleConnected(false)
-              console.warn("⚠️ Google Calendar requiere reconexión")
+              console.warn("⚠️ Google Calendar requiere reconexión:", googleData.error || 'Token expirado o inválido')
+              // Mostrar mensaje más específico al usuario
+              if (googleData.error) {
+                console.error("Detalle del error:", googleData.error)
+              }
             }
           } catch (jsonError) {
             console.warn("⚠️ Error parseando respuesta de Google Calendar. Continuando sin eventos de Google.")
