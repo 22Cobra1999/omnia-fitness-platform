@@ -60,7 +60,9 @@ export async function GET(request: NextRequest) {
     }
 
     // 2. Obtener progreso del cliente para este día
-    let { data: progressRecord } = await supabase
+    // IMPORTANTE: Solo devolver actividades si existe un registro real en progreso_cliente
+    // NO crear registros automáticamente basándose en la planificación
+    const { data: progressRecord } = await supabase
       .from('progreso_cliente')
       .select('id, fecha, ejercicios_completados, ejercicios_pendientes, detalles_series, minutos_json, calorias_json')
       .eq('cliente_id', clientId)
@@ -68,74 +70,19 @@ export async function GET(request: NextRequest) {
       .eq('fecha', today)
       .single();
 
-    // Si no existe registro de progreso, crearlo SOLO si hay planificación para este día
-    if (!progressRecord && dia) {
-      console.log('📝 No existe registro de progreso para fecha:', today, 'Verificando planificación...');
-      const ejerciciosDelDia = await obtenerEjerciciosPlanificacion(supabase, activityId, enrollment[0].start_date, today, dia, categoria);
-      console.log('📋 Ejercicios obtenidos de planificación:', ejerciciosDelDia);
-      
-      // SOLO crear registro si hay ejercicios en la planificación
-      if (ejerciciosDelDia && ejerciciosDelDia.length > 0) {
-        console.log('✅ Insertando registro de progreso con', ejerciciosDelDia.length, 'ejercicios');
-        
-        // Obtener detalles de ejercicios/platos para crear la estructura correcta
-        const tablaDetalles = categoria === 'nutricion' ? 'platos_detalles' : 'ejercicios_detalles'
-        const campoDetalles = categoria === 'nutricion' ? 'receta' : 'detalle_series'
-        
-        const { data: ejerciciosDetalles } = await supabase
-          .from(tablaDetalles)
-          .select(`id, ${campoDetalles}`)
-          .in('id', ejerciciosDelDia);
-        
-        // Crear estructura de objetos con keys únicos
-        const ejerciciosPendientes: any = {};
-        const detallesSeries: any = {};
-        let ordenGlobal = 1;
-        
-        ejerciciosDelDia.forEach((ejercicioId: number) => {
-          const key = `${ejercicioId}_${ordenGlobal}`;
-          const detalleSeries = ejerciciosDetalles?.find(e => e.id === ejercicioId)?.detalle_series || '';
-          
-          ejerciciosPendientes[key] = {
-            ejercicio_id: ejercicioId,
-            bloque: 1, // Asumir bloque 1 para registros creados automáticamente
-            orden: ordenGlobal
-          };
-          
-          detallesSeries[key] = {
-            ejercicio_id: ejercicioId,
-            bloque: 1,
-            orden: ordenGlobal,
-            detalle_series: detalleSeries
-          };
-          
-          ordenGlobal++;
-        });
-        
-        const { data: newRecord, error: createError } = await supabase
-          .from('progreso_cliente')
-          .insert({
-            actividad_id: activityId,
-            cliente_id: clientId,
-            fecha: today,
-            ejercicios_completados: {},
-            ejercicios_pendientes: ejerciciosPendientes,
-            detalles_series: detallesSeries,
-            minutos_json: {},
-            calorias_json: {}
-          })
-          .select('id, fecha, ejercicios_completados, ejercicios_pendientes, detalles_series, minutos_json, calorias_json')
-          .single();
-        
-        if (createError) {
-          console.error('❌ Error creando registro:', createError);
-        } else if (newRecord) {
-          console.log('✅ Registro creado exitosamente:', newRecord.id);
-          progressRecord = newRecord;
+    // Si no existe registro de progreso, devolver vacío (no crear automáticamente)
+    if (!progressRecord) {
+      console.log('ℹ️ No existe registro de progreso para fecha:', today, '- devolviendo actividades vacías');
+      return NextResponse.json({
+        success: true,
+        data: {
+          activities: [],
+          count: 0,
+          date: today,
+          activity: actividadInfo,
+          enrollment: enrollment[0]
         }
-      } else {
-        console.log('ℹ️ No hay planificación para este día - no se crea registro');
-      }
+      });
     }
 
     // 3. Obtener detalles de ejercicios
@@ -321,6 +268,7 @@ export async function GET(request: NextRequest) {
         duracion_minutos: duracionMinutos,
         duracion_min: duracionMinutos,
         duration: duracionMinutos,
+        minutos: duracionMinutos, // Agregar minutos para uso en frontend
         calorias: caloriasFinal,
         intensidad: categoria === 'nutricion' ? null : (ejercicio?.intensidad || null),
         equipo: categoria === 'nutricion' ? null : (ejercicio?.equipo || null),

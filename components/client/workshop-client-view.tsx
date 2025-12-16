@@ -55,12 +55,32 @@ export function WorkshopClientView({
   const [cuposOcupados, setCuposOcupados] = useState<Record<string, number>>({})
   const [showConfirmModal, setShowConfirmModal] = useState(false)
   const [selectedHorario, setSelectedHorario] = useState<any>(null)
+  // Indica si este cliente pertenece a la versión ACTUAL del taller
+  // Si es false, no debe poder reservar en los nuevos horarios de una versión futura
+  const [isOnCurrentWorkshopVersion, setIsOnCurrentWorkshopVersion] = useState(true)
 
   useEffect(() => {
     if (user) {
       loadWorkshopData()
     }
   }, [user, activityId])
+
+  const parseSpanishDate = (dateStr: string | null | undefined): Date | null => {
+    if (!dateStr) return null
+    // Formato esperado: dd/mm/aa o dd/mm/aaaa
+    const parts = dateStr.split('/')
+    if (parts.length !== 3) return null
+    const [dd, mm, yy] = parts
+    const day = parseInt(dd, 10)
+    const month = parseInt(mm, 10) - 1
+    let year = parseInt(yy, 10)
+    if (year < 100) {
+      // Asumimos siglo 2000+ para dos dígitos
+      year = 2000 + year
+    }
+    const d = new Date(year, month, day)
+    return isNaN(d.getTime()) ? null : d
+  }
 
   const loadWorkshopData = async () => {
     try {
@@ -123,7 +143,60 @@ export function WorkshopClientView({
       setTemasCubiertos(ejecucion.temas_cubiertos || [])
       setTemasPendientes(ejecucion.temas_pendientes || [])
 
-      // 3. Cargar cupos ocupados
+      // 3. Determinar si el cliente pertenece a la versión actual del taller
+      try {
+        const { data: activityInfo, error: activityError } = await supabase
+          .from('activities')
+          .select('workshop_versions, created_at')
+          .eq('id', activityId)
+          .single()
+
+        if (activityError) {
+          console.error('❌ Error cargando activity para versiones de taller:', activityError)
+        } else {
+          const versions = activityInfo?.workshop_versions?.versions || []
+
+          if (versions.length === 0) {
+            // No hay versiones: todos los clientes pertenecen a la versión actual
+            setIsOnCurrentWorkshopVersion(true)
+          } else {
+            const lastVersion = versions[versions.length - 1]
+            const lastVersionStart = parseSpanishDate(lastVersion?.empezada_el)
+
+            // Usar fecha de inscripción o creación de la ejecución
+            const ejecucionCreatedAt =
+              (ejecucion as any)?.fecha_inscripcion ||
+              (ejecucion as any)?.created_at ||
+              null
+
+            const ejecucionDate = ejecucionCreatedAt ? new Date(ejecucionCreatedAt) : null
+
+            if (lastVersionStart && ejecucionDate) {
+              // Si la ejecución es anterior al inicio de la última versión,
+              // significa que este cliente compró una versión ANTERIOR del taller.
+              const belongsToCurrent = ejecucionDate >= lastVersionStart
+              setIsOnCurrentWorkshopVersion(belongsToCurrent)
+
+              console.log('📊 [WorkshopClientView] Versión taller / ejecución cliente', {
+                activityId,
+                ejecucionId: ejecucion.id,
+                ejecucionDate: ejecucionDate.toISOString(),
+                lastVersionStart: lastVersionStart.toISOString(),
+                isOnCurrentWorkshopVersion: belongsToCurrent
+              })
+            } else {
+              // Si no podemos determinar bien las fechas, por seguridad
+              // asumimos que pertenece a la versión actual
+              setIsOnCurrentWorkshopVersion(true)
+            }
+          }
+        }
+      } catch (e) {
+        console.error('❌ Error determinando versión de taller para el cliente:', e)
+        setIsOnCurrentWorkshopVersion(true)
+      }
+
+      // 4. Cargar cupos ocupados
       await loadCuposOcupados()
 
     } catch (error) {
@@ -494,7 +567,19 @@ export function WorkshopClientView({
                   })()}
                   
                   {/* Horarios (solo si es pendiente) */}
-                  {estado === 'pendiente' && temaData.originales?.fechas_horarios && temaData.originales.fechas_horarios.length > 0 && (
+                  {estado === 'pendiente' && (
+                    <>
+                      {!isOnCurrentWorkshopVersion ? (
+                        <div className="bg-black/40 border border-white/10 rounded-xl p-4">
+                          <p className="text-sm text-gray-300">
+                            Este taller ya finalizó para tu inscripción original. 
+                            Los nuevos horarios pertenecen a una nueva versión del taller
+                            y requieren una nueva compra.
+                          </p>
+                        </div>
+                      ) : (
+                        temaData.originales?.fechas_horarios &&
+                        temaData.originales.fechas_horarios.length > 0 && (
                     <div>
                       <h4 className="text-base font-semibold text-gray-300 mb-4">Horarios Disponibles</h4>
                       <div className="space-y-3">
@@ -552,6 +637,9 @@ export function WorkshopClientView({
                         })}
                       </div>
                     </div>
+                        )
+                      )}
+                    </>
                   )}
 
                 </div>

@@ -28,6 +28,7 @@ type Activity = {
   done?: boolean;
   type?: string;
   duration?: number;
+  minutos?: number | null; // Minutos desde minutos_json
   reps?: number;
   sets?: number;
   bloque?: number;
@@ -114,6 +115,7 @@ export default function TodayScreen({ activityId, onBack }: { activityId: string
     started: 0,    // Días en progreso (algunos ejercicios completados)
     completed: 0   // Días completados (todos los ejercicios completados)
   });
+  const [isMonthPickerOpen, setIsMonthPickerOpen] = React.useState(false);
   const [totalExercises, setTotalExercises] = React.useState(0);
   
   const { user } = useAuth();
@@ -122,6 +124,34 @@ export default function TodayScreen({ activityId, onBack }: { activityId: string
   // Estados para el modal de encuesta
   const [showSurveyModal, setShowSurveyModal] = React.useState(false);
   const [hasUserSubmittedSurvey, setHasUserSubmittedSurvey] = React.useState(false);
+
+  // Consultar directamente en Supabase si el usuario ya calificó este programa
+  React.useEffect(() => {
+    const checkSurveyStatus = async () => {
+      if (!user?.id || !activityId) return;
+      try {
+        const supabaseClient = createClient();
+        const { data, error } = await supabaseClient
+          .from('activity_surveys')
+          .select('id')
+          .eq('activity_id', Number(activityId))
+          .eq('client_id', user.id)
+          .maybeSingle();
+
+        if (error && error.code !== 'PGRST116') {
+          // PGRST116 = no rows found for maybeSingle, en ese caso simplemente no hay encuesta
+          console.error('Error consultando estado de encuesta en Supabase:', error);
+          return;
+        }
+
+        setHasUserSubmittedSurvey(!!data);
+      } catch (e) {
+        console.error('Error consultando estado de encuesta en Supabase:', e);
+      }
+    };
+
+    checkSurveyStatus();
+  }, [user?.id, activityId]);
 
   // Funciones helper para calcular semana basada en lunes
   const getWeekNumber = (date: Date) => {
@@ -398,11 +428,72 @@ export default function TodayScreen({ activityId, onBack }: { activityId: string
     setShowSurveyModal(false);
   };
 
-  const handleSurveyComplete = async (activityRating: number, coachRating: number, feedback: string, wouldRepeat: boolean | null) => {
+  const handleSurveyComplete = async (
+    activityRating: number,
+    coachRating: number,
+    feedback: string,
+    wouldRepeat: boolean | null,
+    omniaRating: number,
+    omniaComments: string
+  ) => {
     try {
-      // Aquí puedes guardar la calificación en la base de datos
-      console.log('Calificación recibida:', { activityRating, coachRating, feedback, wouldRepeat, activityId });
-      // TODO: Guardar calificaciones en la base de datos
+      if (!activityId || !user?.id) {
+        console.error('No hay activityId o user para guardar la encuesta');
+      } else {
+        const supabaseClient = createClient();
+
+        // Construir payload para activity_surveys
+        const payload: any = {
+          activity_id: Number(activityId),
+          client_id: user.id,
+          enrollment_id: enrollment?.id ?? null,
+          difficulty_rating: activityRating ?? null,
+          coach_method_rating: coachRating ?? null,
+          would_repeat: typeof wouldRepeat === 'boolean' ? wouldRepeat : null,
+          comments: feedback && feedback.trim().length > 0 ? feedback.trim() : null,
+          calificacion_omnia: omniaRating || null,
+          comentarios_omnia: omniaComments && omniaComments.trim().length > 0 ? omniaComments.trim() : null,
+          workshop_version: null, // para programas normales
+        };
+
+        // Buscar si ya existe una encuesta para este cliente y actividad
+        const { data: existingSurvey, error: fetchError } = await supabaseClient
+          .from('activity_surveys')
+          .select('id')
+          .eq('activity_id', payload.activity_id)
+          .eq('client_id', payload.client_id)
+          .is('workshop_version', null)
+          .maybeSingle();
+
+        if (fetchError && fetchError.code !== 'PGRST116') {
+          console.error('Error consultando encuesta existente en activity_surveys:', fetchError);
+        } else if (existingSurvey?.id) {
+          // Actualizar encuesta existente
+          const { error: updateError } = await supabaseClient
+            .from('activity_surveys')
+            .update(payload)
+            .eq('id', existingSurvey.id);
+
+          if (updateError) {
+            console.error('Error actualizando encuesta en activity_surveys:', updateError);
+          } else {
+            console.log('✅ Encuesta actualizada en activity_surveys');
+          }
+        } else {
+          // Crear nueva encuesta
+          const { error: insertError } = await supabaseClient
+            .from('activity_surveys')
+            .insert(payload);
+
+          if (insertError) {
+            console.error('Error insertando encuesta en activity_surveys:', insertError);
+          } else {
+            console.log('✅ Encuesta creada en activity_surveys');
+          }
+        }
+      }
+
+      // Marcar como enviada en memoria (la próxima carga se basará en BD)
       setHasUserSubmittedSurvey(true);
       setShowSurveyModal(false);
     } catch (error) {
@@ -592,6 +683,31 @@ export default function TodayScreen({ activityId, onBack }: { activityId: string
     });
     
     return blocks;
+  };
+
+  // Función para obtener el formato PRS del primer ejercicio del bloque (solo una vez)
+  const getBlockPRSFormat = (blockActivities: Activity[]) => {
+    if (blockActivities.length === 0) return null;
+    
+    // Tomar el primer ejercicio del bloque
+    const firstActivity = blockActivities[0];
+    if (!firstActivity) return null;
+    
+    // Intentar parsear desde detalle_series o series
+    const seriesData = firstActivity.detalle_series || firstActivity.series;
+    if (!seriesData || seriesData === 'Sin especificar') return null;
+    
+    const parsed = parseSeries(seriesData);
+    
+    if (parsed.length === 0) return null;
+    
+    // Extraer el formato: P:peso|R:reps|S:series del primer bloque
+    const firstBlock = parsed[0];
+    if (firstBlock && firstBlock.kg !== undefined && firstBlock.reps !== undefined && firstBlock.sets !== undefined) {
+      return `P:${firstBlock.kg}kg|R:${firstBlock.reps}|S:${firstBlock.sets}`;
+    }
+    
+    return null;
   };
 
   // Función para obtener la semana actual del programa
@@ -1560,6 +1676,9 @@ export default function TodayScreen({ activityId, onBack }: { activityId: string
               }, {})
             });
             
+            // Obtener minutos desde minutos_json (viene del API como minutos o duracion_minutos)
+            const minutos = item.minutos ?? item.duracion_minutos ?? duracion ?? null;
+            
             const mappedActivity = {
               // id único que combina ejercicio_id, bloque y orden para evitar duplicados
               id: `${ejercicioId}_${bloque}_${orden}`,
@@ -1571,6 +1690,7 @@ export default function TodayScreen({ activityId, onBack }: { activityId: string
               orden,
               ejercicio_id: ejercicioId,
               duration: duracion,
+              minutos: minutos, // Agregar minutos desde minutos_json
               equipment: item.equipo || 'Ninguno',
               series: item.series || item.formatted_series || item.detalle_series,
               detalle_series: item.detalle_series,
@@ -2052,6 +2172,8 @@ export default function TodayScreen({ activityId, onBack }: { activityId: string
                       </span>
                     </>
                   ) : (
+                    <>
+                      {!isMonthPickerOpen ? (
                     <div style={{
                       display: 'flex',
                       alignItems: 'center',
@@ -2088,9 +2210,21 @@ export default function TodayScreen({ activityId, onBack }: { activityId: string
                         color: '#FFFFFF',
                         fontFamily: 'Inter, SF Pro Display, -apple-system, BlinkMacSystemFont, sans-serif',
                         textAlign: 'center',
-                        minWidth: 120
-                      }}>
+                            minWidth: 140,
+                            cursor: 'pointer',
+                            display: 'flex',
+                            alignItems: 'center',
+                            justifyContent: 'center',
+                            gap: 6
+                          }}
+                          onClick={() => setIsMonthPickerOpen(true)}
+                          >
+                            <span>
                         {currentMonth.toLocaleDateString('es-ES', { month: 'long', year: 'numeric' })}
+                            </span>
+                            <span style={{ fontSize: 14 }}>
+                              ▾
+                            </span>
                       </h4>
                       
                       <button
@@ -2117,6 +2251,141 @@ export default function TodayScreen({ activityId, onBack }: { activityId: string
                         →
                       </button>
                     </div>
+                      ) : (
+                        <div
+                          style={{
+                            display: 'flex',
+                            flexDirection: 'column',
+                            alignItems: 'stretch',
+                            gap: 8,
+                            width: '100%'
+                          }}
+                        >
+                          {/* Fila de año con flechas */}
+                          <div
+                            style={{
+                              display: 'flex',
+                              alignItems: 'center',
+                              justifyContent: 'space-between',
+                              width: '100%'
+                            }}
+                          >
+                            <button
+                              onClick={() => {
+                                const newDate = new Date(currentMonth);
+                                newDate.setFullYear(newDate.getFullYear() - 1);
+                                setCurrentMonth(newDate);
+                              }}
+                              style={{
+                                width: 32,
+                                height: 32,
+                                display: 'flex',
+                                alignItems: 'center',
+                                justifyContent: 'center',
+                                borderRadius: 999,
+                                border: '1px solid rgba(255,255,255,0.2)',
+                                background: 'rgba(255,255,255,0.04)',
+                                color: '#FFFFFF',
+                                cursor: 'pointer',
+                                fontSize: 14
+                              }}
+                            >
+                              ←
+                            </button>
+                            <span
+                              style={{
+                                fontSize: 16,
+                                fontWeight: 600,
+                                color: '#FFFFFF',
+                                fontFamily: 'Inter, SF Pro Display, -apple-system, BlinkMacSystemFont, sans-serif'
+                              }}
+                            >
+                              {currentMonth.getFullYear()}
+                            </span>
+                            <button
+                              onClick={() => {
+                                const newDate = new Date(currentMonth);
+                                newDate.setFullYear(newDate.getFullYear() + 1);
+                                setCurrentMonth(newDate);
+                              }}
+                              style={{
+                                width: 32,
+                                height: 32,
+                                display: 'flex',
+                                alignItems: 'center',
+                                justifyContent: 'center',
+                                borderRadius: 999,
+                                border: '1px solid rgba(255,255,255,0.2)',
+                                background: 'rgba(255,255,255,0.04)',
+                                color: '#FFFFFF',
+                                cursor: 'pointer',
+                                fontSize: 14
+                              }}
+                            >
+                              →
+                            </button>
+                          </div>
+
+                          {/* Lista de meses en grilla (máx. 4 filas x 3 columnas) */}
+                          <div
+                            style={{
+                              display: 'grid',
+                              gridTemplateColumns: 'repeat(3, minmax(0,1fr))',
+                              gap: 8,
+                              marginTop: 4,
+                              width: '100%'
+                            }}
+                          >
+                            {[
+                              'Enero',
+                              'Febrero',
+                              'Marzo',
+                              'Abril',
+                              'Mayo',
+                              'Junio',
+                              'Julio',
+                              'Agosto',
+                              'Septiembre',
+                              'Octubre',
+                              'Noviembre',
+                              'Diciembre'
+                            ].map((monthName, index) => {
+                              const isSelectedMonth = currentMonth.getMonth() === index;
+                              return (
+                                <button
+                                  key={monthName}
+                                  onClick={() => {
+                                    const newDate = new Date(currentMonth);
+                                    newDate.setMonth(index);
+                                    setCurrentMonth(newDate);
+                                    setSelectedDate(newDate);
+                                    setIsMonthPickerOpen(false);
+                                  }}
+                                  style={{
+                                    padding: '8px 6px',
+                                    borderRadius: 999,
+                                    border: isSelectedMonth
+                                      ? '1px solid #FF6A00'
+                                      : '1px solid rgba(255,255,255,0.12)',
+                                    background: isSelectedMonth
+                                      ? 'linear-gradient(135deg, #FF6A00, #FFB347)'
+                                      : 'rgba(255,255,255,0.03)',
+                                    color: isSelectedMonth ? '#000000' : '#FFFFFF',
+                                    fontSize: 13,
+                                    fontWeight: 500,
+                                    cursor: 'pointer',
+                                    textAlign: 'center',
+                                    width: '100%'
+                                  }}
+                                >
+                                  {monthName}
+                                </button>
+                              );
+                            })}
+                          </div>
+                        </div>
+                      )}
+                    </>
                   )}
             </div>
                 
@@ -2941,6 +3210,17 @@ export default function TodayScreen({ activityId, onBack }: { activityId: string
                       Bloques:
                     </h4>
                     {!isEditingSeries ? (
+                      // Botón de editar solo si la fecha seleccionada es hoy o futura
+                      (() => {
+                        const todayBAString = getTodayBuenosAiresString();
+                        const selectedDateString = getBuenosAiresDateString(selectedDate);
+                        const canEditThisDay = selectedDateString >= todayBAString;
+
+                        if (!canEditThisDay) {
+                          return null;
+                        }
+
+                        return (
                       <button
                         onClick={() => {
                           setOriginalSeries(JSON.parse(JSON.stringify(editableSeries)));
@@ -2972,6 +3252,8 @@ export default function TodayScreen({ activityId, onBack }: { activityId: string
                         <Edit size={14} />
                         Editar
                       </button>
+                        );
+                      })()
                     ) : (
                       <div style={{
                         display: 'flex',
@@ -3010,6 +3292,15 @@ export default function TodayScreen({ activityId, onBack }: { activityId: string
                             if (!selectedVideo) return;
                             
                             try {
+                              // Regla: solo permitir editar el día actual o días futuros (según horario de Buenos Aires)
+                              const todayBAString = getTodayBuenosAiresString();
+                              const selectedDateString = getBuenosAiresDateString(selectedDate);
+
+                              if (selectedDateString < todayBAString) {
+                                alert('Solo podés editar ejercicios de hoy o de días futuros. Los días pasados no se pueden modificar.');
+                                return;
+                              }
+
                               // Obtener información del ejercicio actual
                               const currentActivity = activities.find(a => a.id === selectedVideo.exerciseId);
                               if (!currentActivity) {
@@ -3535,50 +3826,112 @@ export default function TodayScreen({ activityId, onBack }: { activityId: string
                📅
              </div>
              
-             <h3 style={{
-               color: '#fff',
-               fontSize: 18,
-               fontWeight: 600,
-               margin: '0 0 32px 0',
-               letterSpacing: '-0.01em'
-             }}>
-               No hay actividades para hoy
-             </h3>
-             
              {nextAvailableActivity ? (
-               <button
-                 onClick={goToNextActivity}
-                 style={{
-                   background: 'linear-gradient(135deg, #FF6A00 0%, #FF7939 100%)',
-                   color: '#000',
-                   border: 'none',
-                   padding: '16px 32px',
-                   borderRadius: 12,
-                   fontSize: 16,
+               <>
+                 <h3 style={{
+                   color: '#fff',
+                   fontSize: 18,
                    fontWeight: 600,
-                   cursor: 'pointer',
-                   transition: 'all 0.2s ease',
-                   boxShadow: '0 4px 12px rgba(255, 106, 0, 0.3)'
-                 }}
-                 onMouseOver={(e) => {
-                 e.currentTarget.style.transform = 'translateY(-2px)';
-                   e.currentTarget.style.boxShadow = '0 6px 16px rgba(255, 106, 0, 0.4)';
-               }}
-                 onMouseOut={(e) => {
-                 e.currentTarget.style.transform = 'translateY(0)';
-                   e.currentTarget.style.boxShadow = '0 4px 12px rgba(255, 106, 0, 0.3)';
-               }}
-               >
-                 Ir a {nextAvailableActivity.day} {nextAvailableActivity.date}
-               </button>
+                   margin: '0 0 16px 0',
+                   letterSpacing: '-0.01em'
+                 }}>
+                   No hay actividades para este día
+                 </h3>
+                 
+                 <p style={{
+                   color: 'rgba(255, 255, 255, 0.7)',
+                   fontSize: 14,
+                   margin: '0 0 32px 0',
+                   letterSpacing: '-0.01em'
+                 }}>
+                   Próxima actividad: {(() => {
+                     try {
+                       const nextDate = new Date(nextAvailableActivity.date + 'T00:00:00');
+                       const dayName = nextDate.toLocaleDateString('es-ES', { weekday: 'long' });
+                       const dayNumber = nextDate.getDate();
+                       const monthName = nextDate.toLocaleDateString('es-ES', { month: 'long' });
+                       return `${dayName.charAt(0).toUpperCase() + dayName.slice(1)} ${dayNumber} de ${monthName}`;
+                     } catch (e) {
+                       return nextAvailableActivity.day + ' ' + nextAvailableActivity.date;
+                     }
+                   })()}
+                 </p>
+                 
+                 <button
+                   onClick={goToNextActivity}
+                   style={{
+                     background: 'linear-gradient(135deg, #FF6A00 0%, #FF7939 100%)',
+                     color: '#000',
+                     border: 'none',
+                     padding: '16px 32px',
+                     borderRadius: 12,
+                     fontSize: 16,
+                     fontWeight: 600,
+                     cursor: 'pointer',
+                     transition: 'all 0.2s ease',
+                     boxShadow: '0 4px 12px rgba(255, 106, 0, 0.3)'
+                   }}
+                   onMouseOver={(e) => {
+                     e.currentTarget.style.transform = 'translateY(-2px)';
+                     e.currentTarget.style.boxShadow = '0 6px 16px rgba(255, 106, 0, 0.4)';
+                   }}
+                   onMouseOut={(e) => {
+                     e.currentTarget.style.transform = 'translateY(0)';
+                     e.currentTarget.style.boxShadow = '0 4px 12px rgba(255, 106, 0, 0.3)';
+                   }}
+                 >
+                   Ir a actividad
+                 </button>
+               </>
              ) : (
-               <p style={{
-                 color: 'rgba(255, 255, 255, 0.4)',
-                 fontSize: 14,
-                 margin: '12px 0 0 0'
-               }}>
-                 No hay más actividades programadas
-               </p>
+               <>
+                 <h3 style={{
+                   color: '#fff',
+                   fontSize: 18,
+                   fontWeight: 600,
+                   margin: '0 0 32px 0',
+                   letterSpacing: '-0.01em'
+                 }}>
+                  Programa finalizado
+                 </h3>
+                 <p style={{
+                   color: 'rgba(255, 255, 255, 0.4)',
+                   fontSize: 14,
+                   margin: '0 0 24px 0'
+                 }}>
+                  No hay más actividades programadas para este programa.
+                 </p>
+                 
+                 {/* Botón OK que dispara la calificación automáticamente si aún no se calificó */}
+                 {!hasUserSubmittedSurvey && (
+                   <button
+                     onClick={handleOpenSurveyModal}
+                     style={{
+                       marginTop: 8,
+                       background: 'linear-gradient(135deg, #FF6A00 0%, #FF7939 100%)',
+                       color: '#000',
+                       border: 'none',
+                       padding: '12px 28px',
+                       borderRadius: 999,
+                       fontSize: 14,
+                       fontWeight: 600,
+                       cursor: 'pointer',
+                       transition: 'all 0.2s ease',
+                       boxShadow: '0 4px 12px rgba(255, 106, 0, 0.3)'
+                     }}
+                     onMouseOver={(e) => {
+                       e.currentTarget.style.transform = 'translateY(-2px)';
+                       e.currentTarget.style.boxShadow = '0 6px 16px rgba(255, 106, 0, 0.4)';
+                     }}
+                     onMouseOut={(e) => {
+                       e.currentTarget.style.transform = 'translateY(0)';
+                       e.currentTarget.style.boxShadow = '0 4px 12px rgba(255, 106, 0, 0.3)';
+                     }}
+                   >
+                     OK
+                   </button>
+                 )}
+               </>
              )}
            </div>
          )}
@@ -3686,12 +4039,56 @@ export default function TodayScreen({ activityId, onBack }: { activityId: string
                     {(!isCollapsed || isFirstBlock) && (
                       <div style={{ 
                         marginTop: 8,
-                        paddingLeft: 8
+                        paddingLeft: 0
                       }}>
-                        {blockActivities.map((activity, index) => (
-                           <button
-                              key={`${activity.id}-${index}`}
-                              onClick={() => {
+                        {/* Frame del bloque con PRS solo una vez al principio */}
+                        <div style={{
+                          background: 'rgba(255, 255, 255, 0.05)',
+                          border: '1px solid rgba(255, 255, 255, 0.1)',
+                          borderRadius: 12,
+                          padding: '12px 16px',
+                          marginBottom: 12
+                        }}>
+                          {/* PRS solo una vez al principio del bloque */}
+                          {(() => {
+                            const prsFormat = getBlockPRSFormat(blockActivities);
+                            return prsFormat ? (
+                              <div style={{
+                                display: 'flex',
+                                alignItems: 'center',
+                                gap: 8,
+                                marginBottom: 12,
+                                paddingBottom: 12,
+                                borderBottom: '1px solid rgba(255, 255, 255, 0.1)'
+                              }}>
+                                <span style={{
+                                  fontSize: 11,
+                                  color: 'rgba(255, 255, 255, 0.6)',
+                                  fontWeight: 500,
+                                  textTransform: 'uppercase',
+                                  letterSpacing: '0.5px'
+                                }}>
+                                  Orden:
+                                </span>
+                                <span style={{
+                                  fontSize: 12,
+                                  color: '#FF7939',
+                                  fontFamily: 'monospace',
+                                  fontWeight: 600,
+                                  letterSpacing: '0.3px'
+                                }}>
+                                  {prsFormat}
+                                </span>
+                              </div>
+                            ) : null;
+                          })()}
+                          
+                          {/* Lista de ejercicios del bloque */}
+                          <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+                            {blockActivities.map((activity, index) => (
+                              <button
+                                key={`${activity.id}-${index}`}
+                                onClick={() => {
                                 // Inicializar valores editables de series
                                 const parsed = parseSeries(activity.detalle_series || activity.series);
                                 const initialSeries = parsed.map(s => ({
@@ -3767,29 +4164,37 @@ export default function TodayScreen({ activityId, onBack }: { activityId: string
                               }}
                               style={{
                                 width: '100%',
-                                padding: '12px 16px',
-                                background: 'rgba(255, 255, 255, 0.05)',
-                                border: '1px solid rgba(255, 255, 255, 0.08)',
+                                padding: '10px 12px',
+                                background: 'transparent',
+                                border: 'none',
                                 borderRadius: 8,
-                                marginBottom: 8,
                                 transition: 'all 0.2s ease',
                                 cursor: 'pointer',
                                 textAlign: 'left'
                               }}
                               onMouseEnter={(e) => {
-                                e.currentTarget.style.background = 'rgba(255, 255, 255, 0.08)';
+                                e.currentTarget.style.background = 'rgba(255, 255, 255, 0.05)';
                               }}
                               onMouseLeave={(e) => {
-                                e.currentTarget.style.background = 'rgba(255, 255, 255, 0.05)';
+                                e.currentTarget.style.background = 'transparent';
                               }}
                             >
                             <div style={{
                               display: 'flex',
                               alignItems: 'center',
-                              gap: 12
+                              justifyContent: 'space-between',
+                              gap: 12,
+                              width: '100%'
                             }}>
-
-                                {/* Botón de fuego para completar - NUEVA FUNCIÓN SIMPLE */}
+                              {/* Lado izquierdo: Fuego, nombre y tipo */}
+                              <div style={{
+                                display: 'flex',
+                                alignItems: 'center',
+                                gap: 12,
+                                flex: 1,
+                                minWidth: 0
+                              }}>
+                                {/* Botón de fuego para completar */}
                                 <div
                                   onClick={(e) => {
                                     e.stopPropagation();
@@ -3815,67 +4220,74 @@ export default function TodayScreen({ activityId, onBack }: { activityId: string
                                   <Flame size={20} />
                                 </div>
 
-                                <div style={{ flex: 1 }}>
+                                <div style={{ flex: 1, minWidth: 0 }}>
                                   <div style={{
                                     display: 'flex',
                                     alignItems: 'center',
                                     gap: 8,
-                                    marginBottom: 4
+                                    flexWrap: 'wrap'
                                   }}>
                                     <div style={{
-                                      fontSize: 16,
+                                      fontSize: 15,
                                       fontWeight: 600,
-                                      color: '#FFFFFF'
+                                      color: '#FFFFFF',
+                                      wordBreak: 'break-word'
                                     }}>
                                       {activity.title}
                                     </div>
                                     
-                                    {/* Tipo de ejercicio en la misma línea */}
+                                    {/* Tipo de ejercicio */}
                                     <div style={{
                                       display: 'inline-block',
-                                      padding: '4px 8px',
+                                      padding: '3px 6px',
                                       background: '#FF6B35',
                                       color: '#FFFFFF',
-                                      fontSize: 11,
-                                      borderRadius: 6,
+                                      fontSize: 10,
+                                      borderRadius: 4,
                                       textTransform: 'capitalize',
-                                      fontWeight: 500
+                                      fontWeight: 500,
+                                      flexShrink: 0
                                     }}>
                                       {activity.type}
                                     </div>
                                   </div>
-                                  
-                                  {/* PRS con mejor diseño */}
-                                  {activity.subtitle && activity.subtitle !== 'Sin especificar' && (
-                                    <div style={{
-                                      display: 'inline-block',
-                                      padding: '3px 6px',
-                                      background: 'rgba(255, 121, 57, 0.15)',
-                                      border: '1px solid rgba(255, 121, 57, 0.3)',
-                                      borderRadius: 4,
-                                      fontSize: 9,
-                                      color: 'rgba(255, 255, 255, 0.8)',
-                                      fontFamily: 'monospace',
-                                      letterSpacing: '0.3px',
-                                      fontWeight: 400
-                                    }}>
-                                      {activity.subtitle}
-                                    </div>
-                                  )}
                                 </div>
+                              </div>
+
+                              {/* Lado derecho: Minutos alineados a la derecha */}
+                              {activity.minutos && (
+                                <div style={{
+                                  display: 'flex',
+                                  alignItems: 'center',
+                                  justifyContent: 'flex-end',
+                                  flexShrink: 0,
+                                  marginLeft: 'auto'
+                                }}>
+                                  <span style={{
+                                    fontSize: 14,
+                                    fontWeight: 600,
+                                    color: 'rgba(255, 255, 255, 0.7)',
+                                    fontFamily: 'monospace'
+                                  }}>
+                                    {activity.minutos}min
+                                  </span>
+                                </div>
+                              )}
                             </div>
                             </button>
-                          ))}
+                            ))}
+                          </div>
                         </div>
-                      )}
-                    </div>
-                  );
-                })}
-              </div>
-            )}
-          </div>
-        )}
-      </motion.div>
+                      </div>
+                    )}
+                  </div>
+                );
+              })}
+            </div>
+          )}
+        </div>
+      )}
+    </motion.div>
 
       {/* Modal de Encuesta de Actividad */}
       {showSurveyModal && (

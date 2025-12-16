@@ -27,7 +27,7 @@ import { trackComponent } from '@/lib/logging/usage-tracker'
 import { logUsage } from '@/lib/logging/usage-logger'
 
 
-export default function MobileApp() {
+function MobileAppContent() {
   // Rastrear componente principal
   useEffect(() => {
     trackComponent('MobileApp')
@@ -54,6 +54,7 @@ export default function MobileApp() {
 
   // Manejar parámetro mp_auth para mostrar notificaciones
   useEffect(() => {
+    if (typeof window === 'undefined') return
     const mpAuth = searchParams.get('mp_auth')
     if (mpAuth === 'success' || mpAuth === 'error') {
       // Limpiar el parámetro de la URL después de procesarlo
@@ -211,7 +212,7 @@ export default function MobileApp() {
     switch (activeTab) {
       // Coach screens
       case "clients":
-        return <ClientsScreen onTabChange={setActiveTab} />
+        return <ClientsScreen />
       case "products-management":
         return <ProductsManagementScreen />
 
@@ -227,7 +228,7 @@ export default function MobileApp() {
       case "calendar":
         // Calendario diferente según el rol
         return userRole === "coach" 
-          ? <CoachCalendarScreen onTabChange={setActiveTab} />
+          ? <CoachCalendarScreen />
           : <CalendarScreen onTabChange={setActiveTab} />
       case "profile":
         // Perfil universal para coaches y clientes
@@ -239,6 +240,28 @@ export default function MobileApp() {
 
   const hideWelcomeMessage = () => {
     setShowWelcomeMessage(false)
+  }
+
+  // Timeout de seguridad: si loading tarda mucho, renderizar de todos modos
+  const [forceRender, setForceRender] = useState(false)
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      setForceRender(true)
+    }, 2000) // Reducido a 2 segundos
+    return () => clearTimeout(timer)
+  }, [])
+
+  // Si está cargando pero ya pasó el timeout, renderizar de todos modos
+  // Esto evita que la página se quede bloqueada indefinidamente
+  const shouldShowLoading = loading && !forceRender
+
+  // Mostrar loading solo si no ha pasado el timeout
+  if (shouldShowLoading) {
+    return (
+      <div className="flex items-center justify-center min-h-screen bg-black">
+        <p className="text-white">Cargando...</p>
+      </div>
+    )
   }
 
   return (
@@ -278,5 +301,15 @@ export default function MobileApp() {
       {false && process.env.NODE_ENV === 'development' && <UsageReportButton />}
       </div>
     </ErrorBoundary>
+  )
+}
+
+export default function MobileApp() {
+  return (
+    <Suspense fallback={<div className="flex items-center justify-center min-h-screen bg-black">
+      <p className="text-white">Cargando...</p>
+    </div>}>
+      <MobileAppContent />
+    </Suspense>
   )
 }

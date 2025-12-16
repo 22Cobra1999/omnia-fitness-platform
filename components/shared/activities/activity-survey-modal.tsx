@@ -7,7 +7,14 @@ import { X, Star } from 'lucide-react';
 interface ActivitySurveyModalProps {
   isOpen: boolean;
   onClose: () => void;
-  onComplete: (activityRating: number, coachRating: number, feedback: string, wouldRepeat: boolean | null) => void;
+  onComplete: (
+    activityRating: number,
+    coachRating: number,
+    feedback: string,
+    wouldRepeat: boolean | null,
+    omniaRating: number,
+    omniaComments: string
+  ) => void;
   activityTitle: string;
 }
 
@@ -21,16 +28,28 @@ export function ActivitySurveyModal({
   const [coachRating, setCoachRating] = useState(0);
   const [feedback, setFeedback] = useState('');
   const [wouldRepeat, setWouldRepeat] = useState<boolean | null>(null);
+  const [omniaRating, setOmniaRating] = useState(0);
+  const [omniaComments, setOmniaComments] = useState('');
+  const [step, setStep] = useState<1 | 2>(1);
   const [showConfirm, setShowConfirm] = useState(false);
 
   if (!isOpen) return null;
+
+  const handleNextStep = () => {
+    // Pasar al paso 2 (Omnia)
+    setStep(2);
+  };
+
+  const handleBackToStep1 = () => {
+    setStep(1);
+  };
 
   const handleSubmit = () => {
     setShowConfirm(true);
   };
 
   const handleConfirmSubmit = () => {
-    onComplete(activityRating, coachRating, feedback, wouldRepeat);
+    onComplete(activityRating, coachRating, feedback, wouldRepeat, omniaRating, omniaComments);
     onClose();
     // Resetear estados al cerrar
     setShowConfirm(false);
@@ -38,6 +57,9 @@ export function ActivitySurveyModal({
     setCoachRating(0);
     setFeedback('');
     setWouldRepeat(null);
+    setOmniaRating(0);
+    setOmniaComments('');
+    setStep(1);
   };
 
   const handleCancelConfirm = () => {
@@ -51,6 +73,9 @@ export function ActivitySurveyModal({
     setCoachRating(0);
     setFeedback('');
     setWouldRepeat(null);
+    setOmniaRating(0);
+    setOmniaComments('');
+    setStep(1);
     onClose();
   };
 
@@ -82,7 +107,7 @@ export function ActivitySurveyModal({
             {/* Header */}
             <div className="flex items-center justify-between p-4 border-b border-white/10">
               <h2 className="text-lg font-semibold text-white">
-                Calificar
+                {step === 1 ? 'Calificar programa y coach' : 'Calificar Omnia'}
               </h2>
               <button
                 onClick={handleClose}
@@ -94,98 +119,144 @@ export function ActivitySurveyModal({
 
             {/* Content */}
             <div className="p-5 space-y-6">
-              {/* Calificación de la Actividad */}
-              <div>
-                <label className="block text-sm font-medium text-gray-300 mb-3">
-                  ¿Cómo calificarías esta actividad?
-                </label>
-                <div className="flex gap-2">
-                  {[1, 2, 3, 4, 5].map((star) => (
-                    <button
-                      key={star}
-                      onClick={() => setActivityRating(star)}
-                      className="p-1 hover:scale-110 transition-transform"
-                    >
-                      <Star
-                        className={`w-5 h-5 ${
-                          star <= activityRating
-                            ? 'text-[#FF7939] fill-[#FF7939]'
-                            : 'text-gray-600'
+              {step === 1 ? (
+                <>
+                  {/* Calificación de la Actividad */}
+                  <div>
+                    <label className="block text-sm font-medium text-gray-300 mb-3">
+                      ¿Cómo calificarías esta actividad?
+                    </label>
+                    <div className="flex gap-2">
+                      {[1, 2, 3, 4, 5].map((star) => (
+                        <button
+                          key={star}
+                          onClick={() => setActivityRating(star)}
+                          className="p-1 hover:scale-110 transition-transform"
+                        >
+                          <Star
+                            className={`w-5 h-5 ${
+                              star <= activityRating
+                                ? 'text-[#FF7939] fill-[#FF7939]'
+                                : 'text-gray-600'
+                            }`}
+                          />
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+
+                  {/* Calificación del Coach */}
+                  <div>
+                    <label className="block text-sm font-medium text-gray-300 mb-3">
+                      ¿Cómo calificarías al coach?
+                    </label>
+                    <div className="flex gap-2">
+                      {[1, 2, 3, 4, 5].map((star) => (
+                        <button
+                          key={star}
+                          onClick={() => setCoachRating(star)}
+                          className="p-1 hover:scale-110 transition-transform"
+                        >
+                          <Star
+                            className={`w-5 h-5 ${
+                              star <= coachRating
+                                ? 'text-[#FF7939] fill-[#FF7939]'
+                                : 'text-gray-600'
+                            }`}
+                          />
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+
+                  {/* Feedback */}
+                  <div>
+                    <label className="block text-sm font-medium text-gray-300 mb-2">
+                      Comentarios sobre la actividad / coach (opcional)
+                    </label>
+                    <textarea
+                      value={feedback}
+                      onChange={(e) => setFeedback(e.target.value)}
+                      placeholder="¿Qué te pareció la actividad o el coach? ¿Alguna sugerencia?"
+                      className="w-full p-3 bg_white/5 border border-white/10 rounded-lg resize-none h-20 text-white placeholder-gray-500 focus:ring-1 focus:ring-[#FF7939]/50 focus:border-[#FF7939]/50 transition-colors"
+                      style={{
+                        background: 'rgba(255, 255, 255, 0.05)',
+                      }}
+                    />
+                  </div>
+
+                  {/* ¿Repetiría la actividad? */}
+                  <div>
+                    <label className="block text-sm font-medium text-gray-300 mb-3">
+                      ¿Repetirías esta actividad?
+                    </label>
+                    <div className="flex gap-2">
+                      <button
+                        onClick={() => setWouldRepeat(true)}
+                        className={`flex-1 px-3 py-2 text-xs rounded-lg transition-colors ${
+                          wouldRepeat === true
+                            ? 'bg-[#FF7939]/30 text-[#FF7939] border border-[#FF7939]/50'
+                            : 'bg-white/5 text-gray-400 border border-white/10 hover:bg-white/10'
                         }`}
-                      />
-                    </button>
-                  ))}
-                </div>
-              </div>
-
-              {/* Calificación del Coach */}
-              <div>
-                <label className="block text-sm font-medium text-gray-300 mb-3">
-                  ¿Cómo calificarías al coach?
-                </label>
-                <div className="flex gap-2">
-                  {[1, 2, 3, 4, 5].map((star) => (
-                    <button
-                      key={star}
-                      onClick={() => setCoachRating(star)}
-                      className="p-1 hover:scale-110 transition-transform"
-                    >
-                      <Star
-                        className={`w-5 h-5 ${
-                          star <= coachRating
-                            ? 'text-[#FF7939] fill-[#FF7939]'
-                            : 'text-gray-600'
+                      >
+                        Sí
+                      </button>
+                      <button
+                        onClick={() => setWouldRepeat(false)}
+                        className={`flex-1 px-3 py-2 text-xs rounded-lg transition-colors ${
+                          wouldRepeat === false
+                            ? 'bg-[#FF7939]/30 text-[#FF7939] border border-[#FF7939]/50'
+                            : 'bg-white/5 text-gray-400 border border-white/10 hover:bg-white/10'
                         }`}
-                      />
-                    </button>
-                  ))}
-                </div>
-              </div>
+                      >
+                        No
+                      </button>
+                    </div>
+                  </div>
+                </>
+              ) : (
+                <>
+                  {/* Calificación de Omnia */}
+                  <div>
+                    <label className="block text-sm font-medium text-gray-300 mb-3">
+                      ¿Cómo calificarías tu experiencia general con Omnia?
+                    </label>
+                    <div className="flex gap-2">
+                      {[1, 2, 3, 4, 5].map((star) => (
+                        <button
+                          key={star}
+                          onClick={() => setOmniaRating(star)}
+                          className="p-1 hover:scale-110 transition-transform"
+                        >
+                          <Star
+                            className={`w-5 h-5 ${
+                              star <= omniaRating
+                                ? 'text-[#FF7939] fill-[#FF7939]'
+                                : 'text-gray-600'
+                            }`}
+                          />
+                        </button>
+                      ))}
+                    </div>
+                  </div>
 
-              {/* Feedback */}
-              <div>
-                <label className="block text-sm font-medium text-gray-300 mb-2">
-                  Comentarios (opcional)
-                </label>
-                <textarea
-                  value={feedback}
-                  onChange={(e) => setFeedback(e.target.value)}
-                  placeholder="¿Qué te pareció la actividad? ¿Tienes alguna sugerencia?"
-                  className="w-full p-3 bg-white/5 border border-white/10 rounded-lg resize-none h-20 text-white placeholder-gray-500 focus:ring-1 focus:ring-[#FF7939]/50 focus:border-[#FF7939]/50 transition-colors"
-                  style={{
-                    background: 'rgba(255, 255, 255, 0.05)',
-                  }}
-                />
-              </div>
-
-              {/* ¿Repetiría la actividad? */}
-              <div>
-                <label className="block text-sm font-medium text-gray-300 mb-3">
-                  ¿Repetirías esta actividad?
-                </label>
-                <div className="flex gap-2">
-                  <button
-                    onClick={() => setWouldRepeat(true)}
-                    className={`flex-1 px-3 py-2 text-xs rounded-lg transition-colors ${
-                      wouldRepeat === true
-                        ? 'bg-[#FF7939]/30 text-[#FF7939] border border-[#FF7939]/50'
-                        : 'bg-white/5 text-gray-400 border border-white/10 hover:bg-white/10'
-                    }`}
-                  >
-                    Sí
-                  </button>
-                  <button
-                    onClick={() => setWouldRepeat(false)}
-                    className={`flex-1 px-3 py-2 text-xs rounded-lg transition-colors ${
-                      wouldRepeat === false
-                        ? 'bg-[#FF7939]/30 text-[#FF7939] border border-[#FF7939]/50'
-                        : 'bg-white/5 text-gray-400 border border-white/10 hover:bg-white/10'
-                    }`}
-                  >
-                    No
-                  </button>
-                </div>
-              </div>
+                  {/* Comentarios para Omnia */}
+                  <div>
+                    <label className="block text-sm font-medium text-gray-300 mb-2">
+                      Comentarios para Omnia (opcional)
+                    </label>
+                    <textarea
+                      value={omniaComments}
+                      onChange={(e) => setOmniaComments(e.target.value)}
+                      placeholder="¿Qué te gustaría decirle al equipo de Omnia sobre tu experiencia?"
+                      className="w-full p-3 bg-white/5 border border-white/10 rounded-lg resize-none h-20 text-white placeholder-gray-500 focus:ring-1 focus:ring-[#FF7939]/50 focus:border-[#FF7939]/50 transition-colors"
+                      style={{
+                        background: 'rgba(255, 255, 255, 0.05)',
+                      }}
+                    />
+                  </div>
+                </>
+              )}
             </div>
 
             {/* Actions */}
@@ -196,12 +267,31 @@ export function ActivitySurveyModal({
               >
                 Cancelar
               </button>
-              <button
-                onClick={handleSubmit}
-                className="flex-1 px-3 py-2 text-sm bg-[#FF7939]/20 hover:bg-[#FF7939]/30 text-[#FF7939] rounded-lg transition-colors border border-[#FF7939]/30"
-              >
-                Enviar
-              </button>
+
+              {step === 2 && (
+                <button
+                  onClick={handleBackToStep1}
+                  className="flex-1 px-3 py-2 text-sm text-gray-400 hover:text-white hover:bg-white/5 rounded-lg transition-colors"
+                >
+                  Volver
+                </button>
+              )}
+
+              {step === 1 ? (
+                <button
+                  onClick={handleNextStep}
+                  className="flex-1 px-3 py-2 text-sm bg-[#FF7939]/20 hover:bg-[#FF7939]/30 text-[#FF7939] rounded-lg transition-colors border border-[#FF7939]/30"
+                >
+                  Siguiente
+                </button>
+              ) : (
+                <button
+                  onClick={handleSubmit}
+                  className="flex-1 px-3 py-2 text-sm bg-[#FF7939]/20 hover:bg-[#FF7939]/30 text-[#FF7939] rounded-lg transition-colors border border-[#FF7939]/30"
+                >
+                  Enviar
+                </button>
+              )}
             </div>
           </motion.div>
           ) : (
@@ -236,6 +326,8 @@ export function ActivitySurveyModal({
                 <p className="text-sm text-gray-300 leading-relaxed">
                   ¿Estás seguro de que deseas enviar tu calificación? Una vez enviada, no podrás modificarla ni eliminarla.
                 </p>
+
+                {/* Resumen programa + coach */}
                 <div className="bg-white/5 border border-white/10 rounded-lg p-3 space-y-2">
                   <div className="flex items-center justify-between">
                     <span className="text-xs text-gray-400">Calificación de la actividad:</span>
@@ -271,6 +363,35 @@ export function ActivitySurveyModal({
                     <div className="flex items-center justify-between">
                       <span className="text-xs text-gray-400">¿Repetiría la actividad?</span>
                       <span className="text-xs text-white">{wouldRepeat ? 'Sí' : 'No'}</span>
+                    </div>
+                  )}
+                </div>
+
+                {/* Resumen Omnia */}
+                <div className="bg-white/5 border border-white/10 rounded-lg p-3 space-y-2">
+                  <div className="flex items-center justify-between">
+                    <span className="text-xs text-gray-400">Calificación de Omnia:</span>
+                    <div className="flex gap-1">
+                      {[1, 2, 3, 4, 5].map((star) => (
+                        <Star
+                          key={star}
+                          className={`w-3 h-3 ${
+                            star <= omniaRating
+                              ? 'text-[#FF7939] fill-[#FF7939]'
+                              : 'text-gray-600'
+                          }`}
+                        />
+                      ))}
+                    </div>
+                  </div>
+                  {omniaComments.trim().length > 0 && (
+                    <div className="mt-1">
+                      <span className="block text-xs text-gray-400 mb-1">
+                        Comentarios para Omnia:
+                      </span>
+                      <p className="text-xs text-white line-clamp-3">
+                        {omniaComments}
+                      </p>
                     </div>
                   )}
                 </div>

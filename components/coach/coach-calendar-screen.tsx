@@ -95,10 +95,15 @@ export default function CoachCalendarScreen() {
       setCoachId(user.id)
 
       // 2. Obtener eventos del calendario del coach para el mes actual
+      // Usar UTC para evitar problemas de timezone en producción
       const monthStart = startOfMonth(currentDate)
       const monthEnd = endOfMonth(currentDate)
       const monthNum = currentDate.getMonth()
       const year = currentDate.getFullYear()
+      
+      // Asegurar que las fechas estén en formato ISO correcto
+      const monthStartISO = monthStart.toISOString()
+      const monthEndISO = monthEnd.toISOString()
 
       // Obtener eventos de Omnia
       const { data: calendarEvents, error: eventsError } = await supabase
@@ -118,8 +123,8 @@ export default function CoachCalendarScreen() {
           attendance_tracked
         `)
         .eq('coach_id', user.id)
-        .gte('start_time', monthStart.toISOString())
-        .lte('start_time', monthEnd.toISOString())
+        .gte('start_time', monthStartISO)
+        .lte('start_time', monthEndISO)
         .order('start_time', { ascending: true })
 
       if (eventsError) {
@@ -132,10 +137,19 @@ export default function CoachCalendarScreen() {
       // Obtener eventos de Google Calendar en paralelo
       let googleEvents: CalendarEvent[] = []
       try {
+        // Usar timeout para evitar que la request se cuelgue
+        const controller = new AbortController()
+        const timeoutId = setTimeout(() => controller.abort(), 10000) // 10 segundos timeout
+        
         const googleResponse = await fetch(
           `/api/google/calendar/events?monthNum=${monthNum}&year=${year}`,
-          { credentials: 'include' }
+          { 
+            credentials: 'include',
+            signal: controller.signal
+          }
         )
+        
+        clearTimeout(timeoutId)
         
         if (!googleResponse.ok) {
           // Si la respuesta no es exitosa, intentar leer el JSON para obtener el mensaje de error
@@ -167,8 +181,13 @@ export default function CoachCalendarScreen() {
             console.warn("⚠️ Google Calendar requiere reconexión")
           }
         }
-      } catch (googleError) {
-        console.error("❌ Error obteniendo eventos de Google Calendar:", googleError)
+      } catch (googleError: any) {
+        // Manejar diferentes tipos de errores
+        if (googleError.name === 'AbortError') {
+          console.warn("⏱️ Timeout obteniendo eventos de Google Calendar")
+        } else {
+          console.error("❌ Error obteniendo eventos de Google Calendar:", googleError)
+        }
         // No fallar si Google Calendar no está disponible
         setGoogleConnected(false)
       }
@@ -286,13 +305,18 @@ export default function CoachCalendarScreen() {
         }
       }
 
-    } catch (err) {
-      console.error("Error in getCoachEvents:", err)
-      setEvents([])
+    } catch (err: any) {
+      console.error("❌ Error in getCoachEvents:", err)
+      // Mostrar error al usuario solo si es crítico
+      if (err?.message?.includes('fetch') || err?.name === 'TypeError') {
+        console.error("❌ Error de red al cargar eventos del calendario")
+      }
+      // Mantener eventos existentes si hay un error, no limpiar todo
+      // setEvents([]) // Comentado para no perder eventos si hay un error temporal
     } finally {
       setLoading(false)
     }
-  }, [supabase, currentDate, viewMode, googleConnected])
+  }, [supabase, currentDate])
 
   // Generar días del mes
   const daysInMonth = useMemo(() => {
@@ -310,9 +334,12 @@ export default function CoachCalendarScreen() {
 
   // Efectos
   useEffect(() => {
-    getCoachEvents()
+    // Solo cargar eventos si tenemos un usuario
+    if (coachId) {
+      getCoachEvents()
+    }
     checkGoogleConnection()
-  }, [getCoachEvents, checkGoogleConnection])
+  }, [getCoachEvents, checkGoogleConnection, coachId])
 
   // Navegar entre meses
   const goToPreviousMonth = () => setCurrentDate(subMonths(currentDate, 1))

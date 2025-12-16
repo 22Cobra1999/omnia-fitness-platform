@@ -32,7 +32,7 @@ import { useAuth } from '@/contexts/auth-context'
 
 interface CreateProductModalProps {
   isOpen: boolean
-  onClose: () => void
+  onClose: (saved?: boolean) => void
   editingProduct?: any
   initialStep?: 'type' | 'programType' | 'general' | 'specific' | 'workshopMaterial' | 'workshopSchedule' | 'weeklyPlan' | 'preview'
   showDateChangeNotice?: boolean
@@ -526,7 +526,7 @@ export default function CreateProductModal({ isOpen, onClose, editingProduct, in
       console.log(`✅ Cerrando sin confirmación - Limpiando estado local`)
       // Limpiar estado local incluso si no hay cambios para evitar que persista entre sesiones
       clearPersistentState()
-      onClose()
+      onClose(false) // false = no se guardaron cambios
     }
   }
 
@@ -540,7 +540,7 @@ export default function CreateProductModal({ isOpen, onClose, editingProduct, in
 
         if (response.ok) {
           alert('Producto eliminado exitosamente')
-          onClose() // Cerrar el modal después de eliminar
+          onClose(false) // Cerrar el modal después de eliminar (false = no se guardaron cambios, solo se eliminó)
         } else {
           const result = await response.json()
           alert(`Error al eliminar: ${result.error}`)
@@ -558,12 +558,12 @@ export default function CreateProductModal({ isOpen, onClose, editingProduct, in
     setShowCloseConfirmation(false)
 
     if (pendingAction === 'tab' && pendingTab) {
-      onClose()
+      onClose(false) // false = no se guardaron cambios
       window.dispatchEvent(new CustomEvent('omnia-force-tab-change', {
         detail: { tab: pendingTab }
       }))
     } else {
-      onClose()
+      onClose(false) // false = no se guardaron cambios
     }
 
     setPendingAction(null)
@@ -698,7 +698,9 @@ export default function CreateProductModal({ isOpen, onClose, editingProduct, in
     dietType: '' as string,
     dias_acceso: 30 as number,
     location_name: '' as string,
-    location_url: '' as string
+    location_url: '' as string,
+    workshop_mode: 'grupal' as 'individual' | 'grupal',
+    participants_per_class: undefined as number | undefined
   })
 
   // Wrapper para setGeneralForm
@@ -1675,16 +1677,34 @@ export default function CreateProductModal({ isOpen, onClose, editingProduct, in
         // Priorizar specificForm.capacity si está definido (para edición)
         if (specificForm.capacity) {
           const capNum = parseInt(specificForm.capacity)
+          console.log('📊 Capacity desde specificForm:', { specificFormCapacity: specificForm.capacity, capNum, isNaN: isNaN(capNum) })
           return isNaN(capNum) ? null : capNum
         }
         // Fallback a generalForm.capacity (para creación)
-        if (generalForm.capacity === 'ilimitada') return 500
+        if (generalForm.capacity === 'ilimitada') {
+          console.log('📊 Capacity como ilimitada, retornando 500')
+          return 500
+        }
         if (generalForm.capacity === 'limitada' && generalForm.stockQuantity) {
           const stockNum = parseInt(generalForm.stockQuantity)
+          console.log('📊 Capacity desde generalForm limitada:', { 
+            generalFormCapacity: generalForm.capacity, 
+            stockQuantity: generalForm.stockQuantity, 
+            stockNum, 
+            isNaN: isNaN(stockNum),
+            result: isNaN(stockNum) ? null : stockNum
+          })
           return isNaN(stockNum) ? null : stockNum
         }
+        console.log('📊 Capacity retornando null (ninguna condición cumplida):', {
+          generalFormCapacity: generalForm.capacity,
+          stockQuantity: generalForm.stockQuantity,
+          hasStockQuantity: !!generalForm.stockQuantity
+        })
         return null
       })()
+
+      console.log('📊 Capacity final calculado:', { capacity, capacityType: typeof capacity })
 
       // Verificar que el usuario esté autenticado
       if (!user) {
@@ -1724,20 +1744,16 @@ export default function CreateProductModal({ isOpen, onClose, editingProduct, in
         workshopMaterial: selectedType === 'workshop' ? finalWorkshopMaterial : null,
         // ✅ ENVIAR OBJETIVOS COMO ARRAY (la API los guardará en workshop_type)
         objetivos: generalForm.objetivos && generalForm.objetivos.length > 0 ? generalForm.objetivos : [],
-        // ✅ CONSTRUIR WORKSHOP_TYPE CON TIPO DE DIETA (objetivos se manejan por separado)
-        workshop_type: (() => {
-          const workshopTypeData: any = {}
-          
-          // Agregar tipo de dieta solo para nutrición
-          if (productCategory === 'nutricion' && generalForm.dietType) {
-            workshopTypeData.dieta = generalForm.dietType
-          }
-          
-          return Object.keys(workshopTypeData).length > 0 ? JSON.stringify(workshopTypeData) : null
-        })(),
+        // ✅ WORKSHOP_TYPE (objetivos se manejan por separado)
+        workshop_type: null,
         // ✅ INCLUIR DATOS DE UBICACIÓN PARA MODALIDAD PRESENCIAL
         location_name: generalForm.location_name || null,
-        location_url: generalForm.location_url || null
+        location_url: generalForm.location_url || null,
+        // ✅ INCLUIR MODO DE TALLER Y PARTICIPANTES POR CLASE
+        workshop_mode: selectedType === 'workshop' ? (generalForm.workshop_mode || 'grupal') : undefined,
+        participants_per_class: selectedType === 'workshop' && generalForm.workshop_mode === 'grupal' 
+          ? generalForm.participants_per_class || null 
+          : null
       }
       
       console.log('📦 Datos preparados para la API:', {
@@ -1748,6 +1764,10 @@ export default function CreateProductModal({ isOpen, onClose, editingProduct, in
         level: productData.level,
         type: productData.type,
         categoria: productData.categoria,
+        capacity: productData.capacity,
+        capacityType: typeof productData.capacity,
+        generalFormCapacity: generalForm.capacity,
+        generalFormStockQuantity: generalForm.stockQuantity,
         coach_id: productData.coach_id,
         coach_id_type: typeof productData.coach_id,
         coach_id_length: productData.coach_id?.length,
@@ -3119,7 +3139,7 @@ export default function CreateProductModal({ isOpen, onClose, editingProduct, in
           }
         }
         
-        onClose()
+        onClose(true) // true = se guardaron cambios exitosamente
         // ✅ NO recargar la página para poder ver los logs
         // Disparar evento para actualizar estadísticas del producto
         if (result.product?.id) {
@@ -3519,6 +3539,14 @@ export default function CreateProductModal({ isOpen, onClose, editingProduct, in
       let capacityType = 'ilimitada'
       let stockQuantity = ''
       
+      console.log('🔍 Cargando capacity desde editingProduct:', {
+        capacity: editingProduct.capacity,
+        capacityType: typeof editingProduct.capacity,
+        capacityIsNull: editingProduct.capacity === null,
+        capacityIsUndefined: editingProduct.capacity === undefined,
+        capacityString: String(editingProduct.capacity),
+        editingProductKeys: Object.keys(editingProduct)
+      })
       
       if (editingProduct.capacity) {
         if (editingProduct.capacity >= 500) {
@@ -3531,7 +3559,10 @@ export default function CreateProductModal({ isOpen, onClose, editingProduct, in
         }
       } else {
         capacityType = 'ilimitada' // Cambiar 'consultar' a 'ilimitada' por defecto
-        console.log('✅ Capacity no definido, usando ilimitada por defecto')
+        console.log('✅ Capacity no definido, usando ilimitada por defecto', {
+          capacity: editingProduct.capacity,
+          capacityType: typeof editingProduct.capacity
+        })
       }
       
 
@@ -3555,7 +3586,9 @@ export default function CreateProductModal({ isOpen, onClose, editingProduct, in
         dietType: editingProduct.dietType || '',
         dias_acceso: editingProduct.dias_acceso || 30,
         location_name: editingProduct.location_name || '',
-        location_url: editingProduct.location_url || ''
+        location_url: editingProduct.location_url || '',
+        workshop_mode: editingProduct.workshop_mode || 'grupal',
+        participants_per_class: editingProduct.participants_per_class || undefined
       })
       
       console.log('✅ Objetivos cargados en generalForm:', editingProduct.objetivos || [])
@@ -4692,7 +4725,7 @@ export default function CreateProductModal({ isOpen, onClose, editingProduct, in
                 <Button
                   onClick={() => {
                     setShowAddNewDatesPrompt(false)
-                    onClose?.()
+                    onClose?.(false) // false = no se guardaron cambios
                   }}
                   className="flex-1 bg-gray-700 hover:bg-gray-600 text-white py-2 rounded-lg"
                 >
@@ -5408,6 +5441,68 @@ export default function CreateProductModal({ isOpen, onClose, editingProduct, in
                         </div>
                       )}
                     </div>
+
+                    {/* Selector de modo de taller (solo para talleres) */}
+                    {selectedType === 'workshop' && (
+                      <div className="space-y-3">
+                        <p className="text-[11px] uppercase tracking-[0.3em] text-white/40">Tipo de Taller</p>
+                        <div className="flex flex-col gap-2">
+                          <button
+                            type="button"
+                            onClick={() => setGeneralFormWithLogs({ ...generalForm, workshop_mode: 'individual', participants_per_class: undefined })}
+                            className={`flex items-center justify-between border-b border-white/10 px-0 py-2 text-sm transition ${
+                              generalForm.workshop_mode === 'individual' ? 'text-white' : 'text-white/60 hover:text-white'
+                            }`}
+                          >
+                            <div className="flex items-center gap-3">
+                              <Users className={`h-5 w-5 ${generalForm.workshop_mode === 'individual' ? 'text-[#FF7939]' : 'text-white/40'}`} />
+                              <span className="font-medium">1:1 (Individual)</span>
+                            </div>
+                            {generalForm.workshop_mode === 'individual' && <Check className="h-4 w-4 text-[#FF7939]" />}
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => setGeneralFormWithLogs({ ...generalForm, workshop_mode: 'grupal' })}
+                            className={`flex items-center justify-between border-b border-white/10 px-0 py-2 text-sm transition ${
+                              generalForm.workshop_mode === 'grupal' ? 'text-white' : 'text-white/60 hover:text-white'
+                            }`}
+                          >
+                            <div className="flex items-center gap-3">
+                              <Users className={`h-5 w-5 ${generalForm.workshop_mode === 'grupal' ? 'text-[#FF7939]' : 'text-white/40'}`} />
+                              <span className="font-medium">Grupal</span>
+                            </div>
+                            {generalForm.workshop_mode === 'grupal' && <Check className="h-4 w-4 text-[#FF7939]" />}
+                          </button>
+                        </div>
+
+                        {/* Campo de participantes por clase (solo para grupal) */}
+                        {generalForm.workshop_mode === 'grupal' && (
+                          <div className="mt-3 space-y-2 pt-3 border-t border-white/10">
+                            <Label htmlFor="participants_per_class" className="text-sm font-medium text-white/75">
+                              Personas por clase
+                            </Label>
+                            <Input
+                              id="participants_per_class"
+                              type="number"
+                              inputMode="numeric"
+                              min="1"
+                              value={generalForm.participants_per_class || ''}
+                              onChange={(e) => {
+                                const value = e.target.value === '' ? undefined : parseInt(e.target.value)
+                                setGeneralFormWithLogs({ ...generalForm, participants_per_class: value })
+                              }}
+                              placeholder="Ej: 20"
+                              className="h-8 bg-transparent border-0 border-b border-white/10 text-sm text-white placeholder:text-white/30 focus-visible:border-[#FF7939] focus-visible:ring-0 rounded-none"
+                            />
+                            <p className="text-xs text-white/50">
+                              {generalForm.stockQuantity && generalForm.participants_per_class 
+                                ? `Se organizarán ${Math.ceil(parseInt(generalForm.stockQuantity) / (generalForm.participants_per_class || 1))} clase(s) por tema con ${generalForm.participants_per_class} persona(s) cada una`
+                                : 'Define la cantidad de personas por clase'}
+                            </p>
+                          </div>
+                        )}
+                      </div>
+                    )}
                   </div>
 
                   <div className="space-y-3">
@@ -6383,6 +6478,9 @@ export default function CreateProductModal({ isOpen, onClose, editingProduct, in
                           total_program_reviews: 0,
                           // ✅ INCLUIR OBJETIVOS PARA MOSTRAR EN LA CARD
                           objetivos: generalForm.objetivos && generalForm.objetivos.length > 0 ? generalForm.objetivos : [],
+                          workshop_type: selectedType === 'workshop' ? (generalForm.objetivos && generalForm.objetivos.length > 0 ? JSON.stringify(generalForm.objetivos) : 'general') : null,
+                          workshop_mode: selectedType === 'workshop' ? (generalForm.workshop_mode || 'grupal') : undefined,
+                          participants_per_class: selectedType === 'workshop' && generalForm.workshop_mode === 'grupal' ? generalForm.participants_per_class : undefined,
                           // Valores del resumen del paso 5
                           previewStats: (() => {
                             console.log('📊 [Paso 6] previewStats calculado:', {

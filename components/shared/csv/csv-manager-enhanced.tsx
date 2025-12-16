@@ -343,13 +343,20 @@ export function CSVManagerEnhanced({
   const fileInputRef = useRef<HTMLInputElement>(null)
   const justDeletedRef = useRef<boolean>(false)
   const hasUserInteractedRef = useRef<boolean>(false) // Flag para saber si el usuario ya interactuó con el paso 4
+  const isLoadingDataRef = useRef<boolean>(false) // Prevenir llamadas múltiples simultáneas
   const [currentPage, setCurrentPage] = useState(1)
   const itemsPerPage = 15
 
   // Recargar datos cuando cambia productCategory (modo genérico)
   useEffect(() => {
     if (activityId === 0) {
+      // Evitar llamadas múltiples simultáneas
+      if (isLoadingDataRef.current) {
+        console.log('⏸️ Ya hay una carga en progreso, saltando...')
+        return
+      }
       console.log('🔄 productCategory cambió a:', productCategory, '- Recargando datos')
+      isLoadingDataRef.current = true
       // Limpiar datos actuales
       setCsvData([])
       setExistingData([])
@@ -487,37 +494,55 @@ export function CSVManagerEnhanced({
               parentSetCsvData(transformed)
             }
             
-            // Cargar uso de cada ejercicio/plato
+            // Cargar uso de cada ejercicio/plato en background (no bloquea la visualización)
             if (transformed.length > 0) {
-              const usagePromises = transformed
-                .filter((item: any) => item.id && typeof item.id === 'number')
-                .map(async (item: any) => {
-                  try {
-                    const usageResponse = await fetch(`/api/coach/exercises/usage?exerciseId=${item.id}&category=${category}`)
-                    if (usageResponse.ok) {
-                      const usageData = await usageResponse.json()
-                      if (usageData.success) {
-                        return { exerciseId: item.id, usage: usageData }
+              setTimeout(() => {
+                const itemsWithIds = transformed.filter((item: any) => item.id && typeof item.id === 'number')
+                // Limitar a los primeros 50 para evitar demasiadas requests
+                const itemsToLoad = itemsWithIds.slice(0, 50)
+                
+                if (itemsToLoad.length === 0) return
+                
+                console.log(`🔄 Cargando uso en background para ${itemsToLoad.length} ${category === 'nutricion' ? 'platos' : 'ejercicios'}...`)
+                
+                // Cargar en batches de 10 para no saturar el servidor
+                const batchSize = 10
+                const loadBatch = async (batch: Array<any>) => {
+                  const batchPromises = batch.map(async (item: any) => {
+                    try {
+                      const usageResponse = await fetch(`/api/coach/exercises/usage?exerciseId=${item.id}&category=${category}`)
+                      if (usageResponse.ok) {
+                        const usageData = await usageResponse.json()
+                        if (usageData.success) {
+                          return { exerciseId: item.id, usage: usageData }
+                        }
+                      }
+                    } catch (error) {
+                      // Silenciar errores en background
+                    }
+                    return null
+                  })
+                  
+                  const results = await Promise.all(batchPromises)
+                  const usageMap: Record<number, { activities: Array<{ id: number; name: string }> }> = {}
+                  results.forEach((result) => {
+                    if (result) {
+                      usageMap[result.exerciseId] = {
+                        activities: result.usage.activities || []
                       }
                     }
-                  } catch (error) {
-                    console.error(`❌ Error cargando uso para ${category} ${item.id}:`, error)
-                  }
-                  return null
-                })
-              
-              Promise.all(usagePromises).then(usageResults => {
-                const usageMap: Record<number, { activities: Array<{ id: number; name: string }> }> = {}
-                usageResults.forEach((result) => {
-                  if (result) {
-                    usageMap[result.exerciseId] = {
-                      activities: result.usage.activities || []
-                    }
-                  }
-                })
-                setExerciseUsage(usageMap)
-                console.log(`✅ Uso cargado para ${Object.keys(usageMap).length} ${category === 'nutricion' ? 'platos' : 'ejercicios'}`)
-              })
+                  })
+                  
+                  // Actualizar el estado acumulativo
+                  setExerciseUsage(prev => ({ ...prev, ...usageMap }))
+                }
+                
+                // Procesar en batches
+                for (let i = 0; i < itemsToLoad.length; i += batchSize) {
+                  const batch = itemsToLoad.slice(i, i + batchSize)
+                  loadBatch(batch).catch(() => {}) // Ignorar errores
+                }
+              }, 500) // Esperar 500ms después de mostrar los datos
             }
           } else {
             console.error(`❌ No se pudieron cargar ${category === 'nutricion' ? 'platos' : 'ejercicios'}`)
@@ -532,6 +557,7 @@ export function CSVManagerEnhanced({
         })
         .finally(() => {
           setLoadingExisting(false)
+          isLoadingDataRef.current = false
         })
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -541,6 +567,11 @@ export function CSVManagerEnhanced({
   // IMPORTANTE: Solo cargar si NO hay datos persistentes del padre
   // Esto evita perder cambios cuando se navega entre pasos
   useEffect(() => {
+    // En modo genérico (activityId === 0), el otro useEffect maneja la carga
+    if (activityId === 0) {
+      return
+    }
+    
     // Si acabamos de eliminar, no recargar los datos
     if (justDeletedRef.current) {
       console.log('🚫 Saltando recarga - acabamos de eliminar filas')
@@ -552,7 +583,13 @@ export function CSVManagerEnhanced({
     // ✅ PRIORIDAD 1: Si parentCsvData es undefined, SIEMPRE cargar desde backend
     // Esto ocurre cuando se abre un producto para edición y se limpia el estado
     if (parentCsvData === undefined) {
+      // Evitar llamadas múltiples simultáneas
+      if (isLoadingDataRef.current) {
+        console.log('⏸️ Ya hay una carga en progreso, saltando parentCsvData undefined...')
+        return
+      }
       console.log('🔄 parentCsvData es undefined - forzando carga desde servidor (producto recién abierto)')
+      isLoadingDataRef.current = true
       // Limpiar sessionStorage para asegurar que no haya datos obsoletos
       try {
         sessionStorage.removeItem(`activities_draft_${activityId}`)
@@ -562,9 +599,13 @@ export function CSVManagerEnhanced({
         console.warn('⚠️ No se pudo limpiar sessionStorage:', error)
       }
       hasUserInteractedRef.current = false // Resetear flag de interacción
-      // En modo genérico (activityId === 0) también cargar datos
-      if (activityId === 0 || (activityId && activityId > 0)) {
-        loadExistingData()
+      // Cargar datos solo si activityId es válido (no 0, ya que eso lo maneja el otro useEffect)
+      if (activityId && activityId > 0) {
+        loadExistingData().finally(() => {
+          isLoadingDataRef.current = false
+        })
+      } else {
+        isLoadingDataRef.current = false
       }
       return
     }
@@ -625,7 +666,7 @@ export function CSVManagerEnhanced({
     // En modo genérico (activityId === 0) siempre cargar si no hay datos
     if (activityId === 0) {
       // Modo genérico: siempre cargar si no hay datos del padre
-      if (parentCsvData.length === 0 && !hasInteracted && !hasUserInteractedRef.current) {
+      if (parentCsvData.length === 0 && !hasInteracted && !hasUserInteractedRef.current && !isLoadingDataRef.current) {
         console.log('🔄 Modo genérico: parentCsvData vacío - cargando desde servidor')
         loadExistingData()
       } else if (parentCsvData.length > 0) {
@@ -634,12 +675,12 @@ export function CSVManagerEnhanced({
       }
     } else if (activityId && activityId > 0) {
       // Si parentCsvData está vacío y no hay interacción previa, cargar
-      if (parentCsvData.length === 0 && !hasInteracted && !hasUserInteractedRef.current) {
+      if (parentCsvData.length === 0 && !hasInteracted && !hasUserInteractedRef.current && !isLoadingDataRef.current) {
         console.log('🔄 parentCsvData vacío y primera vez - cargando desde servidor')
         loadExistingData()
       } 
       // Si hay datos pero no hay interacción, también cargar para asegurar que estén actualizados
-      else if (parentCsvData.length > 0 && !hasInteracted && !hasUserInteractedRef.current) {
+      else if (parentCsvData.length > 0 && !hasInteracted && !hasUserInteractedRef.current && !isLoadingDataRef.current) {
         console.log('🔄 Hay datos pero es primera vez - verificando si hay más en servidor')
         loadExistingData()
       } else {
@@ -842,6 +883,12 @@ export function CSVManagerEnhanced({
   }, [parentCsvData, activityId, loadingExisting])
 
   const loadExistingData = async () => {
+    // Prevenir llamadas múltiples simultáneas
+    if (isLoadingDataRef.current) {
+      console.log('⏸️ loadExistingData: Ya hay una carga en progreso, saltando...')
+      return
+    }
+    isLoadingDataRef.current = true
     // Modo genérico: activityId = 0 significa cargar todos los ejercicios/platos del coach
     if (activityId === 0) {
       console.log('🔄 Modo genérico: Cargando todos los ejercicios/platos del coach')
@@ -901,12 +948,14 @@ export function CSVManagerEnhanced({
             error: errorText
           })
           setLoadingExisting(false)
+          isLoadingDataRef.current = false
           return
         }
 
         const catalogJson = await catalogResponse.json().catch((err) => {
           console.error('❌ Error parseando JSON de catálogo genérico:', err)
           setLoadingExisting(false)
+          isLoadingDataRef.current = false
           return
         })
 
@@ -1024,35 +1073,55 @@ export function CSVManagerEnhanced({
             parentSetCsvData(transformed)
           }
 
-          // Cargar uso de cada ejercicio/plato (solo en modo genérico)
-          const usagePromises = transformed
-            .filter((item: any) => item.id && typeof item.id === 'number')
-            .map(async (item: any) => {
-              try {
-                const usageResponse = await fetch(`/api/coach/exercises/usage?exerciseId=${item.id}&category=${category}`)
-                if (usageResponse.ok) {
-                  const usageData = await usageResponse.json()
-                  if (usageData.success) {
-                    return { exerciseId: item.id, usage: usageData }
+          // Cargar uso de cada ejercicio/plato en background (no bloquea la visualización)
+          // Esta carga es costosa si hay muchos elementos, así que la hacemos después de mostrar los datos
+          setTimeout(() => {
+            const itemsWithIds = transformed.filter((item: any) => item.id && typeof item.id === 'number')
+            // Limitar a los primeros 50 para evitar demasiadas requests
+            const itemsToLoad = itemsWithIds.slice(0, 50)
+            
+            if (itemsToLoad.length === 0) return
+            
+            console.log(`🔄 Cargando uso en background para ${itemsToLoad.length} ${category === 'nutricion' ? 'platos' : 'ejercicios'}...`)
+            
+            // Cargar en batches de 10 para no saturar el servidor
+            const batchSize = 10
+            const loadBatch = async (batch: Array<any>) => {
+              const batchPromises = batch.map(async (item: any) => {
+                try {
+                  const usageResponse = await fetch(`/api/coach/exercises/usage?exerciseId=${item.id}&category=${category}`)
+                  if (usageResponse.ok) {
+                    const usageData = await usageResponse.json()
+                    if (usageData.success) {
+                      return { exerciseId: item.id, usage: usageData }
+                    }
+                  }
+                } catch (error) {
+                  // Silenciar errores en background
+                }
+                return null
+              })
+              
+              const results = await Promise.all(batchPromises)
+              const usageMap: Record<number, { activities: Array<{ id: number; name: string }> }> = {}
+              results.forEach((result) => {
+                if (result) {
+                  usageMap[result.exerciseId] = {
+                    activities: result.usage.activities || []
                   }
                 }
-              } catch (error) {
-                console.error(`❌ Error cargando uso para ejercicio ${item.id}:`, error)
-              }
-              return null
-            })
-
-          const usageResults = await Promise.all(usagePromises)
-          const usageMap: Record<number, { activities: Array<{ id: number; name: string }> }> = {}
-          usageResults.forEach((result) => {
-            if (result) {
-              usageMap[result.exerciseId] = {
-                activities: result.usage.activities || []
-              }
+              })
+              
+              // Actualizar el estado acumulativo
+              setExerciseUsage(prev => ({ ...prev, ...usageMap }))
             }
-          })
-          setExerciseUsage(usageMap)
-          console.log(`✅ Uso cargado para ${Object.keys(usageMap).length} ${category === 'nutricion' ? 'platos' : 'ejercicios'}`)
+            
+            // Procesar en batches
+            for (let i = 0; i < itemsToLoad.length; i += batchSize) {
+              const batch = itemsToLoad.slice(i, i + batchSize)
+              loadBatch(batch).catch(() => {}) // Ignorar errores
+            }
+          }, 500) // Esperar 500ms después de mostrar los datos
         } else {
           const errorMessage = catalogJson?.error || `Error ${catalogResponse.status}: ${catalogResponse.statusText}`
           console.error(`❌ No se pudieron cargar ${category === 'nutricion' ? 'platos' : 'ejercicios'} de catálogo:`, {
@@ -1067,6 +1136,7 @@ export function CSVManagerEnhanced({
         console.error('❌ Error cargando platos de catálogo nutrición:', error)
       } finally {
         setLoadingExisting(false)
+        isLoadingDataRef.current = false
       }
       return
     }
@@ -1379,6 +1449,7 @@ export function CSVManagerEnhanced({
       setError(`Error obteniendo ${productCategory === 'nutricion' ? 'platos' : 'ejercicios'} existentes: ${(error as any)?.message ?? 'Error desconocido'}`)
     } finally {
       setLoadingExisting(false)
+      isLoadingDataRef.current = false
     }
   }
 

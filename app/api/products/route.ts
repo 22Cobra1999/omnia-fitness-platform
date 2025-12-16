@@ -323,14 +323,52 @@ export async function GET(request: NextRequest) {
         
         if (isNutrition) {
           // Para nutrición: obtener platos de nutrition_program_details
-          // Usar .contains() para buscar en el JSONB activity_id
-          const activityKeyObj = { [product.id.toString()]: {} }
-          const { data: platos } = await supabase
-            .from('nutrition_program_details')
-            .select('id')
-            .contains('activity_id', activityKeyObj)
+          // Intentar múltiples estrategias para encontrar los platos
+          let platos: any[] = []
           
-          exercisesCount = platos?.length || 0
+          // Estrategia 1: JSONB con .contains()
+          try {
+            const activityKeyObj = { [product.id.toString()]: {} }
+            const { data: platosJsonb } = await supabase
+              .from('nutrition_program_details')
+              .select('id')
+              .contains('activity_id', activityKeyObj)
+            
+            if (platosJsonb && platosJsonb.length > 0) {
+              platos = platosJsonb
+            }
+          } catch (e) {
+            // Continuar con otras estrategias
+          }
+          
+          // Estrategia 2: Si no hay resultados, buscar todos y filtrar manualmente
+          if (platos.length === 0) {
+            try {
+              const { data: allPlatos } = await supabase
+                .from('nutrition_program_details')
+                .select('id, activity_id')
+                .eq('coach_id', user.id)
+              
+              if (allPlatos) {
+                const filteredPlatos = allPlatos.filter((plato: any) => {
+                  // Verificar si activity_id es JSONB y contiene el ID
+                  if (plato.activity_id && typeof plato.activity_id === 'object') {
+                    return product.id.toString() in plato.activity_id
+                  }
+                  // Verificar si es integer (formato legacy)
+                  if (typeof plato.activity_id === 'number') {
+                    return plato.activity_id === product.id
+                  }
+                  return false
+                })
+                platos = filteredPlatos
+              }
+            } catch (e) {
+              // Si falla, continuar con 0
+            }
+          }
+          
+          exercisesCount = platos.length
           
           if (planificacion && planificacion.length > 0) {
             const diasConEjercicios = new Set()
@@ -550,7 +588,7 @@ export async function GET(request: NextRequest) {
           type: product.type || 'activity',
           difficulty: product.difficulty || 'beginner',
           is_public: product.is_public || false,
-          capacity: product.capacity || null,
+          capacity: product.capacity !== null && product.capacity !== undefined ? product.capacity : null,
           modality: product.modality || null,
           created_at: product.created_at,
           updated_at: product.updated_at,
@@ -571,11 +609,13 @@ export async function GET(request: NextRequest) {
           objetivos: objetivos,
           // Categoría para determinar si es nutrición
           categoria: product.categoria,
-          // Tipo de dieta para productos de nutrición
-          dieta: product.dieta || null,
           // Ubicación para actividades presenciales
           location_url: product.location_url,
           location_name: product.location_name,
+          // Modo de taller (individual/grupal) - solo para talleres
+          workshop_mode: product.type === 'workshop' ? ((product as any).workshop_mode || 'grupal') : undefined,
+          // Cantidad de participantes por clase (solo para talleres grupales)
+          participants_per_class: product.type === 'workshop' && ((product as any).workshop_mode === 'grupal') ? ((product as any).participants_per_class || null) : null,
           // Estadísticas calculadas dinámicamente
           exercisesCount: exercisesCount,
           totalSessions: totalSessions,
@@ -725,8 +765,6 @@ export async function POST(request: NextRequest) {
         capacity: adjustedCapacity,
         // stockQuantity no existe en la tabla activities
         coach_id: user.id,
-        // ✅ GUARDAR TIPO DE DIETA
-        dieta: body.dieta || null,
         // ✅ GUARDAR OBJETIVOS EN workshop_type como JSON
         workshop_type: body.objetivos && Array.isArray(body.objetivos) && body.objetivos.length > 0
           ? JSON.stringify(body.objetivos)
@@ -735,7 +773,11 @@ export async function POST(request: NextRequest) {
         location_name: body.location_name || null,
         location_url: body.location_url || null,
         // ✅ NUEVO: Días para acceder al producto
-        dias_acceso: body.dias_acceso || 30
+        dias_acceso: body.dias_acceso || 30,
+        // ✅ NUEVO: Modo de taller (individual/grupal)
+        workshop_mode: body.workshop_mode || 'grupal',
+        // ✅ NUEVO: Cantidad de participantes por clase (solo para talleres grupales)
+        participants_per_class: body.participants_per_class || null
       })
       .select()
       .single()
@@ -929,6 +971,12 @@ export async function PUT(request: NextRequest) {
     
     const isDocumentProduct = typeof body.modality === 'string' && body.modality.toLowerCase() === 'document'
     
+    // Obtener el capacity actual del producto que se está editando
+    const currentProductCapacity = (existingActivities || []).find(
+      (activity) => activity.id === body.editingProductId
+    )?.capacity || null
+    const currentProductCapacityNumber = normalizeCapacity(currentProductCapacity)
+    
     const otherCapacityUsed = (existingActivities || [])
       .filter((activity) => activity.id !== body.editingProductId)
       .filter((activity) => {
@@ -938,8 +986,25 @@ export async function PUT(request: NextRequest) {
       })
       .reduce((sum, activity) => sum + normalizeCapacity(activity.capacity), 0)
     
+    console.log(`📊 PRODUCTOS PUT: Capacidades calculadas:`, {
+      currentProductCapacity,
+      currentProductCapacityNumber,
+      otherCapacityUsed,
+      totalClientsLimit,
+      availableForThisProduct: totalClientsLimit - otherCapacityUsed
+    })
+    
     // Ajustar capacity (stock) automáticamente si excede los límites
     let adjustedCapacity = body.capacity ?? null
+    
+    console.log(`📊 PRODUCTOS PUT: Capacity recibido:`, {
+      rawCapacity: body.capacity,
+      capacityType: typeof body.capacity,
+      editingProductId: body.editingProductId,
+      isDocumentProduct,
+      stockLimit,
+      totalClientsLimit
+    })
     
     if (isDocumentProduct) {
       adjustedCapacity = null
@@ -953,24 +1018,98 @@ export async function PUT(request: NextRequest) {
         targetCapacity = stockLimit
       }
       
-      const remainingCapacity = Math.max(totalClientsLimit - otherCapacityUsed, 0)
+      // Calcular capacidad disponible: límite total - otros productos + capacidad actual del producto (si existe)
+      // Esto permite que el usuario pueda mantener o ajustar el capacity del producto actual
+      // IMPORTANTE: Si el producto ya tiene un capacity, podemos "liberar" ese espacio al establecer uno nuevo
+      const capacityAvailableForThisProduct = totalClientsLimit - otherCapacityUsed + currentProductCapacityNumber
+      let remainingCapacity = Math.max(capacityAvailableForThisProduct, 0)
+      
+      // Si no hay capacidad disponible (remainingCapacity = 0) y el producto no tenía capacity previo,
+      // pero el usuario intenta establecer uno, permitir establecer hasta stockLimit individual
+      // Esto permite que el usuario pueda establecer cupos aunque otros productos estén usando el límite total,
+      // ya que luego puede ajustar otros productos para liberar espacio
+      if (remainingCapacity === 0 && currentProductCapacityNumber === 0 && numericCapacity > 0) {
+        // Permitir establecer cupos hasta el stockLimit individual
+        remainingCapacity = Math.min(stockLimit, numericCapacity)
+        console.warn(`⚠️ Límite total alcanzado (${otherCapacityUsed}/${totalClientsLimit}). Permitindo establecer hasta ${remainingCapacity} cupos (stockLimit individual) para permitir flexibilidad al usuario.`)
+      }
+      
+      console.log(`📊 PRODUCTOS PUT: Cálculo de capacidad disponible:`, {
+        totalClientsLimit,
+        otherCapacityUsed,
+        currentProductCapacityNumber,
+        capacityAvailableForThisProduct,
+        remainingCapacity,
+        targetCapacity
+      })
+      
       if (targetCapacity > remainingCapacity) {
         console.log(
-          `⚠️ Stock excede límite total de clientes (${totalClientsLimit}). Cupos usados por otros productos: ${otherCapacityUsed}. Ajustando a ${remainingCapacity}`
+          `⚠️ Stock excede límite total de clientes (${totalClientsLimit}). Cupos usados por otros productos: ${otherCapacityUsed}, capacidad actual del producto: ${currentProductCapacityNumber}. Disponible: ${remainingCapacity}. Ajustando a ${remainingCapacity}`
         )
         targetCapacity = remainingCapacity
       }
       
       adjustedCapacity = Math.max(Math.floor(targetCapacity), 0)
       
-      // Si el resultado es 0, convertir a null para evitar violar check_capacity_positive
+      console.log(`📊 PRODUCTOS PUT: Capacity ajustado:`, {
+        originalCapacity: body.capacity,
+        numericCapacity,
+        targetCapacity,
+        adjustedCapacity,
+        otherCapacityUsed,
+        remainingCapacity: Math.max(totalClientsLimit - otherCapacityUsed, 0),
+        totalClientsLimit,
+        stockLimit
+      })
+      
+      // Si el resultado es 0, verificar si realmente debe ser null o si puede mantener un valor
       if (adjustedCapacity === 0) {
-        adjustedCapacity = null
-        console.log(`ℹ️ Capacity ajustada a null (era 0) para evitar violar constraint check_capacity_positive`)
+        // Si el usuario intentó establecer un valor > 0 pero quedó en 0 por límites
+        if (numericCapacity > 0) {
+          console.warn(`⚠️ Capacity ajustado a 0 aunque el usuario especificó ${numericCapacity}.`)
+          // Si hay capacidad disponible considerando el capacity actual del producto
+          if (remainingCapacity > 0) {
+            // Hay capacidad disponible, usar el mínimo entre lo solicitado y lo disponible
+            adjustedCapacity = Math.min(numericCapacity, remainingCapacity, stockLimit)
+            console.log(`✅ Ajustando capacity a ${adjustedCapacity} (hay ${remainingCapacity} disponible)`)
+          } else {
+            // No hay capacidad disponible incluso considerando el capacity actual
+            // Mantener el capacity actual del producto si existe, sino null
+            if (currentProductCapacityNumber > 0) {
+              adjustedCapacity = currentProductCapacityNumber
+              console.log(`✅ Manteniendo capacity actual del producto: ${adjustedCapacity} (no hay más capacidad disponible)`)
+            } else {
+              adjustedCapacity = null
+              console.log(`ℹ️ Capacity ajustada a null (no hay capacidad disponible y el producto no tenía capacity previo)`)
+            }
+          }
+        } else {
+          // El usuario especificó 0 o null explícitamente
+          adjustedCapacity = null
+          console.log(`ℹ️ Capacity ajustada a null (el usuario especificó ${numericCapacity})`)
+        }
       }
+    } else {
+      console.log(`📊 PRODUCTOS PUT: Capacity es null o undefined, no se ajusta`)
     }
     
+    console.log(`📊 PRODUCTOS PUT: Capacity final que se guardará:`, {
+      adjustedCapacity,
+      adjustedCapacityType: typeof adjustedCapacity
+    })
+    
     // Actualizar producto en activities
+    console.log(`💾 PRODUCTOS PUT: Guardando producto con capacity:`, {
+      productId: body.editingProductId,
+      capacity: adjustedCapacity,
+      capacityType: typeof adjustedCapacity,
+      updateObject: {
+        title: body.name,
+        capacity: adjustedCapacity
+      }
+    })
+    
     const { data: product, error: productError } = await supabase
       .from('activities')
       .update({
@@ -986,8 +1125,6 @@ export async function PUT(request: NextRequest) {
         difficulty: body.level,
         is_public: body.is_public,
         capacity: adjustedCapacity,
-        // ✅ ACTUALIZAR TIPO DE DIETA
-        dieta: body.dieta || null,
         // ✅ GUARDAR OBJETIVOS EN workshop_type como JSON
         workshop_type: body.objetivos && Array.isArray(body.objetivos) && body.objetivos.length > 0
           ? JSON.stringify(body.objetivos)
@@ -996,7 +1133,11 @@ export async function PUT(request: NextRequest) {
         location_name: body.location_name || null,
         location_url: body.location_url || null,
         // ✅ NUEVO: Días para acceder al producto
-        dias_acceso: body.dias_acceso || 30
+        dias_acceso: body.dias_acceso || 30,
+        // ✅ NUEVO: Modo de taller (individual/grupal)
+        workshop_mode: body.workshop_mode || 'grupal',
+        // ✅ NUEVO: Cantidad de participantes por clase (solo para talleres grupales)
+        participants_per_class: body.participants_per_class || null
       })
       .eq('id', body.editingProductId)
       .eq('coach_id', user.id) // Seguridad: solo el coach dueño puede actualizar
@@ -1004,9 +1145,21 @@ export async function PUT(request: NextRequest) {
       .single()
     
     if (productError) {
+      console.error(`❌ PRODUCTOS PUT: Error actualizando producto:`, {
+        productId: body.editingProductId,
+        error: productError,
+        capacitySent: adjustedCapacity
+      })
       console.error('❌ Error actualizando producto:', productError)
       return NextResponse.json({ error: productError.message }, { status: 500 })
     }
+    
+    console.log(`✅ PRODUCTOS PUT: Producto actualizado exitosamente:`, {
+      productId: body.editingProductId,
+      capacityGuardado: product?.capacity,
+      capacityEnviado: adjustedCapacity,
+      productCapacityType: typeof product?.capacity
+    })
     
     if (body.image_url || body.video_url) {
       // Verificar si ya existe un registro de media para esta actividad

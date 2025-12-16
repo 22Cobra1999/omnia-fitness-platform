@@ -384,7 +384,7 @@ const ActivityCard: React.FC<ActivityCardProps> = ({
     }
   }
 
-  const getDietTypeDisplay = (dietType?: string) => {
+  const getDietTypeDisplay = (dietType?: string | null) => {
     if (!dietType) return null
     
     const friendlyName = getFriendlyDietName(dietType)
@@ -512,25 +512,58 @@ const ActivityCard: React.FC<ActivityCardProps> = ({
             </span>
           </div>
 
-         {/* 4. INTENSIDAD/DIETA - MODALIDAD - Sección fija */}
+         {/* 4. INTENSIDAD/DIETA - MODO TALLER - MODALIDAD - Sección fija */}
          <div className="flex items-center justify-between mb-4">
            <div className="flex items-center gap-2 text-[#FF7939]">
             {/* Para productos de nutrición, mostrar tipo de dieta en lugar de dificultad */}
             {activity.categoria === 'nutricion' || activity.categoria === 'nutrition' ?
               getDietTypeDisplay(((activity as any).dieta ?? undefined) as string | undefined) :
               <div className="flex items-center gap-1">
-                {getDifficultyFires(activity.difficulty)}
+                {getDifficultyFires(activity.difficulty || undefined)}
               </div>
             }
            </div>
-           <div className="flex items-center gap-2">
-             {/* Modalidad - Solo icono, sin texto - Siempre mostrar */}
+           
+           {/* Centro: Modo de taller (solo para talleres) */}
+           <div className="flex items-center justify-center flex-1">
+             {activity.type === 'workshop' && (() => {
+               const workshopMode = (activity as any).workshop_mode || 'grupal'
+               if (workshopMode === 'individual') {
+                 // Mostrar badge "1:1" en amarillo con estilo de objetivos
+                 return (
+                   <span
+                     className="bg-yellow-500/20 text-yellow-500 text-[10px] px-1.5 py-0.5 rounded-full font-medium border border-yellow-500/30 whitespace-nowrap flex-shrink-0"
+                     title="1:1 Individual"
+                   >
+                     1:1
+                   </span>
+                 )
+               } else {
+                 // Mostrar 3 personas en forma de triángulo: 2 abajo, 1 arriba
+                 return (
+                   <div className="relative flex items-center justify-center text-white" title="Grupal">
+                     <div className="flex items-end gap-1">
+                       {/* Persona izquierda abajo */}
+                       <Users className="h-3 w-3" />
+                       {/* Persona derecha abajo */}
+                       <Users className="h-3 w-3" />
+                     </div>
+                     {/* Persona arriba en el centro */}
+                     <Users className="h-3 w-3 absolute -top-1.5 left-1/2 transform -translate-x-1/2" />
+                   </div>
+                 )
+               }
+             })()}
+           </div>
+           
+           {/* Derecha: Modalidad - Siempre a la derecha */}
+           <div className="flex items-center">
              {(() => {
                const modalityToShow = productModality || 'online'
                return (
                  <div className={`flex items-center ${getModalityColor(modalityToShow)}`}>
                    {getModalityIcon(modalityToShow)}
-             </div>
+                 </div>
                )
              })()}
            </div>
@@ -577,7 +610,7 @@ const ActivityCard: React.FC<ActivityCardProps> = ({
 
          {/* 6. OBJETIVOS/TAGS - Sección fija (siempre presente para mantener alineación) */}
          <div className="flex gap-1 mb-1 justify-start overflow-x-auto h-6">
-            {/* Para productos de nutrición, usar tipo de dieta como “objetivo” principal */}
+            {/* Para productos de nutrición, usar tipo de dieta como "objetivo" principal */}
             {((activity.categoria === 'nutricion' || activity.categoria === 'nutrition') && (activity as any).dieta) ? (
               <span
                 className="bg-[#FF7939]/20 text-[#FF7939] text-[10px] px-1.5 py-0.5 rounded-full font-medium border border-[#FF7939]/30 whitespace-nowrap flex-shrink-0"

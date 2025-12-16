@@ -65,10 +65,21 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       try {
         setLoading(true)
 
-        // Optimización: Usar getSession directamente sin retry logic para mayor velocidad
-        const { data, error } = await supabase.auth.getSession()
+        // Usar getSession con timeout simple
+        const timeoutPromise = new Promise<{ data: { session: null }, error: null }>((resolve) => {
+          setTimeout(() => {
+            resolve({ data: { session: null }, error: null })
+          }, 2000)
+        })
+
+        const sessionPromise = supabase.auth.getSession()
+        
+        // Race entre la sesión y el timeout
+        const result = await Promise.race([sessionPromise, timeoutPromise])
         
         if (!mounted) return
+
+        const { data, error } = result as any
 
         if (error) {
           console.warn("Session error:", error)
@@ -77,17 +88,15 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
           return
         }
 
-        if (data.session?.user) {
-          // Log optimizado - solo en desarrollo
-        if (process.env.NODE_ENV === 'development') {
-          console.log("User found in session:", data.session.user.email)
-        }
+        if (data?.session?.user) {
+          if (process.env.NODE_ENV === 'development') {
+            console.log("User found in session:", data.session.user.email)
+          }
           setUser(formatUser(data.session.user))
         } else {
-          // Log optimizado - solo en desarrollo
-        if (process.env.NODE_ENV === 'development') {
-          console.log("No user found in session")
-        }
+          if (process.env.NODE_ENV === 'development') {
+            console.log("No user found in session")
+          }
           setUser(null)
         }
         setLoading(false)

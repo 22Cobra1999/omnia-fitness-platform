@@ -151,6 +151,9 @@ export default function ProductsManagementScreen({ onTabChange }: ProductsManage
   
   // Estado para evitar doble ejecución
   const [isDeleting, setIsDeleting] = useState(false)
+  
+  // Estado para guardar si el modal de detalle estaba abierto antes de editar
+  const [wasPreviewOpenBeforeEdit, setWasPreviewOpenBeforeEdit] = useState(false)
 
   // Estado para estadísticas
   const [stats, setStats] = useState({
@@ -870,26 +873,45 @@ export default function ProductsManagementScreen({ onTabChange }: ProductsManage
     loadCafeData()
   }, [user?.id, isCafeModalOpen])
 
-  const handleCloseModal = useCallback(async () => {
+  const handleCloseModal = useCallback(async (saved: boolean = false) => {
     const editingProductId = editingProduct?.id
     const wasEditingWorkshop = editingProduct?.type === 'workshop'
     
     setIsModalOpen(false)
     
-    // Recargar productos para obtener los datos actualizados
-    await fetchProducts()
+    // Solo recargar productos si se guardaron cambios
+    if (saved) {
+      await fetchProducts()
+    }
     
     setEditingProduct(null)
     setShouldOpenWorkshopSchedule(false)
     setShouldShowDateChangeNoticeAfterStep5(false)
     setShowDateChangeNotice(false)
     
+    // Si el modal de detalle estaba abierto antes de editar, reabrirlo
+    if (wasPreviewOpenBeforeEdit && selectedProduct) {
+      setIsProductModalOpen(true)
+      setWasPreviewOpenBeforeEdit(false)
+      
+      // Si se guardaron cambios, actualizar el producto seleccionado
+      if (saved) {
+        setTimeout(() => {
+          const updatedProduct = products.find(p => p.id === editingProductId)
+          if (updatedProduct) {
+            setSelectedProduct(updatedProduct)
+          }
+        }, 100)
+      }
+      return // No continuar con el resto de la lógica si volvemos al detalle
+    }
+    
     // IMPORTANTE: Si cerró sin guardar cambios, la encuesta ya completada NO debe aparecer de nuevo
     // El estado de completedCoachSurveys se mantiene para evitar que aparezca la encuesta en la misma sesión
     // La verificación en el backend también previene que aparezca (encuesta guardada con workshop_version)
     
     // Disparar evento de actualización después de un pequeño delay para que los productos se hayan recargado
-    if (editingProductId) {
+    if (editingProductId && saved) {
       setTimeout(() => {
         window.dispatchEvent(new CustomEvent('productUpdated', { 
           detail: { productId: editingProductId } 
@@ -907,7 +929,7 @@ export default function ProductsManagementScreen({ onTabChange }: ProductsManage
         }
       }, 200)
     }
-  }, [fetchProducts, editingProduct, selectedProduct, products])
+  }, [fetchProducts, editingProduct, selectedProduct, wasPreviewOpenBeforeEdit, products, products])
 
   // Mostrar el aviso después de 1 segundo cuando se abre el paso 5
   useEffect(() => {
@@ -1096,11 +1118,21 @@ export default function ProductsManagementScreen({ onTabChange }: ProductsManage
       // ✅ AGREGAR OBJETIVOS desde el producto
       objetivos: product.objetivos || [],
       // ✅ AGREGAR is_paused desde el producto
-      is_paused: product.is_paused || false
+      is_paused: product.is_paused || false,
+      // ✅ AGREGAR workshop_mode y participants_per_class desde el producto
+      workshop_mode: (product as any).workshop_mode || (product.type === 'workshop' ? 'grupal' : undefined),
+      participants_per_class: (product as any).participants_per_class || null
     }
   }, [])
 
   const handleEditProduct = useCallback(async (product: Product) => {
+    // Guardar si el modal de detalle estaba abierto antes de abrir el modal de edición
+    if (isProductModalOpen && selectedProduct?.id === product.id) {
+      setWasPreviewOpenBeforeEdit(true)
+    } else {
+      setWasPreviewOpenBeforeEdit(false)
+    }
+    
     // Verificar si es un taller finalizado
     // Puede estar finalizado si: is_finished === true O taller_activo === false
     const isWorkshopFinished = product.type === 'workshop' && 
@@ -1442,132 +1474,223 @@ export default function ProductsManagementScreen({ onTabChange }: ProductsManage
 
         {/* Contenido según tab activo */}
         {activeMainTab === 'products' && (
-          <>
-
-        {/* Tabla de productos con filtros integrados */}
-        <div className="bg-[#0F0F0F] rounded-2xl border border-[#1A1A1A] overflow-hidden">
-          {/* Header de tabla con filtros */}
-          <div className="p-4 border-b border-[#1A1A1A]">
-                          <div className="flex flex-col space-y-3">
-              <div className="flex items-center justify-between relative">
-                {/* Dropdown de categoría a la izquierda */}
-                <div className="relative">
-                  <Button
-                    variant="outline"
-                    size="sm"
-                    onClick={() => setShowTypeDropdown(!showTypeDropdown)}
-                    className="border-[#1A1A1A] text-gray-400 hover:text-white rounded-full px-3 py-1 text-xs"
-                  >
-                    {typeFilter === 'todos' ? 'Todos' : typeFilter}
-                    <ChevronDown className="h-3 w-3 ml-1" />
-                  </Button>
-                  
-                  {showTypeDropdown && (
-                    <div className="absolute left-0 top-full mt-2 bg-[#0F0F0F] border border-[#1A1A1A] rounded-xl shadow-lg z-10 min-w-[150px]">
-                      <div className="p-2">
-                        <button
-                          onClick={() => { setTypeFilter('todos'); setShowTypeDropdown(false); }}
-                          className="w-full text-left px-3 py-2 rounded-lg hover:bg-[#1A1A1A] text-gray-400 hover:text-white transition-colors text-sm"
-                        >
-                          Todos
-                        </button>
-                        <button
-                          onClick={() => { setTypeFilter('fitness'); setShowTypeDropdown(false); }}
-                          className="w-full text-left px-3 py-2 rounded-lg hover:bg-[#1A1A1A] text-gray-400 hover:text-white transition-colors text-sm"
-                        >
-                          Fitness
-                        </button>
-                        <button
-                          onClick={() => { setTypeFilter('nutrition'); setShowTypeDropdown(false); }}
-                          className="w-full text-left px-3 py-2 rounded-lg hover:bg-[#1A1A1A] text-gray-400 hover:text-white transition-colors text-sm"
-                        >
-                          Nutrición
-                        </button>
-                        <button
-                          onClick={() => { setTypeFilter('program'); setShowTypeDropdown(false); }}
-                          className="w-full text-left px-3 py-2 rounded-lg hover:bg-[#1A1A1A] text-gray-400 hover:text-white transition-colors text-sm"
-                        >
-                          Programa
-                        </button>
-                      </div>
-                    </div>
-                  )}
-                </div>
-                
-                {/* Icono de Café centrado y Botón Crear */}
-                {activeMainTab === 'products' && (
-                  <>
-                    {/* Icono de Café centrado */}
-                    <div className="absolute left-1/2 transform -translate-x-1/2">
-                        <button
-                        onClick={() => setIsCafeModalOpen(true)}
-                        className="relative w-10 h-10 rounded-full flex items-center justify-center bg-transparent border-2 transition-all duration-200 hover:bg-[#0A0A0A]/50"
-                        style={{
-                          borderColor: (consultations.express.active || consultations.puntual.active || consultations.profunda.active) ? '#FF7939' : '#4B5563'
-                        }}
-                      >
-                        <Coffee 
-                          className="h-5 w-5 transition-colors duration-200" 
-                          style={{
-                            color: (consultations.express.active || consultations.puntual.active || consultations.profunda.active) ? '#FF7939' : '#9CA3AF'
-                          }}
-                        />
-                        {(consultationSales.express.length + consultationSales.puntual.length + consultationSales.profunda.length) > 0 && (
-                          <span className="absolute -top-1 -right-1 bg-[#FF7939] text-white text-xs font-bold rounded-full w-5 h-5 flex items-center justify-center">
-                            {(consultationSales.express.length + consultationSales.puntual.length + consultationSales.profunda.length) > 9 ? '9+' : (consultationSales.express.length + consultationSales.puntual.length + consultationSales.profunda.length)}
-                          </span>
-                        )}
-                        </button>
-                      </div>
+          <div className="bg-[#0F0F0F] rounded-2xl border border-[#1A1A1A] overflow-hidden">
+            {/* Header de tabla con filtros */}
+            <div className="p-4 border-b border-[#1A1A1A]">
+              <div className="flex flex-col space-y-3">
+                <div className="flex items-center justify-between relative">
+                  {/* Dropdown de categoría a la izquierda */}
+                  <div className="relative">
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={() => setShowTypeDropdown(!showTypeDropdown)}
+                      className="border-[#1A1A1A] text-gray-400 hover:text-white rounded-full px-3 py-1 text-xs"
+                    >
+                      {typeFilter === 'todos' ? 'Todos' : typeFilter}
+                      <ChevronDown className="h-3 w-3 ml-1" />
+                    </Button>
                     
-                    {/* Botón Crear a la derecha */}
-                    <div className="ml-auto">
-                      <Button
-                        className="bg-[#FF7939] hover:bg-[#E66829] text-white px-2.5 py-1 rounded-lg font-bold text-xs shadow-md hover:shadow-[#FF7939]/25 transition-all duration-200"
-                        onClick={handleOpenModal}
-                      >
-                        <Plus className="h-3 w-3 mr-1" />
-                        Crear
-                      </Button>
-                    </div>
-                  </>
-                  )}
+                    {showTypeDropdown && (
+                      <div className="absolute left-0 top-full mt-2 bg-[#0F0F0F] border border-[#1A1A1A] rounded-xl shadow-lg z-10 min-w-[150px]">
+                        <div className="p-2">
+                          <button
+                            onClick={() => { setTypeFilter('todos'); setShowTypeDropdown(false); }}
+                            className="w-full text-left px-3 py-2 rounded-lg hover:bg-[#1A1A1A] text-gray-400 hover:text-white transition-colors text-sm"
+                          >
+                            Todos
+                          </button>
+                          <button
+                            onClick={() => { setTypeFilter('fitness'); setShowTypeDropdown(false); }}
+                            className="w-full text-left px-3 py-2 rounded-lg hover:bg-[#1A1A1A] text-gray-400 hover:text-white transition-colors text-sm"
+                          >
+                            Fitness
+                          </button>
+                          <button
+                            onClick={() => { setTypeFilter('nutrition'); setShowTypeDropdown(false); }}
+                            className="w-full text-left px-3 py-2 rounded-lg hover:bg-[#1A1A1A] text-gray-400 hover:text-white transition-colors text-sm"
+                          >
+                            Nutrición
+                          </button>
+                          <button
+                            onClick={() => { setTypeFilter('program'); setShowTypeDropdown(false); }}
+                            className="w-full text-left px-3 py-2 rounded-lg hover:bg-[#1A1A1A] text-gray-400 hover:text-white transition-colors text-sm"
+                          >
+                            Programa
+                          </button>
+                        </div>
+                      </div>
+                    )}
+                  </div>
+                  
+                  {/* Icono de Café centrado y Botón Crear */}
+                  <div className="absolute left-1/2 transform -translate-x-1/2">
+                    <button
+                      onClick={() => setIsCafeModalOpen((prev) => !prev)}
+                      className="relative w-10 h-10 rounded-full flex items-center justify-center bg-transparent border-2 transition-all duration-200 hover:bg-[#0A0A0A]/50"
+                      style={{
+                        borderColor:
+                          consultations.express.active ||
+                          consultations.puntual.active ||
+                          consultations.profunda.active
+                            ? '#FF7939'
+                            : '#4B5563',
+                      }}
+                    >
+                      <Coffee
+                        className="h-5 w-5 transition-colors duration-200"
+                        style={{
+                          color:
+                            consultations.express.active ||
+                            consultations.puntual.active ||
+                            consultations.profunda.active
+                              ? '#FF7939'
+                              : '#9CA3AF',
+                        }}
+                      />
+                      {(consultationSales.express.length +
+                        consultationSales.puntual.length +
+                        consultationSales.profunda.length) > 0 && (
+                        <span className="absolute -top-1 -right-1 bg-[#FF7939] text-white text-xs font-bold rounded-full w-5 h-5 flex items-center justify-center">
+                          {consultationSales.express.length +
+                            consultationSales.puntual.length +
+                            consultationSales.profunda.length >
+                          9
+                            ? '9+'
+                            : consultationSales.express.length +
+                              consultationSales.puntual.length +
+                              consultationSales.profunda.length}
+                        </span>
+                      )}
+                    </button>
+                  </div>
+                  
+                  {/* Botón Crear a la derecha */}
+                  <div className="ml-auto">
+                    <Button
+                      className="bg-[#FF7939] hover:bg-[#E66829] text-white px-2.5 py-1 rounded-lg font-bold text-xs shadow-md hover:shadow-[#FF7939]/25 transition-all duración-200"
+                      onClick={handleOpenModal}
+                    >
+                      <Plus className="h-3 w-3 mr-1" />
+                      Crear
+                    </Button>
+                  </div>
                 </div>
-            </div>
-          </div>
-          
-          {/* Lista de productos */}
-          <div className="space-y-2">
-            
-            {/* Productos - Formato de cards horizontales */}
-                {loading ? (
-                  <div className="p-6 text-center">
-                    <div className="text-gray-400 text-sm">Cargando productos...</div>
-                  </div>
-                ) : sortedProducts.length === 0 ? (
-                  <div className="p-6 text-center">
-                    <div className="text-gray-400 text-sm">No hay productos creados aún</div>
-                  </div>
-                ) : (
-                  <div className="overflow-x-auto pb-2">
-                    <div className="flex -space-x-4" style={{ minWidth: "min-content" }}>
-                      {/* Productos */}
-                      {sortedProducts.map((product) => (
-                        <ProductCard
-                          key={product.id}
-                          product={product}
-                          onEdit={handleEditProduct}
-                          onPreview={handlePreviewProduct}
-                          onDelete={handleDeleteProduct}
-                          convertProductToActivity={convertProductToActivity}
-                        />
-                      ))}
+
+                {/* Vista de Consultas (Meet con el coach) inline, debajo del header */}
+                {isCafeModalOpen && (
+                  <div className="mt-4 rounded-2xl border border-[#1A1A1A] bg-[#050505] p-4 space-y-4">
+                    {/* Header inline de consultas */}
+                    <div className="flex items-center justify-between">
+                      <div className="flex items-center gap-2">
+                        <Coffee className="w-5 h-5 text-[#FF7939]" />
+                        <h3 className="text-white font-semibold text-sm">
+                          Consultas / Meets con el coach
+                        </h3>
+                      </div>
+                      <button
+                        onClick={() => {
+                          setIsCafeModalOpen(false)
+                          setConsultationError(null)
+                        }}
+                        className="text-gray-400 hover:text-white transition-colors"
+                      >
+                        <X className="h-4 w-4" />
+                      </button>
                     </div>
+
+                    {/* Mensaje de error */}
+                    {consultationError && (
+                      <div className="mb-2 px-3 py-2 bg-[#FF7939]/10 border border-[#FF7939]/30 rounded-lg">
+                        <p className="text-[#FF7939] text-xs text-center font-medium">
+                          {consultationError}
+                        </p>
+                      </div>
+                    )}
+
+                    {/* Secciones de consultas (las 3 opciones configurables) */}
+                    <div className="space-y-2">
+                      {renderConsultationSection('express')}
+                      {renderConsultationSection('puntual')}
+                      {renderConsultationSection('profunda')}
+                    </div>
+
+                    {/* Consultas pendientes (si hay) */}
+                    {pendingConsultations.length > 0 && (
+                      <div className="pt-4 border-t border-gray-700/30">
+                        <h4 className="text-white font-semibold text-xs mb-3">
+                          Consultas pendientes
+                        </h4>
+                        <div className="space-y-2">
+                          {pendingConsultations.map((consultation) => {
+                            const date = new Date(consultation.date)
+                            const formattedDate = date.toLocaleDateString('es-ES', {
+                              day: '2-digit',
+                              month: '2-digit',
+                              year: 'numeric',
+                            })
+                            const formattedTime = date.toLocaleTimeString('es-ES', {
+                              hour: '2-digit',
+                              minute: '2-digit',
+                            })
+
+                            return (
+                              <div
+                                key={consultation.id}
+                                className="flex items-center justify-between py-2 border-b border-gray-700/20 last:border-b-0"
+                              >
+                                <div className="flex-1">
+                                  <p className="text-white font-medium text-xs">
+                                    {consultation.clientName}
+                                  </p>
+                                  <p className="text-gray-400 text-[11px] mt-0.5">
+                                    {formattedDate} - {formattedTime}
+                                  </p>
+                                  <p className="text-gray-500 text-[11px] mt-0.5">
+                                    {consultation.consultationType}
+                                  </p>
+                                </div>
+                              </div>
+                            )
+                          })}
+                        </div>
+                      </div>
+                    )}
                   </div>
                 )}
+              </div>
+            </div>
+            
+            {/* Lista de productos */}
+            <div className="space-y-2">
+              {/* Productos - Formato de cards horizontales */}
+              {loading ? (
+                <div className="p-6 text-center">
+                  <div className="text-gray-400 text-sm">Cargando productos...</div>
+                </div>
+              ) : sortedProducts.length === 0 ? (
+                <div className="p-6 text-center">
+                  <div className="text-gray-400 text-sm">No hay productos creados aún</div>
+                </div>
+              ) : (
+                <div className="overflow-x-auto pb-2">
+                  <div className="flex -space-x-4" style={{ minWidth: 'min-content' }}>
+                    {/* Productos */}
+                    {sortedProducts.map((product) => (
+                      <ProductCard
+                        key={product.id}
+                        product={product}
+                        onEdit={handleEditProduct}
+                        onPreview={handlePreviewProduct}
+                        onDelete={handleDeleteProduct}
+                        convertProductToActivity={convertProductToActivity}
+                      />
+                    ))}
+                  </div>
+                </div>
+              )}
+            </div>
           </div>
-        </div>
-          </>
         )}
 
         {activeMainTab === 'exercises' && (
@@ -2106,83 +2229,7 @@ export default function ProductsManagementScreen({ onTabChange }: ProductsManage
         </div>
       )}
 
-      {/* Modal de Consultas */}
-      {isCafeModalOpen && (
-        <div className="fixed inset-0 bg-black/60 z-50 flex items-center justify-center p-4" onClick={() => setIsCafeModalOpen(false)}>
-          <div className="bg-[#0A0A0A] rounded-2xl p-5 max-w-md w-full border border-[#1A1A1A] shadow-2xl max-h-[90vh] overflow-y-auto" onClick={(e) => e.stopPropagation()}>
-            <div className="flex flex-col">
-              {/* Header */}
-              <div className="flex items-center justify-center relative mb-4">
-                <div className="flex items-center gap-2">
-                  <Coffee className="w-6 h-6 text-[#FF7939]" />
-                  <h3 className="text-white font-semibold text-lg">Consultas</h3>
-                </div>
-                <button
-                  onClick={() => {
-                    setIsCafeModalOpen(false)
-                    setConsultationError(null)
-                  }}
-                  className="absolute right-0 text-gray-400 hover:text-white transition-colors"
-                >
-                  <X className="h-5 w-5" />
-                </button>
-              </div>
-
-              {/* Mensaje de error */}
-              {consultationError && (
-                <div className="mb-4 px-4 py-2 bg-[#FF7939]/10 border border-[#FF7939]/30 rounded-lg">
-                  <p className="text-[#FF7939] text-sm text-center font-medium">{consultationError}</p>
-                </div>
-              )}
-
-              {/* 3 Secciones de Consultas */}
-              <div>
-                {/* Express - 15 min */}
-                {renderConsultationSection('express')}
-                
-                {/* Puntual - 30 min */}
-                {renderConsultationSection('puntual')}
-                
-                {/* Profunda - 60 min */}
-                {renderConsultationSection('profunda')}
-              </div>
-
-              {/* Lista de Consultas Pendientes */}
-              {pendingConsultations.length > 0 && (
-                <div className="mt-6 pt-6 border-t border-gray-700/30">
-                  <h4 className="text-white font-semibold text-sm mb-4">Consultas Pendientes</h4>
-                  <div className="space-y-3">
-                    {pendingConsultations.map((consultation) => {
-                      const date = new Date(consultation.date)
-                      const formattedDate = date.toLocaleDateString('es-ES', {
-                        day: '2-digit',
-                        month: '2-digit',
-                        year: 'numeric'
-                      })
-                      const formattedTime = date.toLocaleTimeString('es-ES', {
-                        hour: '2-digit',
-                        minute: '2-digit'
-                      })
-
-                      return (
-                        <div key={consultation.id} className="flex items-center justify-between py-2 border-b border-gray-700/20 last:border-b-0">
-                          <div className="flex-1">
-                            <p className="text-white font-medium text-sm">{consultation.clientName}</p>
-                            <p className="text-gray-400 text-xs mt-1">
-                              {formattedDate} - {formattedTime}
-                            </p>
-                            <p className="text-gray-500 text-xs mt-0.5">{consultation.consultationType}</p>
-                          </div>
-                        </div>
-                      )
-                    })}
-                  </div>
-                </div>
-              )}
-            </div>
-          </div>
-        </div>
-      )}
+      {/* Modal de Consultas eliminado: ahora la vista de consultas se muestra inline bajo el header de productos */}
 
       {/* Modal de Meet */}
       {isMeetModalOpen && selectedSaleForMeet && (

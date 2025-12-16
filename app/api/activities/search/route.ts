@@ -168,6 +168,7 @@ export async function GET(request: NextRequest) {
       .map((a: any) => a.id)
     
     const fitnessData: any = {}
+    const workshopData: any = {} // Datos específicos para talleres
     
     // Para cada actividad, obtener estadísticas usando el nuevo cálculo
     for (const activityId of programActivityIds) {
@@ -180,12 +181,88 @@ export async function GET(request: NextRequest) {
           .single()
 
         const isNutrition = actividad?.categoria === 'nutricion' || actividad?.type === 'nutrition'
+        const isWorkshop = actividad?.type === 'workshop'
         
         let ejerciciosCount = 0
         let totalSessions = 0
         let periodosUnicos = 1
+        
+        // Para talleres: calcular cantidadTemas y cantidadDias
+        if (isWorkshop) {
+          try {
+            const { data: tallerDetallesStats } = await supabase
+              .from('taller_detalles')
+              .select('nombre, originales')
+              .eq('actividad_id', activityId)
+              .eq('activo', true)
+            
+            if (tallerDetallesStats && tallerDetallesStats.length > 0) {
+              // Calcular cantidad de temas únicos
+              const temasUnicos = new Set(tallerDetallesStats.map((t: any) => t.nombre).filter(Boolean))
+              const cantidadTemas = temasUnicos.size
+              
+              // Calcular duración desde la primera fecha hasta la última fecha
+              const allDates: string[] = []
+              tallerDetallesStats.forEach((tema: any) => {
+                try {
+                  let originales = tema.originales
+                  if (typeof originales === 'string') {
+                    originales = JSON.parse(originales)
+                  }
+                  if (originales?.fechas_horarios && Array.isArray(originales.fechas_horarios)) {
+                    originales.fechas_horarios.forEach((fecha: any) => {
+                      if (fecha?.fecha) {
+                        allDates.push(fecha.fecha)
+                      }
+                    })
+                  }
+                } catch (e) {
+                  console.error('Error procesando fechas del tema:', e)
+                }
+              })
+              
+              let cantidadDias = cantidadTemas // Fallback: cantidad de temas
+              if (allDates.length > 0) {
+                const fechas = allDates
+                  .map((fecha: string) => new Date(fecha))
+                  .filter((fecha: Date) => !isNaN(fecha.getTime()))
+                  .sort((a: Date, b: Date) => a.getTime() - b.getTime())
+                
+                if (fechas.length > 0) {
+                  const primeraFecha = fechas[0]
+                  const ultimaFecha = fechas[fechas.length - 1]
+                  const diferenciaMs = ultimaFecha.getTime() - primeraFecha.getTime()
+                  cantidadDias = Math.ceil(diferenciaMs / (1000 * 60 * 60 * 24)) + 1 // +1 para incluir ambos días
+                }
+              }
+              
+              workshopData[activityId] = {
+                cantidadTemas,
+                cantidadDias
+              }
+              
+              // Para talleres, usar cantidadDias como totalSessions
+              totalSessions = cantidadDias
+              ejerciciosCount = cantidadTemas
+            } else {
+              // Si no hay temas activos, usar valores por defecto
+              workshopData[activityId] = {
+                cantidadTemas: 0,
+                cantidadDias: 0
+              }
+            }
+          } catch (error) {
+            console.error(`Error calculando estadísticas de taller para actividad ${activityId}:`, error)
+            workshopData[activityId] = {
+              cantidadTemas: 0,
+              cantidadDias: 0
+            }
+          }
+        }
 
-        if (isNutrition) {
+        // Solo calcular fitness/nutrición si NO es un taller
+        if (!isWorkshop) {
+          if (isNutrition) {
           // Para nutrición: obtener platos ÚNICOS realmente usados en la planificación
           // Obtener planificación desde planificacion_ejercicios
           const { data: planificacion } = await supabase
@@ -363,42 +440,54 @@ export async function GET(request: NextRequest) {
           }
         }
 
-        // Si no hay datos en planificacion_ejercicios, usar fallback (solo para fitness)
-        if (totalSessions === 0 && !isNutrition) {
-          // Fallback: usar ejercicios_detalles si existe
-          const { data: ejerciciosDetalles } = await supabase
-            .from('ejercicios_detalles')
-            .select('semana, dia, periodo')
-            .contains('activity_id', { [activityId]: {} })
-            .not('semana', 'is', null)
+          // Si no hay datos en planificacion_ejercicios, usar fallback (solo para fitness)
+          if (totalSessions === 0 && !isNutrition) {
+            // Fallback: usar ejercicios_detalles si existe
+            const { data: ejerciciosDetalles } = await supabase
+              .from('ejercicios_detalles')
+              .select('semana, dia, periodo')
+              .contains('activity_id', { [activityId]: {} })
+              .not('semana', 'is', null)
 
-          if (ejerciciosDetalles && ejerciciosDetalles.length > 0) {
-            const diasUnicos = new Set<string>()
-            ejerciciosDetalles.forEach(ej => {
-              if (ej.semana && ej.dia) {
-                diasUnicos.add(`${ej.dia}-${ej.semana}`)
+            if (ejerciciosDetalles && ejerciciosDetalles.length > 0) {
+              const diasUnicos = new Set<string>()
+              ejerciciosDetalles.forEach(ej => {
+                if (ej.semana && ej.dia) {
+                  diasUnicos.add(`${ej.dia}-${ej.semana}`)
+                }
+              })
+              totalSessions = diasUnicos.size
+              
+              const periodosUnicosDetalles = [...new Set(ejerciciosDetalles.map(ej => ej.periodo).filter(Boolean))].length
+              if (periodosUnicosDetalles > 0) {
+                totalSessions *= periodosUnicosDetalles
               }
-            })
-            totalSessions = diasUnicos.size
-            
-            const periodosUnicosDetalles = [...new Set(ejerciciosDetalles.map(ej => ej.periodo).filter(Boolean))].length
-            if (periodosUnicosDetalles > 0) {
-              totalSessions *= periodosUnicosDetalles
             }
           }
-        }
 
-        fitnessData[activityId] = {
-          exercisesCount: ejerciciosCount,
-          totalSessions,
-          periods: periodosUnicos
+          fitnessData[activityId] = {
+            exercisesCount: ejerciciosCount,
+            totalSessions,
+            periods: periodosUnicos
+          }
         }
       } catch (error) {
         console.error(`Error calculando estadísticas para actividad ${activityId}:`, error)
-        fitnessData[activityId] = {
-          exercisesCount: 0,
-          totalSessions: 0,
-          periods: 0
+        // Solo guardar en fitnessData si no es un taller
+        if (!isWorkshop) {
+          fitnessData[activityId] = {
+            exercisesCount: 0,
+            totalSessions: 0,
+            periods: 0
+          }
+        } else {
+          // Para talleres, asegurar que workshopData tenga valores por defecto
+          if (!workshopData[activityId]) {
+            workshopData[activityId] = {
+              cantidadTemas: 0,
+              cantidadDias: 0
+            }
+          }
         }
       }
     }
@@ -407,6 +496,7 @@ export async function GET(request: NextRequest) {
       const rating = ratingsData[activity.id] || { avg_rating: 0, total_reviews: 0 }
       const coach = coachesData[activity.coach_id] || null
       const fitness = fitnessData[activity.id] || { exercisesCount: 0, totalSessions: 0 }
+      const workshop = workshopData[activity.id] || null
       
       // Parsear objetivos desde workshop_type si existe
       let objetivos = []
@@ -425,6 +515,15 @@ export async function GET(request: NextRequest) {
           console.error('Error parseando objetivos:', error)
         }
       }
+      
+      // Para talleres, usar datos de workshop; para otros, usar fitness
+      const isWorkshop = activity.type === 'workshop'
+      const exercisesCount = isWorkshop && workshop 
+        ? workshop.cantidadTemas 
+        : fitness.exercisesCount || 0
+      const totalSessions = isWorkshop && workshop
+        ? workshop.cantidadDias
+        : fitness.totalSessions || 0
       
       return {
         ...activity,
@@ -445,8 +544,13 @@ export async function GET(request: NextRequest) {
         program_rating: rating.avg_rating || 0,
         total_program_reviews: rating.total_reviews || 0,
         // Map fitness data
-        exercisesCount: fitness.exercisesCount || 0,
-        totalSessions: fitness.totalSessions || 0,
+        exercisesCount: exercisesCount,
+        totalSessions: totalSessions,
+        // Para talleres: incluir cantidadTemas y cantidadDias
+        ...(isWorkshop && workshop ? {
+          cantidadTemas: workshop.cantidadTemas,
+          cantidadDias: workshop.cantidadDias
+        } : {}),
       }
     })
     //   program_rating: formattedActivities[0]?.program_rating,

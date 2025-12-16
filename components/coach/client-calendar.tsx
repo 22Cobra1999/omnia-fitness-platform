@@ -1514,11 +1514,6 @@ export function ClientCalendar({ clientId, onLastWorkoutUpdate, onDaySelected, e
       setSelectedDayExercises(data.exercises)
       setSelectedDayForEdit(null)
       setTargetDayForEdit(null)
-      
-      // Llamar callback para hacer scroll automático
-      if (onDaySelected) {
-        onDaySelected()
-      }
     }
   }
 

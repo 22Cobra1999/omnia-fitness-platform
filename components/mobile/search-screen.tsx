@@ -1,7 +1,7 @@
 
 "use client"
 
-import { useState, useEffect, useMemo, useCallback } from "react"
+import { useState, useEffect, useMemo, useCallback, useRef } from "react"
 import { useRouter } from "next/navigation"
 import {
   Star,
@@ -88,6 +88,9 @@ export function SearchScreen({ onTabChange }: SearchScreenProps) {
   const [activities, setActivities] = useState<Activity[]>([])
   const [isLoadingActivities, setIsLoadingActivities] = useState(false)
   const [activitiesError, setActivitiesError] = useState<Error | null>(null)
+  // Cache de actividades para evitar recargas innecesarias
+  const activitiesCacheRef = useRef<{ data: Activity[]; timestamp: number } | null>(null)
+  const CACHE_DURATION = 5 * 60 * 1000 // 5 minutos
   const [displayedCoaches, setDisplayedCoaches] = useState<Coach[]>([])
   const [isLoading, setIsLoading] = useState(false)
   const [error, setError] = useState<Error | null>(null)
@@ -143,8 +146,19 @@ export function SearchScreen({ onTabChange }: SearchScreenProps) {
     }
   }
 
-  // Función para cargar actividades
-  const loadActivities = async () => {
+  // Función para cargar actividades con cache
+  const loadActivities = useCallback(async (forceRefresh = false) => {
+    // Verificar cache primero
+    if (!forceRefresh && activitiesCacheRef.current) {
+      const cacheAge = Date.now() - activitiesCacheRef.current.timestamp
+      if (cacheAge < CACHE_DURATION) {
+        console.log(`✅ [SearchScreen] Usando actividades del cache (${Math.round(cacheAge / 1000)}s de antigüedad)`)
+        setAllActivities(activitiesCacheRef.current.data)
+        setActivities(activitiesCacheRef.current.data)
+        return
+      }
+    }
+    
     try {
       setIsLoadingActivities(true)
       setActivitiesError(null)
@@ -152,14 +166,27 @@ export function SearchScreen({ onTabChange }: SearchScreenProps) {
       const response = await fetch('/api/activities/search')
       if (!response.ok) throw new Error('Failed to fetch activities')
       const activities = await response.json()
+      
+      // Guardar en cache
+      activitiesCacheRef.current = {
+        data: activities,
+        timestamp: Date.now()
+      }
+      
       setAllActivities(activities)
       setActivities(activities)
     } catch (err) {
       setActivitiesError(err instanceof Error ? err : new Error('Unknown error'))
+      // Si hay error pero hay cache, usar cache como fallback
+      if (activitiesCacheRef.current) {
+        console.log('⚠️ [SearchScreen] Error cargando actividades, usando cache como fallback')
+        setAllActivities(activitiesCacheRef.current.data)
+        setActivities(activitiesCacheRef.current.data)
+      }
     } finally {
       setIsLoadingActivities(false)
     }
-  }
+  }, [CACHE_DURATION])
   
   // Hook para cache inteligente de coaches - reemplazado con funciones vacías
   const { preloadCoach, cacheCoach, getCacheStats } = {
@@ -168,11 +195,11 @@ export function SearchScreen({ onTabChange }: SearchScreenProps) {
     getCacheStats: () => ({})
   }
 
-  // Cargar datos al montar el componente
+  // Cargar datos al montar el componente (solo si no hay cache)
   useEffect(() => {
     loadCoaches()
-    loadActivities()
-  }, [])
+    loadActivities(false) // false = usar cache si está disponible
+  }, [loadActivities])
   
   
 
@@ -188,10 +215,10 @@ export function SearchScreen({ onTabChange }: SearchScreenProps) {
     }
   }, [error, toast])
 
-  // Función para manejar reintento
+  // Función para manejar reintento (fuerza recarga)
   const handleRetry = () => {
     loadCoaches()
-    loadActivities()
+    loadActivities(true) // true = forzar recarga, ignorar cache
   }
 
   // Efecto para cargar coaches solo al montar el componente
@@ -1121,7 +1148,7 @@ export function SearchScreen({ onTabChange }: SearchScreenProps) {
             handleModalClose()
           }}
           onActivityClick={handleActivityClick}
-          preloadedActivities={activities} // Pasar actividades ya cargadas
+          preloadedActivities={allActivities} // Pasar todas las actividades ya cargadas (sin filtrar)
         />
       )}
 

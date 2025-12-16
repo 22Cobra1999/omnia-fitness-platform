@@ -567,7 +567,7 @@ export default function ClientProductModal({
       setIsVideoRevealed(false)
     }
   }, [isOpen, product?.id, product?.type])
-
+  
   // Estado para el status de compra detallado
   const [purchaseStatus, setPurchaseStatus] = useState<{
     hasNeverPurchased: boolean
@@ -577,7 +577,7 @@ export default function ClientProductModal({
     message: string
     buttonText: string
   } | null>(null)
-
+  
   // Función para verificar el estado real de compra usando el nuevo endpoint
   const checkPurchaseStatus = async () => {
     try {
@@ -613,12 +613,12 @@ export default function ClientProductModal({
       setIsAlreadyPurchased(purchasedActivities.includes(product.id))
     }
   }
-
+  
   // Debug: Ver qué datos están llegando
   // console.log('🔍 ClientProductModal - Datos del producto:', product)
   // console.log('🔍 Coach avg_rating:', product.coach_avg_rating)
   // console.log('🔍 Coach data:', product.coach)
-
+  
   // Función para cargar comentarios desde activity_surveys
   // Función para cargar temas y horarios del taller
   const loadWorkshopTopics = async () => {
@@ -645,7 +645,7 @@ export default function ClientProductModal({
       setLoadingWorkshopTopics(false)
     }
   }
-
+  
   const loadComments = async () => {
     if (!product.id) return
     
@@ -671,21 +671,21 @@ export default function ClientProductModal({
       }
       
       const { data: surveys, error: surveysError } = await query
-
+      
       if (surveysError) {
         console.error('Error loading surveys:', surveysError)
         return
       }
-
+      
       if (!surveys || surveys.length === 0) {
         setComments([])
         return
       }
-
+      
       // console.log('🔍 Surveys encontrados:', surveys)
       // console.log('🔍 Columnas disponibles en el primer survey:', Object.keys(surveys[0] || {}))
       // console.log('🔍 Primer survey completo:', surveys[0])
-
+      
       // Intentar obtener información del usuario si existe una columna de usuario
       let commentsWithProfiles = []
       
@@ -712,11 +712,11 @@ export default function ClientProductModal({
           .from('user_profiles')
           .select('id, full_name, avatar_url')
           .in('id', userIds)
-
+      
         if (profilesError) {
           console.error('Error loading profiles:', profilesError)
         }
-
+      
         // Combinar los datos
         commentsWithProfiles = surveys.map((survey: any) => ({
           ...survey,
@@ -736,7 +736,7 @@ export default function ClientProductModal({
           }
         }))
       }
-
+      
       setComments(commentsWithProfiles)
     } catch (error) {
       console.error('Error loading comments:', error)
@@ -744,9 +744,9 @@ export default function ClientProductModal({
       setLoadingComments(false)
     }
   }
-
-
-
+  
+  
+  
   const getValidImageUrl = useCallback(() => {
     const imageUrl = product.activity_media?.[0]?.image_url || product.image?.url || product.image_url
     
@@ -757,7 +757,7 @@ export default function ClientProductModal({
     
     return imageUrl
   }, [product.activity_media, product.image, product.image_url])
-
+  
   
       // Debug logs
       // console.log('🔍 ClientProductModal - Datos del producto:', {
@@ -773,7 +773,7 @@ export default function ClientProductModal({
       //   coach_rating: product.coach_rating,
       //   activity_media: product.activity_media
       // });
-
+      
   // Determinar modalidad - memoizado
   const modality = useMemo(() => product.modality || 'online', [product.modality])
   const modalityText = useMemo(() => 
@@ -784,7 +784,7 @@ export default function ClientProductModal({
     modality === 'online' ? Globe : MapPin, 
     [modality]
   )
-
+  
   // Determinar rating - memoizado
   const hasRating = useMemo(() => 
     product.program_rating && product.program_rating > 0, 
@@ -798,13 +798,13 @@ export default function ClientProductModal({
     product.total_program_reviews || 0, 
     [product.total_program_reviews]
   )
-
+  
   // Determinar si es nuevo - memoizado
   const isNew = useMemo(() => 
     !hasRating && totalReviews === 0, 
     [hasRating, totalReviews]
   )
-
+  
   // Purchase handler - abrir modal de métodos de pago - memoizado
   const handlePurchase = useCallback(async () => {
     console.log('Comprar producto:', product.id)
@@ -825,18 +825,18 @@ export default function ClientProductModal({
     // Abrir modal de métodos de pago
     setIsPaymentModalOpen(true)
   }, [product.id, product.title, purchaseStatus])
-
+  
   // Confirmar recompra
   const handleConfirmRepurchase = useCallback(() => {
     setShowRepurchaseConfirm(false)
     setIsPaymentModalOpen(true)
   }, [])
-
+  
   // Cancelar recompra
   const handleCancelRepurchase = useCallback(() => {
     setShowRepurchaseConfirm(false)
   }, [])
-
+  
   // Función para ejecutar la compra directamente - memoizada
   const executePurchase = useCallback(async (paymentMethod: string = 'credit_card') => {
     setIsProcessingPurchase(true)
@@ -869,7 +869,7 @@ export default function ClientProductModal({
         }
         return;
       }
-
+  
       // Para otros métodos de pago, usar el endpoint directo
       const response = await fetch('/api/enrollments/direct', {
         method: 'POST',
@@ -882,7 +882,7 @@ export default function ClientProductModal({
           notes: 'Compra directa desde la aplicación web'
         }),
       })
-
+  
       const result = await response.json()
       
       if (response.ok && result.success) {
@@ -912,7 +912,7 @@ export default function ClientProductModal({
       setIsProcessingPurchase(false)
     }
   }, [product.id, checkPurchaseStatus])
-
+  
   // Función para manejar la selección del método de pago
   const handlePaymentMethodSelect = useCallback(async (paymentMethod: string) => {
     console.log('Método de pago seleccionado:', paymentMethod)
@@ -921,7 +921,7 @@ export default function ClientProductModal({
     // Ejecutar la compra real con el método seleccionado
     await executePurchase(paymentMethod)
   }, [executePurchase])
-
+  
   // Función para ir a la actividad - memoizada
   const handleGoToActivity = useCallback(() => {
     // En la app móvil, simplemente cerrar el modal y mostrar mensaje
@@ -930,7 +930,7 @@ export default function ClientProductModal({
     alert('¡Compra exitosa! Ve a "Mis Programas" para acceder a tu actividad.')
     onClose()
   }, [product?.id, onClose])
-
+  
   // Función para manejar el cierre con navegación contextual - memoizada
   // Optimizada para cerrar inmediatamente sin esperar operaciones
   const handleClose = useCallback(() => {
@@ -948,7 +948,7 @@ export default function ClientProductModal({
       onClose()
     }
   }, [navigationContext, onClose])
-
+  
   // Función para manejar el click en el perfil del coach - memoizada
   const handleCoachClick = useCallback(() => {
     // Solo permitir click si NO venimos del perfil del coach
@@ -968,18 +968,18 @@ export default function ClientProductModal({
       console.log('🚫 Click en coach deshabilitado - viene del perfil del coach')
     }
   }, [navigationContext, product?.coach_id, onClose, onCoachClick])
-
+  
   // Mostrar video bajo demanda
   const handleVideoClick = useCallback((e: React.MouseEvent) => {
     e.stopPropagation()
     setIsVideoRevealed(true)
   }, [])
-
+  
   // Early return después de todos los hooks
   if (!isOpen || !product) {
     return null
   }
-
+  
   const renderUpgradeButton = () => (
     <Button
       onClick={() => {
@@ -1000,7 +1000,7 @@ export default function ClientProductModal({
       Upgrade de Plan
     </Button>
   )
-
+  
   return (
     <>
     <AnimatePresence mode="wait">
@@ -1162,11 +1162,11 @@ export default function ClientProductModal({
                     />
                     <button
                       onClick={handleVideoClick}
-                      className="absolute inset-0 flex items-center justify-center bg-black/40 backdrop-blur-sm transition hover:bg-black/50"
+                      className="absolute inset-0 flex items-center justify-center bg-black/30 backdrop-blur-sm transition hover:bg-black/40"
                       title="Reproducir video"
                     >
-                      <div className="flex items-center justify-center rounded-full bg-[#FF7939] text-white p-4 shadow-lg shadow-[#FF7939]/40">
-                        <svg className="w-8 h-8" fill="currentColor" viewBox="0 0 24 24">
+                      <div className="flex items-center justify-center rounded-full bg-white/10 border border-white/30 backdrop-blur-md p-3 shadow-lg shadow-black/40">
+                        <svg className="w-8 h-8 text-[#FF7939]" fill="currentColor" viewBox="0 0 24 24">
                           <path d="M8 5v14l11-7z" />
                         </svg>
                       </div>
@@ -1221,13 +1221,8 @@ export default function ClientProductModal({
             <div className="px-6 space-y-6">
               {/* Title and Coach */}
               <div>
-                <div className="flex items-center justify-between mb-3">
-                  <h3 className="text-2xl font-bold text-white">{product.title}</h3>
-                  {product.price !== undefined && product.price !== null && (
-                    <span className="text-orange-300 text-xl font-semibold">
-                      ${product.price.toFixed(2)}
-                    </span>
-                  )}
+                <div className="mb-3">
+                  <h3 className="text-xl font-bold text-white">{product.title}</h3>
                 </div>
                 
                 {/* Coach Profile Card - Clickeable solo si NO viene del perfil del coach */}
@@ -1683,11 +1678,11 @@ export default function ClientProductModal({
           </div>
         )}
         
-        {/* Botón flotante de compra con precio integrado - A la misma altura que el círculo de navegación */}
+        {/* Botón flotante de compra con precio integrado - Posicionado más arriba para no tapar el menú */}
         <button
           onClick={purchaseCompleted ? handleGoToActivity : handlePurchase}
           disabled={isProcessingPurchase}
-          className="fixed bottom-8 right-4 z-[9999] bg-[#FF7939] hover:bg-[#FF6B00] text-white rounded-full px-4 py-3 shadow-lg hover:shadow-xl transition-all duration-200 hover:scale-110 disabled:bg-gray-600 disabled:cursor-not-allowed flex items-center space-x-2"
+          className="fixed bottom-24 right-4 z-[9999] bg-[#FF7939] hover:bg-[#FF6B00] text-white rounded-full px-4 py-3 shadow-lg hover:shadow-xl transition-all duration-200 hover:scale-110 disabled:bg-gray-600 disabled:cursor-not-allowed flex items-center space-x-2"
         >
           {purchaseCompleted ? (
             <>
@@ -1702,7 +1697,7 @@ export default function ClientProductModal({
           ) : (
             <>
               <ShoppingCart className="h-5 w-5" />
-              <span className="text-sm font-bold">${product.price}.00</span>
+              <span className="text-sm font-bold">{`$${product.price || 0}.00`}</span>
             </>
           )}
         </button>

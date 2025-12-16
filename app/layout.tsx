@@ -1,7 +1,6 @@
 import type React from "react"
 import "./globals.css"
 import type { Metadata } from "next"
-import { Inter } from "next/font/google"
 import { AuthProvider } from "@/contexts/auth-context"
 import { PopupProvider } from "@/contexts/popup-context"
 import { UserProvider } from "@/contexts/user-context"
@@ -30,8 +29,6 @@ if (typeof window !== "undefined" && "serviceWorker" in navigator && !isServiceW
       console.error("Service Worker unregister failed:", error)
     })
 }
-
-const inter = Inter({ subsets: ["latin"] })
 
 export const metadata: Metadata = {
   title: "OMNIA",
@@ -66,7 +63,7 @@ export default function RootLayout({
           />
         )}
       </head>
-      <body className={inter.className}>
+      <body>
         {/* Silenciar logs en cliente (excepto errores) */}
         <ConsoleSilencer />
         <AsyncErrorBoundary>
