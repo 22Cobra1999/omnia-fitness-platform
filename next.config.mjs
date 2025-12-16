@@ -1,5 +1,5 @@
 /** @type {import('next').NextConfig} */
-// Updated: 2025-12-16 - Force Vercel deployment
+// Updated: 2025-12-16 20:00 - Force Vercel deployment - Fix calendar
 const nextConfig = {
   typescript: {
     ignoreBuildErrors: true,
