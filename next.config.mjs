@@ -1,5 +1,5 @@
 /** @type {import('next').NextConfig} */
-// Updated: 2025-12-16 20:15 - Force Vercel deployment - Fix coach calendar production
+// Updated: 2025-12-16 20:30 - Force Vercel deployment - Fix coach calendar production issues
 const nextConfig = {
   typescript: {
     ignoreBuildErrors: true,
@@ -25,4 +25,4 @@ const nextConfig = {
   assetPrefix: process.env.NODE_ENV === 'development' ? '' : '',
 }
 
-export default nextConfig
+export default nextConfig// Build timestamp: 1765915963
