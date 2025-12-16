@@ -1,11 +1,10 @@
 /** @type {import('next').NextConfig} */
-// Updated: 2025-12-16 21:15 - Optimize build performance
+// Updated: 2025-12-16 21:20 - Fix build errors and optimize
 const nextConfig = {
   typescript: {
     ignoreBuildErrors: true,
   },
-  // Optimizar build
-  swcMinify: true,
+  // Optimizar build - swcMinify es el default en Next.js 16, no necesario
   compiler: {
     removeConsole: process.env.NODE_ENV === 'production' ? {
       exclude: ['error', 'warn'],

@@ -3,7 +3,30 @@ import { cookies } from "next/headers"
 
 export async function createRouteHandlerClient() {
   try {
-    const cookieStore = await cookies()
+    const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL
+    const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY
+
+    if (!supabaseUrl || !supabaseAnonKey) {
+      throw new Error('Missing Supabase environment variables: NEXT_PUBLIC_SUPABASE_URL and NEXT_PUBLIC_SUPABASE_ANON_KEY are required')
+    }
+
+    // Solo intentar obtener cookies si estamos en runtime, no durante build
+    let cookieStore
+    try {
+      cookieStore = await cookies()
+    } catch (cookieError: any) {
+      // Si falla obtener cookies (durante build), usar cliente simple sin cookies
+      if (process.env.NEXT_PHASE === 'phase-production-build' || cookieError.message?.includes('cookies')) {
+        const { createClient: createSupabaseClient } = require('@supabase/supabase-js')
+        return createSupabaseClient(supabaseUrl, supabaseAnonKey, {
+          auth: {
+            persistSession: false,
+            autoRefreshToken: false
+          }
+        })
+      }
+      throw cookieError
+    }
     
     // Log para debugging (solo en desarrollo)
     if (process.env.NODE_ENV === 'development') {
@@ -19,8 +42,8 @@ export async function createRouteHandlerClient() {
     }
 
     return createServerClient(
-      process.env.NEXT_PUBLIC_SUPABASE_URL!,
-      process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
+      supabaseUrl,
+      supabaseAnonKey,
       {
         cookies: {
           getAll() {
@@ -57,16 +80,30 @@ export async function createRouteHandlerClient() {
 export function createServiceRoleClient() {
   const { createClient: createSupabaseClient } = require('@supabase/supabase-js')
   
+  const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL
   const serviceRoleKey = process.env.SUPABASE_SERVICE_ROLE_KEY
   
-  if (!serviceRoleKey) {
+  if (!supabaseUrl || !serviceRoleKey) {
+    // Durante build, retornar cliente placeholder
+    if (process.env.NEXT_PHASE === 'phase-production-build') {
+      return createSupabaseClient(
+        'https://placeholder.supabase.co',
+        'placeholder-key',
+        {
+          auth: {
+            autoRefreshToken: false,
+            persistSession: false
+          }
+        }
+      )
+    }
     console.warn('⚠️ SUPABASE_SERVICE_ROLE_KEY no está configurada. Algunas operaciones pueden fallar.')
     // Retornar null para que el código pueda manejar este caso
     return null
   }
   
   return createSupabaseClient(
-    process.env.NEXT_PUBLIC_SUPABASE_URL!,
+    supabaseUrl,
     serviceRoleKey,
     {
       auth: {
