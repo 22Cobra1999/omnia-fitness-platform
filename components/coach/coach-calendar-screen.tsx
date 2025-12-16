@@ -106,32 +106,39 @@ export default function CoachCalendarScreen() {
       const monthEndISO = monthEnd.toISOString()
 
       // Obtener eventos de Omnia
-      const { data: calendarEvents, error: eventsError } = await supabase
-        .from('calendar_events')
-        .select(`
-          id,
-          title,
-          start_time,
-          end_time,
-          event_type,
-          status,
-          client_id,
-          activity_id,
-          meet_link,
-          meet_link_id,
-          google_event_id,
-          attendance_tracked
-        `)
-        .eq('coach_id', user.id)
-        .gte('start_time', monthStartISO)
-        .lte('start_time', monthEndISO)
-        .order('start_time', { ascending: true })
+      let calendarEvents: any[] = []
+      try {
+        const { data, error: eventsError } = await supabase
+          .from('calendar_events')
+          .select(`
+            id,
+            title,
+            start_time,
+            end_time,
+            event_type,
+            status,
+            client_id,
+            activity_id,
+            meet_link,
+            meet_link_id,
+            google_event_id,
+            attendance_tracked
+          `)
+          .eq('coach_id', user.id)
+          .gte('start_time', monthStartISO)
+          .lte('start_time', monthEndISO)
+          .order('start_time', { ascending: true })
 
-      if (eventsError) {
-        console.error("Error getting events:", eventsError)
-        setEvents([])
-        setLoading(false)
-        return
+        if (eventsError) {
+          console.error("Error getting events from Supabase:", eventsError)
+          console.warn("⚠️ Continuando sin eventos de Omnia. Intentando cargar eventos de Google Calendar...")
+          calendarEvents = []
+        } else {
+          calendarEvents = data || []
+        }
+      } catch (supabaseError: any) {
+        console.error("Error inesperado obteniendo eventos de Supabase:", supabaseError)
+        calendarEvents = []
       }
 
       // Obtener eventos de Google Calendar en paralelo
@@ -139,13 +146,22 @@ export default function CoachCalendarScreen() {
       try {
         // Usar timeout para evitar que la request se cuelgue
         const controller = new AbortController()
-        const timeoutId = setTimeout(() => controller.abort(), 10000) // 10 segundos timeout
+        const timeoutId = setTimeout(() => controller.abort(), 8000) // 8 segundos timeout (reducido para producción)
+        
+        // Construir URL absoluta para producción
+        const baseUrl = typeof window !== 'undefined' 
+          ? window.location.origin 
+          : process.env.NEXT_PUBLIC_APP_URL || 'http://localhost:3000'
         
         const googleResponse = await fetch(
-          `/api/google/calendar/events?monthNum=${monthNum}&year=${year}`,
+          `${baseUrl}/api/google/calendar/events?monthNum=${monthNum}&year=${year}`,
           { 
             credentials: 'include',
-            signal: controller.signal
+            signal: controller.signal,
+            headers: {
+              'Content-Type': 'application/json',
+            },
+            cache: 'no-store' // Evitar cache en producción
           }
         )
         
@@ -159,36 +175,43 @@ export default function CoachCalendarScreen() {
             if (errorData.needsReconnect) {
               setGoogleConnected(false)
             }
-          } catch {
-            console.warn(`⚠️ Error HTTP ${googleResponse.status} obteniendo eventos de Google Calendar`)
+          } catch (parseError) {
+            console.warn(`⚠️ Error HTTP ${googleResponse.status} obteniendo eventos de Google Calendar. El calendario continuará funcionando sin eventos de Google.`)
           }
           setGoogleConnected(false)
         } else {
-          const googleData = await googleResponse.json()
-          
-          if (googleData.success && googleData.events) {
-            googleEvents = googleData.events.map((event: any) => ({
-              ...event,
-              is_google_event: true,
-              source: 'google_calendar',
-            }))
-            setGoogleConnected(true)
-            console.log(`📅 Eventos de Google Calendar obtenidos: ${googleEvents.length}`)
-          } else if (googleData.connected === false) {
+          try {
+            const googleData = await googleResponse.json()
+            
+            if (googleData.success && googleData.events) {
+              googleEvents = googleData.events.map((event: any) => ({
+                ...event,
+                is_google_event: true,
+                source: 'google_calendar',
+              }))
+              setGoogleConnected(true)
+              console.log(`📅 Eventos de Google Calendar obtenidos: ${googleEvents.length}`)
+            } else if (googleData.connected === false) {
+              setGoogleConnected(false)
+            } else if (googleData.needsReconnect) {
+              setGoogleConnected(false)
+              console.warn("⚠️ Google Calendar requiere reconexión")
+            }
+          } catch (jsonError) {
+            console.warn("⚠️ Error parseando respuesta de Google Calendar. Continuando sin eventos de Google.")
             setGoogleConnected(false)
-          } else if (googleData.needsReconnect) {
-            setGoogleConnected(false)
-            console.warn("⚠️ Google Calendar requiere reconexión")
           }
         }
       } catch (googleError: any) {
         // Manejar diferentes tipos de errores
         if (googleError.name === 'AbortError') {
-          console.warn("⏱️ Timeout obteniendo eventos de Google Calendar")
+          console.warn("⏱️ Timeout obteniendo eventos de Google Calendar. El calendario continuará funcionando.")
+        } else if (googleError.message?.includes('fetch')) {
+          console.warn("⚠️ Error de red obteniendo eventos de Google Calendar. El calendario continuará funcionando con eventos de Omnia.")
         } else {
-          console.error("❌ Error obteniendo eventos de Google Calendar:", googleError)
+          console.error("❌ Error obteniendo eventos de Google Calendar:", googleError.message || googleError)
         }
-        // No fallar si Google Calendar no está disponible
+        // No fallar si Google Calendar no está disponible - el calendario debe funcionar solo con eventos de Omnia
         setGoogleConnected(false)
       }
 
@@ -311,9 +334,15 @@ export default function CoachCalendarScreen() {
       if (err?.message?.includes('fetch') || err?.name === 'TypeError') {
         console.error("❌ Error de red al cargar eventos del calendario")
       }
-      // Mantener eventos existentes si hay un error, no limpiar todo
-      // setEvents([]) // Comentado para no perder eventos si hay un error temporal
+      // Asegurar que siempre tengamos un array de eventos, incluso si está vacío
+      // Esto previene errores de renderizado en producción
+      if (events.length === 0) {
+        setEvents([])
+      }
+      // No mostrar toast de error en producción para evitar spam
+      // El calendario debe funcionar incluso sin eventos
     } finally {
+      // Siempre desactivar loading, incluso si hay errores
       setLoading(false)
     }
   }, [supabase, currentDate])
