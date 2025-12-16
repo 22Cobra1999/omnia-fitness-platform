@@ -336,13 +336,11 @@ export default function CoachCalendarScreen() {
       }
       // Asegurar que siempre tengamos un array de eventos, incluso si está vacío
       // Esto previene errores de renderizado en producción
-      if (events.length === 0) {
-        setEvents([])
-      }
-      // No mostrar toast de error en producción para evitar spam
-      // El calendario debe funcionar incluso sin eventos
+      // IMPORTANTE: En producción, el calendario debe funcionar incluso con errores
+      setEvents(prevEvents => prevEvents.length > 0 ? prevEvents : [])
     } finally {
       // Siempre desactivar loading, incluso si hay errores
+      // Esto es crítico para que la UI no se quede en estado de carga
       setLoading(false)
     }
   }, [supabase, currentDate])
