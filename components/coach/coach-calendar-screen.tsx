@@ -290,8 +290,15 @@ export default function CoachCalendarScreen() {
       })
 
       // Crear Meets automáticamente para eventos de taller que no tienen Meet
-      // Solo si Google Calendar está conectado
-      if (googleConnected && calendarEvents && calendarEvents.length > 0) {
+      // Solo si Google Calendar está conectado y NO estamos en build time
+      // Esto se desactiva durante el build para evitar timeouts
+      if (
+        typeof window !== 'undefined' && 
+        googleConnected && 
+        calendarEvents && 
+        calendarEvents.length > 0 &&
+        process.env.NODE_ENV !== 'production' // Solo en desarrollo para evitar problemas en build
+      ) {
         const eventosSinMeet = calendarEvents.filter(
           (e: any) => 
             e.event_type === 'workshop' && 
@@ -303,26 +310,35 @@ export default function CoachCalendarScreen() {
           console.log(`🔗 Creando Meets automáticamente para ${eventosSinMeet.length} talleres...`);
           
           // Crear Meets en paralelo (sin bloquear la UI)
-          eventosSinMeet.forEach(async (event: any) => {
-            try {
-              const response = await fetch('/api/google/calendar/auto-create-meet', {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ eventId: event.id }),
-              });
+          // Usar Promise.all para evitar múltiples recargas
+          Promise.all(
+            eventosSinMeet.map(async (event: any) => {
+              try {
+                const response = await fetch('/api/google/calendar/auto-create-meet', {
+                  method: 'POST',
+                  headers: { 'Content-Type': 'application/json' },
+                  body: JSON.stringify({ eventId: event.id }),
+                });
 
-              const result = await response.json();
-              if (result.success) {
-                console.log(`✅ Meet creado automáticamente para: ${event.title}`);
-                // Recargar eventos después de un breve delay
-                setTimeout(() => {
-                  getCoachEvents();
-                }, 1000);
-              } else {
-                console.log(`⚠️  Meet no creado para: ${event.title} - ${result.message || 'Error desconocido'}`);
+                const result = await response.json();
+                if (result.success) {
+                  console.log(`✅ Meet creado automáticamente para: ${event.title}`);
+                  return true;
+                } else {
+                  console.log(`⚠️  Meet no creado para: ${event.title} - ${result.message || 'Error desconocido'}`);
+                  return false;
+                }
+              } catch (error: any) {
+                console.error(`❌ Error creando Meet para: ${event.title}`, error);
+                return false;
               }
-            } catch (error: any) {
-              console.error(`❌ Error creando Meet para: ${event.title}`, error);
+            })
+          ).then((results) => {
+            // Solo recargar si al menos uno fue exitoso
+            if (results.some(r => r === true)) {
+              setTimeout(() => {
+                getCoachEvents();
+              }, 2000); // Aumentado a 2 segundos para evitar loops
             }
           });
         }

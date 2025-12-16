@@ -1,8 +1,15 @@
 /** @type {import('next').NextConfig} */
-// Updated: 2025-12-16 21:00 - Vercel connected to GitHub - Force deployment
+// Updated: 2025-12-16 21:15 - Optimize build performance
 const nextConfig = {
   typescript: {
     ignoreBuildErrors: true,
+  },
+  // Optimizar build
+  swcMinify: true,
+  compiler: {
+    removeConsole: process.env.NODE_ENV === 'production' ? {
+      exclude: ['error', 'warn'],
+    } : false,
   },
   images: {
     unoptimized: true,
