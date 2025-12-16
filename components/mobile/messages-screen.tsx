@@ -40,6 +40,8 @@ export function MessagesScreen() {
   const [sending, setSending] = useState(false)
   const pollingIntervalRef = useRef<NodeJS.Timeout | null>(null)
   const isUpdatingUnreadRef = useRef(false)
+  const hasLoadedConversationsRef = useRef(false)
+  const isLoadingRef = useRef(false)
 
   const supabase = createClient()
 
@@ -77,14 +79,22 @@ export function MessagesScreen() {
     : null
 
   // Cargar conversaciones
-  const loadConversations = useCallback(async () => {
+  const loadConversations = useCallback(async (silent = false) => {
     if (!user || isCoach === null) {
-      setLoading(false)
+      if (!silent) setLoading(false)
+      return
+    }
+
+    // Evitar múltiples cargas simultáneas
+    if (isLoadingRef.current && !silent) {
       return
     }
 
     try {
-      setLoading(true)
+      if (!silent) {
+        isLoadingRef.current = true
+        setLoading(true)
+      }
       
       // Obtener conversaciones del usuario
       const { data: conversationsData, error: conversationsError } = await supabase
@@ -99,13 +109,20 @@ export function MessagesScreen() {
 
       if (conversationsError) {
         console.error('Error cargando conversaciones:', conversationsError)
-        setLoading(false)
+        if (!silent) {
+          setLoading(false)
+          isLoadingRef.current = false
+        }
         return
       }
 
       if (!conversationsData || conversationsData.length === 0) {
         setConversations([])
-        setLoading(false)
+        if (!silent) {
+          setLoading(false)
+          isLoadingRef.current = false
+        }
+        hasLoadedConversationsRef.current = true
         return
       }
 
@@ -122,7 +139,10 @@ export function MessagesScreen() {
 
       if (profilesError) {
         console.error('Error cargando perfiles:', profilesError)
-        setLoading(false)
+        if (!silent) {
+          setLoading(false)
+          isLoadingRef.current = false
+        }
         return
       }
 
@@ -146,10 +166,18 @@ export function MessagesScreen() {
       })
 
       setConversations(formattedConversations)
-      setLoading(false)
+      hasLoadedConversationsRef.current = true
+      
+      if (!silent) {
+        setLoading(false)
+        isLoadingRef.current = false
+      }
     } catch (error) {
       console.error('Error cargando conversaciones:', error)
-      setLoading(false)
+      if (!silent) {
+        setLoading(false)
+        isLoadingRef.current = false
+      }
     }
   }, [user, isCoach, supabase])
 
@@ -284,27 +312,30 @@ export function MessagesScreen() {
     return date.toLocaleDateString('es-ES', { day: 'numeric', month: 'short' })
   }
 
-  // Efectos
+  // Efectos - Cargar conversaciones inicialmente
   useEffect(() => {
     if (!user) {
       setLoading(false)
+      hasLoadedConversationsRef.current = false
       return
     }
     
-    if (isCoach !== null) {
-      loadConversations()
+    // Solo cargar si no hemos cargado antes y ya sabemos el rol
+    if (isCoach !== null && !hasLoadedConversationsRef.current) {
+      loadConversations(false)
     }
-  }, [user, isCoach, loadConversations])
+  }, [user, isCoach]) // Removido loadConversations de dependencias para evitar loops
 
   useEffect(() => {
     if (selectedConversationId) {
       loadMessages(selectedConversationId)
     }
-  }, [selectedConversationId, loadMessages])
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [selectedConversationId]) // Removido loadMessages para evitar loops
 
   // Polling para nuevos mensajes
   useEffect(() => {
-    if (!user || isCoach === null) return
+    if (!user || isCoach === null || !hasLoadedConversationsRef.current) return
 
     const startPolling = () => {
       if (pollingIntervalRef.current) {
@@ -312,8 +343,9 @@ export function MessagesScreen() {
       }
 
       pollingIntervalRef.current = setInterval(() => {
-        if (!isUpdatingUnreadRef.current) {
-          loadConversations()
+        if (!isUpdatingUnreadRef.current && !isLoadingRef.current) {
+          // Usar silent=true para no mostrar loading durante el polling
+          loadConversations(true)
           if (selectedConversationId) {
             loadMessages(selectedConversationId)
           }
@@ -328,7 +360,8 @@ export function MessagesScreen() {
         clearInterval(pollingIntervalRef.current)
       }
     }
-  }, [user, isCoach, selectedConversationId, loadConversations, loadMessages])
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [user, isCoach, selectedConversationId]) // Removido loadConversations y loadMessages para evitar loops
 
   // Mostrar loading solo si hay usuario y aún estamos determinando el rol o cargando
   if (!user) {
