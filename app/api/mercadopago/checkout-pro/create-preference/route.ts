@@ -366,6 +366,9 @@ export async function POST(request: NextRequest) {
       statement_descriptor: 'OMNIA',
       binary_mode: false,
       expires: false,
+      // Configurar locale explícitamente para evitar warnings de Bricks
+      // Esto es crítico para que el botón de pagar funcione correctamente
+      locale: 'es-AR',
       // Metadata solo para debugging
       metadata: {
         platform: 'OMNIA',
