@@ -85,17 +85,28 @@ export default function CoachCalendarScreen() {
 
   // Obtener eventos del coach (Omnia + Google Calendar)
   // Optimizado: carga eventos de 3 meses (mes anterior, actual, siguiente) para cachear
-  const getCoachEvents = useCallback(async (targetDate?: Date) => {
+  const getCoachEvents = useCallback(async () => {
     try {
-      const dateToUse = targetDate || currentDate
-      const cacheKey = `${dateToUse.getFullYear()}-${dateToUse.getMonth()}`
+      const cacheKey = `${currentDate.getFullYear()}-${currentDate.getMonth()}`
       
       // Verificar si ya tenemos eventos en caché para este mes
-      if (cachedEvents.has(cacheKey) && !targetDate) {
+      // Solo usar cache si no estamos forzando recarga
+      if (cachedEvents.has(cacheKey)) {
         const cached = cachedEvents.get(cacheKey) || []
+        // Si el cache tiene eventos o es un array vacío válido, usarlo
         setEvents(cached)
         setLoading(false)
-        return
+        // Cargar en background para meses adyacentes si no están en cache
+        const prevMonth = subMonths(currentDate, 1)
+        const nextMonth = addMonths(currentDate, 1)
+        const prevKey = `${prevMonth.getFullYear()}-${prevMonth.getMonth()}`
+        const nextKey = `${nextMonth.getFullYear()}-${nextMonth.getMonth()}`
+        
+        if (!cachedEvents.has(prevKey) || !cachedEvents.has(nextKey)) {
+          // Continuar con la carga normal para poblar cache de meses adyacentes
+        } else {
+          return // Ya tenemos todo en cache
+        }
       }
 
       setLoading(true)
@@ -113,10 +124,10 @@ export default function CoachCalendarScreen() {
 
       // 2. Obtener eventos del calendario del coach para un rango amplio (3 meses)
       // Cargar mes anterior, actual y siguiente para tener cache
-      const monthStart = startOfMonth(subMonths(dateToUse, 1)) // Mes anterior
-      const monthEnd = endOfMonth(addMonths(dateToUse, 1)) // Mes siguiente
-      const monthNum = dateToUse.getMonth()
-      const year = dateToUse.getFullYear()
+      const monthStart = startOfMonth(subMonths(currentDate, 1)) // Mes anterior
+      const monthEnd = endOfMonth(addMonths(currentDate, 1)) // Mes siguiente
+      const monthNum = currentDate.getMonth()
+      const year = currentDate.getFullYear()
       
       // Asegurar que las fechas estén en formato ISO correcto
       const monthStartISO = monthStart.toISOString()
@@ -311,7 +322,7 @@ export default function CoachCalendarScreen() {
       const newCache = new Map(cachedEvents)
       // Guardar eventos para cada mes del rango cargado (mes anterior, actual, siguiente)
       for (let i = -1; i <= 1; i++) {
-        const monthDate = addMonths(dateToUse, i)
+        const monthDate = addMonths(currentDate, i)
         const monthKey = `${monthDate.getFullYear()}-${monthDate.getMonth()}`
         const monthStart = startOfMonth(monthDate)
         const monthEnd = endOfMonth(monthDate)
@@ -325,8 +336,8 @@ export default function CoachCalendarScreen() {
       setCachedEvents(newCache)
       
       // Filtrar eventos solo del mes actual para mostrar
-      const currentMonthStart = startOfMonth(dateToUse)
-      const currentMonthEnd = endOfMonth(dateToUse)
+      const currentMonthStart = startOfMonth(currentDate)
+      const currentMonthEnd = endOfMonth(currentDate)
       const currentMonthEvents = allEvents.filter(event => {
         const eventDate = new Date(event.start_time)
         return eventDate >= currentMonthStart && eventDate <= currentMonthEnd
@@ -432,7 +443,7 @@ export default function CoachCalendarScreen() {
   useEffect(() => {
     // Verificar si tenemos eventos en caché para el mes actual
     const cacheKey = `${currentDate.getFullYear()}-${currentDate.getMonth()}`
-    if (cachedEvents.has(cacheKey) && cachedEvents.get(cacheKey)!.length >= 0) {
+    if (cachedEvents.has(cacheKey)) {
       // Usar eventos del cache (incluso si está vacío, significa que ya cargamos)
       const cached = cachedEvents.get(cacheKey) || []
       setEvents(cached)
@@ -445,15 +456,15 @@ export default function CoachCalendarScreen() {
       const nextKey = `${nextMonth.getFullYear()}-${nextMonth.getMonth()}`
       
       if (!cachedEvents.has(prevKey) || !cachedEvents.has(nextKey)) {
-        // Cargar en background sin mostrar loading
-        getCoachEvents(currentDate).catch(console.error)
+        // Cargar en background sin mostrar loading - solo poblar cache
+        getCoachEvents().catch(console.error)
       }
     } else {
       // No hay cache, cargar normalmente
-      getCoachEvents(currentDate)
+      getCoachEvents()
     }
     checkGoogleConnection()
-  }, [currentDate]) // Solo recargar cuando cambia el mes
+  }, [currentDate, getCoachEvents, cachedEvents]) // Solo recargar cuando cambia el mes
   
   // Cerrar selectores al hacer clic fuera
   useEffect(() => {
