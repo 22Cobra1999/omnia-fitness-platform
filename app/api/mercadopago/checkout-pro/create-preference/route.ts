@@ -190,13 +190,57 @@ export async function POST(request: NextRequest) {
     // 7. Desencriptar access token del coach
     let coachAccessToken: string;
     try {
+      // Verificar que ENCRYPTION_KEY esté configurada
+      if (!process.env.ENCRYPTION_KEY) {
+        console.error('❌ ENCRYPTION_KEY no está configurada en las variables de entorno');
+        return NextResponse.json(
+          { 
+            error: 'Error de configuración: ENCRYPTION_KEY no está configurada',
+            code: 'TOKEN_DECRYPTION_ERROR',
+            details: 'La variable de entorno ENCRYPTION_KEY es requerida para desencriptar los tokens del coach'
+          },
+          { status: 500 }
+        );
+      }
+
+      // Verificar que el token encriptado exista y no esté vacío
+      if (!coachCredentials.access_token_encrypted || coachCredentials.access_token_encrypted.trim().length === 0) {
+        console.error('❌ Token encriptado vacío o inválido');
+        return NextResponse.json(
+          { 
+            error: 'Token del coach no encontrado o inválido',
+            code: 'TOKEN_DECRYPTION_ERROR',
+            details: 'El coach no tiene un token válido almacenado. Debe reconectar su cuenta de Mercado Pago.'
+          },
+          { status: 500 }
+        );
+      }
+
       coachAccessToken = decrypt(coachCredentials.access_token_encrypted);
-    } catch (error) {
-      console.error('Error desencriptando token:', error);
+      
+      // Verificar que el token desencriptado sea válido
+      if (!coachAccessToken || coachAccessToken.trim().length === 0) {
+        console.error('❌ Token desencriptado vacío');
+        return NextResponse.json(
+          { 
+            error: 'Token del coach inválido después de desencriptar',
+            code: 'TOKEN_DECRYPTION_ERROR',
+            details: 'El token desencriptado está vacío. El coach debe reconectar su cuenta de Mercado Pago.'
+          },
+          { status: 500 }
+        );
+      }
+    } catch (error: any) {
+      console.error('❌ Error desencriptando token:', error);
+      console.error('❌ Tipo de error:', error?.constructor?.name);
+      console.error('❌ Mensaje:', error?.message);
+      console.error('❌ Stack:', error?.stack);
+      
       return NextResponse.json(
         { 
           error: 'Error procesando credenciales del coach',
-          code: 'TOKEN_DECRYPTION_ERROR'
+          code: 'TOKEN_DECRYPTION_ERROR',
+          details: error?.message || 'Error desconocido al desencriptar el token. Verifica que ENCRYPTION_KEY esté configurada correctamente.'
         },
         { status: 500 }
       );
