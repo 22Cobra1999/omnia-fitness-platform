@@ -25,4 +25,5 @@ const nextConfig = {
   assetPrefix: process.env.NODE_ENV === 'development' ? '' : '',
 }
 
-export default nextConfig// Build timestamp: 1765915963
+export default nextConfig
+// Build timestamp: 1765915963
