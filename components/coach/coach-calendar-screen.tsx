@@ -3,7 +3,7 @@
 import { useState, useEffect, useCallback, useMemo } from "react"
 import { createClient } from "@/lib/supabase/supabase-client"
 import { Calendar, Clock, Video, ExternalLink, Users, RefreshCw } from "lucide-react"
-import { format, startOfMonth, endOfMonth, eachDayOfInterval, isSameDay, isToday, addMonths, subMonths, addDays, subDays } from "date-fns"
+import { format, startOfMonth, endOfMonth, eachDayOfInterval, isSameDay, isToday, addMonths, subMonths, addDays, subDays, addYears, subYears } from "date-fns"
 import { es } from "date-fns/locale"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
@@ -55,6 +55,9 @@ export default function CoachCalendarScreen() {
   const [showEventModal, setShowEventModal] = useState(false)
   const [viewMode, setViewMode] = useState<'month' | 'today'>('month') // ✅ Vista: mes o hoy
   const [syncing, setSyncing] = useState(false)
+  const [showMonthSelector, setShowMonthSelector] = useState(false)
+  const [showYearSelector, setShowYearSelector] = useState(false)
+  const [cachedEvents, setCachedEvents] = useState<Map<string, CalendarEvent[]>>(new Map())
 
   const supabase = createClient()
 
@@ -81,8 +84,20 @@ export default function CoachCalendarScreen() {
   // Nota: La creación de Google Meet ahora es automática al crear eventos
 
   // Obtener eventos del coach (Omnia + Google Calendar)
-  const getCoachEvents = useCallback(async () => {
+  // Optimizado: carga eventos de 3 meses (mes anterior, actual, siguiente) para cachear
+  const getCoachEvents = useCallback(async (targetDate?: Date) => {
     try {
+      const dateToUse = targetDate || currentDate
+      const cacheKey = `${dateToUse.getFullYear()}-${dateToUse.getMonth()}`
+      
+      // Verificar si ya tenemos eventos en caché para este mes
+      if (cachedEvents.has(cacheKey) && !targetDate) {
+        const cached = cachedEvents.get(cacheKey) || []
+        setEvents(cached)
+        setLoading(false)
+        return
+      }
+
       setLoading(true)
 
       // 1. Obtener usuario actual
@@ -96,12 +111,12 @@ export default function CoachCalendarScreen() {
 
       setCoachId(user.id)
 
-      // 2. Obtener eventos del calendario del coach para el mes actual
-      // Usar UTC para evitar problemas de timezone en producción
-      const monthStart = startOfMonth(currentDate)
-      const monthEnd = endOfMonth(currentDate)
-      const monthNum = currentDate.getMonth()
-      const year = currentDate.getFullYear()
+      // 2. Obtener eventos del calendario del coach para un rango amplio (3 meses)
+      // Cargar mes anterior, actual y siguiente para tener cache
+      const monthStart = startOfMonth(subMonths(dateToUse, 1)) // Mes anterior
+      const monthEnd = endOfMonth(addMonths(dateToUse, 1)) // Mes siguiente
+      const monthNum = dateToUse.getMonth()
+      const year = dateToUse.getFullYear()
       
       // Asegurar que las fechas estén en formato ISO correcto
       const monthStartISO = monthStart.toISOString()
@@ -291,7 +306,33 @@ export default function CoachCalendarScreen() {
       })
 
       console.log(`📊 Total eventos: ${allEvents.length} (Omnia: ${calendarEvents?.length || 0}, Google: ${googleEvents.length})`)
-      setEvents(allEvents)
+      
+      // Guardar eventos en caché por mes
+      const newCache = new Map(cachedEvents)
+      // Guardar eventos para cada mes del rango cargado (mes anterior, actual, siguiente)
+      for (let i = -1; i <= 1; i++) {
+        const monthDate = addMonths(dateToUse, i)
+        const monthKey = `${monthDate.getFullYear()}-${monthDate.getMonth()}`
+        const monthStart = startOfMonth(monthDate)
+        const monthEnd = endOfMonth(monthDate)
+        
+        const monthEvents = allEvents.filter(event => {
+          const eventDate = new Date(event.start_time)
+          return eventDate >= monthStart && eventDate <= monthEnd
+        })
+        newCache.set(monthKey, monthEvents)
+      }
+      setCachedEvents(newCache)
+      
+      // Filtrar eventos solo del mes actual para mostrar
+      const currentMonthStart = startOfMonth(dateToUse)
+      const currentMonthEnd = endOfMonth(dateToUse)
+      const currentMonthEvents = allEvents.filter(event => {
+        const eventDate = new Date(event.start_time)
+        return eventDate >= currentMonthStart && eventDate <= currentMonthEnd
+      })
+      
+      setEvents(currentMonthEvents)
 
       // Si hay un evento seleccionado, actualizarlo con los datos frescos
       // Esto se hace después de que todos los eventos se hayan cargado
@@ -371,7 +412,7 @@ export default function CoachCalendarScreen() {
       setLoading(false)
       console.log('✅ Loading desactivado en getCoachEvents')
     }
-  }, [supabase, currentDate, googleConnected])
+  }, [supabase, googleConnected, cachedEvents])
 
   // Generar días del mes
   const daysInMonth = useMemo(() => {
@@ -389,20 +430,77 @@ export default function CoachCalendarScreen() {
 
   // Efectos
   useEffect(() => {
-    // Cargar eventos al montar el componente
-    // getCoachEvents ya maneja la obtención del usuario
-    getCoachEvents()
+    // Verificar si tenemos eventos en caché para el mes actual
+    const cacheKey = `${currentDate.getFullYear()}-${currentDate.getMonth()}`
+    if (cachedEvents.has(cacheKey) && cachedEvents.get(cacheKey)!.length >= 0) {
+      // Usar eventos del cache (incluso si está vacío, significa que ya cargamos)
+      const cached = cachedEvents.get(cacheKey) || []
+      setEvents(cached)
+      setLoading(false)
+      
+      // Cargar eventos en background para meses adyacentes si no están en cache
+      const prevMonth = subMonths(currentDate, 1)
+      const nextMonth = addMonths(currentDate, 1)
+      const prevKey = `${prevMonth.getFullYear()}-${prevMonth.getMonth()}`
+      const nextKey = `${nextMonth.getFullYear()}-${nextMonth.getMonth()}`
+      
+      if (!cachedEvents.has(prevKey) || !cachedEvents.has(nextKey)) {
+        // Cargar en background sin mostrar loading
+        getCoachEvents(currentDate).catch(console.error)
+      }
+    } else {
+      // No hay cache, cargar normalmente
+      getCoachEvents(currentDate)
+    }
     checkGoogleConnection()
   }, [currentDate]) // Solo recargar cuando cambia el mes
+  
+  // Cerrar selectores al hacer clic fuera
+  useEffect(() => {
+    const handleClickOutside = (event: MouseEvent) => {
+      const target = event.target as HTMLElement
+      if (!target.closest('[data-month-selector]') && !target.closest('[data-year-selector]')) {
+        setShowMonthSelector(false)
+        setShowYearSelector(false)
+      }
+    }
+    
+    if (showMonthSelector || showYearSelector) {
+      document.addEventListener('mousedown', handleClickOutside)
+      return () => document.removeEventListener('mousedown', handleClickOutside)
+    }
+  }, [showMonthSelector, showYearSelector])
 
   // Efecto separado para verificar conexión de Google cuando cambia el usuario
   useEffect(() => {
     checkGoogleConnection()
   }, [checkGoogleConnection])
 
-  // Navegar entre meses
-  const goToPreviousMonth = () => setCurrentDate(subMonths(currentDate, 1))
-  const goToNextMonth = () => setCurrentDate(addMonths(currentDate, 1))
+  // Navegar entre años
+  const goToPreviousYear = () => setCurrentDate(subMonths(currentDate, 12))
+  const goToNextYear = () => setCurrentDate(addMonths(currentDate, 12))
+  
+  // Cambiar mes directamente
+  const changeMonth = (monthIndex: number) => {
+    setCurrentDate(new Date(currentDate.getFullYear(), monthIndex, 1))
+    setShowMonthSelector(false)
+  }
+  
+  // Cambiar año directamente
+  const changeYear = (year: number) => {
+    setCurrentDate(new Date(year, currentDate.getMonth(), 1))
+    setShowYearSelector(false)
+  }
+  
+  // Meses en español
+  const monthNames = [
+    'Enero', 'Febrero', 'Marzo', 'Abril', 'Mayo', 'Junio',
+    'Julio', 'Agosto', 'Septiembre', 'Octubre', 'Noviembre', 'Diciembre'
+  ]
+  
+  // Generar años para el selector (año actual ± 5 años)
+  const currentYear = currentDate.getFullYear()
+  const availableYears = Array.from({ length: 11 }, (_, i) => currentYear - 5 + i)
 
   // Manejar click en evento
   const handleEventClick = (event: CalendarEvent) => {
@@ -579,27 +677,95 @@ export default function CoachCalendarScreen() {
         {/* Vista Mes */}
         {viewMode === 'month' && (
           <>
-            {/* Navegación del mes */}
-            <div className="flex items-center justify-between mb-6">
+            {/* Navegación del mes y año */}
+            <div className="flex items-center justify-between mb-6 relative">
               <Button
                 variant="ghost"
                 size="sm"
-                onClick={goToPreviousMonth}
+                onClick={goToPreviousYear}
                 className="text-white hover:bg-zinc-800"
+                title="Año anterior"
               >
                 ←
               </Button>
-              <h2 className="text-lg font-semibold text-[#FFB366] capitalize">
-                {format(currentDate, 'MMMM yyyy', { locale: es })}
-              </h2>
+              
+              <div className="flex items-center gap-2">
+                {/* Selector de año */}
+                <button
+                  onClick={() => {
+                    setShowYearSelector(!showYearSelector)
+                    setShowMonthSelector(false)
+                  }}
+                  className="text-lg font-semibold text-[#FFB366] hover:text-[#FF7939] transition-colors"
+                >
+                  {currentDate.getFullYear()}
+                </button>
+                
+                {/* Selector de mes */}
+                <button
+                  onClick={() => {
+                    setShowMonthSelector(!showMonthSelector)
+                    setShowYearSelector(false)
+                  }}
+                  className="text-lg font-semibold text-[#FFB366] capitalize hover:text-[#FF7939] transition-colors"
+                >
+                  {format(currentDate, 'MMMM', { locale: es })}
+                </button>
+              </div>
+              
               <Button
                 variant="ghost"
                 size="sm"
-                onClick={goToNextMonth}
+                onClick={goToNextYear}
                 className="text-white hover:bg-zinc-800"
+                title="Año siguiente"
               >
                 →
               </Button>
+              
+              {/* Selector de meses */}
+              {showMonthSelector && (
+                <div 
+                  data-month-selector
+                  className="absolute top-full left-1/2 transform -translate-x-1/2 mt-2 bg-zinc-900 border border-zinc-800 rounded-lg p-3 z-50 shadow-xl grid grid-cols-3 gap-2 min-w-[280px]"
+                >
+                  {monthNames.map((month, index) => (
+                    <button
+                      key={index}
+                      onClick={() => changeMonth(index)}
+                      className={`px-4 py-2 rounded-lg text-sm transition-colors ${
+                        currentDate.getMonth() === index
+                          ? 'bg-[#FF7939] text-white font-semibold'
+                          : 'text-gray-300 hover:bg-zinc-800'
+                      }`}
+                    >
+                      {month}
+                    </button>
+                  ))}
+                </div>
+              )}
+              
+              {/* Selector de años */}
+              {showYearSelector && (
+                <div 
+                  data-year-selector
+                  className="absolute top-full left-1/2 transform -translate-x-1/2 mt-2 bg-zinc-900 border border-zinc-800 rounded-lg p-3 z-50 shadow-xl grid grid-cols-3 gap-2 min-w-[200px] max-h-[300px] overflow-y-auto"
+                >
+                  {availableYears.map((year) => (
+                    <button
+                      key={year}
+                      onClick={() => changeYear(year)}
+                      className={`px-4 py-2 rounded-lg text-sm transition-colors ${
+                        currentDate.getFullYear() === year
+                          ? 'bg-[#FF7939] text-white font-semibold'
+                          : 'text-gray-300 hover:bg-zinc-800'
+                      }`}
+                    >
+                      {year}
+                    </button>
+                  ))}
+                </div>
+              )}
             </div>
 
         {/* Calendario */}
