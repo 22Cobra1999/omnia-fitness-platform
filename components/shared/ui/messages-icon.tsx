@@ -1,24 +1,22 @@
 "use client"
 
-import { useRouter } from "next/navigation"
 import { MessageCircle } from "lucide-react"
-// Hook removed - functionality to be reimplemented if needed
-// import { useMessages } from '@/hooks/shared/use-messages'
 import { useAuth } from "@/contexts/auth-context"
+import { usePopup } from "@/contexts/popup-context"
 
 export function MessagesIcon() {
-  const router = useRouter()
   const { user } = useAuth()
-  // Hook removed - using default behavior
-  // const { getTotalUnreadCount } = useMessages()
+  const { showAuthPopup } = usePopup()
 
   const handleMessageClick = () => {
     if (user) {
-      // Navegar a la página completa de mensajes
-      router.push('/messages')
+      // Cambiar a la tab de mensajes usando evento personalizado (igual que las otras tabs)
+      window.dispatchEvent(new CustomEvent('omnia-force-tab-change', { 
+        detail: { tab: 'messages' } 
+      }))
     } else {
-      // Si no está autenticado, podría mostrar un popup de login
-      console.log('Usuario no autenticado')
+      // Si no está autenticado, mostrar popup de login
+      showAuthPopup('login')
     }
   }
 

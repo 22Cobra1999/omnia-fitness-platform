@@ -12,6 +12,7 @@ import CoachCalendarScreen from "@/components/coach/coach-calendar-screen"
 import { ClientsScreen } from "@/components/mobile/clients-screen"
 import { SearchScreen } from "@/components/mobile/search-screen"
 import { ActivityScreen } from "@/components/mobile/activity-screen"
+import { MessagesScreen } from "@/components/mobile/messages-screen"
 import { useAuth } from "@/contexts/auth-context"
 import { usePopup } from "@/contexts/popup-context"
 import { SignInPopup } from "@/components/auth/sign-in-popup"
@@ -47,7 +48,7 @@ function MobileAppContent() {
   // Manejar parámetro tab de la URL
   useEffect(() => {
     const tabParam = searchParams.get('tab')
-    if (tabParam && ['community', 'search', 'calendar', 'profile'].includes(tabParam)) {
+    if (tabParam && ['community', 'search', 'calendar', 'profile', 'messages'].includes(tabParam)) {
       setActiveTab(tabParam)
     }
   }, [searchParams])
@@ -233,6 +234,9 @@ function MobileAppContent() {
       case "profile":
         // Perfil universal para coaches y clientes
         return <ProfileScreen />
+      case "messages":
+        // Mensajes para coaches y clientes
+        return <MessagesScreen />
       default:
         return <CommunityScreen />
     }
