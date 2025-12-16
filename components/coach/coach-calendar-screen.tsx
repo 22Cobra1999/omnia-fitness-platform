@@ -290,14 +290,13 @@ export default function CoachCalendarScreen() {
       })
 
       // Crear Meets automáticamente para eventos de taller que no tienen Meet
-      // Solo si Google Calendar está conectado y NO estamos en build time
+      // Solo si Google Calendar está conectado y estamos en el cliente (no durante build)
       // Esto se desactiva durante el build para evitar timeouts
       if (
         typeof window !== 'undefined' && 
         googleConnected && 
         calendarEvents && 
-        calendarEvents.length > 0 &&
-        process.env.NODE_ENV !== 'production' // Solo en desarrollo para evitar problemas en build
+        calendarEvents.length > 0
       ) {
         const eventosSinMeet = calendarEvents.filter(
           (e: any) => 
