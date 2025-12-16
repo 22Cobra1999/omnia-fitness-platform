@@ -1,10 +1,20 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createClient } from '@supabase/supabase-js'
 
-const supabaseService = createClient(
-  process.env.NEXT_PUBLIC_SUPABASE_URL!,
-  process.env.SUPABASE_SERVICE_ROLE_KEY!
-)
+// Hacer la ruta dinámica para evitar evaluación durante el build
+export const dynamic = 'force-dynamic'
+export const runtime = 'nodejs'
+
+function getSupabaseService() {
+  const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL
+  const supabaseServiceKey = process.env.SUPABASE_SERVICE_ROLE_KEY
+
+  if (!supabaseUrl || !supabaseServiceKey) {
+    throw new Error('Missing Supabase environment variables')
+  }
+
+  return createClient(supabaseUrl, supabaseServiceKey)
+}
 
 /**
  * Webhook para recibir notificaciones de pagos recurrentes de suscripciones de Mercado Pago
@@ -14,6 +24,7 @@ const supabaseService = createClient(
  * - subscription: Cambios en el estado de la suscripción
  */
 export async function POST(request: NextRequest) {
+  const supabaseService = getSupabaseService()
   try {
     const body = await request.json()
     
@@ -75,6 +86,7 @@ export async function POST(request: NextRequest) {
  */
 async function handleSubscriptionPayment(paymentData: any) {
   try {
+    const supabaseService = getSupabaseService()
     const preApprovalId = paymentData.preapproval_id || paymentData.subscription_id
     
     if (!preApprovalId) {
@@ -140,6 +152,7 @@ async function handleSubscriptionPayment(paymentData: any) {
  */
 async function handleSubscriptionUpdate(subscriptionData: any) {
   try {
+    const supabaseService = getSupabaseService()
     const subscriptionId = subscriptionData.id || subscriptionData.preapproval_id
     
     if (!subscriptionId) {
@@ -237,6 +250,7 @@ async function handleSubscriptionUpdateNotification(subscriptionId: string, acti
 
     console.log('📊 Información de suscripción:', JSON.stringify(subscriptionInfo, null, 2))
 
+    const supabaseService = getSupabaseService()
     // Buscar el plan asociado
     const { data: plan, error: planError } = await supabaseService
       .from('planes_uso_coach')

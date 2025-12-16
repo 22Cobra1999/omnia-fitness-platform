@@ -41,6 +41,10 @@ async function isWorkshopFinished(supabase: any, activityId: number): Promise<bo
   }
 }
 
+// Hacer la ruta dinámica para evitar evaluación durante el build
+export const dynamic = 'force-dynamic'
+export const runtime = 'nodejs'
+
 export async function GET(request: NextRequest) {
   console.log('🚀 ACTIVITIES/SEARCH: API ejecutándose...')
   try {
@@ -49,11 +53,19 @@ export async function GET(request: NextRequest) {
     const typeFilter = searchParams.get("type") // e.g., 'fitness', 'nutrition'
     const difficultyFilter = searchParams.get("difficulty") // e.g., 'beginner', 'intermediate'
     const coachIdFilter = searchParams.get("coachId") // Filter by specific coach
+    
     // Usar service role para bypass RLS temporalmente
-    const supabase = createClient(
-      process.env.NEXT_PUBLIC_SUPABASE_URL!,
-      process.env.SUPABASE_SERVICE_ROLE_KEY!
-    )
+    const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL
+    const supabaseServiceKey = process.env.SUPABASE_SERVICE_ROLE_KEY
+
+    if (!supabaseUrl || !supabaseServiceKey) {
+      return NextResponse.json(
+        { error: 'Server configuration error' },
+        { status: 500 }
+      )
+    }
+
+    const supabase = createClient(supabaseUrl, supabaseServiceKey)
     let query = supabase.from("activities").select(`
       *,
       activity_media!activity_media_activity_id_fkey(*)
