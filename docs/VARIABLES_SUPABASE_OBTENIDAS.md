@@ -23,19 +23,13 @@ NEXT_PUBLIC_SUPABASE_ANON_KEY=sb_publishable_dLWqOe9CzXjuAgCXphc5Vg_HoLYdkax
 
 ---
 
-## ⚠️ Clave de Servicio (Service Role Key)
+## ✅ Clave de Servicio (Service Role Key)
 
-La clave `SUPABASE_SERVICE_ROLE_KEY` **NO** está disponible a través de las herramientas MCP por razones de seguridad (es una clave privada con permisos completos).
+```
+SUPABASE_SERVICE_ROLE_KEY=eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im1ncmZzd3JzdnJ6d3RnaWxzc2FkIiwicm9sZSI6InNlcnZpY2Vfcm9sZSIsImlhdCI6MTc0NjE5MDMwMywiZXhwIjoyMDYxNzY2MzAzfQ.qRKBCY7dbxvNs-KCQqAm9L6xBY4X293oaFAW5yxc9Hc
+```
 
-### 🔍 Cómo Obtenerla Manualmente:
-
-1. Ve a: **https://supabase.com/dashboard**
-2. Selecciona tu proyecto: **mgrfswrsvrzwtgilssad**
-3. Ve a: **Settings** → **API**
-4. Busca la sección **"Project API keys"**
-5. Encuentra **"service_role"** key (está oculta por defecto)
-6. Haz clic en **"Reveal"** o **"Show"** para verla
-7. **⚠️ IMPORTANTE:** Esta clave tiene permisos completos, mantenerla privada
+**⚠️ IMPORTANTE:** Esta clave tiene permisos completos, mantenerla privada y solo usarla en el servidor.
 
 ---
 
@@ -62,7 +56,7 @@ La clave `SUPABASE_SERVICE_ROLE_KEY` **NO** está disponible a través de las he
 
 #### Variable 3: SUPABASE_SERVICE_ROLE_KEY
 - **Key:** `SUPABASE_SERVICE_ROLE_KEY`
-- **Value:** `[Obtener desde Supabase Dashboard - Settings → API → service_role key]`
+- **Value:** `eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im1ncmZzd3JzdnJ6d3RnaWxzc2FkIiwicm9sZSI6InNlcnZpY2Vfcm9sZSIsImlhdCI6MTc0NjE5MDMwMywiZXhwIjoyMDYxNzY2MzAzfQ.qRKBCY7dbxvNs-KCQqAm9L6xBY4X293oaFAW5yxc9Hc`
 - **Environments:** ✅ Production, ✅ Preview, ✅ Development
 - **⚠️ IMPORTANTE:** Esta clave es privada, mantenerla segura
 - **Save**
