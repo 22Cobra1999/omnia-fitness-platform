@@ -163,7 +163,7 @@ export default function MessagesPage() {
           if (unreadMessages.length > 0) {
             isUpdatingUnreadRef.current = true
             try {
-              const messageIds = unreadMessages.map(msg => msg.id)
+              const messageIds = unreadMessages.map((msg: Message) => msg.id)
               await supabase
                 .from('messages')
                 .update({ is_read: true, read_at: new Date().toISOString() })
@@ -210,25 +210,28 @@ export default function MessagesPage() {
       return
     }
     loadConversations()
-  }, [user, loadConversations, router])
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [user])
 
   // useEffect para cargar mensajes cuando se selecciona una conversación
   useEffect(() => {
+    if (!selectedConversationId || !user) return
+
     // Limpiar intervalo anterior
     if (pollingIntervalRef.current) {
       clearInterval(pollingIntervalRef.current)
       pollingIntervalRef.current = null
     }
 
-    if (selectedConversationId) {
-      loadMessages(selectedConversationId)
-      // Polling para nuevos mensajes cada 5 segundos (aumentado para evitar loops)
-      pollingIntervalRef.current = setInterval(() => {
-        if (!isUpdatingUnreadRef.current) {
-          loadMessages(selectedConversationId, false) // false = no actualizar contadores
-        }
-      }, 5000)
-    }
+    // Cargar mensajes iniciales
+    loadMessages(selectedConversationId)
+    
+    // Polling para nuevos mensajes cada 5 segundos (aumentado para evitar loops)
+    pollingIntervalRef.current = setInterval(() => {
+      if (!isUpdatingUnreadRef.current && selectedConversationId) {
+        loadMessages(selectedConversationId, false) // false = no actualizar contadores
+      }
+    }, 5000)
 
     return () => {
       if (pollingIntervalRef.current) {
@@ -236,7 +239,8 @@ export default function MessagesPage() {
         pollingIntervalRef.current = null
       }
     }
-  }, [selectedConversationId, loadMessages])
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [selectedConversationId])
 
   const sendMessage = async () => {
     if (!newMessage.trim() || !selectedConversation || !user || sending) return

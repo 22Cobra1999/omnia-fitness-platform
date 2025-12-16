@@ -26,4 +26,3 @@ const nextConfig = {
 }
 
 export default nextConfig
-// Build timestamp: 1765915963
