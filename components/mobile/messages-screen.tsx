@@ -78,9 +78,14 @@ export function MessagesScreen() {
 
   // Cargar conversaciones
   const loadConversations = useCallback(async () => {
-    if (!user || isCoach === null) return
+    if (!user || isCoach === null) {
+      setLoading(false)
+      return
+    }
 
     try {
+      setLoading(true)
+      
       // Obtener conversaciones del usuario
       const { data: conversationsData, error: conversationsError } = await supabase
         .from('conversations')
@@ -94,11 +99,13 @@ export function MessagesScreen() {
 
       if (conversationsError) {
         console.error('Error cargando conversaciones:', conversationsError)
+        setLoading(false)
         return
       }
 
       if (!conversationsData || conversationsData.length === 0) {
         setConversations([])
+        setLoading(false)
         return
       }
 
@@ -115,6 +122,7 @@ export function MessagesScreen() {
 
       if (profilesError) {
         console.error('Error cargando perfiles:', profilesError)
+        setLoading(false)
         return
       }
 
@@ -138,8 +146,10 @@ export function MessagesScreen() {
       })
 
       setConversations(formattedConversations)
+      setLoading(false)
     } catch (error) {
       console.error('Error cargando conversaciones:', error)
+      setLoading(false)
     }
   }, [user, isCoach, supabase])
 
@@ -276,7 +286,12 @@ export function MessagesScreen() {
 
   // Efectos
   useEffect(() => {
-    if (user && isCoach !== null) {
+    if (!user) {
+      setLoading(false)
+      return
+    }
+    
+    if (isCoach !== null) {
       loadConversations()
     }
   }, [user, isCoach, loadConversations])
@@ -315,7 +330,19 @@ export function MessagesScreen() {
     }
   }, [user, isCoach, selectedConversationId, loadConversations, loadMessages])
 
-  if (loading) {
+  // Mostrar loading solo si hay usuario y aún estamos determinando el rol o cargando
+  if (!user) {
+    return (
+      <div className="flex items-center justify-center h-full bg-[#121212]">
+        <div className="text-center text-gray-400">
+          <MessageCircle className="h-12 w-12 mx-auto mb-4 opacity-50" />
+          <p>Inicia sesión para ver tus mensajes</p>
+        </div>
+      </div>
+    )
+  }
+
+  if (loading || isCoach === null) {
     return (
       <div className="flex items-center justify-center h-full bg-[#121212]">
         <div className="text-white">Cargando mensajes...</div>
