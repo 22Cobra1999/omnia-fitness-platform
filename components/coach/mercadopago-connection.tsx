@@ -205,29 +205,70 @@ export function MercadoPagoConnection() {
   };
 
   const handleDisconnect = async () => {
-    if (!user?.id) return;
+    if (!user?.id) {
+      toast.error('No se pudo identificar al usuario');
+      return;
+    }
+
+    // Prevenir múltiples llamadas simultáneas
+    if (disconnecting) {
+      console.warn('Ya hay una desconexión en proceso');
+      return;
+    }
 
     setDisconnecting(true);
+    setShowDisconnectModal(false); // Cerrar modal inmediatamente para evitar bloqueos
+    
+    // Timeout de seguridad: resetear estado después de 10 segundos si no hay respuesta
+    const timeoutId = setTimeout(() => {
+      console.warn('⏱️ Timeout en desconexión - reseteando estado');
+      setDisconnecting(false);
+      toast.error('La desconexión está tardando demasiado. Por favor, intenta nuevamente.');
+    }, 10000);
+    
     try {
+      console.log('Iniciando desconexión de Mercado Pago para coach:', user.id);
+      
       const response = await fetch('/api/mercadopago/disconnect', {
         method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        signal: AbortSignal.timeout(8000), // Timeout de 8 segundos en la petición
       });
 
+      clearTimeout(timeoutId); // Limpiar timeout si la respuesta llega a tiempo
+      
       const result = await response.json();
+      console.log('Respuesta de desconexión:', result);
 
       if (response.ok && result.success) {
         toast.success('Cuenta desvinculada correctamente');
         setCredentials({ oauth_authorized: false, mercadopago_user_id: null, oauth_authorized_at: null });
         setUserInfo(null);
-        setShowDisconnectModal(false);
+        // Recargar credenciales para asegurar sincronización
         await loadCredentials();
       } else {
-        toast.error(result.error || 'Error al desvincular cuenta');
+        console.error('Error en respuesta de desconexión:', result);
+        toast.error(result.error || result.details || 'Error al desvincular cuenta');
+        // Mantener el modal abierto si hay error para que el usuario pueda reintentar
+        setShowDisconnectModal(true);
       }
     } catch (error: any) {
-      console.error('Error al desvincular:', error);
-      toast.error(`Error al desvincular cuenta: ${error.message || 'Error desconocido'}`);
+      clearTimeout(timeoutId); // Limpiar timeout en caso de error
+      console.error('❌ Error al desvincular:', error);
+      
+      // Manejar diferentes tipos de errores
+      if (error.name === 'AbortError' || error.name === 'TimeoutError') {
+        toast.error('La conexión está tardando demasiado. Por favor, verifica tu conexión e intenta nuevamente.');
+      } else {
+        toast.error(`Error al desvincular cuenta: ${error.message || 'Error de conexión'}`);
+      }
+      
+      // Mantener el modal abierto si hay error para que el usuario pueda reintentar
+      setShowDisconnectModal(true);
     } finally {
+      // Asegurar que siempre se resetee el estado
       setDisconnecting(false);
     }
   };
@@ -311,9 +352,10 @@ export function MercadoPagoConnection() {
                 </a>
                 <button
                   onClick={() => setShowDisconnectModal(true)}
-                  className="flex items-center justify-center h-6 px-2.5 text-[#FF7939] hover:text-[#FF8C42] text-xs transition-colors"
+                  disabled={disconnecting || loading}
+                  className="flex items-center justify-center h-6 px-2.5 text-[#FF7939] hover:text-[#FF8C42] text-xs transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
                 >
-                  Desvincular
+                  {disconnecting ? 'Desvinculando...' : 'Desvincular'}
                 </button>
               </>
             ) : (
@@ -337,12 +379,16 @@ export function MercadoPagoConnection() {
 
       {/* Modal de Confirmación */}
       <ConfirmationModal
-        isOpen={showDisconnectModal}
-        onClose={() => !disconnecting && setShowDisconnectModal(false)}
+        isOpen={showDisconnectModal && !disconnecting}
+        onClose={() => {
+          if (!disconnecting) {
+            setShowDisconnectModal(false);
+          }
+        }}
         onConfirm={handleDisconnect}
         title="Desvincular Cuenta"
-        description="¿Estás seguro de que deseas desvincular tu cuenta de Mercado Pago?"
-        confirmText={disconnecting ? "Desvinculando..." : "Desvincular"}
+        description="¿Estás seguro de que deseas desvincular tu cuenta de Mercado Pago? No podrás recibir pagos hasta que reconectes tu cuenta."
+        confirmText="Desvincular"
         cancelText="Cancelar"
         variant="destructive"
         isLoading={disconnecting}

@@ -10,8 +10,12 @@ export async function POST(request: NextRequest) {
     const { data: { user }, error: authError } = await supabase.auth.getUser();
 
     if (authError || !user) {
-      console.error('Error de autenticación:', authError);
-      return NextResponse.json({ error: 'No autenticado' }, { status: 401 });
+      console.error('❌ Error de autenticación:', authError);
+      return NextResponse.json({ 
+        success: false,
+        error: 'No autenticado',
+        details: authError?.message || 'Usuario no autenticado'
+      }, { status: 401 });
     }
 
     console.log('Desvinculando cuenta de Mercado Pago para coach:', user.id);
@@ -26,8 +30,9 @@ export async function POST(request: NextRequest) {
         throw new Error('No se pudo obtener el cliente de Supabase admin');
       }
     } catch (importError: any) {
-      console.error('Error importando getSupabaseAdmin:', importError);
+      console.error('❌ Error importando getSupabaseAdmin:', importError);
       return NextResponse.json({ 
+        success: false,
         error: 'Error de configuración del servidor',
         details: importError.message 
       }, { status: 500 });
@@ -41,8 +46,9 @@ export async function POST(request: NextRequest) {
       .maybeSingle();
 
     if (checkError) {
-      console.error('Error verificando credenciales existentes:', checkError);
+      console.error('❌ Error verificando credenciales existentes:', checkError);
       return NextResponse.json({ 
+        success: false,
         error: 'Error al verificar credenciales',
         details: checkError.message 
       }, { status: 500 });
@@ -70,28 +76,44 @@ export async function POST(request: NextRequest) {
       .select();
 
     if (updateError) {
-      console.error('Error actualizando credenciales:', updateError);
-      console.error('Detalles del error:', JSON.stringify(updateError, null, 2));
+      console.error('❌ Error actualizando credenciales:', updateError);
+      console.error('❌ Detalles del error:', JSON.stringify(updateError, null, 2));
+      console.error('❌ Código de error:', updateError.code);
+      console.error('❌ Mensaje:', updateError.message);
+      console.error('❌ Detalles:', updateError.details);
+      
+      // Intentar obtener más información sobre el error
+      const errorDetails = {
+        code: updateError.code,
+        message: updateError.message,
+        details: updateError.details,
+        hint: updateError.hint,
+      };
+      
       return NextResponse.json({ 
+        success: false,
         error: 'Error al desvincular cuenta',
-        details: updateError.message,
-        code: updateError.code 
+        details: updateError.message || 'Error desconocido al actualizar las credenciales',
+        code: updateError.code || 'UPDATE_ERROR',
+        debug: process.env.NODE_ENV === 'development' ? errorDetails : undefined
       }, { status: 500 });
     }
 
-    console.log('Cuenta desvinculada correctamente:', updatedData);
+    console.log('✅ Cuenta desvinculada correctamente:', updatedData);
 
     return NextResponse.json({
       success: true,
       message: 'Cuenta desvinculada correctamente',
+      data: updatedData
     });
 
   } catch (error: any) {
-    console.error('Error en POST /api/mercadopago/disconnect:', error);
-    console.error('Stack trace:', error.stack);
+    console.error('❌ Error en POST /api/mercadopago/disconnect:', error);
+    console.error('❌ Stack trace:', error.stack);
     return NextResponse.json({ 
+      success: false,
       error: 'Error interno del servidor',
-      details: error.message 
+      details: error.message || 'Error desconocido'
     }, { status: 500 });
   }
 }
