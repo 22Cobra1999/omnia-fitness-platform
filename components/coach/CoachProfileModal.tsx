@@ -10,6 +10,7 @@ import ClientProductModal from '@/components/client/activities/client-product-mo
 import { PurchaseActivityModal } from '@/components/shared/activities/purchase-activity-modal'
 import { createClient } from '@/lib/supabase/supabase-client'
 import { toast } from '@/components/ui/use-toast'
+import { CoachPersonalInfoSection } from '@/components/shared/coach/coach-personal-info-section'
 
 interface CoachProfileModalProps {
   isOpen: boolean
@@ -344,14 +345,14 @@ export default function CoachProfileModal({
           initial={{ opacity: 0 }}
           animate={{ opacity: 1 }}
           exit={{ opacity: 0 }}
-          className="fixed inset-0 bg-black/80 z-40 flex items-center justify-center p-4"
+          className="fixed inset-0 bg-black/80 z-40 flex items-start justify-center p-4 pt-16"
           onClick={handleClose}
         >
         <motion.div
           key="coach-modal-content"
-          initial={{ scale: 0.9, opacity: 0 }}
-          animate={{ scale: 1, opacity: 1 }}
-          exit={{ scale: 0.9, opacity: 0 }}
+          initial={{ scale: 0.9, opacity: 0, y: -20 }}
+          animate={{ scale: 1, opacity: 1, y: 0 }}
+          exit={{ scale: 0.9, opacity: 0, y: -20 }}
           className="relative bg-[#1A1A1A] rounded-2xl w-full max-w-2xl border border-[#2A2A2A] max-h-[90vh] overflow-y-auto overscroll-contain"
           onClick={(e) => e.stopPropagation()}
         >
@@ -368,7 +369,7 @@ export default function CoachProfileModal({
           </div>
 
           {/* Header del Coach */}
-          <div className="relative p-6 pb-4">
+          <div className="relative">
             {/* Imagen de fondo difuminada */}
             {coach.avatar_url && (
               <div className="absolute inset-0 rounded-t-2xl overflow-hidden">
@@ -383,74 +384,25 @@ export default function CoachProfileModal({
             )}
 
             {/* Contenido del header */}
-            <div className="relative z-10 text-center">
-              {/* Avatar */}
-              <div className="flex justify-center mb-4">
-                <div className="w-24 h-24 bg-gradient-to-br from-[#FF6A00] to-[#FF8C42] rounded-full flex items-center justify-center overflow-hidden">
-                  {coach.avatar_url ? (
-                    <img 
-                      src={coach.avatar_url} 
-                      alt="Foto de perfil" 
-                      className="w-full h-full object-cover"
-                    />
-                  ) : (
-                    <span className="text-3xl text-white font-bold">{coach.name[0]}</span>
-                  )}
-                </div>
-              </div>
-
-              {/* Nombre */}
-              <h1 className="text-2xl font-bold text-white mb-2">
-                {coach.name}
-              </h1>
-
-              {/* Rating, Ventas y Ubicación en la misma línea */}
-              <div className="flex items-center justify-center gap-4 mb-4 flex-wrap">
-                {coach.rating && coach.rating > 0 ? (
-                  <div className="flex items-center text-[#FF7939]">
-                    <Star className="w-5 h-5 fill-current mr-1" />
-                    <span className="text-lg font-semibold">{coach.rating.toFixed(1)}</span>
-                  </div>
-                ) : (
-                  <div className="flex items-center text-gray-400">
-                    <Star className="w-5 h-5 mr-1" />
-                    <span>Sin reseñas</span>
-                  </div>
-                )}
-                
-                {/* Ventas totales */}
-                <div className="flex items-center text-gray-300">
-                  <span className="text-sm">
-                    {totalSales !== null ? `${totalSales} ventas` : 'Cargando...'}
-                  </span>
-                </div>
-                
-                {/* Ubicación */}
-                {coach.location && (
-                  <div className="flex items-center text-gray-300">
-                    <MapPin className="w-4 h-4 text-[#FF7939] mr-1" />
-                    <span className="text-sm">{coach.location}</span>
-                  </div>
-                )}
-              </div>
-
-              {/* Bio */}
-              {coach.bio && (
-                <div className="text-center mb-4">
-                  <p className="text-gray-300 text-sm leading-relaxed">
-                    {coach.bio}
-                  </p>
-                </div>
-              )}
-
-              {/* Especialización */}
-              {coach.specialization && (
-                <div className="text-center mb-4">
-                  <span className="text-[#FF7939] bg-[#FF7939]/10 px-3 py-1 rounded-full text-sm font-medium border border-[#FF7939]/20">
-                    {coach.specialization}
-                  </span>
-                </div>
-              )}
+            <div className="relative z-10">
+              {/* Información personal del coach usando componente compartido */}
+              <CoachPersonalInfoSection
+                coach={{
+                  name: coach.name,
+                  full_name: coach.name,
+                  avatar_url: coach.avatar_url,
+                  location: coach.location,
+                  bio: coach.bio,
+                  specialization: coach.specialization,
+                  certifications: coach.certifications,
+                  certifications_count: coach.certifications?.length,
+                  rating: coach.rating,
+                  total_sales: totalSales
+                }}
+                variant="modal"
+                showStreak={true}
+                streakCount={6}
+              />
 
               {/* Certificados */}
               {coachCertifications && coachCertifications.length > 0 && (
@@ -476,7 +428,7 @@ export default function CoachProfileModal({
           </div>
 
           {/* Productos del Coach */}
-          <div className="px-6 pt-6 pb-8">
+          <div className="px-6 pt-6 pb-16">
             <div className="flex items-center justify-between mb-4">
               <h2 className="text-lg font-semibold text-white flex items-center">
                 <Package className="w-5 h-5 mr-2 text-[#FF7939]" />

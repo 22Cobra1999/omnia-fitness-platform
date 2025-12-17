@@ -443,9 +443,10 @@ export default function CoachCalendarScreen() {
   useEffect(() => {
     // Verificar si tenemos eventos en caché para el mes actual
     const cacheKey = `${currentDate.getFullYear()}-${currentDate.getMonth()}`
-    if (cachedEvents.has(cacheKey)) {
+    const cached = cachedEvents.get(cacheKey)
+    
+    if (cached !== undefined) {
       // Usar eventos del cache (incluso si está vacío, significa que ya cargamos)
-      const cached = cachedEvents.get(cacheKey) || []
       setEvents(cached)
       setLoading(false)
       
@@ -464,7 +465,8 @@ export default function CoachCalendarScreen() {
       getCoachEvents()
     }
     checkGoogleConnection()
-  }, [currentDate, getCoachEvents, cachedEvents]) // Solo recargar cuando cambia el mes
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [currentDate]) // Solo recargar cuando cambia el mes
   
   // Cerrar selectores al hacer clic fuera
   useEffect(() => {

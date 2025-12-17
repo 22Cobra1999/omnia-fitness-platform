@@ -118,6 +118,20 @@ export function decrypt(encryptedText: string): string {
     console.error('Error desencriptando:', error);
     console.error('Tipo de error:', error.constructor.name);
     console.error('Mensaje:', error.message);
+    console.error('Código de error:', error.code);
+    
+    // Detectar errores específicos de GCM
+    const isGCMAuthError = 
+      error.message?.includes('unable to authenticate') ||
+      error.message?.includes('Unsupported state') ||
+      error.message?.includes('bad decrypt') ||
+      error.code === 'ERR_OSSL_BAD_DECRYPT' ||
+      error.code === 'ERR_CRYPTO_INVALID_TAG';
+    
+    if (isGCMAuthError) {
+      throw new Error(`Error al desencriptar el token: El token fue encriptado con una clave diferente (${error.message})`);
+    }
+    
     throw new Error(`Error al desencriptar el token: ${error.message}`);
   }
 }

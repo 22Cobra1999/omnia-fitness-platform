@@ -49,6 +49,7 @@ import { PlanManagement } from "@/components/coach/plan-management"
 import { MercadoPagoConnection } from "@/components/coach/mercadopago-connection"
 import { GoogleCalendarConnection } from "@/components/coach/google-calendar-connection"
 import { CoachStats } from "@/components/coach/coach-stats"
+import { CoachPersonalInfoSection } from "@/components/shared/coach/coach-personal-info-section"
 
 interface ActivityRing {
   type: string
@@ -462,158 +463,115 @@ export function ProfileScreen() {
     return (
     <div className="min-h-screen bg-[#0F1012] text-white p-4 space-y-6">
       {/* Header del perfil reorganizado */}
-      <div 
-        className="bg-[#1A1C1F] rounded-2xl p-4 relative overflow-hidden"
-        style={{
-          backgroundImage: (isCoach ? (coachProfile as any)?.avatar_url : managedProfile?.avatar_url) 
-            ? `linear-gradient(rgba(26, 28, 31, 0.7), rgba(26, 28, 31, 0.8)), url(${(isCoach ? (coachProfile as any)?.avatar_url : managedProfile?.avatar_url)})`
-            : undefined,
-          backgroundSize: 'cover',
-          backgroundPosition: 'center',
-          backgroundRepeat: 'no-repeat'
-        }}
-      >
-        {/* Fondo difuminado adicional */}
-        {(isCoach ? (coachProfile as any)?.avatar_url : managedProfile?.avatar_url) && (
-          <div 
-            className="absolute inset-0 opacity-25"
-            style={{
-              backgroundImage: `url(${(isCoach ? (coachProfile as any)?.avatar_url : managedProfile?.avatar_url)})`,
-              backgroundSize: 'cover',
-              backgroundPosition: 'center',
-              filter: 'blur(12px)',
-              transform: 'scale(1.1)'
-            }}
-          />
-        )}
-        
-        {/* Contenido del perfil con z-index para estar encima del fondo */}
-        <div className="relative z-10">
-        {/* Racha en esquina superior izquierda */}
-        <div className="absolute top-4 left-4">
-          <div className="flex items-center space-x-2 bg-orange-500/20 px-3 py-1 rounded-full">
-            <Flame className="h-4 w-4 text-orange-500" />
-            <span className="text-sm font-medium text-orange-500">6</span>
-          </div>
-        </div>
-
-        {/* Botón de editar en esquina superior derecha */}
-        <div className="absolute top-4 right-4">
-          <Button
-            onClick={() => handleEditSection("profile")}
-            variant="ghost"
-            size="sm"
-            className="text-[#FF6A00] hover:bg-[#FF6A00]/10 rounded-xl p-2"
-          >
-            <Edit3 className="h-4 w-4" />
-          </Button>
-        </div>
-
-        {/* Imagen centrada */}
-        <div className="flex justify-center mb-2 pt-2">
-          <div className="w-20 h-20 bg-gradient-to-br from-[#FF6A00] to-[#FF8C42] rounded-full flex items-center justify-center overflow-hidden">
-            {(() => {
-              console.log('🖼️ [ProfileScreen] Renderizando imagen:', {
-                hasAvatar: !!(isCoach ? (coachProfile as any)?.avatar_url : managedProfile?.avatar_url),
-                avatarUrl: (isCoach ? (coachProfile as any)?.avatar_url : managedProfile?.avatar_url),
-                profile: managedProfile
-              })
-              const avatar = isCoach ? (coachProfile as any)?.avatar_url : managedProfile?.avatar_url
-              return avatar ? (
-                <img 
-                  src={avatar as any} 
-                  alt="Foto de perfil" 
-                  className="w-full h-full object-cover"
-                />
-              ) : (
-                <User className="h-10 w-10 text-white" />
-              )
-            })()}
-          </div>
-        </div>
-
-        {/* Nombre centrado */}
-        <div className="text-center mb-2">
-          <h1 className="text-lg font-semibold">
-            {isCoach ? (coachProfile?.full_name || "Coach") : (managedProfile?.full_name || "Usuario")}
-          </h1>
-        </div>
-
-        {/* Información organizada en filas */}
-        <div className="space-y-2">
-          {/* Ubicación y edad (usar datos de coach si aplica) */}
-          <div className="flex items-center justify-center space-x-4">
-            <div className="flex items-center space-x-1">
-              <MapPin className="h-4 w-4 text-gray-400" />
-              <span className="text-sm text-gray-300">
-                {isCoach ? (coachProfile?.location || "No especificada") : (managedProfile?.location || "No especificada")}
-              </span>
-            </div>
-            <div className="flex items-center space-x-1">
-              <span className="text-sm text-gray-300">
-                {isCoach
-                  ? (typeof (coachProfile as any)?.age_years === 'number' ? (coachProfile as any)?.age_years : "N/A")
-                  : (managedProfile?.age || "N/A")} años
-              </span>
-            </div>
-          </div>
-
-          {/* Bio y especialidades para coaches */}
-          {isCoach ? (
-            <div className="space-y-2">
-              {/* Bio */}
-              <div className="text-center">
-                <span className="text-sm text-gray-300">
-                  {coachProfile?.bio || "Sin biografía"}
-                </span>
-              </div>
-              {/* Especialidades - chips estilo ActivityCard */}
-              <div className="text-center">
-                {(() => {
-                  const specsRaw = coachProfile?.specialization || ""
-                  const specs = specsRaw
-                    ? specsRaw.split(',').map(s => s.trim()).filter(Boolean)
-                    : []
-                  if (specs.length === 0) {
-                    return <span className="text-sm text-gray-300">Sin especialidades</span>
-                  }
-                  return (
-                    <div className="flex flex-wrap justify-center gap-1">
-                      {specs.map((spec, idx) => (
-                        <span
-                          key={`${spec}-${idx}`}
-                          className="bg-[#FF7939]/20 text-[#FF7939] text-[10px] px-1.5 py-0.5 rounded-full font-medium border border-[#FF7939]/30 whitespace-nowrap"
-                        >
-                          {spec}
-                        </span>
-                      ))}
-                    </div>
-                  )
-                })()}
-              </div>
-              {/* Certificaciones */}
-              <div className="text-center">
-                <span className="text-sm text-gray-300">
-                  Certificaciones: {(coachProfile as any)?.certifications_count ?? (coachProfile?.certifications?.length ?? 0)}
-                </span>
-              </div>
-            </div>
-          ) : (
-            /* Peso y altura para clientes */
-          <div className="flex items-center justify-center space-x-4">
-            <div className="flex items-center space-x-1">
-              <Weight className="h-4 w-4 text-gray-400" />
-              <span className="text-sm text-gray-300">{managedProfile?.weight || "N/A"} kg</span>
-            </div>
-            <div className="flex items-center space-x-1">
-              <Ruler className="h-4 w-4 text-gray-400" />
-              <span className="text-sm text-gray-300">{managedProfile?.height || "N/A"} cm</span>
-            </div>
-          </div>
+      {isCoach ? (
+        <CoachPersonalInfoSection
+          coach={{
+            ...coachProfile,
+            rating: coachProfile?.rating,
+            total_sales: salesData ? 
+              (salesData.programs + salesData.workshops + salesData.documents + salesData.cefe + salesData.consultations) : 
+              null
+          } || {}}
+          variant="profile"
+          showEditButton={true}
+          onEditClick={() => handleEditSection("profile")}
+          showStreak={true}
+          streakCount={6}
+        />
+      ) : (
+        <div 
+          className="bg-[#1A1C1F] rounded-2xl p-4 relative overflow-hidden"
+          style={{
+            backgroundImage: managedProfile?.avatar_url 
+              ? `linear-gradient(rgba(26, 28, 31, 0.7), rgba(26, 28, 31, 0.8)), url(${managedProfile?.avatar_url})`
+              : undefined,
+            backgroundSize: 'cover',
+            backgroundPosition: 'center',
+            backgroundRepeat: 'no-repeat'
+          }}
+        >
+          {/* Fondo difuminado adicional */}
+          {managedProfile?.avatar_url && (
+            <div 
+              className="absolute inset-0 opacity-25"
+              style={{
+                backgroundImage: `url(${managedProfile?.avatar_url})`,
+                backgroundSize: 'cover',
+                backgroundPosition: 'center',
+                filter: 'blur(12px)',
+                transform: 'scale(1.1)'
+              }}
+            />
           )}
+          
+          {/* Contenido del perfil con z-index para estar encima del fondo */}
+          <div className="relative z-10">
+            {/* Botón de editar en esquina superior derecha */}
+            <div className="absolute top-4 right-4">
+              <Button
+                onClick={() => handleEditSection("profile")}
+                variant="ghost"
+                size="sm"
+                className="text-[#FF6A00] hover:bg-[#FF6A00]/10 rounded-xl p-2"
+              >
+                <Edit3 className="h-4 w-4" />
+              </Button>
+            </div>
+
+            {/* Imagen centrada */}
+            <div className="flex justify-center mb-2 pt-2">
+              <div className="w-20 h-20 bg-gradient-to-br from-[#FF6A00] to-[#FF8C42] rounded-full flex items-center justify-center overflow-hidden">
+                {managedProfile?.avatar_url ? (
+                  <img 
+                    src={managedProfile.avatar_url} 
+                    alt="Foto de perfil" 
+                    className="w-full h-full object-cover"
+                  />
+                ) : (
+                  <User className="h-10 w-10 text-white" />
+                )}
+              </div>
+            </div>
+
+            {/* Nombre centrado */}
+            <div className="text-center mb-2">
+              <h1 className="text-lg font-semibold">
+                {managedProfile?.full_name || "Usuario"}
+              </h1>
+            </div>
+
+            {/* Información organizada en filas */}
+            <div className="space-y-2">
+              {/* Ubicación y edad */}
+              <div className="flex items-center justify-center space-x-4">
+                <div className="flex items-center space-x-1">
+                  <MapPin className="h-4 w-4 text-gray-400" />
+                  <span className="text-sm text-gray-300">
+                    {managedProfile?.location || "No especificada"}
+                  </span>
+                </div>
+                <div className="flex items-center space-x-1">
+                  <span className="text-sm text-gray-300">
+                    {managedProfile?.age || "N/A"} años
+                  </span>
+                </div>
+              </div>
+
+              {/* Peso y altura para clientes */}
+              <div className="flex items-center justify-center space-x-4">
+                <div className="flex items-center space-x-1">
+                  <Weight className="h-4 w-4 text-gray-400" />
+                  <span className="text-sm text-gray-300">{managedProfile?.weight || "N/A"} kg</span>
+                </div>
+                <div className="flex items-center space-x-1">
+                  <Ruler className="h-4 w-4 text-gray-400" />
+                  <span className="text-sm text-gray-300">{managedProfile?.height || "N/A"} cm</span>
+                </div>
+              </div>
+            </div>
+          </div>
         </div>
-        </div>
-      </div>
+      )}
 
       {/* Barra segmentada de tipos de ventas - Solo para coaches */}
       {isCoach && (

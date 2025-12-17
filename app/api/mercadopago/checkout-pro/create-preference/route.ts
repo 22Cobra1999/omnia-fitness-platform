@@ -236,6 +236,25 @@ export async function POST(request: NextRequest) {
       console.error('❌ Mensaje:', error?.message);
       console.error('❌ Stack:', error?.stack);
       
+      // Detectar si el error es por clave de encriptación incorrecta
+      const isEncryptionKeyMismatch = 
+        error?.message?.includes('unable to authenticate') ||
+        error?.message?.includes('Unsupported state') ||
+        error?.message?.includes('bad decrypt') ||
+        error?.code === 'ERR_OSSL_BAD_DECRYPT';
+      
+      if (isEncryptionKeyMismatch) {
+        return NextResponse.json(
+          { 
+            error: 'El token del coach fue encriptado con una clave diferente',
+            code: 'TOKEN_DECRYPTION_ERROR',
+            details: 'El token fue encriptado con una ENCRYPTION_KEY diferente. El coach debe reconectar su cuenta de Mercado Pago para generar un nuevo token.',
+            requiresReconnection: true
+          },
+          { status: 400 }
+        );
+      }
+      
       return NextResponse.json(
         { 
           error: 'Error procesando credenciales del coach',
@@ -546,11 +565,22 @@ export async function POST(request: NextRequest) {
     }
 
     // Agregar locale a la URL si no está presente
-    const finalInitPoint = initPoint.includes('locale=') 
-      ? initPoint 
-      : `${initPoint}${initPoint.includes('?') ? '&' : '?'}locale=es-AR`;
+    // IMPORTANTE: El locale debe estar en la URL para que el checkout de Mercado Pago lo use
+    let finalInitPoint = initPoint;
     
-    console.log('🔗 Init Point Final (con locale):', finalInitPoint);
+    // Verificar si ya tiene locale
+    if (!finalInitPoint.includes('locale=')) {
+      // Agregar locale a la URL
+      const separator = finalInitPoint.includes('?') ? '&' : '?';
+      finalInitPoint = `${finalInitPoint}${separator}locale=es-AR`;
+    } else {
+      // Si ya tiene locale, asegurarse de que sea es-AR
+      finalInitPoint = finalInitPoint.replace(/locale=[^&]*/, 'locale=es-AR');
+    }
+    
+    console.log('🔗 Init Point Original:', initPoint);
+    console.log('🔗 Init Point Final (con locale=es-AR):', finalInitPoint);
+    console.log('🔗 Tiene locale en URL:', finalInitPoint.includes('locale='));
     console.log('🔗 ========== FIN PROCESANDO INIT POINT ==========');
 
     const responseData = {

@@ -16,6 +16,7 @@ export interface CreatePreferenceResponse {
   code?: string;
   details?: string;
   requiresCoachSetup?: boolean;
+  requiresReconnection?: boolean;
 }
 
 export interface CreatePreferenceError {
@@ -23,6 +24,7 @@ export interface CreatePreferenceError {
   code: string;
   details?: string;
   requiresCoachSetup?: boolean;
+  requiresReconnection?: boolean;
 }
 
 /**
@@ -68,6 +70,7 @@ export async function createCheckoutProPreference(
         code: data.code || 'UNKNOWN_ERROR',
         details: data.details,
         requiresCoachSetup: data.requiresCoachSetup,
+        requiresReconnection: data.requiresReconnection,
       };
 
       throw new Error(JSON.stringify(error));
@@ -164,7 +167,10 @@ export function getCheckoutProErrorMessage(error: any): string {
       case 'COMMISSION_CALCULATION_ERROR':
         return 'Error calculando la comisión. Por favor, intenta más tarde.';
       case 'TOKEN_DECRYPTION_ERROR':
-        return 'Error procesando las credenciales del coach.';
+        if (error.requiresReconnection) {
+          return 'El coach necesita reconectar su cuenta de Mercado Pago. Esto puede ocurrir si las credenciales fueron encriptadas con una clave diferente. Por favor, contacta al coach para que reconecte su cuenta desde su perfil.';
+        }
+        return error.details || 'Error procesando las credenciales del coach. El coach debe reconectar su cuenta de Mercado Pago desde su perfil.';
       case 'PREFERENCE_CREATION_ERROR':
         return `Error creando la preferencia de pago: ${error.details || 'Error desconocido'}`;
       case 'MISSING_INIT_POINT':

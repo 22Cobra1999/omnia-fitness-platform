@@ -860,10 +860,27 @@ export default function ClientProductModal({
           }
         } catch (error: any) {
           const { getCheckoutProErrorMessage } = await import('@/lib/mercadopago/checkout-pro');
-          const errorMessage = getCheckoutProErrorMessage(error);
           
-          console.error('❌ Error en la compra:', error);
-          alert(errorMessage);
+          // Intentar parsear el error si viene como string JSON
+          let parsedError = error;
+          if (typeof error === 'string' && error.startsWith('{')) {
+            try {
+              parsedError = JSON.parse(error);
+            } catch {
+              // Si no se puede parsear, usar el error original
+            }
+          }
+          
+          const errorMessage = getCheckoutProErrorMessage(parsedError);
+          
+          console.error('❌ Error en la compra:', parsedError);
+          console.error('❌ Mensaje de error:', errorMessage);
+          
+          // Usar toast en lugar de alert para mejor UX
+          toast.error('Error al procesar el pago', {
+            description: errorMessage,
+            duration: 5000
+          });
         } finally {
           setIsProcessingPurchase(false);
         }
