@@ -37,7 +37,7 @@ export function SettingsIcon() {
     <div className="relative" ref={menuRef}>
       <button
         onClick={() => setIsOpen(!isOpen)}
-        className="p-2 text-[#FF7939] hover:text-[#E86A2D] transition-colors"
+        className="p-2 text-[#FF6A1A] hover:text-[#FF8A3D] transition-colors"
         aria-label="Settings"
       >
         <Settings size={24} />

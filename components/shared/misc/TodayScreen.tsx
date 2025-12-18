@@ -41,11 +41,24 @@ type Activity = {
   calorias?: number | null;
   body_parts?: string | null;
   intensidad?: string | null;
+  // Campos específicos para nutrición
+  proteinas?: number | null;
+  carbohidratos?: number | null;
+  grasas?: number | null;
+  receta?: string | null;
+  ingredientes?: string | null;
+  // Campos adicionales para identificación
+  ejercicio_id?: number | string;
+  exercise_id?: number | string;
+  orden?: number;
+  order?: number;
+  block?: number;
 };
 
 export default function TodayScreen({ activityId, onBack }: { activityId: string, onBack?: () => void }) {
   const [vh, setVh] = React.useState<number>(typeof window !== 'undefined' ? window.innerHeight : 800);
   const [activities, setActivities] = React.useState<Activity[]>([]);
+  const [blockNames, setBlockNames] = React.useState<Record<string, string>>({});
   const [loading, setLoading] = React.useState(true);
   const [selectedDate, setSelectedDate] = React.useState<Date>(new Date());
   const [nextAvailableActivity, setNextAvailableActivity] = React.useState<{
@@ -63,6 +76,8 @@ export default function TodayScreen({ activityId, onBack }: { activityId: string
   
   // Estados para la expansión del video
   const [isVideoExpanded, setIsVideoExpanded] = React.useState(false);
+  const [isVideoPanelExpanded, setIsVideoPanelExpanded] = React.useState(false); // Panel expandible dentro del detalle
+  const [isIngredientesExpanded, setIsIngredientesExpanded] = React.useState(false); // Ingredientes colapsados por defecto
   const [selectedVideo, setSelectedVideo] = React.useState<{
     url: string;
     exerciseName: string;
@@ -73,6 +88,14 @@ export default function TodayScreen({ activityId, onBack }: { activityId: string
     duration?: number;
     descripcion?: string;
     calorias?: number | null;
+    // Campos específicos para nutrición
+    proteinas?: number | null;
+    carbohidratos?: number | null;
+    grasas?: number | null;
+    receta?: string | null;
+    ingredientes?: string | null;
+    minutos?: number | null;
+    coverImageUrl?: string | null; // Imagen de portada del plato/ejercicio
   } | null>(null);
   
   // Motion value para el drag del video expandido
@@ -217,51 +240,121 @@ export default function TodayScreen({ activityId, onBack }: { activityId: string
       }
 
       const supabase = createClient();
-      const startDate = new Date(enrollment.start_date);
       
-      // Buscar ejecuciones futuras (hasta 6 semanas adelante)
-      const endDate = new Date(startDate);
-      endDate.setDate(startDate.getDate() + 42); // 6 semanas
+      // Usar la fecha seleccionada como punto de partida (no la fecha de inicio del enrollment)
+      // Buscar ejecuciones futuras desde la fecha seleccionada (hasta 6 semanas adelante)
+      const searchStartDate = new Date(selectedDate);
+      const endDate = new Date(searchStartDate);
+      endDate.setDate(searchStartDate.getDate() + 42); // 6 semanas
       
-      const startDateString = getBuenosAiresDateString(startDate);
+      // Normalizar la fecha seleccionada al inicio del día
+      const selectedDateString = getBuenosAiresDateString(selectedDate);
       const endDateString = getBuenosAiresDateString(endDate);
       
+      console.log('🔍 Buscando próxima actividad desde:', {
+        fecha_seleccionada: selectedDateString,
+        fecha_fin_busqueda: endDateString,
+        selectedDate: selectedDate
+      });
+      
+      // Determinar la tabla correcta según la categoría de la actividad
+      // Primero obtener la categoría de la actividad
+      const { data: actividadData } = await supabase
+        .from('activities')
+        .select('categoria')
+        .eq('id', activityId)
+        .single();
+      
+      const categoria = actividadData?.categoria || 'fitness';
+      const tablaProgreso = categoria === 'nutricion' ? 'progreso_cliente_nutricion' : 'progreso_cliente';
+      
+      console.log('🔍 [findNextAvailableActivity] Parámetros de búsqueda:', {
+        activityId,
+        categoria,
+        tablaProgreso,
+        cliente_id: user.id,
+        fecha_seleccionada: selectedDateString,
+        fecha_fin_busqueda: endDateString,
+        selectedDate_objeto: selectedDate
+      });
+
+      // Buscar registros desde la fecha seleccionada (no desde la fecha de inicio)
       const { data: progresoRecords, error } = await supabase
-        .from('progreso_cliente')
+        .from(tablaProgreso)
         .select('fecha, ejercicios_pendientes, ejercicios_completados')
         .eq('cliente_id', user.id)
         .eq('actividad_id', activityId)
-        .gte('fecha', startDateString)
+        .gte('fecha', selectedDateString) // Buscar desde la fecha seleccionada
         .lte('fecha', endDateString)
         .order('fecha');
 
-      console.log('🔍 Registros de progreso encontrados:', { progresoRecords, error });
-      console.log('📅 Rango de búsqueda:', { startDateString, endDateString });
-      console.log('📅 Fecha seleccionada actual:', selectedDate);
+      console.log('🔍 [findNextAvailableActivity] Registros de progreso encontrados:', { 
+        cantidad: progresoRecords?.length || 0,
+        registros: progresoRecords?.map((r: any) => ({
+          fecha: r.fecha,
+          tiene_pendientes: !!r.ejercicios_pendientes,
+          pendientes_type: typeof r.ejercicios_pendientes,
+          pendientes_keys_count: r.ejercicios_pendientes 
+            ? (typeof r.ejercicios_pendientes === 'string' 
+                ? Object.keys(JSON.parse(r.ejercicios_pendientes)).length 
+                : Object.keys(r.ejercicios_pendientes).length)
+            : 0
+        })),
+        error: error ? {
+          code: error.code,
+          message: error.message,
+          details: error.details
+        } : null
+      });
 
-      if (error || !progresoRecords || progresoRecords.length === 0) {
-        console.log('❌ No se encontraron registros de progreso futuras');
+      if (error) {
+        console.error('❌ [findNextAvailableActivity] Error en la consulta:', error);
+        return null;
+      }
+
+      if (!progresoRecords || progresoRecords.length === 0) {
+        console.log('❌ [findNextAvailableActivity] No se encontraron registros de progreso futuras');
         return null;
       }
 
       // Encontrar la próxima fecha con ejercicios
-      const nextExecution = progresoRecords.find(record => {
-        // Normalizar ambas fechas al inicio del día en zona horaria local
-        const executionDate = new Date(record.fecha + 'T00:00:00');
-        const selectedDateObj = new Date(selectedDate);
-        selectedDateObj.setHours(0, 0, 0, 0); // Normalizar al inicio del día
+      const nextExecution = progresoRecords.find((record: any) => {
+        // Comparar directamente las fechas como strings (formato YYYY-MM-DD)
+        // Esto evita problemas de zona horaria
+        const recordDateString = record.fecha; // Ya viene en formato YYYY-MM-DD desde la BD
         
-        const isAfter = executionDate > selectedDateObj;
+        // Verificar que la fecha del registro sea mayor que la fecha seleccionada
+        const isAfter = recordDateString > selectedDateString;
         
-        console.log('🔍 Comparando fechas:', {
-          fecha: record.fecha,
-          executionDate: executionDate.toISOString(),
-          selectedDate: selectedDate,
-          selectedDateObj: selectedDateObj.toISOString(),
-          isAfter
+        // También verificar que tenga ejercicios pendientes
+        let hasPendingExercises = false;
+        let pendientesKeysCount = 0;
+        try {
+          const pendientes = typeof record.ejercicios_pendientes === 'string' 
+            ? JSON.parse(record.ejercicios_pendientes) 
+            : record.ejercicios_pendientes;
+          hasPendingExercises = pendientes && typeof pendientes === 'object' && !Array.isArray(pendientes) && Object.keys(pendientes).length > 0;
+          pendientesKeysCount = hasPendingExercises ? Object.keys(pendientes).length : 0;
+        } catch (e) {
+          console.error('❌ [findNextAvailableActivity] Error parseando ejercicios_pendientes:', e);
+          hasPendingExercises = false;
+        }
+        
+        const cumpleCondicion = isAfter && hasPendingExercises;
+        
+        console.log('🔍 [findNextAvailableActivity] Comparando registro:', {
+          fecha_registro: recordDateString,
+          fecha_seleccionada: selectedDateString,
+          isAfter,
+          hasPendingExercises,
+          pendientesKeysCount,
+          cumple_condicion: cumpleCondicion,
+          ejercicios_pendientes_raw: typeof record.ejercicios_pendientes === 'string' 
+            ? record.ejercicios_pendientes.substring(0, 100) 
+            : JSON.stringify(record.ejercicios_pendientes).substring(0, 100)
         });
         
-        return isAfter;
+        return cumpleCondicion;
       });
 
       if (nextExecution) {
@@ -269,10 +362,11 @@ export default function TodayScreen({ activityId, onBack }: { activityId: string
         const weekNumber = getWeekNumber(nextDate);
         const dayName = getDayName(nextDate);
         
-        console.log('✅ Próxima actividad encontrada:', {
+        console.log('✅ [findNextAvailableActivity] Próxima actividad encontrada:', {
           fecha: nextExecution.fecha,
           dia_calculado: dayName,
-          semana: weekNumber
+          semana: weekNumber,
+          nextDate: nextDate.toISOString()
         });
         
         return {
@@ -282,7 +376,24 @@ export default function TodayScreen({ activityId, onBack }: { activityId: string
         };
       }
 
-      console.log('❌ No hay actividades futuras disponibles');
+      console.log('❌ [findNextAvailableActivity] No hay actividades futuras disponibles después de filtrar:', {
+        total_registros: progresoRecords.length,
+        fecha_seleccionada: selectedDateString,
+        registros_filtrados: progresoRecords.map((r: any) => ({
+          fecha: r.fecha,
+          es_despues: r.fecha > selectedDateString,
+          tiene_pendientes: (() => {
+            try {
+              const p = typeof r.ejercicios_pendientes === 'string' 
+                ? JSON.parse(r.ejercicios_pendientes) 
+                : r.ejercicios_pendientes;
+              return p && typeof p === 'object' && !Array.isArray(p) && Object.keys(p).length > 0;
+            } catch {
+              return false;
+            }
+          })()
+        }))
+      });
       return null;
     } catch (error) {
       console.error('Error finding next activity:', error);
@@ -327,7 +438,44 @@ export default function TodayScreen({ activityId, onBack }: { activityId: string
   }, []);
 
   // Funciones para manejar la expansión del video
-  const openVideo = (videoUrl: string, exerciseName: string, exerciseId: string, description?: string, equipment?: string, detalle_series?: any, duration?: number, descripcion?: string, calorias?: number | null) => {
+  const openVideo = async (videoUrl: string, exerciseName: string, exerciseId: string, description?: string, equipment?: string, detalle_series?: any, duration?: number, descripcion?: string, calorias?: number | null, proteinas?: number | null, carbohidratos?: number | null, grasas?: number | null, receta?: string | null, ingredientes?: string | null, minutos?: number | null, coverImageUrl?: string | null) => {
+    // Si no se pasó coverImageUrl, intentar obtenerla de la base de datos
+    let finalCoverImageUrl = coverImageUrl;
+    if (!finalCoverImageUrl) {
+      try {
+        const supabase = createClient();
+        const isNutrition = programInfo?.categoria === 'nutricion' || enrollment?.activity?.categoria === 'nutricion';
+        const ejercicioIdNum = parseInt(exerciseId.split('_')[0]); // Extraer el ID numérico del ejercicio
+        
+        if (isNutrition) {
+          // Para nutrición: buscar en nutrition_program_details
+          const { data: nutritionDetail } = await supabase
+            .from('nutrition_program_details')
+            .select('image_url')
+            .eq('id', ejercicioIdNum)
+            .single();
+          
+          finalCoverImageUrl = nutritionDetail?.image_url || null;
+        } else {
+          // Para fitness: buscar en ejercicios_detalles
+          const { data: exerciseDetail } = await supabase
+            .from('ejercicios_detalles')
+            .select('image_url')
+            .eq('id', ejercicioIdNum)
+            .single();
+          
+          finalCoverImageUrl = exerciseDetail?.image_url || null;
+        }
+        
+        // Si no hay imagen en la tabla de detalles, usar la imagen de la actividad general
+        if (!finalCoverImageUrl) {
+          finalCoverImageUrl = backgroundImage || null;
+        }
+      } catch (error) {
+        console.error('Error obteniendo imagen de portada:', error);
+        finalCoverImageUrl = backgroundImage || null;
+      }
+    }
     console.log('🎬 [openVideo] Datos recibidos:', {
       exerciseName,
       exerciseId,
@@ -337,7 +485,13 @@ export default function TodayScreen({ activityId, onBack }: { activityId: string
       description,
       equipment,
       tipo_duracion: typeof duration,
-      tipo_calorias: typeof calorias
+      tipo_calorias: typeof calorias,
+      proteinas,
+      carbohidratos,
+      grasas,
+      receta,
+      ingredientes,
+      minutos
     });
     setSelectedVideo({
       url: videoUrl,
@@ -348,7 +502,14 @@ export default function TodayScreen({ activityId, onBack }: { activityId: string
       detalle_series,
       duration,
       descripcion,
-      calorias
+      calorias,
+      proteinas,
+      carbohidratos,
+      grasas,
+      receta,
+      ingredientes,
+      minutos,
+      coverImageUrl: finalCoverImageUrl
     });
     console.log('✅ [openVideo] selectedVideo actualizado:', {
       duration: duration,
@@ -356,11 +517,11 @@ export default function TodayScreen({ activityId, onBack }: { activityId: string
     });
     // Inicializar valores editables de series
     const parsed = parseSeries(detalle_series);
-    const initialSeries = parsed.map(s => ({
-      id: s.id,
-      reps: String(s.reps || '0'),
-      kg: String(s.kg || '0'),
-      series: String(s.sets || s.series || '0')
+    const initialSeries = parsed.map((s: any) => ({
+      id: s?.id ?? 0,
+      reps: String(s?.reps || '0'),
+      kg: String(s?.kg || '0'),
+      series: String(s?.sets || (s as any)?.series || '0')
     }));
     setEditableSeries(initialSeries);
     setOriginalSeries(JSON.parse(JSON.stringify(initialSeries)));
@@ -394,11 +555,11 @@ export default function TodayScreen({ activityId, onBack }: { activityId: string
       // console.log('Opening exercise:', nextExercise.title);
       // Inicializar valores editables de series para el nuevo ejercicio
       const parsed = parseSeries(nextExercise.series || nextExercise.detalle_series);
-      const initialSeries = parsed.map(s => ({
-        id: s.id,
-        reps: String(s.reps || '0'),
-        kg: String(s.kg || '0'),
-        series: String(s.sets || s.series || '0')
+      const initialSeries = parsed.map((s: any) => ({
+        id: s?.id ?? 0,
+        reps: String(s?.reps || '0'),
+        kg: String(s?.kg || '0'),
+        series: String(s?.sets || (s as any)?.series || '0')
       }));
       setEditableSeries(initialSeries);
       setOriginalSeries(JSON.parse(JSON.stringify(initialSeries)));
@@ -409,10 +570,17 @@ export default function TodayScreen({ activityId, onBack }: { activityId: string
         nextExercise.id,
         nextExercise.description,
         nextExercise.equipment,
-        nextExercise.series || nextExercise.detalle_series,
-        nextExercise.duration ?? (nextExercise as any).duracion_minutos ?? (nextExercise as any).duracion_min ?? null,
+        nextExercise.detalle_series || nextExercise.series,
+        nextExercise.duration,
         nextExercise.descripcion,
-        (nextExercise as any).calorias ?? null
+        (nextExercise as any).calorias ?? null,
+        (nextExercise as any).proteinas ?? null,
+        (nextExercise as any).carbohidratos ?? null,
+        (nextExercise as any).grasas ?? null,
+        (nextExercise as any).receta ?? null,
+        (nextExercise as any).ingredientes ?? null,
+        (nextExercise as any).minutos ?? null,
+        null // coverImageUrl se obtendrá automáticamente
       );
     } else {
       // console.log('No next exercise found');
@@ -808,7 +976,7 @@ export default function TodayScreen({ activityId, onBack }: { activityId: string
           }
       
       // Obtener el estado de completado desde ejecuciones_ejercicio
-      const exerciseIds = dayActivities.map(activity => activity.id);
+      const exerciseIds = dayActivities.map((activity: any) => activity.id);
       const { data: customizations, error: customizationsError } = await supabase
         .from("ejecuciones_ejercicio")
         .select("ejercicio_id, completado")
@@ -823,13 +991,13 @@ export default function TodayScreen({ activityId, onBack }: { activityId: string
       // Crear un mapa de estados de completado
       const completionMap = new Map();
       if (customizations) {
-        customizations.forEach(custom => {
+        customizations.forEach((custom: any) => {
           completionMap.set(custom.fitness_exercise_id, custom.completed);
         });
       }
       
       // Contar ejercicios completados
-      const completedCount = dayActivities.filter(activity => 
+      const completedCount = dayActivities.filter((activity: any) => 
         completionMap.get(activity.id) === true
       ).length;
       const totalCount = dayActivities.length;
@@ -862,9 +1030,20 @@ export default function TodayScreen({ activityId, onBack }: { activityId: string
 
     try {
 
-      // Obtener registros de progreso_cliente
+      // Determinar la tabla correcta según la categoría de la actividad
+      // Primero obtener la categoría de la actividad
+      const { data: actividadData } = await supabase
+        .from('activities')
+        .select('categoria')
+        .eq('id', activityId)
+        .single();
+      
+      const categoria = actividadData?.categoria || 'fitness';
+      const tablaProgreso = categoria === 'nutricion' ? 'progreso_cliente_nutricion' : 'progreso_cliente';
+      
+      // Obtener registros de progreso_cliente o progreso_cliente_nutricion según corresponda
       const { data: progresoRecords, error } = await supabase
-        .from('progreso_cliente')
+        .from(tablaProgreso)
         .select('*')
         .eq('actividad_id', activityId)
         .eq('cliente_id', user.id)
@@ -982,14 +1161,14 @@ export default function TodayScreen({ activityId, onBack }: { activityId: string
       // Crear mapa de estados por ejercicio
       const estadoPorEjercicio = new Map();
       if (ejecuciones) {
-        ejecuciones.forEach(ejecucion => {
+        ejecuciones.forEach((ejecucion: any) => {
           estadoPorEjercicio.set(ejecucion.ejercicio_id, ejecucion.completado);
         });
       }
 
       // Calcular estados por día
       const diasConEjercicios = new Map<number, number[]>(); // día -> [ejercicio_ids]
-      allExercises.forEach(ejercicio => {
+      allExercises.forEach((ejercicio: any) => {
         if (!diasConEjercicios.has(ejercicio.dia)) {
           diasConEjercicios.set(ejercicio.dia, []);
         }
@@ -1052,10 +1231,10 @@ export default function TodayScreen({ activityId, onBack }: { activityId: string
           2: 2, // Día 2 = Semana 2
           3: 3, // Día 3 = Semana 3
           4: 4  // Día 4 = Semana 4
-        };
-        
-        const targetWeek = exerciseDayMapping[dia];
-        if (!targetWeek) return;
+          };
+          
+          const targetWeek = exerciseDayMapping[dia as keyof typeof exerciseDayMapping];
+          if (!targetWeek) return;
         
         for (let day = 1; day <= daysInMonth; day++) {
           const testDate = new Date(currentYear, currentMonth, day);
@@ -1632,6 +1811,9 @@ export default function TodayScreen({ activityId, onBack }: { activityId: string
         });
         
         if (result.success && result.data.activities && result.data.activities.length > 0) {
+          // Obtener categoría del API o del programInfo
+          const categoria = result.data?.activity?.categoria || programInfo?.categoria || enrollment?.activity?.categoria || 'fitness';
+          
           const todayActivities: Activity[] = result.data.activities.map((item: any, index: number) => {
             const bloque = Number(item.bloque ?? item.block ?? 1);
             const orden = Number(item.orden ?? item.order ?? (index + 1));
@@ -1641,39 +1823,17 @@ export default function TodayScreen({ activityId, onBack }: { activityId: string
             const isCompleted = Boolean(item.completed);
 
             const duracion = item.duracion_minutos ?? item.duration ?? item.duracion_min ?? null;
-            const calorias = item.calorias ?? null;
+            const calorias = item.calorias ?? item.calorias ?? null;
             
-            console.log(`📋 [TodayScreen] Mapeando ejercicio ${ejercicioId}:`, {
-              nombre: item.nombre_ejercicio || item.name,
-              // Duración - valores crudos
-              duracion_minutos_raw: item.duracion_minutos,
-              duracion_minutos_tipo: typeof item.duracion_minutos,
-              duracion_minutos_null: item.duracion_minutos === null,
-              duration_raw: item.duration,
-              duration_tipo: typeof item.duration,
-              duracion_min_raw: item.duracion_min,
-              duracion_min_tipo: typeof item.duracion_min,
-              // Duración final
-              duracion_final: duracion,
-              duracion_final_tipo: typeof duracion,
-              duracion_final_null: duracion === null,
-              duracion_final_undefined: duracion === undefined,
-              // Calorías - valores crudos
-              calorias_raw: item.calorias,
-              calorias_raw_tipo: typeof item.calorias,
-              calorias_raw_null: item.calorias === null,
-              calorias_raw_undefined: item.calorias === undefined,
-              calorias_raw_cero: item.calorias === 0,
-              // Calorías finales
-              calorias_final: calorias,
-              calorias_final_tipo: typeof calorias,
-              calorias_final_null: calorias === null,
-              calorias_final_undefined: calorias === undefined,
-              camposDisponibles: Object.keys(item),
-              todosLosValores: Object.keys(item).reduce((acc: any, key: string) => {
-                acc[key] = { valor: item[key], tipo: typeof item[key], null: item[key] === null, undefined: item[key] === undefined };
-                return acc;
-              }, {})
+            console.log(`📋 [TodayScreen] Mapeando ${categoria === 'nutricion' ? 'plato' : 'ejercicio'} ${ejercicioId}:`, {
+              nombre: item.nombre_ejercicio || item.name || item.nombre,
+              categoria,
+              proteinas: item.proteinas,
+              carbohidratos: item.carbohidratos,
+              grasas: item.grasas,
+              minutos: item.minutos,
+              receta: item.receta,
+              ingredientes: item.ingredientes
             });
             
             // Obtener minutos desde minutos_json (viene del API como minutos o duracion_minutos)
@@ -1682,7 +1842,9 @@ export default function TodayScreen({ activityId, onBack }: { activityId: string
             const mappedActivity = {
               // id único que combina ejercicio_id, bloque y orden para evitar duplicados
               id: `${ejercicioId}_${bloque}_${orden}`,
-              title: item.nombre_ejercicio || item.name || item.ejercicio_name || `Ejercicio ${ejercicioId}`,
+              title: categoria === 'nutricion' 
+                ? (item.nombre_ejercicio || item.name || item.nombre || item.ejercicio_name || `Plato ${ejercicioId}`)
+                : (item.nombre_ejercicio || item.name || item.ejercicio_name || `Ejercicio ${ejercicioId}`),
               subtitle: item.formatted_series || item.detalle_series || 'Sin especificar',
               type: item.tipo || item.type || 'general',
               done: isCompleted,
@@ -1699,7 +1861,13 @@ export default function TodayScreen({ activityId, onBack }: { activityId: string
               descripcion: item.descripcion || item.description,
               calorias: calorias,
               body_parts: item.body_parts ?? null,
-              intensidad: item.intensidad ?? null
+              intensidad: item.intensidad ?? null,
+              // Campos específicos para nutrición
+              proteinas: item.proteinas ?? null,
+              carbohidratos: item.carbohidratos ?? null,
+              grasas: item.grasas ?? null,
+              receta: item.receta ?? null,
+              ingredientes: item.ingredientes ?? null
             };
             
             console.log(`✅ [TodayScreen] Ejercicio ${ejercicioId} mapeado:`, {
@@ -1728,13 +1896,45 @@ export default function TodayScreen({ activityId, onBack }: { activityId: string
           });
 
           setActivities(todayActivities);
-          setNextAvailableActivity(null);
+          // Guardar nombres de bloques si están disponibles
+          if (result.data?.blockNames) {
+            setBlockNames(result.data.blockNames);
+          }
+          // Siempre buscar próxima actividad para mostrar si no hay actividades hoy
+          const weekNumber = getWeekNumber(selectedDate);
+          const searchDayName = getDayName(selectedDate);
+          console.log('🔍 [TodayScreen] Llamando a findNextAvailableActivity:', {
+            activityId,
+            weekNumber,
+            searchDayName,
+            selectedDate: selectedDate.toISOString(),
+            selectedDateString: getBuenosAiresDateString(selectedDate)
+          });
+          const nextActivity = await findNextAvailableActivity(activityId, weekNumber, searchDayName);
+          console.log('🔍 [TodayScreen] Resultado de findNextAvailableActivity:', {
+            nextActivity,
+            tiene_actividad: !!nextActivity,
+            fecha_proxima: nextActivity?.date
+          });
+          setNextAvailableActivity(nextActivity);
         } else {
           
           // No hay ejercicios para este día - buscar próxima actividad
           const weekNumber = getWeekNumber(selectedDate);
           const searchDayName = getDayName(selectedDate);
+          console.log('🔍 [TodayScreen] No hay actividades hoy, buscando próxima:', {
+            activityId,
+            weekNumber,
+            searchDayName,
+            selectedDate: selectedDate.toISOString(),
+            selectedDateString: getBuenosAiresDateString(selectedDate)
+          });
           const nextActivity = await findNextAvailableActivity(activityId, weekNumber, searchDayName);
+          console.log('🔍 [TodayScreen] Resultado de findNextAvailableActivity (sin actividades hoy):', {
+            nextActivity,
+            tiene_actividad: !!nextActivity,
+            fecha_proxima: nextActivity?.date
+          });
           setActivities([]);
           setNextAvailableActivity(nextActivity);
         }
@@ -2850,189 +3050,186 @@ export default function TodayScreen({ activityId, onBack }: { activityId: string
           }} />
         </div>
 
-        {/* Video expandido que cubre todo el bottom-sheet */}
-        {isVideoExpanded && selectedVideo ? (
+        {/* Detalle de plato/ejercicio - Nuevo diseño premium */}
+        {selectedVideo ? (
           <motion.div
-            initial={{ opacity: 0, y: '-100%' }}
-            animate={{ opacity: 1, y: 0 }}
-            exit={{ opacity: 0, y: '-100%' }}
-            transition={{ 
-              duration: 0.5, 
-              ease: [0.25, 0.46, 0.45, 0.94]
-            }}
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            transition={{ duration: 0.3 }}
             style={{
               position: 'fixed',
               top: 0,
               left: 0,
               right: 0,
               bottom: 0,
-              background: 'rgba(0, 0, 0, 0.98)',
-              backdropFilter: 'blur(10px)',
-              display: 'flex',
-              flexDirection: 'column',
               zIndex: 1000,
               height: '100vh',
               width: '100vw',
-              overflow: 'hidden', // ✅ Mantener hidden en el contenedor principal
-              y: videoExpandY,
-              x: videoExpandX,
-              opacity: isTransitioning ? 0.8 : 1
-            }}
-            onTouchStart={onTouchStart}
-            onTouchMove={onTouchMove}
-            onTouchEnd={onTouchEnd}
-          >
-            {/* Handle para arrastrar hacia abajo */}
-            <motion.div 
-              drag="y"
-              dragConstraints={{ top: 0, bottom: 0 }}
-              dragElastic={{ top: 0, bottom: 0.3 }}
-              dragMomentum={false}
-              onDrag={(event, info) => {
-                // Actualizar el motion value para que todo el contenedor se mueva
-                videoExpandY.set(Math.max(0, info.offset.y));
-              }}
-              onDragEnd={handleVideoExpandDragEnd}
-              dragDirectionLock={true}
-              style={{
-                display: 'flex',
-                justifyContent: 'center',
-                paddingTop: '8px',
-                paddingBottom: '4px',
-                flexShrink: 0,
-                cursor: 'grab',
-                touchAction: 'none'
-              }}
-            >
-              <div style={{
-                width: 40,
-                height: 4,
-                borderRadius: 2,
-                background: 'rgba(255, 255, 255, 0.3)',
-                transition: 'background 0.2s ease'
-              }} />
-            </motion.div>
-            
-            {/* Header con información del ejercicio */}
-            <div style={{
+              overflow: 'hidden',
+              // Fondo con imagen de portada + overlay oscuro más claro (más brillo)
+              backgroundImage: (selectedVideo.coverImageUrl || backgroundImage)
+                ? `linear-gradient(180deg, rgba(0, 0, 0, 0.65) 0%, rgba(0, 0, 0, 0.55) 100%), url(${selectedVideo.coverImageUrl || backgroundImage})`
+                : 'linear-gradient(180deg, #0A0A0A 0%, #000000 100%)',
+              backgroundSize: 'cover',
+              backgroundPosition: 'center',
+              backgroundAttachment: 'fixed',
               display: 'flex',
-              justifyContent: 'space-between',
-              alignItems: 'center',
-              padding: '8px 20px 0',
-              flexShrink: 0
+              flexDirection: 'column'
+            }}
+          >
+            {/* Solo botón de retroceso */}
+            <div style={{
+              padding: '12px 20px 0',
+              flexShrink: 0,
+              position: 'relative',
+              zIndex: 10
             }}>
-              <div style={{ flex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center', textAlign: 'center' }}>
-                {(() => {
-                  const currentExercise = activities.find(a => a.id === selectedVideo.exerciseId);
-                  const currentIndex = activities.findIndex(a => a.id === selectedVideo.exerciseId);
-                  const remainingExercises = activities.length - currentIndex - 1;
-                  
-                  return (
-                    <div style={{ width: '100%' }}>
-                      <div style={{
-                        color: 'rgba(255, 255, 255, 0.6)',
-                        fontSize: 12,
-                        fontWeight: 500,
-                        textTransform: 'uppercase',
-                        letterSpacing: '0.5px',
-                        marginBottom: 4
-                      }}>
-                        Ejercicio {currentIndex + 1} • Bloque {currentExercise?.bloque || 1}
-                      </div>
-                      <div style={{
-                        color: '#FF7939',
-                        fontSize: 14,
-                        fontWeight: 600
-                      }}>
-                        {remainingExercises} ejercicios restantes
-                      </div>
-                    </div>
-                  );
-                })()}
-              </div>
-              
               <button
-                onClick={collapseVideo}
-                style={{
-                  background: 'rgba(255, 255, 255, 0.1)',
-                  border: 'none',
-                  borderRadius: 20,
-                  width: 32,
-                  height: 32,
-                  display: 'flex',
+                onClick={() => {
+                  setSelectedVideo(null);
+                  setIsVideoExpanded(false);
+                  setIsVideoPanelExpanded(false);
+                  setIsIngredientesExpanded(false);
+                }}
+              style={{
+                  width: 40,
+                  height: 40,
+                display: 'flex',
                   alignItems: 'center',
-                  justifyContent: 'center',
+                justifyContent: 'center',
+                  background: 'transparent',
+                  border: 'none',
+                  borderRadius: 12,
                   cursor: 'pointer',
-                  color: '#fff',
-                  fontSize: 16,
-                  transition: 'all 0.2s ease'
+                  transition: 'all 0.2s ease',
+                  color: '#FF6A1A',
+                  fontSize: 24
                 }}
                 onMouseEnter={(e) => {
-                  e.currentTarget.style.background = 'rgba(255, 255, 255, 0.2)';
-                }}
-                onMouseLeave={(e) => {
                   e.currentTarget.style.background = 'rgba(255, 255, 255, 0.1)';
                 }}
+                onMouseLeave={(e) => {
+                  e.currentTarget.style.background = 'transparent';
+                }}
               >
-                ×
+                ←
               </button>
             </div>
 
-            {/* Contenedor de ejercicios */}
-            <div style={{
-              display: 'flex',
-              justifyContent: 'center',
-              alignItems: 'center',
-              height: 180,
-              marginBottom: 24,
-              position: 'relative',
-              flexShrink: 0
-            }}>
-            {/* Ejercicio actual */}
-            <div style={{
-              width: '100%',
-              height: '100%',
-              padding: '0 20px'
-            }}>
-              {selectedVideo.url && selectedVideo.url.trim() !== '' ? (
-                <UniversalVideoPlayer
-                  videoUrl={selectedVideo.url}
-                  autoPlay={false}
-                  controls={true}
-                  className="w-full h-full rounded-xl"
-                  disableDownload={true}
-                />
-              ) : (
-                <div style={{
-                  width: '100%',
-                  height: '100%',
-                  background: 'rgba(255, 255, 255, 0.02)',
-                  borderRadius: 12,
-                  display: 'flex',
-                  alignItems: 'center',
-                  justifyContent: 'center',
-                  flexDirection: 'column',
-                  gap: 12
-                }}>
-                  <div className="w-20 h-20 bg-[#FF7939] rounded-xl flex items-center justify-center mx-auto">
-                    <Flame className="w-10 h-10 text-black" />
-                  </div>
-                  <h1 className="text-gray-400 text-2xl font-bold">OMNIA</h1>
-                </div>
-              )}
-              </div>
-            </div>
-
-
-            {/* Información del ejercicio */}
+            {/* Contenido principal - Scrollable */}
             <div 
-              className="orange-glass-scrollbar"
+              className="hide-scrollbar"
               style={{
                 flex: 1,
                 overflow: 'auto',
                 overflowY: 'scroll',
                 WebkitOverflowScrolling: 'touch',
-                padding: '0 20px 200px',
+                padding: '0 20px 120px', // Padding inferior reducido porque los botones están fijos
+                display: 'flex',
+                flexDirection: 'column',
+                gap: 20,
+                minHeight: 0
+              }}
+            >
+              {/* Título del plato con botón Play (si hay video) */}
+            <div style={{
+              display: 'flex',
+              alignItems: 'center',
+                justifyContent: 'space-between',
+                gap: 16,
+                marginTop: 8
+              }}>
+                <h1 style={{
+                  color: '#FFFFFF',
+                  fontSize: 28,
+                  fontWeight: 600,
+                  margin: 0,
+                  letterSpacing: '-0.03em',
+                  lineHeight: 1.2,
+                  flex: 1
+                }}>
+                  {selectedVideo.exerciseName}
+                </h1>
+                
+                {/* Botón Play (solo si hay video) */}
+                {selectedVideo.url && selectedVideo.url.trim() !== '' && (
+              <button
+                    onClick={() => setIsVideoPanelExpanded(!isVideoPanelExpanded)}
+                style={{
+                      width: 56,
+                      height: 56,
+                      borderRadius: '50%',
+                      background: 'rgba(255, 106, 26, 0.2)',
+                      backdropFilter: 'blur(10px)',
+                      border: '2px solid rgba(255, 106, 26, 0.4)',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  cursor: 'pointer',
+                      transition: 'all 0.2s ease',
+                      flexShrink: 0
+                }}
+                onMouseEnter={(e) => {
+                      e.currentTarget.style.background = 'rgba(255, 106, 26, 0.3)';
+                      e.currentTarget.style.transform = 'scale(1.05)';
+                }}
+                onMouseLeave={(e) => {
+                      e.currentTarget.style.background = 'rgba(255, 106, 26, 0.2)';
+                      e.currentTarget.style.transform = 'scale(1)';
+                    }}
+                  >
+                    {isVideoPanelExpanded ? (
+                      <X size={24} color="#FF6A1A" />
+                    ) : (
+                      <svg width="24" height="24" viewBox="0 0 24 24" fill="none">
+                        <path d="M8 5V19L19 12L8 5Z" fill="#FF6A1A" />
+                      </svg>
+                    )}
+              </button>
+                )}
+            </div>
+
+              {/* Panel de Video Expandible */}
+              {isVideoPanelExpanded && selectedVideo.url && selectedVideo.url.trim() !== '' && (
+                <motion.div
+                  initial={{ height: 0, opacity: 0 }}
+                  animate={{ height: 'auto', opacity: 1 }}
+                  exit={{ height: 0, opacity: 0 }}
+                  transition={{ duration: 0.3, ease: [0.25, 0.46, 0.45, 0.94] }}
+                  style={{
+              width: '100%',
+                    aspectRatio: '16/9',
+                    borderRadius: 18,
+                    overflow: 'hidden',
+                    marginBottom: 8,
+                    background: 'rgba(0, 0, 0, 0.5)',
+                    position: 'relative'
+                  }}
+                >
+                <UniversalVideoPlayer
+                  videoUrl={selectedVideo.url}
+                    autoPlay={isVideoPanelExpanded}
+                  controls={true}
+                    className="w-full h-full"
+                  disableDownload={true}
+                />
+                </motion.div>
+              )}
+
+
+            {/* Información del ejercicio */}
+            <div 
+              className={(() => {
+                const isNutrition = programInfo?.categoria === 'nutricion' || enrollment?.activity?.categoria === 'nutricion';
+                return isNutrition ? 'hide-scrollbar' : 'orange-glass-scrollbar';
+              })()}
+              style={{
+                flex: 1,
+                overflow: 'auto',
+                overflowY: 'scroll',
+                WebkitOverflowScrolling: 'touch',
+                padding: '0 20px 120px', // Padding inferior reducido porque los botones están fijos
                 display: 'flex',
                 flexDirection: 'column',
                 gap: 20,
@@ -3041,6 +3238,352 @@ export default function TodayScreen({ activityId, onBack }: { activityId: string
                 position: 'relative',
                 zIndex: 1
               }}>
+              {/* Determinar si es nutrición */}
+              {(() => {
+                const isNutrition = programInfo?.categoria === 'nutricion' || enrollment?.activity?.categoria === 'nutricion';
+                
+                // Si es nutrición, usar el nuevo diseño premium
+                if (isNutrition) {
+                  return (
+                    <div style={{
+                      display: 'flex',
+                      flexDirection: 'column',
+                      gap: 0
+                    }}>
+                       {/* Stats Pill Card - Más amplia horizontalmente */}
+                       <div style={{
+                         margin: '0 20px 20px',
+                         padding: '20px 24px',
+                         background: 'rgba(255, 255, 255, 0.04)',
+                         backdropFilter: 'blur(20px)',
+                         borderRadius: 18,
+                         border: '1px solid rgba(255, 255, 255, 0.08)',
+                         boxShadow: '0 4px 24px rgba(0, 0, 0, 0.3)',
+                         display: 'flex',
+                         alignItems: 'center',
+                         justifyContent: 'space-around',
+                         gap: 20,
+                         width: 'calc(100% - 40px)'
+                       }}>
+                        {/* Bloque Izquierda: Tiempo */}
+                        {selectedVideo.minutos && (
+                          <div style={{
+                            display: 'flex',
+                            alignItems: 'center',
+                            gap: 6,
+                            flex: 1,
+                            minWidth: '80px'
+                          }}>
+                            <svg width="16" height="16" viewBox="0 0 16 16" fill="none">
+                              <circle cx="8" cy="8" r="7" stroke="rgba(255, 255, 255, 0.4)" strokeWidth="1.5"/>
+                              <path d="M8 4V8L11 10" stroke="rgba(255, 255, 255, 0.4)" strokeWidth="1.5" strokeLinecap="round"/>
+                            </svg>
+                            <span style={{
+                              color: 'rgba(255, 255, 255, 0.9)',
+                              fontSize: 15,
+                              fontWeight: 500
+                            }}>
+                              {selectedVideo.minutos} min
+                            </span>
+                          </div>
+                        )}
+
+                        {/* Divisor */}
+                        {selectedVideo.minutos && selectedVideo.calorias && (
+                          <div style={{
+                            width: 1,
+                            height: 24,
+                            background: 'rgba(255, 255, 255, 0.08)'
+                          }} />
+                        )}
+
+                        {/* Bloque Centro: Calorías */}
+                        {selectedVideo.calorias && (
+                          <div style={{
+                            display: 'flex',
+                            flexDirection: 'column',
+                            alignItems: 'center',
+                            gap: 2,
+                            flex: 1,
+                            minWidth: '100px'
+                          }}>
+                            <div style={{
+                              display: 'flex',
+                              alignItems: 'center',
+                              gap: 6
+                            }}>
+                              <Flame size={18} color="#FF6A1A" />
+                              <span style={{
+                                color: '#FF6A1A',
+                                fontSize: 18,
+                                fontWeight: 600
+                              }}>
+                                {selectedVideo.calorias} kcal
+                              </span>
+                            </div>
+                            <span style={{
+                              color: 'rgba(255, 255, 255, 0.5)',
+                              fontSize: 11,
+                              fontWeight: 400
+                            }}>
+                              aprox.
+                            </span>
+                          </div>
+                        )}
+
+                      </div>
+
+                      {/* Sección Macros - Sin frame, arriba de Ingredientes, centradas con divisores */}
+                      {(selectedVideo.proteinas || selectedVideo.carbohidratos || selectedVideo.grasas) && (
+                        <div style={{
+                          margin: '0 20px 20px',
+                          padding: 0,
+                          display: 'flex',
+                          justifyContent: 'center'
+                        }}>
+                          <div style={{
+                            display: 'flex',
+                            alignItems: 'center',
+                            gap: 12
+                          }}>
+                            {selectedVideo.proteinas && (
+                              <>
+                                <span style={{
+                                  color: 'rgba(255, 255, 255, 0.8)',
+                                  fontSize: 15,
+                                  fontWeight: 500
+                                }}>
+                                  P {selectedVideo.proteinas}g
+                                </span>
+                                {(selectedVideo.carbohidratos || selectedVideo.grasas) && (
+                                  <span style={{
+                                    color: 'rgba(255, 255, 255, 0.3)',
+                                    fontSize: 15,
+                                    fontWeight: 400
+                                  }}>
+                                    |
+                                  </span>
+                                )}
+                              </>
+                            )}
+                            {selectedVideo.carbohidratos && (
+                              <>
+                                <span style={{
+                                  color: 'rgba(255, 255, 255, 0.8)',
+                                  fontSize: 15,
+                                  fontWeight: 500
+                                }}>
+                                  C {selectedVideo.carbohidratos}g
+                                </span>
+                                {selectedVideo.grasas && (
+                                  <span style={{
+                                    color: 'rgba(255, 255, 255, 0.3)',
+                                    fontSize: 15,
+                                    fontWeight: 400
+                                  }}>
+                                    |
+                                  </span>
+                                )}
+                              </>
+                            )}
+                            {selectedVideo.grasas && (
+                              <span style={{
+                                color: 'rgba(255, 255, 255, 0.8)',
+                                fontSize: 15,
+                                fontWeight: 500
+                              }}>
+                                G {selectedVideo.grasas}g
+                              </span>
+                            )}
+                          </div>
+                        </div>
+                      )}
+
+                      {/* Sección Ingredientes - Colapsable, arriba de Receta */}
+                      {selectedVideo?.ingredientes && (() => {
+                        let ingredientesList: string[] = [];
+                        try {
+                          if (Array.isArray(selectedVideo.ingredientes)) {
+                            const firstItem = selectedVideo.ingredientes[0];
+                            if (typeof firstItem === 'string') {
+                              ingredientesList = firstItem.split(';').map((i: string) => i.trim()).filter((i: string) => i.length > 0);
+                            } else {
+                              ingredientesList = (selectedVideo.ingredientes as any[]).map((i: any) => String(i).trim()).filter((i: string) => i.length > 0);
+                            }
+                          } else if (typeof selectedVideo.ingredientes === 'string') {
+                            ingredientesList = selectedVideo.ingredientes.split(';').map((i: string) => i.trim()).filter((i: string) => i.length > 0);
+                          }
+                        } catch (e) {
+                          ingredientesList = [String(selectedVideo?.ingredientes)];
+                        }
+
+                        return ingredientesList.length > 0 ? (
+                          <div style={{
+                            margin: '0 20px 20px',
+                            padding: 0
+                          }}>
+                            <div
+                              onClick={() => setIsIngredientesExpanded(!isIngredientesExpanded)}
+                              style={{
+                                display: 'flex',
+                                alignItems: 'center',
+                                justifyContent: 'space-between',
+                                cursor: 'pointer',
+                                marginBottom: isIngredientesExpanded ? 12 : 0,
+                                transition: 'all 0.2s ease'
+                              }}
+                            >
+                              <h3 style={{
+                                color: '#FFFFFF',
+                                fontSize: 16,
+                                fontWeight: 600,
+                                margin: 0,
+                                letterSpacing: '-0.01em'
+                              }}>
+                                Ingredientes
+                              </h3>
+                              <div style={{
+                                width: 24,
+                                height: 24,
+                                display: 'flex',
+                                alignItems: 'center',
+                                justifyContent: 'center',
+                                transition: 'transform 0.2s ease',
+                                transform: isIngredientesExpanded ? 'rotate(180deg)' : 'rotate(0deg)'
+                              }}>
+                                <svg width="16" height="16" viewBox="0 0 16 16" fill="none">
+                                  <path d="M4 6L8 10L12 6" stroke="rgba(255, 255, 255, 0.6)" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/>
+                                </svg>
+                              </div>
+                            </div>
+                            {isIngredientesExpanded && (
+                              <motion.div
+                                initial={{ height: 0, opacity: 0 }}
+                                animate={{ height: 'auto', opacity: 1 }}
+                                exit={{ height: 0, opacity: 0 }}
+                                transition={{ duration: 0.2 }}
+                                style={{
+                                  overflow: 'hidden'
+                                }}
+                              >
+                                <div style={{
+                                  display: 'flex',
+                                  flexDirection: 'column',
+                                  gap: 4
+                                }}>
+                                  {ingredientesList.map((ingrediente, index) => (
+                                    <div
+                                      key={index}
+                                      style={{
+                                        display: 'flex',
+                                        alignItems: 'flex-start',
+                                        gap: 10,
+                                        padding: '6px 0'
+                                      }}
+                                    >
+                                      <div style={{
+                                        width: 4,
+                                        height: 4,
+                                        borderRadius: '50%',
+                                        background: '#FF6A1A',
+                                        marginTop: 6,
+                                        flexShrink: 0
+                                      }} />
+                                      <span style={{
+                                        color: 'rgba(255, 255, 255, 0.8)',
+                                        fontSize: 14,
+                                        fontWeight: 400,
+                                        lineHeight: 1.4,
+                                        flex: 1
+                                      }}>
+                                        {ingrediente}
+                                      </span>
+                                    </div>
+                                  ))}
+                                </div>
+                              </motion.div>
+                            )}
+                          </div>
+                        ) : null;
+                      })()}
+
+                      {/* Card Receta (Expandible) */}
+                      {selectedVideo.receta && (
+                        <div style={{
+                          margin: '0 20px 16px',
+                          padding: '20px',
+                          background: 'rgba(255, 255, 255, 0.04)',
+                          backdropFilter: 'blur(20px)',
+                          borderRadius: 18,
+                          border: '1px solid rgba(255, 255, 255, 0.08)',
+                          boxShadow: '0 4px 24px rgba(0, 0, 0, 0.3)',
+                          cursor: 'pointer',
+                          transition: 'all 0.2s ease'
+                        }}
+                        onMouseEnter={(e) => {
+                          e.currentTarget.style.background = 'rgba(255, 255, 255, 0.06)';
+                          e.currentTarget.style.transform = 'translateY(-1px)';
+                        }}
+                        onMouseLeave={(e) => {
+                          e.currentTarget.style.background = 'rgba(255, 255, 255, 0.04)';
+                          e.currentTarget.style.transform = 'translateY(0)';
+                        }}
+                        >
+                          <div style={{
+                            display: 'flex',
+                            alignItems: 'flex-start',
+                            justifyContent: 'space-between',
+                            gap: 16
+                          }}>
+                            <div style={{ flex: 1 }}>
+                              <h3 style={{
+                                color: '#FFFFFF',
+                                fontSize: 16,
+                                fontWeight: 600,
+                                margin: '0 0 8px 0',
+                                letterSpacing: '-0.01em'
+                              }}>
+                                Receta
+                              </h3>
+                              <p style={{
+                                color: 'rgba(255, 255, 255, 0.6)',
+                                fontSize: 14,
+                                lineHeight: 1.5,
+                                margin: 0
+                              }}>
+                                {selectedVideo.receta.length > 80 
+                                  ? selectedVideo.receta.substring(0, 80) + '...'
+                                  : selectedVideo.receta}
+                              </p>
+                            </div>
+                            <div style={{
+                              width: 32,
+                              height: 32,
+                              borderRadius: 8,
+                              background: 'rgba(255, 106, 26, 0.15)',
+                              display: 'flex',
+                              alignItems: 'center',
+                              justifyContent: 'center',
+                              flexShrink: 0
+                            }}>
+                              <span style={{
+                                color: '#FF6A1A',
+                                fontSize: 20,
+                                fontWeight: 300,
+                                lineHeight: 1
+                              }}>+</span>
+                            </div>
+                          </div>
+                        </div>
+                      )}
+
+                    </div>
+                  );
+                }
+
+                // Si no es nutrición, mantener el diseño original
+                return (
+                  <>
               <div>
                 <h3 style={{
                   color: '#fff',
@@ -3063,38 +3606,20 @@ export default function TodayScreen({ activityId, onBack }: { activityId: string
                 )}
               </div>
 
-              {/* Métricas - Duración, Calorías y Equipo en la misma fila */}
+                    {/* Métricas - Duración, Calorías, Macros/Equipo */}
               {(() => {
-                const duracionValue = selectedVideo.duration;
-                const caloriasValue = selectedVideo.calorias;
-                
-                console.log('🖼️ [TodayScreen] Renderizando duración y calorías:', {
-                  selectedVideo_completo: selectedVideo,
-                  exerciseId: selectedVideo.exerciseId,
-                  exerciseName: selectedVideo.exerciseName,
-                  duration: duracionValue,
-                  calorias: caloriasValue,
-                  tipo_duracion: typeof duracionValue,
-                  tipo_calorias: typeof caloriasValue,
-                  esNull_duracion: duracionValue === null,
-                  esUndefined_duracion: duracionValue === undefined,
-                  esNull_calorias: caloriasValue === null,
-                  esUndefined_calorias: caloriasValue === undefined,
-                  todosLosCampos: Object.keys(selectedVideo),
-                  valoresTodosCampos: Object.keys(selectedVideo).map(key => ({ key, value: (selectedVideo as any)[key], tipo: typeof (selectedVideo as any)[key] }))
-                });
-                
-                return null;
-              })()}
+                      return (
               <div style={{
                 display: 'flex',
                 alignItems: 'flex-start',
                 gap: 24,
                 padding: '16px 0',
                 borderTop: '1px solid rgba(255, 255, 255, 0.08)',
-                borderBottom: '1px solid rgba(255, 255, 255, 0.08)'
+                    borderBottom: '1px solid rgba(255, 255, 255, 0.08)',
+                    flexWrap: 'wrap'
               }}>
-                {/* Duración */}
+                    {/* Minutos (para nutrición) o Duración (para fitness) */}
+                    {(isNutrition ? selectedVideo.minutos : selectedVideo.duration) && (
                 <div style={{ flexShrink: 0 }}>
                   <div style={{
                     color: 'rgba(255, 255, 255, 0.5)',
@@ -3104,18 +3629,23 @@ export default function TodayScreen({ activityId, onBack }: { activityId: string
                     letterSpacing: '0.5px',
                     marginBottom: 4
                   }}>
-                    Duración
+                          {isNutrition ? 'Tiempo' : 'Duración'}
                   </div>
                   <div style={{
                     color: '#FF7939',
                     fontSize: 16,
                     fontWeight: 600
                   }}>
-                    {selectedVideo.duration !== null && selectedVideo.duration !== undefined && selectedVideo.duration !== '' ? `${selectedVideo.duration} min` : '-'}
+                          {isNutrition 
+                            ? (selectedVideo.minutos !== null && selectedVideo.minutos !== undefined ? `${selectedVideo.minutos} min` : '-')
+                            : (selectedVideo.duration !== null && selectedVideo.duration !== undefined && String(selectedVideo.duration) !== '' ? `${selectedVideo.duration} min` : '-')
+                          }
                   </div>
                 </div>
+                    )}
                 
                 {/* Calorías */}
+                    {selectedVideo.calorias && (
                 <div style={{ flexShrink: 0 }}>
                   <div style={{
                     color: 'rgba(255, 255, 255, 0.5)',
@@ -3132,12 +3662,62 @@ export default function TodayScreen({ activityId, onBack }: { activityId: string
                     fontSize: 16,
                     fontWeight: 600
                   }}>
-                    {selectedVideo.calorias !== null && selectedVideo.calorias !== undefined && selectedVideo.calorias !== '' ? `~${selectedVideo.calorias} cal` : '-'}
+                    {selectedVideo.calorias !== null && selectedVideo.calorias !== undefined && String(selectedVideo.calorias) !== '' ? `~${selectedVideo.calorias} cal` : '-'}
                   </div>
                 </div>
-                
-                {/* Equipos en frames tipo glassmorphism con scroll si excede la mitad de la pantalla */}
-                {selectedVideo.equipment && selectedVideo.equipment.trim() !== '' && selectedVideo.equipment !== 'Ninguno' && (
+                    )}
+                    
+                    {/* Macros para nutrición */}
+                    {isNutrition && (selectedVideo.proteinas !== null || selectedVideo.carbohidratos !== null || selectedVideo.grasas !== null) && (
+                      <div style={{ flexShrink: 0 }}>
+                        <div style={{
+                          color: 'rgba(255, 255, 255, 0.5)',
+                          fontSize: 11,
+                          fontWeight: 500,
+                          textTransform: 'uppercase',
+                          letterSpacing: '0.5px',
+                          marginBottom: 4
+                        }}>
+                          Macros
+                        </div>
+                        <div style={{
+                          display: 'flex',
+                          gap: 12,
+                          flexWrap: 'wrap'
+                        }}>
+                          {selectedVideo.proteinas !== null && (
+                            <div style={{
+                              color: '#FF7939',
+                              fontSize: 14,
+                              fontWeight: 600
+                            }}>
+                              P: {selectedVideo.proteinas}g
+                            </div>
+                          )}
+                          {selectedVideo.carbohidratos !== null && (
+                            <div style={{
+                              color: '#FF7939',
+                              fontSize: 14,
+                              fontWeight: 600
+                            }}>
+                              C: {selectedVideo.carbohidratos}g
+                            </div>
+                          )}
+                          {selectedVideo.grasas !== null && (
+                            <div style={{
+                              color: '#FF7939',
+                              fontSize: 14,
+                              fontWeight: 600
+                            }}>
+                              G: {selectedVideo.grasas}g
+                            </div>
+                          )}
+                        </div>
+                      </div>
+                    )}
+                    
+                    {/* Equipos para fitness */}
+                    {!isNutrition && selectedVideo.equipment && selectedVideo.equipment.trim() !== '' && selectedVideo.equipment !== 'Ninguno' && (
                   <div style={{ 
                     flex: 1,
                     minWidth: 0,
@@ -3189,6 +3769,210 @@ export default function TodayScreen({ activityId, onBack }: { activityId: string
                   </div>
                 )}
               </div>
+                      );
+                    })()}
+                    
+                    {/* Ingredientes y Receta - Ya renderizado arriba con diseño premium para nutrición */}
+                    {false && isNutrition && (
+                <div style={{
+                  marginTop: 24,
+                  borderTop: '1px solid rgba(255, 255, 255, 0.1)',
+                  paddingTop: 24
+                }}>
+                  {/* Ingredientes - Arriba */}
+                  {selectedVideo?.ingredientes && (() => {
+                    // Parsear ingredientes: puede venir como array o string separado por punto y coma
+                    if (!selectedVideo?.ingredientes) return null;
+                    let ingredientesList: string[] = [];
+                    const ingredientes = selectedVideo!.ingredientes!;
+                    try {
+                      if (Array.isArray(ingredientes)) {
+                        // Si es array, tomar el primer elemento y separar por punto y coma
+                        const firstItem = ingredientes[0];
+                        if (typeof firstItem === 'string') {
+                          ingredientesList = firstItem.split(';').map((i: string) => i.trim()).filter((i: string) => i.length > 0);
+                        } else {
+                          ingredientesList = (ingredientes as unknown as any[]).map((i: any) => String(i).trim()).filter((i: string) => i.length > 0);
+                        }
+                      } else if (typeof ingredientes === 'string') {
+                        // Si es string, separar por punto y coma
+                        ingredientesList = ingredientes.split(';').map((i: string) => i.trim()).filter((i: string) => i.length > 0);
+                      }
+                    } catch (e) {
+                      console.error('Error parseando ingredientes:', e);
+                      ingredientesList = [String(ingredientes)];
+                    }
+
+                    return ingredientesList.length > 0 ? (
+                      <div style={{
+                        marginBottom: 24
+                      }}>
+                        <div style={{
+                          display: 'flex',
+                          alignItems: 'center',
+                          gap: 8,
+                          marginBottom: 16
+                        }}>
+                          <div style={{
+                            width: 3,
+                            height: 20,
+                            background: 'linear-gradient(135deg, #FF6A00 0%, #FF7939 100%)',
+                            borderRadius: 2
+                          }} />
+                          <h4 style={{
+                            color: '#FFFFFF',
+                            fontSize: 18,
+                            fontWeight: 700,
+                            margin: 0,
+                            letterSpacing: '-0.01em'
+                          }}>
+                            Ingredientes
+                          </h4>
+                        </div>
+                        <div style={{
+                          display: 'flex',
+                          flexDirection: 'column',
+                          gap: 10
+                        }}>
+                          {ingredientesList.map((ingrediente, index) => (
+                            <div
+                              key={index}
+                              style={{
+                                display: 'flex',
+                                alignItems: 'flex-start',
+                                gap: 12,
+                                padding: '12px 16px',
+                                background: 'rgba(255, 255, 255, 0.05)',
+                                borderRadius: 12,
+                                border: '1px solid rgba(255, 255, 255, 0.08)',
+                                transition: 'all 0.2s ease'
+                              }}
+                            >
+                              <div style={{
+                                width: 6,
+                                height: 6,
+                                borderRadius: '50%',
+                                background: '#FF7939',
+                                marginTop: 6,
+                                flexShrink: 0
+                              }} />
+                              <span style={{
+                                color: 'rgba(255, 255, 255, 0.9)',
+                                fontSize: 15,
+                                fontWeight: 500,
+                                lineHeight: 1.5,
+                                flex: 1
+                              }}>
+                                {ingrediente}
+                              </span>
+                            </div>
+                          ))}
+                        </div>
+                      </div>
+                    ) : null;
+                  })()}
+                  
+                  {/* Receta - Abajo */}
+                  {selectedVideo?.receta && (
+                    <div style={{
+                      marginTop: selectedVideo?.ingredientes ? 24 : 0,
+                      paddingTop: selectedVideo?.ingredientes ? 24 : 0,
+                      borderTop: selectedVideo?.ingredientes ? '1px solid rgba(255, 255, 255, 0.1)' : 'none'
+                    }}>
+                      <div style={{
+                        display: 'flex',
+                        alignItems: 'center',
+                        gap: 8,
+                        marginBottom: 16
+                      }}>
+                        <div style={{
+                          width: 3,
+                          height: 20,
+                          background: 'linear-gradient(135deg, #FF6A00 0%, #FF7939 100%)',
+                          borderRadius: 2
+                        }} />
+                        <h4 style={{
+                          color: '#FFFFFF',
+                          fontSize: 18,
+                          fontWeight: 700,
+                          margin: 0,
+                          letterSpacing: '-0.01em'
+                        }}>
+                          Receta
+                        </h4>
+                      </div>
+                      <div style={{
+                        padding: '20px',
+                        background: 'rgba(255, 255, 255, 0.03)',
+                        borderRadius: 16,
+                        border: '1px solid rgba(255, 255, 255, 0.08)',
+                        backdropFilter: 'blur(10px)'
+                      }}>
+                        <div style={{
+                          color: 'rgba(255, 255, 255, 0.9)',
+                          fontSize: 15,
+                          lineHeight: 1.8,
+                          whiteSpace: 'pre-wrap',
+                          fontFamily: '-apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif'
+                        }}>
+                          {selectedVideo?.receta?.split('\n').map((line: string, index: number) => {
+                            // Si la línea empieza con un número seguido de punto, es un paso numerado
+                            const isNumberedStep = /^\d+\./.test(line.trim());
+                            return (
+                              <div
+                                key={index}
+                                style={{
+                                  marginBottom: isNumberedStep ? 12 : 8,
+                                  paddingLeft: isNumberedStep ? 0 : 0
+                                }}
+                              >
+                                {isNumberedStep ? (
+                                  <div style={{
+                                    display: 'flex',
+                                    gap: 12,
+                                    alignItems: 'flex-start'
+                                  }}>
+                                    <div style={{
+                                      width: 24,
+                                      height: 24,
+                                      borderRadius: '50%',
+                                      background: 'linear-gradient(135deg, #FF6A00 0%, #FF7939 100%)',
+                                      display: 'flex',
+                                      alignItems: 'center',
+                                      justifyContent: 'center',
+                                      flexShrink: 0,
+                                      marginTop: 2
+                                    }}>
+                                      <span style={{
+                                        color: '#000',
+                                        fontSize: 12,
+                                        fontWeight: 700
+                                      }}>
+                                        {line.match(/^\d+/)?.[0]}
+                                      </span>
+                                    </div>
+                                    <span style={{
+                                      flex: 1,
+                                      paddingTop: 2
+                                    }}>
+                                      {line.replace(/^\d+\.\s*/, '')}
+                                    </span>
+                                  </div>
+                                ) : (
+                                  <span>{line}</span>
+                                )}
+                              </div>
+                            );
+                          })}
+                        </div>
+                      </div>
+                    </div>
+                  )}
+                    </div>
+                    )}
+                  </>
+                );
+              })()}
 
               {/* Series y Repeticiones - Editable */}
               {selectedVideo.detalle_series && editableSeries.length > 0 && (
@@ -3309,9 +4093,9 @@ export default function TodayScreen({ activityId, onBack }: { activityId: string
                               }
 
                               // Preparar los datos para la API
-                              const ejercicioId = currentActivity.ejercicio_id || currentActivity.exercise_id;
-                              const bloque = currentActivity.bloque || currentActivity.block || 1;
-                              const orden = currentActivity.orden || currentActivity.order || 1;
+                              const ejercicioId = (currentActivity as any).ejercicio_id || (currentActivity as any).exercise_id;
+                              const bloque = currentActivity.bloque || (currentActivity as any).block || 1;
+                              const orden = (currentActivity as any).orden || (currentActivity as any).order || 1;
                               const fecha = getBuenosAiresDateString(selectedDate);
 
                               // Llamar a la API para actualizar las series
@@ -3546,16 +4330,17 @@ export default function TodayScreen({ activityId, onBack }: { activityId: string
               )}
 
 
-              {/* Navegación de ejercicios con botón de completar */}
+              {/* Navegación de ejercicios con botón de completar - Fijo más arriba, sin frame */}
               <div style={{
-                position: 'relative',
+                position: 'fixed',
+                bottom: 60,
+                left: 0,
+                right: 0,
                 display: 'flex',
                 alignItems: 'center',
                 justifyContent: 'center',
                 gap: 16,
-                padding: '16px 20px 20px',
-                marginTop: '8px',
-                background: 'transparent',
+                padding: '16px 20px',
                 zIndex: 1001
               }}>
                 {/* Flecha izquierda - ejercicio anterior */}
@@ -3662,6 +4447,7 @@ export default function TodayScreen({ activityId, onBack }: { activityId: string
                   →
                 </button>
 
+                </div>
                 </div>
             </div>
           </motion.div>
@@ -3826,7 +4612,18 @@ export default function TodayScreen({ activityId, onBack }: { activityId: string
                📅
              </div>
              
-             {nextAvailableActivity ? (
+             {(() => {
+               // Log para debug
+               console.log('🔍 [TodayScreen] Renderizando estado de actividades:', {
+                 tiene_actividades: activities.length > 0,
+                 cantidad_actividades: activities.length,
+                 nextAvailableActivity,
+                 tiene_nextActivity: !!nextAvailableActivity,
+                 fecha_proxima: nextAvailableActivity?.date,
+                 selectedDate: selectedDate.toISOString()
+               });
+               
+               return nextAvailableActivity ? (
                <>
                  <h3 style={{
                    color: '#fff',
@@ -3932,7 +4729,8 @@ export default function TodayScreen({ activityId, onBack }: { activityId: string
                    </button>
                  )}
                </>
-             )}
+             );
+             })()}
            </div>
          )}
 
@@ -3970,7 +4768,7 @@ export default function TodayScreen({ activityId, onBack }: { activityId: string
                           fontWeight: 600, 
                             color: isActiveBlock ? '#FF6B35' : '#FFFFFF' 
                         }}>
-                          Bloque {blockNumber}
+                          {blockNames[String(blockNumber)] || `Bloque ${blockNumber}`}
                             {isActiveBlock && (
                               <span style={{
                                 marginLeft: 8,
@@ -4091,11 +4889,11 @@ export default function TodayScreen({ activityId, onBack }: { activityId: string
                                 onClick={() => {
                                 // Inicializar valores editables de series
                                 const parsed = parseSeries(activity.detalle_series || activity.series);
-                                const initialSeries = parsed.map(s => ({
-                                  id: s.id,
-                                  reps: String(s.reps || '0'),
-                                  kg: String(s.kg || '0'),
-                                  series: String(s.sets || s.series || '0')
+                                const initialSeries = parsed.map((s: any) => ({
+                                  id: s?.id ?? 0,
+                                  reps: String(s?.reps || '0'),
+                                  kg: String(s?.kg || '0'),
+                                  series: String(s?.sets || (s as any)?.series || '0')
                                 }));
                                 setEditableSeries(initialSeries);
                                 setOriginalSeries(JSON.parse(JSON.stringify(initialSeries)));
@@ -4128,7 +4926,14 @@ export default function TodayScreen({ activityId, onBack }: { activityId: string
                                     activity.detalle_series || activity.series,
                                     duracionParaOpenVideo,
                                     activity.descripcion,
-                                    caloriasParaOpenVideo
+                                    caloriasParaOpenVideo,
+                                    (activity as any).proteinas ?? null,
+                                    (activity as any).carbohidratos ?? null,
+                                    (activity as any).grasas ?? null,
+                                    (activity as any).receta ?? null,
+                                    (activity as any).ingredientes ?? null,
+                                    (activity as any).minutos ?? null,
+                                    null // coverImageUrl se obtendrá automáticamente
                                   );
                                 } else {
                                   const duracionParaOpenVideoSinURL = activity.duration ?? (activity as any).duracion_minutos ?? (activity as any).duracion_min ?? null;
@@ -4158,7 +4963,14 @@ export default function TodayScreen({ activityId, onBack }: { activityId: string
                                     activity.detalle_series || activity.series,
                                     duracionParaOpenVideoSinURL,
                                     activity.descripcion,
-                                    caloriasParaOpenVideoSinURL
+                                    caloriasParaOpenVideoSinURL,
+                                    (activity as any).proteinas ?? null,
+                                    (activity as any).carbohidratos ?? null,
+                                    (activity as any).grasas ?? null,
+                                    (activity as any).receta ?? null,
+                                    (activity as any).ingredientes ?? null,
+                                    (activity as any).minutos ?? null,
+                                    null // coverImageUrl se obtendrá automáticamente
                                   );
                                 }
                               }}
@@ -4223,9 +5035,22 @@ export default function TodayScreen({ activityId, onBack }: { activityId: string
                                 <div style={{ flex: 1, minWidth: 0 }}>
                                   <div style={{
                                     display: 'flex',
-                                    alignItems: 'center',
-                                    gap: 8,
-                                    flexWrap: 'wrap'
+                                    flexDirection: 'column',
+                                    gap: 4
+                                  }}>
+                                    <div style={{
+                                      display: 'flex',
+                                      alignItems: 'flex-start',
+                                      justifyContent: 'space-between',
+                                      gap: 12,
+                                      width: '100%'
+                                    }}>
+                                      <div style={{
+                                        display: 'flex',
+                                        flexDirection: 'column',
+                                        gap: 4,
+                                        flex: 1,
+                                        minWidth: 0
                                   }}>
                                     <div style={{
                                       fontSize: 15,
@@ -4236,43 +5061,68 @@ export default function TodayScreen({ activityId, onBack }: { activityId: string
                                       {activity.title}
                                     </div>
                                     
-                                    {/* Tipo de ejercicio */}
+                                        {/* Macros para nutrición */}
+                                        {(programInfo?.categoria === 'nutricion' || enrollment?.activity?.categoria === 'nutricion') && (
+                                          (activity.proteinas !== null && activity.proteinas !== undefined) || 
+                                          (activity.carbohidratos !== null && activity.carbohidratos !== undefined) || 
+                                          (activity.grasas !== null && activity.grasas !== undefined)
+                                        ) && (
                                     <div style={{
-                                      display: 'inline-block',
-                                      padding: '3px 6px',
-                                      background: '#FF6B35',
-                                      color: '#FFFFFF',
-                                      fontSize: 10,
-                                      borderRadius: 4,
-                                      textTransform: 'capitalize',
-                                      fontWeight: 500,
-                                      flexShrink: 0
-                                    }}>
-                                      {activity.type}
+                                            display: 'flex',
+                                            alignItems: 'center',
+                                            gap: 8,
+                                            flexWrap: 'wrap',
+                                            fontSize: 12,
+                                            color: 'rgba(255, 255, 255, 0.6)'
+                                          }}>
+                                            {activity.proteinas !== null && activity.proteinas !== undefined && (
+                                              <span>P: {activity.proteinas}g</span>
+                                            )}
+                                            {activity.carbohidratos !== null && activity.carbohidratos !== undefined && (
+                                              <span>C: {activity.carbohidratos}g</span>
+                                            )}
+                                            {activity.grasas !== null && activity.grasas !== undefined && (
+                                              <span>G: {activity.grasas}g</span>
+                                            )}
+                                    </div>
+                                        )}
+                              </div>
+
+                                      {/* Kcal y minutos alineados a la derecha */}
+                                <div style={{
+                                  display: 'flex',
+                                        flexDirection: 'column',
+                                        alignItems: 'flex-end',
+                                        justifyContent: 'flex-start',
+                                        gap: 2,
+                                        flexShrink: 0
+                                      }}>
+                                        {/* Kcal arriba */}
+                                        {(activity.calorias !== null && activity.calorias !== undefined) && (
+                                  <span style={{
+                                            fontSize: 13,
+                                    fontWeight: 600,
+                                            color: 'rgba(255, 255, 255, 0.8)'
+                                          }}>
+                                            {activity.calorias} kcal
+                                          </span>
+                                        )}
+                                        {/* Minutos abajo */}
+                                        {activity.minutos !== null && activity.minutos !== undefined && (
+                                          <span style={{
+                                            fontSize: 12,
+                                            fontWeight: 500,
+                                            color: 'rgba(255, 255, 255, 0.6)'
+                                  }}>
+                                    {activity.minutos}min
+                                  </span>
+                                        )}
+                                      </div>
                                     </div>
                                   </div>
                                 </div>
                               </div>
 
-                              {/* Lado derecho: Minutos alineados a la derecha */}
-                              {activity.minutos && (
-                                <div style={{
-                                  display: 'flex',
-                                  alignItems: 'center',
-                                  justifyContent: 'flex-end',
-                                  flexShrink: 0,
-                                  marginLeft: 'auto'
-                                }}>
-                                  <span style={{
-                                    fontSize: 14,
-                                    fontWeight: 600,
-                                    color: 'rgba(255, 255, 255, 0.7)',
-                                    fontFamily: 'monospace'
-                                  }}>
-                                    {activity.minutos}min
-                                  </span>
-                                </div>
-                              )}
                             </div>
                             </button>
                             ))}

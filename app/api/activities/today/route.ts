@@ -29,6 +29,45 @@ export async function GET(request: NextRequest) {
     const categoria = actividadInfo?.categoria || 'fitness';
     console.log('📊 Categoría de actividad:', categoria);
 
+    // Obtener nombres de bloques desde planificacion_ejercicios si es nutrición
+    let blockNames: Record<string, string> = {};
+    if (categoria === 'nutricion' && dia) {
+      try {
+        // Calcular semana y día
+        const diasMap: Record<string, string> = {
+          '1': 'lunes',
+          '2': 'martes',
+          '3': 'miercoles',
+          '4': 'jueves',
+          '5': 'viernes',
+          '6': 'sabado',
+          '7': 'domingo'
+        };
+        const diaColumna = diasMap[dia] || 'lunes';
+        
+        // Obtener planificación de la semana 1 (o calcular según start_date si es necesario)
+        const { data: planificacion } = await supabase
+          .from('planificacion_ejercicios')
+          .select(diaColumna)
+          .eq('actividad_id', activityId)
+          .eq('numero_semana', 1)
+          .single();
+        
+        if (planificacion && planificacion[diaColumna]) {
+          const diaData = typeof planificacion[diaColumna] === 'string' 
+            ? JSON.parse(planificacion[diaColumna]) 
+            : planificacion[diaColumna];
+          
+          if (diaData.blockNames) {
+            blockNames = diaData.blockNames;
+            console.log(`📋 [API] Nombres de bloques obtenidos:`, blockNames);
+          }
+        }
+      } catch (err) {
+        console.error('❌ [API] Error obteniendo nombres de bloques:', err);
+      }
+    }
+
     // 2. Verificar enrollment
     const { data: enrollment } = await supabase
       .from('activity_enrollments')
@@ -60,19 +99,67 @@ export async function GET(request: NextRequest) {
     }
 
     // 2. Obtener progreso del cliente para este día
-    // IMPORTANTE: Solo devolver actividades si existe un registro real en progreso_cliente
+    // IMPORTANTE: Solo devolver actividades si existe un registro real en progreso_cliente o progreso_cliente_nutricion
     // NO crear registros automáticamente basándose en la planificación
-    const { data: progressRecord } = await supabase
-      .from('progreso_cliente')
-      .select('id, fecha, ejercicios_completados, ejercicios_pendientes, detalles_series, minutos_json, calorias_json')
+    const tablaProgreso = categoria === 'nutricion' ? 'progreso_cliente_nutricion' : 'progreso_cliente'
+    const camposProgreso = categoria === 'nutricion'
+      ? 'id, fecha, ejercicios_completados, ejercicios_pendientes, macros, receta, ingredientes'
+      : 'id, fecha, ejercicios_completados, ejercicios_pendientes, detalles_series, minutos_json, calorias_json'
+    
+    // Buscar progreso - usar .limit() para obtener todos los registros que coincidan
+    // y luego tomar el primero si hay varios
+    // Intentar con activityId como número primero, luego como string si falla
+    let { data: progressRecords, error: progressError } = await supabase
+      .from(tablaProgreso)
+      .select(camposProgreso)
       .eq('cliente_id', clientId)
       .eq('actividad_id', activityId)
       .eq('fecha', today)
-      .single();
+      .order('id', { ascending: false })
+      .limit(10);
 
-    // Si no existe registro de progreso, devolver vacío (no crear automáticamente)
-    if (!progressRecord) {
-      console.log('ℹ️ No existe registro de progreso para fecha:', today, '- devolviendo actividades vacías');
+    // Si no encuentra nada, intentar con activityId como string
+    if ((!progressRecords || progressRecords.length === 0) && !progressError) {
+      console.log(`🔄 [API] No se encontraron registros con activityId como número, intentando como string...`);
+      const result = await supabase
+        .from(tablaProgreso)
+        .select(camposProgreso)
+        .eq('cliente_id', clientId)
+        .eq('actividad_id', String(activityId))
+        .eq('fecha', today)
+        .order('id', { ascending: false })
+        .limit(10);
+      
+      progressRecords = result.data;
+      progressError = result.error;
+    }
+
+    console.log(`🔍 [API] Buscando progreso en ${tablaProgreso}:`, {
+      cliente_id: clientId,
+      actividad_id: activityId,
+      actividad_id_tipo: typeof activityId,
+      actividad_id_string: String(activityId),
+      fecha: today,
+      fecha_tipo: typeof today,
+      registros_encontrados: progressRecords?.length || 0,
+      error: progressError,
+      error_code: progressError?.code,
+      error_message: progressError?.message,
+      error_details: progressError?.details,
+      error_hint: progressError?.hint
+    });
+
+    // Si hay error o no hay registros, devolver vacío
+    if (progressError || !progressRecords || progressRecords.length === 0) {
+      console.log('ℹ️ No existe registro de progreso para fecha:', today, 'en tabla:', tablaProgreso, '- devolviendo actividades vacías');
+      if (progressError) {
+        console.error('❌ Error obteniendo progreso:', {
+          code: progressError.code,
+          message: progressError.message,
+          details: progressError.details,
+          hint: progressError.hint
+        });
+      }
       return NextResponse.json({
         success: true,
         data: {
@@ -85,35 +172,99 @@ export async function GET(request: NextRequest) {
       });
     }
 
+    // Tomar el primer registro (el más reciente por el order by id desc)
+    const progressRecord = progressRecords[0];
+    
+    console.log(`✅ [API] Registro de progreso seleccionado (de ${progressRecords.length} encontrados):`, {
+      id: progressRecord.id,
+      fecha: progressRecord.fecha,
+      tiene_ejercicios_pendientes: !!progressRecord.ejercicios_pendientes,
+      tiene_macros: !!progressRecord.macros,
+      tiene_receta: !!progressRecord.receta
+    });
+    
+    // Parsear ejercicios_pendientes una vez aquí para debug
+    let ejerciciosPendientesParsed: any = null;
+    try {
+      ejerciciosPendientesParsed = progressRecord.ejercicios_pendientes 
+        ? (typeof progressRecord.ejercicios_pendientes === 'string' 
+            ? JSON.parse(progressRecord.ejercicios_pendientes) 
+            : progressRecord.ejercicios_pendientes)
+        : null;
+    } catch (err) {
+      console.error('❌ Error parseando ejercicios_pendientes en log:', err);
+    }
+    
+    console.log(`✅ [API] Progreso encontrado:`, {
+      id: progressRecord.id,
+      fecha: progressRecord.fecha,
+      categoria,
+      tabla_usada: tablaProgreso,
+      ejercicios_pendientes_type: typeof progressRecord.ejercicios_pendientes,
+      ejercicios_pendientes_is_string: typeof progressRecord.ejercicios_pendientes === 'string',
+      ejercicios_pendientes_is_object: typeof progressRecord.ejercicios_pendientes === 'object',
+      ejercicios_pendientes_keys: ejerciciosPendientesParsed 
+        ? Object.keys(ejerciciosPendientesParsed).length 
+        : 0,
+      ejercicios_pendientes_keys_list: ejerciciosPendientesParsed 
+        ? Object.keys(ejerciciosPendientesParsed) 
+        : [],
+      tiene_macros: !!progressRecord.macros,
+      macros_type: typeof progressRecord.macros,
+      tiene_receta: !!progressRecord.receta,
+      receta_type: typeof progressRecord.receta,
+      sample_ejercicios_pendientes: ejerciciosPendientesParsed 
+        ? ejerciciosPendientesParsed[Object.keys(ejerciciosPendientesParsed)[0]]
+        : null
+    });
+
     // 3. Obtener detalles de ejercicios
     let ejercicioIds: number[] = [];
     if (progressRecord) {
       try {
-        // Primero parsear detalles_series que contiene TODOS los ejercicios del día
-        const detallesSeriesTemp = progressRecord.detalles_series 
-          ? (typeof progressRecord.detalles_series === 'string' 
-              ? JSON.parse(progressRecord.detalles_series) 
-              : progressRecord.detalles_series)
+        // Para nutrición: usar ejercicios_pendientes directamente (no hay detalles_series)
+        // Para fitness: usar detalles_series como fuente principal
+        let idsDeDetallesSeries: number[] = [];
+        
+        // Parsear ejercicios_pendientes una sola vez
+        const pendientesObj = progressRecord.ejercicios_pendientes 
+          ? (typeof progressRecord.ejercicios_pendientes === 'string' 
+              ? JSON.parse(progressRecord.ejercicios_pendientes) 
+              : progressRecord.ejercicios_pendientes)
           : {};
         
-        // Extraer IDs de detalles_series (fuente principal)
-        const idsDeDetallesSeries = Object.values(detallesSeriesTemp)
-          .map((item: any) => item?.ejercicio_id)
-          .filter(id => id !== undefined && id !== null && !isNaN(Number(id)))
-          .map(id => Number(id));
+        if (categoria === 'nutricion') {
+          // Para nutrición: extraer IDs desde ejercicios_pendientes
+          // pendientesObj es un objeto con keys como "753_3" y valores como {ejercicio_id: 753, orden: 3, bloque: 1}
+          idsDeDetallesSeries = Object.values(pendientesObj)
+            .map((item: any) => item?.ejercicio_id)
+            .filter(id => id !== undefined && id !== null && !isNaN(Number(id)))
+            .map(id => Number(id));
+          
+          console.log(`🔍 [API] IDs extraídos desde ejercicios_pendientes para nutrición:`, {
+            pendientes_obj_keys: Object.keys(pendientesObj),
+            pendientes_obj_values: Object.values(pendientesObj),
+            ids_extraidos: idsDeDetallesSeries
+          });
+        } else {
+          // Para fitness: usar detalles_series como fuente principal
+          const detallesSeriesTemp = progressRecord.detalles_series 
+            ? (typeof progressRecord.detalles_series === 'string' 
+                ? JSON.parse(progressRecord.detalles_series) 
+                : progressRecord.detalles_series)
+            : {};
+          
+          idsDeDetallesSeries = Object.values(detallesSeriesTemp)
+            .map((item: any) => item?.ejercicio_id)
+            .filter(id => id !== undefined && id !== null && !isNaN(Number(id)))
+            .map(id => Number(id));
+        }
         
         // completados es un objeto con keys únicos
         const completadosObj = progressRecord.ejercicios_completados 
           ? (typeof progressRecord.ejercicios_completados === 'string' 
               ? JSON.parse(progressRecord.ejercicios_completados) 
               : progressRecord.ejercicios_completados)
-          : {};
-        
-        // pendientes es un objeto con keys únicos
-        const pendientesObj = progressRecord.ejercicios_pendientes 
-          ? (typeof progressRecord.ejercicios_pendientes === 'string' 
-              ? JSON.parse(progressRecord.ejercicios_pendientes) 
-              : progressRecord.ejercicios_pendientes)
           : {};
         
         // Extraer IDs únicos de ambos objetos
@@ -126,17 +277,19 @@ export async function GET(request: NextRequest) {
           .filter(id => id !== undefined && id !== null && !isNaN(Number(id)))
           .map(id => Number(id));
         
-        // Combinar todos los IDs (detalles_series es la fuente principal)
+        // Combinar todos los IDs (detalles_series o ejercicios_pendientes es la fuente principal)
         ejercicioIds = [...new Set([...idsDeDetallesSeries, ...idsCompletados, ...idsPendientes])]; // Set para eliminar duplicados
         
-        console.log('🔍 IDs extraídos:', {
+        console.log('🔍 [API] IDs extraídos:', {
+          categoria,
           de_detalles_series: idsDeDetallesSeries,
           completados: idsCompletados,
           pendientes: idsPendientes,
-          final: ejercicioIds
+          final: ejercicioIds,
+          pendientes_obj_keys: Object.keys(pendientesObj)
         });
       } catch (err) {
-        console.error('Error parseando ejercicios:', err);
+        console.error('❌ [API] Error parseando ejercicios:', err);
         ejercicioIds = [];
       }
     }
@@ -156,99 +309,340 @@ export async function GET(request: NextRequest) {
               ? JSON.parse(progressRecord.ejercicios_completados) 
               : progressRecord.ejercicios_completados)
           : {};
-        detallesSeries = progressRecord.detalles_series 
-          ? (typeof progressRecord.detalles_series === 'string' 
-              ? JSON.parse(progressRecord.detalles_series) 
-              : progressRecord.detalles_series)
-          : {};
-        minutosJson = progressRecord.minutos_json 
-          ? (typeof progressRecord.minutos_json === 'string' 
-              ? JSON.parse(progressRecord.minutos_json) 
-              : progressRecord.minutos_json)
-          : {};
-        caloriasJson = progressRecord.calorias_json 
-          ? (typeof progressRecord.calorias_json === 'string' 
-              ? JSON.parse(progressRecord.calorias_json) 
-              : progressRecord.calorias_json)
-          : {};
+        
+        if (categoria === 'nutricion') {
+          // Para nutrición: parsear macros y receta desde progressRecord
+          // Los detalles de nutrición vienen de macros y receta
+          detallesSeries = {}; // Se construirá desde macros y receta más adelante
+          minutosJson = {}; // Se construirá desde receta más adelante
+          caloriasJson = {}; // Se construirá desde macros más adelante
+          
+          // Parsear macros y receta si existen
+          try {
+            if (progressRecord.macros) {
+              const macrosParsed = typeof progressRecord.macros === 'string' 
+                ? JSON.parse(progressRecord.macros) 
+                : progressRecord.macros;
+              // Construir caloriasJson desde macros
+              Object.keys(macrosParsed).forEach(key => {
+                if (macrosParsed[key]?.calorias) {
+                  caloriasJson[key] = macrosParsed[key].calorias;
+                }
+              });
+            }
+            if (progressRecord.receta) {
+              const recetaParsed = typeof progressRecord.receta === 'string' 
+                ? JSON.parse(progressRecord.receta) 
+                : progressRecord.receta;
+              // Construir minutosJson desde receta
+              Object.keys(recetaParsed).forEach(key => {
+                if (recetaParsed[key]?.minutos) {
+                  minutosJson[key] = recetaParsed[key].minutos;
+                }
+              });
+            }
+          } catch (err) {
+            console.error('Error parseando macros/receta:', err);
+          }
+        } else {
+          // Para fitness: usar detalles_series, minutos_json y calorias_json
+          detallesSeries = progressRecord.detalles_series 
+            ? (typeof progressRecord.detalles_series === 'string' 
+                ? JSON.parse(progressRecord.detalles_series) 
+                : progressRecord.detalles_series)
+            : {};
+          minutosJson = progressRecord.minutos_json 
+            ? (typeof progressRecord.minutos_json === 'string' 
+                ? JSON.parse(progressRecord.minutos_json) 
+                : progressRecord.minutos_json)
+            : {};
+          caloriasJson = progressRecord.calorias_json 
+            ? (typeof progressRecord.calorias_json === 'string' 
+                ? JSON.parse(progressRecord.calorias_json) 
+                : progressRecord.calorias_json)
+            : {};
+        }
       } catch (err) {
         console.error('Error parseando datos de progreso:', err);
       }
     }
     
     // Obtener detalles según la categoría
-    const tablaDetalles = categoria === 'nutricion' ? 'platos_detalles' : 'ejercicios_detalles'
-    const camposSelect = categoria === 'nutricion' 
-      ? 'id, nombre_plato, tipo, descripcion, video_url, calorias, proteinas, carbohidratos, grasas, receta'
-      : 'id, nombre_ejercicio, tipo, descripcion, video_url, calorias, equipo, body_parts, intensidad, detalle_series, duracion_min'
-    
-    const { data: ejerciciosDetalles } = await supabase
-      .from(tablaDetalles)
-      .select(camposSelect)
-      .in('id', ejercicioIds.length > 0 ? ejercicioIds : [0]);
-    
-    console.log(`📚 ${categoria === 'nutricion' ? 'Platos' : 'Ejercicios'} encontrados en ${tablaDetalles}:`, ejerciciosDetalles);
-    console.log('📋 detalles_series desde progreso_cliente:', detallesSeries);
-    console.log('🔍 IDs buscados:', ejercicioIds);
-    console.log('🔍 IDs encontrados:', ejerciciosDetalles?.map(e => e.id));
+    // ⚠️ IMPORTANTE: Para nutrición NO volvemos a leer de nutrition_program_details.
+    // Toda la información necesaria (nombre, macros, receta, minutos, ingredientes)
+    // viene desde progreso_cliente_nutricion (campos JSONB: ejercicios_pendientes, macros, receta).
+    let ejerciciosDetalles: any[] | null = null;
+    if (categoria === 'nutricion') {
+      console.log('🍽️ [API] Categoría nutrición: NO se consulta nutrition_program_details. Se usará SOLO progreso_cliente_nutricion (macros/receta/ejercicios_pendientes).', {
+        ejercicioIds,
+        tiene_macros: !!progressRecord?.macros,
+        tiene_receta: !!progressRecord?.receta
+      });
+      ejerciciosDetalles = []; // No necesitamos detalles adicionales de otra tabla
+    } else {
+      const tablaDetalles = 'ejercicios_detalles';
+      const camposSelect = 'id, nombre_ejercicio, tipo, descripcion, video_url, calorias, equipo, body_parts, intensidad, detalle_series, duracion_min';
+      
+      // Convertir IDs a strings para la query de Supabase (los IDs en la BD pueden ser strings o números)
+      const ejercicioIdsForQuery = ejercicioIds.length > 0 
+        ? ejercicioIds.map(id => String(id))
+        : ['0'];
+      
+      const { data: ejerciciosDetallesData } = await supabase
+        .from(tablaDetalles)
+        .select(camposSelect)
+        .in('id', ejercicioIdsForQuery);
 
-    // Usar detalles_series para obtener bloque y orden correctos
-    const transformedActivities = Object.keys(detallesSeries).map((key, index) => {
-      const detalle = detallesSeries[key];
-      if (!detalle || !detalle.ejercicio_id) return null;
+      ejerciciosDetalles = ejerciciosDetallesData || [];
       
-      const ejercicio = ejerciciosDetalles?.find(e => e.id === detalle.ejercicio_id);
+      console.log(`📚 Ejercicios encontrados en ${tablaDetalles}:`, ejerciciosDetalles);
+      console.log('📋 detalles_series desde progreso_cliente:', detallesSeries);
+      console.log('🔍 IDs buscados (números):', ejercicioIds);
+      console.log('🔍 IDs encontrados (tipos):', ejerciciosDetalles?.map(e => ({ id: e.id, tipo: typeof e.id, nombre: e.nombre_ejercicio })));
+    }
+
+    // Usar detalles_series o ejercicios_pendientes para obtener bloque y orden correctos
+    // Para nutrición: usar ejercicios_pendientes directamente
+    // Para fitness: usar detalles_series
+    let sourceData: any = {};
+    
+    if (categoria === 'nutricion') {
+      // Para nutrición: usar ejercicios_pendientes directamente
+      console.log(`🔍 [API] ANTES de parsear ejercicios_pendientes:`, {
+        progressRecord_exists: !!progressRecord,
+        ejercicios_pendientes_exists: !!progressRecord?.ejercicios_pendientes,
+        ejercicios_pendientes_type: typeof progressRecord?.ejercicios_pendientes,
+        ejercicios_pendientes_is_null: progressRecord?.ejercicios_pendientes === null,
+        ejercicios_pendientes_is_undefined: progressRecord?.ejercicios_pendientes === undefined,
+        ejercicios_pendientes_value_preview: progressRecord?.ejercicios_pendientes 
+          ? (typeof progressRecord.ejercicios_pendientes === 'string' 
+              ? progressRecord.ejercicios_pendientes.substring(0, 100) 
+              : JSON.stringify(progressRecord.ejercicios_pendientes).substring(0, 100))
+          : null
+      });
       
-      // Log para debug
-      if (!ejercicio) {
-        console.warn(`⚠️ Ejercicio ${detalle.ejercicio_id} no encontrado en ${tablaDetalles}. IDs disponibles:`, ejerciciosDetalles?.map(e => e.id));
+      if (progressRecord?.ejercicios_pendientes) {
+        try {
+          // Supabase devuelve JSONB como objetos JavaScript directamente
+          // Solo necesitamos parsear si es string
+          if (typeof progressRecord.ejercicios_pendientes === 'string') {
+            sourceData = JSON.parse(progressRecord.ejercicios_pendientes);
+          } else if (typeof progressRecord.ejercicios_pendientes === 'object' && progressRecord.ejercicios_pendientes !== null) {
+            // Ya es un objeto, usarlo directamente
+            sourceData = progressRecord.ejercicios_pendientes;
+          } else {
+            console.error(`❌ [API] ejercicios_pendientes tiene un tipo inesperado:`, typeof progressRecord.ejercicios_pendientes);
+            sourceData = {};
+          }
+          
+          // Verificar que sourceData sea un objeto válido
+          if (typeof sourceData !== 'object' || sourceData === null || Array.isArray(sourceData)) {
+            console.error(`❌ [API] sourceData no es un objeto válido después del parseo:`, {
+              tipo: typeof sourceData,
+              es_null: sourceData === null,
+              es_array: Array.isArray(sourceData),
+              valor: sourceData
+            });
+            sourceData = {};
+          }
+        } catch (err) {
+          console.error(`❌ [API] Error parseando ejercicios_pendientes:`, err);
+          sourceData = {};
+        }
       } else {
-        console.log(`✅ Ejercicio ${detalle.ejercicio_id} encontrado:`, {
-          nombre: categoria === 'nutricion' ? ejercicio.nombre_plato : ejercicio.nombre_ejercicio,
-          video_url: ejercicio.video_url
+        console.warn(`⚠️ [API] progressRecord.ejercicios_pendientes no existe o es null`);
+        sourceData = {};
+      }
+      
+      console.log(`📋 [API] Usando ejercicios_pendientes para nutrición:`, {
+        keys_count: Object.keys(sourceData).length,
+        keys: Object.keys(sourceData),
+        sample: sourceData[Object.keys(sourceData)[0]],
+        sourceData_type: typeof sourceData,
+        sourceData_is_object: typeof sourceData === 'object' && !Array.isArray(sourceData)
+      });
+    } else {
+      // Para fitness: usar detalles_series
+      sourceData = detallesSeries;
+      console.log(`📋 [API] Usando detalles_series para fitness:`, {
+        keys_count: Object.keys(sourceData).length
+      });
+    }
+    
+    console.log(`📋 [API] sourceData final:`, {
+      categoria,
+      keys_count: Object.keys(sourceData).length,
+      keys: Object.keys(sourceData).slice(0, 10),
+      sourceData_is_empty: Object.keys(sourceData).length === 0,
+      progressRecord_exists: !!progressRecord,
+      progressRecord_ejercicios_pendientes_exists: !!progressRecord?.ejercicios_pendientes,
+      progressRecord_ejercicios_pendientes_type: typeof progressRecord?.ejercicios_pendientes,
+      progressRecord_ejercicios_pendientes_value: progressRecord?.ejercicios_pendientes 
+        ? (typeof progressRecord.ejercicios_pendientes === 'string' 
+            ? progressRecord.ejercicios_pendientes.substring(0, 200)
+            : JSON.stringify(progressRecord.ejercicios_pendientes).substring(0, 200))
+        : null,
+      sourceData_completo: categoria === 'nutricion' ? sourceData : 'no mostrar (fitness)'
+    });
+    
+    // Si sourceData está vacío, devolver vacío
+    if (Object.keys(sourceData).length === 0) {
+      console.warn(`⚠️ [API] sourceData está vacío para ${categoria}. Devolviendo actividades vacías.`, {
+        categoria,
+        progressRecord_id: progressRecord?.id,
+        progressRecord_fecha: progressRecord?.fecha,
+        ejercicios_pendientes_raw: progressRecord?.ejercicios_pendientes,
+        ejercicios_pendientes_type: typeof progressRecord?.ejercicios_pendientes,
+        ejercicios_pendientes_is_null: progressRecord?.ejercicios_pendientes === null,
+        ejercicios_pendientes_is_undefined: progressRecord?.ejercicios_pendientes === undefined
+      });
+      return NextResponse.json({
+        success: true,
+        data: {
+          activities: [],
+          count: 0,
+          date: today,
+          activity: actividadInfo,
+          enrollment: enrollment[0]
+        }
+      });
+    }
+    
+    // Parsear macros, receta e ingredientes UNA SOLA VEZ para nutrición (antes del map)
+    let macrosParsed: Record<string, any> = {};
+    let recetaParsed: Record<string, any> = {};
+    let ingredientesParsed: Record<string, any> = {};
+    if (categoria === 'nutricion' && progressRecord) {
+      try {
+        macrosParsed = progressRecord.macros 
+          ? (typeof progressRecord.macros === 'string' 
+              ? JSON.parse(progressRecord.macros) 
+              : progressRecord.macros)
+          : {};
+        recetaParsed = progressRecord.receta 
+          ? (typeof progressRecord.receta === 'string' 
+              ? JSON.parse(progressRecord.receta) 
+              : progressRecord.receta)
+          : {};
+        ingredientesParsed = progressRecord.ingredientes 
+          ? (typeof progressRecord.ingredientes === 'string' 
+              ? JSON.parse(progressRecord.ingredientes) 
+              : progressRecord.ingredientes)
+          : {};
+        
+        console.log(`🍽️ [API] Macros, receta e ingredientes parseados para nutrición:`, {
+          macros_keys: Object.keys(macrosParsed),
+          receta_keys: Object.keys(recetaParsed),
+          ingredientes_keys: Object.keys(ingredientesParsed),
+          sample_macro: macrosParsed[Object.keys(macrosParsed)[0]],
+          sample_receta: recetaParsed[Object.keys(recetaParsed)[0]],
+          sample_ingredientes: ingredientesParsed[Object.keys(ingredientesParsed)[0]]
+        });
+      } catch (err) {
+        console.error('❌ [API] Error parseando macros/receta/ingredientes:', err);
+      }
+    }
+
+    const transformedActivities = Object.keys(sourceData).map((key, index) => {
+      const detalle = sourceData[key];
+      if (!detalle || !detalle.ejercicio_id) {
+        console.warn(`⚠️ [API] Detalle inválido para key ${key}:`, detalle);
+        return null;
+      }
+      
+      // Para nutrición: NO buscar en ejerciciosDetalles, usar solo datos de progreso_cliente_nutricion
+      let ejercicio: any = null;
+      if (categoria !== 'nutricion') {
+        // Solo para fitness: buscar en ejerciciosDetalles
+        const ejercicioIdNum = Number(detalle.ejercicio_id);
+        const ejercicioIdStr = String(detalle.ejercicio_id);
+        ejercicio = ejerciciosDetalles?.find(e => {
+          const eIdNum = Number(e.id);
+          const eIdStr = String(e.id);
+          return eIdNum === ejercicioIdNum || 
+                 eIdStr === ejercicioIdStr || 
+                 eIdNum.toString() === ejercicioIdStr ||
+                 eIdStr === ejercicioIdNum.toString();
         });
       }
       
-      // NUEVO: Verificar si está completado usando el key único
-      // completados es un objeto, no un array
+      // Verificar si está completado usando el key único
       const isCompleted = completados && typeof completados === 'object' && key in completados;
       
-      // Usar la key correcta para minutos_json y calorias_json (formato: "ejercicio_id_orden")
-      const minutosKey = `${detalle.ejercicio_id}_${detalle.orden}`;
-      const caloriasKey = `${detalle.ejercicio_id}_${detalle.orden}`;
+      // Para nutrición: obtener datos directamente de macrosParsed, recetaParsed e ingredientesParsed usando la key
+      let macrosData: any = null;
+      let recetaData: any = null;
+      let ingredientesData: any = null;
+      if (categoria === 'nutricion') {
+        macrosData = macrosParsed[key] || null;
+        recetaData = recetaParsed[key] || null;
+        ingredientesData = ingredientesParsed[key] || null;
+        
+        console.log(`🍽️ [API] Datos para key ${key}:`, {
+          key,
+          ejercicio_id: detalle.ejercicio_id,
+          bloque: detalle.bloque,
+          orden: detalle.orden,
+          macrosData: macrosData ? {
+            proteinas: macrosData.proteinas,
+            carbohidratos: macrosData.carbohidratos,
+            grasas: macrosData.grasas,
+            calorias: macrosData.calorias,
+            minutos: macrosData.minutos
+          } : null,
+          recetaData: recetaData ? {
+            nombre: recetaData.nombre,
+            receta: recetaData.receta ? recetaData.receta.substring(0, 50) + '...' : null,
+            minutos: recetaData.minutos
+          } : null,
+          ingredientesData: ingredientesData ? (typeof ingredientesData === 'string' ? ingredientesData.substring(0, 100) + '...' : 'presente') : null
+        });
+      }
       
-      const nombreEjercicio = ejercicio 
-        ? (categoria === 'nutricion' ? ejercicio.nombre_plato : ejercicio.nombre_ejercicio)
-        : null;
+      // Obtener nombre
+      let nombreFinal: string;
+      if (categoria === 'nutricion') {
+        // Para nutrición: nombre viene de recetaData.nombre
+        nombreFinal = recetaData?.nombre || `Plato ${detalle.ejercicio_id}`;
+      } else {
+        // Para fitness: nombre viene de ejercicio
+        nombreFinal = ejercicio?.nombre_ejercicio || `Ejercicio ${detalle.ejercicio_id}`;
+      }
       
-      // Obtener duración: primero de minutosJson, luego de ejercicio.duracion_min, luego null
-      const duracionMinutos = categoria === 'nutricion' 
-        ? null 
-        : (minutosJson[minutosKey] || minutosJson[detalle.ejercicio_id] || (ejercicio as any)?.duracion_min || null);
+      // Obtener minutos
+      let minutosFinal: number | null = null;
+      if (categoria === 'nutricion') {
+        // Para nutrición: minutos puede venir de macrosData.minutos o recetaData.minutos
+        minutosFinal = macrosData?.minutos !== null && macrosData?.minutos !== undefined
+          ? Number(macrosData.minutos)
+          : (recetaData?.minutos !== null && recetaData?.minutos !== undefined
+              ? Number(recetaData.minutos)
+              : null);
+      } else {
+        // Para fitness: usar minutosJson o ejercicio.duracion_min
+        const minutosKey = `${detalle.ejercicio_id}_${detalle.orden}`;
+        minutosFinal = minutosJson[minutosKey] || minutosJson[detalle.ejercicio_id] || (ejercicio as any)?.duracion_min || null;
+      }
       
-      // Obtener calorías: primero de caloriasJson, luego de ejercicio.calorias, luego null
-      const caloriasFinal = caloriasJson[caloriasKey] || caloriasJson[detalle.ejercicio_id] || ejercicio?.calorias || null;
+      // Obtener calorías
+      let caloriasFinal: number | null = null;
+      if (categoria === 'nutricion') {
+        // Para nutrición: calorías viene de macrosData.calorias
+        caloriasFinal = macrosData?.calorias !== null && macrosData?.calorias !== undefined
+          ? Number(macrosData.calorias)
+          : null;
+      } else {
+        // Para fitness: usar caloriasJson o ejercicio.calorias
+        const caloriasKey = `${detalle.ejercicio_id}_${detalle.orden}`;
+        caloriasFinal = caloriasJson[caloriasKey] || caloriasJson[detalle.ejercicio_id] || ejercicio?.calorias || null;
+      }
       
-      console.log(`🔍 [API] Ejercicio ${detalle.ejercicio_id} - Duración y Calorías:`, {
-        ejercicio_id: detalle.ejercicio_id,
-        minutosJson_key: minutosKey,
-        minutosJson_value: minutosJson[minutosKey],
-        minutosJson_ejercicio_id: minutosJson[detalle.ejercicio_id],
-        ejercicio_duracion_min: (ejercicio as any)?.duracion_min,
-        duracion_final: duracionMinutos,
-        caloriasJson_key: caloriasKey,
-        caloriasJson_value: caloriasJson[caloriasKey],
-        caloriasJson_ejercicio_id: caloriasJson[detalle.ejercicio_id],
-        ejercicio_calorias: ejercicio?.calorias,
-        calorias_final: caloriasFinal,
-        ejercicio_completo: ejercicio
-      });
-      
-      const transformedExercise = {
-        id: `${progressRecord?.id || 0}-${detalle.ejercicio_id}`,
+      // Construir objeto transformado
+      const transformedExercise: any = {
+        id: `${progressRecord?.id || 0}-${detalle.ejercicio_id}-${key}`,
         exercise_id: detalle.ejercicio_id,
-        nombre_ejercicio: nombreEjercicio || `Ejercicio ${detalle.ejercicio_id}`,
-        name: nombreEjercicio || `Ejercicio ${detalle.ejercicio_id}`,
+        nombre_ejercicio: nombreFinal,
+        name: nombreFinal,
         type: ejercicio?.tipo || 'general',
         tipo: ejercicio?.tipo || 'general',
         description: ejercicio?.descripcion || '',
@@ -265,30 +659,61 @@ export async function GET(request: NextRequest) {
         formatted_series: detalle.detalle_series || null,
         date: today,
         video_url: ejercicio?.video_url || null,
-        duracion_minutos: duracionMinutos,
-        duracion_min: duracionMinutos,
-        duration: duracionMinutos,
-        minutos: duracionMinutos, // Agregar minutos para uso en frontend
+        duracion_minutos: minutosFinal,
+        duracion_min: minutosFinal,
+        duration: minutosFinal,
+        minutos: minutosFinal,
         calorias: caloriasFinal,
         intensidad: categoria === 'nutricion' ? null : (ejercicio?.intensidad || null),
         equipo: categoria === 'nutricion' ? null : (ejercicio?.equipo || null),
-        body_parts: categoria === 'nutricion' ? null : (ejercicio?.body_parts || null),
-        // Campos específicos para nutrición
-        proteinas: categoria === 'nutricion' ? (ejercicio?.proteinas || null) : null,
-        carbohidratos: categoria === 'nutricion' ? (ejercicio?.carbohidratos || null) : null,
-        grasas: categoria === 'nutricion' ? (ejercicio?.grasas || null) : null,
-        receta: categoria === 'nutricion' ? (ejercicio?.receta || null) : null
+        body_parts: categoria === 'nutricion' ? null : (ejercicio?.body_parts || null)
       };
       
-      console.log(`🔍 ${categoria === 'nutricion' ? 'Plato' : 'Ejercicio'} ${detalle.ejercicio_id} (${categoria === 'nutricion' ? ejercicio?.nombre_plato : ejercicio?.nombre_ejercicio}):`, {
-        key: key,
-        detalle_series: detalle.detalle_series,
+      // Campos específicos para nutrición
+      if (categoria === 'nutricion') {
+        transformedExercise.proteinas = macrosData?.proteinas !== null && macrosData?.proteinas !== undefined
+          ? Number(macrosData.proteinas)
+          : null;
+        transformedExercise.carbohidratos = macrosData?.carbohidratos !== null && macrosData?.carbohidratos !== undefined
+          ? Number(macrosData.carbohidratos)
+          : null;
+        transformedExercise.grasas = macrosData?.grasas !== null && macrosData?.grasas !== undefined
+          ? Number(macrosData.grasas)
+          : null;
+        transformedExercise.receta = recetaData?.receta || null;
+        // Los ingredientes vienen directamente del campo ingredientes de progreso_cliente_nutricion
+        transformedExercise.ingredientes = ingredientesData || null;
+      }
+      
+      console.log(`✅ ${categoria === 'nutricion' ? 'Plato' : 'Ejercicio'} ${detalle.ejercicio_id} transformado:`, {
+        nombre: nombreFinal,
+        ejercicio_id: detalle.ejercicio_id,
         bloque: detalle.bloque,
-        orden: detalle.orden
+        orden: detalle.orden,
+        proteinas: transformedExercise.proteinas,
+        carbohidratos: transformedExercise.carbohidratos,
+        grasas: transformedExercise.grasas,
+        minutos: transformedExercise.minutos,
+        calorias: transformedExercise.calorias,
+        receta: transformedExercise.receta ? 'presente' : 'null',
+        ingredientes: transformedExercise.ingredientes ? 'presente' : 'null'
       });
       
       return transformedExercise;
     }).filter(Boolean);
+
+    console.log(`✅ [API] Actividades transformadas: ${transformedActivities.length}`, {
+      categoria,
+      fecha: today,
+      primer_actividad: transformedActivities[0] ? {
+        id: transformedActivities[0].id,
+        nombre: transformedActivities[0].nombre_ejercicio,
+        ejercicio_id: transformedActivities[0].exercise_id,
+        proteinas: transformedActivities[0].proteinas,
+        carbohidratos: transformedActivities[0].carbohidratos,
+        grasas: transformedActivities[0].grasas
+      } : null
+    });
 
     // 5. Usar la info de actividad ya obtenida
 
@@ -299,7 +724,8 @@ export async function GET(request: NextRequest) {
         count: transformedActivities.length,
         date: today,
         activity: actividadInfo,
-        enrollment: enrollment[0]
+        enrollment: enrollment[0],
+        blockNames: blockNames // Incluir nombres de bloques para nutrición
       }
     });
 
@@ -543,9 +969,9 @@ async function getActivitiesFromPlanning(supabase: any, activityId: number, dia:
     const categoria = actividadInfo?.categoria || 'fitness';
     
     // Obtener detalles de ejercicios desde la tabla correcta
-    const tablaDetalles = categoria === 'nutricion' ? 'platos_detalles' : 'ejercicios_detalles'
-    const camposSelect = categoria === 'nutricion' 
-      ? 'id, nombre_plato, tipo, descripcion, video_url, calorias, proteinas, carbohidratos, grasas, receta'
+    const tablaDetalles = categoria === 'nutricion' ? 'nutrition_program_details' : 'ejercicios_detalles'
+    const camposSelect = categoria === 'nutricion'
+      ? 'id, nombre, tipo, descripcion, video_url, calorias, proteinas, carbohidratos, grasas, receta, ingredientes, minutos'
       : 'id, nombre_ejercicio, tipo, descripcion, video_url, calorias, equipo, body_parts, intensidad, detalle_series, duracion_min'
     
     const { data: ejerciciosDetalles, error: ejerciciosError } = await supabase
@@ -565,10 +991,10 @@ async function getActivitiesFromPlanning(supabase: any, activityId: number, dia:
         id: `preview-${ejInfo.id}-${index}`,
         exercise_id: ejInfo.id,
         nombre_ejercicio: categoria === 'nutricion' 
-          ? (ejercicio?.nombre_plato || 'Plato')
+          ? (ejercicio?.nombre || ejercicio?.nombre_plato || 'Plato')
           : (ejercicio?.nombre_ejercicio || 'Ejercicio'),
         name: categoria === 'nutricion' 
-          ? (ejercicio?.nombre_plato || 'Plato')
+          ? (ejercicio?.nombre || ejercicio?.nombre_plato || 'Plato')
           : (ejercicio?.nombre_ejercicio || 'Ejercicio'),
         type: ejercicio?.tipo || 'general',
         tipo: ejercicio?.tipo || 'general',
@@ -597,7 +1023,9 @@ async function getActivitiesFromPlanning(supabase: any, activityId: number, dia:
         proteinas: categoria === 'nutricion' ? (ejercicio?.proteinas || null) : null,
         carbohidratos: categoria === 'nutricion' ? (ejercicio?.carbohidratos || null) : null,
         grasas: categoria === 'nutricion' ? (ejercicio?.grasas || null) : null,
-        receta: categoria === 'nutricion' ? (ejercicio?.receta || null) : null
+        receta: categoria === 'nutricion' ? (ejercicio?.receta || null) : null,
+        ingredientes: categoria === 'nutricion' ? (ejercicio?.ingredientes || null) : null,
+        minutos: categoria === 'nutricion' ? (ejercicio?.minutos || null) : null
       };
       
       return transformed;

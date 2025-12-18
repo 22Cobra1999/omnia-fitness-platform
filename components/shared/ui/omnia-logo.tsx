@@ -56,7 +56,7 @@ export function OmniaLogoText({
         fontFamily: 'system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif',
         letterSpacing: '0.02em',
         fontWeight: '700',
-        color: '#FF6A00',
+        color: '#FF6A1A',
         textShadow: '0 2px 4px rgba(0, 0, 0, 0.3)',
         lineHeight: '1.1'
       }}

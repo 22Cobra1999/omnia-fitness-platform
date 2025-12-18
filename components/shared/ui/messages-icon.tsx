@@ -25,7 +25,7 @@ export function MessagesIcon() {
   return (
     <button
       onClick={handleMessageClick}
-      className="p-2 text-[#FF7939] hover:text-[#E86A2D] transition-colors relative"
+      className="p-2 text-[#FF6A1A] hover:text-[#FF8A3D] transition-colors relative"
       aria-label="Messages"
     >
       <MessageCircle size={24} />
