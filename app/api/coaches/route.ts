@@ -2,35 +2,73 @@ import { NextResponse } from "next/server"
 import { getSupabaseAdmin } from '@/lib/config/db'
 export async function GET() {
   try {
+    // Verificar variables de entorno
+    if (!process.env.NEXT_PUBLIC_SUPABASE_URL || !process.env.SUPABASE_SERVICE_ROLE_KEY) {
+      console.error("Missing Supabase environment variables")
+      return NextResponse.json(
+        { error: "Server configuration error" },
+        { status: 500 }
+      )
+    }
+
     const supabaseAdmin = await getSupabaseAdmin()
+    
     // Get all coaches
     const { data: coaches, error } = await supabaseAdmin
       .from("coaches")
       .select("*") // Select all from coaches first
       .order("created_at", { ascending: false })
+    
     if (error) {
+      console.error("Error fetching coaches:", error)
       throw error
     }
-    // Fetch user profiles separately and map them to coaches
-    const coachIds = coaches.map((coach) => coach.id)
-    const { data: userProfiles, error: userProfilesError } = await supabaseAdmin
-      .from("user_profiles")
-      .select("id, full_name, avatar_url")
-      .in("id", coachIds) // Assuming user_profile.id matches coach.id
-    if (userProfilesError) {
-      console.error("Error fetching user profiles for coaches:", userProfilesError)
+    
+    // Si no hay coaches, retornar array vacío
+    if (!coaches || coaches.length === 0) {
+      return NextResponse.json([])
     }
-    const userProfileMap = new Map(userProfiles?.map((profile) => [profile.id, profile]))
+    
+    // Fetch user profiles separately and map them to coaches
+    const coachIds = coaches.map((coach) => coach.id).filter(Boolean)
+    
+    let userProfiles = []
+    let userProfileMap = new Map()
+    
+    if (coachIds.length > 0) {
+      const { data: userProfilesData, error: userProfilesError } = await supabaseAdmin
+        .from("user_profiles")
+        .select("id, full_name, avatar_url")
+        .in("id", coachIds)
+      
+      if (userProfilesError) {
+        console.error("Error fetching user profiles for coaches:", userProfilesError)
+      } else {
+        userProfiles = userProfilesData || []
+        userProfileMap = new Map(userProfiles.map((profile) => [profile.id, profile]))
+      }
+    }
+    
     // Get coach stats for all coaches
-    const { data: coachStats, error: statsError } = await supabaseAdmin
-      .from("coach_stats_view")
-      .select("coach_id, avg_rating, total_reviews")
-      .in("coach_id", coachIds)
-    const statsMap = new Map()
-    if (!statsError && coachStats) {
-      coachStats.forEach((stat) => {
-        statsMap.set(stat.coach_id, stat)
-      })
+    let statsMap = new Map()
+    if (coachIds.length > 0) {
+      try {
+        const { data: coachStats, error: statsError } = await supabaseAdmin
+          .from("coach_stats_view")
+          .select("coach_id, avg_rating, total_reviews")
+          .in("coach_id", coachIds)
+        
+        if (statsError) {
+          console.error("Error fetching coach stats (non-fatal):", statsError)
+        } else if (coachStats) {
+          coachStats.forEach((stat) => {
+            statsMap.set(stat.coach_id, stat)
+          })
+        }
+      } catch (statsErr) {
+        console.error("Error fetching coach stats (caught exception):", statsErr)
+        // Continue without stats - this is non-fatal
+      }
     }
     const formattedCoaches = coaches.map((coach) => {
       const userProfile = userProfileMap.get(coach.id) // Get corresponding user profile
@@ -69,9 +107,19 @@ export async function GET() {
       }
     })
     return NextResponse.json(formattedCoaches || [])
-  } catch (error) {
+  } catch (error: any) {
     console.error("Error fetching coaches:", error)
-    return NextResponse.json({ error: "Failed to fetch coaches" }, { status: 500 })
+    const errorMessage = error?.message || error?.details || "Failed to fetch coaches"
+    const errorDetails = error instanceof Error ? error.stack : String(error)
+    console.error("Error details:", errorDetails)
+    return NextResponse.json(
+      { 
+        error: "Failed to fetch coaches",
+        message: errorMessage,
+        details: process.env.NODE_ENV === 'development' ? errorDetails : undefined
+      },
+      { status: 500 }
+    )
   }
 }
 export async function POST(request: Request) {

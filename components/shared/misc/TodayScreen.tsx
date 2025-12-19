@@ -8,7 +8,7 @@ import { useAuth } from "@/contexts/auth-context";
 import { ActivitySurveyModal } from "../activities/activity-survey-modal";
 import { StartActivityModal } from "../activities/StartActivityModal";
 import { StartActivityInfoModal } from "../activities/StartActivityInfoModal";
-import { Flame, Edit, X, Save } from 'lucide-react';
+import { Flame, Edit, X, Save, Clock, Zap, ChevronLeft, ChevronRight } from 'lucide-react';
 import { SettingsIcon } from '@/components/shared/ui/settings-icon';
 import { MessagesIcon } from '@/components/shared/ui/messages-icon';
 import { OmniaLogoText } from '@/components/shared/ui/omnia-logo';
@@ -78,6 +78,7 @@ export default function TodayScreen({ activityId, onBack }: { activityId: string
   const [isVideoExpanded, setIsVideoExpanded] = React.useState(false);
   const [isVideoPanelExpanded, setIsVideoPanelExpanded] = React.useState(false); // Panel expandible dentro del detalle
   const [isIngredientesExpanded, setIsIngredientesExpanded] = React.useState(false); // Ingredientes colapsados por defecto
+  const [activeExerciseTab, setActiveExerciseTab] = React.useState<'Técnica' | 'Equipamiento' | 'Músculos'>('Técnica'); // Tab activo para las secciones colapsables del ejercicio
   const [selectedVideo, setSelectedVideo] = React.useState<{
     url: string;
     exerciseName: string;
@@ -88,6 +89,8 @@ export default function TodayScreen({ activityId, onBack }: { activityId: string
     duration?: number;
     descripcion?: string;
     calorias?: number | null;
+    tipo?: string; // Tipo de ejercicio (ej: Fuerza, Cardio)
+    body_parts?: string | null; // Músculos trabajados
     // Campos específicos para nutrición
     proteinas?: number | null;
     carbohidratos?: number | null;
@@ -438,7 +441,7 @@ export default function TodayScreen({ activityId, onBack }: { activityId: string
   }, []);
 
   // Funciones para manejar la expansión del video
-  const openVideo = async (videoUrl: string, exerciseName: string, exerciseId: string, description?: string, equipment?: string, detalle_series?: any, duration?: number, descripcion?: string, calorias?: number | null, proteinas?: number | null, carbohidratos?: number | null, grasas?: number | null, receta?: string | null, ingredientes?: string | null, minutos?: number | null, coverImageUrl?: string | null) => {
+  const openVideo = async (videoUrl: string, exerciseName: string, exerciseId: string, description?: string, equipment?: string, detalle_series?: any, duration?: number, descripcion?: string, calorias?: number | null, proteinas?: number | null, carbohidratos?: number | null, grasas?: number | null, receta?: string | null, ingredientes?: string | null, minutos?: number | null, coverImageUrl?: string | null, tipo?: string, body_parts?: string | null) => {
     // Si no se pasó coverImageUrl, intentar obtenerla de la base de datos
     let finalCoverImageUrl = coverImageUrl;
     if (!finalCoverImageUrl) {
@@ -503,6 +506,8 @@ export default function TodayScreen({ activityId, onBack }: { activityId: string
       duration,
       descripcion,
       calorias,
+      tipo: tipo || undefined,
+      body_parts: body_parts || undefined,
       proteinas,
       carbohidratos,
       grasas,
@@ -527,6 +532,7 @@ export default function TodayScreen({ activityId, onBack }: { activityId: string
     setOriginalSeries(JSON.parse(JSON.stringify(initialSeries)));
     setIsEditingSeries(false);
     setIsVideoExpanded(true);
+    setActiveExerciseTab('Técnica'); // Resetear tab a Técnica cuando se abre un nuevo ejercicio
   };
 
   const navigateToExercise = React.useCallback((direction: 'next' | 'previous') => {
@@ -580,7 +586,9 @@ export default function TodayScreen({ activityId, onBack }: { activityId: string
         (nextExercise as any).receta ?? null,
         (nextExercise as any).ingredientes ?? null,
         (nextExercise as any).minutos ?? null,
-        null // coverImageUrl se obtendrá automáticamente
+        null, // coverImageUrl se obtendrá automáticamente
+        nextExercise.type, // tipo de ejercicio
+        (nextExercise as any).body_parts ?? null // músculos trabajados
       );
     } else {
       // console.log('No next exercise found');
@@ -3067,17 +3075,40 @@ export default function TodayScreen({ activityId, onBack }: { activityId: string
               height: '100vh',
               width: '100vw',
               overflow: 'hidden',
-              // Fondo con imagen de portada + overlay oscuro más claro (más brillo)
-              backgroundImage: (selectedVideo.coverImageUrl || backgroundImage)
-                ? `linear-gradient(180deg, rgba(0, 0, 0, 0.65) 0%, rgba(0, 0, 0, 0.55) 100%), url(${selectedVideo.coverImageUrl || backgroundImage})`
-                : 'linear-gradient(180deg, #0A0A0A 0%, #000000 100%)',
-              backgroundSize: 'cover',
-              backgroundPosition: 'center',
-              backgroundAttachment: 'fixed',
+              backgroundColor: '#000000',
               display: 'flex',
               flexDirection: 'column'
             }}
           >
+            {/* Fondo con imagen difuminada y opaca - Solo mitad superior */}
+            {(selectedVideo.coverImageUrl || backgroundImage) && (
+              <div style={{
+                position: 'absolute',
+                top: 0,
+                left: 0,
+                right: 0,
+                height: '50vh',
+                backgroundImage: `url(${selectedVideo.coverImageUrl || backgroundImage})`,
+                backgroundSize: 'cover',
+                backgroundPosition: 'center',
+                opacity: 0.5,
+                filter: 'blur(20px)',
+                WebkitFilter: 'blur(20px)',
+                zIndex: 0
+              }} />
+            )}
+            
+            {/* Overlay oscuro en la mitad superior */}
+            <div style={{
+              position: 'absolute',
+              top: 0,
+              left: 0,
+              right: 0,
+              height: '50vh',
+              background: 'linear-gradient(180deg, rgba(0, 0, 0, 0.4) 0%, rgba(0, 0, 0, 0.6) 100%)',
+              zIndex: 1
+            }} />
+            
             {/* Solo botón de retroceso */}
             <div style={{
               padding: '12px 20px 0',
@@ -3581,396 +3612,189 @@ export default function TodayScreen({ activityId, onBack }: { activityId: string
                   );
                 }
 
-                // Si no es nutrición, mantener el diseño original
+                // Si no es nutrición, usar el nuevo diseño minimal premium
                 return (
-                  <>
-              <div>
-                <h3 style={{
-                  color: '#fff',
-                  fontSize: 18,
-                  fontWeight: 600,
-                  margin: '0 0 8px 0',
-                  letterSpacing: '-0.02em'
-                }}>
-                  {selectedVideo.exerciseName}
-                </h3>
-                {selectedVideo.description && (
-                  <p style={{
-                    color: 'rgba(255, 255, 255, 0.6)',
-                    fontSize: 13,
-                    margin: 0,
-                    lineHeight: 1.5
-                  }}>
-                    {selectedVideo.description}
-                  </p>
-                )}
-              </div>
-
-                    {/* Métricas - Duración, Calorías, Macros/Equipo */}
-              {(() => {
-                      return (
-              <div style={{
-                display: 'flex',
-                alignItems: 'flex-start',
-                gap: 24,
-                padding: '16px 0',
-                borderTop: '1px solid rgba(255, 255, 255, 0.08)',
-                    borderBottom: '1px solid rgba(255, 255, 255, 0.08)',
-                    flexWrap: 'wrap'
-              }}>
-                    {/* Minutos (para nutrición) o Duración (para fitness) */}
-                    {(isNutrition ? selectedVideo.minutos : selectedVideo.duration) && (
-                <div style={{ flexShrink: 0 }}>
-                  <div style={{
-                    color: 'rgba(255, 255, 255, 0.5)',
-                    fontSize: 11,
-                    fontWeight: 500,
-                    textTransform: 'uppercase',
-                    letterSpacing: '0.5px',
-                    marginBottom: 4
-                  }}>
-                          {isNutrition ? 'Tiempo' : 'Duración'}
-                  </div>
-                  <div style={{
-                    color: '#FF7939',
-                    fontSize: 16,
-                    fontWeight: 600
-                  }}>
-                          {isNutrition 
-                            ? (selectedVideo.minutos !== null && selectedVideo.minutos !== undefined ? `${selectedVideo.minutos} min` : '-')
-                            : (selectedVideo.duration !== null && selectedVideo.duration !== undefined && String(selectedVideo.duration) !== '' ? `${selectedVideo.duration} min` : '-')
-                          }
-                  </div>
-                </div>
-                    )}
-                
-                {/* Calorías */}
-                    {selectedVideo.calorias && (
-                <div style={{ flexShrink: 0 }}>
-                  <div style={{
-                    color: 'rgba(255, 255, 255, 0.5)',
-                    fontSize: 11,
-                    fontWeight: 500,
-                    textTransform: 'uppercase',
-                    letterSpacing: '0.5px',
-                    marginBottom: 4
-                  }}>
-                    Calorías
-                  </div>
-                  <div style={{
-                    color: '#FF7939',
-                    fontSize: 16,
-                    fontWeight: 600
-                  }}>
-                    {selectedVideo.calorias !== null && selectedVideo.calorias !== undefined && String(selectedVideo.calorias) !== '' ? `~${selectedVideo.calorias} cal` : '-'}
-                  </div>
-                </div>
-                    )}
-                    
-                    {/* Macros para nutrición */}
-                    {isNutrition && (selectedVideo.proteinas !== null || selectedVideo.carbohidratos !== null || selectedVideo.grasas !== null) && (
-                      <div style={{ flexShrink: 0 }}>
-                        <div style={{
-                          color: 'rgba(255, 255, 255, 0.5)',
-                          fontSize: 11,
-                          fontWeight: 500,
-                          textTransform: 'uppercase',
-                          letterSpacing: '0.5px',
-                          marginBottom: 4
-                        }}>
-                          Macros
-                        </div>
-                        <div style={{
-                          display: 'flex',
-                          gap: 12,
-                          flexWrap: 'wrap'
-                        }}>
-                          {selectedVideo.proteinas !== null && (
-                            <div style={{
-                              color: '#FF7939',
-                              fontSize: 14,
-                              fontWeight: 600
-                            }}>
-                              P: {selectedVideo.proteinas}g
-                            </div>
-                          )}
-                          {selectedVideo.carbohidratos !== null && (
-                            <div style={{
-                              color: '#FF7939',
-                              fontSize: 14,
-                              fontWeight: 600
-                            }}>
-                              C: {selectedVideo.carbohidratos}g
-                            </div>
-                          )}
-                          {selectedVideo.grasas !== null && (
-                            <div style={{
-                              color: '#FF7939',
-                              fontSize: 14,
-                              fontWeight: 600
-                            }}>
-                              G: {selectedVideo.grasas}g
-                            </div>
-                          )}
-                        </div>
-                      </div>
-                    )}
-                    
-                    {/* Equipos para fitness */}
-                    {!isNutrition && selectedVideo.equipment && selectedVideo.equipment.trim() !== '' && selectedVideo.equipment !== 'Ninguno' && (
-                  <div style={{ 
-                    flex: 1,
-                    minWidth: 0,
-                    maxWidth: '50vw'
-                  }}>
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: 20 }}>
+                    {/* 3. Barra compacta de info (duración, calorías, tipo) */}
                     <div style={{
-                      color: 'rgba(255, 255, 255, 0.5)',
-                      fontSize: 11,
-                      fontWeight: 500,
-                      textTransform: 'uppercase',
-                      letterSpacing: '0.5px',
-                      marginBottom: 8
-                    }}>
-                      Equipo
-                    </div>
-                    <div style={{
+                      marginTop: 4,
+                      padding: '14px 20px',
+                      background: 'rgba(255, 255, 255, 0.04)',
+                      backdropFilter: 'blur(20px)',
+                      borderRadius: 16,
+                      border: '1px solid rgba(255, 255, 255, 0.08)',
                       display: 'flex',
-                      gap: 8,
-                      overflowX: 'auto',
-                      overflowY: 'hidden',
-                      paddingBottom: 4,
-                      scrollbarWidth: 'thin',
-                      scrollbarColor: 'rgba(255, 255, 255, 0.3) transparent'
+                      alignItems: 'center',
+                      gap: 16,
+                      height: 56,
+                      overflowX: 'auto'
                     }}>
-                      {selectedVideo.equipment.split(';').map((equipo: string, index: number) => {
-                        const equipoTrimmed = equipo.trim();
-                        if (!equipoTrimmed) return null;
-                        return (
-                          <span
-                            key={index}
-                            style={{
-                              background: 'rgba(255, 255, 255, 0.1)',
-                              backdropFilter: 'blur(10px)',
-                              border: '1px solid rgba(255, 255, 255, 0.2)',
-                              borderRadius: '20px',
-                              padding: '6px 12px',
-                              fontSize: 13,
-                              fontWeight: 500,
-                              color: 'rgba(255, 255, 255, 0.6)',
-                              whiteSpace: 'nowrap',
-                              flexShrink: 0
-                            }}
-                          >
-                            {equipoTrimmed}
+                      {/* Duración */}
+                      {selectedVideo.duration && (
+                        <>
+                          <div style={{ display: 'flex', alignItems: 'center', gap: 6, flexShrink: 0 }}>
+                            <Clock size={16} color="rgba(255, 255, 255, 0.7)" />
+                            <span style={{ color: 'rgba(255, 255, 255, 0.9)', fontSize: 14, fontWeight: 500 }}>
+                              {selectedVideo.duration} min
+                            </span>
+                          </div>
+                          <div style={{ width: 1, height: 20, background: 'rgba(255, 255, 255, 0.1)' }} />
+                        </>
+                      )}
+                      
+                      {/* Calorías */}
+                      {selectedVideo.calorias && (
+                        <>
+                          <div style={{ display: 'flex', alignItems: 'center', gap: 6, flexShrink: 0 }}>
+                            <Flame size={16} color="#FF6A1A" />
+                            <span style={{ color: 'rgba(255, 255, 255, 0.9)', fontSize: 14, fontWeight: 500 }}>
+                              ~{selectedVideo.calorias} kcal
+                            </span>
+                          </div>
+                          {(selectedVideo.duration || selectedVideo.calorias) && selectedVideo.tipo && (
+                            <div style={{ width: 1, height: 20, background: 'rgba(255, 255, 255, 0.1)' }} />
+                          )}
+                        </>
+                      )}
+                      
+                      {/* Tipo de ejercicio */}
+                      {selectedVideo.tipo && (
+                        <div style={{ display: 'flex', alignItems: 'center', gap: 6, flexShrink: 0 }}>
+                          <Zap size={16} color="rgba(255, 255, 255, 0.7)" />
+                          <span style={{ color: 'rgba(255, 255, 255, 0.9)', fontSize: 14, fontWeight: 500 }}>
+                            {selectedVideo.tipo}
                           </span>
-                        );
-                      })}
+                        </div>
+                      )}
                     </div>
-                  </div>
-                )}
-              </div>
-                      );
-                    })()}
-                    
-                    {/* Ingredientes y Receta - Ya renderizado arriba con diseño premium para nutrición */}
-                    {false && isNutrition && (
-                <div style={{
-                  marginTop: 24,
-                  borderTop: '1px solid rgba(255, 255, 255, 0.1)',
-                  paddingTop: 24
-                }}>
-                  {/* Ingredientes - Arriba */}
-                  {selectedVideo?.ingredientes && (() => {
-                    // Parsear ingredientes: puede venir como array o string separado por punto y coma
-                    if (!selectedVideo?.ingredientes) return null;
-                    let ingredientesList: string[] = [];
-                    const ingredientes = selectedVideo!.ingredientes!;
-                    try {
-                      if (Array.isArray(ingredientes)) {
-                        // Si es array, tomar el primer elemento y separar por punto y coma
-                        const firstItem = ingredientes[0];
-                        if (typeof firstItem === 'string') {
-                          ingredientesList = firstItem.split(';').map((i: string) => i.trim()).filter((i: string) => i.length > 0);
-                        } else {
-                          ingredientesList = (ingredientes as unknown as any[]).map((i: any) => String(i).trim()).filter((i: string) => i.length > 0);
-                        }
-                      } else if (typeof ingredientes === 'string') {
-                        // Si es string, separar por punto y coma
-                        ingredientesList = ingredientes.split(';').map((i: string) => i.trim()).filter((i: string) => i.length > 0);
-                      }
-                    } catch (e) {
-                      console.error('Error parseando ingredientes:', e);
-                      ingredientesList = [String(ingredientes)];
-                    }
 
-                    return ingredientesList.length > 0 ? (
-                      <div style={{
-                        marginBottom: 24
-                      }}>
-                        <div style={{
-                          display: 'flex',
-                          alignItems: 'center',
-                          gap: 8,
-                          marginBottom: 16
-                        }}>
-                          <div style={{
-                            width: 3,
-                            height: 20,
-                            background: 'linear-gradient(135deg, #FF6A00 0%, #FF7939 100%)',
-                            borderRadius: 2
-                          }} />
-                          <h4 style={{
-                            color: '#FFFFFF',
-                            fontSize: 18,
-                            fontWeight: 700,
-                            margin: 0,
-                            letterSpacing: '-0.01em'
-                          }}>
-                            Ingredientes
-                          </h4>
-                        </div>
-                        <div style={{
-                          display: 'flex',
-                          flexDirection: 'column',
-                          gap: 10
-                        }}>
-                          {ingredientesList.map((ingrediente, index) => (
-                            <div
-                              key={index}
-                              style={{
-                                display: 'flex',
-                                alignItems: 'flex-start',
-                                gap: 12,
-                                padding: '12px 16px',
-                                background: 'rgba(255, 255, 255, 0.05)',
-                                borderRadius: 12,
-                                border: '1px solid rgba(255, 255, 255, 0.08)',
-                                transition: 'all 0.2s ease'
-                              }}
-                            >
-                              <div style={{
-                                width: 6,
-                                height: 6,
-                                borderRadius: '50%',
-                                background: '#FF7939',
-                                marginTop: 6,
-                                flexShrink: 0
-                              }} />
-                              <span style={{
-                                color: 'rgba(255, 255, 255, 0.9)',
-                                fontSize: 15,
-                                fontWeight: 500,
-                                lineHeight: 1.5,
-                                flex: 1
-                              }}>
-                                {ingrediente}
-                              </span>
-                            </div>
-                          ))}
-                        </div>
-                      </div>
-                    ) : null;
-                  })()}
-                  
-                  {/* Receta - Abajo */}
-                  {selectedVideo?.receta && (
-                    <div style={{
-                      marginTop: selectedVideo?.ingredientes ? 24 : 0,
-                      paddingTop: selectedVideo?.ingredientes ? 24 : 0,
-                      borderTop: selectedVideo?.ingredientes ? '1px solid rgba(255, 255, 255, 0.1)' : 'none'
-                    }}>
+                    {/* 4. Menú colapsable de 3 secciones (Técnica, Equipamiento, Músculos) */}
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: 0 }}>
+                      {/* Tabs */}
                       <div style={{
                         display: 'flex',
-                        alignItems: 'center',
-                        gap: 8,
-                        marginBottom: 16
+                        borderBottom: '1px solid rgba(255, 255, 255, 0.1)',
+                        marginBottom: 12
                       }}>
-                        <div style={{
-                          width: 3,
-                          height: 20,
-                          background: 'linear-gradient(135deg, #FF6A00 0%, #FF7939 100%)',
-                          borderRadius: 2
-                        }} />
-                        <h4 style={{
-                          color: '#FFFFFF',
-                          fontSize: 18,
-                          fontWeight: 700,
-                          margin: 0,
-                          letterSpacing: '-0.01em'
-                        }}>
-                          Receta
-                        </h4>
+                        {(['Técnica', 'Equipamiento', 'Músculos'] as const).map((tab) => (
+                          <button
+                            key={tab}
+                            onClick={() => setActiveExerciseTab(tab)}
+                            style={{
+                              flex: 1,
+                              padding: '12px 16px',
+                              background: 'transparent',
+                              border: 'none',
+                              borderBottom: activeExerciseTab === tab ? '2px solid #FF6A1A' : '2px solid transparent',
+                              color: activeExerciseTab === tab ? '#FFFFFF' : 'rgba(255, 255, 255, 0.6)',
+                              fontSize: 14,
+                              fontWeight: activeExerciseTab === tab ? 600 : 500,
+                              cursor: 'pointer',
+                              transition: 'all 0.2s ease'
+                            }}
+                          >
+                            {tab}
+                          </button>
+                        ))}
                       </div>
-                      <div style={{
-                        padding: '20px',
-                        background: 'rgba(255, 255, 255, 0.03)',
-                        borderRadius: 16,
-                        border: '1px solid rgba(255, 255, 255, 0.08)',
-                        backdropFilter: 'blur(10px)'
-                      }}>
-                        <div style={{
-                          color: 'rgba(255, 255, 255, 0.9)',
-                          fontSize: 15,
-                          lineHeight: 1.8,
-                          whiteSpace: 'pre-wrap',
-                          fontFamily: '-apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif'
-                        }}>
-                          {selectedVideo?.receta?.split('\n').map((line: string, index: number) => {
-                            // Si la línea empieza con un número seguido de punto, es un paso numerado
-                            const isNumberedStep = /^\d+\./.test(line.trim());
-                            return (
-                              <div
-                                key={index}
+
+                      {/* Contenido de cada tab */}
+                      <motion.div
+                        key={activeExerciseTab}
+                        initial={{ opacity: 0, height: 0 }}
+                        animate={{ opacity: 1, height: 'auto' }}
+                        exit={{ opacity: 0, height: 0 }}
+                        transition={{ duration: 0.2 }}
+                        style={{ overflow: 'hidden' }}
+                      >
+                        {activeExerciseTab === 'Técnica' && selectedVideo.description && (
+                          <div style={{ padding: '12px 0' }}>
+                            <p style={{
+                              color: 'rgba(255, 255, 255, 0.8)',
+                              fontSize: 14,
+                              lineHeight: 1.6,
+                              margin: 0,
+                              display: '-webkit-box',
+                              WebkitLineClamp: 2,
+                              WebkitBoxOrient: 'vertical',
+                              overflow: 'hidden'
+                            }}>
+                              {selectedVideo.description}
+                            </p>
+                            {selectedVideo.description.length > 120 && (
+                              <button
+                                onClick={() => {/* TODO: Expandir descripción */}}
                                 style={{
-                                  marginBottom: isNumberedStep ? 12 : 8,
-                                  paddingLeft: isNumberedStep ? 0 : 0
+                                  marginTop: 8,
+                                  background: 'transparent',
+                                  border: 'none',
+                                  color: '#FF6A1A',
+                                  fontSize: 13,
+                                  fontWeight: 500,
+                                  cursor: 'pointer',
+                                  padding: 0
                                 }}
                               >
-                                {isNumberedStep ? (
-                                  <div style={{
-                                    display: 'flex',
-                                    gap: 12,
-                                    alignItems: 'flex-start'
-                                  }}>
-                                    <div style={{
-                                      width: 24,
-                                      height: 24,
-                                      borderRadius: '50%',
-                                      background: 'linear-gradient(135deg, #FF6A00 0%, #FF7939 100%)',
-                                      display: 'flex',
-                                      alignItems: 'center',
-                                      justifyContent: 'center',
-                                      flexShrink: 0,
-                                      marginTop: 2
-                                    }}>
-                                      <span style={{
-                                        color: '#000',
-                                        fontSize: 12,
-                                        fontWeight: 700
-                                      }}>
-                                        {line.match(/^\d+/)?.[0]}
-                                      </span>
-                                    </div>
-                                    <span style={{
-                                      flex: 1,
-                                      paddingTop: 2
-                                    }}>
-                                      {line.replace(/^\d+\.\s*/, '')}
-                                    </span>
-                                  </div>
-                                ) : (
-                                  <span>{line}</span>
-                                )}
-                              </div>
-                            );
-                          })}
-                        </div>
-                      </div>
+                                + Ver más
+                              </button>
+                            )}
+                          </div>
+                        )}
+
+                        {activeExerciseTab === 'Equipamiento' && selectedVideo.equipment && selectedVideo.equipment.trim() !== '' && selectedVideo.equipment !== 'Ninguno' && (
+                          <div style={{ padding: '12px 0' }}>
+                            <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8 }}>
+                              {selectedVideo.equipment.split(';').map((equipo: string, index: number) => {
+                                const equipoTrimmed = equipo.trim();
+                                if (!equipoTrimmed) return null;
+                                return (
+                                  <span
+                                    key={index}
+                                    style={{
+                                      background: 'rgba(255, 255, 255, 0.08)',
+                                      borderRadius: 12,
+                                      padding: '6px 12px',
+                                      fontSize: 13,
+                                      fontWeight: 500,
+                                      color: 'rgba(255, 255, 255, 0.9)'
+                                    }}
+                                  >
+                                    {equipoTrimmed}
+                                  </span>
+                                );
+                              })}
+                            </div>
+                          </div>
+                        )}
+
+                        {activeExerciseTab === 'Músculos' && selectedVideo.body_parts && (
+                          <div style={{ padding: '12px 0' }}>
+                            <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8 }}>
+                              {selectedVideo.body_parts.split(';').map((musculo: string, index: number) => {
+                                const musculoTrimmed = musculo.trim();
+                                if (!musculoTrimmed) return null;
+                                return (
+                                  <span
+                                    key={index}
+                                    style={{
+                                      background: 'rgba(255, 106, 26, 0.15)',
+                                      borderRadius: 12,
+                                      padding: '6px 12px',
+                                      fontSize: 13,
+                                      fontWeight: 500,
+                                      color: '#FF6A1A'
+                                    }}
+                                  >
+                                    {musculoTrimmed}
+                                  </span>
+                                );
+                              })}
+                            </div>
+                          </div>
+                        )}
+                      </motion.div>
                     </div>
-                  )}
-                    </div>
-                    )}
-                  </>
+                  </div>
                 );
               })()}
 
@@ -3979,350 +3803,147 @@ export default function TodayScreen({ activityId, onBack }: { activityId: string
                 <div>
                   <div style={{
                     display: 'flex',
-                    justifyContent: 'space-between',
-                    alignItems: 'center',
-                    marginBottom: 12
-                  }}>
-                    <h4 style={{
-                      color: 'rgba(255, 255, 255, 0.8)',
-                      fontSize: 18,
-                      fontWeight: 700,
-                      margin: 0,
-                      textTransform: 'uppercase',
-                      letterSpacing: '0.5px'
-                    }}>
-                      Bloques:
-                    </h4>
-                    {!isEditingSeries ? (
-                      // Botón de editar solo si la fecha seleccionada es hoy o futura
-                      (() => {
-                        const todayBAString = getTodayBuenosAiresString();
-                        const selectedDateString = getBuenosAiresDateString(selectedDate);
-                        const canEditThisDay = selectedDateString >= todayBAString;
-
-                        if (!canEditThisDay) {
-                          return null;
-                        }
-
-                        return (
-                      <button
-                        onClick={() => {
-                          setOriginalSeries(JSON.parse(JSON.stringify(editableSeries)));
-                          setIsEditingSeries(true);
-                        }}
-                        style={{
-                          background: 'rgba(0, 0, 0, 0.8)',
-                          border: '1px solid rgba(255, 121, 57, 0.3)',
-                          borderRadius: '20px',
-                          padding: '6px 12px',
-                          fontSize: 13,
-                          fontWeight: 500,
-                          color: '#FF7939',
-                          cursor: 'pointer',
-                          display: 'flex',
-                          alignItems: 'center',
-                          gap: 6,
-                          transition: 'all 0.2s ease'
-                        }}
-                        onMouseEnter={(e) => {
-                          e.currentTarget.style.background = 'rgba(255, 121, 57, 0.1)';
-                          e.currentTarget.style.borderColor = 'rgba(255, 121, 57, 0.5)';
-                        }}
-                        onMouseLeave={(e) => {
-                          e.currentTarget.style.background = 'rgba(0, 0, 0, 0.8)';
-                          e.currentTarget.style.borderColor = 'rgba(255, 121, 57, 0.3)';
-                        }}
-                      >
-                        <Edit size={14} />
-                        Editar
-                      </button>
-                        );
-                      })()
-                    ) : (
-                      <div style={{
-                        display: 'flex',
-                        gap: 8,
-                        alignItems: 'center'
-                      }}>
-                        <button
-                          onClick={() => {
-                            setEditableSeries(JSON.parse(JSON.stringify(originalSeries)));
-                            setIsEditingSeries(false);
-                          }}
-                          style={{
-                            background: 'rgba(0, 0, 0, 0.8)',
-                            border: '1px solid rgba(255, 121, 57, 0.3)',
-                            borderRadius: '20px',
-                            padding: '6px 10px',
-                            cursor: 'pointer',
-                            display: 'flex',
-                            alignItems: 'center',
-                            justifyContent: 'center',
-                            transition: 'all 0.2s ease'
-                          }}
-                          onMouseEnter={(e) => {
-                            e.currentTarget.style.background = 'rgba(255, 121, 57, 0.1)';
-                            e.currentTarget.style.borderColor = 'rgba(255, 121, 57, 0.5)';
-                          }}
-                          onMouseLeave={(e) => {
-                            e.currentTarget.style.background = 'rgba(0, 0, 0, 0.8)';
-                            e.currentTarget.style.borderColor = 'rgba(255, 121, 57, 0.3)';
-                          }}
-                        >
-                          <X size={16} color="#FF7939" />
-                        </button>
-                        <button
-                          onClick={async () => {
-                            if (!selectedVideo) return;
-                            
-                            try {
-                              // Regla: solo permitir editar el día actual o días futuros (según horario de Buenos Aires)
-                              const todayBAString = getTodayBuenosAiresString();
-                              const selectedDateString = getBuenosAiresDateString(selectedDate);
-
-                              if (selectedDateString < todayBAString) {
-                                alert('Solo podés editar ejercicios de hoy o de días futuros. Los días pasados no se pueden modificar.');
-                                return;
-                              }
-
-                              // Obtener información del ejercicio actual
-                              const currentActivity = activities.find(a => a.id === selectedVideo.exerciseId);
-                              if (!currentActivity) {
-                                console.error('No se encontró la actividad actual');
-                                return;
-                              }
-
-                              // Preparar los datos para la API
-                              const ejercicioId = (currentActivity as any).ejercicio_id || (currentActivity as any).exercise_id;
-                              const bloque = currentActivity.bloque || (currentActivity as any).block || 1;
-                              const orden = (currentActivity as any).orden || (currentActivity as any).order || 1;
-                              const fecha = getBuenosAiresDateString(selectedDate);
-
-                              // Llamar a la API para actualizar las series
-                              const response = await fetch('/api/update-exercise-series', {
-                                method: 'POST',
-                                headers: {
-                                  'Content-Type': 'application/json',
-                                },
-                                body: JSON.stringify({
-                                  ejercicioId,
-                                  bloque,
-                                  orden,
-                                  fecha,
-                                  series: editableSeries
-                                })
-                              });
-
-                              const result = await response.json();
-
-                              if (!response.ok) {
-                                console.error('Error al guardar series:', result.error);
-                                alert('Error al guardar los cambios. Por favor, intenta nuevamente.');
-                                return;
-                              }
-
-                              // Actualizar el estado local
-                              setOriginalSeries(JSON.parse(JSON.stringify(editableSeries)));
-                              setIsEditingSeries(false);
-                              
-                              // Actualizar el detalle_series en el formato string
-                              const detalleSeriesString = editableSeries
-                                .map(s => `(${s.reps || '0'}-${s.kg || '0'}-${s.series || '0'})`)
-                                .join(';');
-                              
-                              // Actualizar el selectedVideo también
-                              setSelectedVideo({
-                                ...selectedVideo,
-                                detalle_series: detalleSeriesString
-                              });
-
-                              // Actualizar la actividad en el estado local
-                              setActivities(prevActivities => 
-                                prevActivities.map(a => {
-                                  if (a.id === selectedVideo.exerciseId) {
-                                    return {
-                                      ...a,
-                                      detalle_series: detalleSeriesString,
-                                      series: detalleSeriesString
-                                    };
-                                  }
-                                  return a;
-                                })
-                              );
-
-                              console.log('✅ Series guardadas exitosamente');
-                            } catch (error) {
-                              console.error('Error al guardar series:', error);
-                              alert('Error al guardar los cambios. Por favor, intenta nuevamente.');
-                            }
-                          }}
-                          style={{
-                            background: 'rgba(0, 0, 0, 0.8)',
-                            border: '1px solid rgba(255, 121, 57, 0.3)',
-                            borderRadius: '20px',
-                            padding: '6px 10px',
-                            cursor: 'pointer',
-                            display: 'flex',
-                            alignItems: 'center',
-                            justifyContent: 'center',
-                            transition: 'all 0.2s ease'
-                          }}
-                          onMouseEnter={(e) => {
-                            e.currentTarget.style.background = 'rgba(255, 121, 57, 0.1)';
-                            e.currentTarget.style.borderColor = 'rgba(255, 121, 57, 0.5)';
-                          }}
-                          onMouseLeave={(e) => {
-                            e.currentTarget.style.background = 'rgba(0, 0, 0, 0.8)';
-                            e.currentTarget.style.borderColor = 'rgba(255, 121, 57, 0.3)';
-                          }}
-                        >
-                          <Save size={16} color="#FF7939" />
-                        </button>
-                      </div>
-                    )}
-                  </div>
-                  <div style={{
-                    display: 'flex',
                     flexDirection: 'column',
-                    gap: 8
+                    gap: 12
                   }}>
                     {editableSeries.map((bloque, index) => (
-                      <div key={bloque.id} style={{
-                        display: 'flex',
-                        alignItems: 'center',
-                        padding: '8px 0',
-                        gap: 16,
-                        borderBottom: index < editableSeries.length - 1 ? '1px solid rgba(255, 255, 255, 0.08)' : 'none',
-                        flexWrap: 'nowrap',
-                        width: '100%'
-                      }}>
-                        {/* Número del bloque */}
+                      <div 
+                        key={bloque.id} 
+                        style={{
+                          display: 'flex',
+                          alignItems: 'center',
+                          justifyContent: 'space-between',
+                          padding: '12px 0',
+                          width: '100%',
+                          cursor: isEditingSeries ? 'default' : 'pointer'
+                        }}
+                      >
+                        {/* Contenido: reps · kg · series */}
                         <div style={{
                           display: 'flex',
-                          alignItems: 'baseline',
-                          flexShrink: 0,
-                          minWidth: 45
+                          alignItems: 'center',
+                          gap: 8,
+                          flex: 1
                         }}>
-                          <span style={{
-                            color: '#FF7939',
-                            fontSize: 32,
-                            fontWeight: 700,
-                            lineHeight: 1
+                          {/* Reps - Número naranja */}
+                          <div style={{ 
+                            display: 'flex', 
+                            alignItems: 'center',
+                            gap: 4
                           }}>
-                            {bloque.id}
-                          </span>
+                            {isEditingSeries ? (
+                              <input
+                                type="number"
+                                value={bloque.reps}
+                                onChange={(e) => {
+                                  const newSeries = [...editableSeries];
+                                  newSeries[index].reps = e.target.value;
+                                  setEditableSeries(newSeries);
+                                }}
+                                style={{
+                                  width: 40,
+                                  padding: '4px 0',
+                                  background: 'transparent',
+                                  border: 'none',
+                                  color: '#FF7939',
+                                  fontSize: 16,
+                                  fontWeight: 600,
+                                  textAlign: 'left',
+                                  outline: 'none',
+                                  cursor: 'text'
+                                }}
+                              />
+                            ) : (
+                              <span style={{ color: '#FF7939', fontSize: 16, fontWeight: 600 }}>
+                                {bloque.reps}
+                              </span>
+                            )}
+                            <span style={{ color: '#FFFFFF', fontSize: 14, fontWeight: 400 }}>reps</span>
+                          </div>
+                          
+                          {/* Separador */}
+                          <span style={{ color: 'rgba(255, 255, 255, 0.3)', fontSize: 14 }}>·</span>
+                          
+                          {/* Kg - Número blanco bold */}
+                          <div style={{ 
+                            display: 'flex', 
+                            alignItems: 'center',
+                            gap: 4
+                          }}>
+                            {isEditingSeries ? (
+                              <input
+                                type="number"
+                                value={bloque.kg}
+                                onChange={(e) => {
+                                  const newSeries = [...editableSeries];
+                                  newSeries[index].kg = e.target.value;
+                                  setEditableSeries(newSeries);
+                                }}
+                                style={{
+                                  width: 40,
+                                  padding: '4px 0',
+                                  background: 'transparent',
+                                  border: 'none',
+                                  color: '#FFFFFF',
+                                  fontSize: 16,
+                                  fontWeight: 700,
+                                  textAlign: 'left',
+                                  outline: 'none',
+                                  cursor: 'text'
+                                }}
+                              />
+                            ) : (
+                              <span style={{ color: '#FFFFFF', fontSize: 16, fontWeight: 700 }}>
+                                {bloque.kg}
+                              </span>
+                            )}
+                            <span style={{ color: '#FFFFFF', fontSize: 14, fontWeight: 400 }}>kg</span>
+                          </div>
+                          
+                          {/* Separador */}
+                          <span style={{ color: 'rgba(255, 255, 255, 0.3)', fontSize: 14 }}>·</span>
+                          
+                          {/* Series - Número blanco normal */}
+                          <div style={{ 
+                            display: 'flex', 
+                            alignItems: 'center',
+                            gap: 4
+                          }}>
+                            {isEditingSeries ? (
+                              <input
+                                type="number"
+                                value={bloque.series}
+                                onChange={(e) => {
+                                  const newSeries = [...editableSeries];
+                                  newSeries[index].series = e.target.value;
+                                  setEditableSeries(newSeries);
+                                }}
+                                style={{
+                                  width: 40,
+                                  padding: '4px 0',
+                                  background: 'transparent',
+                                  border: 'none',
+                                  color: '#FFFFFF',
+                                  fontSize: 16,
+                                  fontWeight: 400,
+                                  textAlign: 'left',
+                                  outline: 'none',
+                                  cursor: 'text'
+                                }}
+                              />
+                            ) : (
+                              <span style={{ color: '#FFFFFF', fontSize: 16, fontWeight: 400 }}>
+                                {bloque.series}
+                              </span>
+                            )}
+                            <span style={{ color: '#FFFFFF', fontSize: 14, fontWeight: 400 }}>series</span>
+                          </div>
                         </div>
                         
-                        {/* Reps, kg y series en una sola línea horizontal - números y palabras en la misma línea */}
-                        <div style={{
-                          display: 'flex',
-                          gap: 20,
-                          alignItems: 'baseline',
-                          flex: 1,
-                          justifyContent: 'flex-start',
-                          flexWrap: 'nowrap',
-                          minWidth: 0,
-                          marginLeft: 16
-                        }}>
-                          {/* Reps - Número y palabra en la misma línea */}
-                          <div style={{ 
-                            display: 'flex', 
-                            alignItems: 'baseline',
-                            gap: 4,
-                            flexShrink: 0
-                          }}>
-                            <input
-                              type="number"
-                              value={bloque.reps}
-                              onChange={(e) => {
-                                const newSeries = [...editableSeries];
-                                newSeries[index].reps = e.target.value;
-                                setEditableSeries(newSeries);
-                              }}
-                              style={{
-                                width: 'auto',
-                                minWidth: 35,
-                                maxWidth: 50,
-                                padding: '2px 0',
-                                background: 'transparent',
-                                border: 'none',
-                                color: '#FFFFFF',
-                                fontSize: 18,
-                                fontWeight: 700,
-                                textAlign: 'left',
-                                outline: 'none',
-                                cursor: 'text'
-                              }}
-                            />
-                            <span style={{ color: '#FF7939', fontSize: 12, fontWeight: 500, lineHeight: 1 }}>reps</span>
-                          </div>
-                          
-                          {/* Kg - Número y palabra en la misma línea */}
-                          <div style={{ 
-                            display: 'flex', 
-                            alignItems: 'baseline',
-                            gap: 4,
-                            flexShrink: 0
-                          }}>
-                            <input
-                              type="number"
-                              value={bloque.kg}
-                              onChange={(e) => {
-                                const newSeries = [...editableSeries];
-                                newSeries[index].kg = e.target.value;
-                                setEditableSeries(newSeries);
-                              }}
-                              style={{
-                                width: 'auto',
-                                minWidth: 35,
-                                maxWidth: 50,
-                                padding: '2px 0',
-                                background: 'transparent',
-                                border: 'none',
-                                color: '#FFFFFF',
-                                fontSize: 18,
-                                fontWeight: 700,
-                                textAlign: 'left',
-                                outline: 'none',
-                                cursor: 'text'
-                              }}
-                            />
-                            <span style={{ color: '#FF7939', fontSize: 12, fontWeight: 500, lineHeight: 1 }}>kg</span>
-                          </div>
-                          
-                          {/* Series - Número y palabra en la misma línea */}
-                          <div style={{ 
-                            display: 'flex', 
-                            alignItems: 'baseline',
-                            gap: 4,
-                            flexShrink: 0
-                          }}>
-                            <input
-                              type="number"
-                              value={bloque.series}
-                              onChange={(e) => {
-                                const newSeries = [...editableSeries];
-                                newSeries[index].series = e.target.value;
-                                setEditableSeries(newSeries);
-                              }}
-                              style={{
-                                width: 'auto',
-                                minWidth: 35,
-                                maxWidth: 50,
-                                padding: '2px 0',
-                                background: 'transparent',
-                                border: 'none',
-                                color: '#FFFFFF',
-                                fontSize: 18,
-                                fontWeight: 700,
-                                textAlign: 'left',
-                                outline: 'none',
-                                cursor: 'text'
-                              }}
-                            />
-                            <span style={{ color: '#FF7939', fontSize: 12, fontWeight: 500, lineHeight: 1 }}>series</span>
-                          </div>
-                        </div>
+                        {/* Flecha naranja a la derecha */}
+                        {!isEditingSeries && (
+                          <ChevronRight size={20} color="#FF7939" style={{ flexShrink: 0 }} />
+                        )}
                       </div>
                     ))}
                   </div>
@@ -4933,7 +4554,9 @@ export default function TodayScreen({ activityId, onBack }: { activityId: string
                                     (activity as any).receta ?? null,
                                     (activity as any).ingredientes ?? null,
                                     (activity as any).minutos ?? null,
-                                    null // coverImageUrl se obtendrá automáticamente
+                                    null, // coverImageUrl se obtendrá automáticamente
+                                    activity.type, // tipo de ejercicio
+                                    (activity as any).body_parts ?? null // músculos trabajados
                                   );
                                 } else {
                                   const duracionParaOpenVideoSinURL = activity.duration ?? (activity as any).duracion_minutos ?? (activity as any).duracion_min ?? null;
@@ -4970,7 +4593,9 @@ export default function TodayScreen({ activityId, onBack }: { activityId: string
                                     (activity as any).receta ?? null,
                                     (activity as any).ingredientes ?? null,
                                     (activity as any).minutos ?? null,
-                                    null // coverImageUrl se obtendrá automáticamente
+                                    null, // coverImageUrl se obtendrá automáticamente
+                                    activity.type, // tipo de ejercicio
+                                    (activity as any).body_parts ?? null // músculos trabajados
                                   );
                                 }
                               }}
