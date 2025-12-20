@@ -36,7 +36,7 @@ interface WeeklyData {
   exercises: number
 }
 
-export function useClientMetrics(clientId?: string) {
+export function useClientMetrics(clientId?: string, category?: 'fitness' | 'nutricion') {
   const [metrics, setMetrics] = useState<ClientMetrics>({
     calories: { current: 0, target: 3500, percentage: 0 }, // Meta semanal: 500 kcal/día * 7 días
     duration: { current: 0, target: 420, percentage: 0 }, // Meta semanal: 60 min/día * 7 días
@@ -55,11 +55,11 @@ export function useClientMetrics(clientId?: string) {
 
   useEffect(() => {
     if (clientId) {
-      fetchClientMetrics(clientId)
+      fetchClientMetrics(clientId, category)
     }
-  }, [clientId])
+  }, [clientId, category])
 
-  const fetchClientMetrics = async (clientId: string) => {
+  const fetchClientMetrics = async (clientId: string, category?: 'fitness' | 'nutricion') => {
     try {
       setLoading(true)
       
@@ -76,76 +76,50 @@ export function useClientMetrics(clientId?: string) {
       endOfWeek.setDate(startOfWeek.getDate() + 6)
       endOfWeek.setHours(23, 59, 59, 999)
 
-      // Convertir a UTC para la consulta
-      const startOfWeekUTC = new Date(startOfWeek.getTime() - startOfWeek.getTimezoneOffset() * 60000)
-      const endOfWeekUTC = new Date(endOfWeek.getTime() - endOfWeek.getTimezoneOffset() * 60000)
-
-
-      // 1. Obtener progreso del cliente esta semana - NUEVA TABLA progreso_cliente
-      const { data: progressRecords, error: progressError } = await supabase
-        .from('progreso_cliente')
-        .select('id, fecha, ejercicios_completados, minutos_json, calorias_json')
-        .eq('cliente_id', clientId)
-        .gte('fecha', startOfWeek.toISOString().split('T')[0])
-        .lte('fecha', endOfWeek.toISOString().split('T')[0])
-
-      if (progressError) {
-        console.error('❌ Error obteniendo progreso del cliente:', progressError)
-        setLoading(false)
-        return
+      // Usar el nuevo endpoint que replica la query SQL
+      const response = await fetch(`/api/client/progress-summary?cliente_id=${clientId}${category ? `&categoria=${category}` : ''}`)
+      if (!response.ok) {
+        throw new Error('Error obteniendo resumen de progreso')
       }
+      const { data: progressSummary } = await response.json()
+
+      // Filtrar por semana actual
+      const weekStartStr = startOfWeek.toISOString().split('T')[0]
+      const weekEndStr = endOfWeek.toISOString().split('T')[0]
+      const weekData = progressSummary.filter((record: any) => 
+        record.fecha >= weekStartStr && record.fecha <= weekEndStr
+      )
 
       console.log('📊 Progreso encontrado:', {
-        total: progressRecords?.length || 0,
-        fechas: progressRecords?.map(r => r.fecha),
-        sample: progressRecords?.[0]
+        total: progressSummary?.length || 0,
+        semana: weekData.length,
+        fechas: [...new Set(weekData.map((r: any) => r.fecha))],
+        sample: weekData[0]
       })
 
 
-      // 2. Calcular métricas semanales totales desde progreso_cliente
+      // 2. Calcular métricas semanales totales desde los datos del resumen
       let weeklyExerciseCount = 0
       let weeklyCalories = 0
       let weeklyDuration = 0
 
-      progressRecords?.forEach(record => {
-        try {
-          // Contar ejercicios completados
-          const completedExercises = record.ejercicios_completados 
-            ? (typeof record.ejercicios_completados === 'string' 
-                ? JSON.parse(record.ejercicios_completados) 
-                : record.ejercicios_completados)
-            : {}
-          
-          // Manejar tanto arrays como objetos
-          if (Array.isArray(completedExercises)) {
-            weeklyExerciseCount += completedExercises.length
-          } else if (typeof completedExercises === 'object' && completedExercises !== null) {
-            // Contar keys del objeto (ejercicios completados)
-            weeklyExerciseCount += Object.keys(completedExercises).length
-          }
-
-          // Sumar calorías desde calorias_json
-          if (record.calorias_json) {
-            const caloriasObj = typeof record.calorias_json === 'string'
-              ? JSON.parse(record.calorias_json)
-              : record.calorias_json
-            Object.values(caloriasObj).forEach((cal: any) => {
-              weeklyCalories += Number(cal) || 0
-            })
-          }
-
-          // Sumar minutos desde minutos_json
-          if (record.minutos_json) {
-            const minutosObj = typeof record.minutos_json === 'string'
-              ? JSON.parse(record.minutos_json)
-              : record.minutos_json
-            Object.values(minutosObj).forEach((min: any) => {
-              weeklyDuration += Number(min) || 0
-            })
-          }
-        } catch (err) {
-          console.error('❌ Error parseando JSON de progreso:', err, record)
+      weekData.forEach((record: any) => {
+        // Sumar ejercicios (para fitness) o platos (para nutrición)
+        if (category === 'fitness') {
+          weeklyExerciseCount += Number(record.ejercicios) || 0
+        } else if (category === 'nutricion') {
+          weeklyExerciseCount += Number(record.platos) || 0
+        } else {
+          // Sin filtro: sumar ambos
+          weeklyExerciseCount += Number(record.ejercicios) || 0
+          weeklyExerciseCount += Number(record.platos) || 0
         }
+
+        // Sumar minutos (solo fitness tiene minutos)
+        weeklyDuration += Number(record.minutos) || 0
+
+        // Sumar calorías (tanto fitness como nutrición tienen calorías)
+        weeklyCalories += Number(record.calorias) || 0
       })
 
       // 4. Calcular datos semanales por día - CORREGIDO PARA USAR FECHA_EJERCICIO
@@ -161,56 +135,41 @@ export function useClientMetrics(clientId?: string) {
       }
       
       for (let i = 0; i < 7; i++) {
-        const dayAbbr = daysOfWeek[i]
         const dayDate = weekDates[i]
         
-        // Buscar registro de progreso para este día
-        const dayProgress = progressRecords?.find(record => record.fecha === dayDate)
+        // Agrupar registros por fecha (puede haber múltiples registros del mismo día si hay fitness y nutrición)
+        const dayRecords = weekData.filter((record: any) => record.fecha === dayDate)
 
         let dayExerciseCount = 0
         let dayCalories = 0
         let dayDuration = 0
 
-        if (dayProgress) {
-          try {
-            // Contar ejercicios completados
-            const completedExercises = dayProgress.ejercicios_completados 
-              ? (typeof dayProgress.ejercicios_completados === 'string'
-                  ? JSON.parse(dayProgress.ejercicios_completados)
-                  : dayProgress.ejercicios_completados)
-              : {}
-            
-            // Manejar tanto arrays como objetos
-            if (Array.isArray(completedExercises)) {
-              dayExerciseCount = completedExercises.length
-            } else if (typeof completedExercises === 'object' && completedExercises !== null) {
-              // Contar keys del objeto (ejercicios completados)
-              dayExerciseCount = Object.keys(completedExercises).length
+        // Sumar todos los registros del día según el filtro
+        dayRecords.forEach((record: any) => {
+          if (category === 'fitness') {
+            // Solo sumar si es fitness
+            if (record.tipo === 'fitness') {
+              dayExerciseCount += Number(record.ejercicios) || 0
+              dayDuration += Number(record.minutos) || 0
+              dayCalories += Number(record.calorias) || 0
             }
-
-            // Sumar calorías desde calorias_json
-            if (dayProgress.calorias_json) {
-              const caloriasObj = typeof dayProgress.calorias_json === 'string'
-                ? JSON.parse(dayProgress.calorias_json)
-                : dayProgress.calorias_json
-              Object.values(caloriasObj).forEach((cal: any) => {
-                dayCalories += Number(cal) || 0
-              })
+          } else if (category === 'nutricion') {
+            // Solo sumar si es nutrición
+            if (record.tipo === 'nutricion') {
+              dayExerciseCount += Number(record.platos) || 0
+              dayCalories += Number(record.calorias) || 0
             }
-
-            // Sumar minutos desde minutos_json
-            if (dayProgress.minutos_json) {
-              const minutosObj = typeof dayProgress.minutos_json === 'string'
-                ? JSON.parse(dayProgress.minutos_json)
-                : dayProgress.minutos_json
-              Object.values(minutosObj).forEach((min: any) => {
-                dayDuration += Number(min) || 0
-              })
+          } else {
+            // Sin filtro: sumar ambos tipos
+            if (record.tipo === 'fitness') {
+              dayExerciseCount += Number(record.ejercicios) || 0
+              dayDuration += Number(record.minutos) || 0
+            } else {
+              dayExerciseCount += Number(record.platos) || 0
             }
-          } catch (err) {
-            console.error(`❌ Error parseando JSON para ${dayDate}:`, err)
+            dayCalories += Number(record.calorias) || 0
           }
-        }
+        })
 
         weeklyMetrics.push({
           date: dayDate,
@@ -273,7 +232,7 @@ export function useClientMetrics(clientId?: string) {
     metrics,
     weeklyData,
     loading,
-    refetch: () => clientId && fetchClientMetrics(clientId)
+    refetch: () => clientId && fetchClientMetrics(clientId, category)
   }
 }
 

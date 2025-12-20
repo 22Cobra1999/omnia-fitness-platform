@@ -30,7 +30,9 @@ import {
   Clock,
   DollarSign,
   Printer,
-  Loader2
+  Loader2,
+  ArrowUp,
+  ArrowDown
 } from "lucide-react"
 import { useProfileManagement } from '@/hooks/client/use-profile-management'
 import { useClientMetrics } from '@/hooks/client/use-client-metrics'
@@ -194,7 +196,8 @@ export function ProfileScreen() {
   } = useProfileManagement()
 
   const { user } = useAuth()
-  const { metrics, weeklyData, loading: metricsLoading } = useClientMetrics(user?.id)
+  const [activityFilter, setActivityFilter] = useState<'fitness' | 'nutricion'>('fitness')
+  const { metrics, weeklyData, loading: metricsLoading } = useClientMetrics(user?.id, activityFilter)
   
   // Determinar si es coach basado en el rol del usuario (antes de cargar)
   const isUserCoach = user?.level === 'coach'
@@ -322,20 +325,20 @@ export function ProfileScreen() {
       icon: <Activity className="h-4 w-4" /> 
     },
     { 
-      type: "Min", 
+      type: "Minutos", 
       current: source.duration.current, 
       target: source.duration.target, 
       color: "#FF8C42", 
       icon: <Calendar className="h-4 w-4" /> 
     },
     { 
-      type: "Ej", 
+      type: activityFilter === 'fitness' ? "Ejercicios" : "Platos", 
       current: source.exercises.current, 
       target: source.exercises.target, 
       color: "#FFFFFF", 
       icon: <Trophy className="h-4 w-4" /> 
     }
-  ], [source])
+  ], [source, activityFilter])
 
   // Datos semanales reales - memoizados
   const weeklyProgress: WeeklyProgress[] = useMemo(() => 
@@ -804,7 +807,7 @@ export function ProfileScreen() {
           </div>
           
           {/* Información más a la derecha con formato rectangular */}
-          <div className="flex flex-col space-y-3">
+          <div className="flex flex-col space-y-3 items-end">
             <div
               className="text-xs text-gray-400 mb-2 cursor-pointer"
               onClick={() => setSelectedDay(null)}
@@ -812,9 +815,20 @@ export function ProfileScreen() {
               {selectedDay ? 'Volver a Semanal' : 'Semanal'}
             </div>
             {activityRings.map((ring) => (
-              <div key={ring.type} className="flex flex-col">
-                <div className="text-sm font-medium" style={{ color: ring.color }}>
-                  {ring.type === 'Kcal' ? 'Kcal' : ring.type === 'Min' ? 'Minutos' : 'Ejercicios'}
+              <div key={ring.type} className="flex flex-col items-end" style={{ minWidth: '120px' }}>
+                <div className="flex items-center gap-1.5 text-sm font-medium justify-end" style={{ color: ring.color }}>
+                  {ring.type === 'Kcal' ? (
+                    activityFilter === 'fitness' ? (
+                      <ArrowDown className="h-4 w-4 flex-shrink-0" style={{ color: "#FF6A00" }} />
+                    ) : (
+                      <ArrowUp className="h-4 w-4 flex-shrink-0" style={{ color: "#FFFFFF" }} />
+                    )
+                  ) : null}
+                  <span>
+                    {ring.type === 'Ejercicios' || ring.type === 'Platos' 
+                      ? (activityFilter === 'fitness' ? 'Ejercicios' : 'Platos')
+                      : ring.type}
+                  </span>
                 </div>
                 <div className="text-lg font-bold" style={{ color: ring.color }}>
                   {ring.current}/{ring.target}
@@ -822,6 +836,30 @@ export function ProfileScreen() {
               </div>
             ))}
           </div>
+        </div>
+        
+        {/* Filtros debajo del círculo y la información */}
+        <div className="flex items-center justify-center gap-2 mt-4">
+          <button
+            onClick={() => setActivityFilter('fitness')}
+            className={`text-xs px-3 py-1.5 rounded-full font-medium transition-all ${
+              activityFilter === 'fitness'
+                ? 'bg-black text-[#FF7939]'
+                : 'bg-gray-800 text-gray-400 hover:bg-gray-700'
+            }`}
+          >
+            Fitness
+          </button>
+          <button
+            onClick={() => setActivityFilter('nutricion')}
+            className={`text-xs px-3 py-1.5 rounded-full font-medium transition-all ${
+              activityFilter === 'nutricion'
+                ? 'bg-white text-[#FF7939]'
+                : 'bg-gray-800 text-gray-400 hover:bg-gray-700'
+            }`}
+          >
+            Nutrición
+          </button>
         </div>
 
         {/* Modal del Calendario */}
@@ -851,8 +889,8 @@ export function ProfileScreen() {
 
       {/* Objetivos - Solo para clientes */}
       {!isCoach && (
-      <div className="bg-[#1A1C1F] rounded-2xl p-6">
-        <div className="space-y-4">
+      <div className="bg-[#1A1C1F] rounded-2xl p-4">
+        <div className="space-y-1">
           {/* Lista de ejercicios del usuario */}
           <ExerciseProgressList userId={user?.id} />
           
@@ -864,16 +902,16 @@ export function ProfileScreen() {
             />
           )}
           
-          {/* Botón para agregar nuevo ejercicio */}
+          {/* Botón para agregar nuevo ejercicio - centrado */}
           {!showQuickAdd && (
-            <div className="flex justify-center">
+            <div className="flex justify-center -mt-1">
               <Button
                 onClick={() => handleEditSection("goals")}
                 variant="ghost"
                 size="sm"
-                className="text-[#FF6A00] hover:bg-[#FF6A00]/10 rounded-xl"
+                className="text-[#FF6A00] hover:bg-[#FF6A00]/10 rounded-xl p-2"
               >
-                <Plus className="h-4 w-4" />
+                <Plus className="h-5 w-5" />
               </Button>
             </div>
           )}

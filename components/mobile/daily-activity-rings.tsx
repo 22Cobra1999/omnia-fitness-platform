@@ -27,8 +27,8 @@ export function DailyActivityRings({ userId, selectedDate, onSelectDay }: DailyA
   const [dailyData, setDailyData] = useState<DailyMetrics[]>([])
   const [loading, setLoading] = useState(false)
   
-  // Usar el hook existente para obtener datos reales
-  const { weeklyData, loading: metricsLoading } = useClientMetrics(userId)
+  // Usar el hook existente para obtener datos reales - sin filtrar por categoría para mostrar todos los días
+  const { weeklyData, loading: metricsLoading } = useClientMetrics(userId, undefined)
 
   useEffect(() => {
     if (userId && weeklyData.length > 0) {
