@@ -115,7 +115,7 @@ export default function TodayScreen({ activityId, onBack }: { activityId: string
   
   // Estado para valores editables de series/bloques
   const [editableSeries, setEditableSeries] = React.useState<Array<{id: number, reps: string, kg: string, series: string}>>([]);
-  const [isEditingSeries, setIsEditingSeries] = React.useState(false);
+  const [editingBlockIndex, setEditingBlockIndex] = React.useState<number | null>(null); // Índice del bloque en edición, null si ninguno
   const [originalSeries, setOriginalSeries] = React.useState<Array<{id: number, reps: string, kg: string, series: string}>>([]);
   
   const [progressData, setProgressData] = React.useState({
@@ -448,34 +448,53 @@ export default function TodayScreen({ activityId, onBack }: { activityId: string
       try {
         const supabase = createClient();
         const isNutrition = programInfo?.categoria === 'nutricion' || enrollment?.activity?.categoria === 'nutricion';
-        const ejercicioIdNum = parseInt(exerciseId.split('_')[0]); // Extraer el ID numérico del ejercicio
         
-        if (isNutrition) {
-          // Para nutrición: buscar en nutrition_program_details
-          const { data: nutritionDetail } = await supabase
-            .from('nutrition_program_details')
-            .select('image_url')
-            .eq('id', ejercicioIdNum)
-            .single();
-          
-          finalCoverImageUrl = nutritionDetail?.image_url || null;
-        } else {
-          // Para fitness: buscar en ejercicios_detalles
-          const { data: exerciseDetail } = await supabase
-            .from('ejercicios_detalles')
-            .select('image_url')
-            .eq('id', ejercicioIdNum)
-            .single();
-          
-          finalCoverImageUrl = exerciseDetail?.image_url || null;
-        }
+        // Extraer el ID numérico del ejercicio de forma segura
+        // El formato puede ser: "1235", "1235_1", "1235_1_1", etc.
+        const exerciseIdParts = exerciseId.split('_');
+        const ejercicioIdStr = exerciseIdParts[0];
+        const ejercicioIdNum = parseInt(ejercicioIdStr, 10);
         
-        // Si no hay imagen en la tabla de detalles, usar la imagen de la actividad general
-        if (!finalCoverImageUrl) {
+        // Validar que el ID sea un número válido
+        if (isNaN(ejercicioIdNum) || ejercicioIdNum <= 0) {
+          console.warn('⚠️ [openVideo] ID de ejercicio inválido:', exerciseId);
           finalCoverImageUrl = backgroundImage || null;
+        } else {
+          if (isNutrition) {
+            // Para nutrición: buscar en nutrition_program_details
+            const { data: nutritionDetail, error: nutritionError } = await supabase
+              .from('nutrition_program_details')
+              .select('image_url')
+              .eq('id', ejercicioIdNum)
+              .maybeSingle();
+            
+            if (nutritionError) {
+              console.warn('⚠️ [openVideo] Error obteniendo imagen de nutrición:', nutritionError);
+            } else {
+              finalCoverImageUrl = nutritionDetail?.image_url || null;
+            }
+          } else {
+            // Para fitness: buscar en ejercicios_detalles
+            const { data: exerciseDetail, error: exerciseError } = await supabase
+              .from('ejercicios_detalles')
+              .select('image_url')
+              .eq('id', ejercicioIdNum)
+              .maybeSingle();
+            
+            if (exerciseError) {
+              console.warn('⚠️ [openVideo] Error obteniendo imagen de ejercicio:', exerciseError);
+            } else {
+              finalCoverImageUrl = exerciseDetail?.image_url || null;
+            }
+          }
+          
+          // Si no hay imagen en la tabla de detalles, usar la imagen de la actividad general
+          if (!finalCoverImageUrl) {
+            finalCoverImageUrl = backgroundImage || null;
+          }
         }
       } catch (error) {
-        console.error('Error obteniendo imagen de portada:', error);
+        console.error('❌ [openVideo] Error obteniendo imagen de portada:', error);
         finalCoverImageUrl = backgroundImage || null;
       }
     }
@@ -530,9 +549,14 @@ export default function TodayScreen({ activityId, onBack }: { activityId: string
     }));
     setEditableSeries(initialSeries);
     setOriginalSeries(JSON.parse(JSON.stringify(initialSeries)));
-    setIsEditingSeries(false);
+    setEditingBlockIndex(null);
     setIsVideoExpanded(true);
     setActiveExerciseTab('Técnica'); // Resetear tab a Técnica cuando se abre un nuevo ejercicio
+    
+    // Notificar que estamos en el detalle de un ejercicio
+    window.dispatchEvent(new CustomEvent('exercise-detail-opened', { 
+      detail: { isOpen: true, exerciseId: exerciseId } 
+    }));
   };
 
   const navigateToExercise = React.useCallback((direction: 'next' | 'previous') => {
@@ -569,7 +593,7 @@ export default function TodayScreen({ activityId, onBack }: { activityId: string
       }));
       setEditableSeries(initialSeries);
       setOriginalSeries(JSON.parse(JSON.stringify(initialSeries)));
-      setIsEditingSeries(false);
+      setEditingBlockIndex(null);
       openVideo(
         nextExercise.video_url || '',
         nextExercise.title,
@@ -698,7 +722,25 @@ export default function TodayScreen({ activityId, onBack }: { activityId: string
     setSelectedVideo(null);
     videoExpandY.set(0); // Resetear la posición del drag vertical
     videoExpandX.set(0); // Resetear la posición del drag horizontal
+    
+    // Notificar que cerramos el detalle del ejercicio
+    window.dispatchEvent(new CustomEvent('exercise-detail-closed', { 
+      detail: { isOpen: false } 
+    }));
   };
+  
+  // Notificar cuando se abre/cierra el detalle
+  React.useEffect(() => {
+    if (selectedVideo) {
+      window.dispatchEvent(new CustomEvent('exercise-detail-opened', { 
+        detail: { isOpen: true, exerciseId: selectedVideo.exerciseId } 
+      }));
+    } else {
+      window.dispatchEvent(new CustomEvent('exercise-detail-closed', { 
+        detail: { isOpen: false } 
+      }));
+    }
+  }, [selectedVideo]);
 
   // Handler para cuando se termina de arrastrar el video expandido
   const handleVideoExpandDragEnd = (event: any, info: PanInfo) => {
@@ -712,6 +754,29 @@ export default function TodayScreen({ activityId, onBack }: { activityId: string
       animate(videoExpandY, 0, { type: 'spring', stiffness: 400, damping: 40 });
     }
   };
+
+  // Reproducir video cuando se expande el panel
+  React.useEffect(() => {
+    if (isVideoPanelExpanded && selectedVideo?.url) {
+      console.log('🎬 Panel de video expandido, intentando reproducir:', selectedVideo.url);
+      // Delay más largo para asegurar que el componente de video se haya renderizado completamente
+      const timer = setTimeout(() => {
+        // Buscar el video dentro del contenedor específico del panel
+        const videoContainer = document.querySelector('[data-video-panel="true"]');
+        const videoElement = videoContainer?.querySelector('video') as HTMLVideoElement;
+        if (videoElement) {
+          console.log('✅ Video encontrado, intentando reproducir');
+          videoElement.play().catch((error) => {
+            console.log('⚠️ No se pudo reproducir automáticamente (puede requerir interacción del usuario):', error);
+          });
+        } else {
+          console.log('❌ Video no encontrado en el contenedor');
+        }
+      }, 500);
+      
+      return () => clearTimeout(timer);
+    }
+  }, [isVideoPanelExpanded, selectedVideo?.url]);
 
   // Bloquear scroll del body cuando el video está expandido
   React.useEffect(() => {
@@ -3080,41 +3145,79 @@ export default function TodayScreen({ activityId, onBack }: { activityId: string
               flexDirection: 'column'
             }}
           >
-            {/* Fondo con imagen difuminada y opaca - Solo mitad superior */}
-            {(selectedVideo.coverImageUrl || backgroundImage) && (
+            {/* Fondo con primer frame del video pausado - Hasta los títulos de Técnica/Equipamiento/Músculos */}
+            {selectedVideo.url && typeof selectedVideo.url === 'string' && selectedVideo.url.trim() !== '' && (
               <div style={{
                 position: 'absolute',
                 top: 0,
                 left: 0,
                 right: 0,
-                height: '50vh',
+                height: '35vh',
+                overflow: 'hidden',
+                zIndex: 0
+              }}>
+                <video
+                  src={selectedVideo.url}
+                  style={{
+                    width: '100%',
+                    height: '100%',
+                    objectFit: 'cover',
+                    opacity: 0.75,
+                    filter: 'blur(8px)',
+                    WebkitFilter: 'blur(8px)',
+                    transform: 'scale(1.1)',
+                    pointerEvents: 'none'
+                  }}
+                  muted
+                  preload="metadata"
+                  playsInline
+                  onLoadedMetadata={(e) => {
+                    // Pausar el video en el primer frame
+                    const video = e.currentTarget;
+                    video.currentTime = 0;
+                    video.pause();
+                  }}
+                />
+              </div>
+            )}
+            {/* Fallback: usar imagen de portada si no hay video */}
+            {(!selectedVideo.url || selectedVideo.url.trim() === '') && (selectedVideo.coverImageUrl || backgroundImage) && (
+              <div style={{
+                position: 'absolute',
+                top: 0,
+                left: 0,
+                right: 0,
+                height: '35vh',
                 backgroundImage: `url(${selectedVideo.coverImageUrl || backgroundImage})`,
                 backgroundSize: 'cover',
                 backgroundPosition: 'center',
-                opacity: 0.5,
-                filter: 'blur(20px)',
-                WebkitFilter: 'blur(20px)',
+                opacity: 0.75,
+                filter: 'blur(8px)',
+                WebkitFilter: 'blur(8px)',
                 zIndex: 0
               }} />
             )}
             
-            {/* Overlay oscuro en la mitad superior */}
+            {/* Overlay oscuro en la parte superior */}
             <div style={{
               position: 'absolute',
               top: 0,
               left: 0,
               right: 0,
-              height: '50vh',
-              background: 'linear-gradient(180deg, rgba(0, 0, 0, 0.4) 0%, rgba(0, 0, 0, 0.6) 100%)',
+              height: '35vh',
+              background: 'linear-gradient(180deg, rgba(0, 0, 0, 0.3) 0%, rgba(0, 0, 0, 0.5) 100%)',
               zIndex: 1
             }} />
             
-            {/* Solo botón de retroceso */}
+            {/* Header con botón de retroceso */}
             <div style={{
               padding: '12px 20px 0',
               flexShrink: 0,
               position: 'relative',
-              zIndex: 10
+              zIndex: 10,
+              display: 'flex',
+              alignItems: 'flex-start',
+              justifyContent: 'flex-start'
             }}>
               <button
                 onClick={() => {
@@ -3122,6 +3225,11 @@ export default function TodayScreen({ activityId, onBack }: { activityId: string
                   setIsVideoExpanded(false);
                   setIsVideoPanelExpanded(false);
                   setIsIngredientesExpanded(false);
+                  
+                  // Notificar que cerramos el detalle del ejercicio
+                  window.dispatchEvent(new CustomEvent('exercise-detail-closed', { 
+                    detail: { isOpen: false } 
+                  }));
                 }}
               style={{
                   width: 40,
@@ -3135,7 +3243,8 @@ export default function TodayScreen({ activityId, onBack }: { activityId: string
                   cursor: 'pointer',
                   transition: 'all 0.2s ease',
                   color: '#FF6A1A',
-                  fontSize: 24
+                  fontSize: 24,
+                  flexShrink: 0
                 }}
                 onMouseEnter={(e) => {
                   e.currentTarget.style.background = 'rgba(255, 255, 255, 0.1)';
@@ -3146,6 +3255,30 @@ export default function TodayScreen({ activityId, onBack }: { activityId: string
               >
                 ←
               </button>
+            </div>
+            
+            {/* Nombre del ejercicio centrado, más gris - un poco más abajo */}
+            <div style={{
+              padding: '4px 20px 0',
+              flexShrink: 0,
+              position: 'relative',
+              zIndex: 10,
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center'
+            }}>
+              <h1 style={{
+                color: 'rgba(255, 255, 255, 0.55)',
+                fontSize: 20,
+                fontWeight: 600,
+                margin: 0,
+                letterSpacing: '-0.03em',
+                lineHeight: 1.2,
+                textAlign: 'center',
+                textShadow: '0 2px 8px rgba(0, 0, 0, 0.6), 0 0 20px rgba(0, 0, 0, 0.4)'
+              }}>
+                {selectedVideo.exerciseName}
+              </h1>
             </div>
 
             {/* Contenido principal - Scrollable */}
@@ -3163,67 +3296,63 @@ export default function TodayScreen({ activityId, onBack }: { activityId: string
                 minHeight: 0
               }}
             >
-              {/* Título del plato con botón Play (si hay video) */}
-            <div style={{
-              display: 'flex',
-              alignItems: 'center',
-                justifyContent: 'space-between',
-                gap: 16,
-                marginTop: 8
+              {/* Botón Play (solo visible cuando el video NO está expandido) */}
+            {!isVideoPanelExpanded && (
+              <div style={{
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                marginTop: 16
               }}>
-                <h1 style={{
-                  color: '#FFFFFF',
-                  fontSize: 28,
-                  fontWeight: 600,
-                  margin: 0,
-                  letterSpacing: '-0.03em',
-                  lineHeight: 1.2,
-                  flex: 1
-                }}>
-                  {selectedVideo.exerciseName}
-                </h1>
-                
                 {/* Botón Play (solo si hay video) */}
-                {selectedVideo.url && selectedVideo.url.trim() !== '' && (
+                {selectedVideo.url && typeof selectedVideo.url === 'string' && selectedVideo.url.trim() !== '' && (
               <button
-                    onClick={() => setIsVideoPanelExpanded(!isVideoPanelExpanded)}
+                    onClick={(e) => {
+                      e.preventDefault();
+                      e.stopPropagation();
+                      console.log('🎬 Botón Play clickeado, isVideoPanelExpanded:', isVideoPanelExpanded, 'videoUrl:', selectedVideo.url);
+                      setIsVideoPanelExpanded(true);
+                      console.log('🎬 Estado actualizado a: true');
+                    }}
                 style={{
                       width: 56,
                       height: 56,
                       borderRadius: '50%',
-                      background: 'rgba(255, 106, 26, 0.2)',
-                      backdropFilter: 'blur(10px)',
-                      border: '2px solid rgba(255, 106, 26, 0.4)',
+                      background: 'rgba(255, 106, 26, 0.15)',
+                      backdropFilter: 'blur(20px)',
+                      WebkitBackdropFilter: 'blur(20px)',
+                      border: '2px solid rgba(255, 106, 26, 0.3)',
                   display: 'flex',
                   alignItems: 'center',
                   justifyContent: 'center',
                   cursor: 'pointer',
                       transition: 'all 0.2s ease',
-                      flexShrink: 0
+                      flexShrink: 0,
+                      position: 'relative',
+                      zIndex: 20,
+                      pointerEvents: 'auto'
                 }}
                 onMouseEnter={(e) => {
-                      e.currentTarget.style.background = 'rgba(255, 106, 26, 0.3)';
+                      e.currentTarget.style.background = 'rgba(255, 106, 26, 0.25)';
                       e.currentTarget.style.transform = 'scale(1.05)';
                 }}
                 onMouseLeave={(e) => {
-                      e.currentTarget.style.background = 'rgba(255, 106, 26, 0.2)';
+                      e.currentTarget.style.background = 'rgba(255, 106, 26, 0.15)';
                       e.currentTarget.style.transform = 'scale(1)';
                     }}
                   >
-                    {isVideoPanelExpanded ? (
-                      <X size={24} color="#FF6A1A" />
-                    ) : (
                       <svg width="24" height="24" viewBox="0 0 24 24" fill="none">
                         <path d="M8 5V19L19 12L8 5Z" fill="#FF6A1A" />
                       </svg>
-                    )}
               </button>
                 )}
-            </div>
+              </div>
+            )}
 
               {/* Panel de Video Expandible */}
-              {isVideoPanelExpanded && selectedVideo.url && selectedVideo.url.trim() !== '' && (
+              {isVideoPanelExpanded && selectedVideo.url && typeof selectedVideo.url === 'string' && selectedVideo.url.trim() !== '' && (
                 <motion.div
+                  data-video-panel="true"
                   initial={{ height: 0, opacity: 0 }}
                   animate={{ height: 'auto', opacity: 1 }}
                   exit={{ height: 0, opacity: 0 }}
@@ -3239,12 +3368,51 @@ export default function TodayScreen({ activityId, onBack }: { activityId: string
                   }}
                 >
                 <UniversalVideoPlayer
+                  key={`video-${selectedVideo.url}-${isVideoPanelExpanded}`}
                   videoUrl={selectedVideo.url}
-                    autoPlay={isVideoPanelExpanded}
+                    autoPlay={true}
                   controls={true}
                     className="w-full h-full"
                   disableDownload={true}
                 />
+                
+                {/* Botón X pequeño en la esquina derecha del video */}
+                <button
+                  onClick={(e) => {
+                    e.preventDefault();
+                    e.stopPropagation();
+                    console.log('❌ Botón X clickeado, cerrando video');
+                    setIsVideoPanelExpanded(false);
+                  }}
+                  style={{
+                    position: 'absolute',
+                    top: 8,
+                    right: 8,
+                    width: 32,
+                    height: 32,
+                    borderRadius: '50%',
+                    background: 'rgba(0, 0, 0, 0.6)',
+                    backdropFilter: 'blur(10px)',
+                    border: '1px solid rgba(255, 255, 255, 0.2)',
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    cursor: 'pointer',
+                    transition: 'all 0.2s ease',
+                    zIndex: 30,
+                    pointerEvents: 'auto'
+                  }}
+                  onMouseEnter={(e) => {
+                    e.currentTarget.style.background = 'rgba(0, 0, 0, 0.8)';
+                    e.currentTarget.style.transform = 'scale(1.1)';
+                  }}
+                  onMouseLeave={(e) => {
+                    e.currentTarget.style.background = 'rgba(0, 0, 0, 0.6)';
+                    e.currentTarget.style.transform = 'scale(1)';
+                  }}
+                >
+                  <X size={16} color="#FFFFFF" />
+                </button>
                 </motion.div>
               )}
 
@@ -3804,34 +3972,44 @@ export default function TodayScreen({ activityId, onBack }: { activityId: string
                   <div style={{
                     display: 'flex',
                     flexDirection: 'column',
-                    gap: 12
+                    gap: 8
                   }}>
-                    {editableSeries.map((bloque, index) => (
+                    {editableSeries.map((bloque, index) => {
+                      const isEditing = editingBlockIndex === index;
+                      return (
                       <div 
                         key={bloque.id} 
                         style={{
                           display: 'flex',
-                          alignItems: 'center',
+                          flexDirection: isEditing ? 'column' : 'row',
+                          alignItems: isEditing ? 'stretch' : 'center',
                           justifyContent: 'space-between',
-                          padding: '12px 0',
+                          padding: '12px 16px',
                           width: '100%',
-                          cursor: isEditingSeries ? 'default' : 'pointer'
+                          cursor: isEditing ? 'default' : 'pointer',
+                          background: 'rgba(255, 255, 255, 0.04)',
+                          borderRadius: 12,
+                          border: '1px solid rgba(255, 255, 255, 0.08)',
+                          boxShadow: '0 2px 8px rgba(0, 0, 0, 0.1)',
+                          gap: isEditing ? 12 : 0
                         }}
                       >
                         {/* Contenido: reps · kg · series */}
                         <div style={{
                           display: 'flex',
-                          alignItems: 'center',
-                          gap: 8,
+                          flexDirection: isEditing ? 'column' : 'row',
+                          alignItems: isEditing ? 'stretch' : 'center',
+                          gap: isEditing ? 12 : 8,
                           flex: 1
                         }}>
                           {/* Reps - Número naranja */}
                           <div style={{ 
                             display: 'flex', 
                             alignItems: 'center',
-                            gap: 4
+                            gap: 8,
+                            flex: isEditing ? 1 : 'auto'
                           }}>
-                            {isEditingSeries ? (
+                            {isEditing ? (
                               <input
                                 type="number"
                                 value={bloque.reps}
@@ -3841,10 +4019,11 @@ export default function TodayScreen({ activityId, onBack }: { activityId: string
                                   setEditableSeries(newSeries);
                                 }}
                                 style={{
-                                  width: 40,
-                                  padding: '4px 0',
-                                  background: 'transparent',
-                                  border: 'none',
+                                  width: '100%',
+                                  padding: '8px 12px',
+                                  background: 'rgba(255, 255, 255, 0.06)',
+                                  border: '1px solid rgba(255, 121, 57, 0.3)',
+                                  borderRadius: 8,
                                   color: '#FF7939',
                                   fontSize: 16,
                                   fontWeight: 600,
@@ -3852,25 +4031,31 @@ export default function TodayScreen({ activityId, onBack }: { activityId: string
                                   outline: 'none',
                                   cursor: 'text'
                                 }}
+                                autoFocus
                               />
                             ) : (
-                              <span style={{ color: '#FF7939', fontSize: 16, fontWeight: 600 }}>
-                                {bloque.reps}
-                              </span>
+                              <>
+                                <span style={{ color: '#FF7939', fontSize: 16, fontWeight: 600 }}>
+                                  {bloque.reps}
+                                </span>
+                                <span style={{ color: 'rgba(255, 255, 255, 0.6)', fontSize: 14, fontWeight: 400 }}>reps</span>
+                              </>
                             )}
-                            <span style={{ color: '#FFFFFF', fontSize: 14, fontWeight: 400 }}>reps</span>
                           </div>
                           
-                          {/* Separador */}
-                          <span style={{ color: 'rgba(255, 255, 255, 0.3)', fontSize: 14 }}>·</span>
+                          {/* Separador - Solo cuando no está editando */}
+                          {!isEditing && (
+                            <span style={{ color: 'rgba(255, 255, 255, 0.3)', fontSize: 14 }}>·</span>
+                          )}
                           
-                          {/* Kg - Número blanco bold */}
+                          {/* Kg - Número gris */}
                           <div style={{ 
                             display: 'flex', 
                             alignItems: 'center',
-                            gap: 4
+                            gap: 8,
+                            flex: isEditing ? 1 : 'auto'
                           }}>
-                            {isEditingSeries ? (
+                            {isEditing ? (
                               <input
                                 type="number"
                                 value={bloque.kg}
@@ -3880,11 +4065,12 @@ export default function TodayScreen({ activityId, onBack }: { activityId: string
                                   setEditableSeries(newSeries);
                                 }}
                                 style={{
-                                  width: 40,
-                                  padding: '4px 0',
-                                  background: 'transparent',
-                                  border: 'none',
-                                  color: '#FFFFFF',
+                                  width: '100%',
+                                  padding: '8px 12px',
+                                  background: 'rgba(255, 255, 255, 0.06)',
+                                  border: '1px solid rgba(255, 255, 255, 0.2)',
+                                  borderRadius: 8,
+                                  color: 'rgba(255, 255, 255, 0.8)',
                                   fontSize: 16,
                                   fontWeight: 700,
                                   textAlign: 'left',
@@ -3893,23 +4079,28 @@ export default function TodayScreen({ activityId, onBack }: { activityId: string
                                 }}
                               />
                             ) : (
-                              <span style={{ color: '#FFFFFF', fontSize: 16, fontWeight: 700 }}>
-                                {bloque.kg}
-                              </span>
+                              <>
+                                <span style={{ color: 'rgba(255, 255, 255, 0.6)', fontSize: 16, fontWeight: 700 }}>
+                                  {bloque.kg}
+                                </span>
+                                <span style={{ color: 'rgba(255, 255, 255, 0.6)', fontSize: 14, fontWeight: 400 }}>kg</span>
+                              </>
                             )}
-                            <span style={{ color: '#FFFFFF', fontSize: 14, fontWeight: 400 }}>kg</span>
                           </div>
                           
-                          {/* Separador */}
-                          <span style={{ color: 'rgba(255, 255, 255, 0.3)', fontSize: 14 }}>·</span>
+                          {/* Separador - Solo cuando no está editando */}
+                          {!isEditing && (
+                            <span style={{ color: 'rgba(255, 255, 255, 0.3)', fontSize: 14 }}>·</span>
+                          )}
                           
                           {/* Series - Número blanco normal */}
                           <div style={{ 
                             display: 'flex', 
                             alignItems: 'center',
-                            gap: 4
+                            gap: 8,
+                            flex: isEditing ? 1 : 'auto'
                           }}>
-                            {isEditingSeries ? (
+                            {isEditing ? (
                               <input
                                 type="number"
                                 value={bloque.series}
@@ -3919,10 +4110,11 @@ export default function TodayScreen({ activityId, onBack }: { activityId: string
                                   setEditableSeries(newSeries);
                                 }}
                                 style={{
-                                  width: 40,
-                                  padding: '4px 0',
-                                  background: 'transparent',
-                                  border: 'none',
+                                  width: '100%',
+                                  padding: '8px 12px',
+                                  background: 'rgba(255, 255, 255, 0.06)',
+                                  border: '1px solid rgba(255, 255, 255, 0.2)',
+                                  borderRadius: 8,
                                   color: '#FFFFFF',
                                   fontSize: 16,
                                   fontWeight: 400,
@@ -3932,20 +4124,95 @@ export default function TodayScreen({ activityId, onBack }: { activityId: string
                                 }}
                               />
                             ) : (
-                              <span style={{ color: '#FFFFFF', fontSize: 16, fontWeight: 400 }}>
-                                {bloque.series}
-                              </span>
+                              <>
+                                <span style={{ color: '#FFFFFF', fontSize: 16, fontWeight: 400 }}>
+                                  {bloque.series}
+                                </span>
+                                <span style={{ color: 'rgba(255, 255, 255, 0.6)', fontSize: 14, fontWeight: 400 }}>series</span>
+                              </>
                             )}
-                            <span style={{ color: '#FFFFFF', fontSize: 14, fontWeight: 400 }}>series</span>
                           </div>
                         </div>
                         
-                        {/* Flecha naranja a la derecha */}
-                        {!isEditingSeries && (
-                          <ChevronRight size={20} color="#FF7939" style={{ flexShrink: 0 }} />
+                        {/* Controles: Flecha cuando no edita, Botones Guardar/Cancelar cuando edita */}
+                        {isEditing ? (
+                          <div style={{
+                            display: 'flex',
+                            gap: 8,
+                            justifyContent: 'flex-end'
+                          }}>
+                            <button
+                              onClick={(e) => {
+                                e.preventDefault();
+                                e.stopPropagation();
+                                // Restaurar valores originales
+                                const restored = [...editableSeries];
+                                restored[index] = { ...originalSeries[index] };
+                                setEditableSeries(restored);
+                                setEditingBlockIndex(null);
+                              }}
+                              style={{
+                                padding: '6px 12px',
+                                background: 'rgba(255, 255, 255, 0.1)',
+                                border: '1px solid rgba(255, 255, 255, 0.2)',
+                                borderRadius: 8,
+                                color: 'rgba(255, 255, 255, 0.8)',
+                                fontSize: 14,
+                                fontWeight: 500,
+                                cursor: 'pointer',
+                                transition: 'all 0.2s ease'
+                              }}
+                            >
+                              Cancelar
+                            </button>
+                            <button
+                              onClick={(e) => {
+                                e.preventDefault();
+                                e.stopPropagation();
+                                // Guardar cambios (actualizar originalSeries)
+                                const updated = [...originalSeries];
+                                updated[index] = { ...editableSeries[index] };
+                                setOriginalSeries(updated);
+                                setEditingBlockIndex(null);
+                              }}
+                              style={{
+                                padding: '6px 12px',
+                                background: '#FF6A1A',
+                                border: 'none',
+                                borderRadius: 8,
+                                color: '#FFFFFF',
+                                fontSize: 14,
+                                fontWeight: 600,
+                                cursor: 'pointer',
+                                transition: 'all 0.2s ease'
+                              }}
+                            >
+                              Guardar
+                            </button>
+                          </div>
+                        ) : (
+                          <button
+                            onClick={(e) => {
+                              e.preventDefault();
+                              e.stopPropagation();
+                              setEditingBlockIndex(index);
+                            }}
+                            style={{
+                              background: 'transparent',
+                              border: 'none',
+                              cursor: 'pointer',
+                              padding: 0,
+                              display: 'flex',
+                              alignItems: 'center',
+                              justifyContent: 'center'
+                            }}
+                          >
+                            <ChevronRight size={20} color="#FF7939" style={{ flexShrink: 0 }} />
+                          </button>
                         )}
                       </div>
-                    ))}
+                      );
+                    })}
                   </div>
                 </div>
               )}
@@ -3954,13 +4221,13 @@ export default function TodayScreen({ activityId, onBack }: { activityId: string
               {/* Navegación de ejercicios con botón de completar - Fijo más arriba, sin frame */}
               <div style={{
                 position: 'fixed',
-                bottom: 60,
+                bottom: 90,
                 left: 0,
                 right: 0,
                 display: 'flex',
                 alignItems: 'center',
                 justifyContent: 'center',
-                gap: 16,
+                gap: 40,
                 padding: '16px 20px',
                 zIndex: 1001
               }}>
@@ -3970,8 +4237,6 @@ export default function TodayScreen({ activityId, onBack }: { activityId: string
                   style={{
                     width: 50,
                     height: 50,
-                    borderRadius: 25,
-                    border: '2px solid #FF6A00',
                     background: 'transparent',
                     display: 'flex',
                     alignItems: 'center',
@@ -3979,64 +4244,60 @@ export default function TodayScreen({ activityId, onBack }: { activityId: string
                     cursor: 'pointer',
                     transition: 'all 0.2s ease',
                     color: '#FF6A00',
-                    fontSize: 20,
-                    fontWeight: 'bold'
+                    fontSize: 24,
+                    fontWeight: 'bold',
+                    border: 'none',
+                    padding: 0
                   }}
                   onMouseEnter={(e) => {
-                    e.currentTarget.style.background = 'rgba(255, 106, 0, 0.1)';
-                    e.currentTarget.style.transform = 'scale(1.05)';
+                    e.currentTarget.style.transform = 'scale(1.1)';
                   }}
                   onMouseLeave={(e) => {
-                    e.currentTarget.style.background = 'transparent';
                     e.currentTarget.style.transform = 'scale(1)';
                   }}
                 >
                   ←
                 </button>
 
-                {/* Botón de fuego para marcar ejercicio como completado */}
-                <motion.button
-                  onClick={() => {
-                    if (selectedVideo) {
-                      console.log(`🖱️ Click en modal de video: ${selectedVideo.exerciseId}`);
-                      toggleExerciseSimple(selectedVideo.exerciseId);
-                    }
-                  }}
-                  whileHover={{ scale: 1.05 }}
-                  whileTap={{ scale: 0.95 }}
-                  style={{
-                    width: 60,
-                    height: 60,
-                    borderRadius: 30,
-                    border: '2px solid #FF6A00',
-                    background: (() => {
-                      const currentExercise = activities.find(a => a.id === selectedVideo?.exerciseId);
-                      return currentExercise?.done ? '#FF6A00' : 'transparent';
-                    })(),
-                    display: 'flex',
-                    alignItems: 'center',
-                    justifyContent: 'center',
-                    cursor: 'pointer',
-                    transition: 'all 0.3s ease'
-                  }}
-                >
-                  <svg 
-                    width="24" 
-                    height="24" 
-                    viewBox="0 0 24 24" 
-                    fill="none" 
-                    stroke="currentColor" 
-                    strokeWidth="2"
-                    style={{ 
-                      color: (() => {
-                        const currentExercise = activities.find(a => a.id === selectedVideo?.exerciseId);
-                        return currentExercise?.done ? '#FFFFFF' : '#FF6A00';
-                      })()
-                    }}
-                  >
-                    <path d="M8.5 14.5A2.5 2.5 0 0 0 11 12c0-1.38-.5-2-1-3-1.072-2.143-.224-4.054 2-6 .5 2.5 2 4.9 4 6.5 2 1.6 3 3.5 3 5.5a7 7 0 1 1-14 0c0-1.153.433-2.294 1-3a2.5 2.5 0 0 0 2.5 2.5z"/>
-                  </svg>
-                </motion.button>
+                {/* Botón de fuego para marcar ejercicio como completado - Casi negro cuando no completado, naranja cuando completado */}
+                {(() => {
+                  const currentExercise = activities.find(a => a.id === selectedVideo?.exerciseId);
+                  const isDone = currentExercise?.done || false;
+                  
+                  return (
+                    <button
+                      onClick={() => {
+                        if (selectedVideo) {
+                          console.log(`🖱️ Click en modal de video: ${selectedVideo.exerciseId}`);
+                          toggleExerciseSimple(selectedVideo.exerciseId);
+                        }
+                      }}
+                      style={{
+                        width: 56,
+                        height: 56,
+                        borderRadius: 28,
+                        background: isDone ? '#FF7939' : 'rgba(0, 0, 0, 0.7)',
+                        display: 'flex',
+                        alignItems: 'center',
+                        justifyContent: 'center',
+                        cursor: 'pointer',
+                        boxShadow: isDone 
+                          ? '0 4px 12px rgba(255, 121, 57, 0.4)' 
+                          : '0 2px 8px rgba(0, 0, 0, 0.5)',
+                        border: 'none',
+                        padding: 12,
+                        transition: 'all 0.3s ease',
+                        backdropFilter: isDone ? 'none' : 'blur(10px)',
+                        WebkitBackdropFilter: isDone ? 'none' : 'blur(10px)'
+                      }}
+                    >
+                      <Flame 
+                        size={32} 
+                        color="#FFFFFF"
+                      />
+                    </button>
+                  );
+                })()}
 
                 {/* Flecha derecha - ejercicio siguiente */}
                 <button
@@ -4044,8 +4305,6 @@ export default function TodayScreen({ activityId, onBack }: { activityId: string
                   style={{
                     width: 50,
                     height: 50,
-                    borderRadius: 25,
-                    border: '2px solid #FF6A00',
                     background: 'transparent',
                     display: 'flex',
                     alignItems: 'center',
@@ -4053,15 +4312,15 @@ export default function TodayScreen({ activityId, onBack }: { activityId: string
                     cursor: 'pointer',
                     transition: 'all 0.2s ease',
                     color: '#FF6A00',
-                    fontSize: 20,
-                    fontWeight: 'bold'
+                    fontSize: 24,
+                    fontWeight: 'bold',
+                    border: 'none',
+                    padding: 0
                   }}
                   onMouseEnter={(e) => {
-                    e.currentTarget.style.background = 'rgba(255, 106, 0, 0.1)';
-                    e.currentTarget.style.transform = 'scale(1.05)';
+                    e.currentTarget.style.transform = 'scale(1.1)';
                   }}
                   onMouseLeave={(e) => {
-                    e.currentTarget.style.background = 'transparent';
                     e.currentTarget.style.transform = 'scale(1)';
                   }}
                 >
@@ -4518,7 +4777,7 @@ export default function TodayScreen({ activityId, onBack }: { activityId: string
                                 }));
                                 setEditableSeries(initialSeries);
                                 setOriginalSeries(JSON.parse(JSON.stringify(initialSeries)));
-                                setIsEditingSeries(false);
+                                setEditingBlockIndex(null);
                                 if (activity.video_url) {
                                   const duracionParaOpenVideo = activity.duration ?? (activity as any).duracion_minutos ?? (activity as any).duracion_min ?? null;
                                   const caloriasParaOpenVideo = (activity as any).calorias ?? null;
@@ -4539,7 +4798,7 @@ export default function TodayScreen({ activityId, onBack }: { activityId: string
                                   });
                                   
                                   openVideo(
-                                    activity.video_url,
+                                    activity.video_url || '',
                                     activity.title,
                                     activity.id,
                                     activity.description,
@@ -4578,7 +4837,7 @@ export default function TodayScreen({ activityId, onBack }: { activityId: string
                                   });
                                   
                                   openVideo(
-                                    '',
+                                    activity.video_url || '', // Usar video_url de la actividad
                                     activity.title,
                                     activity.id,
                                     activity.description,

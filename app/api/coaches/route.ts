@@ -190,21 +190,33 @@ export async function PUT(request: Request) {
       return NextResponse.json({ error: "Coach ID is required" }, { status: 400 })
     }
     const body = await request.json()
-    body.updated_at = new Date().toISOString()
+    const updateData = {
+      ...body,
+      updated_at: new Date().toISOString()
+    }
     const supabaseAdmin = await getSupabaseAdmin()
     const { data: updatedCoach, error } = await supabaseAdmin
       .from("coaches")
-      .update(body)
+      .update(updateData)
       .eq("id", id)
       .select()
       .single()
     if (error) {
+      console.error("Error updating coach in database:", error)
       return NextResponse.json({ error: "Coach not found" }, { status: 404 })
     }
     return NextResponse.json(updatedCoach)
-  } catch (error) {
+  } catch (error: any) {
     console.error("Error updating coach:", error)
-    return NextResponse.json({ error: "Failed to update coach" }, { status: 500 })
+    const errorMessage = error?.message || "Failed to update coach"
+    return NextResponse.json(
+      { 
+        error: "Failed to update coach",
+        message: errorMessage,
+        details: process.env.NODE_ENV === 'development' ? error.stack : undefined
+      }, 
+      { status: 500 }
+    )
   }
 }
 export async function DELETE(request: Request) {
