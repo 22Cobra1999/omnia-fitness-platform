@@ -25,6 +25,16 @@ export function BottomNavigation({ activeTab, setActiveTab }: BottomNavigationPr
   }, [])
 
   const applyTabChange = useCallback((tab: string) => {
+    // Si el tab ya está activo, resetear al origen de esa tab
+    if (activeTab === tab) {
+      // Disparar evento para resetear el estado interno del componente
+      window.dispatchEvent(new CustomEvent('reset-tab-to-origin', { detail: { tab } }))
+      setTimeout(() => {
+        window.scrollTo({ top: 0, behavior: 'smooth' })
+      }, 100)
+      return
+    }
+
     setActiveTab(tab)
 
     if (tab === "clients") {
@@ -34,7 +44,7 @@ export function BottomNavigation({ activeTab, setActiveTab }: BottomNavigationPr
     setTimeout(() => {
       window.scrollTo({ top: 0, behavior: 'smooth' })
     }, 100)
-  }, [setActiveTab])
+  }, [setActiveTab, activeTab])
 
   const handleTabClick = (tab: string) => {
     const detail = { tab, shouldAbort: false }

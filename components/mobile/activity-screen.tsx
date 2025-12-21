@@ -49,6 +49,8 @@ import { PurchasedActivityCard } from "@/components/activities/purchased-activit
 import TodayScreen from '@/components/shared/misc/TodayScreen'
 import { WorkshopClientView } from "@/components/client/workshop-client-view"
 import type { Activity, Enrollment } from "@/types/activity" // Import updated types
+import { OmniaLogoText } from '@/components/shared/ui/omnia-logo'
+import { SettingsIcon } from '@/components/shared/ui/settings-icon'
 
 interface Coach {
   id: string
@@ -70,6 +72,7 @@ export function ActivityScreen() {
   
   const [activeTab, setActiveTab] = useState("purchased")
   const [activeCategory, setActiveCategory] = useState("all")
+  const [activityStatusTab, setActivityStatusTab] = useState<"en-curso" | "por-empezar" | "finalizadas">("en-curso")
   const [noteDialogOpen, setNoteDialogOpen] = useState(false)
   const [scheduleDialogOpen, setScheduleDialogOpen] = useState(false)
   // Eliminado: videoDialogOpen
@@ -567,6 +570,8 @@ export function ActivityScreen() {
         status,
         created_at,
         start_date,
+        expiration_date,
+        program_end_date,
         activity:activities!activity_enrollments_activity_id_fkey (
           id,
           title,
@@ -1291,8 +1296,122 @@ export function ActivityScreen() {
     )
   }
 
-  // Aplicar filtro de búsqueda
-  const searchFilteredEnrollments = filterActivitiesBySearch(filteredEnrollments)
+
+  // Función para calcular el status real del enrollment
+  const calculateEnrollmentStatus = (enrollment: Enrollment): 'expirada' | 'finalizada' | 'activa' | 'pendiente' => {
+    const today = new Date()
+    today.setHours(0, 0, 0, 0)
+    
+    const hasStarted = enrollment.start_date !== null
+    const dbStatus = enrollment.status?.toLowerCase() || ''
+    
+    // 1. EXPIRADA: status explícito en BD o expiration_date pasó y no empezó
+    if (dbStatus === 'expirada') {
+      return 'expirada'
+    }
+    if (enrollment.expiration_date && !hasStarted) {
+      const expirationDate = new Date(enrollment.expiration_date)
+      expirationDate.setHours(0, 0, 0, 0)
+      if (expirationDate < today) {
+        return 'expirada'
+      }
+    }
+    
+    // 2. FINALIZADA: status explícito en BD o program_end_date pasó
+    if (dbStatus === 'finalizada' || dbStatus === 'completed') {
+      return 'finalizada'
+    }
+    if (enrollment.program_end_date && hasStarted) {
+      const programEndDate = new Date(enrollment.program_end_date)
+      programEndDate.setHours(0, 0, 0, 0)
+      if (programEndDate < today) {
+        return 'finalizada'
+      }
+    }
+    
+    // 3. ACTIVA: status 'activa' y tiene start_date
+    if (dbStatus === 'activa' && hasStarted) {
+      return 'activa'
+    }
+    
+    // 4. PENDIENTE: por defecto
+    return 'pendiente'
+  }
+
+  // Filtrar por estado de actividad usando status calculado
+  const filterEnrollmentsByStatus = (enrollments: Enrollment[]) => {
+    return enrollments.filter((enrollment) => {
+      const calculatedStatus = calculateEnrollmentStatus(enrollment)
+      
+      // Debug log
+      if (process.env.NODE_ENV === 'development') {
+        console.log(`🔍 [FILTER] Enrollment ${enrollment.id}:`, {
+          dbStatus: enrollment.status,
+          calculatedStatus,
+          start_date: enrollment.start_date,
+          expiration_date: enrollment.expiration_date,
+          program_end_date: enrollment.program_end_date,
+          activityStatusTab,
+          today: new Date().toISOString().split('T')[0]
+        })
+      }
+      
+      switch (activityStatusTab) {
+        case "en-curso":
+          // En curso: status calculado es 'activa'
+          const enCurso = calculatedStatus === 'activa'
+          if (process.env.NODE_ENV === 'development') {
+            console.log(`  → EN CURSO: ${enCurso}`)
+          }
+          return enCurso
+        case "por-empezar":
+          // Por empezar: status calculado es 'pendiente'
+          const porEmpezar = calculatedStatus === 'pendiente'
+          if (process.env.NODE_ENV === 'development') {
+            console.log(`  → POR EMPEZAR: ${porEmpezar}`)
+          }
+          return porEmpezar
+        case "finalizadas":
+          // Finalizadas: status calculado es 'expirada' o 'finalizada'
+          const finalizadas = calculatedStatus === 'expirada' || calculatedStatus === 'finalizada'
+          if (process.env.NODE_ENV === 'development') {
+            console.log(`  → FINALIZADAS: ${finalizadas}`)
+          }
+          return finalizadas
+        default:
+          return true
+      }
+    })
+  }
+
+  // Aplicar filtros: primero por estado, luego por búsqueda
+  const statusFilteredEnrollments = filterEnrollmentsByStatus(filteredEnrollments)
+  const searchFilteredEnrollments = filterActivitiesBySearch(statusFilteredEnrollments)
+
+  // Listener para resetear al origen cuando se presiona el tab activo
+  useEffect(() => {
+    const handleResetToOrigin = (event: CustomEvent) => {
+      const { tab } = event.detail
+      if (tab === 'activity') {
+        // Resetear estado interno: cerrar TodayScreen, volver a lista principal
+        setShowTodayScreen(false)
+        setSelectedActivityId(null)
+        setActivityStatusTab('en-curso')
+        setActiveCategory('all')
+        setSearchTerm('')
+        
+        // Scroll al inicio
+        setTimeout(() => {
+          window.scrollTo({ top: 0, behavior: 'smooth' })
+        }, 100)
+      }
+    }
+
+    window.addEventListener('reset-tab-to-origin', handleResetToOrigin as EventListener)
+    return () => {
+      window.removeEventListener('reset-tab-to-origin', handleResetToOrigin as EventListener)
+    }
+  }, [])
 
   // Agregar este useEffect después de los existentes para manejar el retorno desde actividades
   useEffect(() => {
@@ -1429,10 +1548,6 @@ export function ActivityScreen() {
       data-active-category={activeCategory}
     >
 
-      {/* App header */}
-      <div className="flex justify-between items-center p-4">
-        <h1 className="text-xl font-bold text-white">Activity</h1>
-      </div>
       {isSilentlyUpdating && (
         <div className="px-4 py-1 bg-[#FF7939]/10 text-[#FF7939] text-xs flex items-center justify-center">
           <Loader2 className="h-3 w-3 animate-spin mr-2" />
@@ -1440,49 +1555,118 @@ export function ActivityScreen() {
         </div>
       )}
 
-
-
       {/* Contenido principal */}
       <div className="px-4 space-y-6">
-            {/* Barra de búsqueda y filtros */}
-            <div className="flex items-center gap-2 mb-4">
-              <div className="relative flex-1">
-                <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-gray-400" />
-                <Input
-                  type="text"
-                  placeholder="Buscar productos..."
-                  value={searchTerm}
-                  onChange={(e) => setSearchTerm(e.target.value)}
-                  className="pl-10 bg-[#2A2A2A] border-[#3A3A3A] text-white placeholder:text-gray-400 w-full"
-                />
-              </div>
-              <Button
-                variant="outline"
-                size="icon"
-                className="border-[#3A3A3A] text-gray-400 hover:text-white bg-transparent"
-                onClick={() => setShowFilters(!showFilters)}
-              >
-                <Filter className="h-4 w-4" />
-              </Button>
-            </div>
+            {/* Sección "Mis coaches" - Movida arriba */}
+            {(() => {
+              const purchasedCoachIds = new Set(
+                enrollments.map((e) => e.activity.coach_id).filter(Boolean) as string[]
+              )
+              const myCoaches = coaches.filter((c) => purchasedCoachIds.has(c.id))
+              return (
+                <div className="mb-2">
+                  <div className="flex justify-between items-center mb-3 pt-2">
+                    <h2 className="text-lg font-bold text-white">Mis coaches</h2>
+                  </div>
 
-            {/* Filtros adicionales (opcional) */}
-            {showFilters && (
-              <div className="bg-[#1E1E1E] rounded-lg p-3 mb-4">
-                <div className="flex flex-wrap gap-2">
-                  <Badge className="bg-[#2A2A2A] hover:bg-[#3A3A3A] cursor-pointer">Recientes</Badge>
-                  <Badge className="bg-[#2A2A2A] hover:bg-[#3A3A3A] cursor-pointer">Populares</Badge>
-                  <Badge className="bg-[#2A2A2A] hover:bg-[#3A3A3A] cursor-pointer">En progreso</Badge>
-                  <Badge className="bg-[#2A2A2A] hover:bg-[#3A3A3A] cursor-pointer">Completados</Badge>
+                  {loadingCoaches ? (
+                    <CoachSkeletonLoader />
+                  ) : myCoaches.length === 0 ? (
+                    <div className="text-center py-4 bg-[#1E1E1E] rounded-xl">
+                      <p className="text-gray-400 text-sm">Aún no tienes coaches asociados a compras</p>
+                    </div>
+                  ) : (
+                    <div className="flex space-x-3 overflow-x-auto pb-2 scrollbar-hide">
+                      {myCoaches.map((coach) => {
+                        // Calcular estados del coach usando status calculado
+                        const coachEnrollments = enrollments.filter(e => e.activity.coach_id === coach.id)
+                        const enCurso = coachEnrollments.filter(e => {
+                          return calculateEnrollmentStatus(e) === 'activa'
+                        }).length
+                        const porEmpezar = coachEnrollments.filter(e => {
+                          return calculateEnrollmentStatus(e) === 'pendiente'
+                        }).length
+                        const finalizadas = coachEnrollments.filter(e => {
+                          const status = calculateEnrollmentStatus(e)
+                          return status === 'expirada' || status === 'finalizada'
+                        }).length
+                        
+                        return (
+                          <div
+                            key={coach.id}
+                            className="flex-shrink-0 w-32 text-center cursor-pointer hover:scale-105 transition-transform"
+                            onClick={() => handleCoachClickFromActivity(coach.id)}
+                          >
+                            <div className="relative h-32 w-32 rounded-xl overflow-hidden bg-gradient-to-br from-[#2A2A2A] to-[#1E1E1E] mb-2 group shadow-lg">
+                              <Image
+                                src={getCoachAvatarUrl(coach) || "/placeholder.svg"}
+                                alt={coach.full_name || "Coach"}
+                                width={128}
+                                height={128}
+                                className="h-full w-full object-cover group-hover:opacity-90 transition-opacity"
+                              />
+                              <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-black/40 to-transparent flex items-end justify-center p-2">
+                                <div className="text-center w-full">
+                                  <span className="text-white text-sm font-semibold truncate w-full block mb-1">
+                                    {coach.full_name}
+                                  </span>
+                                  <div className="flex items-center justify-center gap-1">
+                                    <Star className="h-3 w-3 text-yellow-400 fill-yellow-400" />
+                                    <span className="text-xs font-medium text-[#FF7939]">
+                                      {coach.rating?.toFixed(1) || "4.8"}
+                                    </span>
+                                    <span className="text-[10px] text-gray-400 ml-0.5">
+                                      ({coach.total_reviews || 0})
+                                    </span>
+                                  </div>
+                                </div>
+                              </div>
+                            </div>
+                          </div>
+                        )
+                      })}
+                    </div>
+                  )}
                 </div>
-              </div>
-            )}
+              )
+            })()}
+
+            {/* Tabs de estado de actividades */}
+            <div className="flex gap-2 border-b border-gray-800 pb-2 -mt-2">
+              <button
+                onClick={() => setActivityStatusTab("en-curso")}
+                className={`px-4 py-2 text-sm font-medium transition-colors ${
+                  activityStatusTab === "en-curso"
+                    ? "text-[#FF7939] border-b-2 border-[#FF7939]"
+                    : "text-gray-400 hover:text-gray-300"
+                }`}
+              >
+                En curso
+              </button>
+              <button
+                onClick={() => setActivityStatusTab("por-empezar")}
+                className={`px-4 py-2 text-sm font-medium transition-colors ${
+                  activityStatusTab === "por-empezar"
+                    ? "text-[#FF7939] border-b-2 border-[#FF7939]"
+                    : "text-gray-400 hover:text-gray-300"
+                }`}
+              >
+                Por empezar
+              </button>
+              <button
+                onClick={() => setActivityStatusTab("finalizadas")}
+                className={`px-4 py-2 text-sm font-medium transition-colors ${
+                  activityStatusTab === "finalizadas"
+                    ? "text-[#FF7939] border-b-2 border-[#FF7939]"
+                    : "text-gray-400 hover:text-gray-300"
+                }`}
+              >
+                Finalizadas
+              </button>
+            </div>
 
             {/* Mis actividades compradas */}
             <div>
-              <div className="flex justify-between items-center mb-4">
-                <h2 className="text-xl font-bold">Mis Productos</h2>
-              </div>
 
               {isLoading ? (
                 <ActivitySkeletonLoader />
@@ -1498,32 +1682,62 @@ export function ActivityScreen() {
                   </Button>
                 </div>
               ) : searchFilteredEnrollments.length === 0 ? (
-                <div className="text-center py-10 bg-[#1E1E1E] rounded-xl">
-                  <div className="inline-flex items-center justify-center w-16 h-16 rounded-full bg-[#2A2A2A] mb-4">
-                    <Play className="h-8 w-8 text-gray-400" />
-                  </div>
+                <div className="text-center py-10">
                   {searchTerm ? (
-                    <>
+                    <div className="bg-[#1E1E1E] rounded-xl py-10">
+                      <div className="inline-flex items-center justify-center w-16 h-16 rounded-full bg-[#2A2A2A] mb-4">
+                        <Play className="h-8 w-8 text-gray-400" />
+                      </div>
                       <h3 className="text-lg font-medium mb-2">No se encontraron resultados</h3>
                       <p className="text-gray-400 mb-4">Intenta con otros términos de búsqueda</p>
                       <Button className="bg-[#FF7939] hover:bg-[#E66829]" onClick={() => setSearchTerm("")}>
                         Limpiar búsqueda
                       </Button>
-                    </>
+                    </div>
+                  ) : activityStatusTab === "en-curso" ? (
+                    // Solo en "En curso" mostrar botón Explorar
+                    <div className="bg-[#1E1E1E] rounded-xl py-10">
+                      <div className="inline-flex items-center justify-center w-16 h-16 rounded-full bg-[#2A2A2A] mb-4">
+                        <Play className="h-8 w-8 text-gray-400" />
+                      </div>
+                      <h3 className="text-lg font-medium mb-2 text-white">No tienes actividades en curso</h3>
+                      <p className="text-gray-400 mb-4">Explora productos para comenzar tu entrenamiento</p>
+                      <Button 
+                        className="bg-[#FF7939] hover:bg-[#E66829]"
+                        onClick={() => {
+                          // Navegar a la tab de búsqueda
+                          window.dispatchEvent(new CustomEvent('navigateToTab', { detail: { tab: 'search' } }))
+                        }}
+                      >
+                        Explorar Productos
+                      </Button>
+                    </div>
+                  ) : activityStatusTab === "por-empezar" ? (
+                    // En "Por empezar" solo mensaje simple
+                    <div className="py-6">
+                      <p className="text-gray-400 text-sm">No tienes actividades por empezar</p>
+                    </div>
+                  ) : activityStatusTab === "finalizadas" ? (
+                    // En "Finalizadas" solo mensaje simple
+                    <div className="py-6">
+                      <p className="text-gray-400 text-sm">No tienes actividades finalizadas</p>
+                    </div>
                   ) : (
-                    <>
-                      <h3 className="text-lg font-medium mb-2">
+                    <div className="bg-[#1E1E1E] rounded-xl py-10">
+                      <div className="inline-flex items-center justify-center w-16 h-16 rounded-full bg-[#2A2A2A] mb-4">
+                        <Play className="h-8 w-8 text-gray-400" />
+                      </div>
+                      <h3 className="text-lg font-medium mb-2 text-white">
                         {getCategoryFromType(activeCategory) === "all"
                           ? "No tienes productos comprados"
                           : `No tienes productos de ${getCategoryFromType(activeCategory) === "fitness" ? "fitness" : "nutrición"}`}
                       </h3>
                       <p className="text-gray-400 mb-4">Compra contenido de coaches para acceder aquí</p>
-                      <Button className="bg-[#FF7939] hover:bg-[#E66829]">Explorar Productos</Button>
-                    </>
+                    </div>
                   )}
                 </div>
               ) : (
-            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+            <div className="space-y-3">
               {searchFilteredEnrollments.map((enrollment) => (
                 <PurchasedActivityCard 
                   key={enrollment.id} 
@@ -1540,66 +1754,6 @@ export function ActivityScreen() {
               {/* Botón para crear nuevo producto (solo para coaches) */}
             </div>
 
-            {/* Mis coaches (solo coaches con productos comprados) */}
-            {(() => {
-              const purchasedCoachIds = new Set(
-                enrollments.map((e) => e.activity.coach_id).filter(Boolean) as string[]
-              )
-              const myCoaches = coaches.filter((c) => purchasedCoachIds.has(c.id))
-              return (
-                <div>
-                  <div className="flex justify-between items-center mb-4">
-                    <h2 className="text-xl font-bold">Mis coaches</h2>
-                  </div>
-
-                  {loadingCoaches ? (
-                    <CoachSkeletonLoader />
-                  ) : myCoaches.length === 0 ? (
-                    <div className="text-center py-6 bg-[#1E1E1E] rounded-xl">
-                      <p className="text-gray-400">Aún no tienes coaches asociados a compras</p>
-                    </div>
-                  ) : (
-                    <div className="flex space-x-4 overflow-x-auto pb-4">
-                      {myCoaches.map((coach) => (
-                        <div
-                          key={coach.id}
-                          className="flex-shrink-0 w-40 text-center cursor-pointer hover:scale-105 transition-transform"
-                          onClick={() => handleCoachClickFromActivity(coach.id)}
-                        >
-                          <div className="relative h-40 w-40 rounded-xl overflow-hidden bg-gradient-to-br from-[#2A2A2A] to-[#1E1E1E] mb-2 group">
-                            <Image
-                              src={getCoachAvatarUrl(coach) || "/placeholder.svg"}
-                              alt={coach.full_name || "Coach"}
-                              width={160}
-                              height={160}
-                              className="h-full w-full object-cover group-hover:opacity-80 transition-opacity"
-                            />
-                            <div className="absolute inset-0 bg-gradient-to-t from-black/70 to-transparent flex items-end justify-center p-3">
-                              <div className="text-center">
-                                <span className="text-white text-lg font-medium truncate w-full block">
-                                  {coach.full_name}
-                                </span>
-                                <div className="flex justify-center mt-1">
-                                  <div className="flex items-center">
-                                    <Star className="h-3 w-3 text-yellow-400 fill-yellow-400" />
-                                    <span className="text-xs ml-1">{coach.rating?.toFixed(1) || "4.8"}</span>
-                                  </div>
-                                </div>
-                              </div>
-                            </div>
-                          </div>
-                          <div className="flex justify-center">
-                            <Badge variant="outline" className="bg-[#2A2A2A] border-[#3A3A3A] text-xs">
-                              {coach.specialty_detail || "Entrenador"}
-                            </Badge>
-                          </div>
-                        </div>
-                      ))}
-                    </div>
-                  )}
-                </div>
-              )
-            })()}
 
       </div>
 

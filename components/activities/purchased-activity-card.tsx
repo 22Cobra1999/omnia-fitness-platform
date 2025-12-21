@@ -234,8 +234,8 @@ export function PurchasedActivityCard({ enrollment, nextActivity, realProgress, 
         border: '1px solid rgba(255, 255, 255, 0.1)',
       }}
     >
-      {/* Imagen horizontal con todo el contenido integrado */}
-      <div className="relative w-full h-44 overflow-hidden">
+      {/* Imagen horizontal con todo el contenido integrado - Compact hero style */}
+      <div className="relative w-full h-40 overflow-hidden rounded-xl">
         {imageUrl ? (
           <Image
             src={imageUrl}
@@ -246,15 +246,15 @@ export function PurchasedActivityCard({ enrollment, nextActivity, realProgress, 
           />
         ) : (
           <div className="w-full h-full bg-gradient-to-br from-[#FF7939] to-[#E66829] flex items-center justify-center">
-            <span className="text-3xl font-bold text-white">{activity.title.charAt(0)}</span>
+            <span className="text-2xl font-bold text-white">{activity.title.charAt(0)}</span>
           </div>
         )}
         
         {/* Overlay con gradiente para glassmorphism */}
         <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-black/40 to-transparent" />
         
-        {/* Badge de categoría en la esquina superior izquierda - glassmorphism */}
-        <div className="absolute top-2 left-2 z-10">
+        {/* Badge de categoría en la esquina superior derecha - glassmorphism */}
+        <div className="absolute top-2 right-2 z-10">
           <Badge 
             className="text-xs font-semibold px-2.5 py-0.5 rounded-full border-0 text-white"
             style={{
@@ -284,76 +284,75 @@ export function PurchasedActivityCard({ enrollment, nextActivity, realProgress, 
           </div>
         )}
         
-        {/* Contenido principal: Título y progreso */}
+        {/* Contenido principal: Título y progreso - Compacto */}
         <div className="absolute bottom-12 left-0 right-0 p-3 z-10">
           <div className="space-y-1.5">
             <h3 
-              className="font-semibold text-base leading-tight text-white drop-shadow-2xl overflow-hidden" 
+              className="font-bold text-lg leading-tight text-white drop-shadow-2xl overflow-hidden" 
               style={{
                 display: '-webkit-box',
                 WebkitLineClamp: 2,
                 WebkitBoxOrient: 'vertical',
                 lineHeight: '1.2em',
-                textShadow: '0 2px 8px rgba(0,0,0,0.8)',
+                textShadow: '0 2px 8px rgba(0,0,0,0.9)',
               }}
             >
               {activity.title}
             </h3>
             
-            {/* Barra de progreso con glassmorphism - naranja translúcido sin fondo negro */}
-            <div className="flex items-center gap-2">
-              <div 
-                className="relative h-1 flex-1 rounded-full overflow-hidden"
-                style={{
-                  background: 'rgba(255, 121, 57, 0.2)',
-                  backdropFilter: 'blur(5px)',
-                  WebkitBackdropFilter: 'blur(5px)',
-                }}
-              >
+            {/* Barra de progreso compacta */}
+            {progress > 0 && (
+              <div className="flex items-center gap-2">
                 <div 
-                  className="h-full rounded-full transition-all duration-300"
+                  className="relative h-1 flex-1 rounded-full overflow-hidden"
                   style={{
-                    width: `${progress}%`,
-                    background: 'rgba(255, 121, 57, 0.8)',
-                    backdropFilter: 'blur(5px)',
-                    WebkitBackdropFilter: 'blur(5px)',
-                    boxShadow: '0 0 10px rgba(255, 121, 57, 0.5)',
+                    background: 'rgba(255, 121, 57, 0.2)',
                   }}
-                />
+                >
+                  <div 
+                    className="h-full rounded-full transition-all duration-300"
+                    style={{
+                      width: `${progress}%`,
+                      background: 'rgba(255, 121, 57, 0.9)',
+                    }}
+                  />
+                </div>
+                <span className="text-xs font-bold text-white flex-shrink-0">{progress}%</span>
               </div>
-              <span className="text-xs font-bold text-white flex-shrink-0">{progress}%</span>
-            </div>
+            )}
           </div>
         </div>
 
-        {/* Contenido del coach en la parte inferior - integrado en la misma imagen */}
+        {/* Contenido del coach y fecha en la parte inferior - Compacto */}
         <div className="absolute bottom-0 left-0 right-0 p-3 z-10">
-          <div className="flex items-center justify-between gap-2.5 w-full">
-            <div className="flex items-center gap-2.5 flex-1 min-w-0">
-              <div className="relative h-10 w-10 rounded-full overflow-hidden flex-shrink-0">
+          <div className="flex items-center justify-between gap-2 w-full">
+            <div className="flex items-center gap-2 flex-1 min-w-0">
+              <div className="relative h-6 w-6 rounded-full overflow-hidden flex-shrink-0 border border-white/20">
                 <Image
-                  src={activity.coach_avatar_url || "/placeholder.svg?height=40&width=40&query=coach"}
+                  src={activity.coach_avatar_url || "/placeholder.svg?height=24&width=24&query=coach"}
                   alt={activity.coach_name || "Coach"}
                   fill
                   className="object-cover"
                 />
               </div>
-              <p className="text-sm font-normal text-white truncate drop-shadow-lg">
-                {activity.coach_name || "Coach"}
+              <p className="text-xs font-medium text-white/90 truncate drop-shadow-lg">
+                Por {activity.coach_name || "Coach"}
               </p>
             </div>
-            {/* Fecha de inicio o días restantes en la esquina derecha */}
-            {hasStarted && enrollment.start_date ? (
-              <span className="text-xs font-medium text-white/90 flex-shrink-0 drop-shadow-lg">
-                {formatStartDate(enrollment.start_date)}
-              </span>
-            ) : daysRemaining !== null ? (
-              <span className={`text-xs font-medium flex-shrink-0 drop-shadow-lg ${
-                isBlocked ? 'text-red-400' : daysRemaining <= 3 ? 'text-yellow-400' : 'text-white/90'
-              }`}>
-                {formatDaysRemaining(daysRemaining)}
-              </span>
-            ) : null}
+            {/* Fecha o días restantes en lugar del botón */}
+            <div className="flex-shrink-0">
+              {hasStarted && enrollment.start_date ? (
+                <span className="text-xs font-medium text-white/90 drop-shadow-lg">
+                  {formatStartDate(enrollment.start_date)}
+                </span>
+              ) : daysRemaining !== null ? (
+                <span className={`text-xs font-medium drop-shadow-lg ${
+                  isBlocked ? 'text-red-400' : daysRemaining <= 3 ? 'text-yellow-400' : 'text-white/90'
+                }`}>
+                  {formatDaysRemaining(daysRemaining)}
+                </span>
+              ) : null}
+            </div>
           </div>
         </div>
       </div>

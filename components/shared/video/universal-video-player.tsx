@@ -283,24 +283,38 @@ export function UniversalVideoPlayer({
 
   // Usar video HTML5 estándar para URLs directas
   return (
-    <div className={cn("relative w-full h-full bg-black", className)} onClick={!controls ? togglePlay : undefined}>
+    <div className={cn("relative w-full h-full bg-black", className)} onClick={!controls ? togglePlay : undefined} style={{ minHeight: '200px', width: '100%', height: '100%' }}>
       <video
         ref={videoRef}
-        src={videoSrc || ''}
+        src={videoSrc && !videoSrc.includes('.m3u8') ? videoSrc : undefined}
         poster={thumbnailUrl || undefined}
-        className={cn("w-full h-full object-cover cursor-pointer", className)}
+        className={cn("w-full h-full object-contain cursor-pointer", className)}
         autoPlay={autoPlay}
         controls={controls}
         controlsList={disableDownload ? "nodownload" : undefined}
         muted={isMuted}
         loop={loop}
         playsInline
-        onError={() => {
+        style={{ 
+          width: '100%', 
+          height: '100%',
+          display: 'block',
+          objectFit: 'contain',
+          minHeight: '200px'
+        }}
+        onError={(e) => {
+          console.error('❌ Error en video:', e)
           setHasError(true)
           setIsLoading(false)
         }}
-        onLoadedData={handleLoadedData}
-        onPlay={() => setIsPlaying(true)}
+        onLoadedData={() => {
+          console.log('✅ Video cargado correctamente')
+          handleLoadedData()
+        }}
+        onPlay={() => {
+          console.log('▶️ Video reproduciendo')
+          setIsPlaying(true)
+        }}
         onPause={() => setIsPlaying(false)}
         onEnded={() => {
           setIsPlaying(false)

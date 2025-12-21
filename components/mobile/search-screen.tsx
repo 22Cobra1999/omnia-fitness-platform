@@ -85,6 +85,38 @@ export function SearchScreen({ onTabChange }: SearchScreenProps) {
   const [expandedSection, setExpandedSection] = useState<'coaches' | 'activities' | null>(null)
 
   const [selectedActivity, setSelectedActivity] = useState<Activity | null>(null)
+
+  // Listener para resetear al origen cuando se presiona el tab activo
+  useEffect(() => {
+    const handleResetToOrigin = (event: CustomEvent) => {
+      const { tab } = event.detail
+      if (tab === 'search') {
+        // Resetear estado interno: limpiar búsqueda, filtros, modales
+        setSearchTerm("")
+        setSelectedProgramType("all")
+        setSelectedCategory("all")
+        setSelectedFitnessType("all")
+        setShowFilters(false)
+        setSelectedActivity(null)
+        setSelectedCoachForProfile(null)
+        setShowAllActivities(false)
+        setShowAllCoaches(false)
+        setExpandedSection(null)
+        setPurchaseModalOpen(false)
+        setIsPreviewModalOpen(false)
+        
+        // Scroll al inicio
+        setTimeout(() => {
+          window.scrollTo({ top: 0, behavior: 'smooth' })
+        }, 100)
+      }
+    }
+
+    window.addEventListener('reset-tab-to-origin', handleResetToOrigin as EventListener)
+    return () => {
+      window.removeEventListener('reset-tab-to-origin', handleResetToOrigin as EventListener)
+    }
+  }, [])
   const [activities, setActivities] = useState<Activity[]>([])
   const [isLoadingActivities, setIsLoadingActivities] = useState(false)
   const [activitiesError, setActivitiesError] = useState<Error | null>(null)

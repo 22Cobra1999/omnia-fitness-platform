@@ -248,7 +248,7 @@ const ActivityDetailScreen: React.FC<ActivityDetailScreenProps> = ({
           className={`flex items-center gap-4 px-12 py-4 rounded-2xl text-lg font-bold transition-all duration-300 shadow-lg ${
             isCompleted
               ? "bg-gradient-to-r from-green-500 to-emerald-500 hover:from-green-600 hover:to-emerald-600 text-white border-2 border-green-400/50"
-              : "bg-gradient-to-r from-orange-500 to-red-500 hover:from-orange-600 hover:to-red-600 text-white border-2 border-orange-400/50"
+              : "bg-gradient-to-r from-orange-700 to-orange-800 hover:from-orange-800 hover:to-orange-900 text-white border-2 border-orange-600/50"
           }`}
         >
           <Flame className="h-7 w-7" />

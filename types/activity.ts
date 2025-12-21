@@ -175,6 +175,7 @@ export interface Enrollment {
   expiration_date: string | null
   remaining_consultations: number | null
   start_date: string | null
+  program_end_date: string | null // Última fecha de progreso + 6 días
   activity: Activity // Nested activity object
 }
 
@@ -190,3 +191,4 @@ export interface CoachProfile {
   total_reviews?: number
   // Add other coach-specific fields as needed
 }
+

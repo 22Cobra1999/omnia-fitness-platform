@@ -31,12 +31,7 @@ export async function GET(request: NextRequest) {
         payment_date,
         created_at,
         mercadopago_status,
-        activities:activity_id (
-          id,
-          title,
-          image_url,
-          price
-        )
+        activity_id
       `)
       .eq('client_id', user.id)
       .order('created_at', { ascending: false })
@@ -45,24 +40,50 @@ export async function GET(request: NextRequest) {
     if (purchasesError) {
       console.error('Error obteniendo compras:', purchasesError);
       return NextResponse.json(
-        { error: 'Error obteniendo compras' },
+        { error: 'Error obteniendo compras', details: purchasesError.message },
         { status: 500 }
       );
     }
 
+    // Obtener información de actividades por separado si hay activity_ids
+    const activityIds = (purchases || [])
+      .map((p: any) => p.activity_id)
+      .filter((id: any) => id != null);
+    
+    let activitiesMap: Record<number, any> = {};
+    
+    if (activityIds.length > 0) {
+      const { data: activities, error: activitiesError } = await supabase
+        .from('activities')
+        .select('id, title, image_url, price')
+        .in('id', activityIds);
+      
+      if (!activitiesError && activities) {
+        activities.forEach((activity: any) => {
+          activitiesMap[activity.id] = activity;
+        });
+      }
+    }
+
     // Formatear las compras
-    const formattedPurchases = (purchases || []).map((purchase: any) => ({
-      id: purchase.id,
-      amount: purchase.amount_paid,
-      status: purchase.payment_status || purchase.mercadopago_status || 'pending',
-      paymentDate: purchase.payment_date || purchase.created_at,
-      activity: purchase.activities ? {
-        id: purchase.activities.id,
-        title: purchase.activities.title,
-        imageUrl: purchase.activities.image_url,
-        price: purchase.activities.price
-      } : null
-    }));
+    const formattedPurchases = (purchases || []).map((purchase: any) => {
+      const activity = purchase.activity_id && activitiesMap[purchase.activity_id]
+        ? {
+            id: activitiesMap[purchase.activity_id].id,
+            title: activitiesMap[purchase.activity_id].title,
+            imageUrl: activitiesMap[purchase.activity_id].image_url,
+            price: activitiesMap[purchase.activity_id].price
+          }
+        : null;
+      
+      return {
+        id: purchase.id,
+        amount: purchase.amount_paid,
+        status: purchase.payment_status || purchase.mercadopago_status || 'pending',
+        paymentDate: purchase.payment_date || purchase.created_at,
+        activity
+      };
+    });
 
     return NextResponse.json({
       success: true,

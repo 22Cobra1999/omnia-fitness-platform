@@ -14,6 +14,29 @@ export function CalendarScreen({ onTabChange }: CalendarScreenProps) {
   const [loading, setLoading] = useState(true)
   const supabase = useMemo(() => createClient(), [])
 
+  // Listener para resetear al origen cuando se presiona el tab activo
+  useEffect(() => {
+    const handleResetToOrigin = (event: CustomEvent) => {
+      const { tab } = event.detail
+      if (tab === 'calendar') {
+        // Limpiar localStorage de actividad seleccionada
+        if (typeof window !== 'undefined') {
+          localStorage.removeItem('selectedActivityFromCalendar')
+        }
+        
+        // Scroll al inicio
+        setTimeout(() => {
+          window.scrollTo({ top: 0, behavior: 'smooth' })
+        }, 100)
+      }
+    }
+
+    window.addEventListener('reset-tab-to-origin', handleResetToOrigin as EventListener)
+    return () => {
+      window.removeEventListener('reset-tab-to-origin', handleResetToOrigin as EventListener)
+    }
+  }, [])
+
   // Función para manejar el clic en una actividad
   const handleActivityClick = (activityId: string) => {
     console.log('🎯 [CalendarScreen] Navegando a actividad:', activityId);
@@ -119,13 +142,3 @@ export function CalendarScreen({ onTabChange }: CalendarScreenProps) {
     </div>
   )
 }
-
-
-
-
-
-
-
-
-
-

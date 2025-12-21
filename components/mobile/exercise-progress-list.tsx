@@ -3,7 +3,7 @@
 import { useState, useEffect } from 'react'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
-import { Edit, Check, X } from 'lucide-react'
+import { Edit, Check, X, Minus, Save } from 'lucide-react'
 
 interface Exercise {
   id: string
@@ -190,6 +190,29 @@ export function ExerciseProgressList({ userId }: ExerciseProgressListProps) {
     setEditData({})
   }
 
+  const deleteExercise = async (exerciseId: string) => {
+    try {
+      const response = await fetch('/api/profile/exercise-progress', {
+        method: 'DELETE',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ id: exerciseId })
+      })
+      
+      if (response.ok) {
+        // Remover del estado local
+        setExercises(exercises.filter(e => e.id !== exerciseId))
+        // Limpiar datos de edición si existe
+        const newEditData = { ...editData }
+        delete newEditData[exerciseId]
+        setEditData(newEditData)
+      } else {
+        console.error('Error eliminando ejercicio')
+      }
+    } catch (error) {
+      console.error('Error eliminando ejercicio:', error)
+    }
+  }
+
   const updateEditData = (exerciseId: string, field: 'title' | 'current' | 'objective', value: string) => {
     setEditData(prev => ({
       ...prev,
@@ -225,86 +248,110 @@ export function ExerciseProgressList({ userId }: ExerciseProgressListProps) {
             <Edit className="h-3 w-3" />
                   </Button>
         ) : (
-          <div className="flex gap-1">
+          <div className="flex gap-2">
                   <Button
               onClick={saveChanges}
                     size="sm"
-              className="bg-green-600 hover:bg-green-700 text-white px-2 py-1 h-6 text-xs"
+              className="bg-[#FF7939] hover:bg-[#FF6A00] text-white p-1.5 h-8 w-8 rounded-lg transition-all"
+                  title="Guardar"
                   >
-              <Check className="h-3 w-3 mr-1" />
-              Guardar
+              <Save className="h-5 w-5" strokeWidth={2.5} />
                   </Button>
                   <Button
               onClick={cancelEditing}
                     size="sm"
-              className="bg-gray-600 hover:bg-gray-700 text-white px-2 py-1 h-6 text-xs"
-            >
-              <X className="h-3 w-3 mr-1" />
-              Cancelar
+              className="bg-gray-700 hover:bg-gray-600 text-white p-1.5 h-8 w-8 rounded-full transition-all"
+            title="Cancelar"
+                  >
+              <X className="h-5 w-5" strokeWidth={2.5} />
                   </Button>
                 </div>
               )}
             </div>
 
-      {/* Grid 2x2 compacto */}
-      <div className="grid grid-cols-2 gap-2">
-        {exercises.slice(0, 4).map((exercise) => {
-          
-          return (
-            <div key={exercise.id} className="bg-gray-800/50 rounded-lg p-2">
-              {isEditing ? (
-                <div className="space-y-1.5">
-                  <Input
-                    value={editData[exercise.id]?.title || ""}
-                    onChange={(e) => updateEditData(exercise.id, 'title', e.target.value)}
-                    className="bg-gray-700 border-gray-600 text-white text-sm h-7"
-                    placeholder="Nombre del ejercicio"
-                  />
-                  <div className="space-y-1">
-                    <div className="text-gray-400 text-xs">Actual</div>
+      {/* Scroll horizontal para objetivos */}
+      <div className="overflow-x-auto -mx-4 px-4" style={{ scrollbarWidth: 'thin' }}>
+        <div className="flex gap-2 pb-2" style={{ minWidth: 'max-content' }}>
+          {exercises.map((exercise) => {
+            
+            return (
+              <div key={exercise.id} className="bg-transparent rounded-lg p-2 relative flex-shrink-0" style={{ width: '180px', minWidth: '180px', maxWidth: '180px' }}>
+                {isEditing && (
+                  <button
+                    onClick={() => deleteExercise(exercise.id)}
+                    className="absolute top-1 right-1 text-gray-400 hover:text-[#FF7939] transition-colors"
+                    style={{ zIndex: 10 }}
+                    title="Eliminar objetivo"
+                  >
+                    <Minus className="h-5 w-5" strokeWidth={3} />
+                  </button>
+                )}
+                {isEditing ? (
+                  <div className="space-y-1.5">
                     <Input
-                      value={editData[exercise.id]?.current || ""}
-                      onChange={(e) => updateEditData(exercise.id, 'current', e.target.value)}
-                      className="bg-gray-700 border-gray-600 text-white text-sm h-7"
-                      placeholder={exercise.unit === "tiempo" ? "00:00:00" : "Valor actual"}
+                      value={editData[exercise.id]?.title || ""}
+                      onChange={(e) => updateEditData(exercise.id, 'title', e.target.value)}
+                      className="bg-transparent border-0 border-b border-gray-600/30 text-white text-sm h-7 focus:border-[#FF7939] focus:ring-0 rounded-none px-0"
+                      placeholder="Nombre del ejercicio"
                     />
-                  </div>
-                  <div className="space-y-1">
-                    <div className="text-gray-400 text-xs">Objetivo</div>
-                    <Input
-                      value={editData[exercise.id]?.objective || ""}
-                      onChange={(e) => updateEditData(exercise.id, 'objective', e.target.value)}
-                      className="bg-gray-700 border-gray-600 text-white text-sm h-7"
-                      placeholder={exercise.unit === "tiempo" ? "00:00:00" : "Objetivo"}
-                    />
+                    <div className="space-y-1">
+                      <div className="text-gray-400 text-xs">Actual</div>
+                      <Input
+                        value={editData[exercise.id]?.current || ""}
+                        onChange={(e) => updateEditData(exercise.id, 'current', e.target.value)}
+                        className="bg-transparent border-0 border-b border-gray-600/30 text-white text-sm h-7 focus:border-[#FF7939] focus:ring-0 rounded-none px-0"
+                        placeholder={exercise.unit === "tiempo" ? "00:00:00" : "Valor actual"}
+                      />
+                    </div>
+                    <div className="space-y-1">
+                      <div className="text-gray-400 text-xs">Objetivo</div>
+                      <Input
+                        value={editData[exercise.id]?.objective || ""}
+                        onChange={(e) => updateEditData(exercise.id, 'objective', e.target.value)}
+                        className="bg-transparent border-0 border-b border-gray-600/30 text-white text-sm h-7 focus:border-[#FF7939] focus:ring-0 rounded-none px-0"
+                        placeholder={exercise.unit === "tiempo" ? "00:00:00" : "Objetivo"}
+                      />
+                                </div>
                               </div>
-                            </div>
-                          ) : (
-                <div className="space-y-1.5">
-                  <h3 className="text-white font-medium text-sm truncate">
+                            ) : (
+                <div className="space-y-1.5 w-full">
+                  <h3 className="text-[#FF7939] font-medium text-sm truncate w-full">
                     {exercise.exercise_title}
                   </h3>
                   
-                  <div className="space-y-1">
+                  <div className="space-y-1 w-full">
                     <div className="text-gray-400 text-xs">Actual</div>
-                    <div className="text-white font-semibold text-sm">
-                      {exercise.current_value ? formatValueForDisplay(exercise.current_value, exercise.unit) : "-"}
-                      {exercise.current_value && exercise.unit !== "tiempo" && ` ${exercise.unit}`}
+                    <div className="text-white font-semibold text-sm break-words w-full" style={{ wordBreak: 'break-word', overflowWrap: 'break-word' }}>
+                      {exercise.current_value ? (
+                        <>
+                          {formatValueForDisplay(exercise.current_value, exercise.unit)}
+                          {exercise.unit !== "tiempo" && ` ${exercise.unit}`}
+                        </>
+                      ) : (
+                        <span className="text-[#FF7939]">-</span>
+                      )}
                 </div>
               </div>
                   
-                  <div className="space-y-1">
+                  <div className="space-y-1 w-full">
                     <div className="text-gray-400 text-xs">Objetivo</div>
-                    <div className="text-white font-semibold text-sm">
-                      {exercise.objective ? formatValueForDisplay(exercise.objective, exercise.unit) : "-"}
-                      {exercise.objective && exercise.unit !== "tiempo" && ` ${exercise.unit}`}
+                    <div className="text-[#FF7939] font-semibold text-sm break-words w-full" style={{ wordBreak: 'break-word', overflowWrap: 'break-word' }}>
+                      {exercise.objective ? (
+                        <>
+                          {formatValueForDisplay(exercise.objective, exercise.unit)}
+                          {exercise.unit !== "tiempo" && ` ${exercise.unit}`}
+                        </>
+                      ) : (
+                        "-"
+                      )}
                     </div>
                   </div>
                 </div>
             )}
-          </div>
-        )
-      })}
+              </div>
+            )
+          })}
+        </div>
       </div>
     </div>
   )

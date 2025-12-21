@@ -20,6 +20,27 @@ export default function CalendarView({ activityIds, onActivityClick }: CalendarV
   const [loading, setLoading] = useState(true)
   const supabase = createClient()
 
+  // Listener para resetear al origen cuando se presiona el tab activo
+  useEffect(() => {
+    const handleResetToOrigin = (event: CustomEvent) => {
+      const { tab } = event.detail
+      if (tab === 'calendar') {
+        // Resetear fecha seleccionada
+        setSelectedDate(null)
+        
+        // Scroll al inicio
+        setTimeout(() => {
+          window.scrollTo({ top: 0, behavior: 'smooth' })
+        }, 100)
+      }
+    }
+
+    window.addEventListener('reset-tab-to-origin', handleResetToOrigin as EventListener)
+    return () => {
+      window.removeEventListener('reset-tab-to-origin', handleResetToOrigin as EventListener)
+    }
+  }, [])
+
   useEffect(() => {
     const fetchActivities = async () => {
       if (activityIds.length === 0) {
@@ -309,33 +330,3 @@ export default function CalendarView({ activityIds, onActivityClick }: CalendarV
     </div>
   )
 }
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
