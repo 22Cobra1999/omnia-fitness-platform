@@ -461,18 +461,9 @@ export default function TodayScreen({ activityId, onBack }: { activityId: string
           finalCoverImageUrl = backgroundImage || null;
         } else {
           if (isNutrition) {
-            // Para nutrición: buscar en nutrition_program_details
-            const { data: nutritionDetail, error: nutritionError } = await supabase
-              .from('nutrition_program_details')
-              .select('image_url')
-              .eq('id', ejercicioIdNum)
-              .maybeSingle();
-            
-            if (nutritionError) {
-              console.warn('⚠️ [openVideo] Error obteniendo imagen de nutrición:', nutritionError);
-            } else {
-              finalCoverImageUrl = nutritionDetail?.image_url || null;
-            }
+            // Para nutrición: la tabla nutrition_program_details no tiene image_url.
+            // Usar directamente la imagen de la actividad general.
+            finalCoverImageUrl = backgroundImage || null;
           } else {
             // Para fitness: la columna image_url no existe en ejercicios_detalles
             // Usar directamente la imagen de la actividad general
