@@ -14,21 +14,54 @@ interface DailyMetrics {
   minutesTarget: number
   exercises: number
   exercisesTarget: number
+  category?: 'fitness' | 'nutricion'
 }
 
 interface DailyActivityRingsProps {
   userId?: string
   selectedDate?: string
+  category?: 'fitness' | 'nutricion'
   onSelectDay?: (day: DailyMetrics) => void
 }
 
-export function DailyActivityRings({ userId, selectedDate, onSelectDay }: DailyActivityRingsProps) {
+export function DailyActivityRings({ userId, selectedDate, category = 'fitness', onSelectDay }: DailyActivityRingsProps) {
   const [currentWeek, setCurrentWeek] = useState(new Date())
   const [dailyData, setDailyData] = useState<DailyMetrics[]>([])
   const [loading, setLoading] = useState(false)
+  const [dynamicTargets, setDynamicTargets] = useState({ kcal: 500, minutes: 60, exercises: 3, plates: 4 })
+  const [highlightedDay, setHighlightedDay] = useState<string | null>(selectedDate || null)
   
-  // Usar el hook existente para obtener datos reales - sin filtrar por categoría para mostrar todos los días
-  const { weeklyData, loading: metricsLoading } = useClientMetrics(userId, undefined)
+  // Usar el hook existente para obtener datos reales con filtro de categoría
+  const { weeklyData, loading: metricsLoading } = useClientMetrics(userId, category)
+
+  // Obtener metas dinámicas desde el endpoint
+  useEffect(() => {
+    if (userId) {
+      fetchDynamicTargets()
+    }
+  }, [userId, category])
+
+  const fetchDynamicTargets = async () => {
+    try {
+      console.log('🎯 [DAILY_RINGS] Solicitando targets para category:', category);
+      const response = await fetch(`/api/client/targets?category=${category}`)
+      console.log('🎯 [DAILY_RINGS] Response status:', response.status);
+      
+      if (response.ok) {
+        const data = await response.json()
+        console.log('🎯 [DAILY_RINGS] Response completa:', data);
+        console.log('🎯 [DAILY_RINGS] Response targets:', data.targets);
+        console.log('🎯 [DAILY_RINGS] Response source:', data.source);
+        const { targets } = data
+        setDynamicTargets(targets)
+        console.log('🎯 DailyActivityRings: Metas dinámicas cargadas:', targets)
+      } else {
+        console.error('🎯 [DAILY_RINGS] Error response:', response.status, response.statusText);
+      }
+    } catch (error) {
+      console.error('🎯 [DAILY_RINGS] Error obteniendo metas dinámicas:', error)
+    }
+  }
 
   useEffect(() => {
     if (userId && weeklyData.length > 0) {
@@ -39,41 +72,31 @@ export function DailyActivityRings({ userId, selectedDate, onSelectDay }: DailyA
   const processWeeklyData = () => {
     setLoading(true)
     try {
-      // Calcular inicio y fin de la semana actual
-      const startOfWeek = new Date(currentWeek)
-      const day = startOfWeek.getDay()
-      const diff = startOfWeek.getDate() - day + (day === 0 ? -6 : 1)
-      startOfWeek.setDate(diff)
-      startOfWeek.setHours(0, 0, 0, 0)
-
       const weekData: DailyMetrics[] = []
       const dayNames = ['Lun', 'Mar', 'Mié', 'Jue', 'Vie', 'Sáb', 'Dom']
       
-      for (let i = 0; i < 7; i++) {
-        const date = new Date(startOfWeek)
-        date.setDate(startOfWeek.getDate() + i)
-        const dateString = date.toISOString().split('T')[0]
+      // weeklyData ya viene como semana actual (Lun-Dom) desde useClientMetrics
+      weeklyData.slice(0, 7).forEach((dayData, index) => {
+        const dateString = dayData.date
         
-        // Buscar datos reales para este día (comparar por fecha)
-        const dayData = weeklyData.find(d => d.date === dateString)
-        
-        console.log('📊 DailyActivityRings: Procesando día', {
-          dayData: dayData,
-          weeklyDataLength: weeklyData.length,
-          sampleWeeklyData: weeklyData[0]
+        console.log('📊 DailyActivityRings: Procesando día real', {
+          dateString,
+          dayData,
+          hasData: !!dayData
         })
         
         weekData.push({
           date: dateString,
-          dayName: dayNames[i],
+          dayName: dayNames[index % 7], // Ajustar día de la semana
           kcal: dayData?.kcal || 0,
-          kcalTarget: 500, // Meta diaria
+          kcalTarget: dynamicTargets.kcal,
           minutes: dayData?.minutes || 0,
-          minutesTarget: 60, // Meta diaria
+          minutesTarget: dynamicTargets.minutes,
           exercises: dayData?.exercises || 0,
-          exercisesTarget: 3 // Meta diaria
+          exercisesTarget: dayData?.target || 0,
+          category
         })
-      }
+      })
       
       setDailyData(weekData)
     } catch (error) {
@@ -114,19 +137,24 @@ export function DailyActivityRings({ userId, selectedDate, onSelectDay }: DailyA
     }
   }
 
-  const calculateOverallProgress = (day: DailyMetrics) => {
-    const kcalProgress = (day.kcal / day.kcalTarget) * 100
-    const minutesProgress = (day.minutes / day.minutesTarget) * 100
-    const exercisesProgress = (day.exercises / day.exercisesTarget) * 100
-    
-    return Math.round((kcalProgress + minutesProgress + exercisesProgress) / 3)
+  const getRingLabel = (category: string, index: number) => {
+    if (category === 'nutricion') {
+      return index === 2 ? 'Platos' : index === 1 ? '' : 'Kcal'
+    }
+    return index === 2 ? 'Ejerc' : index === 1 ? 'Min' : 'Kcal'
+  }
+
+  const shouldShowMiddleRing = (category: string, minutesTarget: number) => {
+    return category !== 'nutricion' && minutesTarget > 0
   }
 
   const ActivityRing = ({ progress, color, size = 36 }: { progress: number, color: string, size?: number }) => {
+    // Corregir NaN y valores inválidos
+    const safeProgress = isNaN(progress) || !isFinite(progress) ? 0 : Math.max(0, Math.min(100, progress));
     const radius = (size - 8) / 2
     const circumference = 2 * Math.PI * radius
     const strokeDasharray = circumference
-    const strokeDashoffset = circumference - (progress / 100) * circumference
+    const strokeDashoffset = circumference - (safeProgress / 100) * circumference
 
     return (
       <div className="relative" style={{ width: size, height: size }}>
@@ -202,14 +230,20 @@ export function DailyActivityRings({ userId, selectedDate, onSelectDay }: DailyA
       <div className="grid grid-cols-7 gap-2">
         {dailyData.map((day, index) => {
           const kcalProgress = Math.min((day.kcal / day.kcalTarget) * 100, 100)
-          const minutesProgress = Math.min((day.minutes / day.minutesTarget) * 100, 100)
+          const minutesProgress = day.minutesTarget > 0 ? Math.min((day.minutes / day.minutesTarget) * 100, 100) : 0
           const exercisesProgress = Math.min((day.exercises / day.exercisesTarget) * 100, 100)
+          const isHighlighted = highlightedDay === day.date
           
           return (
             <div
               key={day.date}
-              className="text-center cursor-pointer flex flex-col items-center"
-              onClick={() => onSelectDay && onSelectDay(day)}
+              className={`text-center cursor-pointer flex flex-col items-center rounded-lg p-1 transition-all ${
+                isHighlighted ? 'bg-blue-600/20 ring-2 ring-blue-400' : 'hover:bg-gray-800/50'
+              }`}
+              onClick={() => {
+                setHighlightedDay(day.date)
+                if (onSelectDay) onSelectDay(day)
+              }}
             >
               {/* Inicial del día - Perfectamente centrada arriba */}
               <div className="text-gray-400 text-xs font-medium mb-2 h-3 flex items-center justify-center w-full">
@@ -227,26 +261,26 @@ export function DailyActivityRings({ userId, selectedDate, onSelectDay }: DailyA
                   color="#FF6A00" 
                   size={40}
                 />
-                {/* Anillo medio - Minutos */}
-                <div className="absolute top-1 left-1">
-                  <ActivityRing 
-                    progress={minutesProgress} 
-                    color="#FF8C42" 
-                    size={32}
-                  />
-                </div>
-                {/* Anillo interior - Ejercicios */}
-                <div className="absolute top-2 left-2">
+                
+                {/* Anillo medio - Minutos (solo si aplica) */}
+                {shouldShowMiddleRing(day.category || 'fitness', day.minutesTarget) && (
+                  <div className="absolute top-1 left-1">
+                    <ActivityRing 
+                      progress={minutesProgress} 
+                      color="#FF8C42" 
+                      size={32}
+                    />
+                  </div>
+                )}
+                
+                {/* Anillo interior - Ejercicios/Platos */}
+                <div className={`absolute ${shouldShowMiddleRing(day.category || 'fitness', day.minutesTarget) ? 'top-2 left-2' : 'top-1 left-1'}`}>
                   <ActivityRing 
                     progress={exercisesProgress} 
                     color="#FFFFFF" 
-                    size={24}
+                    size={shouldShowMiddleRing(day.category || 'fitness', day.minutesTarget) ? 24 : 32}
                   />
                 </div>
-                {/* Indicador de selección */}
-                {selectedDate === day.date && (
-                  <div className="absolute inset-0 rounded-full ring-2 ring-[#FF6A00]/70" />
-                )}
               </div>
             </div>
           )

@@ -34,13 +34,14 @@ interface WeeklyData {
   minutes: number
   kcal: number
   exercises: number
+  target: number
 }
 
 export function useClientMetrics(clientId?: string, category?: 'fitness' | 'nutricion') {
   const [metrics, setMetrics] = useState<ClientMetrics>({
-    calories: { current: 0, target: 3500, percentage: 0 }, // Meta semanal: 500 kcal/día * 7 días
-    duration: { current: 0, target: 420, percentage: 0 }, // Meta semanal: 60 min/día * 7 días
-    exercises: { current: 0, target: 21, percentage: 0 }, // Meta semanal: 3 ejercicios/día * 7 días
+    calories: { current: 0, target: 500, percentage: 0 }, // Meta dinámica desde compras
+    duration: { current: 0, target: 60, percentage: 0 }, // Meta dinámica desde compras
+    exercises: { current: 0, target: 3, percentage: 0 }, // Meta dinámica desde compras
     weekly: {
       totalCalories: 0,
       totalMinutes: 0,
@@ -62,6 +63,18 @@ export function useClientMetrics(clientId?: string, category?: 'fitness' | 'nutr
   const fetchClientMetrics = async (clientId: string, category?: 'fitness' | 'nutricion') => {
     try {
       setLoading(true)
+      
+      // Obtener metas dinámicas desde compras del cliente
+      const targetsResponse = await fetch(`/api/client/targets?category=${category || 'fitness'}`)
+      let dynamicTargets = { kcal: 500, minutes: 60, exercises: 3, plates: 4 }
+      
+      if (targetsResponse.ok) {
+        const { targets } = await targetsResponse.json()
+        dynamicTargets = targets
+        console.log('🎯 Metas dinámicas obtenidas:', dynamicTargets)
+      } else {
+        console.log('⚠️ Usando metas por defecto')
+      }
       
       // Obtener fecha de inicio de la semana (lunes) en zona horaria local
       const today = new Date()
@@ -99,84 +112,105 @@ export function useClientMetrics(clientId?: string, category?: 'fitness' | 'nutr
 
 
       // 2. Calcular métricas semanales totales desde los datos del resumen
-      let weeklyExerciseCount = 0
+      let weeklyItemsCompleted = 0
+      let weeklyItemsTarget = 0
       let weeklyCalories = 0
       let weeklyDuration = 0
 
       weekData.forEach((record: any) => {
-        // Sumar ejercicios (para fitness) o platos (para nutrición)
+        const tipo = record.tipo
+        const ejerciciosCompletados = Number(record.ejercicios) || 0
+        const ejerciciosObjetivo = Number(record.ejercicios_objetivo) || 0
+        const platosCompletados = Number(record.platos_completados) || 0
+        const platosObjetivo = Number(record.platos_objetivo) || 0
+
         if (category === 'fitness') {
-          weeklyExerciseCount += Number(record.ejercicios) || 0
+          weeklyItemsCompleted += ejerciciosCompletados
+          weeklyItemsTarget += ejerciciosObjetivo
         } else if (category === 'nutricion') {
-          weeklyExerciseCount += Number(record.platos) || 0
+          weeklyItemsCompleted += platosCompletados
+          weeklyItemsTarget += platosObjetivo
         } else {
-          // Sin filtro: sumar ambos
-          weeklyExerciseCount += Number(record.ejercicios) || 0
-          weeklyExerciseCount += Number(record.platos) || 0
+          if (tipo === 'fitness') {
+            weeklyItemsCompleted += ejerciciosCompletados
+            weeklyItemsTarget += ejerciciosObjetivo
+          } else {
+            weeklyItemsCompleted += platosCompletados
+            weeklyItemsTarget += platosObjetivo
+          }
         }
 
-        // Sumar minutos (solo fitness tiene minutos)
         weeklyDuration += Number(record.minutos) || 0
-
-        // Sumar calorías (tanto fitness como nutrición tienen calorías)
         weeklyCalories += Number(record.calorias) || 0
       })
 
-      // 4. Calcular datos semanales por día - CORREGIDO PARA USAR FECHA_EJERCICIO
+      // 4. Calcular datos semanales por día - PROCESAR DATOS DIRECTAMENTE
       const weeklyMetrics: WeeklyData[] = []
       const daysOfWeek = ['Lun', 'Mar', 'Mié', 'Jue', 'Vie', 'Sáb', 'Dom']
       
-      // Calcular fechas de la semana actual
-      const weekDates: string[] = []
-      for (let i = 0; i < 7; i++) {
-        const date = new Date(startOfWeek)
-        date.setDate(startOfWeek.getDate() + i)
-        weekDates.push(date.toISOString().split('T')[0])
-      }
+      console.log('📊 useClientMetrics: Procesando datos directamente sin filtrar por fecha')
+      console.log('📊 useClientMetrics: Datos brutos recibidos:', progressSummary)
       
-      for (let i = 0; i < 7; i++) {
-        const dayDate = weekDates[i]
-        
-        // Agrupar registros por fecha (puede haber múltiples registros del mismo día si hay fitness y nutrición)
-        const dayRecords = weekData.filter((record: any) => record.fecha === dayDate)
-
-        let dayExerciseCount = 0
-        let dayCalories = 0
-        let dayDuration = 0
-
-        // Sumar todos los registros del día según el filtro
-        dayRecords.forEach((record: any) => {
-          if (category === 'fitness') {
-            // Solo sumar si es fitness
-            if (record.tipo === 'fitness') {
-              dayExerciseCount += Number(record.ejercicios) || 0
-              dayDuration += Number(record.minutos) || 0
-              dayCalories += Number(record.calorias) || 0
-            }
-          } else if (category === 'nutricion') {
-            // Solo sumar si es nutrición
-            if (record.tipo === 'nutricion') {
-              dayExerciseCount += Number(record.platos) || 0
-              dayCalories += Number(record.calorias) || 0
-            }
-          } else {
-            // Sin filtro: sumar ambos tipos
-            if (record.tipo === 'fitness') {
-              dayExerciseCount += Number(record.ejercicios) || 0
-              dayDuration += Number(record.minutos) || 0
-            } else {
-              dayExerciseCount += Number(record.platos) || 0
-            }
-            dayCalories += Number(record.calorias) || 0
-          }
+      // Debug: Mostrar estructura de datos crudos
+      console.log('🔍 Debug: Estructura de datos crudos:')
+      progressSummary.slice(0, 3).forEach((record: any, index: number) => {
+        console.log(`  Registro ${index}:`, {
+          fecha: record.fecha,
+          tipo: record.tipo,
+          ejercicios: record.ejercicios,
+          platos: record.platos,
+          minutos: record.minutos,
+          calorias: record.calorias
         })
+      })
+      
+      // 4. Datos semanales por día (Lun-Dom) agregando por fecha
+      const byDate: Record<string, { itemsCompleted: number; itemsTarget: number; minutes: number; kcal: number }> = {}
+      weekData.forEach((record: any) => {
+        const dayDate = record.fecha as string
+        if (!byDate[dayDate]) {
+          byDate[dayDate] = { itemsCompleted: 0, itemsTarget: 0, minutes: 0, kcal: 0 }
+        }
+
+        const tipo = record.tipo
+        const ejerciciosCompletados = Number(record.ejercicios) || 0
+        const ejerciciosObjetivo = Number(record.ejercicios_objetivo) || 0
+        const platosCompletados = Number(record.platos_completados) || 0
+        const platosObjetivo = Number(record.platos_objetivo) || 0
+
+        if (category === 'fitness') {
+          byDate[dayDate].itemsCompleted += ejerciciosCompletados
+          byDate[dayDate].itemsTarget += ejerciciosObjetivo
+        } else if (category === 'nutricion') {
+          byDate[dayDate].itemsCompleted += platosCompletados
+          byDate[dayDate].itemsTarget += platosObjetivo
+        } else {
+          if (tipo === 'fitness') {
+            byDate[dayDate].itemsCompleted += ejerciciosCompletados
+            byDate[dayDate].itemsTarget += ejerciciosObjetivo
+          } else {
+            byDate[dayDate].itemsCompleted += platosCompletados
+            byDate[dayDate].itemsTarget += platosObjetivo
+          }
+        }
+
+        byDate[dayDate].minutes += Number(record.minutos) || 0
+        byDate[dayDate].kcal += Number(record.calorias) || 0
+      })
+
+      for (let i = 0; i < 7; i++) {
+        const d = new Date(startOfWeek)
+        d.setDate(startOfWeek.getDate() + i)
+        const dateStr = d.toISOString().split('T')[0]
+        const dayAgg = byDate[dateStr] || { itemsCompleted: 0, itemsTarget: 0, minutes: 0, kcal: 0 }
 
         weeklyMetrics.push({
-          date: dayDate,
-          sessions: dayExerciseCount,
-          minutes: dayDuration,
-          kcal: dayCalories,
-          exercises: dayExerciseCount
+          date: dateStr,
+          sessions: dayAgg.itemsCompleted,
+          minutes: dayAgg.minutes,
+          kcal: dayAgg.kcal,
+          exercises: dayAgg.itemsCompleted,
+          target: dayAgg.itemsTarget
         })
       }
 
@@ -194,27 +228,31 @@ export function useClientMetrics(clientId?: string, category?: 'fitness' | 'nutr
         console.log('📅 No hay ejercicios completados esta semana')
       }
 
-      // 6. Actualizar estado con métricas semanales
+      // 6. Targets semanales
+      const weeklyKcalTarget = dynamicTargets.kcal * 7
+      const weeklyMinutesTarget = dynamicTargets.minutes * 7
+      const safeWeeklyItemsTarget = weeklyItemsTarget > 0 ? weeklyItemsTarget : 1
+      
       setMetrics({
         calories: {
           current: weeklyCalories,
-          target: 3500, // Meta semanal: 500 kcal/día * 7 días
-          percentage: Math.min((weeklyCalories / 3500) * 100, 100)
+          target: weeklyKcalTarget,
+          percentage: Math.min((weeklyCalories / weeklyKcalTarget) * 100, 100)
         },
         duration: {
           current: weeklyDuration,
-          target: 420, // Meta semanal: 60 min/día * 7 días
-          percentage: Math.min((weeklyDuration / 420) * 100, 100)
+          target: weeklyMinutesTarget,
+          percentage: Math.min((weeklyDuration / weeklyMinutesTarget) * 100, 100)
         },
         exercises: {
-          current: weeklyExerciseCount,
-          target: 21, // Meta semanal: 3 ejercicios/día * 7 días
-          percentage: Math.min((weeklyExerciseCount / 21) * 100, 100)
+          current: weeklyItemsCompleted,
+          target: weeklyItemsTarget,
+          percentage: Math.min((weeklyItemsCompleted / safeWeeklyItemsTarget) * 100, 100)
         },
         weekly: {
           totalCalories: weeklyCalories,
           totalMinutes: weeklyDuration,
-          totalExercises: weeklyExerciseCount,
+          totalExercises: weeklyItemsCompleted,
           activeDays: activeDays
         }
       })

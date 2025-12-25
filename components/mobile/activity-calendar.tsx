@@ -93,10 +93,11 @@ const ActivityCalendar = ({ userId }: ActivityCalendarProps) => {
   }
 
   const ActivityRing = ({ progress, color, size = 20 }: { progress: number, color: string, size?: number }) => {
+    const safeProgress = isNaN(progress) || !isFinite(progress) ? 0 : Math.max(0, Math.min(100, progress))
     const radius = (size - 4) / 2
     const circumference = 2 * Math.PI * radius
     const strokeDasharray = circumference
-    const strokeDashoffset = circumference - (progress / 100) * circumference
+    const strokeDashoffset = circumference - (safeProgress / 100) * circumference
 
     return (
       <div className="relative" style={{ width: size, height: size }}>

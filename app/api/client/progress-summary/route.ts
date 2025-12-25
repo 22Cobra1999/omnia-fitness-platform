@@ -36,7 +36,7 @@ export async function GET(request: NextRequest) {
     // Obtener datos de fitness
     const { data: fitnessData, error: fitnessError } = await supabase
       .from('progreso_cliente')
-      .select('id, fecha, actividad_id, ejercicios_completados, minutos_json, calorias_json')
+      .select('id, fecha, actividad_id, ejercicios_completados, ejercicios_pendientes, minutos_json, calorias_json')
       .eq('cliente_id', clienteId);
 
     if (fitnessError) {
@@ -46,7 +46,7 @@ export async function GET(request: NextRequest) {
     // Obtener datos de nutrición
     const { data: nutritionData, error: nutritionError } = await supabase
       .from('progreso_cliente_nutricion')
-      .select('id, fecha, actividad_id, ejercicios_completados, macros')
+      .select('id, fecha, actividad_id, ejercicios_completados, ejercicios_pendientes, macros')
       .eq('cliente_id', clienteId);
 
     if (nutritionError) {
@@ -54,9 +54,12 @@ export async function GET(request: NextRequest) {
     }
 
     // Procesar datos de fitness
-    const fitnessResults = (fitnessData || []).map(record => {
-      // Calcular ejercicios
+    const fitnessResults = (fitnessData || []).map((record: any) => {
       let ejercicios = 0;
+      let ejerciciosPendientes = 0;
+      let ejerciciosObjetivo = 0;
+      
+      // Fitness: ejercicios_completados/pendientes son JSON (generalmente object con keys)
       if (record.ejercicios_completados) {
         if (Array.isArray(record.ejercicios_completados)) {
           ejercicios = record.ejercicios_completados.length;
@@ -64,6 +67,16 @@ export async function GET(request: NextRequest) {
           ejercicios = Object.keys(record.ejercicios_completados).length;
         }
       }
+
+      if (record.ejercicios_pendientes) {
+        if (Array.isArray(record.ejercicios_pendientes)) {
+          ejerciciosPendientes = record.ejercicios_pendientes.length;
+        } else if (typeof record.ejercicios_pendientes === 'object') {
+          ejerciciosPendientes = Object.keys(record.ejercicios_pendientes).length;
+        }
+      }
+
+      ejerciciosObjetivo = ejercicios + ejerciciosPendientes;
 
       // Calcular minutos
       let minutos = 0;
@@ -90,26 +103,42 @@ export async function GET(request: NextRequest) {
       return {
         cliente_id: record.cliente_id || clienteId,
         fecha: record.fecha,
+        actividad_id: record.actividad_id,
         tipo: 'fitness' as const,
         ejercicios,
-        minutos: minutos.toString(),
+        ejercicios_objetivo: ejerciciosObjetivo,
+        minutos: minutos,
         calorias: calorias.toString(),
-        platos: 0,
+        platos_objetivo: 0,
+        platos_completados: 0,
         completado: ejercicios > 0
       };
     });
 
     // Procesar datos de nutrición
-    const nutritionResults = (nutritionData || []).map(record => {
-      // Calcular platos
-      let platos = 0;
-      if (record.ejercicios_completados) {
-        if (Array.isArray(record.ejercicios_completados)) {
-          platos = record.ejercicios_completados.length;
-        } else if (typeof record.ejercicios_completados === 'object') {
-          platos = Object.keys(record.ejercicios_completados).length;
-        }
+    const nutritionResults = (nutritionData || []).map((record: any) => {
+      // Nutrición: ejercicios_completados y ejercicios_pendientes tienen forma { ejercicios: [...] }
+      let platosCompletados = 0;
+      let platosPendientes = 0;
+
+      const ec = record.ejercicios_completados;
+      if (ec && typeof ec === 'object' && Array.isArray((ec as any).ejercicios)) {
+        platosCompletados = (ec as any).ejercicios.length;
       }
+
+      const ep = record.ejercicios_pendientes;
+      if (ep && typeof ep === 'object' && Array.isArray((ep as any).ejercicios)) {
+        platosPendientes = (ep as any).ejercicios.length;
+      }
+
+      const platosObjetivo = platosCompletados + platosPendientes;
+      
+      console.log('🍽️ [NUTRITION] Debug:', {
+        fecha: record.fecha,
+        ejercicios_completados: record.ejercicios_completados,
+        platos_contados: platosCompletados,
+        platos_objetivo: platosObjetivo
+      });
 
       // Calcular calorías desde macros
       let calorias = 0;
@@ -130,12 +159,15 @@ export async function GET(request: NextRequest) {
       return {
         cliente_id: record.cliente_id || clienteId,
         fecha: record.fecha,
+        actividad_id: record.actividad_id,
         tipo: 'nutricion' as const,
         ejercicios: 0,
-        minutos: '0',
+        ejercicios_objetivo: 0,
+        minutos: 0,
         calorias: calorias.toString(),
-        platos,
-        completado: platos > 0
+        platos_objetivo: platosObjetivo,
+        platos_completados: platosCompletados,
+        completado: platosCompletados > 0
       };
     });
 

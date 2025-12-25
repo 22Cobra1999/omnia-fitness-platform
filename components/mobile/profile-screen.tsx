@@ -285,7 +285,15 @@ export function ProfileScreen() {
       }
     }
   }, [injuries])
-  const [selectedDay, setSelectedDay] = useState<{ date: string; minutes: number; kcal: number; exercises: number } | null>(null)
+  const [selectedDay, setSelectedDay] = useState<{
+    date: string;
+    minutes: number;
+    minutesTarget: number;
+    kcal: number;
+    kcalTarget: number;
+    exercises: number;
+    exercisesTarget: number;
+  } | null>(null)
 
   const [isEditModalOpen, setIsEditModalOpen] = useState(false)
   const [editingSection, setEditingSection] = useState<string | null>(null)
@@ -309,9 +317,9 @@ export function ProfileScreen() {
   const source = useMemo(() => {
     return selectedDay
       ? {
-          calories: { current: selectedDay.kcal, target: 500, percentage: 0 },
-          duration: { current: selectedDay.minutes, target: 60, percentage: 0 },
-          exercises: { current: selectedDay.exercises, target: 3, percentage: 0 }
+          calories: { current: selectedDay.kcal, target: selectedDay.kcalTarget, percentage: 0 },
+          duration: { current: selectedDay.minutes, target: selectedDay.minutesTarget, percentage: 0 },
+          exercises: { current: selectedDay.exercises, target: selectedDay.exercisesTarget, percentage: 0 }
         }
       : metrics
   }, [selectedDay, metrics])
@@ -758,7 +766,18 @@ export function ProfileScreen() {
           <DailyActivityRings
             userId={user?.id}
             selectedDate={selectedDay?.date}
-            onSelectDay={(d: any) => setSelectedDay({ date: d.date, minutes: d.minutes, kcal: d.kcal, exercises: d.exercises })}
+            category={activityFilter}
+            onSelectDay={(d: any) =>
+              setSelectedDay({
+                date: d.date,
+                minutes: d.minutes,
+                minutesTarget: d.minutesTarget,
+                kcal: d.kcal,
+                kcalTarget: d.kcalTarget,
+                exercises: d.exercises,
+                exercisesTarget: d.exercisesTarget
+              })
+            }
           />
         </div>
         
@@ -766,7 +785,8 @@ export function ProfileScreen() {
           {/* Círculo principal más a la izquierda */}
           <div className="relative w-52 h-52">
             {activityRings.map((ring, index) => {
-              const percentage = Math.min((ring.current / ring.target) * 100, 100)
+              const rawPercentage = ring.target > 0 ? (ring.current / ring.target) * 100 : 0
+              const percentage = isNaN(rawPercentage) || !isFinite(rawPercentage) ? 0 : Math.max(0, Math.min(rawPercentage, 100))
               const radius = 50 - (index * 12) // Aumentar separación entre anillos
               const circumference = 2 * Math.PI * radius
               const strokeDasharray = circumference
