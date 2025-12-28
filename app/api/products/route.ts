@@ -2,6 +2,9 @@ import { NextRequest, NextResponse } from 'next/server'
 import { createRouteHandlerClient } from '@/lib/supabase/supabase-server'
 import { createClient } from '@supabase/supabase-js'
 
+export const dynamic = 'force-dynamic'
+export const runtime = 'nodejs'
+
 // Función para verificar y pausar productos automáticamente si exceden el límite
 async function checkAndPauseProductsIfNeeded(coachId: string) {
   try {
@@ -76,8 +79,19 @@ export async function GET(request: NextRequest) {
     const supabase = await createRouteHandlerClient()
     
     // Verificar autenticación
-    const { data: { user }, error: authError } = await supabase.auth.getUser()
-    if (authError || !user) {
+    let user = null as any
+    const { data: userData, error: authError } = await supabase.auth.getUser()
+    if (!authError && userData?.user) {
+      user = userData.user
+    } else {
+      // Fallback: en algunos entornos el access token no se resuelve bien con getUser(),
+      // pero la sesión sí está disponible.
+      const { data: sessionData } = await supabase.auth.getSession()
+      if (sessionData?.session?.user) {
+        user = sessionData.session.user
+      }
+    }
+    if (!user) {
       return NextResponse.json({ error: 'No autorizado' }, { status: 401 })
     }
     
@@ -129,7 +143,7 @@ export async function GET(request: NextRequest) {
     
     // Obtener media y estadísticas para cada producto
     const productsWithMedia = await Promise.all(
-      (productsToProcess || []).map(async (product) => {
+      (productsToProcess || []).map(async (product: any) => {
         // Ajustar capacity automáticamente si excede el límite
         // Verificar siempre, incluso si capacity es null o 0
         if (product.capacity !== null && product.capacity !== undefined) {
@@ -193,7 +207,7 @@ export async function GET(request: NextRequest) {
             .select('numero_semana')
             .eq('actividad_id', product.id)
           
-          const baseWeeksCheck = new Set(planificacionCheck?.map(p => p.numero_semana) || []).size
+          const baseWeeksCheck = new Set(planificacionCheck?.map((p: any) => p.numero_semana) || []).size
           const periodsCheck = periodosPaused?.cantidad_periodos || 1
           const weeksCountCheck = baseWeeksCheck * periodsCheck
           
@@ -372,7 +386,7 @@ export async function GET(request: NextRequest) {
           
           if (planificacion && planificacion.length > 0) {
             const diasConEjercicios = new Set()
-            planificacion.forEach(semana => {
+            planificacion.forEach((semana: any) => {
               ['lunes', 'martes', 'miercoles', 'jueves', 'viernes', 'sabado', 'domingo'].forEach(dia => {
                 if (semana[dia] && typeof semana[dia] === 'object' && semana[dia].ejercicios && Array.isArray(semana[dia].ejercicios) && semana[dia].ejercicios.length > 0) {
                   diasConEjercicios.add(dia)
@@ -398,7 +412,7 @@ export async function GET(request: NextRequest) {
           if (planificacion && planificacion.length > 0) {
             // Calcular días únicos con ejercicios ACTIVOS
             const diasConEjercicios = new Set()
-            planificacion.forEach(semana => {
+            planificacion.forEach((semana: any) => {
               ['lunes', 'martes', 'miercoles', 'jueves', 'viernes', 'sabado', 'domingo'].forEach(dia => {
                 if (semana[dia] && typeof semana[dia] === 'object' && semana[dia].ejercicios && Array.isArray(semana[dia].ejercicios)) {
                   // Filtrar solo ejercicios activos (activo !== false)
@@ -631,7 +645,7 @@ export async function GET(request: NextRequest) {
           // Obtener semanas para validar límites (semanas base * períodos)
           weeks: (() => {
             // Obtener semanas base desde planificacion_ejercicios
-            const planificacionWeeks = planificacion ? new Set(planificacion.map(p => p.numero_semana || p.semana)).size : 0
+            const planificacionWeeks = planificacion ? new Set(planificacion.map((p: any) => p.numero_semana || p.semana)).size : 0
             const periods = periodos?.cantidad_periodos || 1
             return planificacionWeeks * periods
           })(),
@@ -697,8 +711,7 @@ export async function POST(request: NextRequest) {
       .eq('coach_id', user.id)
     
     if (existingActivitiesError) {
-      console.error('❌ Error obteniendo actividades existentes para validar cupos totales:', existingActivitiesError)
-      return NextResponse.json({ error: 'No se pudo validar los cupos disponibles' }, { status: 500 })
+      console.warn('⚠️ Error obteniendo actividades existentes para validar cupos totales (se continúa sin validar totalClients):', existingActivitiesError)
     }
     
     const normalizeCapacity = (value: any) => {
@@ -711,7 +724,7 @@ export async function POST(request: NextRequest) {
       return 0
     }
     
-    const totalCapacityUsed = (existingActivities || [])
+    const totalCapacityUsed = ((existingActivitiesError ? [] : existingActivities) || [])
       .filter((activity) => {
         if (!activity?.type) return true
         const type = activity.type.toLowerCase()
@@ -835,10 +848,11 @@ export async function POST(request: NextRequest) {
         // Si hay PDFs por tema, guardar las URLs
         if (material.pdfType === 'by-topic' && material.topicPdfs) {
           for (const [topicTitle, topicPdf] of Object.entries(material.topicPdfs)) {
-            if (topicPdf && topicPdf.url && topicPdf.url.startsWith('http')) {
+            const topicPdfAny = topicPdf as any
+            if (topicPdfAny && topicPdfAny.url && String(topicPdfAny.url).startsWith('http')) {
               topicPdfUrls[topicTitle] = {
-                url: topicPdf.url,
-                fileName: topicPdf.fileName || null
+                url: topicPdfAny.url,
+                fileName: topicPdfAny.fileName || null
               }
             }
           }
@@ -955,8 +969,7 @@ export async function PUT(request: NextRequest) {
       .eq('coach_id', user.id)
     
     if (existingActivitiesError) {
-      console.error('❌ Error obteniendo actividades existentes para validar cupos totales:', existingActivitiesError)
-      return NextResponse.json({ error: 'No se pudo validar los cupos disponibles' }, { status: 500 })
+      console.warn('⚠️ Error obteniendo actividades existentes para validar cupos totales (se continúa sin validar totalClients):', existingActivitiesError)
     }
     
     const normalizeCapacity = (value: any) => {
@@ -972,12 +985,14 @@ export async function PUT(request: NextRequest) {
     const isDocumentProduct = typeof body.modality === 'string' && body.modality.toLowerCase() === 'document'
     
     // Obtener el capacity actual del producto que se está editando
-    const currentProductCapacity = (existingActivities || []).find(
+    const safeExistingActivities = ((existingActivitiesError ? [] : existingActivities) || [])
+
+    const currentProductCapacity = safeExistingActivities.find(
       (activity) => activity.id === body.editingProductId
     )?.capacity || null
     const currentProductCapacityNumber = normalizeCapacity(currentProductCapacity)
     
-    const otherCapacityUsed = (existingActivities || [])
+    const otherCapacityUsed = safeExistingActivities
       .filter((activity) => activity.id !== body.editingProductId)
       .filter((activity) => {
         if (!activity?.type) return true
@@ -1306,10 +1321,11 @@ export async function PUT(request: NextRequest) {
         // Si hay PDFs por tema, guardar las URLs
         if (material.pdfType === 'by-topic' && material.topicPdfs) {
           for (const [topicTitle, topicPdf] of Object.entries(material.topicPdfs)) {
-            if (topicPdf && topicPdf.url && topicPdf.url.startsWith('http')) {
+            const topicPdfAny = topicPdf as any
+            if (topicPdfAny && topicPdfAny.url && String(topicPdfAny.url).startsWith('http')) {
               topicPdfUrls[topicTitle] = {
-                url: topicPdf.url,
-                fileName: topicPdf.fileName || null
+                url: topicPdfAny.url,
+                fileName: topicPdfAny.fileName || null
               }
             }
           }

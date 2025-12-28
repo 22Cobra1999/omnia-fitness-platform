@@ -35,12 +35,12 @@ BEGIN
     ELSIF v_activity_type = 'nutrition_program' THEN
         INSERT INTO nutrition_program_details (
             día, semana, comida, nombre, calorías, proteínas, carbohidratos, peso,
-            receta, coach_id, activity_id, created_at, updated_at, video,
+            receta_id, coach_id, activity_id, created_at, updated_at, video,
             completed, completed_at, client_id, scheduled_date, video_url
         )
         SELECT
             npd.día, npd.semana, npd.comida, npd.nombre, npd.calorías, npd.proteínas, npd.carbohidratos, npd.peso,
-            npd.receta, npd.coach_id, NEW.activity_id, NOW(), NOW(), npd.video,
+            npd.receta_id, npd.coach_id, NEW.activity_id, NOW(), NOW(), npd.video,
             FALSE, NULL, NEW.client_id, NULL, npd.video_url
         FROM nutrition_program_details npd
         WHERE npd.activity_id = NEW.activity_id AND npd.client_id IS NULL; -- Only duplicate template rows

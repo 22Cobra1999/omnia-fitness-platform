@@ -218,6 +218,125 @@ export async function GET(request: NextRequest) {
         : null
     });
 
+    const normalizeNutritionContainerToMap = (raw: any): Record<string, { ejercicio_id: number; orden: number; bloque: number }> => {
+      if (!raw) return {}
+      if (typeof raw === 'string') {
+        try {
+          raw = JSON.parse(raw)
+        } catch {
+          return {}
+        }
+      }
+
+      if (raw && typeof raw === 'object' && !Array.isArray(raw) && Array.isArray((raw as any).ejercicios)) {
+        const map: Record<string, { ejercicio_id: number; orden: number; bloque: number }> = {}
+        ;((raw as any).ejercicios || []).forEach((x: any) => {
+          const id = Number(x?.id)
+          const orden = Number(x?.orden)
+          const bloque = Number(x?.bloque)
+          if (!Number.isFinite(id) || !Number.isFinite(orden) || !Number.isFinite(bloque)) return
+          const key = `${id}_${orden}`
+          map[key] = { ejercicio_id: id, orden, bloque }
+        })
+        return map
+      }
+
+      if (Array.isArray(raw)) {
+        const map: Record<string, { ejercicio_id: number; orden: number; bloque: number }> = {}
+        raw.forEach((k: any) => {
+          const key = String(k)
+          const [idStr, ordenStr] = key.split('_')
+          const id = Number(idStr)
+          const orden = Number(ordenStr)
+          if (!Number.isFinite(id) || !Number.isFinite(orden)) return
+          map[key] = { ejercicio_id: id, orden, bloque: 1 }
+        })
+        return map
+      }
+
+      if (raw && typeof raw === 'object') {
+        const map: Record<string, { ejercicio_id: number; orden: number; bloque: number }> = {}
+        Object.keys(raw).forEach((key) => {
+          const v = (raw as any)[key]
+          if (v && typeof v === 'object') {
+            const ejercicio_id = Number(v?.ejercicio_id ?? v?.id)
+            const orden = Number(v?.orden ?? key.split('_')[1])
+            const bloque = Number(v?.bloque ?? 1)
+            if (!Number.isFinite(ejercicio_id) || !Number.isFinite(orden) || !Number.isFinite(bloque)) return
+            map[String(key)] = { ejercicio_id, orden, bloque }
+          } else {
+            const [idStr, ordenStr] = String(key).split('_')
+            const ejercicio_id = Number(idStr)
+            const orden = Number(ordenStr)
+            if (!Number.isFinite(ejercicio_id) || !Number.isFinite(orden)) return
+            map[String(key)] = { ejercicio_id, orden, bloque: 1 }
+          }
+        })
+        return map
+      }
+
+      return {}
+    }
+
+    const normalizeNutritionContainerToCompletionKeySet = (raw: any): Set<string> => {
+      if (!raw) return new Set()
+      if (typeof raw === 'string') {
+        try {
+          raw = JSON.parse(raw)
+        } catch {
+          return new Set()
+        }
+      }
+
+      if (raw && typeof raw === 'object' && !Array.isArray(raw) && Array.isArray((raw as any).ejercicios)) {
+        const set = new Set<string>()
+        ;((raw as any).ejercicios || []).forEach((x: any) => {
+          const id = Number(x?.id)
+          const orden = Number(x?.orden)
+          const bloque = Number(x?.bloque)
+          if (!Number.isFinite(id) || !Number.isFinite(orden) || !Number.isFinite(bloque)) return
+          set.add(`${id}_${orden}_${bloque}`)
+        })
+        return set
+      }
+
+      if (Array.isArray(raw)) {
+        const set = new Set<string>()
+        raw.forEach((k: any) => {
+          const key = String(k)
+          const [idStr, ordenStr] = key.split('_')
+          const id = Number(idStr)
+          const orden = Number(ordenStr)
+          if (!Number.isFinite(id) || !Number.isFinite(orden)) return
+          set.add(`${id}_${orden}_1`)
+        })
+        return set
+      }
+
+      if (raw && typeof raw === 'object') {
+        const set = new Set<string>()
+        Object.keys(raw).forEach((key) => {
+          const v = (raw as any)[key]
+          if (v && typeof v === 'object') {
+            const id = Number(v?.ejercicio_id ?? v?.id)
+            const orden = Number(v?.orden ?? key.split('_')[1])
+            const bloque = Number(v?.bloque ?? 1)
+            if (!Number.isFinite(id) || !Number.isFinite(orden) || !Number.isFinite(bloque)) return
+            set.add(`${id}_${orden}_${bloque}`)
+          } else {
+            const [idStr, ordenStr] = String(key).split('_')
+            const id = Number(idStr)
+            const orden = Number(ordenStr)
+            if (!Number.isFinite(id) || !Number.isFinite(orden)) return
+            set.add(`${id}_${orden}_1`)
+          }
+        })
+        return set
+      }
+
+      return new Set()
+    }
+
     // 3. Obtener detalles de ejercicios
     let ejercicioIds: number[] = [];
     if (progressRecord) {
@@ -227,15 +346,17 @@ export async function GET(request: NextRequest) {
         let idsDeDetallesSeries: number[] = [];
         
         // Parsear ejercicios_pendientes una sola vez
-        const pendientesObj = progressRecord.ejercicios_pendientes 
+        const pendientesObjRaw = progressRecord.ejercicios_pendientes 
           ? (typeof progressRecord.ejercicios_pendientes === 'string' 
               ? JSON.parse(progressRecord.ejercicios_pendientes) 
               : progressRecord.ejercicios_pendientes)
           : {};
+        const pendientesObj = categoria === 'nutricion'
+          ? normalizeNutritionContainerToMap(pendientesObjRaw)
+          : pendientesObjRaw;
         
         if (categoria === 'nutricion') {
           // Para nutrición: extraer IDs desde ejercicios_pendientes
-          // pendientesObj es un objeto con keys como "753_3" y valores como {ejercicio_id: 753, orden: 3, bloque: 1}
           idsDeDetallesSeries = Object.values(pendientesObj)
             .map((item: any) => item?.ejercicio_id)
             .filter(id => id !== undefined && id !== null && !isNaN(Number(id)))
@@ -261,11 +382,14 @@ export async function GET(request: NextRequest) {
         }
         
         // completados es un objeto con keys únicos
-        const completadosObj = progressRecord.ejercicios_completados 
+        const completadosObjRaw = progressRecord.ejercicios_completados 
           ? (typeof progressRecord.ejercicios_completados === 'string' 
               ? JSON.parse(progressRecord.ejercicios_completados) 
               : progressRecord.ejercicios_completados)
           : {};
+        const completadosObj = categoria === 'nutricion'
+          ? normalizeNutritionContainerToMap(completadosObjRaw)
+          : completadosObjRaw;
         
         // Extraer IDs únicos de ambos objetos
         const idsCompletados = Object.values(completadosObj)
@@ -375,8 +499,8 @@ export async function GET(request: NextRequest) {
     if (categoria === 'nutricion') {
       console.log('🍽️ [API] Categoría nutrición: NO se consulta nutrition_program_details. Se usará SOLO progreso_cliente_nutricion (macros/receta/ejercicios_pendientes).', {
         ejercicioIds,
-        tiene_macros: !!progressRecord?.macros,
-        tiene_receta: !!progressRecord?.receta
+        tiene_macros: !!progressRecord && !!(progressRecord as any).macros,
+        tiene_receta: !!progressRecord && !!(progressRecord as any).receta
       });
       ejerciciosDetalles = []; // No necesitamos detalles adicionales de otra tabla
     } else {
@@ -406,34 +530,50 @@ export async function GET(request: NextRequest) {
     // Para fitness: usar detalles_series
     let sourceData: any = {};
     
+    let nutritionCompletionKeySet: Set<string> | null = null
     if (categoria === 'nutricion') {
       // Para nutrición: usar ejercicios_pendientes directamente
       console.log(`🔍 [API] ANTES de parsear ejercicios_pendientes:`, {
         progressRecord_exists: !!progressRecord,
-        ejercicios_pendientes_exists: !!progressRecord?.ejercicios_pendientes,
-        ejercicios_pendientes_type: typeof progressRecord?.ejercicios_pendientes,
-        ejercicios_pendientes_is_null: progressRecord?.ejercicios_pendientes === null,
-        ejercicios_pendientes_is_undefined: progressRecord?.ejercicios_pendientes === undefined,
-        ejercicios_pendientes_value_preview: progressRecord?.ejercicios_pendientes 
+        ejercicios_pendientes_exists: !!progressRecord && !!(progressRecord as any).ejercicios_pendientes,
+        ejercicios_pendientes_type: progressRecord ? typeof (progressRecord as any).ejercicios_pendientes : 'undefined',
+        ejercicios_pendientes_is_null: !progressRecord ? false : (progressRecord as any).ejercicios_pendientes === null,
+        ejercicios_pendientes_is_undefined: !progressRecord ? true : (progressRecord as any).ejercicios_pendientes === undefined,
+        ejercicios_pendientes_value_preview: progressRecord && (progressRecord as any).ejercicios_pendientes 
           ? (typeof progressRecord.ejercicios_pendientes === 'string' 
               ? progressRecord.ejercicios_pendientes.substring(0, 100) 
               : JSON.stringify(progressRecord.ejercicios_pendientes).substring(0, 100))
           : null
       });
       
-      if (progressRecord?.ejercicios_pendientes) {
+      const pendientesMap: any = {}
+      const completadosMap: any = {}
+
+      if (progressRecord && (progressRecord as any).ejercicios_pendientes) {
         try {
           // Supabase devuelve JSONB como objetos JavaScript directamente
           // Solo necesitamos parsear si es string
           if (typeof progressRecord.ejercicios_pendientes === 'string') {
-            sourceData = JSON.parse(progressRecord.ejercicios_pendientes);
+            Object.assign(pendientesMap, normalizeNutritionContainerToMap(progressRecord.ejercicios_pendientes));
           } else if (typeof progressRecord.ejercicios_pendientes === 'object' && progressRecord.ejercicios_pendientes !== null) {
-            // Ya es un objeto, usarlo directamente
-            sourceData = progressRecord.ejercicios_pendientes;
+            // Ya es un objeto, normalizarlo (soporta schema nuevo y legacy)
+            Object.assign(pendientesMap, normalizeNutritionContainerToMap(progressRecord.ejercicios_pendientes));
           } else {
             console.error(`❌ [API] ejercicios_pendientes tiene un tipo inesperado:`, typeof progressRecord.ejercicios_pendientes);
-            sourceData = {};
           }
+
+          if (progressRecord && (progressRecord as any).ejercicios_completados) {
+            try {
+              Object.assign(completadosMap, normalizeNutritionContainerToMap(progressRecord.ejercicios_completados));
+            } catch (e) {
+              console.error(`❌ [API] Error normalizando ejercicios_completados:`, e);
+            }
+          }
+
+          nutritionCompletionKeySet = normalizeNutritionContainerToCompletionKeySet(progressRecord.ejercicios_completados)
+
+          // Para nutrición: mostrar tanto pendientes como completados
+          sourceData = { ...pendientesMap, ...completadosMap }
           
           // Verificar que sourceData sea un objeto válido
           if (typeof sourceData !== 'object' || sourceData === null || Array.isArray(sourceData)) {
@@ -451,7 +591,16 @@ export async function GET(request: NextRequest) {
         }
       } else {
         console.warn(`⚠️ [API] progressRecord.ejercicios_pendientes no existe o es null`);
-        sourceData = {};
+        if (progressRecord && (progressRecord as any).ejercicios_completados) {
+          try {
+            nutritionCompletionKeySet = normalizeNutritionContainerToCompletionKeySet(progressRecord.ejercicios_completados)
+            sourceData = normalizeNutritionContainerToMap(progressRecord.ejercicios_completados)
+          } catch (e) {
+            sourceData = {}
+          }
+        } else {
+          sourceData = {};
+        }
       }
       
       console.log(`📋 [API] Usando ejercicios_pendientes para nutrición:`, {
@@ -475,9 +624,9 @@ export async function GET(request: NextRequest) {
       keys: Object.keys(sourceData).slice(0, 10),
       sourceData_is_empty: Object.keys(sourceData).length === 0,
       progressRecord_exists: !!progressRecord,
-      progressRecord_ejercicios_pendientes_exists: !!progressRecord?.ejercicios_pendientes,
-      progressRecord_ejercicios_pendientes_type: typeof progressRecord?.ejercicios_pendientes,
-      progressRecord_ejercicios_pendientes_value: progressRecord?.ejercicios_pendientes 
+      progressRecord_ejercicios_pendientes_exists: !!progressRecord && !!(progressRecord as any).ejercicios_pendientes,
+      progressRecord_ejercicios_pendientes_type: progressRecord ? typeof (progressRecord as any).ejercicios_pendientes : 'undefined',
+      progressRecord_ejercicios_pendientes_value: progressRecord && (progressRecord as any).ejercicios_pendientes 
         ? (typeof progressRecord.ejercicios_pendientes === 'string' 
             ? progressRecord.ejercicios_pendientes.substring(0, 200)
             : JSON.stringify(progressRecord.ejercicios_pendientes).substring(0, 200))
@@ -489,12 +638,12 @@ export async function GET(request: NextRequest) {
     if (Object.keys(sourceData).length === 0) {
       console.warn(`⚠️ [API] sourceData está vacío para ${categoria}. Devolviendo actividades vacías.`, {
         categoria,
-        progressRecord_id: progressRecord?.id,
-        progressRecord_fecha: progressRecord?.fecha,
-        ejercicios_pendientes_raw: progressRecord?.ejercicios_pendientes,
-        ejercicios_pendientes_type: typeof progressRecord?.ejercicios_pendientes,
-        ejercicios_pendientes_is_null: progressRecord?.ejercicios_pendientes === null,
-        ejercicios_pendientes_is_undefined: progressRecord?.ejercicios_pendientes === undefined
+        progressRecord_id: progressRecord ? (progressRecord as any).id : null,
+        progressRecord_fecha: progressRecord ? (progressRecord as any).fecha : null,
+        ejercicios_pendientes_raw: progressRecord ? (progressRecord as any).ejercicios_pendientes : null,
+        ejercicios_pendientes_type: progressRecord ? typeof (progressRecord as any).ejercicios_pendientes : 'undefined',
+        ejercicios_pendientes_is_null: !progressRecord ? false : (progressRecord as any).ejercicios_pendientes === null,
+        ejercicios_pendientes_is_undefined: !progressRecord ? true : (progressRecord as any).ejercicios_pendientes === undefined
       });
       return NextResponse.json({
         success: true,
@@ -567,7 +716,9 @@ export async function GET(request: NextRequest) {
       }
       
       // Verificar si está completado usando el key único
-      const isCompleted = completados && typeof completados === 'object' && key in completados;
+      const isCompleted = categoria === 'nutricion'
+        ? (nutritionCompletionKeySet ? nutritionCompletionKeySet.has(`${detalle.ejercicio_id}_${detalle.orden}_${detalle.bloque}`) : false)
+        : (completados && typeof completados === 'object' && key in completados);
       
       // Para nutrición: obtener datos directamente de macrosParsed, recetaParsed e ingredientesParsed usando la key
       let macrosData: any = null;
@@ -634,31 +785,29 @@ export async function GET(request: NextRequest) {
       } else {
         // Para fitness: usar caloriasJson o ejercicio.calorias
         const caloriasKey = `${detalle.ejercicio_id}_${detalle.orden}`;
-        caloriasFinal = caloriasJson[caloriasKey] || caloriasJson[detalle.ejercicio_id] || ejercicio?.calorias || null;
+        caloriasFinal = caloriasJson[caloriasKey] || caloriasJson[detalle.ejercicio_id] || (ejercicio as any)?.calorias || null;
       }
-      
+
       // Construir objeto transformado
       const transformedExercise: any = {
-        id: `${progressRecord?.id || 0}-${detalle.ejercicio_id}-${key}`,
+        id: `${(progressRecord ? (progressRecord as any).id : 0) || 0}-${detalle.ejercicio_id}-${key}`,
         exercise_id: detalle.ejercicio_id,
         nombre_ejercicio: nombreFinal,
         name: nombreFinal,
-        type: ejercicio?.tipo || 'general',
-        tipo: ejercicio?.tipo || 'general',
-        description: ejercicio?.descripcion || '',
-        descripcion: ejercicio?.descripcion || '',
-        completed: isCompleted,
-        intensity: categoria === 'nutricion' ? null : (ejercicio?.intensidad || 'Principiante'),
-        day: null,
-        block: detalle.bloque,
+        tipo: categoria,
+        type: categoria,
         bloque: detalle.bloque,
-        order: detalle.orden,
+        block: detalle.bloque,
         orden: detalle.orden,
+        order: detalle.orden,
+        done: isCompleted,
+        completed: isCompleted,
+        day: null,
+        date: today,
         series: detalle.detalle_series || null,
         detalle_series: detalle.detalle_series || null,
         formatted_series: detalle.detalle_series || null,
-        date: today,
-        video_url: ejercicio?.video_url || null,
+        video_url: categoria === 'nutricion' ? null : (ejercicio?.video_url || null),
         duracion_minutos: minutosFinal,
         duracion_min: minutosFinal,
         duration: minutosFinal,

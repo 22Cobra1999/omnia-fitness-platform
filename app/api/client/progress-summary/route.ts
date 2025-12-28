@@ -1,7 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { createRouteHandlerClient } from '@/lib/supabase/supabase-server';
-import { readFileSync } from 'fs';
-import { join } from 'path';
 
 /**
  * GET /api/client/progress-summary
@@ -23,173 +21,116 @@ export async function GET(request: NextRequest) {
 
     const { searchParams } = new URL(request.url);
     const clienteId = searchParams.get('cliente_id') || user.id;
-    const categoria = searchParams.get('categoria'); // 'fitness' o 'nutricion' o null para todos
+    const startDate = searchParams.get('start_date'); // YYYY-MM-DD
+    const endDate = searchParams.get('end_date'); // YYYY-MM-DD
 
-    // Leer la query SQL
-    const queryPath = join(process.cwd(), 'db', 'queries', 'client-progress-summary.sql');
-    const query = readFileSync(queryPath, 'utf-8');
-
-    // Ejecutar la query usando RPC o directamente
-    // Como Supabase no permite ejecutar queries SQL arbitrarias desde el cliente,
-    // vamos a replicar la lógica en TypeScript
-    
-    // Obtener datos de fitness
-    const { data: fitnessData, error: fitnessError } = await supabase
-      .from('progreso_cliente')
-      .select('id, fecha, actividad_id, ejercicios_completados, ejercicios_pendientes, minutos_json, calorias_json')
-      .eq('cliente_id', clienteId);
-
-    if (fitnessError) {
-      console.error('Error obteniendo datos fitness:', fitnessError);
+    if (!startDate || !endDate) {
+      return NextResponse.json(
+        { error: 'Missing start_date/end_date' },
+        { status: 400 }
+      );
     }
 
-    // Obtener datos de nutrición
-    const { data: nutritionData, error: nutritionError } = await supabase
-      .from('progreso_cliente_nutricion')
-      .select('id, fecha, actividad_id, ejercicios_completados, ejercicios_pendientes, macros')
-      .eq('cliente_id', clienteId);
+    const clamp01 = (n: number) => Math.max(0, Math.min(1, n));
+    const safeDiv = (a: number, b: number) => (b > 0 ? a / b : 0);
 
-    if (nutritionError) {
-      console.error('Error obteniendo datos nutrición:', nutritionError);
+    const { data: rows, error: summaryError } = await supabase
+      .from('progreso_cliente_daily_summary')
+      .select(
+        [
+          'fecha',
+          'cliente_id',
+          'platos_objetivo',
+          'platos_completados',
+          'platos_pendientes',
+          'nutri_kcal',
+          'nutri_kcal_objetivo',
+          'nutri_mins',
+          'nutri_mins_objetivo',
+          'ejercicios_objetivo',
+          'ejercicios_completados',
+          'ejercicios_pendientes',
+          'fitness_kcal',
+          'fitness_kcal_objetivo',
+          'fitness_mins',
+          'fitness_mins_objetivo'
+        ].join(',')
+      )
+      .eq('cliente_id', clienteId)
+      .gte('fecha', startDate)
+      .lte('fecha', endDate)
+      .order('fecha', { ascending: true });
+
+    if (summaryError) {
+      console.error('Error obteniendo daily summary:', summaryError);
+      return NextResponse.json(
+        { error: 'Error obteniendo daily summary', details: summaryError.message },
+        { status: 500 }
+      );
     }
 
-    // Procesar datos de fitness
-    const fitnessResults = (fitnessData || []).map((record: any) => {
-      let ejercicios = 0;
-      let ejerciciosPendientes = 0;
-      let ejerciciosObjetivo = 0;
-      
-      // Fitness: ejercicios_completados/pendientes son JSON (generalmente object con keys)
-      if (record.ejercicios_completados) {
-        if (Array.isArray(record.ejercicios_completados)) {
-          ejercicios = record.ejercicios_completados.length;
-        } else if (typeof record.ejercicios_completados === 'object') {
-          ejercicios = Object.keys(record.ejercicios_completados).length;
-        }
-      }
+    const byDate: Record<string, any> = {}
+    ;(rows || []).forEach((r: any) => {
+      byDate[String(r.fecha).slice(0, 10)] = r
+    })
 
-      if (record.ejercicios_pendientes) {
-        if (Array.isArray(record.ejercicios_pendientes)) {
-          ejerciciosPendientes = record.ejercicios_pendientes.length;
-        } else if (typeof record.ejercicios_pendientes === 'object') {
-          ejerciciosPendientes = Object.keys(record.ejercicios_pendientes).length;
-        }
-      }
+    const start = new Date(`${startDate}T00:00:00`)
+    const end = new Date(`${endDate}T00:00:00`)
+    const out: any[] = []
+    for (let d = new Date(start); d <= end; d.setDate(d.getDate() + 1)) {
+      const y = d.getFullYear()
+      const m = String(d.getMonth() + 1).padStart(2, '0')
+      const day = String(d.getDate()).padStart(2, '0')
+      const key = `${y}-${m}-${day}`
+      const r = byDate[key] || { fecha: key, cliente_id: clienteId }
 
-      ejerciciosObjetivo = ejercicios + ejerciciosPendientes;
+      const nutriKcal = Number(r.nutri_kcal) || 0
+      const nutriKcalObj = Number(r.nutri_kcal_objetivo) || 0
+      const nutriMins = Number(r.nutri_mins) || 0
+      const nutriMinsObj = Number(r.nutri_mins_objetivo) || 0
+      const platosComp = Number(r.platos_completados) || 0
+      const platosObj = Number(r.platos_objetivo) || 0
 
-      // Calcular minutos
-      let minutos = 0;
-      if (record.minutos_json) {
-        const minutosObj = typeof record.minutos_json === 'string' 
-          ? JSON.parse(record.minutos_json) 
-          : record.minutos_json;
-        Object.values(minutosObj).forEach((min: any) => {
-          minutos += Number(min) || 0;
-        });
-      }
+      const fitKcal = Number(r.fitness_kcal) || 0
+      const fitKcalObj = Number(r.fitness_kcal_objetivo) || 0
+      const fitMins = Number(r.fitness_mins) || 0
+      const fitMinsObj = Number(r.fitness_mins_objetivo) || 0
+      const ejComp = Number(r.ejercicios_completados) || 0
+      const ejObj = Number(r.ejercicios_objetivo) || 0
 
-      // Calcular calorías
-      let calorias = 0;
-      if (record.calorias_json) {
-        const caloriasObj = typeof record.calorias_json === 'string'
-          ? JSON.parse(record.calorias_json)
-          : record.calorias_json;
-        Object.values(caloriasObj).forEach((cal: any) => {
-          calorias += Number(cal) || 0;
-        });
-      }
+      out.push({
+        fecha: key,
+        cliente_id: clienteId,
 
-      return {
-        cliente_id: record.cliente_id || clienteId,
-        fecha: record.fecha,
-        actividad_id: record.actividad_id,
-        tipo: 'fitness' as const,
-        ejercicios,
-        ejercicios_objetivo: ejerciciosObjetivo,
-        minutos: minutos,
-        calorias: calorias.toString(),
-        platos_objetivo: 0,
-        platos_completados: 0,
-        completado: ejercicios > 0
-      };
-    });
+        platos_objetivo: platosObj,
+        platos_completados: platosComp,
+        platos_pendientes: Number(r.platos_pendientes) || 0,
+        nutri_kcal: nutriKcal,
+        nutri_kcal_objetivo: nutriKcalObj,
+        nutri_mins: nutriMins,
+        nutri_mins_objetivo: nutriMinsObj,
 
-    // Procesar datos de nutrición
-    const nutritionResults = (nutritionData || []).map((record: any) => {
-      // Nutrición: ejercicios_completados y ejercicios_pendientes tienen forma { ejercicios: [...] }
-      let platosCompletados = 0;
-      let platosPendientes = 0;
+        ejercicios_objetivo: ejObj,
+        ejercicios_completados: ejComp,
+        ejercicios_pendientes: Number(r.ejercicios_pendientes) || 0,
+        fitness_kcal: fitKcal,
+        fitness_kcal_objetivo: fitKcalObj,
+        fitness_mins: fitMins,
+        fitness_mins_objetivo: fitMinsObj,
 
-      const ec = record.ejercicios_completados;
-      if (ec && typeof ec === 'object' && Array.isArray((ec as any).ejercicios)) {
-        platosCompletados = (ec as any).ejercicios.length;
-      }
+        nutri_kcal_progress: clamp01(safeDiv(nutriKcal, nutriKcalObj)),
+        nutri_mins_progress: clamp01(safeDiv(nutriMins, nutriMinsObj)),
+        platos_progress: clamp01(safeDiv(platosComp, platosObj)),
 
-      const ep = record.ejercicios_pendientes;
-      if (ep && typeof ep === 'object' && Array.isArray((ep as any).ejercicios)) {
-        platosPendientes = (ep as any).ejercicios.length;
-      }
-
-      const platosObjetivo = platosCompletados + platosPendientes;
-      
-      console.log('🍽️ [NUTRITION] Debug:', {
-        fecha: record.fecha,
-        ejercicios_completados: record.ejercicios_completados,
-        platos_contados: platosCompletados,
-        platos_objetivo: platosObjetivo
-      });
-
-      // Calcular calorías desde macros
-      let calorias = 0;
-      if (record.macros) {
-        const macrosObj = typeof record.macros === 'string'
-          ? JSON.parse(record.macros)
-          : record.macros;
-        Object.values(macrosObj).forEach((macro: any) => {
-          if (typeof macro === 'object' && macro !== null) {
-            const proteinas = Number(macro.proteinas || macro.proteina || 0) || 0;
-            const carbohidratos = Number(macro.carbohidratos || macro.carbs || 0) || 0;
-            const grasas = Number(macro.grasas || macro.grasa || 0) || 0;
-            calorias += (proteinas * 4) + (carbohidratos * 4) + (grasas * 9);
-          }
-        });
-      }
-
-      return {
-        cliente_id: record.cliente_id || clienteId,
-        fecha: record.fecha,
-        actividad_id: record.actividad_id,
-        tipo: 'nutricion' as const,
-        ejercicios: 0,
-        ejercicios_objetivo: 0,
-        minutos: 0,
-        calorias: calorias.toString(),
-        platos_objetivo: platosObjetivo,
-        platos_completados: platosCompletados,
-        completado: platosCompletados > 0
-      };
-    });
-
-    // Combinar resultados
-    let allResults = [...fitnessResults, ...nutritionResults];
-
-    // Filtrar por categoría si se especifica
-    if (categoria) {
-      allResults = allResults.filter(r => r.tipo === categoria);
+        fitness_kcal_progress: clamp01(safeDiv(fitKcal, fitKcalObj)),
+        fitness_mins_progress: clamp01(safeDiv(fitMins, fitMinsObj)),
+        ejercicios_progress: clamp01(safeDiv(ejComp, ejObj))
+      })
     }
-
-    // Ordenar por fecha y tipo
-    allResults.sort((a, b) => {
-      if (a.fecha !== b.fecha) {
-        return a.fecha.localeCompare(b.fecha);
-      }
-      return a.tipo.localeCompare(b.tipo);
-    });
 
     return NextResponse.json({
       success: true,
-      data: allResults
+      data: out
     });
 
   } catch (error: any) {

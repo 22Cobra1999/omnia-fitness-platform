@@ -8,7 +8,7 @@ import { useAuth } from "@/contexts/auth-context";
 import { ActivitySurveyModal } from "../activities/activity-survey-modal";
 import { StartActivityModal } from "../activities/StartActivityModal";
 import { StartActivityInfoModal } from "../activities/StartActivityInfoModal";
-import { Flame, Edit, X, Save, Clock, Zap, ChevronLeft, ChevronRight } from 'lucide-react';
+import { Flame, Edit, X, Save, Clock, Zap, ChevronLeft, ChevronRight, ChevronDown, ChevronUp } from 'lucide-react';
 import { SettingsIcon } from '@/components/shared/ui/settings-icon';
 import { MessagesIcon } from '@/components/shared/ui/messages-icon';
 import { OmniaLogoText } from '@/components/shared/ui/omnia-logo';
@@ -287,26 +287,35 @@ export default function TodayScreen({ activityId, onBack }: { activityId: string
         .select('fecha, ejercicios_pendientes, ejercicios_completados')
         .eq('cliente_id', user.id)
         .eq('actividad_id', activityId)
-        .gte('fecha', selectedDateString) // Buscar desde la fecha seleccionada
+        .gte('fecha', selectedDateString)
         .lte('fecha', endDateString)
-        .order('fecha');
+        .order('fecha', { ascending: true });
 
-      console.log('🔍 [findNextAvailableActivity] Registros de progreso encontrados:', { 
+      console.log('🔍 [findNextAvailableActivity] Registros de progreso encontrados:', {
         cantidad: progresoRecords?.length || 0,
-        registros: progresoRecords?.map((r: any) => ({
+        registros: progresoRecords?.slice(0, 3).map((r: any) => ({
           fecha: r.fecha,
-          tiene_pendientes: !!r.ejercicios_pendientes,
-          pendientes_type: typeof r.ejercicios_pendientes,
-          pendientes_keys_count: r.ejercicios_pendientes 
-            ? (typeof r.ejercicios_pendientes === 'string' 
-                ? Object.keys(JSON.parse(r.ejercicios_pendientes)).length 
-                : Object.keys(r.ejercicios_pendientes).length)
-            : 0
+          pendientes_keys_count: (() => {
+            try {
+              if (!r.ejercicios_pendientes) return 0
+              const pendientes = typeof r.ejercicios_pendientes === 'string'
+                ? JSON.parse(r.ejercicios_pendientes)
+                : r.ejercicios_pendientes
+              if (pendientes && typeof pendientes === 'object' && !Array.isArray(pendientes) && Array.isArray((pendientes as any).ejercicios)) {
+                return ((pendientes as any).ejercicios || []).length
+              }
+              return pendientes && typeof pendientes === 'object' && !Array.isArray(pendientes)
+                ? Object.keys(pendientes).length
+                : 0
+            } catch {
+              return 0
+            }
+          })()
         })),
         error: error ? {
-          code: error.code,
-          message: error.message,
-          details: error.details
+          code: (error as any).code,
+          message: (error as any).message,
+          details: (error as any).details
         } : null
       });
 
@@ -336,8 +345,13 @@ export default function TodayScreen({ activityId, onBack }: { activityId: string
           const pendientes = typeof record.ejercicios_pendientes === 'string' 
             ? JSON.parse(record.ejercicios_pendientes) 
             : record.ejercicios_pendientes;
-          hasPendingExercises = pendientes && typeof pendientes === 'object' && !Array.isArray(pendientes) && Object.keys(pendientes).length > 0;
-          pendientesKeysCount = hasPendingExercises ? Object.keys(pendientes).length : 0;
+          if (pendientes && typeof pendientes === 'object' && !Array.isArray(pendientes) && Array.isArray((pendientes as any).ejercicios)) {
+            pendientesKeysCount = ((pendientes as any).ejercicios || []).length
+            hasPendingExercises = pendientesKeysCount > 0
+          } else {
+            hasPendingExercises = pendientes && typeof pendientes === 'object' && !Array.isArray(pendientes) && Object.keys(pendientes).length > 0;
+            pendientesKeysCount = hasPendingExercises ? Object.keys(pendientes).length : 0;
+          }
         } catch (e) {
           console.error('❌ [findNextAvailableActivity] Error parseando ejercicios_pendientes:', e);
           hasPendingExercises = false;
@@ -390,6 +404,9 @@ export default function TodayScreen({ activityId, onBack }: { activityId: string
               const p = typeof r.ejercicios_pendientes === 'string' 
                 ? JSON.parse(r.ejercicios_pendientes) 
                 : r.ejercicios_pendientes;
+              if (p && typeof p === 'object' && !Array.isArray(p) && Array.isArray((p as any).ejercicios)) {
+                return ((p as any).ejercicios || []).length > 0
+              }
               return p && typeof p === 'object' && !Array.isArray(p) && Object.keys(p).length > 0;
             } catch {
               return false;
@@ -1351,22 +1368,30 @@ export default function TodayScreen({ activityId, onBack }: { activityId: string
 
     const blockActivities = activities.filter(activity => activity.bloque === blockNumber);
     console.log(`📋 Ejercicios del bloque ${blockNumber}:`, blockActivities.map(a => ({ id: a.id, name: a.title, done: a.done })));
-    
-    const isCompleted = isBlockCompleted(blockNumber);
-    const newCompletedState = !isCompleted;
-    console.log(`🔄 Toggle bloque ${blockNumber}: ${isCompleted} → ${newCompletedState}`);
+
+    const allCompleted = blockActivities.length > 0 && blockActivities.every(a => a.done);
+    const activitiesToToggle = allCompleted
+      ? blockActivities.filter(a => a.done)
+      : blockActivities.filter(a => !a.done);
+
+    console.log(`🔄 Toggle bloque ${blockNumber}:`, {
+      allCompleted,
+      total: blockActivities.length,
+      toToggle: activitiesToToggle.length
+    });
 
     try {
-      // Usar toggleExerciseSimple para cada ejercicio del bloque
-      const togglePromises = blockActivities.map(activity => {
-        console.log(`🔄 Toggleando ejercicio ${activity.id} del bloque ${blockNumber} a: ${newCompletedState}`);
+      // Si el bloque está incompleto: completar faltantes.
+      // Si el bloque está completo: desmarcar todo el bloque.
+      const togglePromises = activitiesToToggle.map(activity => {
+        console.log(`🔄 Toggleando ejercicio ${activity.id} del bloque ${blockNumber} (done actual: ${activity.done})`);
         return toggleExerciseSimple(activity.id);
       });
 
       // Esperar a que todos los toggles se completen
       await Promise.all(togglePromises);
       
-      console.log(`✅ Bloque ${blockNumber} toggleado exitosamente a: ${newCompletedState}`);
+      console.log(`✅ Bloque ${blockNumber} toggleado exitosamente`);
       
       // Recargar estados de días para sincronizar
       await loadDayStatuses();
@@ -1413,7 +1438,8 @@ export default function TodayScreen({ activityId, onBack }: { activityId: string
         executionId: ejercicioId,
         bloque,
         orden,
-        fecha: currentDate
+        fecha: currentDate,
+        activityId
       });
       
       const response = await fetch('/api/toggle-exercise', {
@@ -1425,7 +1451,9 @@ export default function TodayScreen({ activityId, onBack }: { activityId: string
           executionId: ejercicioId,
           bloque,
           orden,
-          fecha: currentDate
+          fecha: currentDate,
+          categoria: programInfo?.categoria || enrollment?.activity?.categoria,
+          activityId: Number(activityId)
         })
       });
 
@@ -4803,36 +4831,32 @@ export default function TodayScreen({ activityId, onBack }: { activityId: string
                           )}
                         </div>
                         
-                          <div 
-                            onClick={(e) => {
-                              e.stopPropagation();
-                              // Activar modo de edición para el bloque
-                              const firstActivity = blockActivities[0];
-                              if (firstActivity) {
-                                const parsed = parseSeries(firstActivity.detalle_series || firstActivity.series);
-                                const initialSeries = parsed.map((s: any) => ({
-                                  id: s?.id ?? 0,
-                                  reps: String(s?.reps || '0'),
-                                  kg: String(s?.kg || '0'),
-                                  series: String(s?.sets || (s as any)?.series || '0')
-                                }));
-                                setEditableSeries(initialSeries);
-                                setOriginalSeries(JSON.parse(JSON.stringify(initialSeries)));
-                                setEditingBlockIndex(editingBlockIndex === null ? 0 : null);
-                              }
-                            }}
-                            style={{
-                              cursor: 'pointer',
-                              transition: 'transform 0.2s ease',
-                              color: editingBlockIndex !== null ? '#FF6B35' : 'rgba(255, 255, 255, 0.6)',
-                              padding: '4px'
-                            }}
-                          >
-                            ✎
-                          </div>
+                        <div
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            toggleBlock(blockNumber);
+                          }}
+                          style={{
+                            cursor: 'pointer',
+                            transition: 'transform 0.2s ease',
+                            color: 'rgba(255, 255, 255, 0.6)',
+                            padding: '4px',
+                            display: 'flex',
+                            alignItems: 'center',
+                            justifyContent: 'center'
+                          }}
+                          aria-label={isCollapsed ? 'Expandir bloque' : 'Colapsar bloque'}
+                        >
+                          {isCollapsed ? (
+                            <ChevronDown size={18} />
+                          ) : (
+                            <ChevronUp size={18} />
+                          )}
+                        </div>
                       </div>
                     </div>
                     
+                    {!isCollapsed && (
                     <div style={{ 
                         marginTop: 8,
                         paddingLeft: 0
@@ -5131,6 +5155,7 @@ export default function TodayScreen({ activityId, onBack }: { activityId: string
                           </div>
                         </div>
                       </div>
+                    )}
                   </div>
                 );
               })}

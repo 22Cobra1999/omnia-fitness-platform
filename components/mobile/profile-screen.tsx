@@ -197,7 +197,33 @@ export function ProfileScreen() {
 
   const { user } = useAuth()
   const [activityFilter, setActivityFilter] = useState<'fitness' | 'nutricion'>('fitness')
-  const { metrics, weeklyData, loading: metricsLoading } = useClientMetrics(user?.id, activityFilter)
+  const [ringsWeek, setRingsWeek] = useState(new Date())
+  const { metrics, weeklyData, loading: metricsLoading } = useClientMetrics(user?.id, activityFilter, ringsWeek)
+
+  const [selectedDay, setSelectedDay] = useState<{
+    date: string;
+    minutes: number;
+    minutesTarget: number;
+    kcal: number;
+    kcalTarget: number;
+    exercises: number;
+    exercisesTarget: number;
+  } | null>(null)
+
+  useEffect(() => {
+    console.log('🧿 [RINGS][PROFILE] Filtro cambiado:', {
+      activityFilter,
+      userId: user?.id,
+      selectedDay: selectedDay?.date || null
+    })
+  }, [activityFilter, user?.id])
+
+  useEffect(() => {
+    console.log('🧿 [RINGS][PROFILE] selectedDay actualizado:', {
+      activityFilter,
+      selectedDay
+    })
+  }, [selectedDay, activityFilter])
   
   // Determinar si es coach basado en el rol del usuario (antes de cargar)
   const isUserCoach = user?.level === 'coach'
@@ -285,15 +311,6 @@ export function ProfileScreen() {
       }
     }
   }, [injuries])
-  const [selectedDay, setSelectedDay] = useState<{
-    date: string;
-    minutes: number;
-    minutesTarget: number;
-    kcal: number;
-    kcalTarget: number;
-    exercises: number;
-    exercisesTarget: number;
-  } | null>(null)
 
   const [isEditModalOpen, setIsEditModalOpen] = useState(false)
   const [editingSection, setEditingSection] = useState<string | null>(null)
@@ -767,7 +784,20 @@ export function ProfileScreen() {
             userId={user?.id}
             selectedDate={selectedDay?.date}
             category={activityFilter}
-            onSelectDay={(d: any) =>
+            currentWeek={ringsWeek}
+            onWeekChange={(w) => {
+              console.log('🧿 [RINGS][PROFILE] Semana cambiada (desde DailyActivityRings):', {
+                activityFilter,
+                from: ringsWeek.toISOString(),
+                to: w.toISOString()
+              })
+              setRingsWeek(w)
+            }}
+            onSelectDay={(d: any) => {
+              console.log(' [RINGS][PROFILE] Click día en anillos:', {
+                activityFilter,
+                day: d
+              })
               setSelectedDay({
                 date: d.date,
                 minutes: d.minutes,
@@ -777,7 +807,7 @@ export function ProfileScreen() {
                 exercises: d.exercises,
                 exercisesTarget: d.exercisesTarget
               })
-            }
+            }}
           />
         </div>
         
@@ -830,7 +860,13 @@ export function ProfileScreen() {
           <div className="flex flex-col space-y-3 items-end">
             <div
               className="text-xs text-gray-400 mb-2 cursor-pointer"
-              onClick={() => setSelectedDay(null)}
+              onClick={() => {
+                console.log('🧿 [RINGS][PROFILE] Click volver a semanal:', {
+                  activityFilter,
+                  prevSelectedDay: selectedDay?.date || null
+                })
+                setSelectedDay(null)
+              }}
             >
               {selectedDay ? 'Volver a Semanal' : 'Semanal'}
             </div>

@@ -55,13 +55,25 @@ export function ClientsScreen() {
       try {
         setLoading(true)
         
-        const response = await fetch('/api/coach/clients')
+        const response = await fetch('/api/coach/clients', {
+          credentials: 'include'
+        })
         const data = await response.json()
 
+        console.log('👥 ClientsScreen: Respuesta /api/coach/clients', {
+          status: response.status,
+          ok: response.ok,
+          success: data?.success,
+          clientsCount: data?.clients?.length || 0,
+          debug: data?.debug,
+          error: data?.error,
+          warning: data?.warning
+        })
 
-        if (data.success) {
+
+        if (response.ok && data.success) {
           if (data.clients && data.clients.length > 0) {
-            console.log('👥 ClientsScreen: Clientes cargados', data.clients.map(client => ({
+            console.log('👥 ClientsScreen: Clientes cargados', data.clients.map((client: any) => ({
               id: client.id,
               name: client.name,
               email: client.email,
@@ -93,11 +105,22 @@ export function ClientsScreen() {
     try {
       setLoadingDetail(true)
       
-      const response = await fetch(`/api/coach/clients/${clientId}/details`)
+      const response = await fetch(`/api/coach/clients/${clientId}/details`, {
+        credentials: 'include'
+      })
       const data = await response.json()
+
+      console.log('👤 ClientsScreen: Respuesta /api/coach/clients/[id]/details', {
+        status: response.status,
+        ok: response.ok,
+        success: data?.success,
+        hasClient: !!data?.client,
+        error: data?.error,
+        stats: data?.stats
+      })
       
       
-      if (data.success && data.client) {
+      if (response.ok && data.success && data.client) {
         console.log('👤 ClientsScreen: Detalles del cliente cargados', {
           id: data.client.id,
           name: data.client.name,

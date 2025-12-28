@@ -40,7 +40,7 @@ export async function GET(request: NextRequest) {
       return NextResponse.json({ error: 'Error obteniendo actividades' }, { status: 500 })
     }
 
-    const activityIds = activities?.map(a => a.id) || []
+    const activityIds = activities?.map((a: any) => a.id) || []
 
     // Obtener todos los archivos de activity_media del coach
     const baseColumns = [
@@ -91,6 +91,7 @@ export async function GET(request: NextRequest) {
     // ✅ OBTENER TODOS LOS bunny_video_id ÚNICOS DEL COACH Y SU INFORMACIÓN
     const coachBunnyVideoIds = new Set<string>()
     const videosMap = new Map<string, any>()
+    const nonBunnyVideosMap = new Map<string, any>() // key: video_url
     
     // Función helper para extraer guid de una URL de Bunny
     const extractBunnyGuidFromUrl = (url: string): string | null => {
@@ -158,6 +159,21 @@ export async function GET(request: NextRequest) {
               video_file_name: item.video_file_name || null
             })
           }
+        } else if (item.video_url && String(item.video_url).trim() !== '') {
+          // Fallback: guardar videos sin bunny_video_id (por video_url)
+          const urlKey = String(item.video_url).trim()
+          if (!nonBunnyVideosMap.has(urlKey)) {
+            nonBunnyVideosMap.set(urlKey, {
+              video_url: urlKey,
+              bunny_video_id: null,
+              bunny_library_id: item.bunny_library_id || null,
+              video_thumbnail_url: item.video_thumbnail_url || null,
+              activity_id: item.activity_id,
+              video_file_name: item.video_file_name || null,
+              nombre_ejercicio: null,
+              nombre_plato: null
+            })
+          }
         }
       })
     }
@@ -196,6 +212,25 @@ export async function GET(request: NextRequest) {
               activity_id: ejercicio.activity_id,
               video_file_name: ejercicio.video_file_name || null,
               nombre_ejercicio: ejercicio.nombre_ejercicio || null
+            })
+          }
+        } else if (ejercicio.video_url && String(ejercicio.video_url).trim() !== '') {
+          const urlKey = String(ejercicio.video_url).trim()
+          const existing = nonBunnyVideosMap.get(urlKey)
+          if (
+            !existing ||
+            (!existing.video_thumbnail_url && ejercicio.video_thumbnail_url) ||
+            (!existing.nombre_ejercicio && ejercicio.nombre_ejercicio)
+          ) {
+            nonBunnyVideosMap.set(urlKey, {
+              video_url: urlKey,
+              bunny_video_id: null,
+              bunny_library_id: ejercicio.bunny_library_id || null,
+              video_thumbnail_url: ejercicio.video_thumbnail_url || null,
+              activity_id: ejercicio.activity_id,
+              video_file_name: ejercicio.video_file_name || null,
+              nombre_ejercicio: ejercicio.nombre_ejercicio || null,
+              nombre_plato: null
             })
           }
         }
@@ -237,16 +272,61 @@ export async function GET(request: NextRequest) {
               nombre_plato: plato.nombre_plato || null
             })
           }
+        } else if (plato.video_url && String(plato.video_url).trim() !== '') {
+          const urlKey = String(plato.video_url).trim()
+          const existing = nonBunnyVideosMap.get(urlKey)
+          if (
+            !existing ||
+            (!existing.video_thumbnail_url && plato.video_thumbnail_url) ||
+            (!existing.nombre_plato && plato.nombre_plato)
+          ) {
+            nonBunnyVideosMap.set(urlKey, {
+              video_url: urlKey,
+              bunny_video_id: null,
+              bunny_library_id: plato.bunny_library_id || null,
+              video_thumbnail_url: plato.video_thumbnail_url || null,
+              activity_id: plato.activity_id,
+              video_file_name: plato.video_file_name || null,
+              nombre_ejercicio: null,
+              nombre_plato: plato.nombre_plato || null
+            })
+          }
         }
       })
     }
+
+    const nonBunnyVideos = Array.from(nonBunnyVideosMap.entries()).map(([videoUrl, dbInfo]) => {
+      const activity = activities?.find((a: any) => a.id === dbInfo.activity_id)
+      const videoFileName =
+        dbInfo.video_file_name ||
+        dbInfo.nombre_ejercicio ||
+        dbInfo.nombre_plato ||
+        (videoUrl ? `video_${String(videoUrl).substring(0, 12)}.mp4` : 'video.mp4')
+
+      return {
+        id: videoUrl,
+        activity_id: dbInfo.activity_id || null,
+        image_url: null,
+        video_url: dbInfo.video_url || null,
+        pdf_url: null,
+        bunny_video_id: null,
+        bunny_library_id: dbInfo.bunny_library_id || null,
+        video_thumbnail_url: dbInfo.video_thumbnail_url || null,
+        video_file_name: dbInfo.video_file_name || null,
+        activity_title: activity?.title || null,
+        nombre_ejercicio: dbInfo.nombre_ejercicio || null,
+        nombre_plato: dbInfo.nombre_plato || null,
+        filename: videoFileName,
+        media_type: 'video'
+      }
+    })
 
     console.log(`🔍 [COACH-MEDIA] Coach tiene ${coachBunnyVideoIds.size} videos únicos en BD`, Array.from(coachBunnyVideoIds))
     console.log(`🔍 [COACH-MEDIA] Videos en videosMap: ${videosMap.size}`, Array.from(videosMap.keys()).slice(0, 10))
 
     // ✅ CONSULTA DETALLADA A LA BASE DE DATOS PARA DIAGNÓSTICO
     console.log('🔍 [COACH-MEDIA] === DIAGNÓSTICO DE BASE DE DATOS ===')
-    console.log(`🔍 [COACH-MEDIA] Actividades del coach: ${activities?.length || 0}`, activities?.map(a => ({ id: a.id, title: a.title })))
+    console.log(`🔍 [COACH-MEDIA] Actividades del coach: ${activities?.length || 0}`, activities?.map((a: any) => ({ id: a.id, title: a.title })))
     console.log(`🔍 [COACH-MEDIA] Media de activity_media: ${media?.length || 0} videos`)
     if (media && media.length > 0) {
       const videosInActivityMedia = media.filter((m: any) => m.video_url)
@@ -290,9 +370,40 @@ export async function GET(request: NextRequest) {
 
     if (!streamApiKey || !streamLibraryId) {
       console.error('❌ [COACH-MEDIA] Bunny no está configurado correctamente. Faltan variables de entorno.')
-      return NextResponse.json({ 
-        media: [],
-        total: 0,
+
+      // Fallback: devolver lo que exista en BD (activity_media / ejercicios_detalles / platos_detalles)
+      // sin consultar la API de Bunny.
+      const fallbackMedia = Array.from(videosMap.entries()).map(([bunnyVideoId, dbInfo]) => {
+        const activity = activities?.find((a: any) => a.id === dbInfo.activity_id)
+        const videoFileName =
+          dbInfo.video_file_name ||
+          dbInfo.nombre_ejercicio ||
+          dbInfo.nombre_plato ||
+          (bunnyVideoId ? `video_${String(bunnyVideoId).substring(0, 12)}.mp4` : 'video.mp4')
+
+        return {
+          id: bunnyVideoId,
+          activity_id: dbInfo.activity_id || null,
+          image_url: null,
+          video_url: dbInfo.video_url || null,
+          pdf_url: null,
+          bunny_video_id: bunnyVideoId,
+          bunny_library_id: dbInfo.bunny_library_id || null,
+          video_thumbnail_url: dbInfo.video_thumbnail_url || null,
+          video_file_name: dbInfo.video_file_name || null,
+          activity_title: activity?.title || null,
+          nombre_ejercicio: dbInfo.nombre_ejercicio || null,
+          nombre_plato: dbInfo.nombre_plato || null,
+          filename: videoFileName,
+          media_type: 'video'
+        }
+      })
+
+      const merged = [...fallbackMedia, ...nonBunnyVideos]
+
+      return NextResponse.json({
+        media: merged,
+        total: merged.length,
         error: 'Bunny no está configurado correctamente'
       })
     }
@@ -379,7 +490,7 @@ export async function GET(request: NextRequest) {
       formattedMedia = Array.from(uniqueVideosMap.values()).map((bunnyVideo: any) => {
         // Buscar información en BD si existe (opcional, para enriquecer datos)
         const dbInfo = videosMap.get(bunnyVideo.guid) || {}
-        const activity = activities?.find(a => a.id === dbInfo.activity_id)
+        const activity = activities?.find((a: any) => a.id === dbInfo.activity_id)
         
         // Priorizar: video_file_name de BD > title de Bunny > fallback
         const videoFileName = dbInfo.video_file_name || 
@@ -429,7 +540,7 @@ export async function GET(request: NextRequest) {
       
       formattedMedia = Array.from(videosMap.entries())
         .map(([bunnyVideoId, dbInfo]) => {
-          const activity = activities?.find(a => a.id === dbInfo.activity_id)
+          const activity = activities?.find((a: any) => a.id === dbInfo.activity_id)
           
           // Construir video_url desde BD (si existe) o generar desde guid
           let videoUrl = dbInfo.video_url
@@ -464,6 +575,18 @@ export async function GET(request: NextRequest) {
             media_type: 'video'
           }
         })
+    }
+
+    // Agregar videos sin bunny_video_id (por video_url) para cubrir todos los productos/ejercicios/platos del coach
+    if (nonBunnyVideos.length > 0) {
+      const existingUrls = new Set<string>()
+      formattedMedia.forEach((m: any) => {
+        if (m?.video_url) existingUrls.add(String(m.video_url))
+      })
+      const extra = nonBunnyVideos.filter((m: any) => m?.video_url && !existingUrls.has(String(m.video_url)))
+      if (extra.length > 0) {
+        formattedMedia = [...formattedMedia, ...extra]
+      }
     }
 
     console.log(`📤 [COACH-MEDIA] === RESUMEN FINAL ===`)

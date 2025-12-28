@@ -41,6 +41,12 @@ const sanitizeNullable = (value: any) => {
   return value
 }
 
+const coerceTextNullable = (value: any) => {
+  if (value === undefined || value === null) return null
+  const s = String(value).trim()
+  return s.length > 0 ? s : null
+}
+
 const normalizeTipo = (value: string | undefined) => {
   const allowedTipos = new Set([
     'desayuno',
@@ -221,6 +227,38 @@ export async function POST(request: NextRequest) {
       const dificultadesValidas = ['Bajo', 'Medio', 'Alto', 'Principiante', 'Intermedio', 'Avanzado']
       const dificultad = dificultadesValidas.includes(rawDificultad) ? rawDificultad : 'Principiante'
       
+      const recetaText = coerceTextNullable(receta || (plato as any)['Receta'] || (plato as any)['Descripción'] || (plato as any).Descripción)
+      let receta_id: number | null = null
+
+      if (recetaText) {
+        const { data: recetaInserted, error: recetaError } = await supabaseService
+          .from('recetas')
+          .insert({ receta: recetaText })
+          .select('id')
+          .single()
+
+        if (recetaError) {
+          console.error('❌ BULK NUTRITION: Error insertando receta:', {
+            tempId,
+            nombre: sanitizedName,
+            error: recetaError.message,
+            code: recetaError.code,
+            details: recetaError.details
+          })
+          failures.push({
+            tempId,
+            rawId: id,
+            nombre: sanitizedName,
+            motivo: 'insert-recipe-error',
+            detalles: recetaError.message
+          })
+          results.push({ id: null, tempId, error: recetaError.message })
+          continue
+        }
+
+        receta_id = recetaInserted?.id ?? null
+      }
+
       const record: any = {
         nombre: sanitizedName,
         tipo: normalizeTipo(rawTipo || 'otro'),
@@ -228,11 +266,14 @@ export async function POST(request: NextRequest) {
         proteinas: NORMALIZE_NUMBER(proteinas || (plato as any)['Proteínas']),
         carbohidratos: NORMALIZE_NUMBER(carbohidratos || (plato as any)['Carbohidratos']),
         grasas: NORMALIZE_NUMBER(grasas || (plato as any)['Grasas']),
-        receta: sanitizeNullable(receta || (plato as any)['Receta'] || (plato as any)['Descripción'] || (plato as any).Descripción),
         dificultad: dificultad,
         video_url: sanitizeNullable(video_url ? sanitizeText(video_url) : null),
         coach_id: user.id,
         activity_id: activityId
+      }
+
+      if (receta_id) {
+        record.receta_id = receta_id
       }
       
       // Agregar campos opcionales si existen

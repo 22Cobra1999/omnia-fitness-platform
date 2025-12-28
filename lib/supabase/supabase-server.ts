@@ -80,8 +80,11 @@ export async function createRouteHandlerClient() {
 export function createServiceRoleClient() {
   const { createClient: createSupabaseClient } = require('@supabase/supabase-js')
   
-  const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL
-  const serviceRoleKey = process.env.SUPABASE_SERVICE_ROLE_KEY
+  const supabaseUrlRaw = process.env.NEXT_PUBLIC_SUPABASE_URL
+  const serviceRoleKeyRaw = process.env.SUPABASE_SERVICE_ROLE_KEY
+
+  const supabaseUrl = typeof supabaseUrlRaw === 'string' ? supabaseUrlRaw.trim() : supabaseUrlRaw
+  const serviceRoleKey = typeof serviceRoleKeyRaw === 'string' ? serviceRoleKeyRaw.trim() : serviceRoleKeyRaw
   
   if (!supabaseUrl || !serviceRoleKey) {
     // Durante build, retornar cliente placeholder

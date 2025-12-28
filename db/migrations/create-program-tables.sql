@@ -59,7 +59,7 @@ CREATE TABLE IF NOT EXISTS nutrition_program_details (
     proteínas NUMERIC,
     carbohidratos NUMERIC,
     peso VARCHAR(255),
-    receta TEXT,
+    receta_id BIGINT REFERENCES public.recetas(id),
     coach_id UUID REFERENCES profiles(id),
     activity_id INTEGER REFERENCES activities(id) ON DELETE CASCADE,
     created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),

@@ -37,3 +37,6 @@ END $$;
 COMMENT ON COLUMN activity_enrollments.program_end_date IS 
 'Fecha de finalización del programa: última fecha de progreso_cliente/progreso_cliente_nutricion + 6 días. Permite al coach extender hasta 6 días después de la última fecha de progreso.';
 
+
+
+

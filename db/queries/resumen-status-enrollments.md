@@ -113,3 +113,6 @@
 3. **"activa"**: `start_date IS NOT NULL` AND (`program_end_date IS NULL` OR `program_end_date >= CURRENT_DATE`)
 4. **"pendiente"**: `start_date IS NULL` AND (`expiration_date IS NULL` OR `expiration_date >= CURRENT_DATE`)
 
+
+
+

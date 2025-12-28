@@ -103,9 +103,25 @@ export function MercadoPagoConnection() {
 
       if (response.ok && result.success) {
         setUserInfo(result.user);
+      } else {
+        // 404 = el coach todavía no conectó Mercado Pago (estado esperado)
+        if (response.status === 404) {
+          setUserInfo(null);
+          return;
+        }
+
+        // Otros estados no OK: no romper UI ni spamear consola
+        setUserInfo(null);
+        console.warn('⚠️ MercadoPagoConnection: no se pudo obtener user-info', {
+          status: response.status,
+          error: result?.error,
+          details: result?.details
+        })
       }
     } catch (error: any) {
-      console.error('Error cargando info de usuario:', error);
+      console.warn('⚠️ MercadoPagoConnection: error de red obteniendo user-info', {
+        message: error?.message
+      })
     } finally {
       setLoadingUserInfo(false);
     }

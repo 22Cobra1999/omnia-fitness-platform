@@ -175,3 +175,6 @@ WHERE (
   OR last_nutrition.fecha < CURRENT_DATE
 );
 
+
+
+

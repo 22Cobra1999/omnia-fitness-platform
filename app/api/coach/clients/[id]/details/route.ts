@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { createClient } from '@supabase/supabase-js'
+import { createRouteHandlerClient } from '@/lib/supabase/supabase-server'
 
 // Hacer la ruta dinámica para evitar evaluación durante el build
 export const dynamic = 'force-dynamic'
@@ -10,19 +10,21 @@ export async function GET(
   { params }: { params: Promise<{ id: string }> }
 ) {
   try {
-    // Crear cliente dentro de la función para evitar evaluación durante build
-    const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL
-    const supabaseServiceKey = process.env.SUPABASE_SERVICE_ROLE_KEY
-
-    if (!supabaseUrl || !supabaseServiceKey) {
-      console.error('Missing Supabase environment variables')
-      return NextResponse.json(
-        { success: false, error: 'Server configuration error' },
-        { status: 500 }
-      )
+    const supabase = await createRouteHandlerClient()
+    let user = null as any
+    const { data: userData, error: userError } = await supabase.auth.getUser()
+    if (!userError && userData?.user) {
+      user = userData.user
+    } else {
+      const { data: sessionData } = await supabase.auth.getSession()
+      if (sessionData?.session?.user) {
+        user = sessionData.session.user
+      }
+    }
+    if (!user) {
+      return NextResponse.json({ success: false, error: 'No autenticado' }, { status: 401 })
     }
 
-    const supabase = createClient(supabaseUrl, supabaseServiceKey)
     const { id: clientId } = await params
     
 
@@ -77,10 +79,11 @@ export async function GET(
         activity_id
       `)
       .eq('client_id', clientId)
-      .eq('status', 'activa')
+      // Incluir estados válidos en ES/EN para que aparezcan también compras de nutrición
+      .in('status', ['activa', 'active', 'pendiente', 'pending'])
 
     // Calcular progreso de objetivos
-    const objectivesWithProgress = objectives?.map(obj => ({
+    const objectivesWithProgress = objectives?.map((obj: any) => ({
       ...obj,
       progress_percentage: obj.objective > 0 ? Math.round((obj.current_value / obj.objective) * 100) : 0
     })) || []
@@ -88,15 +91,15 @@ export async function GET(
     // Obtener detalles de las actividades
     let activitiesDetails = []
     if (enrollments && enrollments.length > 0) {
-      const activityIds = enrollments.map(e => e.activity_id)
+      const activityIds = enrollments.map((e: any) => e.activity_id)
       const { data: activities, error: activitiesError } = await supabase
         .from('activities')
         .select('id, title, type, amount_paid')
         .in('id', activityIds)
       
       if (activities) {
-        activitiesDetails = enrollments.map(enrollment => {
-          const activity = activities.find(a => a.id === enrollment.activity_id)
+        activitiesDetails = enrollments.map((enrollment: any) => {
+          const activity = activities.find((a: any) => String(a.id) === String(enrollment.activity_id))
           return {
             id: activity?.id || enrollment.activity_id,
             title: activity?.title || 'Actividad',
@@ -108,11 +111,23 @@ export async function GET(
     }
 
     // Calcular métricas del cliente
-    const totalRevenue = activitiesDetails?.reduce((sum, activity) => 
+    const totalRevenue = activitiesDetails?.reduce((sum: number, activity: any) => 
       sum + (activity.amountPaid || 0), 0) || 0
     
-    const todoCount = enrollments?.reduce((sum, enrollment) => 
-      sum + (enrollment.todo_list?.length || 0), 0) || 0
+    const todoCount = enrollments?.reduce((sum: number, enrollment: any) => {
+      const raw = enrollment?.todo_list
+      if (!raw) return sum
+      if (Array.isArray(raw)) return sum + raw.length
+      if (typeof raw === 'string') {
+        try {
+          const parsed = JSON.parse(raw)
+          return sum + (Array.isArray(parsed) ? parsed.length : 0)
+        } catch {
+          return sum
+        }
+      }
+      return sum
+    }, 0) || 0
 
     // Calcular edad a partir de birth_date
     const calculateAge = (birthDate: string) => {

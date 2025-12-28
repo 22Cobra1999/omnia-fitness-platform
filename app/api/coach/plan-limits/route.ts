@@ -24,10 +24,32 @@ export async function GET(request: NextRequest) {
       return NextResponse.json({ error: 'Coach no encontrado' }, { status: 404 })
     }
 
+    const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL
+    const serviceRoleKey = process.env.SUPABASE_SERVICE_ROLE_KEY
+
+    if (!supabaseUrl || !serviceRoleKey) {
+      const planType: PlanType = 'free'
+      const limits = {
+        activitiesPerProduct: getPlanLimit(planType, 'activitiesPerProduct'),
+        weeksPerProduct: getPlanLimit(planType, 'weeksPerProduct'),
+        stockPerProduct: getPlanLimit(planType, 'stockPerProduct'),
+        activeProducts: getPlanLimit(planType, 'activeProducts'),
+        totalClients: getPlanLimit(planType, 'totalClients'),
+        clientsPerProduct: getPlanLimit(planType, 'clientsPerProduct')
+      }
+
+      return NextResponse.json({
+        success: true,
+        planType,
+        limits,
+        warning: 'Service role key no configurada; usando límites de plan free'
+      })
+    }
+
     // Crear cliente con service role para obtener el plan
     const supabaseService = createClient(
-      process.env.NEXT_PUBLIC_SUPABASE_URL!,
-      process.env.SUPABASE_SERVICE_ROLE_KEY!
+      supabaseUrl,
+      serviceRoleKey
     )
 
     // Obtener el plan activo del coach
@@ -42,11 +64,22 @@ export async function GET(request: NextRequest) {
 
     if (planError) {
       console.error('Error obteniendo plan:', planError)
-      return NextResponse.json({ 
-        success: false, 
-        error: 'Error al obtener plan',
-        details: planError.message 
-      }, { status: 500 })
+      const planType: PlanType = 'free'
+      const limits = {
+        activitiesPerProduct: getPlanLimit(planType, 'activitiesPerProduct'),
+        weeksPerProduct: getPlanLimit(planType, 'weeksPerProduct'),
+        stockPerProduct: getPlanLimit(planType, 'stockPerProduct'),
+        activeProducts: getPlanLimit(planType, 'activeProducts'),
+        totalClients: getPlanLimit(planType, 'totalClients'),
+        clientsPerProduct: getPlanLimit(planType, 'clientsPerProduct')
+      }
+
+      return NextResponse.json({
+        success: true,
+        planType,
+        limits,
+        warning: planError.message
+      })
     }
 
     // Obtener el tipo de plan (por defecto 'free')

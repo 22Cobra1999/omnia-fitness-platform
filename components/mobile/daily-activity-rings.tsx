@@ -22,52 +22,43 @@ interface DailyActivityRingsProps {
   selectedDate?: string
   category?: 'fitness' | 'nutricion'
   onSelectDay?: (day: DailyMetrics) => void
+  currentWeek?: Date
+  onWeekChange?: (week: Date) => void
 }
 
-export function DailyActivityRings({ userId, selectedDate, category = 'fitness', onSelectDay }: DailyActivityRingsProps) {
-  const [currentWeek, setCurrentWeek] = useState(new Date())
+export function DailyActivityRings({ userId, selectedDate, category = 'fitness', onSelectDay, currentWeek: controlledWeek, onWeekChange }: DailyActivityRingsProps) {
+  const [uncontrolledWeek, setUncontrolledWeek] = useState(new Date())
+  const currentWeek = controlledWeek ?? uncontrolledWeek
+  const setCurrentWeek = (d: Date) => {
+    if (controlledWeek) {
+      onWeekChange?.(d)
+    } else {
+      setUncontrolledWeek(d)
+      onWeekChange?.(d)
+    }
+  }
   const [dailyData, setDailyData] = useState<DailyMetrics[]>([])
   const [loading, setLoading] = useState(false)
-  const [dynamicTargets, setDynamicTargets] = useState({ kcal: 500, minutes: 60, exercises: 3, plates: 4 })
   const [highlightedDay, setHighlightedDay] = useState<string | null>(selectedDate || null)
   
   // Usar el hook existente para obtener datos reales con filtro de categoría
-  const { weeklyData, loading: metricsLoading } = useClientMetrics(userId, category)
-
-  // Obtener metas dinámicas desde el endpoint
-  useEffect(() => {
-    if (userId) {
-      fetchDynamicTargets()
-    }
-  }, [userId, category])
-
-  const fetchDynamicTargets = async () => {
-    try {
-      console.log('🎯 [DAILY_RINGS] Solicitando targets para category:', category);
-      const response = await fetch(`/api/client/targets?category=${category}`)
-      console.log('🎯 [DAILY_RINGS] Response status:', response.status);
-      
-      if (response.ok) {
-        const data = await response.json()
-        console.log('🎯 [DAILY_RINGS] Response completa:', data);
-        console.log('🎯 [DAILY_RINGS] Response targets:', data.targets);
-        console.log('🎯 [DAILY_RINGS] Response source:', data.source);
-        const { targets } = data
-        setDynamicTargets(targets)
-        console.log('🎯 DailyActivityRings: Metas dinámicas cargadas:', targets)
-      } else {
-        console.error('🎯 [DAILY_RINGS] Error response:', response.status, response.statusText);
-      }
-    } catch (error) {
-      console.error('🎯 [DAILY_RINGS] Error obteniendo metas dinámicas:', error)
-    }
-  }
+  const { weeklyData, loading: metricsLoading } = useClientMetrics(userId, category, currentWeek)
 
   useEffect(() => {
     if (userId && weeklyData.length > 0) {
       processWeeklyData()
     }
   }, [userId, currentWeek, weeklyData])
+
+  useEffect(() => {
+    console.log('🧿 [RINGS][DAILY] Estado actualizado:', {
+      userId,
+      category,
+      currentWeek: currentWeek.toISOString(),
+      highlightedDay,
+      weeklyDataLen: weeklyData.length
+    })
+  }, [userId, category, currentWeek, highlightedDay, weeklyData.length])
 
   const processWeeklyData = () => {
     setLoading(true)
@@ -89,9 +80,9 @@ export function DailyActivityRings({ userId, selectedDate, category = 'fitness',
           date: dateString,
           dayName: dayNames[index % 7], // Ajustar día de la semana
           kcal: dayData?.kcal || 0,
-          kcalTarget: dynamicTargets.kcal,
+          kcalTarget: dayData?.kcalTarget || 0,
           minutes: dayData?.minutes || 0,
-          minutesTarget: dynamicTargets.minutes,
+          minutesTarget: dayData?.minutesTarget || 0,
           exercises: dayData?.exercises || 0,
           exercisesTarget: dayData?.target || 0,
           category
@@ -109,12 +100,22 @@ export function DailyActivityRings({ userId, selectedDate, category = 'fitness',
   const goToPreviousWeek = () => {
     const newWeek = new Date(currentWeek)
     newWeek.setDate(currentWeek.getDate() - 7)
+    console.log('🧿 [RINGS][DAILY] Semana anterior', {
+      category,
+      from: currentWeek.toISOString(),
+      to: newWeek.toISOString()
+    })
     setCurrentWeek(newWeek)
   }
 
   const goToNextWeek = () => {
     const newWeek = new Date(currentWeek)
     newWeek.setDate(currentWeek.getDate() + 7)
+    console.log('🧿 [RINGS][DAILY] Semana siguiente', {
+      category,
+      from: currentWeek.toISOString(),
+      to: newWeek.toISOString()
+    })
     setCurrentWeek(newWeek)
   }
 
@@ -229,9 +230,9 @@ export function DailyActivityRings({ userId, selectedDate, category = 'fitness',
       {/* Grid de anillos diarios */}
       <div className="grid grid-cols-7 gap-2">
         {dailyData.map((day, index) => {
-          const kcalProgress = Math.min((day.kcal / day.kcalTarget) * 100, 100)
+          const kcalProgress = day.kcalTarget > 0 ? Math.min((day.kcal / day.kcalTarget) * 100, 100) : 0
           const minutesProgress = day.minutesTarget > 0 ? Math.min((day.minutes / day.minutesTarget) * 100, 100) : 0
-          const exercisesProgress = Math.min((day.exercises / day.exercisesTarget) * 100, 100)
+          const exercisesProgress = day.exercisesTarget > 0 ? Math.min((day.exercises / day.exercisesTarget) * 100, 100) : 0
           const isHighlighted = highlightedDay === day.date
           
           return (
@@ -241,6 +242,10 @@ export function DailyActivityRings({ userId, selectedDate, category = 'fitness',
                 isHighlighted ? 'bg-blue-600/20 ring-2 ring-blue-400' : 'hover:bg-gray-800/50'
               }`}
               onClick={() => {
+                console.log('🧿 [RINGS][DAILY] Click día:', {
+                  category,
+                  day
+                })
                 setHighlightedDay(day.date)
                 if (onSelectDay) onSelectDay(day)
               }}

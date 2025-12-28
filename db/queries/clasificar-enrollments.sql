@@ -189,3 +189,6 @@ WHERE id IN (145, 168, 181, 191, 203)
 GROUP BY clasificacion
 ORDER BY cantidad DESC;
 
+
+
+

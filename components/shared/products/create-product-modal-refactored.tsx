@@ -7,7 +7,7 @@ import { Label } from "@/components/ui/label"
 import { Textarea } from "@/components/ui/textarea"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Switch } from "@/components/ui/switch"
-import { ChevronLeft, ChevronRight, ChevronDown, Plus, X, Upload, Calendar, Clock, Users, FileText, Eye, Edit, Check, Video, Play, Image as ImageIcon, Globe, MapPin, Trash2, Target, DollarSign, Eye as EyeIcon, EyeOff, Pencil, Flame, Lock, Unlock, Coins, MonitorSmartphone, Loader2, RotateCcw, RefreshCw, ExternalLink } from "lucide-react"
+import { ChevronLeft, ChevronRight, ChevronDown, Plus, X, Upload, Calendar, Clock, Users, FileText, Eye, Edit, Check, Video, Play, Image as ImageIcon, Globe, MapPin, Trash2, Target, DollarSign, Eye as EyeIcon, EyeOff, Pencil, Flame, Lock, Unlock, Coins, MonitorSmartphone, Loader2, RotateCcw, RefreshCw, ExternalLink, UtensilsCrossed, Zap } from "lucide-react"
 import { motion, AnimatePresence } from "framer-motion"
 import { ProductPreviewCard } from '@/components/shared/products/product-preview-card'
 import ActivityCard from '@/components/shared/activities/ActivityCard'
@@ -101,10 +101,45 @@ const PLAN_LABELS: Record<PlanType, string> = {
 }
 
 export default function CreateProductModal({ isOpen, onClose, editingProduct, initialStep, showDateChangeNotice = false }: CreateProductModalProps) {
-  const [selectedType, setSelectedType] = useState<ProductType | null>(null)
+  // Si estamos editando, determinar el tipo desde el producto
+  const getInitialType = (): ProductType | null => {
+    if (editingProduct) {
+      if (editingProduct.type === 'program' || editingProduct.type === 'fitness') return 'program'
+      if (editingProduct.type === 'workshop') return 'workshop'
+      if (editingProduct.type === 'document') return 'document'
+    }
+    return null
+  }
+
+  const [selectedType, setSelectedType] = useState<ProductType | null>(getInitialType())
   const [selectedProgramType, setSelectedProgramType] = useState<ProgramSubType | null>(null)
   const [productCategory, setProductCategory] = useState<'fitness' | 'nutricion'>('fitness')
-  const [currentStep, setCurrentStep] = useState<'type' | 'programType' | 'general' | 'specific' | 'workshopMaterial' | 'workshopSchedule' | 'weeklyPlan' | 'preview'>(initialStep || 'type')
+
+  useEffect(() => {
+    if (selectedType === 'document' && generalForm.modality !== 'online') {
+      setGeneralFormWithLogs({
+        ...generalForm,
+        modality: 'online'
+      })
+    }
+  }, [selectedType])
+
+  useEffect(() => {
+    if (selectedType !== 'program') return
+    if (selectedProgramType) return
+
+    const inferred: ProgramSubType = productCategory === 'nutricion' ? 'nutrition' : 'fitness'
+    setSelectedProgramType(inferred)
+  }, [selectedType, selectedProgramType, productCategory])
+  
+  // Si estamos editando y hay initialStep, usarlo; si no, ir a 'general' para edición
+  const getInitialStep = (): 'type' | 'programType' | 'general' | 'specific' | 'workshopMaterial' | 'workshopSchedule' | 'weeklyPlan' | 'preview' => {
+    if (initialStep) return initialStep
+    if (editingProduct) return 'general'
+    return 'type'
+  }
+  
+  const [currentStep, setCurrentStep] = useState<'type' | 'programType' | 'general' | 'specific' | 'workshopMaterial' | 'workshopSchedule' | 'weeklyPlan' | 'preview'>(getInitialStep())
   const [showDateChangeNoticeLocal, setShowDateChangeNoticeLocal] = useState(showDateChangeNotice)
   
   // Estado para selección de videos
@@ -133,6 +168,9 @@ export default function CreateProductModal({ isOpen, onClose, editingProduct, in
   const [inlineMediaError, setInlineMediaError] = useState<string | null>(null)
   const [inlineSelectedId, setInlineSelectedId] = useState<string | null>(null)
   const inlineFileInputRef = useRef<HTMLInputElement | null>(null)
+  
+  // Ref para cachear la planificación cargada desde la base de datos
+  const cachedPlanningFromDBRef = useRef<any>(null)
 
   const truncateInlineFileName = (name: string, maxLength = 50) => {
     if (!name) return ''
@@ -219,6 +257,10 @@ export default function CreateProductModal({ isOpen, onClose, editingProduct, in
   const [persistentSelectedRows, setPersistentSelectedRows] = useState<Set<number>>(new Set())
   const [persistentCsvFileName, setPersistentCsvFileName] = useState<string>('')
   const [persistentCsvLoadedFromFile, setPersistentCsvLoadedFromFile] = useState(false)
+
+  const [coachCatalogExercises, setCoachCatalogExercises] = useState<any[]>([])
+  const [coachCatalogLoading, setCoachCatalogLoading] = useState(false)
+  const [coachCatalogError, setCoachCatalogError] = useState<string | null>(null)
   
   // Estado persistente del calendario (debe ser objeto, no array)
   const [persistentCalendarSchedule, setPersistentCalendarSchedule] = useState<any>({})
@@ -229,6 +271,58 @@ export default function CreateProductModal({ isOpen, onClose, editingProduct, in
   
   // Estado para los períodos del planificador semanal
   const [periods, setPeriods] = useState(1)
+
+  useEffect(() => {
+    if (!isOpen) return
+    if (selectedType !== 'program') return
+    if (!editingProduct?.id) return
+    if (planningClearedByContentChange) return
+
+    if (cachedPlanningFromDBRef.current) {
+      const cached = cachedPlanningFromDBRef.current
+      if (cached?.weeklySchedule) {
+        setPersistentCalendarSchedule(cached.weeklySchedule)
+      }
+      if (typeof cached?.periods === 'number' && cached.periods > 0) {
+        setPeriods(cached.periods)
+      }
+      return
+    }
+
+    let cancelled = false
+
+    const loadPlanningFromDB = async () => {
+      try {
+        const response = await fetch(`/api/get-product-planning?actividad_id=${editingProduct.id}`)
+        const json = await response.json().catch(() => null)
+
+        if (cancelled) return
+
+        if (!response.ok || !json?.success) {
+          cachedPlanningFromDBRef.current = { weeklySchedule: {}, periods: 1 }
+          return
+        }
+
+        const weeklySchedule = json?.data?.weeklySchedule || {}
+        const loadedPeriods = json?.data?.periods || 1
+
+        cachedPlanningFromDBRef.current = { weeklySchedule, periods: loadedPeriods }
+        setPersistentCalendarSchedule(weeklySchedule)
+        if (typeof loadedPeriods === 'number' && loadedPeriods > 0) {
+          setPeriods(loadedPeriods)
+        }
+      } catch {
+        if (cancelled) return
+        cachedPlanningFromDBRef.current = { weeklySchedule: {}, periods: 1 }
+      }
+    }
+
+    loadPlanningFromDB()
+
+    return () => {
+      cancelled = true
+    }
+  }, [isOpen, selectedType, editingProduct?.id, planningClearedByContentChange])
   
   // Estado para las estadísticas del paso 5
   const [weeklyStats, setWeeklyStats] = useState({
@@ -242,7 +336,7 @@ export default function CreateProductModal({ isOpen, onClose, editingProduct, in
   useEffect(() => {
     // Paso 4 (activities) removido - ahora se gestiona en tab "Mis Ejercicios/Platos"
     // Este useEffect ya no es necesario pero lo mantenemos comentado por si acaso
-    if (false && currentStep === 'activities') {
+    if (false) {
       console.log('🔎 [PASO 4/5] Entrando a sección de actividades/platos', {
         activityIdForCsv: editingProduct?.id || 0,
         hasEditingProduct: !!editingProduct,
@@ -724,9 +818,67 @@ export default function CreateProductModal({ isOpen, onClose, editingProduct, in
     setGeneralForm(newForm)
   }
 
+  useEffect(() => {
+    if (currentStep !== 'general') return
+
+    if (selectedType === 'document') {
+      setInlineMediaType('image')
+      return
+    }
+
+    if (generalForm.videoUrl && generalForm.videoUrl.trim() !== '') {
+      setInlineMediaType('video')
+      return
+    }
+
+    if (generalForm.image && typeof generalForm.image === 'object' && 'url' in generalForm.image && (generalForm.image as any).url) {
+      setInlineMediaType('image')
+      return
+    }
+  }, [currentStep, selectedType, generalForm.videoUrl, generalForm.image])
+
   // Estado de carga para el botón de publicar/actualizar
   const [isPublishing, setIsPublishing] = useState(false)
   const [publishProgress, setPublishProgress] = useState('')
+
+  useEffect(() => {
+    if (currentStep !== 'weeklyPlan') return
+    if (selectedType !== 'program') return
+
+    let cancelled = false
+
+    const loadCatalog = async () => {
+      try {
+        setCoachCatalogLoading(true)
+        setCoachCatalogError(null)
+
+        const category = productCategory === 'nutricion' ? 'nutricion' : 'fitness'
+        const activeParam = productCategory === 'nutricion' ? '' : '&active=true'
+        const response = await fetch(`/api/coach/exercises?category=${category}${activeParam}`)
+        const json = await response.json().catch(() => null)
+
+        if (cancelled) return
+
+        if (!response.ok || !json?.success || !Array.isArray(json?.data)) {
+          const fallbackMsg = json?.error || json?.details || `HTTP ${response.status}`
+          throw new Error(fallbackMsg)
+        }
+
+        setCoachCatalogExercises(json.data)
+      } catch (err: any) {
+        if (cancelled) return
+        setCoachCatalogExercises([])
+        setCoachCatalogError(err?.message || 'No se pudieron cargar los ejercicios del coach')
+      } finally {
+        if (!cancelled) setCoachCatalogLoading(false)
+      }
+    }
+
+    loadCatalog()
+    return () => {
+      cancelled = true
+    }
+  }, [currentStep, selectedType, productCategory])
 
   const [specificForm, setSpecificForm] = useState({
     duration: '',
@@ -3351,23 +3503,23 @@ export default function CreateProductModal({ isOpen, onClose, editingProduct, in
               mergedPdfs[key] = value
             }
           })
-          
-          const newState = {
+
+          const nextState: typeof prev = {
             ...prev,
             pdfType: 'by-topic', // Forzar a 'by-topic' si hay PDFs por tema
             topicPdfs: mergedPdfs
           }
           console.log('📦 Nuevo estado de workshopMaterial:', {
-            pdfType: newState.pdfType,
-            topicPdfsKeys: Object.keys(newState.topicPdfs),
-            topicPdfsDetails: Object.entries(newState.topicPdfs).map(([key, value]) => ({
+            pdfType: nextState.pdfType,
+            topicPdfsKeys: Object.keys(nextState.topicPdfs),
+            topicPdfsDetails: Object.entries(nextState.topicPdfs).map(([key, value]) => ({
               tema: key,
               fileName: value.fileName,
               hasUrl: !!value.url,
               hasFile: !!value.file
             }))
           })
-          return newState
+          return nextState
         })
         console.log('✅ PDFs por tema cargados en estado:', Object.keys(topicPdfs))
       } else {
@@ -3521,10 +3673,27 @@ export default function CreateProductModal({ isOpen, onClose, editingProduct, in
       if (editingProduct.categoria) {
         setProductCategory(editingProduct.categoria as 'fitness' | 'nutricion')
         console.log('✅ Categoría del producto establecida:', editingProduct.categoria)
+
+        // Si es un programa, también inicializar el programType para habilitar navegación
+        if (productType === 'program') {
+          const inferredProgramType: ProgramSubType | null =
+            editingProduct.categoria === 'fitness'
+              ? 'fitness'
+              : editingProduct.categoria === 'nutricion'
+                ? 'nutrition'
+                : null
+          if (inferredProgramType) {
+            setSelectedProgramType(inferredProgramType)
+          }
+        }
       } else {
         // Si no hay categoría, usar fitness por defecto
         setProductCategory('fitness')
         console.log('⚠️ No se encontró categoría, usando fitness por defecto')
+
+        if (productType === 'program') {
+          setSelectedProgramType('fitness')
+        }
       }
       
       // Cargar datos generales
@@ -3580,7 +3749,635 @@ export default function CreateProductModal({ isOpen, onClose, editingProduct, in
     }
   }, [editingProduct, initialStep])
 
-  // TODO: El resto del componente debe ser completado
-  // Por ahora retornamos null para evitar errores de compilación
-  return null
+  // Si el modal no está abierto, no renderizar nada
+  if (!isOpen) return null
+
+  // Calcular el número total de pasos según el tipo
+  const totalSteps = selectedType === 'workshop' ? 6 : 5
+  const currentStepNumber = getStepNumber(currentStep)
+
+  const stepTitle = useMemo(() => {
+    const titleMap: Record<string, string> = {
+      type: 'Tipo de producto',
+      programType: 'Categoría y entrega',
+      general: 'Información básica',
+      specific: 'Detalles',
+      workshopSchedule: 'Temas y horarios',
+      workshopMaterial: 'Material del taller',
+      weeklyPlan: 'Organización',
+      preview: 'Vista previa'
+    }
+    return titleMap[currentStep] || (editingProduct ? 'Editar producto' : 'Crear producto')
+  }, [currentStep, editingProduct])
+
+  // Renderizar el modal completo
+  return (
+    <AnimatePresence>
+      {isOpen && (
+        <motion.div
+          initial={{ opacity: 0 }}
+          animate={{ opacity: 1 }}
+          exit={{ opacity: 0 }}
+          className="fixed inset-0 bg-black/60 backdrop-blur-sm z-50 flex items-center justify-center p-4"
+          onClick={(e) => {
+            // Cerrar solo si se hace click en el overlay, no en el modal
+            if (e.target === e.currentTarget) {
+              onClose(false)
+            }
+          }}
+        >
+          <motion.div
+            initial={{ scale: 0.95, opacity: 0 }}
+            animate={{ scale: 1, opacity: 1 }}
+            exit={{ scale: 0.95, opacity: 0 }}
+            className="bg-[#0B0B0B] rounded-2xl max-w-4xl w-full max-h-[90vh] overflow-hidden flex flex-col border border-white/10 shadow-2xl"
+            onClick={(e) => e.stopPropagation()}
+          >
+            {/* Header */}
+            <div className="flex items-center justify-between p-6 border-b border-white/10">
+              <div className="flex items-center gap-4">
+                <button
+                  onClick={() => onClose(false)}
+                  className="text-gray-400 hover:text-white transition-colors"
+                >
+                  <X className="h-5 w-5" />
+                </button>
+                <h2 className="text-xl font-bold text-white">
+                  {stepTitle}
+                </h2>
+              </div>
+              
+              {/* Indicador de pasos */}
+              <div className="flex items-center gap-2">
+                {Array.from({ length: totalSteps }).map((_, index) => {
+                  const stepNum = index + 1
+                  const isActive = stepNum === currentStepNumber
+                  const isCompleted = stepNum < currentStepNumber
+                  
+                  return (
+                    <div
+                      key={stepNum}
+                      className={`w-2 h-2 rounded-full transition-all ${
+                        isActive
+                          ? 'bg-[#FF7939] w-8'
+                          : isCompleted
+                          ? 'bg-[#FF7939]/50'
+                          : 'bg-gray-600'
+                      }`}
+                    />
+                  )
+                })}
+              </div>
+            </div>
+
+            {/* Contenido del modal - Scrollable */}
+            <div className="flex-1 overflow-y-auto p-6">
+              {/* Paso 1: Tipo de Producto */}
+              {currentStep === 'type' && (
+                <div className="space-y-4">
+                  <h3 className="text-base font-semibold text-white mb-6">
+                    ¿Qué tipo de producto querés crear?
+                  </h3>
+                  <div className="flex flex-col gap-3">
+                    {/* PROGRAMA */}
+                    <button
+                      onClick={() => {
+                        setSelectedType('program')
+                        setCurrentStep('programType')
+                      }}
+                      className={`p-3 rounded-lg border transition-all text-left flex items-start gap-2 ${
+                        selectedType === 'program'
+                          ? 'border-[#FF7939] bg-black'
+                          : 'border-white/10 bg-black hover:border-[#FF7939]/50'
+                      }`}
+                    >
+                      <div className="flex-shrink-0 mt-0.5">
+                        <div className="relative">
+                          <FileText className="h-4 w-4 text-[#FF7939]" />
+                          {selectedType === 'program' && (
+                            <div className="absolute -left-1 top-0 flex flex-col gap-0.5">
+                              <div className="w-1 h-1 rounded-full bg-[#FF7939]"></div>
+                              <div className="w-1 h-1 rounded-full bg-[#FF7939]"></div>
+                              <div className="w-1 h-1 rounded-full bg-[#FF7939]"></div>
+                            </div>
+                          )}
+                        </div>
+                      </div>
+                      <div className="flex-1">
+                        <h4 className="text-sm font-semibold text-white mb-0.5 uppercase">
+                          PROGRAMA
+                        </h4>
+                        <p className="text-xs text-gray-400 whitespace-normal">
+                          Entrenamientos estructurados por semanas
+                        </p>
+                      </div>
+                    </button>
+
+                    {/* DOCUMENTO */}
+                    <button
+                      onClick={() => {
+                        setSelectedType('document')
+                        setCurrentStep('general')
+                      }}
+                      className={`p-3 rounded-lg border transition-all text-left flex items-start gap-2 ${
+                        selectedType === 'document'
+                          ? 'border-[#FF7939] bg-black'
+                          : 'border-white/10 bg-black hover:border-[#FF7939]/50'
+                      }`}
+                    >
+                      <div className="flex-shrink-0 mt-0.5">
+                        <FileText className="h-4 w-4 text-[#FF7939]" />
+                      </div>
+                      <div className="flex-1">
+                        <h4 className="text-sm font-semibold text-white mb-0.5 uppercase">
+                          DOCUMENTO
+                        </h4>
+                        <p className="text-xs text-gray-400 whitespace-normal">
+                          PDF, guías o manuales descargables
+                        </p>
+                      </div>
+                    </button>
+
+                    {/* TALLER */}
+                    <button
+                      onClick={() => {
+                        setSelectedType('workshop')
+                        setCurrentStep('general')
+                      }}
+                      className={`p-3 rounded-lg border transition-all text-left flex items-start gap-2 ${
+                        selectedType === 'workshop'
+                          ? 'border-[#FF7939] bg-black'
+                          : 'border-white/10 bg-black hover:border-[#FF7939]/50'
+                      }`}
+                    >
+                      <div className="flex-shrink-0 mt-0.5 relative">
+                        <Users className="h-4 w-4 text-[#FF7939]" />
+                        {selectedType === 'workshop' && (
+                          <div className="absolute -top-1 -right-1 w-2 h-2 bg-[#FF7939] rounded-full"></div>
+                        )}
+                      </div>
+                      <div className="flex-1">
+                        <h4 className="text-sm font-semibold text-white mb-0.5 uppercase">
+                          TALLER
+                        </h4>
+                        <p className="text-xs text-gray-400 whitespace-normal">
+                          Sesión única 1:1 o grupal
+                        </p>
+                      </div>
+                    </button>
+                  </div>
+                </div>
+              )}
+
+              <MediaSelectionModal
+                isOpen={isMediaModalOpen}
+                onClose={() => setIsMediaModalOpen(false)}
+                onMediaSelected={handleMediaSelection}
+                mediaType={mediaModalType}
+              />
+
+              {/* Paso 2: Categoría (solo para programas) */}
+              {currentStep === 'programType' && selectedType === 'program' && (
+                <div className="space-y-4">
+                  <h3 className="text-base font-semibold text-white mb-6">
+                    ¿En qué categoría se enfoca tu producto?
+                  </h3>
+                  <div className="grid grid-cols-2 gap-3">
+                    {([
+                      { type: 'fitness' as ProgramSubType, label: 'Fitness', icon: Zap },
+                      { type: 'nutrition' as ProgramSubType, label: 'Nutrición', icon: UtensilsCrossed }
+                    ]).map(({ type, label, icon: Icon }) => (
+                      <button
+                        key={type}
+                        onClick={() => {
+                          setSelectedProgramType(type)
+                          setProductCategory(type === 'fitness' ? 'fitness' : 'nutricion')
+                        }}
+                        className={`p-3 rounded-lg border transition-all text-left ${
+                          selectedProgramType === type
+                            ? 'border-[#FF7939] bg-[#FF7939]/10'
+                            : 'border-white/10 bg-black hover:border-[#FF7939]/50'
+                        }`}
+                      >
+                        <Icon className="h-5 w-5 mb-1 text-[#FF7939]" />
+                        <h4 className="text-sm font-semibold text-white">
+                          {label}
+                        </h4>
+                      </button>
+                    ))}
+                  </div>
+
+                  <div className="mt-6 space-y-5">
+                    <div className="flex items-center justify-between rounded-lg border border-white/10 bg-black p-4">
+                      <div className="space-y-1">
+                        <div className="flex items-center gap-2">
+                          {generalForm.is_public ? (
+                            <Unlock className="h-4 w-4 text-[#FF7939]" />
+                          ) : (
+                            <Lock className="h-4 w-4 text-[#FF7939]" />
+                          )}
+                          <div className="text-sm font-semibold text-white">Visibilidad</div>
+                        </div>
+                        <div className="text-xs text-gray-400">
+                          {generalForm.is_public
+                            ? 'Visible en tu perfil y disponible para compra.'
+                            : 'Privado: luego se comparte por link de invitación.'}
+                        </div>
+                      </div>
+                      <div className="flex items-center gap-3">
+                        <span className={`text-xs ${generalForm.is_public ? 'text-white' : 'text-gray-400'}`}>
+                          {generalForm.is_public ? 'Público' : 'Privado'}
+                        </span>
+                        <Switch
+                          checked={generalForm.is_public}
+                          onCheckedChange={(checked) => {
+                            setGeneralFormWithLogs({
+                              ...generalForm,
+                              is_public: checked
+                            })
+                          }}
+                        />
+                      </div>
+                    </div>
+
+                    <div className="rounded-lg border border-white/10 bg-black p-4">
+                      <div className="mb-3">
+                        <div className="text-sm font-semibold text-white">Modalidad</div>
+                        <div className="text-xs text-gray-400">Cómo lo recibe tu cliente.</div>
+                      </div>
+                      <div className="grid grid-cols-1 md:grid-cols-3 gap-2">
+                        {MODALITY_CHOICES.map(({ value, label, icon: Icon, tone }) => (
+                          <button
+                            key={value}
+                            type="button"
+                            onClick={() => {
+                              setGeneralFormWithLogs({
+                                ...generalForm,
+                                modality: value
+                              })
+                            }}
+                            className={`rounded-lg border px-3 py-3 text-left transition-all flex items-center gap-3 ${
+                              generalForm.modality === value
+                                ? 'border-[#FF7939] bg-[#FF7939]/10'
+                                : 'border-white/10 hover:border-[#FF7939]/50'
+                            }`}
+                          >
+                            <Icon className="h-4 w-4 text-[#FF7939]" />
+                            <div className="flex-1">
+                              <div className="text-sm font-semibold text-white">{label}</div>
+                              <div className="text-xs text-gray-400">
+                                {value === 'online'
+                                  ? 'Acceso desde Omnia.'
+                                  : value === 'presencial'
+                                    ? 'Se realiza en persona.'
+                                    : 'Online + presencial.'}
+                              </div>
+                            </div>
+                          </button>
+                        ))}
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              )}
+
+              {/* Paso 3: General (Información Básica) */}
+              {currentStep === 'general' && (
+                <div className="space-y-6">
+                  <div className="space-y-2">
+                    <div className="text-sm font-semibold text-white">Video y foto</div>
+                    <div className="mx-auto w-full md:w-[60%]">
+                      <div className="relative w-full aspect-video rounded-xl border border-white/10 bg-black overflow-hidden">
+                      {inlineMediaType === 'image' && (generalForm.image && typeof generalForm.image === 'object' && 'url' in generalForm.image && generalForm.image.url) ? (
+                        <img
+                          src={(generalForm.image as any).url}
+                          alt="Portada"
+                          className="w-full h-full object-cover"
+                        />
+                      ) : inlineMediaType === 'video' && generalForm.videoUrl ? (
+                        <video
+                          src={generalForm.videoUrl}
+                          className="w-full h-full object-cover"
+                          controls
+                        />
+                      ) : (
+                        <div className="w-full h-full flex items-center justify-center text-gray-500 text-sm">
+                          Agregá una foto o un video (16:9)
+                        </div>
+                      )}
+                      </div>
+
+                      <div className="mt-3 flex flex-wrap items-center justify-between gap-2">
+                        <div className="flex items-center gap-2">
+                          <button
+                            type="button"
+                            onClick={() => loadInlineMedia('image')}
+                            className={`px-3 py-2 rounded-lg border text-xs font-semibold transition-all flex items-center gap-2 ${
+                              inlineMediaType === 'image'
+                                ? 'border-[#FF7939] bg-[#FF7939]/10 text-white'
+                                : 'border-white/10 bg-black text-gray-300 hover:border-[#FF7939]/50'
+                            }`}
+                          >
+                            <ImageIcon className="h-4 w-4 text-[#FF7939]" />
+                            Foto
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => loadInlineMedia('video')}
+                            className={`px-3 py-2 rounded-lg border text-xs font-semibold transition-all flex items-center gap-2 ${
+                              inlineMediaType === 'video'
+                                ? 'border-[#FF7939] bg-[#FF7939]/10 text-white'
+                                : 'border-white/10 bg-black text-gray-300 hover:border-[#FF7939]/50'
+                            }`}
+                          >
+                            <Video className="h-4 w-4 text-[#FF7939]" />
+                            Video
+                          </button>
+                        </div>
+
+                        <div className="flex items-center gap-2">
+                          <input
+                            ref={inlineFileInputRef}
+                            type="file"
+                            accept={inlineMediaType === 'image' ? 'image/*' : 'video/*'}
+                            className="hidden"
+                            onChange={handleInlineUploadChange}
+                          />
+                          <button
+                            type="button"
+                            onClick={() => {
+                              setMediaModalType(inlineMediaType === 'video' ? 'video' : 'image')
+                              setIsMediaModalOpen(true)
+                            }}
+                            className="px-3 py-2 rounded-lg border border-white/10 bg-black text-xs font-semibold text-gray-300 hover:border-[#FF7939]/50 transition-all flex items-center gap-2"
+                            disabled={inlineMediaLoading}
+                          >
+                            {inlineMediaLoading ? (
+                              <Loader2 className="h-4 w-4 animate-spin text-[#FF7939]" />
+                            ) : (
+                              <Upload className="h-4 w-4 text-[#FF7939]" />
+                            )}
+                            Subir
+                          </button>
+                        </div>
+                      </div>
+                    </div>
+
+                    {inlineMediaError && (
+                      <div className="text-xs text-red-400">{inlineMediaError}</div>
+                    )}
+                  </div>
+
+                  <div className="grid grid-cols-1 gap-4">
+                    <div className="space-y-2">
+                      <Label className="text-xs text-gray-400">Título</Label>
+                      <Input
+                        value={generalForm.name}
+                        onChange={(e) => setGeneralFormWithLogs({ ...generalForm, name: e.target.value })}
+                        placeholder="Ej: Plan de 4 semanas"
+                        className="bg-black border-white/10 text-white placeholder:text-gray-600"
+                      />
+                    </div>
+
+                    <div className="space-y-2">
+                      <Label className="text-xs text-gray-400">Descripción</Label>
+                      <Textarea
+                        value={generalForm.description}
+                        onChange={(e) => setGeneralFormWithLogs({ ...generalForm, description: e.target.value })}
+                        placeholder="Contá qué incluye y para quién es"
+                        className="min-h-[120px] bg-black border-white/10 text-white placeholder:text-gray-600"
+                      />
+                    </div>
+                  </div>
+
+                  <div className="space-y-3">
+                    <div className="text-sm font-semibold text-white">Intensidad</div>
+                    <div className="grid grid-cols-3 gap-2">
+                      {INTENSITY_CHOICES.map((choice) => (
+                        <button
+                          key={choice.value}
+                          type="button"
+                          onClick={() => setSpecificFormWithLogs({ ...specificForm, level: choice.value })}
+                          className={`rounded-lg border px-2 py-2 sm:px-3 sm:py-3 text-left transition-all min-w-0 ${
+                            specificForm.level === choice.value
+                              ? 'border-[#FF7939] bg-[#FF7939]/10'
+                              : 'border-white/10 bg-black hover:border-[#FF7939]/50'
+                          }`}
+                        >
+                          <div className="flex flex-col gap-1">
+                            <div className="text-xs sm:text-sm font-semibold text-white truncate">{choice.label}</div>
+                            <div className="flex items-center gap-0.5">
+                              {Array.from({ length: 3 }).map((_, idx) => (
+                                <Flame
+                                  key={idx}
+                                  className={`h-3.5 w-3.5 sm:h-4 sm:w-4 ${idx < choice.flames ? 'text-[#FF7939]' : 'text-white/10'}`}
+                                />
+                              ))}
+                            </div>
+                          </div>
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+
+                  <div className="rounded-xl border border-white/10 bg-black p-4">
+                    <div className="text-sm font-semibold text-white">Cupos × Precio − Comisión = Total</div>
+
+                    <div className="mt-3 rounded-lg border border-white/10 bg-black/40 p-3">
+                      <div className="grid grid-cols-12 gap-2 items-center text-sm">
+                        <button
+                          type="button"
+                          onClick={handleToggleCapacity}
+                          className={`col-span-3 sm:col-span-2 px-2 py-2 rounded-md border text-xs font-semibold transition-all ${
+                            isLimitedStock
+                              ? 'border-[#FF7939] bg-[#FF7939]/10 text-white'
+                              : 'border-white/10 bg-black text-gray-300 hover:border-[#FF7939]/50'
+                          }`}
+                        >
+                          {generalForm.capacity === 'ilimitada' ? '∞' : 'Cupos'}
+                        </button>
+
+                        <Input
+                          value={generalForm.capacity === 'ilimitada' ? '∞' : generalForm.stockQuantity}
+                          onChange={(e) => handleStockQuantityChange(e.target.value)}
+                          inputMode="numeric"
+                          placeholder="0"
+                          disabled={generalForm.capacity === 'ilimitada'}
+                          className="col-span-3 sm:col-span-2 h-10 bg-black border-white/10 text-white placeholder:text-gray-600 disabled:opacity-60"
+                        />
+
+                        <span className="col-span-1 text-gray-500 text-center">×</span>
+
+                        <Input
+                          value={generalForm.price}
+                          onChange={(e) => handlePriceChange(e.target.value)}
+                          onBlur={handlePriceBlur}
+                          placeholder="0.00"
+                          className="col-span-5 sm:col-span-3 h-10 bg-black border-white/10 text-white placeholder:text-gray-600"
+                        />
+
+                        <div className="col-span-12 flex items-center justify-center gap-2 pt-2">
+                          <span className="text-gray-500">−</span>
+                          <span className="text-white font-semibold">{commissionPercentLabel}</span>
+                          <span className="text-gray-500">=</span>
+                          <span className="text-white font-bold text-lg">
+                            {(() => {
+                              if (formattedNetRevenue === '∞') return '∞'
+                              if (potentialRevenue === null || priceAmount === null) return '—'
+                              const netRevenue = potentialRevenue * (1 - commissionPercent)
+                              const formatted = new Intl.NumberFormat('es-AR', {
+                                minimumFractionDigits: 2,
+                                maximumFractionDigits: 2
+                              }).format(netRevenue)
+                              return formatted
+                            })()}
+                          </span>
+                          <span className="text-[#FF7939] font-bold text-lg">ARS</span>
+                        </div>
+                      </div>
+
+                      <div className="mt-1 text-xs text-gray-500">
+                        {potentialRevenue === null
+                          ? 'Completá cupos y precio para ver el total.'
+                          : `Bruto: ${new Intl.NumberFormat('es-ES', { style: 'currency', currency: 'USD' }).format(potentialRevenue)}.`}
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              )}
+
+              {/* Otros pasos... */}
+              {currentStep === 'weeklyPlan' && (
+                <div className="space-y-6">
+                  <h3 className="text-lg font-semibold text-white mb-4">
+                    Organización
+                  </h3>
+
+                  {coachCatalogError && (
+                    <div className="text-xs text-red-400">{coachCatalogError}</div>
+                  )}
+                  <WeeklyExercisePlanner
+                    activityId={editingProduct?.id}
+                    exercises={(persistentCsvData && persistentCsvData.length > 0 ? persistentCsvData : coachCatalogExercises) || []}
+                    productCategory={productCategory}
+                    initialSchedule={persistentCalendarSchedule}
+                    initialPeriods={periods}
+                    onScheduleChange={setPersistentCalendarSchedule}
+                    onPeriodsChange={setPeriods}
+                    onStatsChange={(stats: any) => {
+                      setWeeklyStats({
+                        semanas: stats?.totalWeeks ?? 0,
+                        sesiones: stats?.totalSessions ?? stats?.totalDays ?? 0,
+                        ejerciciosTotales: stats?.totalExercisesReplicated ?? stats?.totalExercises ?? 0,
+                        ejerciciosUnicos: stats?.uniqueExercises ?? 0
+                      })
+                    }}
+                    planLimits={{
+                      weeksLimit: getPlanLimit(planType, 'weeksPerProduct')
+                    }}
+                  />
+
+                  {coachCatalogLoading && (
+                    <div className="text-xs text-gray-500">Cargando ejercicios…</div>
+                  )}
+                </div>
+              )}
+
+              {currentStep === 'workshopSchedule' && (
+                <div className="space-y-6">
+                  <h3 className="text-lg font-semibold text-white mb-4">
+                    Temas y Horarios del Taller
+                  </h3>
+                  <WorkshopSimpleScheduler
+                    activityId={editingProduct?.id}
+                    initialSchedule={workshopSchedule}
+                    onScheduleChange={setWorkshopSchedule}
+                  />
+                </div>
+              )}
+
+              {currentStep === 'preview' && (
+                <div className="space-y-6">
+                  <h3 className="text-lg font-semibold text-white mb-4">
+                    Vista Previa
+                  </h3>
+                  {editingProduct && (
+                    <div className="flex justify-center">
+                      <div className="flex-shrink-0 w-48">
+                        <ActivityCard
+                          activity={{
+                            ...(editingProduct as any),
+                            previewStats: {
+                              sesiones: weeklyStats.sesiones,
+                              ejerciciosTotales: weeklyStats.ejerciciosTotales,
+                              ejerciciosUnicos: weeklyStats.ejerciciosUnicos
+                            }
+                          }}
+                          size="small"
+                        />
+                      </div>
+                    </div>
+                  )}
+                </div>
+              )}
+            </div>
+
+            {/* Footer con botones de navegación */}
+            <div className="flex items-center justify-between p-6 border-t border-white/10">
+              <Button
+                variant="ghost"
+                onClick={() => {
+                  const prevStepNumber = currentStepNumber - 1
+                  if (prevStepNumber >= 1) {
+                    goToStep(prevStepNumber)
+                  } else {
+                    onClose(false)
+                  }
+                }}
+                className="text-gray-400 hover:text-white"
+              >
+                <ChevronLeft className="h-4 w-4 mr-2" />
+                Atrás
+              </Button>
+
+              <div className="flex gap-3">
+                {currentStep === 'preview' ? (
+                  <Button
+                    onClick={handlePublishProduct}
+                    disabled={isPublishing}
+                    className="bg-[#FF7939] hover:bg-[#E66829] text-white"
+                  >
+                    {isPublishing ? (
+                      <>
+                        <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                        Publicando...
+                      </>
+                    ) : (
+                      <>
+                        Publicar
+                      </>
+                    )}
+                  </Button>
+                ) : (
+                  <Button
+                    onClick={() => {
+                      const nextStepNumber = currentStepNumber + 1
+                      if (nextStepNumber <= totalSteps) {
+                        goToStep(nextStepNumber)
+                      }
+                    }}
+                    disabled={!selectedType || (currentStep === 'programType' && selectedType === 'program' && !selectedProgramType)}
+                    className="bg-[#FF7939] hover:bg-[#E66829] text-white"
+                  >
+                    Siguiente
+                    <ChevronRight className="h-4 w-4 ml-2" />
+                  </Button>
+                )}
+              </div>
+            </div>
+          </motion.div>
+        </motion.div>
+      )}
+    </AnimatePresence>
+  )
 }
