@@ -1,24 +1,25 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { createClient } from '@supabase/supabase-js'
+import { createRouteHandlerClient, createServiceRoleClient } from '@/lib/supabase/supabase-server'
 
 // Hacer la ruta dinámica para evitar evaluación durante el build
 export const dynamic = 'force-dynamic'
 export const runtime = 'nodejs'
 
-function getSupabaseClient() {
-  const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL
-  const supabaseServiceKey = process.env.SUPABASE_SERVICE_ROLE_KEY
-
-  if (!supabaseUrl || !supabaseServiceKey) {
-    throw new Error('Missing Supabase environment variables')
+async function getSupabaseClients() {
+  return {
+    service: createServiceRoleClient(),
+    anon: await createRouteHandlerClient()
   }
+}
 
-  return createClient(supabaseUrl, supabaseServiceKey)
+const isInvalidApiKeyError = (err: any) => {
+  const msg = String(err?.message || '')
+  return msg.toLowerCase().includes('invalid api key')
 }
 
 export async function GET(request: NextRequest) {
   try {
-    const supabase = getSupabaseClient()
+    const { service, anon } = await getSupabaseClients()
     const { searchParams } = new URL(request.url)
     const actividadId = searchParams.get('actividad_id')
 
@@ -32,27 +33,44 @@ export async function GET(request: NextRequest) {
     console.log('📡 Cargando datos de taller desde el backend para activityId:', actividadId)
 
     // Consultar datos de taller para la actividad específica
-    const { data: tallerDetalles, error } = await supabase
-      .from('taller_detalles')
-      .select(`
-        id,
-        actividad_id,
-        nombre,
-        descripcion,
-        originales,
-        activo,
-        pdf_url,
-        pdf_file_name,
-        created_at,
-        updated_at
-      `)
-      .eq('actividad_id', parseInt(actividadId))
-      .order('created_at', { ascending: true })
+    const runQuery = async (sb: any) =>
+      sb
+        .from('taller_detalles')
+        .select(`
+          id,
+          actividad_id,
+          nombre,
+          descripcion,
+          originales,
+          activo,
+          pdf_url,
+          pdf_file_name,
+          created_at,
+          updated_at
+        `)
+        .eq('actividad_id', parseInt(actividadId))
+        .order('created_at', { ascending: true })
+
+    let { data: tallerDetalles, error } = await runQuery(service || anon)
+    if (error && service && isInvalidApiKeyError(error)) {
+      console.warn('⚠️ [taller-detalles] Invalid service role key; retrying with anon client')
+      ;({ data: tallerDetalles, error } = await runQuery(anon))
+    }
 
     if (error) {
-      console.error('❌ Error consultando taller_detalles:', error)
+      console.error('❌ Error consultando taller_detalles:', {
+        message: error.message,
+        code: (error as any).code,
+        details: (error as any).details,
+        hint: (error as any).hint
+      })
       return NextResponse.json(
-        { error: 'Error consultando datos del taller', details: error.message },
+        {
+          error: 'Error consultando datos del taller',
+          details: error.message,
+          code: (error as any).code,
+          hint: (error as any).hint
+        },
         { status: 500 }
       )
     }
@@ -79,7 +97,7 @@ export async function GET(request: NextRequest) {
 
 export async function POST(request: NextRequest) {
   try {
-    const supabase = getSupabaseClient()
+    const { service, anon } = await getSupabaseClients()
     const body = await request.json()
     const { actividad_id, nombre, descripcion, originales, secundarios } = body
 
@@ -93,15 +111,22 @@ export async function POST(request: NextRequest) {
     console.log('📝 Creando nuevo tema de taller para actividad:', actividad_id)
 
     // Insertar nuevo tema de taller
-    const { data, error } = await supabase
-      .from('taller_detalles')
-      .insert({
-        actividad_id: parseInt(actividad_id),
-        nombre,
-        descripcion: descripcion || '',
-        originales: originales || { fechas_horarios: [] }
-      })
-      .select()
+    const runInsert = async (sb: any) =>
+      sb
+        .from('taller_detalles')
+        .insert({
+          actividad_id: parseInt(actividad_id),
+          nombre,
+          descripcion: descripcion || '',
+          originales: originales || { fechas_horarios: [] }
+        })
+        .select()
+
+    let { data, error } = await runInsert(service || anon)
+    if (error && service && isInvalidApiKeyError(error)) {
+      console.warn('⚠️ [taller-detalles] Invalid service role key; retrying with anon client')
+      ;({ data, error } = await runInsert(anon))
+    }
 
     if (error) {
       console.error('❌ Error creando tema de taller:', error)
@@ -129,7 +154,7 @@ export async function POST(request: NextRequest) {
 
 export async function PUT(request: NextRequest) {
   try {
-    const supabase = getSupabaseClient()
+    const { service, anon } = await getSupabaseClients()
     const body = await request.json()
     const { id, nombre, descripcion, originales, secundarios } = body
 
@@ -143,16 +168,23 @@ export async function PUT(request: NextRequest) {
     console.log('📝 Actualizando tema de taller:', id)
 
     // Actualizar tema de taller
-    const { data, error } = await supabase
-      .from('taller_detalles')
-      .update({
-        nombre,
-        descripcion,
-        originales,
-        updated_at: new Date().toISOString()
-      })
-      .eq('id', id)
-      .select()
+    const runUpdate = async (sb: any) =>
+      sb
+        .from('taller_detalles')
+        .update({
+          nombre,
+          descripcion,
+          originales,
+          updated_at: new Date().toISOString()
+        })
+        .eq('id', id)
+        .select()
+
+    let { data, error } = await runUpdate(service || anon)
+    if (error && service && isInvalidApiKeyError(error)) {
+      console.warn('⚠️ [taller-detalles] Invalid service role key; retrying with anon client')
+      ;({ data, error } = await runUpdate(anon))
+    }
 
     if (error) {
       console.error('❌ Error actualizando tema de taller:', error)
@@ -180,7 +212,7 @@ export async function PUT(request: NextRequest) {
 
 export async function DELETE(request: NextRequest) {
   try {
-    const supabase = getSupabaseClient()
+    const { service, anon } = await getSupabaseClients()
     const { searchParams } = new URL(request.url)
     const id = searchParams.get('id')
 
@@ -194,10 +226,17 @@ export async function DELETE(request: NextRequest) {
     console.log('🗑️ Eliminando tema de taller:', id)
 
     // Eliminar tema de taller
-    const { error } = await supabase
-      .from('taller_detalles')
-      .delete()
-      .eq('id', id)
+    const runDelete = async (sb: any) =>
+      sb
+        .from('taller_detalles')
+        .delete()
+        .eq('id', id)
+
+    let { error } = await runDelete(service || anon)
+    if (error && service && isInvalidApiKeyError(error)) {
+      console.warn('⚠️ [taller-detalles] Invalid service role key; retrying with anon client')
+      ;({ error } = await runDelete(anon))
+    }
 
     if (error) {
       console.error('❌ Error eliminando tema de taller:', error)

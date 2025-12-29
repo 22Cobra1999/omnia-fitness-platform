@@ -1,14 +1,14 @@
 'use client';
 
 import * as React from 'react';
-import { motion, useMotionValue, useTransform, animate, PanInfo } from 'framer-motion';
+import { motion, useMotionValue, useTransform, animate, PanInfo, useDragControls } from 'framer-motion';
 import { UniversalVideoPlayer } from '@/components/shared/video/universal-video-player';
 import { createClient } from '@/lib/supabase/supabase-client';
 import { useAuth } from "@/contexts/auth-context";
 import { ActivitySurveyModal } from "../activities/activity-survey-modal";
 import { StartActivityModal } from "../activities/StartActivityModal";
 import { StartActivityInfoModal } from "../activities/StartActivityInfoModal";
-import { Flame, Edit, X, Save, Clock, Zap, ChevronLeft, ChevronRight } from 'lucide-react';
+import { Flame, Edit, X, Save, Clock, Zap, ChevronLeft, ChevronRight, ChevronDown, ChevronUp } from 'lucide-react';
 import { SettingsIcon } from '@/components/shared/ui/settings-icon';
 import { MessagesIcon } from '@/components/shared/ui/messages-icon';
 import { OmniaLogoText } from '@/components/shared/ui/omnia-logo';
@@ -287,26 +287,35 @@ export default function TodayScreen({ activityId, onBack }: { activityId: string
         .select('fecha, ejercicios_pendientes, ejercicios_completados')
         .eq('cliente_id', user.id)
         .eq('actividad_id', activityId)
-        .gte('fecha', selectedDateString) // Buscar desde la fecha seleccionada
+        .gte('fecha', selectedDateString)
         .lte('fecha', endDateString)
-        .order('fecha');
+        .order('fecha', { ascending: true });
 
-      console.log('🔍 [findNextAvailableActivity] Registros de progreso encontrados:', { 
+      console.log('🔍 [findNextAvailableActivity] Registros de progreso encontrados:', {
         cantidad: progresoRecords?.length || 0,
-        registros: progresoRecords?.map((r: any) => ({
+        registros: progresoRecords?.slice(0, 3).map((r: any) => ({
           fecha: r.fecha,
-          tiene_pendientes: !!r.ejercicios_pendientes,
-          pendientes_type: typeof r.ejercicios_pendientes,
-          pendientes_keys_count: r.ejercicios_pendientes 
-            ? (typeof r.ejercicios_pendientes === 'string' 
-                ? Object.keys(JSON.parse(r.ejercicios_pendientes)).length 
-                : Object.keys(r.ejercicios_pendientes).length)
-            : 0
+          pendientes_keys_count: (() => {
+            try {
+              if (!r.ejercicios_pendientes) return 0
+              const pendientes = typeof r.ejercicios_pendientes === 'string'
+                ? JSON.parse(r.ejercicios_pendientes)
+                : r.ejercicios_pendientes
+              if (pendientes && typeof pendientes === 'object' && !Array.isArray(pendientes) && Array.isArray((pendientes as any).ejercicios)) {
+                return ((pendientes as any).ejercicios || []).length
+              }
+              return pendientes && typeof pendientes === 'object' && !Array.isArray(pendientes)
+                ? Object.keys(pendientes).length
+                : 0
+            } catch {
+              return 0
+            }
+          })()
         })),
         error: error ? {
-          code: error.code,
-          message: error.message,
-          details: error.details
+          code: (error as any).code,
+          message: (error as any).message,
+          details: (error as any).details
         } : null
       });
 
@@ -336,8 +345,13 @@ export default function TodayScreen({ activityId, onBack }: { activityId: string
           const pendientes = typeof record.ejercicios_pendientes === 'string' 
             ? JSON.parse(record.ejercicios_pendientes) 
             : record.ejercicios_pendientes;
-          hasPendingExercises = pendientes && typeof pendientes === 'object' && !Array.isArray(pendientes) && Object.keys(pendientes).length > 0;
-          pendientesKeysCount = hasPendingExercises ? Object.keys(pendientes).length : 0;
+          if (pendientes && typeof pendientes === 'object' && !Array.isArray(pendientes) && Array.isArray((pendientes as any).ejercicios)) {
+            pendientesKeysCount = ((pendientes as any).ejercicios || []).length
+            hasPendingExercises = pendientesKeysCount > 0
+          } else {
+            hasPendingExercises = pendientes && typeof pendientes === 'object' && !Array.isArray(pendientes) && Object.keys(pendientes).length > 0;
+            pendientesKeysCount = hasPendingExercises ? Object.keys(pendientes).length : 0;
+          }
         } catch (e) {
           console.error('❌ [findNextAvailableActivity] Error parseando ejercicios_pendientes:', e);
           hasPendingExercises = false;
@@ -390,6 +404,9 @@ export default function TodayScreen({ activityId, onBack }: { activityId: string
               const p = typeof r.ejercicios_pendientes === 'string' 
                 ? JSON.parse(r.ejercicios_pendientes) 
                 : r.ejercicios_pendientes;
+              if (p && typeof p === 'object' && !Array.isArray(p) && Array.isArray((p as any).ejercicios)) {
+                return ((p as any).ejercicios || []).length > 0
+              }
               return p && typeof p === 'object' && !Array.isArray(p) && Object.keys(p).length > 0;
             } catch {
               return false;
@@ -461,18 +478,9 @@ export default function TodayScreen({ activityId, onBack }: { activityId: string
           finalCoverImageUrl = backgroundImage || null;
         } else {
           if (isNutrition) {
-            // Para nutrición: buscar en nutrition_program_details
-            const { data: nutritionDetail, error: nutritionError } = await supabase
-              .from('nutrition_program_details')
-              .select('image_url')
-              .eq('id', ejercicioIdNum)
-              .maybeSingle();
-            
-            if (nutritionError) {
-              console.warn('⚠️ [openVideo] Error obteniendo imagen de nutrición:', nutritionError);
-            } else {
-              finalCoverImageUrl = nutritionDetail?.image_url || null;
-            }
+            // Para nutrición: la tabla nutrition_program_details no tiene image_url.
+            // Usar directamente la imagen de la actividad general.
+            finalCoverImageUrl = backgroundImage || null;
           } else {
             // Para fitness: la columna image_url no existe en ejercicios_detalles
             // Usar directamente la imagen de la actividad general
@@ -1360,22 +1368,30 @@ export default function TodayScreen({ activityId, onBack }: { activityId: string
 
     const blockActivities = activities.filter(activity => activity.bloque === blockNumber);
     console.log(`📋 Ejercicios del bloque ${blockNumber}:`, blockActivities.map(a => ({ id: a.id, name: a.title, done: a.done })));
-    
-    const isCompleted = isBlockCompleted(blockNumber);
-    const newCompletedState = !isCompleted;
-    console.log(`🔄 Toggle bloque ${blockNumber}: ${isCompleted} → ${newCompletedState}`);
+
+    const allCompleted = blockActivities.length > 0 && blockActivities.every(a => a.done);
+    const activitiesToToggle = allCompleted
+      ? blockActivities.filter(a => a.done)
+      : blockActivities.filter(a => !a.done);
+
+    console.log(`🔄 Toggle bloque ${blockNumber}:`, {
+      allCompleted,
+      total: blockActivities.length,
+      toToggle: activitiesToToggle.length
+    });
 
     try {
-      // Usar toggleExerciseSimple para cada ejercicio del bloque
-      const togglePromises = blockActivities.map(activity => {
-        console.log(`🔄 Toggleando ejercicio ${activity.id} del bloque ${blockNumber} a: ${newCompletedState}`);
+      // Si el bloque está incompleto: completar faltantes.
+      // Si el bloque está completo: desmarcar todo el bloque.
+      const togglePromises = activitiesToToggle.map(activity => {
+        console.log(`🔄 Toggleando ejercicio ${activity.id} del bloque ${blockNumber} (done actual: ${activity.done})`);
         return toggleExerciseSimple(activity.id);
       });
 
       // Esperar a que todos los toggles se completen
       await Promise.all(togglePromises);
       
-      console.log(`✅ Bloque ${blockNumber} toggleado exitosamente a: ${newCompletedState}`);
+      console.log(`✅ Bloque ${blockNumber} toggleado exitosamente`);
       
       // Recargar estados de días para sincronizar
       await loadDayStatuses();
@@ -1416,13 +1432,14 @@ export default function TodayScreen({ activityId, onBack }: { activityId: string
       });
 
       // Obtener la fecha actual seleccionada
-      const currentDate = selectedDate instanceof Date ? selectedDate.toISOString().split('T')[0] : selectedDate;
+      const currentDate = selectedDate instanceof Date ? getBuenosAiresDateString(selectedDate) : selectedDate;
       
       console.log(`📤 Enviando petición a /api/toggle-exercise:`, {
         executionId: ejercicioId,
         bloque,
         orden,
-        fecha: currentDate
+        fecha: currentDate,
+        activityId
       });
       
       const response = await fetch('/api/toggle-exercise', {
@@ -1434,42 +1451,46 @@ export default function TodayScreen({ activityId, onBack }: { activityId: string
           executionId: ejercicioId,
           bloque,
           orden,
-          fecha: currentDate
+          fecha: currentDate,
+          categoria: programInfo?.categoria || enrollment?.activity?.categoria,
+          activityId: Number(activityId)
         })
       });
 
       const result = await response.json();
       console.log(`📡 Respuesta del servidor:`, { status: response.status, body: result });
+      try {
+        console.log(`📡 Respuesta del servidor (raw):`, JSON.stringify(result));
+      } catch {
+        // ignore
+      }
 
       if (!response.ok) {
         console.error(`❌ Error del servidor:`, result);
-        alert(`Error: ${result.error || 'Error desconocido'}`);
-        return;
+        try {
+          console.error(`❌ Error del servidor (raw):`, JSON.stringify(result));
+        } catch {
+          // ignore
+        }
+        throw new Error(result.error || 'Error al completar ejercicio');
       }
 
-      if (result.success) {
-        console.log(`✅ Toggle exitoso:`, result);
-        
-        // Actualizar estado local usando el ID único
-        setActivities(prevActivities => {
-          return prevActivities.map(activity => {
-            // Usar el ID único que combina ejercicio_id, bloque y orden
-            const activityUniqueId = `${activity.ejercicio_id}_${activity.bloque}_${activity.orden}`;
-            if (activityUniqueId === activityKey) {
-              return { ...activity, done: !activity.done };
-            }
-            return activity;
-          });
+      // Actualizar estado local usando el ID único
+      setActivities(prevActivities => {
+        return prevActivities.map(activity => {
+          // Usar el ID único que combina ejercicio_id, bloque y orden
+          const activityUniqueId = `${activity.ejercicio_id}_${activity.bloque}_${activity.orden}`;
+          if (activityUniqueId === activityKey) {
+            return { ...activity, done: !activity.done };
+          }
+          return activity;
         });
+      });
 
-        // Recargar estados de días
-        await loadDayStatuses();
-        
-        console.log(`🎉 Ejercicio ${ejercicioId} toggleado exitosamente`);
-      } else {
-        console.error(`❌ Error en la respuesta:`, result);
-        alert(`Error: ${result.error || 'Error desconocido'}`);
-      }
+      // Recargar estados de días
+      await loadDayStatuses();
+      
+      console.log(`🎉 Ejercicio ${ejercicioId} toggleado exitosamente`);
 
     } catch (error) {
       console.error('❌ Error en toggleExerciseSimple:', error);
@@ -2030,6 +2051,7 @@ export default function TodayScreen({ activityId, onBack }: { activityId: string
   const collapsedY = EXPANDED - COLLAPSED;
   const midY = EXPANDED - MID;
   const y = useMotionValue(collapsedY); // Inicializar en posición colapsada
+  const dragControls = useDragControls();
 
   const openness = useTransform(y, [0, collapsedY], [1, 0]);
   const [isSheetExpanded, setIsSheetExpanded] = React.useState(false);
@@ -2052,20 +2074,14 @@ export default function TodayScreen({ activityId, onBack }: { activityId: string
 
   function onDragEnd(_: any, info: { velocity: { y: number }; offset: { y: number } }) {
     const current = y.get();
-    const projected = current + info.velocity.y * 0.2;
-    const totalDistance = collapsedY - 0;
-    const currentProgress = (current - 0) / totalDistance;
-    
-    let targetSnap: number;
-    if (currentProgress < SNAP_THRESHOLD) {
-      targetSnap = 0;
-    } else if (currentProgress > 1 - SNAP_THRESHOLD) {
-      targetSnap = collapsedY;
-    } else {
-      targetSnap = midY;
-    }
-    
-    snapTo(targetSnap);
+    const projected = current + info.velocity.y * 0.25;
+
+    const points = [0, midY, collapsedY];
+    const nearest = points.reduce((best, p) => {
+      return Math.abs(p - projected) < Math.abs(best - projected) ? p : best;
+    }, points[0]);
+
+    snapTo(nearest);
   }
 
   if (loading) {
@@ -3178,6 +3194,8 @@ export default function TodayScreen({ activityId, onBack }: { activityId: string
       {/* BOTTOM-SHEET — Actividades de hoy */}
       <motion.div
         drag="y"
+        dragListener={false}
+        dragControls={dragControls}
         style={{
           y,
           position: 'fixed',
@@ -3201,20 +3219,39 @@ export default function TodayScreen({ activityId, onBack }: { activityId: string
           pointerEvents: 'auto'
         }}
         dragConstraints={{ top: 0, bottom: collapsedY }}
-        dragElastic={0.04}
+        dragElastic={0.08}
         onDragEnd={onDragEnd}
       >
         {/* Handle del sheet */}
-        <div style={{ 
-          display: 'grid', 
-          placeItems: 'center', 
-          paddingTop: 10,
-          flexShrink: 0
-        }}>
-          <div style={{ 
-            width: 44, 
-            height: 4, 
-            borderRadius: 999, 
+        <div
+          onPointerDown={(e) => {
+            e.preventDefault();
+            e.stopPropagation();
+            dragControls.start(e);
+          }}
+          onClick={() => {
+            const current = y.get();
+            const distToExpanded = Math.abs(current - 0);
+            const distToCollapsed = Math.abs(current - collapsedY);
+            const isCurrentlyExpanded = distToExpanded < distToCollapsed;
+            snapTo(isCurrentlyExpanded ? collapsedY : 0);
+          }}
+          style={{
+            display: 'grid',
+            placeItems: 'center',
+            paddingTop: 10,
+            paddingBottom: 10,
+            flexShrink: 0,
+            touchAction: 'none',
+            WebkitUserSelect: 'none',
+            userSelect: 'none',
+            cursor: 'grab'
+          }}
+        >
+          <div style={{
+            width: 56,
+            height: 5,
+            borderRadius: 999,
             background: 'rgba(255, 121, 57, 0.6)',
             backdropFilter: 'blur(10px)',
             WebkitBackdropFilter: 'blur(10px)',
@@ -4812,36 +4849,32 @@ export default function TodayScreen({ activityId, onBack }: { activityId: string
                           )}
                         </div>
                         
-                          <div 
-                            onClick={(e) => {
-                              e.stopPropagation();
-                              // Activar modo de edición para el bloque
-                              const firstActivity = blockActivities[0];
-                              if (firstActivity) {
-                                const parsed = parseSeries(firstActivity.detalle_series || firstActivity.series);
-                                const initialSeries = parsed.map((s: any) => ({
-                                  id: s?.id ?? 0,
-                                  reps: String(s?.reps || '0'),
-                                  kg: String(s?.kg || '0'),
-                                  series: String(s?.sets || (s as any)?.series || '0')
-                                }));
-                                setEditableSeries(initialSeries);
-                                setOriginalSeries(JSON.parse(JSON.stringify(initialSeries)));
-                                setEditingBlockIndex(editingBlockIndex === null ? 0 : null);
-                              }
-                            }}
-                            style={{
-                              cursor: 'pointer',
-                              transition: 'transform 0.2s ease',
-                              color: editingBlockIndex !== null ? '#FF6B35' : 'rgba(255, 255, 255, 0.6)',
-                              padding: '4px'
-                            }}
-                          >
-                            ✎
-                          </div>
+                        <div
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            toggleBlock(blockNumber);
+                          }}
+                          style={{
+                            cursor: 'pointer',
+                            transition: 'transform 0.2s ease',
+                            color: 'rgba(255, 255, 255, 0.6)',
+                            padding: '4px',
+                            display: 'flex',
+                            alignItems: 'center',
+                            justifyContent: 'center'
+                          }}
+                          aria-label={isCollapsed ? 'Expandir bloque' : 'Colapsar bloque'}
+                        >
+                          {isCollapsed ? (
+                            <ChevronDown size={18} />
+                          ) : (
+                            <ChevronUp size={18} />
+                          )}
+                        </div>
                       </div>
                     </div>
                     
+                    {!isCollapsed && (
                     <div style={{ 
                         marginTop: 8,
                         paddingLeft: 0
@@ -5140,6 +5173,7 @@ export default function TodayScreen({ activityId, onBack }: { activityId: string
                           </div>
                         </div>
                       </div>
+                    )}
                   </div>
                 );
               })}

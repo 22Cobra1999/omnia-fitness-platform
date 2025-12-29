@@ -1,6 +1,15 @@
 /** @type {import('next').NextConfig} */
 // Updated: 2025-12-16 21:20 - Fix build errors and optimize
+import path from 'path'
+import { fileURLToPath } from 'url'
+
+const __filename = fileURLToPath(import.meta.url)
+const __dirname = path.dirname(__filename)
+
 const nextConfig = {
+  turbopack: {
+    root: __dirname,
+  },
   typescript: {
     ignoreBuildErrors: true,
   },

@@ -3,7 +3,7 @@ import { getSupabaseAdmin } from '@/lib/config/db'
 export async function GET() {
   try {
     // Verificar variables de entorno
-    if (!process.env.NEXT_PUBLIC_SUPABASE_URL || !process.env.SUPABASE_SERVICE_ROLE_KEY) {
+    if (!process.env.NEXT_PUBLIC_SUPABASE_URL || !process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY) {
       console.error("Missing Supabase environment variables")
       return NextResponse.json(
         { error: "Server configuration error" },

@@ -2,24 +2,39 @@ import { createClient } from "@supabase/supabase-js"
 
 const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL
 const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY
-const supabaseServiceKey = process.env.SUPABASE_SERVICE_ROLE_KEY || supabaseAnonKey
+const rawServiceRoleKey = process.env.SUPABASE_SERVICE_ROLE_KEY
+
+// Supabase keys are JWT-like strings and typically start with "eyJ".
+// If a non-key value is accidentally set (e.g. placeholder), prefer anon key.
+const supabaseServiceKey =
+  rawServiceRoleKey && rawServiceRoleKey.startsWith("eyJ")
+    ? rawServiceRoleKey
+    : undefined
 
 // Verificar que las variables de entorno estén configuradas
-if (!supabaseUrl || !supabaseServiceKey) {
+if (!supabaseUrl || (!supabaseServiceKey && !supabaseAnonKey)) {
   console.warn("Supabase environment variables not configured")
 }
 
 // Función para obtener el cliente de Supabase
 export async function getSupabaseAdmin() {
-  return createClient(
-    supabaseUrl || "https://placeholder.supabase.co",
-    supabaseServiceKey || "placeholder-key"
-  )
+  if (!supabaseUrl) {
+    throw new Error("Missing Supabase environment variable: NEXT_PUBLIC_SUPABASE_URL")
+  }
+
+  const keyToUse = supabaseServiceKey || supabaseAnonKey
+  if (!keyToUse) {
+    throw new Error(
+      "Missing Supabase environment variables: SUPABASE_SERVICE_ROLE_KEY or NEXT_PUBLIC_SUPABASE_ANON_KEY"
+    )
+  }
+
+  return createClient(supabaseUrl, keyToUse)
 }
 
 export async function query(statement: string, params: any[] = []) {
   try {
-    if (!supabaseUrl || !supabaseServiceKey) {
+    if (!supabaseUrl || (!supabaseServiceKey && !supabaseAnonKey)) {
       console.warn("Supabase not configured, skipping query")
       return null
     }
@@ -41,7 +56,7 @@ export async function query(statement: string, params: any[] = []) {
 
 export async function insert(tableName: string, data: Record<string, any>) {
   try {
-    if (!supabaseUrl || !supabaseServiceKey) {
+    if (!supabaseUrl || (!supabaseServiceKey && !supabaseAnonKey)) {
       console.warn("Supabase not configured, skipping insert")
       return null
     }
@@ -59,7 +74,7 @@ export async function insert(tableName: string, data: Record<string, any>) {
 
 export async function update(tableName: string, id: number, data: Record<string, any>) {
   try {
-    if (!supabaseUrl || !supabaseServiceKey) {
+    if (!supabaseUrl || (!supabaseServiceKey && !supabaseAnonKey)) {
       console.warn("Supabase not configured, skipping update")
       return null
     }
@@ -77,7 +92,7 @@ export async function update(tableName: string, id: number, data: Record<string,
 
 export async function remove(tableName: string, id: number) {
   try {
-    if (!supabaseUrl || !supabaseServiceKey) {
+    if (!supabaseUrl || (!supabaseServiceKey && !supabaseAnonKey)) {
       console.warn("Supabase not configured, skipping remove")
       return null
     }
@@ -95,7 +110,7 @@ export async function remove(tableName: string, id: number) {
 
 export async function getAll(tableName: string) {
   try {
-    if (!supabaseUrl || !supabaseServiceKey) {
+    if (!supabaseUrl || (!supabaseServiceKey && !supabaseAnonKey)) {
       console.warn("Supabase not configured, skipping getAll")
       return []
     }
@@ -113,7 +128,7 @@ export async function getAll(tableName: string) {
 
 export async function getById(tableName: string, id: number) {
   try {
-    if (!supabaseUrl || !supabaseServiceKey) {
+    if (!supabaseUrl || (!supabaseServiceKey && !supabaseAnonKey)) {
       console.warn("Supabase not configured, skipping getById")
       return null
     }
@@ -131,7 +146,7 @@ export async function getById(tableName: string, id: number) {
 
 export async function initializeTables() {
   try {
-    if (!supabaseUrl || !supabaseServiceKey) {
+    if (!supabaseUrl || (!supabaseServiceKey && !supabaseAnonKey)) {
       console.warn("Supabase not configured, skipping initialization")
       return false
     }
@@ -155,7 +170,7 @@ export async function initializeTables() {
 
 export const sql = async (strings: TemplateStringsArray, ...values: any[]) => {
   let query = ""
-  if (!supabaseUrl || !supabaseServiceKey) {
+  if (!supabaseUrl || (!supabaseServiceKey && !supabaseAnonKey)) {
     console.warn("Supabase not configured, skipping sql query")
     return null
   }

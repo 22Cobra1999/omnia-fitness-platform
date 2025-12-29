@@ -83,3 +83,6 @@ Este script:
 3. Corregirá todos los status según la lógica
 4. Mostrará una verificación final
 
+
+
+

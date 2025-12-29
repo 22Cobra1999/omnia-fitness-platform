@@ -111,7 +111,7 @@ export async function GET(request: NextRequest) {
       // como base para "Agregar existentes" (independiente del programa concreto).
       const { data: dishes, error: dishesError } = await supabase
         .from('nutrition_program_details')
-        .select('id, coach_id, nombre, receta, calorias, proteinas, carbohidratos, grasas, ingredientes, porciones, minutos, video_url')
+        .select('id, coach_id, nombre, receta_id, calorias, proteinas, carbohidratos, grasas, ingredientes, porciones, minutos, video_url, recetas(receta)')
         .eq('coach_id', coach.id)
 
       if (dishesError) {
@@ -134,7 +134,7 @@ export async function GET(request: NextRequest) {
           id: dish.id,
           name,
           descripcion: dish.descripcion ?? '',
-          receta: dish.receta ?? '',
+          receta: dish.recetas?.receta ?? '',
           calorias: dish.calorias ?? '',
           proteinas: dish.proteinas ?? '',
           carbohidratos: dish.carbohidratos ?? '',

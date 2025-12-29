@@ -626,8 +626,26 @@ export default function ClientProductModal({
     
     setLoadingWorkshopTopics(true)
     try {
-      const response = await fetch(`/api/taller-detalles?actividad_id=${product.id}`)
+      const response = await fetch(`/api/taller-detalles?actividad_id=${product.id}`, {
+        credentials: 'include'
+      })
+
       if (!response.ok) {
+        let body: any = null
+        try {
+          body = await response.json()
+        } catch {
+          try {
+            body = await response.text()
+          } catch {
+            body = null
+          }
+        }
+        console.error('❌ Error al cargar temas del taller (response not ok):', {
+          status: response.status,
+          statusText: response.statusText,
+          body
+        })
         throw new Error('Error al cargar temas del taller')
       }
       

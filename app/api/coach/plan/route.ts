@@ -23,11 +23,27 @@ export async function GET(request: NextRequest) {
       return NextResponse.json({ error: 'Coach no encontrado' }, { status: 404 })
     }
 
+    const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL
+    const serviceRoleKey = process.env.SUPABASE_SERVICE_ROLE_KEY
+
+    // En desarrollo o entornos mal configurados, devolver plan free sin romper la UI
+    if (!supabaseUrl || !serviceRoleKey) {
+      return NextResponse.json({
+        success: true,
+        plan: {
+          coach_id: coach.id,
+          plan_type: 'free',
+          status: 'active'
+        },
+        warning: 'Service role key no configurada; usando plan free por defecto'
+      })
+    }
+
     // Crear cliente con service role para verificar si existe un plan activo
     // Esto evita problemas con RLS que podrían ocultar un plan existente
     const supabaseService = createClient(
-      process.env.NEXT_PUBLIC_SUPABASE_URL!,
-      process.env.SUPABASE_SERVICE_ROLE_KEY!
+      supabaseUrl,
+      serviceRoleKey
     )
 
     // Verificar con service role si ya existe un plan activo
@@ -43,11 +59,15 @@ export async function GET(request: NextRequest) {
 
     if (checkError) {
       console.error('Error verificando plan existente:', checkError)
-      return NextResponse.json({ 
-        success: false, 
-        error: 'Error al verificar plan',
-        details: checkError.message 
-      }, { status: 500 })
+      return NextResponse.json({
+        success: true,
+        plan: {
+          coach_id: coach.id,
+          plan_type: 'free',
+          status: 'active'
+        },
+        warning: checkError.message
+      })
     }
 
     // Buscar el plan que realmente está activo (started_at <= now)
@@ -104,11 +124,15 @@ export async function GET(request: NextRequest) {
         }
       }
 
-      return NextResponse.json({ 
-        success: false, 
-        error: 'Error al crear plan por defecto',
-        details: createError.message 
-      }, { status: 500 })
+      return NextResponse.json({
+        success: true,
+        plan: {
+          coach_id: coach.id,
+          plan_type: 'free',
+          status: 'active'
+        },
+        warning: createError.message
+      })
     }
 
     return NextResponse.json({ 

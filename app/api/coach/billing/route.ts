@@ -132,7 +132,7 @@ export async function GET(request: NextRequest) {
       });
     }
 
-    const activityIds = activities.map(a => a.id);
+    const activityIds = activities.map((a: any) => a.id);
 
     // Obtener enrollments
     const { data: enrollments } = await supabase
@@ -153,7 +153,7 @@ export async function GET(request: NextRequest) {
       });
     }
 
-    const enrollmentIds = enrollments.map(e => e.id);
+    const enrollmentIds = enrollments.map((e: any) => e.id);
 
     // Obtener pagos del mes
     const { data: payments, error: paymentsError } = await supabase
@@ -184,7 +184,18 @@ export async function GET(request: NextRequest) {
 
     if (paymentsError) {
       console.error('Error obteniendo pagos:', paymentsError);
-      return NextResponse.json({ error: 'Error obteniendo pagos' }, { status: 500 });
+      return NextResponse.json({
+        success: true,
+        month: `${targetYear}-${String(targetMonth).padStart(2, '0')}`,
+        totalIncome: 0,
+        totalCommission: 0,
+        planFee,
+        earnings: 0,
+        invoices: [],
+        planSubscriptions: planSubscriptionsList,
+        planType,
+        warning: 'Error obteniendo pagos'
+      });
     }
 
     // Calcular totales

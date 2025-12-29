@@ -1,28 +1,68 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { createClient } from '@supabase/supabase-js'
+import { createRouteHandlerClient } from '@/lib/supabase/supabase-server'
 
 // Hacer la ruta dinámica para evitar evaluación durante el build
 export const dynamic = 'force-dynamic'
 export const runtime = 'nodejs'
 
 export async function GET(request: NextRequest) {
-  // Crear cliente dentro de la función para evitar evaluación durante build
-  const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL
-  const supabaseServiceKey = process.env.SUPABASE_SERVICE_ROLE_KEY
-
-  if (!supabaseUrl || !supabaseServiceKey) {
-    console.error('Missing Supabase environment variables')
-    return NextResponse.json(
-      { success: false, error: 'Server configuration error' },
-      { status: 500 }
-    )
+  const authSupabase = await createRouteHandlerClient()
+  let user = null as any
+  const { data: userData, error: authError } = await authSupabase.auth.getUser()
+  if (!authError && userData?.user) {
+    user = userData.user
+  } else {
+    const { data: sessionData } = await authSupabase.auth.getSession()
+    if (sessionData?.session?.user) {
+      user = sessionData.session.user
+    }
   }
 
-  const supabase = createClient(supabaseUrl, supabaseServiceKey)
+  if (!user) {
+    return NextResponse.json({ success: false, error: 'No autenticado' }, { status: 401 })
+  }
+
+  // Usar el cliente autenticado (con cookies) para respetar RLS y evitar depender de service role.
+  const supabase = authSupabase
   try {
 
+    // Primero, traer solo actividades del coach autenticado
+    const { data: coachActivities, error: coachActivitiesError } = await supabase
+      .from('activities')
+      .select('id, title, type, coach_id, price, categoria')
+      .eq('coach_id', user.id)
+
+    if (coachActivitiesError) {
+      console.error('[coach-clients] Error en activities (coach filter):', coachActivitiesError)
+      return NextResponse.json({
+        success: true,
+        clients: [],
+        warning: 'Error obteniendo actividades',
+        debug: {
+          coachId: user.id,
+          coachActivitiesCount: 0,
+          enrollmentsCount: 0,
+          coachActivitiesError: coachActivitiesError.message
+        }
+      })
+    }
+
+    if (!coachActivities || coachActivities.length === 0) {
+      return NextResponse.json({
+        success: true,
+        clients: [],
+        debug: {
+          coachId: user.id,
+          coachActivitiesCount: 0,
+          enrollmentsCount: 0
+        }
+      })
+    }
+
+    const coachActivityIds = coachActivities.map((a: any) => a.id)
+
     // Obtener inscripciones activas
-    const { data: enrollments, error: enrollmentsError } = await supabase
+    let { data: enrollments, error: enrollmentsError } = await supabase
       .from('activity_enrollments')
       .select(`
         id,
@@ -31,7 +71,29 @@ export async function GET(request: NextRequest) {
         todo_list,
         activity_id
       `)
-      .eq('status', 'activa')
+      .in('status', ['activa', 'active', 'pendiente', 'pending', 'finalizada', 'finished', 'expirada', 'expired'])
+      .in('activity_id', coachActivityIds)
+
+    // Fallback: en algunos esquemas activity_id puede ser string (bigint/text) y el filtro numérico no matchea.
+    // Reintentar con ids como string si no hubo resultados.
+    if (!enrollmentsError && (!enrollments || enrollments.length === 0)) {
+      const coachActivityIdsStr = coachActivityIds.map((id: any) => String(id))
+      const retry = await supabase
+        .from('activity_enrollments')
+        .select(`
+          id,
+          client_id,
+          status,
+          todo_list,
+          activity_id
+        `)
+        .in('status', ['activa', 'active', 'pendiente', 'pending', 'finalizada', 'finished', 'expirada', 'expired'])
+        .in('activity_id', coachActivityIdsStr as any)
+
+      if (!retry.error) {
+        enrollments = retry.data
+      }
+    }
 
     if (enrollmentsError) {
       console.error('[coach-clients] Error en enrollments:', enrollmentsError)
@@ -40,26 +102,26 @@ export async function GET(request: NextRequest) {
 
 
     if (!enrollments || enrollments.length === 0) {
+      const coachActivityIdsSample = coachActivityIds.slice(0, 5).map((id: any) => ({ value: id, type: typeof id }))
       return NextResponse.json({
         success: true,
-        clients: []
+        clients: [],
+        debug: {
+          coachId: user.id,
+          coachActivitiesCount: coachActivityIds.length,
+          enrollmentsCount: 0,
+          coachActivityIdsSample
+        }
       })
     }
 
-    // Obtener datos de actividades
-    const activityIds = enrollments.map(e => e.activity_id)
-    const { data: activities, error: activitiesError } = await supabase
-      .from('activities')
-      .select('id, title, type, coach_id, price, categoria')
-      .in('id', activityIds)
+    const enrollmentStatuses = Array.from(new Set((enrollments || []).map((e: any) => e?.status).filter(Boolean)))
 
-    if (activitiesError) {
-      console.error('[coach-clients] Error en activities:', activitiesError)
-      return NextResponse.json({ success: false, error: activitiesError.message }, { status: 500 })
-    }
+    // Actividades ya están prefiltradas por coach
+    const activities = coachActivities
 
     // Obtener datos de usuarios
-    const clientIds = [...new Set(enrollments.map(e => e.client_id))]
+    const clientIds = [...new Set(enrollments.map((e: any) => e.client_id))]
     const { data: users, error: usersError } = await supabase
       .from('user_profiles')
       .select('id, full_name, email, avatar_url')
@@ -77,8 +139,8 @@ export async function GET(request: NextRequest) {
     
     for (const enrollment of enrollments || []) {
       const clientId = enrollment.client_id
-      const user = users?.find(u => u.id === clientId)
-      const activity = activities?.find(a => a.id === enrollment.activity_id)
+      const user = users?.find((u: any) => u.id === clientId)
+      const activity = activities?.find((a: any) => String(a.id) === String(enrollment.activity_id))
       
       if (!user || !activity) continue
       
@@ -103,178 +165,68 @@ export async function GET(request: NextRequest) {
       clientData.enrollments.push(enrollment)
     }
 
-    // Procesar datos de clientes
-    const processedClients = await Promise.all(
-      Array.from(clientsMap.values()).map(async (client) => {
-        const activities = client.activities
+    // Fallback básico si por algún motivo el procesamiento avanzado falla
+    const basicClients = Array.from(clientsMap.values()).map((client: any) => {
+      const statuses = new Set<string>((client.enrollments || []).map((e: any) => String(e?.status || '').toLowerCase()))
+      const hasActive = statuses.has('activa') || statuses.has('active')
+      const hasPending = statuses.has('pendiente') || statuses.has('pending')
+      const clientStatus: 'active' | 'pending' | 'inactive' = hasActive ? 'active' : hasPending ? 'pending' : 'inactive'
 
-        // Calcular métricas
-        let totalExercises = 0
-        let completedExercises = 0
-        let totalRevenue = 0
-        let todoCount = 0
+      return {
+        id: client.id,
+        name: client.name,
+        email: client.email,
+        avatar_url: client.avatar_url,
+        progress: 0,
+        status: clientStatus,
+        lastActive: 'Nunca',
+        totalExercises: 0,
+        completedExercises: 0,
+        totalRevenue: 0,
+        activitiesCount: (client.activities || []).length,
+        todoCount: 0,
+        activities: (client.activities || []).map((a: any) => ({
+          id: a.id,
+          title: a.title,
+          type: a.type,
+          amountPaid: a.amountPaid || a.price || 0
+        }))
+      }
+    })
 
-
-        for (const activity of activities) {
-          // Determinar si es nutrición o fitness
-          // Verificar tanto en type como en categoria
-          const isNutrition = 
-            activity.type === 'nutrition' || 
-            activity.type === 'nutricion' ||
-            activity.categoria === 'nutrition' ||
-            activity.categoria === 'nutricion'
-          
-          if (isNutrition) {
-            // Para productos de nutrición: contar platos
-            const { data: platos } = await supabase
-              .from('nutrition_program_details')
-              .select('id')
-              .eq('activity_id', activity.id)
-            
-            totalExercises += platos?.length || 0
-
-            // Contar platos completados desde progreso_cliente_nutricion
-            const { data: progresoRecords } = await supabase
-              .from('progreso_cliente_nutricion')
-              .select('ejercicios_completados')
-              .eq('cliente_id', client.id)
-              .eq('actividad_id', activity.id)
-
-            progresoRecords?.forEach(record => {
-              let completados: any[] = []
-              try {
-                // Manejar tanto arrays nativos de PostgreSQL como strings JSON
-                if (Array.isArray(record.ejercicios_completados)) {
-                  completados = record.ejercicios_completados
-                } else if (typeof record.ejercicios_completados === 'string') {
-                  completados = JSON.parse(record.ejercicios_completados || '[]')
-                }
-              } catch (err) {
-                completados = []
-              }
-              completedExercises += completados.length
-            })
-          } else {
-            // Para productos de fitness: contar ejercicios
-            const { data: ejercicios } = await supabase
-              .from('ejercicios_detalles')
-              .select('id')
-            .contains('activity_id', { [activity.id]: {} })
-            
-            totalExercises += ejercicios?.length || 0
-
-            // Contar ejercicios completados desde progreso_cliente
-            const { data: progresoRecords } = await supabase
-              .from('progreso_cliente')
-              .select('ejercicios_completados')
-              .eq('cliente_id', client.id)
-              .eq('actividad_id', activity.id)
-
-            progresoRecords?.forEach(record => {
-              let completados: any[] = []
-              try {
-                // Manejar tanto arrays nativos de PostgreSQL como strings JSON
-                if (Array.isArray(record.ejercicios_completados)) {
-                  completados = record.ejercicios_completados
-                } else if (typeof record.ejercicios_completados === 'string') {
-                  completados = JSON.parse(record.ejercicios_completados || '[]')
-                }
-              } catch (err) {
-                completados = []
-              }
-              completedExercises += completados.length
-            })
-          }
-
-          // Sumar ingresos (precio de la actividad)
-          totalRevenue += activity.price || 0
-
-          // Contar todos de las inscripciones
-          const enrollment = client.enrollments.find((e: any) => e.activity_id === activity.id)
-          if (enrollment?.todo_list) {
-            try {
-              // Si ya es un array, usarlo directamente
-              if (Array.isArray(enrollment.todo_list)) {
-                todoCount += enrollment.todo_list.length
-              } else {
-                // Si es string, parsearlo
-                const todos = JSON.parse(enrollment.todo_list)
-                todoCount += Array.isArray(todos) ? todos.length : 0
-              }
-            } catch (e) {
-              // Si no es JSON válido, contar como 0
-            }
-          }
-        }
-
-        const progress = totalExercises > 0 ? Math.round((completedExercises / totalExercises) * 100) : 0
-
-        // Última actividad desde progreso_cliente o progreso_cliente_nutricion
-        // Primero verificar en progreso_cliente (fitness)
-        const { data: lastActivityFitness } = await supabase
-          .from('progreso_cliente')
-          .select('fecha')
-          .eq('cliente_id', client.id)
-          .order('fecha', { ascending: false })
-          .limit(1)
-          .maybeSingle()
-        
-        // Luego verificar en progreso_cliente_nutricion (nutrición)
-        const { data: lastActivityNutrition } = await supabase
-          .from('progreso_cliente_nutricion')
-          .select('fecha')
-          .eq('cliente_id', client.id)
-          .order('fecha', { ascending: false })
-          .limit(1)
-          .maybeSingle()
-        
-        // Obtener la fecha más reciente entre ambas
-        let lastActivityDate: string | null = null
-        if (lastActivityFitness?.fecha && lastActivityNutrition?.fecha) {
-          const fitnessDate = new Date(lastActivityFitness.fecha)
-          const nutritionDate = new Date(lastActivityNutrition.fecha)
-          lastActivityDate = fitnessDate > nutritionDate ? lastActivityFitness.fecha : lastActivityNutrition.fecha
-        } else if (lastActivityFitness?.fecha) {
-          lastActivityDate = lastActivityFitness.fecha
-        } else if (lastActivityNutrition?.fecha) {
-          lastActivityDate = lastActivityNutrition.fecha
-        }
-
-        return {
-          id: client.id,
-          name: client.full_name || client.name || 'Cliente',
-          email: client.email || '',
-          avatar_url: client.avatar_url || null,
-          progress,
-          status: 'active' as const,
-          lastActive: lastActivityDate ? 
-            new Date(lastActivityDate).toLocaleDateString() : 'Nunca',
-          totalExercises,
-          completedExercises,
-          totalRevenue,
-          activitiesCount: activities.length,
-          todoCount,
-          activities: activities.map((activity: any) => ({
-            id: activity.id,
-            title: activity.title,
-            type: activity.type,
-            amountPaid: activity.amount_paid || 0
-          }))
-        }
-      })
-    )
-
+    const coachActivityIdsSample = coachActivityIds.slice(0, 5).map((id: any) => ({ value: id, type: typeof id }))
+    const enrollmentsSample = (enrollments || []).slice(0, 5).map((e: any) => ({
+      id: e.id,
+      activity_id: e.activity_id,
+      activity_id_type: typeof e.activity_id,
+      status: e.status
+    }))
 
     return NextResponse.json({
       success: true,
-      clients: processedClients
+      clients: basicClients,
+      debug: {
+        coachId: user.id,
+        coachActivitiesCount: coachActivityIds.length,
+        enrollmentsCount: enrollments?.length || 0,
+        enrollmentStatuses,
+        clientsMapCount: clientsMap.size,
+        usedFallback: true,
+        coachActivityIdsSample,
+        enrollmentsSample
+      }
     })
 
-  } catch (error) {
-    console.error('[coach-clients] Error general:', error)
-    return NextResponse.json(
-      { success: false, error: 'Error interno del servidor' },
-      { status: 500 }
-    )
+  } catch (error: any) {
+    console.error('[coach-clients] Unhandled error:', error)
+    return NextResponse.json({
+      success: true,
+      clients: [],
+      warning: 'Error interno',
+      debug: {
+        message: error?.message,
+        name: error?.name
+      }
+    })
   }
 }

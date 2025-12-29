@@ -580,3 +580,6 @@ PASO 6: RESUMEN Y PUBLICACIÓN (todos los tipos)
 
 Este es el flujo completo de creación de productos con todos los pasos, diseño, frames y orden. ¿Quieres que profundice en algún paso específico?
 
+
+
+

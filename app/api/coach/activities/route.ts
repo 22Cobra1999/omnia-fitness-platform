@@ -1,9 +1,14 @@
 import { type NextRequest, NextResponse } from "next/server"
-import { createClient } from '@supabase/supabase-js'
+import { createRouteHandlerClient, createServiceRoleClient } from '@/lib/supabase/supabase-server'
 
 // Hacer la ruta dinámica para evitar evaluación durante el build
 export const dynamic = 'force-dynamic'
 export const runtime = 'nodejs'
+
+const isInvalidApiKeyError = (err: any) => {
+  const msg = String(err?.message || '')
+  return msg.toLowerCase().includes('invalid api key')
+}
 
 export async function GET(request: NextRequest) {
   console.log('🚀 COACH/ACTIVITIES: API ejecutándose...')
@@ -13,19 +18,47 @@ export async function GET(request: NextRequest) {
     const typeFilter = searchParams.get("type")
     const difficultyFilter = searchParams.get("difficulty")
     const coachIdFilter = searchParams.get("coachId")
-    
-    // Usar service role para bypass RLS temporalmente
-    const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL
-    const supabaseServiceKey = process.env.SUPABASE_SERVICE_ROLE_KEY
 
-    if (!supabaseUrl || !supabaseServiceKey) {
-      return NextResponse.json(
-        { error: 'Server configuration error' },
-        { status: 500 }
-      )
+    const authSupabase = await createRouteHandlerClient()
+    let user = null as any
+    const { data: userData, error: authError } = await authSupabase.auth.getUser()
+    if (!authError && userData?.user) {
+      user = userData.user
+    } else {
+      const { data: sessionData } = await authSupabase.auth.getSession()
+      if (sessionData?.session?.user) {
+        user = sessionData.session.user
+      }
     }
 
-    const supabase = createClient(supabaseUrl, supabaseServiceKey)
+    if (!user) {
+      return NextResponse.json({ success: false, error: 'No autorizado' }, { status: 401 })
+    }
+
+    // Seguridad: el coach solo puede consultar sus propias actividades.
+    // Si el frontend manda coachId distinto, lo ignoramos.
+    const coachId = String(user.id)
+    
+    // Preferir service role para bypass RLS; si no está disponible o es inválida, usar el cliente autenticado.
+    let supabase: any = createServiceRoleClient()
+    let usingServiceRole = Boolean(supabase)
+
+    if (!supabase) {
+      console.warn('⚠️ [coach/activities] SUPABASE_SERVICE_ROLE_KEY ausente: usando cliente autenticado del request')
+      supabase = authSupabase
+      usingServiceRole = false
+    } else {
+      const { error: validationError } = await supabase
+        .from('activities')
+        .select('id')
+        .limit(1)
+
+      if (validationError && isInvalidApiKeyError(validationError)) {
+        console.warn('⚠️ [coach/activities] SUPABASE_SERVICE_ROLE_KEY inválida: usando cliente autenticado del request')
+        supabase = authSupabase
+        usingServiceRole = false
+      }
+    }
     
     let query = supabase.from("activities").select(`
       *,
@@ -41,17 +74,29 @@ export async function GET(request: NextRequest) {
     if (difficultyFilter) {
       query = query.eq("difficulty", difficultyFilter)
     }
-    if (coachIdFilter) {
-      query = query.eq("coach_id", coachIdFilter)
-    }
+    // Siempre filtrar por coach autenticado
+    query = query.eq("coach_id", coachId)
     
     query = query.order("created_at", { ascending: false })
     const { data: activities, error } = await query
     
     if (error) {
-      console.error("❌ Error al buscar actividades:", error)
+      console.error("❌ Error al buscar actividades:", {
+        message: error.message,
+        code: (error as any).code,
+        details: (error as any).details,
+        hint: (error as any).hint,
+        usingServiceRole,
+        coachId,
+        coachIdFilter
+      })
       return NextResponse.json(
-        { success: false, error: `Error al buscar actividades: ${error.message}` },
+        {
+          success: false,
+          error: `Error al buscar actividades: ${error.message}`,
+          code: (error as any).code,
+          hint: (error as any).hint
+        },
         { status: 500 },
       )
     }

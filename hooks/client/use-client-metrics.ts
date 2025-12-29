@@ -34,13 +34,35 @@ interface WeeklyData {
   minutes: number
   kcal: number
   exercises: number
+  target: number
+  kcalTarget: number
+  minutesTarget: number
 }
 
-export function useClientMetrics(clientId?: string, category?: 'fitness' | 'nutricion') {
+type DailySummaryRow = {
+  fecha: string
+  cliente_id: string
+  platos_objetivo: number
+  platos_completados: number
+  platos_pendientes: number
+  nutri_kcal: number
+  nutri_kcal_objetivo: number
+  nutri_mins: number
+  nutri_mins_objetivo: number
+  ejercicios_objetivo: number
+  ejercicios_completados: number
+  ejercicios_pendientes: number
+  fitness_kcal: number
+  fitness_kcal_objetivo: number
+  fitness_mins: number
+  fitness_mins_objetivo: number
+}
+
+export function useClientMetrics(clientId?: string, category?: 'fitness' | 'nutricion', weekAnchorDate?: Date) {
   const [metrics, setMetrics] = useState<ClientMetrics>({
-    calories: { current: 0, target: 3500, percentage: 0 }, // Meta semanal: 500 kcal/día * 7 días
-    duration: { current: 0, target: 420, percentage: 0 }, // Meta semanal: 60 min/día * 7 días
-    exercises: { current: 0, target: 21, percentage: 0 }, // Meta semanal: 3 ejercicios/día * 7 días
+    calories: { current: 0, target: 500, percentage: 0 }, // Meta dinámica desde compras
+    duration: { current: 0, target: 60, percentage: 0 }, // Meta dinámica desde compras
+    exercises: { current: 0, target: 3, percentage: 0 }, // Meta dinámica desde compras
     weekly: {
       totalCalories: 0,
       totalMinutes: 0,
@@ -51,23 +73,122 @@ export function useClientMetrics(clientId?: string, category?: 'fitness' | 'nutr
   
   const [weeklyData, setWeeklyData] = useState<WeeklyData[]>([])
   const [loading, setLoading] = useState(true)
+  const [weekSummary, setWeekSummary] = useState<DailySummaryRow[]>([])
   const supabase = createClient()
 
   useEffect(() => {
     if (clientId) {
-      fetchClientMetrics(clientId, category)
+      fetchClientMetrics(clientId, category, weekAnchorDate)
     }
-  }, [clientId, category])
+  }, [clientId, weekAnchorDate?.toISOString()])
 
-  const fetchClientMetrics = async (clientId: string, category?: 'fitness' | 'nutricion') => {
+  useEffect(() => {
+    if (!clientId || weekSummary.length === 0) return
+
+    // Recalcular métricas cuando cambia el toggle (sin refetch)
+    try {
+      const weeklyMetrics: WeeklyData[] = []
+      let weeklyCalories = 0
+      let weeklyCaloriesTarget = 0
+      let weeklyMinutes = 0
+      let weeklyMinutesTarget = 0
+      let weeklyItemsCompleted = 0
+      let weeklyItemsTarget = 0
+
+      weekSummary.slice(0, 7).forEach((r: DailySummaryRow) => {
+        const itemsCompleted = category === 'nutricion' ? (Number(r.platos_completados) || 0) : (Number(r.ejercicios_completados) || 0)
+        const itemsTarget = category === 'nutricion' ? (Number(r.platos_objetivo) || 0) : (Number(r.ejercicios_objetivo) || 0)
+        const kcal = category === 'nutricion' ? (Number(r.nutri_kcal) || 0) : (Number(r.fitness_kcal) || 0)
+        const kcalTarget = category === 'nutricion' ? (Number(r.nutri_kcal_objetivo) || 0) : (Number(r.fitness_kcal_objetivo) || 0)
+        const minutes = category === 'nutricion' ? (Number(r.nutri_mins) || 0) : (Number(r.fitness_mins) || 0)
+        const minutesTarget = category === 'nutricion' ? (Number(r.nutri_mins_objetivo) || 0) : (Number(r.fitness_mins_objetivo) || 0)
+
+        weeklyCalories += kcal
+        weeklyCaloriesTarget += kcalTarget
+        weeklyMinutes += minutes
+        weeklyMinutesTarget += minutesTarget
+        weeklyItemsCompleted += itemsCompleted
+        weeklyItemsTarget += itemsTarget
+
+        weeklyMetrics.push({
+          date: r.fecha,
+          sessions: itemsCompleted,
+          minutes,
+          kcal,
+          exercises: itemsCompleted,
+          target: itemsTarget,
+          kcalTarget,
+          minutesTarget
+        })
+      })
+
+      const activeDays = weeklyMetrics.filter(day => day.sessions > 0).length
+
+      const safeWeeklyKcalTarget = weeklyCaloriesTarget > 0 ? weeklyCaloriesTarget : 1
+      const safeWeeklyMinutesTarget = weeklyMinutesTarget > 0 ? weeklyMinutesTarget : 1
+      const safeWeeklyItemsTarget = weeklyItemsTarget > 0 ? weeklyItemsTarget : 1
+
+      setMetrics({
+        calories: {
+          current: weeklyCalories,
+          target: weeklyCaloriesTarget,
+          percentage: Math.min((weeklyCalories / safeWeeklyKcalTarget) * 100, 100)
+        },
+        duration: {
+          current: weeklyMinutes,
+          target: weeklyMinutesTarget,
+          percentage: Math.min((weeklyMinutes / safeWeeklyMinutesTarget) * 100, 100)
+        },
+        exercises: {
+          current: weeklyItemsCompleted,
+          target: weeklyItemsTarget,
+          percentage: Math.min((weeklyItemsCompleted / safeWeeklyItemsTarget) * 100, 100)
+        },
+        weekly: {
+          totalCalories: weeklyCalories,
+          totalMinutes: weeklyMinutes,
+          totalExercises: weeklyItemsCompleted,
+          activeDays
+        }
+      })
+
+      setWeeklyData(weeklyMetrics)
+    } catch (e) {
+      console.error('❌ Error recalculando métricas (toggle sin refetch):', e)
+    }
+  }, [clientId, category, weekSummary])
+
+  const fetchClientMetrics = async (clientId: string, category?: 'fitness' | 'nutricion', weekAnchorDate?: Date) => {
     try {
       setLoading(true)
+
+      const toLocalDateString = (d: Date) => {
+        const year = d.getFullYear()
+        const month = String(d.getMonth() + 1).padStart(2, '0')
+        const day = String(d.getDate()).padStart(2, '0')
+        return `${year}-${month}-${day}`
+      }
+
+      const parseRecordDate = (raw: any) => {
+        if (!raw) return null
+
+        // IMPORTANT: new Date('YYYY-MM-DD') is parsed as UTC, which shifts the day in UTC-03.
+        // Treat date-only strings as LOCAL dates.
+        if (typeof raw === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(raw)) {
+          const [y, m, d] = raw.split('-').map(Number)
+          const local = new Date(y, (m || 1) - 1, d || 1)
+          return isNaN(local.getTime()) ? null : local
+        }
+
+        const d = new Date(raw)
+        return isNaN(d.getTime()) ? null : d
+      }
       
       // Obtener fecha de inicio de la semana (lunes) en zona horaria local
-      const today = new Date()
-      const startOfWeek = new Date(today)
-      const day = today.getDay()
-      const diff = today.getDate() - day + (day === 0 ? -6 : 1) // Ajustar para que lunes sea 1
+      const anchor = weekAnchorDate ? new Date(weekAnchorDate) : new Date()
+      const startOfWeek = new Date(anchor)
+      const day = anchor.getDay()
+      const diff = anchor.getDate() - day + (day === 0 ? -6 : 1) // Ajustar para que lunes sea 1
       startOfWeek.setDate(diff)
       startOfWeek.setHours(0, 0, 0, 0)
       
@@ -76,146 +197,113 @@ export function useClientMetrics(clientId?: string, category?: 'fitness' | 'nutr
       endOfWeek.setDate(startOfWeek.getDate() + 6)
       endOfWeek.setHours(23, 59, 59, 999)
 
-      // Usar el nuevo endpoint que replica la query SQL
-      const response = await fetch(`/api/client/progress-summary?cliente_id=${clientId}${category ? `&categoria=${category}` : ''}`)
+      console.log('🧿 [RINGS][METRICS] Iniciando cálculo métricas:', {
+        clientId,
+        category: category || 'fitness',
+        weekStart: startOfWeek.toISOString(),
+        weekEnd: endOfWeek.toISOString()
+      })
+
+      const startDateStr = toLocalDateString(startOfWeek)
+      const endDateStr = toLocalDateString(endOfWeek)
+
+      // Una sola query: traer la semana completa desde progreso_cliente_daily_summary
+      const response = await fetch(
+        `/api/client/progress-summary?cliente_id=${clientId}&start_date=${startDateStr}&end_date=${endDateStr}`
+      )
       if (!response.ok) {
         throw new Error('Error obteniendo resumen de progreso')
       }
       const { data: progressSummary } = await response.json()
 
-      // Filtrar por semana actual
-      const weekStartStr = startOfWeek.toISOString().split('T')[0]
-      const weekEndStr = endOfWeek.toISOString().split('T')[0]
-      const weekData = progressSummary.filter((record: any) => 
-        record.fecha >= weekStartStr && record.fecha <= weekEndStr
-      )
+      setWeekSummary(progressSummary || [])
 
-      console.log('📊 Progreso encontrado:', {
-        total: progressSummary?.length || 0,
-        semana: weekData.length,
-        fechas: [...new Set(weekData.map((r: any) => r.fecha))],
-        sample: weekData[0]
+      console.log('🧿 [RINGS][METRICS] progressSummary recibido:', {
+        clientId,
+        category: category || 'fitness',
+        totalRecords: progressSummary?.length || 0,
+        sample: progressSummary?.[0]
       })
 
+      const weekData: DailySummaryRow[] = (progressSummary || [])
 
-      // 2. Calcular métricas semanales totales desde los datos del resumen
-      let weeklyExerciseCount = 0
-      let weeklyCalories = 0
-      let weeklyDuration = 0
-
-      weekData.forEach((record: any) => {
-        // Sumar ejercicios (para fitness) o platos (para nutrición)
-        if (category === 'fitness') {
-          weeklyExerciseCount += Number(record.ejercicios) || 0
-        } else if (category === 'nutricion') {
-          weeklyExerciseCount += Number(record.platos) || 0
-        } else {
-          // Sin filtro: sumar ambos
-          weeklyExerciseCount += Number(record.ejercicios) || 0
-          weeklyExerciseCount += Number(record.platos) || 0
-        }
-
-        // Sumar minutos (solo fitness tiene minutos)
-        weeklyDuration += Number(record.minutos) || 0
-
-        // Sumar calorías (tanto fitness como nutrición tienen calorías)
-        weeklyCalories += Number(record.calorias) || 0
-      })
-
-      // 4. Calcular datos semanales por día - CORREGIDO PARA USAR FECHA_EJERCICIO
+      // Calcular métricas semanal + por día desde daily_summary (sin recomputar JSONs)
       const weeklyMetrics: WeeklyData[] = []
-      const daysOfWeek = ['Lun', 'Mar', 'Mié', 'Jue', 'Vie', 'Sáb', 'Dom']
-      
-      // Calcular fechas de la semana actual
-      const weekDates: string[] = []
-      for (let i = 0; i < 7; i++) {
-        const date = new Date(startOfWeek)
-        date.setDate(startOfWeek.getDate() + i)
-        weekDates.push(date.toISOString().split('T')[0])
-      }
-      
-      for (let i = 0; i < 7; i++) {
-        const dayDate = weekDates[i]
-        
-        // Agrupar registros por fecha (puede haber múltiples registros del mismo día si hay fitness y nutrición)
-        const dayRecords = weekData.filter((record: any) => record.fecha === dayDate)
+      let weeklyCalories = 0
+      let weeklyCaloriesTarget = 0
+      let weeklyMinutes = 0
+      let weeklyMinutesTarget = 0
+      let weeklyItemsCompleted = 0
+      let weeklyItemsTarget = 0
 
-        let dayExerciseCount = 0
-        let dayCalories = 0
-        let dayDuration = 0
+      weekData.slice(0, 7).forEach((r: DailySummaryRow) => {
+        const itemsCompleted = category === 'nutricion' ? (Number(r.platos_completados) || 0) : (Number(r.ejercicios_completados) || 0)
+        const itemsTarget = category === 'nutricion' ? (Number(r.platos_objetivo) || 0) : (Number(r.ejercicios_objetivo) || 0)
+        const kcal = category === 'nutricion' ? (Number(r.nutri_kcal) || 0) : (Number(r.fitness_kcal) || 0)
+        const kcalTarget = category === 'nutricion' ? (Number(r.nutri_kcal_objetivo) || 0) : (Number(r.fitness_kcal_objetivo) || 0)
+        const minutes = category === 'nutricion' ? (Number(r.nutri_mins) || 0) : (Number(r.fitness_mins) || 0)
+        const minutesTarget = category === 'nutricion' ? (Number(r.nutri_mins_objetivo) || 0) : (Number(r.fitness_mins_objetivo) || 0)
 
-        // Sumar todos los registros del día según el filtro
-        dayRecords.forEach((record: any) => {
-          if (category === 'fitness') {
-            // Solo sumar si es fitness
-            if (record.tipo === 'fitness') {
-              dayExerciseCount += Number(record.ejercicios) || 0
-              dayDuration += Number(record.minutos) || 0
-              dayCalories += Number(record.calorias) || 0
-            }
-          } else if (category === 'nutricion') {
-            // Solo sumar si es nutrición
-            if (record.tipo === 'nutricion') {
-              dayExerciseCount += Number(record.platos) || 0
-              dayCalories += Number(record.calorias) || 0
-            }
-          } else {
-            // Sin filtro: sumar ambos tipos
-            if (record.tipo === 'fitness') {
-              dayExerciseCount += Number(record.ejercicios) || 0
-              dayDuration += Number(record.minutos) || 0
-            } else {
-              dayExerciseCount += Number(record.platos) || 0
-            }
-            dayCalories += Number(record.calorias) || 0
-          }
-        })
+        weeklyCalories += kcal
+        weeklyCaloriesTarget += kcalTarget
+        weeklyMinutes += minutes
+        weeklyMinutesTarget += minutesTarget
+        weeklyItemsCompleted += itemsCompleted
+        weeklyItemsTarget += itemsTarget
 
         weeklyMetrics.push({
-          date: dayDate,
-          sessions: dayExerciseCount,
-          minutes: dayDuration,
-          kcal: dayCalories,
-          exercises: dayExerciseCount
+          date: r.fecha,
+          sessions: itemsCompleted,
+          minutes,
+          kcal,
+          exercises: itemsCompleted,
+          target: itemsTarget,
+          kcalTarget,
+          minutesTarget
         })
-      }
+      })
 
-      // 5. Calcular días activos
       const activeDays = weeklyMetrics.filter(day => day.sessions > 0).length
 
-      // Log limpio: Solo días con actividad
-      const daysWithActivity = weeklyMetrics.filter(day => day.exercises > 0)
-      if (daysWithActivity.length > 0) {
-        console.log('📅 Días con ejercicios completados:')
-        daysWithActivity.forEach(day => {
-          console.log(`  ${day.date}: ${day.exercises} ejercicios ✅`)
-        })
-      } else {
-        console.log('📅 No hay ejercicios completados esta semana')
-      }
-
-      // 6. Actualizar estado con métricas semanales
+      const safeWeeklyKcalTarget = weeklyCaloriesTarget > 0 ? weeklyCaloriesTarget : 1
+      const safeWeeklyMinutesTarget = weeklyMinutesTarget > 0 ? weeklyMinutesTarget : 1
+      const safeWeeklyItemsTarget = weeklyItemsTarget > 0 ? weeklyItemsTarget : 1
+      
       setMetrics({
         calories: {
           current: weeklyCalories,
-          target: 3500, // Meta semanal: 500 kcal/día * 7 días
-          percentage: Math.min((weeklyCalories / 3500) * 100, 100)
+          target: weeklyCaloriesTarget,
+          percentage: Math.min((weeklyCalories / safeWeeklyKcalTarget) * 100, 100)
         },
         duration: {
-          current: weeklyDuration,
-          target: 420, // Meta semanal: 60 min/día * 7 días
-          percentage: Math.min((weeklyDuration / 420) * 100, 100)
+          current: weeklyMinutes,
+          target: weeklyMinutesTarget,
+          percentage: Math.min((weeklyMinutes / safeWeeklyMinutesTarget) * 100, 100)
         },
         exercises: {
-          current: weeklyExerciseCount,
-          target: 21, // Meta semanal: 3 ejercicios/día * 7 días
-          percentage: Math.min((weeklyExerciseCount / 21) * 100, 100)
+          current: weeklyItemsCompleted,
+          target: weeklyItemsTarget,
+          percentage: Math.min((weeklyItemsCompleted / safeWeeklyItemsTarget) * 100, 100)
         },
         weekly: {
           totalCalories: weeklyCalories,
-          totalMinutes: weeklyDuration,
-          totalExercises: weeklyExerciseCount,
+          totalMinutes: weeklyMinutes,
+          totalExercises: weeklyItemsCompleted,
           activeDays: activeDays
+        }
+      })
+
+      console.log('🧿 [RINGS][METRICS] Totales semanales calculados:', {
+        clientId,
+        category: category || 'fitness',
+        totals: {
+          kcal: weeklyCalories,
+          kcalTarget: weeklyCaloriesTarget,
+          minutes: weeklyMinutes,
+          minutesTarget: weeklyMinutesTarget,
+          itemsCompleted: weeklyItemsCompleted,
+          itemsTarget: weeklyItemsTarget,
+          activeDays
         }
       })
 
@@ -231,8 +319,9 @@ export function useClientMetrics(clientId?: string, category?: 'fitness' | 'nutr
   return {
     metrics,
     weeklyData,
+    weekSummary,
     loading,
-    refetch: () => clientId && fetchClientMetrics(clientId, category)
+    refetch: () => clientId && fetchClientMetrics(clientId, category, weekAnchorDate)
   }
 }
 

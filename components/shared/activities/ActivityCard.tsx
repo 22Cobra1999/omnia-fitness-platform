@@ -635,30 +635,22 @@ const ActivityCard: React.FC<ActivityCardProps> = ({
                   )
                 }
                 
-                // Mostrar máximo 2 objetivos, con "..." si hay más
-                const objetivosAMostrar = objetivosValidos.slice(0, 2)
-                const hayMas = objetivosValidos.length > 2
-                
                 return (
                   <>
-                    {objetivosAMostrar.map((objetivo: string, index: number) => (
-                      <span 
+                    {objetivosValidos.map((objetivo: string, index: number) => (
+                      <span
                         key={index}
                         className="bg-[#FF7939]/20 text-[#FF7939] text-[10px] px-1.5 py-0.5 rounded-full font-medium border border-[#FF7939]/30 whitespace-nowrap flex-shrink-0"
-                        title={objetivo} // Tooltip con el texto completo
+                        title={objetivo}
                       >
-                        {objetivo.length > 15 ? `${objetivo.substring(0, 15)}...` : objetivo}
+                        {objetivo}
                       </span>
                     ))}
-                    {hayMas && (
-                      <span className="bg-[#FF7939]/20 text-[#FF7939] text-[10px] px-1.5 py-0.5 rounded-full font-medium border border-[#FF7939]/30 whitespace-nowrap flex-shrink-0">
-                        ...
-                      </span>
-                    )}
                   </>
                 )
               })()
             ) : (
+              // Espacio reservado si no hay objetivos
               <div className="h-6"></div>
             )}
           </div>

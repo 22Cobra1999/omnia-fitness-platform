@@ -1,7 +1,7 @@
 "use client"
 
 import React, { useState, useEffect } from 'react'
-import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog'
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from '@/components/ui/dialog'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
@@ -37,7 +37,7 @@ interface CoachMedia {
   video_url?: string
   video_thumbnail_url?: string
   bunny_video_id?: string
-  bunny_library_id?: string
+  bunny_library_id?: string | number
   pdf_url?: string
   activity_title: string
   created_at: string
@@ -45,6 +45,8 @@ interface CoachMedia {
   media_type: 'image' | 'video'
   size?: number // Tamaño en bytes
   type?: string // Tipo MIME
+  nombre_ejercicio?: string | null
+  nombre_plato?: string | null
 }
 
 export function MediaSelectionModal({
@@ -64,6 +66,7 @@ export function MediaSelectionModal({
   const [pendingUploadFileName, setPendingUploadFileName] = useState<string | null>(null)
   const [isPreviewPlaying, setIsPreviewPlaying] = useState(false)
   const [videoDuration, setVideoDuration] = useState<number | null>(null)
+  const [sourceFilter, setSourceFilter] = useState<'all' | 'cover' | 'catalog'>('all')
 
   // Establecer preview inicial cuando se carga el media
   useEffect(() => {
@@ -171,6 +174,7 @@ export function MediaSelectionModal({
       setPendingUploadFileName(null)
       setIsPreviewPlaying(false)
       setVideoDuration(null)
+      setSourceFilter('all')
       // Forzar re-render limpiando también el array de media
       setMedia([])
       loadCoachMedia()
@@ -213,7 +217,17 @@ export function MediaSelectionModal({
             filename: file.fileName || '',
             media_type: 'image' as const,
             size: file.sizeBytes || undefined, // Tamaño en bytes desde StorageFile
-            type: 'image/' + (file.fileName?.split('.').pop()?.toLowerCase() || 'jpeg') // Inferir tipo desde extensión
+            type: 'image/' + (file.fileName?.split('.').pop()?.toLowerCase() || 'jpeg'), // Inferir tipo desde extensión
+            activity_title: (() => {
+              const names = Array.isArray(file.activities)
+                ? file.activities
+                    .map((a: any) => a?.name)
+                    .filter(Boolean)
+                : []
+              if (names.length === 0) return 'Portada'
+              if (names.length === 1) return names[0]
+              return `${names[0]} +${names.length - 1}`
+            })(),
           }))
           
           console.log('🎯 MediaSelectionModal: Imágenes convertidas:', {
@@ -222,7 +236,8 @@ export function MediaSelectionModal({
             archivos: convertedMedia.map((item: any) => ({
               id: item.id,
               filename: item.filename,
-              image_url: item.image_url
+              image_url: item.image_url,
+              activity_title: item.activity_title
             }))
           })
           
@@ -254,13 +269,19 @@ export function MediaSelectionModal({
         })
         
         if (response.ok) {
-          // ✅ Filtrar solo videos
-          const filteredMedia = data.media?.filter((item: any) => {
-            // Aceptar videos con video_url o bunny_video_id
-            const hasVideoUrl = item.video_url && item.video_url.trim() !== ''
-            const hasBunnyId = item.bunny_video_id && item.bunny_video_id.trim() !== ''
-            return hasVideoUrl || hasBunnyId
-          }) || []
+          const rawMedia: any[] = Array.isArray(data?.media)
+            ? data.media
+            : Array.isArray(data?.files)
+              ? data.files
+              : []
+
+          // ✅ Filtrar solo videos (si el backend ya devuelve solo videos, esto no elimina nada)
+          const filteredMedia = rawMedia.filter((item: any) => {
+            const hasVideoType = (item?.media_type || item?.mediaType) === 'video'
+            const hasVideoUrl = typeof item?.video_url === 'string' && item.video_url.trim() !== ''
+            const hasBunnyId = typeof item?.bunny_video_id === 'string' && item.bunny_video_id.trim() !== ''
+            return hasVideoType || hasVideoUrl || hasBunnyId
+          })
           
           console.log('🎯 MediaSelectionModal: Videos filtrados:', {
             totalArchivos: data.media?.length || 0,
@@ -339,6 +360,16 @@ export function MediaSelectionModal({
     return name.length > maxLength ? name.slice(0, maxLength - 3) + '...' : name
   }
 
+  const filteredMediaForView = media.filter((item) => {
+    if (mediaType === 'image') return true
+    if (item.id.startsWith('new-')) return true
+    if (sourceFilter === 'all') return true
+    const isCatalog = !!(item.nombre_ejercicio || item.nombre_plato)
+    if (sourceFilter === 'catalog') return isCatalog
+    // cover
+    return !isCatalog
+  })
+
   const handleFileChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0]
     if (file) {
@@ -375,7 +406,7 @@ export function MediaSelectionModal({
           const tempItem: CoachMedia = {
             id: `new-${Date.now()}`,
             activity_id: 0,
-            image_url: objectUrl, // se usa sólo para preview estática
+            image_url: undefined, // NO usar blob de video como imagen
             video_url: objectUrl,
             activity_title: '',
             created_at: new Date().toISOString(),
@@ -572,9 +603,50 @@ export function MediaSelectionModal({
           <DialogTitle className="text-white text-xl font-semibold">
             Seleccionar {getMediaTypeLabel(mediaType)} de Portada
           </DialogTitle>
+          <DialogDescription className="sr-only">
+            Galería para seleccionar media existente o subir nuevo contenido.
+          </DialogDescription>
           <p className="text-gray-400 text-sm mt-2">
             Selecciona solo una {getMediaTypeLabel(mediaType).toLowerCase()} para usar como portada de tu producto
           </p>
+
+          {mediaType === 'video' && (
+            <div className="mt-3 flex items-center justify-center gap-2">
+              <button
+                type="button"
+                onClick={() => setSourceFilter('cover')}
+                className={`px-3 py-2 rounded-lg border text-xs font-semibold transition-all ${
+                  sourceFilter === 'cover'
+                    ? 'border-[#FF7939] bg-[#FF7939]/10 text-white'
+                    : 'border-white/10 bg-black text-gray-300 hover:border-[#FF7939]/50'
+                }`}
+              >
+                Portada
+              </button>
+              <button
+                type="button"
+                onClick={() => setSourceFilter('catalog')}
+                className={`px-3 py-2 rounded-lg border text-xs font-semibold transition-all ${
+                  sourceFilter === 'catalog'
+                    ? 'border-[#FF7939] bg-[#FF7939]/10 text-white'
+                    : 'border-white/10 bg-black text-gray-300 hover:border-[#FF7939]/50'
+                }`}
+              >
+                Ejercicios / Platos
+              </button>
+              <button
+                type="button"
+                onClick={() => setSourceFilter('all')}
+                className={`px-3 py-2 rounded-lg border text-xs font-semibold transition-all ${
+                  sourceFilter === 'all'
+                    ? 'border-[#FF7939] bg-[#FF7939]/10 text-white'
+                    : 'border-white/10 bg-black text-gray-300 hover:border-[#FF7939]/50'
+                }`}
+              >
+                Todo
+              </button>
+            </div>
+          )}
         </DialogHeader>
 
         <div className="space-y-4 flex flex-col h-full">
@@ -651,143 +723,83 @@ export function MediaSelectionModal({
             </div>
           ) : (
             <div className="flex flex-col gap-4 flex-1 min-h-0">
-              {/* Preview grande arriba */}
-              {previewImage && (
-                <div className="flex-shrink-0 flex justify-center">
-                  <div
-                    className="relative w-full mx-auto max-w-xs overflow-hidden rounded-lg bg-[#050505]"
-                    style={{ aspectRatio: mediaType === 'video' ? '16/9' : '2/3' }}
-                  >
-                    {mediaType === 'video' && isPreviewPlaying && previewImage.video_url ? (
-                      <video
-                        src={previewImage.video_url}
-                        className="w-full h-full object-cover"
-                        controls
-                        autoPlay
-                      />
-                    ) : (
-                      <>
-                        {(() => {
-                          // Para imágenes usamos siempre image_url.
-                          // Para videos NUNCA usamos video_url como src por defecto (para no cargar el video),
-                          // sólo usamos una imagen asociada (image_url / thumbnail). Si no hay, mostramos placeholder visual de video.
-                          const previewSrc =
-                            mediaType === 'image'
-                              ? previewImage.image_url || null
-                              : previewImage.image_url || previewImage.video_thumbnail_url || null
-
-                          if (!previewSrc && mediaType === 'video') {
-                            return (
-                              <div className="flex flex-col items-center justify-center w-full h-full bg-[#111111]">
-                                <div className="flex items-center justify-center w-full h-[65%] bg-gradient-to-b from-[#1A1A1A] to-black" />
-                                <div className="w-full h-[35%] px-3 flex flex-col justify-center gap-1 bg-black/70">
-                                  <div className="flex items-center justify-between text-[10px] text-gray-400 font-mono">
-                                    <span>0:00</span>
-                                    <span>--:--</span>
-                                  </div>
-                                  <div className="w-full h-1.5 rounded-full bg-[#2A2A2A] overflow-hidden">
-                                    <div className="h-full w-1/4 bg-[#FF7939]" />
-                                  </div>
-                                </div>
-                              </div>
-                            )
-                          }
-
-                          return (
-                            <Image
-                              src={previewSrc}
-                              alt={previewImage.filename}
-                              fill
-                              className="object-cover w-full h-full"
-                              onError={() => {
-                                // Evitamos spamear errores cuando la URL es inválida o null.
-                                console.warn('MediaSelectionModal: error cargando imagen de preview', {
-                                  mediaType,
-                                  previewSrc,
-                                  filename: previewImage.filename,
-                                  id: previewImage.id
-                                })
-                              }}
-                            />
-                          )
-                        })()}
-                        {/* Overlay de controles mínimos para videos (Play + barra) sin cargar el video real hasta clic */}
-                        {mediaType === 'video' && (
-                          <>
-                            {/* Botón de Play centrado (clickable, minimalista) */}
-                            <button
-                              type="button"
-                              className="absolute inset-0 flex items-center justify-center bg-black/0 hover:bg-black/10 transition-colors"
-                              onClick={() => setIsPreviewPlaying(true)}
-                            >
-                              <div className="flex items-center justify-center w-14 h-14 rounded-full bg-black/60 border border-white/10 shadow-md">
-                                <Play className="h-6 w-6 text-white ml-0.5" />
-                              </div>
-                            </button>
-                            {/* Barra de progreso mínima abajo (decorativa) */}
-                            <div className="absolute inset-x-0 bottom-0 px-3 pb-2 pt-1 bg-gradient-to-t from-black/70 via-black/30 to-transparent pointer-events-none">
-                              <div className="flex items-center justify-between text-[10px] text-gray-300 font-mono mb-1">
-                                <span>0:00</span>
-                                <span>--:--</span>
-                              </div>
-                              <div className="w-full h-1.5 rounded-full bg-[#2A2A2A] overflow-hidden">
-                                <div className="h-full w-1/4 bg-[#FF7939]" />
-                              </div>
-                            </div>
-                          </>
-                        )}
-                      </>
-                    )}
-                    {selectedMedia === previewImage.id && (
-                      <div className="absolute top-2 right-2 bg-orange-500 rounded-full p-1.5 shadow-lg z-10">
-                        <Check className="h-4 w-4 text-white" />
-                      </div>
-                    )}
-                  </div>
-                </div>
-              )}
-              
-              {/* Lista de nombres de archivos debajo con scroll horizontal */}
+              {/* Carrusel horizontal en tamaño real (como cliente) */}
               <div className="overflow-x-auto overflow-y-hidden flex-shrink-0">
-                <div className="flex gap-2 pb-2" style={{ minWidth: 'min-content' }}>
-                  {media.map((item, index) => {
-                    const itemId = item.id
-                    const isSelected = selectedMedia === itemId
-                    const isPreview = previewImage?.id === itemId
-                    
+                <div className="flex gap-3 pb-2" style={{ minWidth: 'min-content' }}>
+                  {filteredMediaForView.map((item, index) => {
+                    const isSelected = selectedMedia === item.id
+                    const isCatalog = !!(item.nombre_ejercicio || item.nombre_plato)
+                    const usageLabel =
+                      mediaType === 'image'
+                        ? item.activity_title || 'Portada'
+                        : isCatalog
+                          ? item.nombre_ejercicio || item.nombre_plato || 'Sin uso'
+                          : item.activity_title || 'Sin uso'
+
+                    const coverSrc =
+                      mediaType === 'image'
+                        ? item.image_url || null
+                        : item.video_thumbnail_url || null
+
+                    const widthClass = mediaType === 'image' ? 'w-40' : 'w-56'
+                    const heightClass = mediaType === 'image' ? 'h-48' : 'h-32'
+
                     return (
                       <motion.button
                         key={item.id}
                         initial={{ opacity: 0, x: 10 }}
                         animate={{ opacity: 1, x: 0 }}
                         exit={{ opacity: 0, x: -10 }}
-                        transition={{ delay: index * 0.03 }}
+                        transition={{ delay: index * 0.02 }}
+                        type="button"
                         onClick={(e) => {
                           e.stopPropagation()
-                          handleFileNameClick(itemId)
+                          handleMediaSelect(item.id)
+                          setPreviewImage(item)
                         }}
-                        className={`px-2.5 py-1.5 rounded-full text-xs font-medium transition-all duration-200 flex-shrink-0 flex flex-col items-start ${
-                          isSelected
-                            ? 'bg-[#FF7939]/40 text-[#FF7939] border border-[#FF7939]/50'
-                            : 'bg-[#1A1A1A] text-gray-300 border border-[#2A2A2A]'
+                        className={`flex-shrink-0 text-left rounded-xl border overflow-hidden bg-black ${
+                          isSelected ? 'border-[#FF7939]' : 'border-white/10 hover:border-[#FF7939]/50'
                         }`}
                       >
-                        <div className="flex items-center gap-1.5">
-                          <span className="whitespace-nowrap">
-                            {truncateFileName(item.filename)}
-                          </span>
+                        <div className={`relative ${widthClass} ${heightClass} bg-[#111111]`}>
+                          {coverSrc ? (
+                            <Image src={coverSrc} alt={item.filename} fill className="object-cover" />
+                          ) : (
+                            <div className="w-full h-full flex items-center justify-center text-gray-500 text-xs">
+                              Sin preview
+                            </div>
+                          )}
+
+                          {mediaType === 'video' && (
+                            <div className="absolute inset-0 flex items-center justify-center">
+                              <div className="w-9 h-9 rounded-full bg-black/60 border border-white/10 flex items-center justify-center">
+                                <Play className="h-4 w-4 text-white ml-0.5" />
+                              </div>
+                            </div>
+                          )}
+
                           {isSelected && (
-                            <Check className="h-2.5 w-2.5 inline-block flex-shrink-0" />
+                            <div className="absolute top-2 right-2 bg-[#FF7939] rounded-full p-1 shadow-lg z-10">
+                              <Check className="h-3.5 w-3.5 text-white" />
+                            </div>
                           )}
                         </div>
-                        {/* Mostrar tamaño y tipo si están disponibles */}
-                        {(item.size || item.type) && (
-                          <div className="text-[10px] text-white mt-0.5 whitespace-nowrap">
-                            {item.size && <span>{formatFileSize(item.size)}</span>}
-                            {item.size && item.type && <span> • </span>}
-                            {item.type && <span>{item.type.split('/')[1]?.toUpperCase() || item.type}</span>}
+
+                        <div className="px-2.5 py-2">
+                          <div className="text-[11px] text-white font-semibold truncate max-w-[14rem]">
+                            {truncateFileName(item.filename, 15)}
                           </div>
-                        )}
+                          <div className="mt-1 flex items-center justify-between gap-2">
+                            <span className="text-[10px] text-[#FF7939] border border-[#FF7939]/30 bg-[#FF7939]/10 px-2 py-0.5 rounded-full">
+                              {usageLabel}
+                            </span>
+                            {(item.size || item.type) && (
+                              <span className="text-[10px] text-gray-400 whitespace-nowrap">
+                                {item.size ? formatFileSize(item.size) : ''}
+                              </span>
+                            )}
+                          </div>
+                        </div>
                       </motion.button>
                     )
                   })}

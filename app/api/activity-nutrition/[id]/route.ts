@@ -18,9 +18,19 @@ export async function GET(
       return NextResponse.json({ error: 'No autenticado' }, { status: 401 })
     }
 
-    const activityId = parseInt(params.id)
+    const rawParamId = typeof params?.id === 'string' ? params.id : ''
+    const rawFromPath = request?.nextUrl?.pathname?.split('/').filter(Boolean).pop() || ''
+    const rawId = (rawParamId || rawFromPath || '').toString()
+    const normalizedIdStr = decodeURIComponent(rawId).trim()
 
-    if (!activityId || isNaN(activityId)) {
+    const activityId = Number(normalizedIdStr)
+
+    if (!Number.isFinite(activityId) || activityId <= 0) {
+      console.warn('⚠️ /api/activity-nutrition/[id] id inválido', {
+        rawParamId,
+        rawFromPath,
+        normalizedIdStr
+      })
       return NextResponse.json({ 
         success: false, 
         error: 'ID de actividad inválido' 
@@ -77,7 +87,7 @@ export async function GET(
       const activityKeyObj = { [activityId.toString()]: {} }
       const { data: platosJsonb, error: errorJsonb } = await supabase
         .from('nutrition_program_details')
-        .select('*')
+        .select('*, recetas(receta)')
         .contains('activity_id', activityKeyObj)
         .eq('coach_id', user.id)
         .order('id', { ascending: true })
@@ -99,7 +109,7 @@ export async function GET(
         // Buscar todos los platos del coach y filtrar manualmente por activity_id_new
         const { data: allPlatosForNew, error: errorNew } = await supabase
           .from('nutrition_program_details')
-          .select('*')
+          .select('*, recetas(receta)')
           .eq('coach_id', user.id)
           .order('id', { ascending: true })
         
@@ -149,7 +159,7 @@ export async function GET(
         console.log('⚠️ Intentando con formato integer (legacy)...')
         const { data: platosInt, error: errorInt } = await supabase
           .from('nutrition_program_details')
-          .select('*')
+          .select('*, recetas(receta)')
           .eq('activity_id', activityId)
           .eq('coach_id', user.id)
           .order('id', { ascending: true })
@@ -180,7 +190,7 @@ export async function GET(
         console.log('⚠️ Intentando búsqueda amplia (todos los platos del coach)...')
         const { data: allPlatos, error: errorAll } = await supabase
           .from('nutrition_program_details')
-          .select('*')
+          .select('*, recetas(receta)')
           .eq('coach_id', user.id)
           .order('id', { ascending: true })
         
