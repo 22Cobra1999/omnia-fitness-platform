@@ -373,11 +373,31 @@ export function CSVManagerEnhanced({
       setLoadingExisting(true)
       
       // Primero cargar las actividades del coach para tener el mapa de nombres
-      fetch(`/api/coach/activities?coachId=${coachId}`)
-        .then(activitiesResponse => {
+      fetch(`/api/coach/activities?coachId=${coachId}`, {
+        credentials: 'include'
+      })
+        .then(async (activitiesResponse) => {
           if (activitiesResponse.ok) {
             return activitiesResponse.json()
           }
+
+          let body: any = null
+          try {
+            body = await activitiesResponse.json()
+          } catch {
+            try {
+              body = await activitiesResponse.text()
+            } catch {
+              body = null
+            }
+          }
+
+          console.warn('⚠️ Error cargando actividades del coach (response not ok):', {
+            status: activitiesResponse.status,
+            statusText: activitiesResponse.statusText,
+            body
+          })
+
           return null
         })
         .then((activitiesData: any) => {

@@ -103,7 +103,7 @@ export async function GET(request: NextRequest) {
     // NO crear registros automáticamente basándose en la planificación
     const tablaProgreso = categoria === 'nutricion' ? 'progreso_cliente_nutricion' : 'progreso_cliente'
     const camposProgreso = categoria === 'nutricion'
-      ? 'id, fecha, ejercicios_completados, ejercicios_pendientes, macros, receta, ingredientes'
+      ? 'id, fecha, ejercicios_completados, ejercicios_pendientes, macros, ingredientes'
       : 'id, fecha, ejercicios_completados, ejercicios_pendientes, detalles_series, minutos_json, calorias_json'
     
     // Buscar progreso - usar .limit() para obtener todos los registros que coincidan
@@ -180,7 +180,7 @@ export async function GET(request: NextRequest) {
       fecha: progressRecord.fecha,
       tiene_ejercicios_pendientes: !!progressRecord.ejercicios_pendientes,
       tiene_macros: !!progressRecord.macros,
-      tiene_receta: !!progressRecord.receta
+      tiene_ingredientes: !!progressRecord.ingredientes
     });
     
     // Parsear ejercicios_pendientes una vez aquí para debug
@@ -211,8 +211,8 @@ export async function GET(request: NextRequest) {
         : [],
       tiene_macros: !!progressRecord.macros,
       macros_type: typeof progressRecord.macros,
-      tiene_receta: !!progressRecord.receta,
-      receta_type: typeof progressRecord.receta,
+      tiene_ingredientes: !!progressRecord.ingredientes,
+      ingredientes_type: typeof progressRecord.ingredientes,
       sample_ejercicios_pendientes: ejerciciosPendientesParsed 
         ? ejerciciosPendientesParsed[Object.keys(ejerciciosPendientesParsed)[0]]
         : null
@@ -441,7 +441,7 @@ export async function GET(request: NextRequest) {
           minutosJson = {}; // Se construirá desde receta más adelante
           caloriasJson = {}; // Se construirá desde macros más adelante
           
-          // Parsear macros y receta si existen
+          // Parsear macros si existen
           try {
             if (progressRecord.macros) {
               const macrosParsed = typeof progressRecord.macros === 'string' 
@@ -452,21 +452,13 @@ export async function GET(request: NextRequest) {
                 if (macrosParsed[key]?.calorias) {
                   caloriasJson[key] = macrosParsed[key].calorias;
                 }
-              });
-            }
-            if (progressRecord.receta) {
-              const recetaParsed = typeof progressRecord.receta === 'string' 
-                ? JSON.parse(progressRecord.receta) 
-                : progressRecord.receta;
-              // Construir minutosJson desde receta
-              Object.keys(recetaParsed).forEach(key => {
-                if (recetaParsed[key]?.minutos) {
-                  minutosJson[key] = recetaParsed[key].minutos;
+                if (macrosParsed[key]?.minutos) {
+                  minutosJson[key] = macrosParsed[key].minutos;
                 }
               });
             }
           } catch (err) {
-            console.error('Error parseando macros/receta:', err);
+            console.error('Error parseando macros:', err);
           }
         } else {
           // Para fitness: usar detalles_series, minutos_json y calorias_json
@@ -500,9 +492,18 @@ export async function GET(request: NextRequest) {
       console.log('🍽️ [API] Categoría nutrición: NO se consulta nutrition_program_details. Se usará SOLO progreso_cliente_nutricion (macros/receta/ejercicios_pendientes).', {
         ejercicioIds,
         tiene_macros: !!progressRecord && !!(progressRecord as any).macros,
-        tiene_receta: !!progressRecord && !!(progressRecord as any).receta
+        tiene_ingredientes: !!progressRecord && !!(progressRecord as any).ingredientes
       });
-      ejerciciosDetalles = []; // No necesitamos detalles adicionales de otra tabla
+      const ejercicioIdsForQuery = ejercicioIds.length > 0 ? ejercicioIds.map(id => String(id)) : ['0']
+      const { data: nutritionDetailsData, error: nutritionDetailsError } = await supabase
+        .from('nutrition_program_details')
+        .select('id, nombre, receta_id, recetas(receta)')
+        .in('id', ejercicioIdsForQuery)
+
+      if (nutritionDetailsError) {
+        console.error('❌ [API] Error consultando nutrition_program_details:', nutritionDetailsError)
+      }
+      ejerciciosDetalles = nutritionDetailsData || []
     } else {
       const tablaDetalles = 'ejercicios_detalles';
       const camposSelect = 'id, nombre_ejercicio, tipo, descripcion, video_url, calorias, equipo, body_parts, intensidad, detalle_series, duracion_min';
@@ -657,9 +658,8 @@ export async function GET(request: NextRequest) {
       });
     }
     
-    // Parsear macros, receta e ingredientes UNA SOLA VEZ para nutrición (antes del map)
+    // Parsear macros e ingredientes UNA SOLA VEZ para nutrición (antes del map)
     let macrosParsed: Record<string, any> = {};
-    let recetaParsed: Record<string, any> = {};
     let ingredientesParsed: Record<string, any> = {};
     if (categoria === 'nutricion' && progressRecord) {
       try {
@@ -668,27 +668,20 @@ export async function GET(request: NextRequest) {
               ? JSON.parse(progressRecord.macros) 
               : progressRecord.macros)
           : {};
-        recetaParsed = progressRecord.receta 
-          ? (typeof progressRecord.receta === 'string' 
-              ? JSON.parse(progressRecord.receta) 
-              : progressRecord.receta)
-          : {};
         ingredientesParsed = progressRecord.ingredientes 
           ? (typeof progressRecord.ingredientes === 'string' 
               ? JSON.parse(progressRecord.ingredientes) 
               : progressRecord.ingredientes)
           : {};
         
-        console.log(`🍽️ [API] Macros, receta e ingredientes parseados para nutrición:`, {
+        console.log(`🍽️ [API] Macros e ingredientes parseados para nutrición:`, {
           macros_keys: Object.keys(macrosParsed),
-          receta_keys: Object.keys(recetaParsed),
           ingredientes_keys: Object.keys(ingredientesParsed),
           sample_macro: macrosParsed[Object.keys(macrosParsed)[0]],
-          sample_receta: recetaParsed[Object.keys(recetaParsed)[0]],
           sample_ingredientes: ingredientesParsed[Object.keys(ingredientesParsed)[0]]
         });
       } catch (err) {
-        console.error('❌ [API] Error parseando macros/receta/ingredientes:', err);
+        console.error('❌ [API] Error parseando macros/ingredientes:', err);
       }
     }
 
@@ -722,11 +715,17 @@ export async function GET(request: NextRequest) {
       
       // Para nutrición: obtener datos directamente de macrosParsed, recetaParsed e ingredientesParsed usando la key
       let macrosData: any = null;
-      let recetaData: any = null;
       let ingredientesData: any = null;
       if (categoria === 'nutricion') {
         macrosData = macrosParsed[key] || null;
-        recetaData = recetaParsed[key] || null;
+        const detalleIdStr = String(detalle.ejercicio_id)
+        const nutritionRow = (ejerciciosDetalles || []).find((r: any) => String(r?.id) === detalleIdStr)
+        const recetaText = nutritionRow?.recetas?.receta || null
+        const recetaData: any = {
+          nombre: nutritionRow?.nombre || null,
+          receta: recetaText,
+          minutos: null
+        }
         ingredientesData = ingredientesParsed[key] || null;
         
         console.log(`🍽️ [API] Datos para key ${key}:`, {
@@ -754,7 +753,9 @@ export async function GET(request: NextRequest) {
       let nombreFinal: string;
       if (categoria === 'nutricion') {
         // Para nutrición: nombre viene de recetaData.nombre
-        nombreFinal = recetaData?.nombre || `Plato ${detalle.ejercicio_id}`;
+        const detalleIdStr = String(detalle.ejercicio_id)
+        const nutritionRow = (ejerciciosDetalles || []).find((r: any) => String(r?.id) === detalleIdStr)
+        nombreFinal = nutritionRow?.nombre || `Plato ${detalle.ejercicio_id}`;
       } else {
         // Para fitness: nombre viene de ejercicio
         nombreFinal = ejercicio?.nombre_ejercicio || `Ejercicio ${detalle.ejercicio_id}`;
@@ -766,9 +767,7 @@ export async function GET(request: NextRequest) {
         // Para nutrición: minutos puede venir de macrosData.minutos o recetaData.minutos
         minutosFinal = macrosData?.minutos !== null && macrosData?.minutos !== undefined
           ? Number(macrosData.minutos)
-          : (recetaData?.minutos !== null && recetaData?.minutos !== undefined
-              ? Number(recetaData.minutos)
-              : null);
+          : null;
       } else {
         // Para fitness: usar minutosJson o ejercicio.duracion_min
         const minutosKey = `${detalle.ejercicio_id}_${detalle.orden}`;
@@ -829,7 +828,9 @@ export async function GET(request: NextRequest) {
         transformedExercise.grasas = macrosData?.grasas !== null && macrosData?.grasas !== undefined
           ? Number(macrosData.grasas)
           : null;
-        transformedExercise.receta = recetaData?.receta || null;
+        const detalleIdStr = String(detalle.ejercicio_id)
+        const nutritionRow = (ejerciciosDetalles || []).find((r: any) => String(r?.id) === detalleIdStr)
+        transformedExercise.receta = nutritionRow?.recetas?.receta || null;
         // Los ingredientes vienen directamente del campo ingredientes de progreso_cliente_nutricion
         transformedExercise.ingredientes = ingredientesData || null;
       }

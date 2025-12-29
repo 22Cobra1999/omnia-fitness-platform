@@ -1,6 +1,282 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createRouteHandlerClient } from '../../../lib/supabase/supabase-server'
 
+const countJsonKeysOrArrayLen = (v: any): number => {
+  if (!v) return 0
+  if (Array.isArray(v)) return v.length
+  if (typeof v === 'object') return Object.keys(v).length
+  return 0
+}
+
+const safeJsonParse = (v: any) => {
+  if (!v) return null
+  if (typeof v === 'string') {
+    try {
+      return JSON.parse(v)
+    } catch {
+      return null
+    }
+  }
+  return v
+}
+
+const sumJsonbEachTextNumbers = (obj: any): number => {
+  const o = safeJsonParse(obj)
+  if (!o || typeof o !== 'object') return 0
+  return Object.values(o).reduce((acc: number, v: any) => {
+    const n = Number(v)
+    return acc + (Number.isFinite(n) ? n : 0)
+  }, 0)
+}
+
+const computeNutriKcalFromMacros = (
+  macros: any,
+  opts?: {
+    onlyKeys?: Set<string>
+    onlyPrefixes?: Set<string>
+  }
+): { kcal: number; mins: number; p: number; c: number; f: number } => {
+  const m = safeJsonParse(macros) || {}
+  let kcal = 0
+  let mins = 0
+  let p = 0
+  let c = 0
+  let f = 0
+  if (!m || typeof m !== 'object') return { kcal: 0, mins: 0, p: 0, c: 0, f: 0 }
+
+  for (const key of Object.keys(m)) {
+    if (opts?.onlyKeys || opts?.onlyPrefixes) {
+      const exactMatch = opts?.onlyKeys ? opts.onlyKeys.has(key) : false
+      let prefixMatch = false
+      if (opts?.onlyPrefixes) {
+        for (const pfx of opts.onlyPrefixes) {
+          if (key === pfx || key.startsWith(`${pfx}_`)) {
+            prefixMatch = true
+            break
+          }
+        }
+      }
+
+      // Aceptar si matchea por key exacta O por prefijo
+      if (!exactMatch && !prefixMatch) continue
+    }
+    const row = (m as any)[key] || {}
+    const prot = Number(row.proteinas)
+    const carbs = Number(row.carbohidratos)
+    const fat = Number(row.grasas)
+    const rowMins = Number(row.minutos)
+    if (Number.isFinite(prot)) p += prot
+    if (Number.isFinite(carbs)) c += carbs
+    if (Number.isFinite(fat)) f += fat
+    if (Number.isFinite(rowMins)) mins += rowMins
+
+    // Preferir calorías explícitas si existen (vienen pre-calculadas por receta)
+    const explicitKcal = Number(row.calorias)
+    if (Number.isFinite(explicitKcal)) {
+      kcal += explicitKcal
+      continue
+    }
+
+    const computedKcal =
+      (Number.isFinite(prot) ? prot : 0) * 4 +
+      (Number.isFinite(carbs) ? carbs : 0) * 4 +
+      (Number.isFinite(fat) ? fat : 0) * 9
+    kcal += computedKcal
+  }
+  return { kcal, mins, p, c, f }
+}
+
+const buildCompletedNutriKeySet = (ejerciciosCompletados: any): Set<string> => {
+  const comp = safeJsonParse(ejerciciosCompletados)
+  const arr = Array.isArray(comp?.ejercicios) ? comp.ejercicios : []
+  const keys = new Set<string>()
+
+  for (const e of arr) {
+    // macros keys vienen como "<id>_<bloque>" (ej: 753_1)
+    const id = Number(e?.id)
+    const bloque = Number(e?.bloque)
+    if (Number.isFinite(id) && Number.isFinite(bloque)) {
+      keys.add(`${id}_${bloque}`)
+    }
+  }
+  return keys
+}
+
+const buildCompletedNutriKeyPrefixSet = (ejerciciosCompletados: any): Set<string> => {
+  const comp = safeJsonParse(ejerciciosCompletados)
+  const arr = Array.isArray(comp?.ejercicios) ? comp.ejercicios : []
+  const prefixes = new Set<string>()
+
+  for (const e of arr) {
+    const id = Number(e?.id)
+    const bloque = Number(e?.bloque)
+    if (!Number.isFinite(id)) continue
+
+    // Prefixes tolerantes: algunos macros vienen como "<id>", otros "<id>_<bloque>", otros "<id>_<bloque>_<orden>"
+    prefixes.add(`${id}`)
+    if (Number.isFinite(bloque)) {
+      prefixes.add(`${id}_${bloque}`)
+    }
+  }
+
+  return prefixes
+}
+
+async function recalcAndUpsertDailySummary(opts: {
+  supabase: any
+  clienteId: string
+  fecha: string
+}) {
+  const { supabase, clienteId, fecha } = opts
+
+  const [{ data: fitRows, error: fitErr }, { data: nutriRows, error: nutriErr }] = await Promise.all([
+    supabase
+      .from('progreso_cliente')
+      .select('fecha, ejercicios_completados, ejercicios_pendientes, minutos_json, calorias_json')
+      .eq('cliente_id', clienteId)
+      .eq('fecha', fecha),
+    supabase
+      .from('progreso_cliente_nutricion')
+      .select('fecha, ejercicios_completados, ejercicios_pendientes, macros')
+      .eq('cliente_id', clienteId)
+      .eq('fecha', fecha)
+  ])
+
+  if (fitErr) console.error('❌ [toggle-exercise] daily summary: error leyendo progreso_cliente', fitErr)
+  if (nutriErr) console.error('❌ [toggle-exercise] daily summary: error leyendo progreso_cliente_nutricion', nutriErr)
+
+  let fitness_kcal = 0
+  let fitness_mins = 0
+  let ejercicios_completados = 0
+  let ejercicios_pendientes = 0
+
+  for (const r of (fitRows || []) as any[]) {
+    ejercicios_completados += countJsonKeysOrArrayLen(safeJsonParse(r.ejercicios_completados) || {})
+    ejercicios_pendientes += countJsonKeysOrArrayLen(safeJsonParse(r.ejercicios_pendientes) || {})
+    fitness_mins += sumJsonbEachTextNumbers(r.minutos_json)
+    fitness_kcal += sumJsonbEachTextNumbers(r.calorias_json)
+  }
+
+  let platos_completados = 0
+  let platos_pendientes = 0
+  let nutri_kcal = 0
+  let nutri_mins = 0
+  let nutri_protein = 0
+  let nutri_carbs = 0
+  let nutri_fat = 0
+
+  for (const r of (nutriRows || []) as any[]) {
+    const comp = safeJsonParse(r.ejercicios_completados) || {}
+    const pend = safeJsonParse(r.ejercicios_pendientes) || {}
+    platos_completados += Array.isArray((comp as any)?.ejercicios) ? (comp as any).ejercicios.length : 0
+    platos_pendientes += Array.isArray((pend as any)?.ejercicios) ? (pend as any).ejercicios.length : 0
+
+    // kcal/mins/macros deben reflejar SOLO lo completado (no el plan completo)
+    // Hay datos legacy donde macros usa key "<id>_<bloque>" y otros donde usa "<id>_<bloque>_<orden>"
+    // Soportamos ambos por prefix-match.
+    const completedKeys = buildCompletedNutriKeySet(r.ejercicios_completados)
+    const completedPrefixes = buildCompletedNutriKeyPrefixSet(r.ejercicios_completados)
+    const macrosAgg = computeNutriKcalFromMacros(r.macros, {
+      onlyKeys: completedKeys.size ? completedKeys : undefined,
+      onlyPrefixes: completedPrefixes.size ? completedPrefixes : undefined
+    })
+
+    if (
+      Array.isArray((comp as any)?.ejercicios) &&
+      (comp as any).ejercicios.length > 0 &&
+      macrosAgg.kcal === 0 &&
+      macrosAgg.mins === 0
+    ) {
+      try {
+        const m = safeJsonParse(r.macros) || {}
+        console.log('🧾 [toggle-exercise] daily summary nutri debug (kcal/mins=0 with completados)', {
+          fecha,
+          clienteId,
+          completados: (comp as any).ejercicios,
+          completedKeys: Array.from(completedKeys),
+          completedPrefixes: Array.from(completedPrefixes),
+          macrosKeys: Object.keys(m).slice(0, 30),
+          macrosKeysCount: Object.keys(m).length,
+          macrosType: typeof r.macros
+        })
+      } catch (e) {
+        console.log('🧾 [toggle-exercise] daily summary nutri debug failed', String(e))
+      }
+    }
+
+    nutri_kcal += macrosAgg.kcal
+    nutri_mins += macrosAgg.mins
+    nutri_protein += macrosAgg.p
+    nutri_carbs += macrosAgg.c
+    nutri_fat += macrosAgg.f
+  }
+
+  const ejercicios_objetivo = ejercicios_completados + ejercicios_pendientes
+  const platos_objetivo = platos_completados + platos_pendientes
+
+  // Preservar objetivos si ya existen (vienen de tu sistema de targets/planes)
+  const { data: existingSummary, error: existingErr } = await supabase
+    .from('progreso_cliente_daily_summary')
+    .select(
+      [
+        'nutri_kcal_objetivo',
+        'nutri_mins_objetivo',
+        'fitness_kcal_objetivo',
+        'fitness_mins_objetivo',
+        'platos_objetivo',
+        'ejercicios_objetivo'
+      ].join(',')
+    )
+    .eq('cliente_id', clienteId)
+    .eq('fecha', fecha)
+    .maybeSingle()
+
+  if (existingErr) {
+    console.error('❌ [toggle-exercise] daily summary: error leyendo existing progreso_cliente_daily_summary', existingErr)
+  }
+
+  const payload: any = {
+    cliente_id: clienteId,
+    fecha,
+
+    platos_completados,
+    platos_pendientes,
+    platos_objetivo: Number(existingSummary?.platos_objetivo) || platos_objetivo,
+
+    nutri_kcal,
+    nutri_mins,
+    nutri_protein,
+    nutri_carbs,
+    nutri_fat,
+    nutri_kcal_objetivo: Number(existingSummary?.nutri_kcal_objetivo) || 0,
+    nutri_mins_objetivo: Number(existingSummary?.nutri_mins_objetivo) || 0,
+
+    ejercicios_completados,
+    ejercicios_pendientes,
+    ejercicios_objetivo: Number(existingSummary?.ejercicios_objetivo) || ejercicios_objetivo,
+
+    fitness_kcal,
+    fitness_mins,
+    fitness_kcal_objetivo: Number(existingSummary?.fitness_kcal_objetivo) || 0,
+    fitness_mins_objetivo: Number(existingSummary?.fitness_mins_objetivo) || 0,
+
+    recalculado_en: new Date().toISOString()
+  }
+
+  console.log('🧾 [toggle-exercise] daily summary upsert payload', payload)
+
+  const { error: upsertErr } = await supabase
+    .from('progreso_cliente_daily_summary')
+    .upsert(payload, { onConflict: 'cliente_id,fecha' })
+
+  if (upsertErr) {
+    console.error('❌ [toggle-exercise] daily summary upsert error', upsertErr)
+    return { ok: false, error: upsertErr }
+  }
+
+  return { ok: true }
+}
+
 export async function POST(request: NextRequest) {
   try {
     const { executionId, bloque, orden, fecha, categoria, activityId } = await request.json()
@@ -395,22 +671,79 @@ export async function POST(request: NextRequest) {
       }
     }
 
+    const persistValue = (original: any, next: any) => {
+      // Algunas instalaciones guardan estos JSONs como TEXT (string JSON).
+      // Si vino como string, persistimos como string para evitar errores de tipo en Postgres.
+      return typeof original === 'string' ? JSON.stringify(next) : next
+    }
+
+    const persistedCompletados = persistValue(progressRecord.ejercicios_completados, newCompletados)
+    const persistedPendientes = persistValue(progressRecord.ejercicios_pendientes, newPendientes)
+
+    try {
+      console.log('🧾 [toggle-exercise] pre-update debug', {
+        table: progressTable,
+        progressId: progressRecord?.id,
+        targetDate,
+        requestedCategoria,
+        originalTypes: {
+          ejercicios_completados: typeof progressRecord?.ejercicios_completados,
+          ejercicios_pendientes: typeof progressRecord?.ejercicios_pendientes
+        },
+        persistedTypes: {
+          ejercicios_completados: typeof persistedCompletados,
+          ejercicios_pendientes: typeof persistedPendientes
+        },
+        persistedSizes: {
+          ejercicios_completados: typeof persistedCompletados === 'string' ? persistedCompletados.length : JSON.stringify(persistedCompletados || {}).length,
+          ejercicios_pendientes: typeof persistedPendientes === 'string' ? persistedPendientes.length : JSON.stringify(persistedPendientes || {}).length
+        }
+      })
+    } catch (e) {
+      console.log('🧾 [toggle-exercise] pre-update debug failed', String(e))
+    }
+
     // Actualizar el registro de progreso (detalles_series NO cambia)
+    // NOTA: No actualizar `fecha_actualizacion` desde API: en algunos esquemas (ej: progreso_cliente_nutricion)
+    // puede no existir y disparar 500. Además, suele estar cubierta por triggers.
     const { error: updateError } = await supabase
       .from(progressTable)
       .update({
-        ejercicios_completados: newCompletados,
-        ejercicios_pendientes: newPendientes,
-        fecha_actualizacion: new Date().toISOString()
+        ejercicios_completados: persistedCompletados,
+        ejercicios_pendientes: persistedPendientes
       })
       .eq('id', progressRecord.id)
 
     if (updateError) {
       console.error('Error actualizando progreso:', updateError)
-      return NextResponse.json({ error: 'Error actualizando progreso' }, { status: 500 })
+      return NextResponse.json(
+        {
+          error: 'Error actualizando progreso',
+          details: {
+            code: (updateError as any)?.code,
+            message: (updateError as any)?.message,
+            hint: (updateError as any)?.hint,
+            table: progressTable
+          }
+        },
+        { status: 500 }
+      )
     }
 
     console.log(`✅ Ejercicio ${ejercicioId} (bloque: ${bloque}, orden: ${orden}) toggleado: ${toggledToCompleted ? 'pendiente → completado' : 'completado → pendiente'}`)
+
+    // Mantener los anillos al día: recalcular summary del día (sin triggers)
+    let dailySummaryUpdated = false
+    try {
+      const r = await recalcAndUpsertDailySummary({
+        supabase,
+        clienteId: user.id,
+        fecha: targetDate
+      })
+      dailySummaryUpdated = !!r?.ok
+    } catch (e) {
+      console.error('❌ [toggle-exercise] daily summary recalc failed', e)
+    }
 
     return NextResponse.json({ 
       success: true, 
@@ -418,7 +751,8 @@ export async function POST(request: NextRequest) {
       ejercicioId,
       bloque,
       orden,
-      isCompleted: toggledToCompleted
+      isCompleted: toggledToCompleted,
+      dailySummaryUpdated
     })
 
   } catch (error) {

@@ -1432,7 +1432,7 @@ export default function TodayScreen({ activityId, onBack }: { activityId: string
       });
 
       // Obtener la fecha actual seleccionada
-      const currentDate = selectedDate instanceof Date ? selectedDate.toISOString().split('T')[0] : selectedDate;
+      const currentDate = selectedDate instanceof Date ? getBuenosAiresDateString(selectedDate) : selectedDate;
       
       console.log(`📤 Enviando petición a /api/toggle-exercise:`, {
         executionId: ejercicioId,
@@ -1459,36 +1459,38 @@ export default function TodayScreen({ activityId, onBack }: { activityId: string
 
       const result = await response.json();
       console.log(`📡 Respuesta del servidor:`, { status: response.status, body: result });
+      try {
+        console.log(`📡 Respuesta del servidor (raw):`, JSON.stringify(result));
+      } catch {
+        // ignore
+      }
 
       if (!response.ok) {
         console.error(`❌ Error del servidor:`, result);
-        alert(`Error: ${result.error || 'Error desconocido'}`);
-        return;
+        try {
+          console.error(`❌ Error del servidor (raw):`, JSON.stringify(result));
+        } catch {
+          // ignore
+        }
+        throw new Error(result.error || 'Error al completar ejercicio');
       }
 
-      if (result.success) {
-        console.log(`✅ Toggle exitoso:`, result);
-        
-        // Actualizar estado local usando el ID único
-        setActivities(prevActivities => {
-          return prevActivities.map(activity => {
-            // Usar el ID único que combina ejercicio_id, bloque y orden
-            const activityUniqueId = `${activity.ejercicio_id}_${activity.bloque}_${activity.orden}`;
-            if (activityUniqueId === activityKey) {
-              return { ...activity, done: !activity.done };
-            }
-            return activity;
-          });
+      // Actualizar estado local usando el ID único
+      setActivities(prevActivities => {
+        return prevActivities.map(activity => {
+          // Usar el ID único que combina ejercicio_id, bloque y orden
+          const activityUniqueId = `${activity.ejercicio_id}_${activity.bloque}_${activity.orden}`;
+          if (activityUniqueId === activityKey) {
+            return { ...activity, done: !activity.done };
+          }
+          return activity;
         });
+      });
 
-        // Recargar estados de días
-        await loadDayStatuses();
-        
-        console.log(`🎉 Ejercicio ${ejercicioId} toggleado exitosamente`);
-      } else {
-        console.error(`❌ Error en la respuesta:`, result);
-        alert(`Error: ${result.error || 'Error desconocido'}`);
-      }
+      // Recargar estados de días
+      await loadDayStatuses();
+      
+      console.log(`🎉 Ejercicio ${ejercicioId} toggleado exitosamente`);
 
     } catch (error) {
       console.error('❌ Error en toggleExerciseSimple:', error);
