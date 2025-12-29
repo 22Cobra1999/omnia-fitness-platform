@@ -76,7 +76,9 @@ export async function GET(
         id,
         status,
         todo_list,
-        activity_id
+        activity_id,
+        start_date,
+        created_at
       `)
       .eq('client_id', clientId)
       // Incluir estados válidos en ES/EN para que aparezcan también compras de nutrición
@@ -88,31 +90,160 @@ export async function GET(
       progress_percentage: obj.objective > 0 ? Math.round((obj.current_value / obj.objective) * 100) : 0
     })) || []
 
-    // Obtener detalles de las actividades
-    let activitiesDetails = []
+    // Obtener detalles de las actividades (solo las del coach autenticado)
+    let activitiesDetails: any[] = []
+    let coachActivityIds: number[] = []
     if (enrollments && enrollments.length > 0) {
-      const activityIds = enrollments.map((e: any) => e.activity_id)
-      const { data: activities, error: activitiesError } = await supabase
+      const activityIds = enrollments.map((e: any) => e.activity_id).filter(Boolean)
+      const { data: activities } = await supabase
         .from('activities')
-        .select('id, title, type, amount_paid')
+        .select('id, title, type, price, coach_id')
         .in('id', activityIds)
-      
-      if (activities) {
-        activitiesDetails = enrollments.map((enrollment: any) => {
-          const activity = activities.find((a: any) => String(a.id) === String(enrollment.activity_id))
-          return {
-            id: activity?.id || enrollment.activity_id,
-            title: activity?.title || 'Actividad',
-            type: activity?.type || 'general',
-            amountPaid: activity?.amount_paid || 0
-          }
-        })
+
+      const coachActivities = (activities || []).filter((a: any) => String(a?.coach_id) === String(user.id))
+      coachActivityIds = coachActivities.map((a: any) => Number(a.id)).filter((id: number) => Number.isFinite(id))
+
+      const enrollmentsForCoach = (enrollments || []).filter((e: any) => coachActivityIds.includes(Number(e.activity_id)))
+
+      // Buscar pagos reales en banco (prefer seller_amount, fallback amount_paid)
+      const enrollmentIds = enrollmentsForCoach
+        .map((e: any) => e?.id)
+        .filter((id: any) => typeof id === 'number' || typeof id === 'string')
+        .map((id: any) => (typeof id === 'number' ? id : Number(id)))
+        .filter((id: number) => Number.isFinite(id) && id > 0)
+
+      let bancoRows: any[] = []
+      if (enrollmentIds.length > 0 || coachActivityIds.length > 0) {
+        let bancoQuery = supabase
+          .from('banco')
+          .select('id, enrollment_id, activity_id, client_id, seller_amount, amount_paid, payment_status')
+
+        const conditions: string[] = []
+        // Algunos registros legacy pueden tener client_id NULL, así que lo incluimos como OR en vez de forzar AND.
+        conditions.push(`client_id.eq.${clientId}`)
+        if (enrollmentIds.length > 0) {
+          conditions.push(`enrollment_id.in.(${enrollmentIds.join(',')})`)
+        }
+        if (coachActivityIds.length > 0) {
+          conditions.push(`activity_id.in.(${coachActivityIds.join(',')})`)
+        }
+        if (conditions.length > 0) {
+          bancoQuery = bancoQuery.or(conditions.join(','))
+        }
+
+        const { data: bancoData } = await bancoQuery
+        bancoRows = bancoData || []
       }
+
+      const paidByEnrollmentId = new Map<number, number>()
+      const paidByActivityId = new Map<number, number>()
+      for (const row of bancoRows) {
+        const paid = Number((row as any)?.seller_amount ?? (row as any)?.amount_paid ?? 0) || 0
+        const enrId = Number((row as any)?.enrollment_id)
+        const actId = Number((row as any)?.activity_id)
+        if (Number.isFinite(enrId) && enrId > 0) {
+          paidByEnrollmentId.set(enrId, (paidByEnrollmentId.get(enrId) || 0) + paid)
+        }
+        if (Number.isFinite(actId) && actId > 0) {
+          paidByActivityId.set(actId, (paidByActivityId.get(actId) || 0) + paid)
+        }
+      }
+
+      const today = new Date()
+      const yesterday = new Date(today)
+      yesterday.setDate(today.getDate() - 1)
+      const yesterdayIso = yesterday.toISOString().slice(0, 10)
+
+      const countKeys = (raw: any): number => {
+        if (!raw) return 0
+        if (Array.isArray(raw)) return raw.length
+        if (typeof raw === 'object') return Object.keys(raw).length
+        if (typeof raw === 'string') {
+          try {
+            const parsed = JSON.parse(raw)
+            if (Array.isArray(parsed)) return parsed.length
+            if (parsed && typeof parsed === 'object') return Object.keys(parsed).length
+            return 0
+          } catch {
+            return 0
+          }
+        }
+        return 0
+      }
+
+      const diffDays = (aIso: string, bIso: string) => {
+        const a = new Date(aIso).getTime()
+        const b = new Date(bIso).getTime()
+        const diff = a - b
+        return Math.max(0, Math.round(diff / 86400000))
+      }
+
+      const computeProgressForActivity = async (activity: any) => {
+        const actType = String(activity?.type || '')
+        const isNutrition = actType.includes('nutri')
+        const table = isNutrition ? 'progreso_cliente_nutricion' : 'progreso_cliente'
+
+        // Tomamos solo días hasta ayer (hoy no cuenta para "al día")
+        const { data: progressRows } = await supabase
+          .from(table)
+          .select('fecha, ejercicios_completados, ejercicios_pendientes')
+          .eq('cliente_id', clientId)
+          .eq('actividad_id', Number(activity?.id))
+          .lte('fecha', yesterdayIso)
+          .order('fecha', { ascending: false })
+          .limit(60)
+
+        let completedSum = 0
+        let totalSum = 0
+        let lastPendingDate: string | null = null
+
+        for (const r of progressRows || []) {
+          const c = countKeys((r as any)?.ejercicios_completados)
+          const p = countKeys((r as any)?.ejercicios_pendientes)
+          completedSum += c
+          totalSum += c + p
+          if (p > 0) {
+            const fecha = String((r as any)?.fecha)
+            if (!lastPendingDate || fecha > lastPendingDate) {
+              lastPendingDate = fecha
+            }
+          }
+        }
+
+        const progressPercent = totalSum > 0 ? Math.round((completedSum / totalSum) * 100) : 0
+        const upToDate = !lastPendingDate
+        const daysBehind = lastPendingDate ? diffDays(yesterdayIso, lastPendingDate) : 0
+
+        return { progressPercent, upToDate, daysBehind }
+      }
+
+      activitiesDetails = await Promise.all(enrollmentsForCoach.map(async (enrollment: any) => {
+        const activity = coachActivities.find((a: any) => String(a.id) === String(enrollment.activity_id))
+        const enrollmentIdNum = Number(enrollment?.id)
+        const activityIdNum = Number(enrollment?.activity_id)
+        const paidAmount =
+          (Number.isFinite(enrollmentIdNum) ? paidByEnrollmentId.get(enrollmentIdNum) : undefined) ??
+          (Number.isFinite(activityIdNum) ? paidByActivityId.get(activityIdNum) : undefined) ??
+          0
+        const progressMeta = await computeProgressForActivity(activity)
+        return {
+          id: activity?.id || enrollment.activity_id,
+          title: activity?.title || 'Actividad',
+          type: activity?.type || 'general',
+          price: activity?.price || 0,
+          enrollmentId: enrollment?.id,
+          enrollmentStatus: enrollment?.status,
+          enrollmentStartDate: enrollment?.start_date,
+          paidAmount,
+          progressPercent: progressMeta.progressPercent,
+          upToDate: progressMeta.upToDate,
+          daysBehind: progressMeta.daysBehind
+        }
+      }))
     }
 
-    // Calcular métricas del cliente
-    const totalRevenue = activitiesDetails?.reduce((sum: number, activity: any) => 
-      sum + (activity.amountPaid || 0), 0) || 0
+    // Calcular métricas del cliente (ingresos reales del coach por este cliente)
+    const totalRevenue = activitiesDetails?.reduce((sum: number, a: any) => sum + (Number(a?.paidAmount) || 0), 0) || 0
     
     const todoCount = enrollments?.reduce((sum: number, enrollment: any) => {
       const raw = enrollment?.todo_list

@@ -82,10 +82,10 @@ export async function GET(request: NextRequest) {
       } else {
           // Para fitness: buscar en activity_id (JSONB)
           if (activityIds.length > 0) {
-            const activityKeyObjs = activityIds.map(id => ({ [id.toString()]: {} }))
+            const activityKeyObjs = activityIds.map((id: number) => ({ [id.toString()]: {} }))
             
             // Construir condición OR
-            const orConditions = activityIds.map(id => 
+            const orConditions = activityIds.map((id: number) => 
               `activity_id.cs.{${id}}`
             ).join(',')
             
@@ -233,6 +233,92 @@ export async function GET(request: NextRequest) {
   } catch (error: any) {
     console.error('❌ COACH/EXERCISES: Error:', error)
     return NextResponse.json({ error: error.message || 'Error interno' }, { status: 500 })
+  }
+}
+
+export async function PATCH(request: NextRequest) {
+  try {
+    const supabase = await createRouteHandlerClient()
+
+    const { data: { user }, error: authError } = await supabase.auth.getUser()
+    if (authError || !user) {
+      return NextResponse.json({ success: false, error: 'No autorizado' }, { status: 401 })
+    }
+
+    let body: any = null
+    try {
+      body = await request.json()
+    } catch {
+      body = null
+    }
+
+    const idRaw = body?.id
+    const id = typeof idRaw === 'number' ? idRaw : Number(idRaw)
+    const category = String(body?.category || 'fitness')
+    const isNutrition = category === 'nutricion' || category === 'nutrition'
+    const tableName = isNutrition ? 'nutrition_program_details' : 'ejercicios_detalles'
+
+    if (!Number.isFinite(id) || id <= 0) {
+      return NextResponse.json({ success: false, error: 'Parámetro id inválido' }, { status: 400 })
+    }
+
+    const video_url = typeof body?.video_url === 'string' ? body.video_url : null
+    const bunny_video_id = typeof body?.bunny_video_id === 'string' ? body.bunny_video_id : null
+    const bunny_library_id =
+      body?.bunny_library_id === null || body?.bunny_library_id === undefined
+        ? null
+        : Number(body.bunny_library_id)
+    const video_thumbnail_url = typeof body?.video_thumbnail_url === 'string' ? body.video_thumbnail_url : null
+
+    // Ojo: no todas las tablas tienen las mismas columnas.
+    // - nutrition_program_details: (según migrations actuales) tiene video_url, pero no bunny_* ni video_file_name.
+    // - ejercicios_detalles: tiene video_url y (según add-bunny-video-support.sql) bunny_* y video_thumbnail_url.
+    const updatePayload: any = { video_url }
+    if (!isNutrition) {
+      updatePayload.bunny_video_id = bunny_video_id
+      updatePayload.bunny_library_id = Number.isFinite(bunny_library_id) ? bunny_library_id : null
+      updatePayload.video_thumbnail_url = video_thumbnail_url
+    }
+
+    const selectFields = isNutrition
+      ? 'id, video_url'
+      : 'id, video_url, bunny_video_id, bunny_library_id, video_thumbnail_url'
+
+    const { data, error } = await supabase
+      .from(tableName)
+      .update(updatePayload)
+      .eq('id', id)
+      .eq('coach_id', user.id)
+      .select(selectFields)
+      .maybeSingle()
+
+    if (error) {
+      console.error('❌ COACH/EXERCISES: PATCH supabase error:', {
+        message: error.message,
+        code: (error as any).code,
+        details: (error as any).details,
+        hint: (error as any).hint,
+        tableName,
+        id,
+        coachId: user.id,
+        updatePayload
+      })
+      return NextResponse.json(
+        {
+          success: false,
+          error: error.message,
+          code: error.code,
+          details: error.details,
+          hint: error.hint
+        },
+        { status: 500 }
+      )
+    }
+
+    return NextResponse.json({ success: true, data })
+  } catch (error: any) {
+    console.error('❌ COACH/EXERCISES: PATCH error:', error)
+    return NextResponse.json({ success: false, error: error.message || 'Error interno' }, { status: 500 })
   }
 }
 

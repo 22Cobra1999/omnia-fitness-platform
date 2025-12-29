@@ -1,7 +1,7 @@
 'use client';
 
 import * as React from 'react';
-import { motion, useMotionValue, useTransform, animate, PanInfo } from 'framer-motion';
+import { motion, useMotionValue, useTransform, animate, PanInfo, useDragControls } from 'framer-motion';
 import { UniversalVideoPlayer } from '@/components/shared/video/universal-video-player';
 import { createClient } from '@/lib/supabase/supabase-client';
 import { useAuth } from "@/contexts/auth-context";
@@ -2051,6 +2051,7 @@ export default function TodayScreen({ activityId, onBack }: { activityId: string
   const collapsedY = EXPANDED - COLLAPSED;
   const midY = EXPANDED - MID;
   const y = useMotionValue(collapsedY); // Inicializar en posición colapsada
+  const dragControls = useDragControls();
 
   const openness = useTransform(y, [0, collapsedY], [1, 0]);
   const [isSheetExpanded, setIsSheetExpanded] = React.useState(false);
@@ -2073,20 +2074,14 @@ export default function TodayScreen({ activityId, onBack }: { activityId: string
 
   function onDragEnd(_: any, info: { velocity: { y: number }; offset: { y: number } }) {
     const current = y.get();
-    const projected = current + info.velocity.y * 0.2;
-    const totalDistance = collapsedY - 0;
-    const currentProgress = (current - 0) / totalDistance;
-    
-    let targetSnap: number;
-    if (currentProgress < SNAP_THRESHOLD) {
-      targetSnap = 0;
-    } else if (currentProgress > 1 - SNAP_THRESHOLD) {
-      targetSnap = collapsedY;
-    } else {
-      targetSnap = midY;
-    }
-    
-    snapTo(targetSnap);
+    const projected = current + info.velocity.y * 0.25;
+
+    const points = [0, midY, collapsedY];
+    const nearest = points.reduce((best, p) => {
+      return Math.abs(p - projected) < Math.abs(best - projected) ? p : best;
+    }, points[0]);
+
+    snapTo(nearest);
   }
 
   if (loading) {
@@ -3199,6 +3194,8 @@ export default function TodayScreen({ activityId, onBack }: { activityId: string
       {/* BOTTOM-SHEET — Actividades de hoy */}
       <motion.div
         drag="y"
+        dragListener={false}
+        dragControls={dragControls}
         style={{
           y,
           position: 'fixed',
@@ -3222,20 +3219,39 @@ export default function TodayScreen({ activityId, onBack }: { activityId: string
           pointerEvents: 'auto'
         }}
         dragConstraints={{ top: 0, bottom: collapsedY }}
-        dragElastic={0.04}
+        dragElastic={0.08}
         onDragEnd={onDragEnd}
       >
         {/* Handle del sheet */}
-        <div style={{ 
-          display: 'grid', 
-          placeItems: 'center', 
-          paddingTop: 10,
-          flexShrink: 0
-        }}>
-          <div style={{ 
-            width: 44, 
-            height: 4, 
-            borderRadius: 999, 
+        <div
+          onPointerDown={(e) => {
+            e.preventDefault();
+            e.stopPropagation();
+            dragControls.start(e);
+          }}
+          onClick={() => {
+            const current = y.get();
+            const distToExpanded = Math.abs(current - 0);
+            const distToCollapsed = Math.abs(current - collapsedY);
+            const isCurrentlyExpanded = distToExpanded < distToCollapsed;
+            snapTo(isCurrentlyExpanded ? collapsedY : 0);
+          }}
+          style={{
+            display: 'grid',
+            placeItems: 'center',
+            paddingTop: 10,
+            paddingBottom: 10,
+            flexShrink: 0,
+            touchAction: 'none',
+            WebkitUserSelect: 'none',
+            userSelect: 'none',
+            cursor: 'grab'
+          }}
+        >
+          <div style={{
+            width: 56,
+            height: 5,
+            borderRadius: 999,
             background: 'rgba(255, 121, 57, 0.6)',
             backdropFilter: 'blur(10px)',
             WebkitBackdropFilter: 'blur(10px)',

@@ -497,7 +497,7 @@ export async function GET(request: NextRequest) {
       const ejercicioIdsForQuery = ejercicioIds.length > 0 ? ejercicioIds.map(id => String(id)) : ['0']
       const { data: nutritionDetailsData, error: nutritionDetailsError } = await supabase
         .from('nutrition_program_details')
-        .select('id, nombre, receta_id, recetas(receta)')
+        .select('id, nombre, receta_id, video_url, recetas(receta)')
         .in('id', ejercicioIdsForQuery)
 
       if (nutritionDetailsError) {
@@ -806,7 +806,9 @@ export async function GET(request: NextRequest) {
         series: detalle.detalle_series || null,
         detalle_series: detalle.detalle_series || null,
         formatted_series: detalle.detalle_series || null,
-        video_url: categoria === 'nutricion' ? null : (ejercicio?.video_url || null),
+        video_url: categoria === 'nutricion'
+          ? ((ejerciciosDetalles || []).find((r: any) => String(r?.id) === String(detalle.ejercicio_id))?.video_url || null)
+          : (ejercicio?.video_url || null),
         duracion_minutos: minutosFinal,
         duracion_min: minutosFinal,
         duration: minutosFinal,

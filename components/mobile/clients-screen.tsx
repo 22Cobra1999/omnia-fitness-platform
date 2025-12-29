@@ -1,6 +1,7 @@
 "use client"
 
 import { useState, useEffect, useRef } from "react"
+import { useRouter } from 'next/navigation'
 import { Search, Filter, Users, TrendingUp, Clock, X, MessageCircle, Calendar, Target, AlertTriangle, Flame, MessageSquare, MapPin } from "lucide-react"
 import { ClientCalendar } from "@/components/coach/client-calendar"
 
@@ -26,6 +27,7 @@ interface Client {
 }
 
 export function ClientsScreen() {
+  const router = useRouter()
   const [filter, setFilter] = useState("all")
   const [clients, setClients] = useState<Client[]>([])
   const [loading, setLoading] = useState(true)
@@ -43,11 +45,17 @@ export function ClientsScreen() {
   const [showObjectives, setShowObjectives] = useState(false)
   const [showCalendar, setShowCalendar] = useState(false)
   const [activeTab, setActiveTab] = useState<'calendar' | 'info'>('calendar')
+  const [activeClientPanel, setActiveClientPanel] = useState<'activities' | 'todo' | 'progress' | 'revenue' | null>(null)
+  const [showTodoInput, setShowTodoInput] = useState(false)
   const [hiddenActivities, setHiddenActivities] = useState<Set<number>>(new Set())
   const [scrollPositions, setScrollPositions] = useState<{ calendar: number; info: number }>({ calendar: 0, info: 0 })
   const calendarScrollRef = useRef<HTMLDivElement>(null)
   const calendarContainerRef = useRef<HTMLDivElement>(null)
   const exercisesListRef = useRef<HTMLDivElement>(null)
+
+  const navigateToTab = (tab: string, section?: string) => {
+    window.dispatchEvent(new CustomEvent('navigateToTab', { detail: { tab, section } }))
+  }
 
   // Cargar clientes reales
   useEffect(() => {
@@ -178,7 +186,7 @@ export function ClientsScreen() {
   const loadTodoTasks = async (clientId: string) => {
     try {
       setLoadingTodo(true)
-      const response = await fetch(`/api/coach/clients/${clientId}/todo`)
+      const response = await fetch(`/api/coach/clients/${clientId}/todo`, { credentials: 'include' })
       const data = await response.json()
       if (data.success && data.tasks) setTodoTasks(data.tasks)
     } catch (error) {
@@ -190,11 +198,12 @@ export function ClientsScreen() {
 
   // Agregar nueva tarea
   const addNewTask = async () => {
-    if (!newTask.trim() || !selectedClient || todoTasks.length >= 4) return
+    if (!newTask.trim() || !selectedClient || todoTasks.length >= 5) return
     try {
       setLoadingTodo(true)
       const response = await fetch(`/api/coach/clients/${selectedClient.id}/todo`, {
         method: 'POST',
+        credentials: 'include',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ task: newTask.trim() })
       })
@@ -202,6 +211,7 @@ export function ClientsScreen() {
       if (data.success) {
         setTodoTasks(data.tasks)
         setNewTask("")
+        setShowTodoInput(false)
       }
     } catch (error) {
       console.error('Error adding task:', error)
@@ -217,6 +227,7 @@ export function ClientsScreen() {
       setLoadingTodo(true)
       const response = await fetch(`/api/coach/clients/${selectedClient.id}/todo`, {
         method: 'DELETE',
+        credentials: 'include',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ taskIndex })
       })
@@ -356,18 +367,20 @@ export function ClientsScreen() {
               </div>
 
               {/* Metrics row */}
-              <div className="mt-2 grid grid-cols-3 gap-1.5 text-center">
-                <div className="bg-zinc-900/60 rounded-md py-1.5">
-                  <div className="text-[10px] text-gray-400 tracking-wide">ACTIVIDADES</div>
-                  <div className="text-sm font-medium">{client.activitiesCount}</div>
-                </div>
-                <div className="bg-zinc-900/60 rounded-md py-1.5">
-                  <div className="text-[10px] text-gray-400 tracking-wide">TO DO</div>
-                  <div className="text-sm font-medium">{client.todoCount || 0}</div>
-                </div>
-                <div className="bg-zinc-900/60 rounded-md py-1.5">
-                  <div className="text-[10px] text-gray-400 tracking-wide">PROGRESO</div>
-                  <div className="text-sm font-medium text-[#FF7939]">{client.progress}%</div>
+              <div className="mt-2 bg-zinc-900/60 rounded-md py-2 px-2">
+                <div className="grid grid-cols-3 text-center">
+                  <div>
+                    <div className="text-[10px] text-gray-400 tracking-wide">ACTIVIDADES</div>
+                    <div className="text-sm font-medium">{client.activitiesCount}</div>
+                  </div>
+                  <div className="border-l border-zinc-800">
+                    <div className="text-[10px] text-gray-400 tracking-wide">TO DO</div>
+                    <div className="text-sm font-medium">{client.todoCount || 0}</div>
+                  </div>
+                  <div className="border-l border-zinc-800">
+                    <div className="text-[10px] text-gray-400 tracking-wide">PROGRESO</div>
+                    <div className="text-sm font-medium text-[#FF7939]">{client.progress}%</div>
+                  </div>
                 </div>
               </div>
               
@@ -431,7 +444,20 @@ export function ClientsScreen() {
                   {/* Nombre */}
                   <div className="flex items-center gap-2">
                     <h3 className="font-semibold text-lg text-white">{selectedClient.name}</h3>
-                    <button className="p-1 hover:bg-black/20 rounded-full transition-colors">
+                    <button
+                      className="p-1 hover:bg-black/20 rounded-full transition-colors"
+                      onClick={() => {
+                        // Navegar a mensajes y dejar el clientId en query para poder preseleccionar conversación
+                        try {
+                          const url = `/` + `?tab=messages&clientId=${encodeURIComponent(selectedClient.id)}`
+                          router.push(url)
+                          navigateToTab('messages')
+                        } catch {
+                          navigateToTab('messages')
+                        }
+                        closeClientModal()
+                      }}
+                    >
                       <MessageSquare className="h-4 w-4 text-white/80 hover:text-white" />
                     </button>
                   </div>
@@ -448,23 +474,170 @@ export function ClientsScreen() {
 
             {/* Estadísticas - fondo negro, sticky arriba */}
             <div className="flex justify-between items-center bg-black px-4 py-3 border-b border-zinc-800 sticky top-0 z-20">
-            <div className="text-center flex-1">
-              <div className="text-lg font-bold text-[#FF7939]">{clientDetail?.client?.progress || selectedClient.progress}%</div>
-              <div className="text-xs text-gray-400">Progreso</div>
+              <button
+                className="text-center flex-1"
+                onClick={() => {
+                  setActiveClientPanel((prev) => (prev === 'progress' ? null : 'progress'))
+                }}
+              >
+                <div className="text-lg font-bold text-[#FF7939]">{clientDetail?.client?.progress || selectedClient.progress}%</div>
+                <div className="text-xs text-gray-400">Progreso</div>
+              </button>
+
+              <button
+                className="text-center flex-1 border-l border-zinc-800"
+                onClick={() => {
+                  setActiveClientPanel((prev) => (prev === 'activities' ? null : 'activities'))
+                }}
+              >
+                <div className="text-lg font-bold text-white">{clientDetail?.client?.activitiesCount || selectedClient.activitiesCount}</div>
+                <div className="text-xs text-gray-400">Actividades</div>
+              </button>
+
+              <button
+                className="text-center flex-1 border-l border-zinc-800"
+                onClick={() => {
+                  if (selectedClient) {
+                    setActiveClientPanel((prev) => (prev === 'todo' ? null : 'todo'))
+                    setShowTodoSection(true)
+                    loadTodoTasks(selectedClient.id)
+                  }
+                }}
+              >
+                <div className="text-lg font-bold text-white">{clientDetail?.client?.todoCount || 0}</div>
+                <div className="text-xs text-gray-400">To Do</div>
+              </button>
+
+              <button
+                className="text-center flex-1 border-l border-zinc-800"
+                onClick={() => {
+                  setActiveClientPanel((prev) => (prev === 'revenue' ? null : 'revenue'))
+                }}
+              >
+                <div className="text-lg font-bold text-white">
+                  ${clientDetail?.client?.totalRevenue || selectedClient.totalRevenue}
+                </div>
+                <div className="text-xs text-gray-400">Ingresos</div>
+              </button>
             </div>
-            <div className="text-center flex-1 border-l border-zinc-800">
-              <div className="text-lg font-bold text-white">{clientDetail?.client?.activitiesCount || selectedClient.activitiesCount}</div>
-              <div className="text-xs text-gray-400">Actividades</div>
-            </div>
-            <div className="text-center flex-1 border-l border-zinc-800">
-              <div className="text-lg font-bold text-white">{clientDetail?.client?.todoCount || 0}</div>
-              <div className="text-xs text-gray-400">To Do</div>
-            </div>
-            <div className="text-center flex-1 border-l border-zinc-800">
-              <div className="text-lg font-bold text-white">${clientDetail?.client?.totalRevenue || selectedClient.totalRevenue}</div>
-              <div className="text-xs text-gray-400">Ingresos</div>
-            </div>
-          </div>
+
+            {/* Panel inline debajo de métricas (sin scroll) */}
+            {activeClientPanel && (
+              <div className="bg-zinc-900/60 border-b border-zinc-800 px-4 py-3">
+                {activeClientPanel === 'activities' && (
+                  <div className="space-y-2">
+                    <div className="text-xs text-gray-400">Actividades compradas</div>
+                    {(clientDetail?.client?.activities || []).length === 0 ? (
+                      <div className="text-sm text-gray-300">Sin actividades</div>
+                    ) : (
+                      <div className="space-y-2">
+                        {(clientDetail?.client?.activities || []).map((a: any) => {
+                          const progressPercent = Number(a?.progressPercent ?? 0) || 0
+                          const upToDate = !!a?.upToDate
+                          const daysBehind = Number(a?.daysBehind ?? 0) || 0
+                          return (
+                            <div key={String(a?.enrollmentId || a?.id)} className="bg-black/30 rounded-lg px-3 py-2">
+                              <div className="flex items-center justify-between gap-3">
+                                <div className="min-w-0">
+                                  <div className="text-sm text-white truncate">{a?.title || 'Actividad'}</div>
+                                  <div className="text-xs text-gray-400">Estado: {a?.enrollmentStatus || '—'}</div>
+                                </div>
+                                <div className="text-sm font-semibold text-white flex-shrink-0">${Number(a?.paidAmount || a?.amountPaid || 0) || 0}</div>
+                              </div>
+
+                              <div className="mt-2 flex items-center justify-between">
+                                <div className="text-xs text-gray-300">Progreso: <span className="text-white">{progressPercent}%</span></div>
+                                <div className={`text-xs ${upToDate ? 'text-green-400' : 'text-yellow-400'}`}
+                                >
+                                  {upToDate ? 'Al día' : `Atrasado ${daysBehind}d`}
+                                </div>
+                              </div>
+                            </div>
+                          )
+                        })}
+                      </div>
+                    )}
+                  </div>
+                )}
+
+                {activeClientPanel === 'todo' && (
+                  <div className="space-y-2">
+                    <div className="flex items-center justify-between">
+                      <div className="text-xs text-gray-400">To Do (máx 5)</div>
+                      <button
+                        className="w-7 h-7 rounded-full bg-[#FF7939] text-black font-bold flex items-center justify-center"
+                        onClick={() => {
+                          setShowTodoInput((v) => !v)
+                        }}
+                        type="button"
+                        title="Agregar tarea"
+                      >
+                        +
+                      </button>
+                    </div>
+
+                    {showTodoInput && (
+                      <div className="flex gap-2">
+                        <input
+                          value={newTask}
+                          onChange={(e) => setNewTask(e.target.value)}
+                          placeholder="Ej: coordinar ejercitación del viernes"
+                          className="flex-1 bg-black/30 border border-white/10 rounded-lg px-3 py-2 text-sm text-white placeholder-gray-400 focus:outline-none focus:border-[#FF7939]"
+                          disabled={loadingTodo || (todoTasks.length >= 5)}
+                          onKeyDown={(e) => {
+                            if (e.key === 'Enter') {
+                              e.preventDefault()
+                              addNewTask()
+                            }
+                          }}
+                        />
+                        <button
+                          onClick={addNewTask}
+                          disabled={loadingTodo || !newTask.trim() || todoTasks.length >= 5}
+                          className="px-3 py-2 rounded-lg bg-[#FF7939] text-black text-sm font-semibold disabled:opacity-50"
+                        >
+                          Guardar
+                        </button>
+                      </div>
+                    )}
+
+                    {loadingTodo ? (
+                      <div className="text-sm text-gray-300">Cargando...</div>
+                    ) : todoTasks.length === 0 ? (
+                      <div className="text-sm text-gray-300">Sin tareas</div>
+                    ) : (
+                      <div className="space-y-2">
+                        {todoTasks.map((t, idx) => (
+                          <div key={idx} className="flex items-center justify-between bg-black/30 rounded-lg px-3 py-2">
+                            <div className="text-sm text-white">{t}</div>
+                            <button
+                              className="text-xs text-gray-300 hover:text-white"
+                              onClick={() => completeTask(idx)}
+                            >
+                              Completar
+                            </button>
+                          </div>
+                        ))}
+                      </div>
+                    )}
+                  </div>
+                )}
+
+                {activeClientPanel === 'progress' && (
+                  <div className="space-y-2">
+                    <div className="text-xs text-gray-400">Progreso</div>
+                    <div className="text-sm text-white">{clientDetail?.client?.progress || selectedClient.progress}%</div>
+                  </div>
+                )}
+
+                {activeClientPanel === 'revenue' && (
+                  <div className="space-y-2">
+                    <div className="text-xs text-gray-400">Ingresos</div>
+                    <div className="text-sm text-white">Total: ${clientDetail?.client?.totalRevenue || selectedClient.totalRevenue}</div>
+                  </div>
+                )}
+              </div>
+            )}
 
             {/* Tabs - sticky debajo de estadísticas */}
             <div className="flex bg-[#1A1C1F] border-b border-zinc-800 sticky top-[60px] z-10">
@@ -540,46 +713,6 @@ export function ClientsScreen() {
                 {/* Tab: Calendario de actividades */}
                 {activeTab === 'calendar' && (
                   <div className="p-4">
-                    {/* Actividades arriba con opción de ocultar */}
-                    {clientDetail.client.activities && clientDetail.client.activities.length > 0 && (
-                      <div className="mb-4">
-                        <div className="flex items-center justify-between mb-3">
-                          <h4 className="text-sm font-medium text-gray-300">
-                            Actividades ({clientDetail.client.activities.length})
-                          </h4>
-                        </div>
-                        <div className="space-y-2">
-                          {clientDetail.client.activities.map((activity: any, index: number) => (
-                            <div 
-                              key={activity.id || index} 
-                              className={`flex items-center justify-between py-2 px-3 bg-zinc-900/40 rounded ${
-                                hiddenActivities.has(activity.id) ? 'opacity-50' : ''
-                              }`}
-                            >
-                              <div className="flex-1">
-                                <div className="font-medium text-sm">{activity.title}</div>
-                                <div className="text-xs text-gray-400">${activity.amountPaid || 0}</div>
-                              </div>
-                              <button
-                                onClick={() => {
-                                  const newHidden = new Set(hiddenActivities)
-                                  if (newHidden.has(activity.id)) {
-                                    newHidden.delete(activity.id)
-                                  } else {
-                                    newHidden.add(activity.id)
-                                  }
-                                  setHiddenActivities(newHidden)
-                                }}
-                                className="text-xs text-gray-400 hover:text-[#FF7939] ml-2"
-                              >
-                                {hiddenActivities.has(activity.id) ? 'Mostrar' : 'Ocultar'}
-                              </button>
-                            </div>
-                          ))}
-                        </div>
-                      </div>
-                    )}
-
                     {/* Calendario */}
                     <div className="mt-4" ref={calendarContainerRef}>
                       <ClientCalendar 

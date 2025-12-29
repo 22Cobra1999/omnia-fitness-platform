@@ -101,7 +101,7 @@ export function ClientCalendar({ clientId, onLastWorkoutUpdate, onDaySelected, e
     // Estrategia 1: activity_id como integer
     const { data: platesInt, error: errInt } = await supabase
       .from('nutrition_program_details')
-      .select('id, nombre, receta, calorias, proteinas, carbohidratos, grasas, ingredientes, minutos, activity_id, activity_id_new')
+      .select('id, nombre, calorias, proteinas, carbohidratos, grasas, ingredientes, minutos, activity_id, activity_id_new')
       .eq('activity_id', activityIdNum)
       .order('id', { ascending: true })
 
@@ -114,7 +114,7 @@ export function ClientCalendar({ clientId, onLastWorkoutUpdate, onDaySelected, e
       const activityKeyObj = { [activityKey]: {} }
       const { data: platesJsonb, error: errJsonb } = await supabase
         .from('nutrition_program_details')
-        .select('id, nombre, receta, calorias, proteinas, carbohidratos, grasas, ingredientes, minutos, activity_id, activity_id_new')
+        .select('id, nombre, calorias, proteinas, carbohidratos, grasas, ingredientes, minutos, activity_id, activity_id_new')
         .contains('activity_id', activityKeyObj)
         .order('id', { ascending: true })
 
@@ -393,7 +393,6 @@ export function ClientCalendar({ clientId, onLastWorkoutUpdate, onDaySelected, e
   const buildNewNutritionPayload = (plate: any) => {
     return {
       nombre: plate?.nombre_plato || plate?.nombre || '',
-      receta: plate?.receta ?? null,
       ingredientes: plate?.ingredientes ?? null,
       macros: {
         proteinas: plate?.proteinas ?? 0,
@@ -414,7 +413,7 @@ export function ClientCalendar({ clientId, onLastWorkoutUpdate, onDaySelected, e
     try {
       const { data: currentRecord, error: fetchError } = await supabase
         .from('progreso_cliente_nutricion')
-        .select('macros, receta, ingredientes, ejercicios_pendientes, ejercicios_completados')
+        .select('macros, ingredientes, ejercicios_pendientes, ejercicios_completados')
         .eq('id', exercise.nutrition_record_id)
         .single()
       if (fetchError) {
@@ -423,7 +422,6 @@ export function ClientCalendar({ clientId, onLastWorkoutUpdate, onDaySelected, e
       }
 
       const currentMacros = parseMaybeJson(currentRecord?.macros) || {}
-      const currentReceta = parseMaybeJson(currentRecord?.receta) || {}
       const currentIngredientes = parseMaybeJson(currentRecord?.ingredientes) || {}
       const currentPendientesRaw = parseMaybeJson(currentRecord?.ejercicios_pendientes)
       const currentCompletadosRaw = parseMaybeJson(currentRecord?.ejercicios_completados)
@@ -439,18 +437,12 @@ export function ClientCalendar({ clientId, onLastWorkoutUpdate, onDaySelected, e
       const payloadFromPlate = selectedPlate ? buildNewNutritionPayload(selectedPlate) : null
 
       const allMacros: any = { ...currentMacros }
-      const allReceta: any = { ...currentReceta }
       const allIngredientes: any = { ...currentIngredientes }
 
       // Mantener key estable: no borramos por cambio de plato.
 
-      // Setear receta/ingredientes/macros según plato nuevo (si disponible)
+      // Setear ingredientes/macros según plato nuevo (si disponible)
       if (payloadFromPlate) {
-        allReceta[newKey] = {
-          ...(typeof allReceta[newKey] === 'object' ? allReceta[newKey] : {}),
-          nombre: payloadFromPlate.nombre,
-          receta: payloadFromPlate.receta
-        }
         allIngredientes[newKey] = payloadFromPlate.ingredientes
       }
 
@@ -487,7 +479,6 @@ export function ClientCalendar({ clientId, onLastWorkoutUpdate, onDaySelected, e
         .from('progreso_cliente_nutricion')
         .update({
           macros: allMacros,
-          receta: allReceta,
           ingredientes: allIngredientes,
           ejercicios_pendientes: pendingObj,
           ejercicios_completados: completedObj
@@ -559,22 +550,19 @@ export function ClientCalendar({ clientId, onLastWorkoutUpdate, onDaySelected, e
     try {
       const { data: currentRecord, error: fetchError } = await supabase
         .from('progreso_cliente_nutricion')
-        .select('macros, receta, ingredientes, ejercicios_pendientes, ejercicios_completados')
+        .select('macros, ingredientes, ejercicios_pendientes, ejercicios_completados')
         .eq('id', exercise.nutrition_record_id)
         .single()
       if (fetchError) return
 
       const currentMacros = parseMaybeJson(currentRecord?.macros) || {}
-      const currentReceta = parseMaybeJson(currentRecord?.receta) || {}
       const currentIngredientes = parseMaybeJson(currentRecord?.ingredientes) || {}
       const currentPendientesRaw = parseMaybeJson(currentRecord?.ejercicios_pendientes)
       const currentCompletadosRaw = parseMaybeJson(currentRecord?.ejercicios_completados)
 
       const allMacros: any = { ...currentMacros }
-      const allReceta: any = { ...currentReceta }
       const allIngredientes: any = { ...currentIngredientes }
       delete allMacros[exercise.nutrition_key]
-      delete allReceta[exercise.nutrition_key]
       delete allIngredientes[exercise.nutrition_key]
 
       const pendingObj = normalizeNutritionContainerToObject(currentPendientesRaw)
@@ -586,7 +574,6 @@ export function ClientCalendar({ clientId, onLastWorkoutUpdate, onDaySelected, e
         .from('progreso_cliente_nutricion')
         .update({
           macros: allMacros,
-          receta: allReceta,
           ingredientes: allIngredientes,
           ejercicios_pendientes: pendingObj,
           ejercicios_completados: completedObj
@@ -1393,7 +1380,7 @@ export function ClientCalendar({ clientId, onLastWorkoutUpdate, onDaySelected, e
         // ✅ Obtener progreso de nutrición también
         const { data: nutritionRecords, error: nutritionError } = await supabase
           .from('progreso_cliente_nutricion')
-          .select('id, fecha, actividad_id, ejercicios_completados, ejercicios_pendientes, macros, receta')
+          .select('id, fecha, actividad_id, ejercicios_completados, ejercicios_pendientes, macros, ingredientes')
           .eq('cliente_id', clientId)
           .order('fecha', { ascending: false })
 
