@@ -149,16 +149,30 @@ const PLAN_FEATURES: PlanFeature[] = [
   }
 ]
 
-export function PlanManagement() {
-  const [currentPlan, setCurrentPlan] = useState<Plan | null>(null)
+type PlanType = 'free' | 'basico' | 'black' | 'premium'
+
+function PlanManagement() {
   const [loading, setLoading] = useState(true)
   const [changing, setChanging] = useState<string | null>(null)
   const [error, setError] = useState<string | null>(null)
+  const [currentPlan, setCurrentPlan] = useState<any>(null)
   const [showPlansDialog, setShowPlansDialog] = useState(false)
   const [confirmingPlan, setConfirmingPlan] = useState<string | null>(null)
+  const [showPaymentSummary, setShowPaymentSummary] = useState(false)
+  const [paymentPlanType, setPaymentPlanType] = useState<PlanType | null>(null)
   const [showSuccessMessage, setShowSuccessMessage] = useState(false)
-  const [successMessage, setSuccessMessage] = useState<{title: string, description: string, type: 'upgrade' | 'downgrade' | 'normal'} | null>(null)
+  const [successMessage, setSuccessMessage] = useState<any>(null)
   const planSectionRef = useRef<HTMLDivElement>(null)
+
+  const openPaymentSummary = (planType: PlanType) => {
+    setPaymentPlanType(planType)
+    setShowPaymentSummary(true)
+  }
+
+  const closePaymentSummary = () => {
+    setShowPaymentSummary(false)
+    setPaymentPlanType(null)
+  }
 
   useEffect(() => {
     loadCurrentPlan()
@@ -459,7 +473,7 @@ export function PlanManagement() {
     )
   }
 
-  const currentPlanType = currentPlan?.plan_type || 'free'
+  const currentPlanType: PlanType = (currentPlan?.plan_type as PlanType) || 'free'
   const currentPlanInfo = PLAN_PRICES[currentPlanType]
   const CurrentIcon = PLAN_ICONS[currentPlanType]
   const currentColor = PLAN_COLORS[currentPlanType]
@@ -638,20 +652,13 @@ export function PlanManagement() {
                         
                         <div className="flex gap-2">
                           <Button
-                            onClick={() => confirmPlanChange(planType)}
+                            onClick={() => openPaymentSummary(planType)}
                             disabled={isChanging}
                             className="flex-1 text-xs bg-black hover:bg-black/80 text-white border-0"
                             variant="default"
                             size="sm"
                           >
-                            {isChanging ? (
-                              <>
-                                <Loader2 className="w-3 h-3 animate-spin mr-1" />
-                                Cambiando...
-                              </>
-                            ) : (
-                              'Confirmar'
-                            )}
+                            Confirmar
                           </Button>
                           <Button
                             onClick={() => setConfirmingPlan(null)}
@@ -725,7 +732,67 @@ export function PlanManagement() {
           </div>
         </DialogContent>
       </Dialog>
+
+      {/* Modal de resumen previo al pago */}
+      <Dialog open={showPaymentSummary} onOpenChange={setShowPaymentSummary}>
+        <DialogContent className="max-w-md bg-black border-white/10">
+          <DialogHeader>
+            <DialogTitle className="text-lg font-semibold text-white">Resumen del cambio de plan</DialogTitle>
+          </DialogHeader>
+
+          {paymentPlanType ? (
+            <div className="space-y-4">
+              <div className="rounded-xl bg-[#0A0A0A] border border-white/10 p-4">
+                <div className="flex items-center justify-between">
+                  <div>
+                    <p className="text-sm text-gray-400">Plan seleccionado</p>
+                    <p className="text-base font-semibold text-white">{PLAN_NAMES[paymentPlanType]}</p>
+                  </div>
+                  {PLAN_PRICES[paymentPlanType]?.price > 0 ? (
+                    <div className="text-right">
+                      <p className="text-lg font-bold text-[#FF7939]">
+                        {formatPrice(PLAN_PRICES[paymentPlanType].price)}
+                      </p>
+                      <p className="text-xs text-gray-400">/mes</p>
+                    </div>
+                  ) : null}
+                </div>
+              </div>
+
+              <p className="text-xs text-gray-400">
+                Al continuar vas a ser redirigido a Mercado Pago para completar el pago.
+              </p>
+
+              <div className="flex gap-2">
+                <Button
+                  onClick={closePaymentSummary}
+                  disabled={!!changing}
+                  className="flex-1"
+                  variant="outline"
+                >
+                  Cancelar
+                </Button>
+                <Button
+                  onClick={async () => {
+                    if (!paymentPlanType) return
+                    closePaymentSummary()
+                    setConfirmingPlan(null)
+                    await confirmPlanChange(paymentPlanType)
+                  }}
+                  disabled={!!changing}
+                  className="flex-1 bg-[#FF7939] hover:bg-[#FF7939]/80 text-white border-0"
+                >
+                  Ir a Mercado Pago
+                </Button>
+              </div>
+            </div>
+          ) : null}
+        </DialogContent>
+      </Dialog>
     </>
   )
 }
+
+export { PlanManagement }
+export default PlanManagement
 

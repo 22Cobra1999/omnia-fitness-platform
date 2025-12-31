@@ -54,7 +54,27 @@ export async function createCoachSubscription({
   reason
 }: CreateSubscriptionParams): Promise<SubscriptionResponse> {
   const planPrice = PLAN_PRICES[planType]
-  const appUrl = (process.env.NEXT_PUBLIC_APP_URL?.trim() || 'http://localhost:3000').replace(/\/$/, '')
+  const rawAppUrl = (process.env.NEXT_PUBLIC_APP_URL?.trim() || '').replace(/\/$/, '')
+  
+  if (!rawAppUrl) {
+    throw new Error(
+      'NEXT_PUBLIC_APP_URL no configurado. Mercado Pago requiere back_url y notification_url con un dominio público (ej: https://tuapp.com o un ngrok https)'
+    )
+  }
+
+  let appUrl: string
+  try {
+    const parsed = new URL(rawAppUrl)
+    const host = parsed.hostname.toLowerCase()
+    if (host === 'localhost' || host === '127.0.0.1' || host === '0.0.0.0') {
+      throw new Error('NEXT_PUBLIC_APP_URL apunta a localhost')
+    }
+    appUrl = parsed.toString().replace(/\/$/, '')
+  } catch (e: any) {
+    throw new Error(
+      `NEXT_PUBLIC_APP_URL inválido para Mercado Pago: "${rawAppUrl}". Usá una URL pública válida (https). Detalle: ${e?.message || 'invalid URL'}`
+    )
+  }
 
   // Crear suscripción con cobro automático mensual
   const subscriptionData = {

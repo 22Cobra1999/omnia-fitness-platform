@@ -183,23 +183,17 @@ export async function POST(request: NextRequest) {
     const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL
     const serviceRoleKey = process.env.SUPABASE_SERVICE_ROLE_KEY
 
-    if (!supabaseUrl || !serviceRoleKey) {
-      return NextResponse.json(
-        {
-          success: false,
-          error: 'Configuración del servidor incompleta para cambiar el plan',
-          code: 'MISSING_SERVICE_ROLE',
-          details: 'Faltan NEXT_PUBLIC_SUPABASE_URL o SUPABASE_SERVICE_ROLE_KEY'
-        },
-        { status: 500 }
-      )
-    }
+    // Intentar usar service role (evita problemas de RLS), pero si no está configurado o es inválido,
+    // hacer fallback al cliente autenticado por cookies.
+    const supabaseService = supabaseUrl && serviceRoleKey
+      ? createClient(supabaseUrl, serviceRoleKey)
+      : null
 
-    // Crear cliente con service role para todas las operaciones
-    const supabaseService = createClient(
-      supabaseUrl,
-      serviceRoleKey
-    )
+    const isInvalidApiKeyError = (err: any) => {
+      const msg = String(err?.message || '')
+      const hint = String(err?.hint || '')
+      return msg.toLowerCase().includes('invalid api key') || hint.toLowerCase().includes('invalid api key')
+    }
 
     // Límites de almacenamiento por plan
     const storageLimits: Record<string, number> = {
@@ -209,13 +203,31 @@ export async function POST(request: NextRequest) {
       premium: 100
     }
 
-    // Obtener el plan actual usando service role
-    const { data: currentPlan, error: currentPlanError } = await supabaseService
-      .from('planes_uso_coach')
-      .select('*')
-      .eq('coach_id', coach.id)
-      .eq('status', 'active')
-      .maybeSingle()
+    // Obtener el plan actual (preferimos service role, pero con fallback)
+    let currentPlan: any = null
+    let currentPlanError: any = null
+
+    if (supabaseService) {
+      const res = await supabaseService
+        .from('planes_uso_coach')
+        .select('*')
+        .eq('coach_id', coach.id)
+        .eq('status', 'active')
+        .maybeSingle()
+      currentPlan = res.data
+      currentPlanError = res.error
+    }
+
+    if (!supabaseService || (currentPlanError && isInvalidApiKeyError(currentPlanError))) {
+      const res = await supabase
+        .from('planes_uso_coach')
+        .select('*')
+        .eq('coach_id', coach.id)
+        .eq('status', 'active')
+        .maybeSingle()
+      currentPlan = res.data
+      currentPlanError = res.error
+    }
 
     if (currentPlanError) {
       console.error('Error obteniendo plan actual:', currentPlanError)
@@ -227,10 +239,26 @@ export async function POST(request: NextRequest) {
     }
 
     // Sincronizar el storage_used_gb desde storage_usage antes de validar
-    const { data: storageUsageData, error: storageError } = await supabaseService
-      .from('storage_usage')
-      .select('gb_usage')
-      .eq('coach_id', coach.id)
+    let storageUsageData: any[] | null = null
+    let storageError: any = null
+
+    if (supabaseService) {
+      const res = await supabaseService
+        .from('storage_usage')
+        .select('gb_usage')
+        .eq('coach_id', coach.id)
+      storageUsageData = res.data as any
+      storageError = res.error
+    }
+
+    if (!supabaseService || (storageError && isInvalidApiKeyError(storageError))) {
+      const res = await supabase
+        .from('storage_usage')
+        .select('gb_usage')
+        .eq('coach_id', coach.id)
+      storageUsageData = res.data as any
+      storageError = res.error
+    }
 
     let storageUsed = 0
     if (!storageError && storageUsageData) {
@@ -325,14 +353,19 @@ export async function POST(request: NextRequest) {
     const shouldCreateSubscriptionNow = plan_type !== 'free' && isUpgrade
 
     if (shouldCreateSubscriptionNow) {
-      const mpToken = process.env.TEST_MERCADOPAGO_ACCESS_TOKEN || process.env.MERCADOPAGO_ACCESS_TOKEN
+      const isProd = process.env.NODE_ENV === 'production'
+      const mpToken = isProd
+        ? process.env.MERCADOPAGO_ACCESS_TOKEN
+        : (process.env.TEST_MERCADOPAGO_ACCESS_TOKEN || process.env.MERCADOPAGO_ACCESS_TOKEN)
       if (!mpToken || String(mpToken).trim() === '') {
         return NextResponse.json(
           {
             success: false,
             error: 'No se puede iniciar el upgrade: Mercado Pago no está configurado',
             code: 'MISSING_MERCADOPAGO_TOKEN',
-            details: 'Falta TEST_MERCADOPAGO_ACCESS_TOKEN o MERCADOPAGO_ACCESS_TOKEN'
+            details: isProd
+              ? 'Falta MERCADOPAGO_ACCESS_TOKEN'
+              : 'Falta TEST_MERCADOPAGO_ACCESS_TOKEN o MERCADOPAGO_ACCESS_TOKEN'
           },
           { status: 500 }
         )
@@ -377,28 +410,56 @@ export async function POST(request: NextRequest) {
     // Usamos 'trial' como estado "pendiente" para upgrades (y cambios programados), y el webhook lo activará.
     const targetStatus = plan_type === 'free' && !isDowngradeToFree ? 'active' : 'trial'
 
-    const { data: newPlan, error: createError } = await supabaseService
-      .from('planes_uso_coach')
-      .insert({
-        coach_id: coach.id,
-        plan_type,
-        storage_limit_gb: newStorageLimit,
-        storage_used_gb: storageUsed,
-        status: targetStatus,
-        started_at: newStartedAt.toISOString(),
-        expires_at: newExpiresAt.toISOString(),
-        renewal_count: renewalCount,
-        mercadopago_subscription_id: shouldCreateSubscriptionNow ? subscriptionId : null
-      })
-      .select()
-      .single()
+    let newPlan: any = null
+    let createError: any = null
+
+    if (supabaseService) {
+      const res = await supabaseService
+        .from('planes_uso_coach')
+        .insert({
+          coach_id: coach.id,
+          plan_type,
+          storage_limit_gb: newStorageLimit,
+          storage_used_gb: storageUsed,
+          status: targetStatus,
+          started_at: newStartedAt.toISOString(),
+          expires_at: newExpiresAt.toISOString(),
+          renewal_count: renewalCount,
+          mercadopago_subscription_id: shouldCreateSubscriptionNow ? subscriptionId : null
+        })
+        .select()
+        .single()
+      newPlan = res.data
+      createError = res.error
+    }
+
+    if (!supabaseService || (createError && isInvalidApiKeyError(createError))) {
+      const res = await supabase
+        .from('planes_uso_coach')
+        .insert({
+          coach_id: coach.id,
+          plan_type,
+          storage_limit_gb: newStorageLimit,
+          storage_used_gb: storageUsed,
+          status: targetStatus,
+          started_at: newStartedAt.toISOString(),
+          expires_at: newExpiresAt.toISOString(),
+          renewal_count: renewalCount,
+          mercadopago_subscription_id: shouldCreateSubscriptionNow ? subscriptionId : null
+        })
+        .select()
+        .single()
+      newPlan = res.data
+      createError = res.error
+    }
 
     if (createError) {
       console.error('Error creando nuevo plan:', createError)
       
       // Si hay un error de constraint único, intentar obtener el plan activo
       if (createError.message?.includes('idx_unique_active_plan_per_coach')) {
-        const { data: existingPlan } = await supabaseService
+        const db = supabaseService && !isInvalidApiKeyError(createError) ? supabaseService : supabase
+        const { data: existingPlan } = await db
           .from('planes_uso_coach')
           .select('*')
           .eq('coach_id', coach.id)
