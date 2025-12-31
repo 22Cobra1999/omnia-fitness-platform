@@ -16,10 +16,17 @@ const PLAN_PRICES = {
 // Función auxiliar para inicializar el cliente de manera perezosa (lazy)
 // Esto evita errores si las variables de entorno no están listas al momento de importar el archivo
 const getPreApprovalClient = () => {
-  const accessToken = process.env.TEST_MERCADOPAGO_ACCESS_TOKEN || process.env.MERCADOPAGO_ACCESS_TOKEN
+  const isProd = process.env.NODE_ENV === 'production'
+  const accessToken = isProd
+    ? process.env.MERCADOPAGO_ACCESS_TOKEN
+    : (process.env.TEST_MERCADOPAGO_ACCESS_TOKEN || process.env.MERCADOPAGO_ACCESS_TOKEN)
   
   if (!accessToken) {
-    throw new Error('MercadoPago Access Token no configurado (falta TEST_MERCADOPAGO_ACCESS_TOKEN o MERCADOPAGO_ACCESS_TOKEN)')
+    throw new Error(
+      isProd
+        ? 'MercadoPago Access Token no configurado (falta MERCADOPAGO_ACCESS_TOKEN)'
+        : 'MercadoPago Access Token no configurado (falta TEST_MERCADOPAGO_ACCESS_TOKEN o MERCADOPAGO_ACCESS_TOKEN)'
+    )
   }
 
   const client = new MercadoPagoConfig({
