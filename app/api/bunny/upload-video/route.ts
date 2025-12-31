@@ -6,6 +6,17 @@ import { hasActivity } from '@/lib/utils/exercise-activity-map'
 
 export async function POST(request: NextRequest) {
   try {
+    if (!process.env.BUNNY_STREAM_API_KEY || !process.env.BUNNY_STREAM_LIBRARY_ID) {
+      return NextResponse.json(
+        {
+          success: false,
+          error:
+            'Bunny Stream no está configurado: faltan BUNNY_STREAM_API_KEY y/o BUNNY_STREAM_LIBRARY_ID en el servidor.'
+        },
+        { status: 500 }
+      )
+    }
+
     const supabase = await createRouteHandlerClient()
     const { data: { user } } = await supabase.auth.getUser()
 
@@ -15,7 +26,9 @@ export async function POST(request: NextRequest) {
 
     const formData = await request.formData()
     const file = formData.get('file') as File
-    const title = formData.get('title') as string || file.name
+    const requestedTitleRaw = formData.get('title')
+    const requestedTitle = typeof requestedTitleRaw === 'string' ? requestedTitleRaw.trim() : ''
+    const title = (requestedTitle && requestedTitle.length > 0 ? requestedTitle : file.name)
     const exerciseId = formData.get('exerciseId') as string
     const activityId = formData.get('activityId') as string
     const mediaId = formData.get('mediaId') as string // Para actualizar activity_media
@@ -25,9 +38,11 @@ export async function POST(request: NextRequest) {
     }
 
     const normalizedFileName =
-      typeof file?.name === 'string' && file.name.trim().length > 0
-        ? file.name.trim().slice(0, 255)
-        : null
+      typeof title === 'string' && title.trim().length > 0
+        ? title.trim().slice(0, 255)
+        : (typeof file?.name === 'string' && file.name.trim().length > 0
+            ? file.name.trim().slice(0, 255)
+            : null)
 
     const findReusableVideo = async () => {
       if (!normalizedFileName) return null
@@ -79,6 +94,17 @@ export async function POST(request: NextRequest) {
       }
     }
 
+    // Asegurar que el nombre que persistimos sea el mismo que Bunny (title oficial)
+    let bunnyTitle: string | null = null
+    try {
+      const info = await bunnyClient.getVideoInfo(videoMeta.videoId)
+      const raw = (info as any)?.title
+      const t = typeof raw === 'string' ? raw.trim() : ''
+      if (t) bunnyTitle = t.slice(0, 255)
+    } catch {
+      // ignore
+    }
+
     let previousExerciseVideoId: string | null = null
     let previousMediaVideoId: string | null = null
 
@@ -109,7 +135,7 @@ export async function POST(request: NextRequest) {
 
       previousExerciseVideoId = exerciseRow?.bunny_video_id || null
 
-      const effectiveFileName = videoMeta.fileName || normalizedFileName || null
+      const effectiveFileName = bunnyTitle || videoMeta.fileName || normalizedFileName || null
 
       const updatePayload: Record<string, unknown> = {
         video_url: videoMeta.streamUrl,
@@ -138,7 +164,7 @@ export async function POST(request: NextRequest) {
     }
 
     if (mediaId) {
-      const effectiveFileName = videoMeta.fileName || normalizedFileName || null
+      const effectiveFileName = bunnyTitle || videoMeta.fileName || normalizedFileName || null
       
       const updatePayload: Record<string, unknown> = {
         video_url: videoMeta.streamUrl,
@@ -176,7 +202,7 @@ export async function POST(request: NextRequest) {
 
       if (existing) {
         const existingVideoId = existing.bunny_video_id || null
-        const effectiveFileName = videoMeta.fileName || normalizedFileName || null
+        const effectiveFileName = bunnyTitle || videoMeta.fileName || normalizedFileName || null
         
         const updatePayload: Record<string, unknown> = {
           video_url: videoMeta.streamUrl,
@@ -204,7 +230,7 @@ export async function POST(request: NextRequest) {
           await deleteVideoIfUnused(supabase, existingVideoId)
         }
       } else {
-        const effectiveFileName = videoMeta.fileName || normalizedFileName || null
+        const effectiveFileName = bunnyTitle || videoMeta.fileName || normalizedFileName || null
         
         const insertPayload: Record<string, unknown> = {
           activity_id: parseInt(activityId),
@@ -236,7 +262,7 @@ export async function POST(request: NextRequest) {
       thumbnailUrl: videoMeta.thumbnailUrl ?? null,
       libraryId: videoMeta.libraryId,
       reused: videoMeta.reused,
-      fileName: videoMeta.fileName || normalizedFileName || null,
+      fileName: bunnyTitle || videoMeta.fileName || normalizedFileName || null,
     })
 
   } catch (error: any) {

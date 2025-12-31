@@ -5,8 +5,9 @@ import Papa from 'papaparse'
 import { validateSimpleCSVHeaders, SimpleExerciseData } from '@/lib/data/csv-parser'
 import { Button } from '@/components/ui/button'
 import { Upload, Download, Trash2, CheckCircle, AlertCircle, Plus, Eye, X, Clock, Flame, Video, PowerOff, Power, ChevronLeft, ChevronRight } from 'lucide-react'
-import { VideoSelectionModal, VideoSelectionResult } from '@/components/shared/ui/video-selection-modal'
+import { MediaSelectionModal } from '@/components/shared/ui/media-selection-modal'
 import { normalizeActivityMap } from '@/lib/utils/exercise-activity-map'
+import { UniversalVideoPlayer } from '@/components/shared/video/universal-video-player'
 
 const normalizeCatalogText = (value: string) => (
   value
@@ -40,6 +41,15 @@ interface CSVManagerEnhancedProps {
   renderAfterTable?: React.ReactNode
   // Nueva prop para guardar archivos de video inmediatamente
   onVideoFileSelected?: (exercise: any, index: number, videoFile: File) => void
+}
+
+const extractBunnyVideoIdFromUrl = (url: string): string | null => {
+  try {
+    const match = String(url || '').match(/\/([a-f0-9-]{8,})\/(?:playlist\.m3u8|thumbnail\.jpg)(?:\?|$)/i)
+    return match?.[1] || null
+  } catch {
+    return null
+  }
 }
 
 interface ExerciseData extends SimpleExerciseData {
@@ -125,6 +135,7 @@ export function CSVManagerEnhanced({
   const [uploadedFiles, setUploadedFiles] = useState<Array<{ name: string, timestamp: number }>>([])
   const [mode, setMode] = useState<'manual' | 'csv' | 'existentes'>('existentes')
   const [editingExerciseIndex, setEditingExerciseIndex] = useState<number | null>(null)
+  const [bunnyVideoTitles, setBunnyVideoTitles] = useState<Record<string, string>>({})
   const [manualForm, setManualForm] = useState({
     nombre: '',
     descripcion: '',
@@ -153,6 +164,7 @@ export function CSVManagerEnhanced({
     bunny_library_id: '',
     video_thumbnail_url: ''
   })
+  const [showAssignedVideoPreview, setShowAssignedVideoPreview] = useState(false)
   const [bodyParts, setBodyParts] = useState<string[]>([])
   const [bodyPartInput, setBodyPartInput] = useState('')
   const [seriePeso, setSeriePeso] = useState('')
@@ -2182,17 +2194,17 @@ Batido de Proteína,Desayuno,Batido con proteína en polvo plátano y leche,320,
       const matches = descripcion.match(stepPattern)
       if (matches && matches.length > 0) {
         // Extraer solo el texto del paso (sin el número)
-        const steps = matches.map(match => {
+        const steps = matches.map((match: string) => {
           const stepMatch = match.match(/^\d+\.\s*(.+)$/)
           return stepMatch ? stepMatch[1].trim() : match.replace(/^\d+\.\s*/, '').trim()
         })
         setRecipeSteps(steps)
       } else {
         // Si no tiene formato de pasos, intentar dividir por saltos de línea
-        const lines = descripcion.split('\n').filter(line => line.trim())
+        const lines = descripcion.split('\n').filter((line: string) => line.trim())
         if (lines.length > 1) {
           // Si hay múltiples líneas, tratarlas como pasos
-          setRecipeSteps(lines.map(line => line.replace(/^\d+\.\s*/, '').trim()))
+          setRecipeSteps(lines.map((line: string) => line.replace(/^\d+\.\s*/, '').trim()))
         } else {
           // Si es una sola línea, dejarlo vacío para que el usuario agregue pasos
           setRecipeSteps([])
@@ -2255,6 +2267,7 @@ Batido de Proteína,Desayuno,Batido con proteína en polvo plátano y leche,320,
     console.log('❌ Cancelando edición')
     setEditingExerciseIndex(null)
     setMode('manual')
+    setShowAssignedVideoPreview(false)
     
     // Limpiar pasos de receta
     setRecipeSteps([])
@@ -2303,25 +2316,26 @@ Batido de Proteína,Desayuno,Batido con proteína en polvo plátano y leche,320,
   }
 
   const handleRemoveVideoFromManualForm = () => {
-    if (!manualForm.video_url && !manualForm.video_file_name) return
-
-    setManualForm((prev) => ({
+    setManualForm(prev => ({
       ...prev,
       video_url: '',
       video_file_name: '',
-      video_source: '',
       bunny_video_id: '',
       bunny_library_id: '',
       video_thumbnail_url: ''
     }))
+    setShowAssignedVideoPreview(false)
 
     if (editingExerciseIndex !== null) {
       const existingRow = allData[editingExerciseIndex]
-      onVideoCleared?.(editingExerciseIndex, existingRow, {
-        bunnyVideoId: existingRow?.bunny_video_id,
-        bunnyLibraryId: existingRow?.bunny_library_id,
-        videoUrl: existingRow?.video_url
-      })
+
+      if (onVideoCleared) {
+        onVideoCleared(editingExerciseIndex, existingRow, {
+          bunnyVideoId: (existingRow as any)?.bunny_video_id,
+          bunnyLibraryId: (existingRow as any)?.bunny_library_id,
+          videoUrl: (existingRow as any)?.video_url
+        })
+      }
 
       const applyClear = (row: any) => {
         if (!row || typeof row !== 'object') return row
@@ -2336,19 +2350,24 @@ Batido de Proteína,Desayuno,Batido con proteína en polvo plátano y leche,320,
         }
       }
 
-      setCsvData((prev) =>
-        prev.map((row, idx) => (idx === editingExerciseIndex ? applyClear(row) : row))
-      )
+      setCsvData((prev) => prev.map((row, idx) => (idx === editingExerciseIndex ? applyClear(row) : row)))
+
       if (parentSetCsvData) {
-        parentSetCsvData((parentCsvData || []).map((row: any, idx: number) => (idx === editingExerciseIndex ? applyClear(row) : row)))
+        parentSetCsvData(
+          (parentCsvData || []).map((row: any, idx: number) =>
+            idx === editingExerciseIndex ? applyClear(row) : row
+          )
+        )
       }
+
       setExistingData((prev) =>
         prev.map((row) => {
           if (!row || typeof row !== 'object') return row
-          if (row.id && existingRow?.id && Number(row.id) === Number(existingRow.id)) {
+
+          if ((row as any).id && (existingRow as any)?.id && Number((row as any).id) === Number((existingRow as any).id)) {
             return applyClear(row)
           }
-          if (row.tempRowId && existingRow?.tempRowId && row.tempRowId === existingRow.tempRowId) {
+          if ((row as any).tempRowId && (existingRow as any)?.tempRowId && (row as any).tempRowId === (existingRow as any).tempRowId) {
             return applyClear(row)
           }
           return row
@@ -2774,34 +2793,6 @@ Batido de Proteína,Desayuno,Batido con proteína en polvo plátano y leche,320,
     return allowedExerciseTypes[0]
   }
 
-  const getExerciseTypeLabel = (value: string): string => {
-    const normalized = normalizeExerciseType(value)
-    const option = exerciseTypeOptions.find(opt => opt.value === normalized)
-    return option ? option.label : (value || '').toString()
-  }
-
-  const getVideoDisplayName = (fileName?: string, url?: string): string => {
-    if (fileName && fileName.trim()) return fileName.trim()
-    if (!url) return ''
-
-    try {
-      const parsed = new URL(url)
-      const pathSegments = parsed.pathname.split('/').filter(Boolean)
-
-      if (pathSegments.length > 0) {
-        const lastSegment = decodeURIComponent(pathSegments[pathSegments.length - 1])
-        if (lastSegment && lastSegment !== 'playlist.m3u8') {
-          return lastSegment
-        }
-      }
-
-      return parsed.hostname
-    } catch {
-      const fallback = url.split('/').pop()
-      return fallback || url
-    }
-  }
-
   const normalizeName = (name: string): string => {
     if (!name) return ''
     return name
@@ -2811,6 +2802,76 @@ Batido de Proteína,Desayuno,Batido con proteína en polvo plátano y leche,320,
       .replace(/\s+/g, ' ') // Normalizar espacios
       .trim()
   }
+
+  const getVideoDisplayName = (
+    fileName?: string,
+    url?: string,
+    bunnyVideoId?: string | null
+  ): string => {
+    const extractBunnyGuidFromUrl = (raw?: string): string | null => {
+      if (!raw || typeof raw !== 'string') return null
+      try {
+        const guidMatch = raw.match(/([a-f0-9]{8}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{12})/i)
+        return guidMatch?.[1] || null
+      } catch {
+        return null
+      }
+    }
+
+    const bunnyIdRaw = typeof bunnyVideoId === 'string' ? bunnyVideoId.trim() : ''
+    const bunnyIdFromUrl = extractBunnyGuidFromUrl(url)
+    const bunnyId = bunnyIdRaw || bunnyIdFromUrl || ''
+
+    if (bunnyId && bunnyVideoTitles[bunnyId]) {
+      return bunnyVideoTitles[bunnyId]
+    }
+
+    const cleanedFileName = typeof fileName === 'string' ? fileName.trim() : ''
+    const looksSynthetic =
+      cleanedFileName.startsWith('video-') ||
+      /^\d{10,}_.+/.test(cleanedFileName) ||
+      cleanedFileName.startsWith('manual-')
+
+    if (cleanedFileName && !looksSynthetic) return cleanedFileName
+    if (!url) return ''
+
+    try {
+      const urlParts = url.split('/')
+      const lastPart = urlParts[urlParts.length - 1]
+      if (lastPart) {
+        const clean = lastPart.split('?')[0]
+        return clean || 'Video'
+      }
+    } catch {
+      // ignore
+    }
+
+    return 'Video'
+  }
+
+  // Cargar títulos Bunny desde el mismo endpoint que usa Almacenamiento
+  useEffect(() => {
+    const loadBunnyTitles = async () => {
+      try {
+        const res = await fetch('/api/coach/storage-files', { credentials: 'include' })
+        const data = await res.json()
+        if (!res.ok || !data?.success) return
+
+        const next: Record<string, string> = {}
+        const files = Array.isArray(data.files) ? data.files : []
+        for (const f of files) {
+          if (!f || f.concept !== 'video') continue
+          if (typeof f.fileId !== 'string' || typeof f.fileName !== 'string') continue
+          next[f.fileId] = f.fileName
+        }
+        setBunnyVideoTitles(next)
+      } catch {
+        // ignore
+      }
+    }
+
+    loadBunnyTitles()
+  }, [])
 
   // Función para obtener nombre del ejercicio/plato
   const getExerciseName = (item: any): string => {
@@ -2868,6 +2929,21 @@ Batido de Proteína,Desayuno,Batido con proteína en polvo plátano y leche,320,
       general: 'bg-orange-300'
     }
     return colors[normalized] || colors.general
+  }
+
+  const getExerciseTypeLabel = (type: string): string => {
+    const normalized = normalizeExerciseType(type)
+    const labels: { [key: string]: string } = {
+      fuerza: 'Fuerza',
+      cardio: 'Cardio',
+      hiit: 'HIIT',
+      movilidad: 'Movilidad',
+      flexibilidad: 'Flexibilidad',
+      equilibrio: 'Equilibrio',
+      funcional: 'Funcional',
+      general: 'General'
+    }
+    return labels[normalized] || (type || '').toString()
   }
 
   // Función para obtener color según tipo de comida en nutrición
@@ -3251,21 +3327,21 @@ Batido de Proteína,Desayuno,Batido con proteína en polvo plátano y leche,320,
         </div>
       )}
 
-    {/* Modal selección/subida de video del coach */}
-    <VideoSelectionModal
+    {/* Modal selección/subida de video del coach (mismo que portada) */}
+    <MediaSelectionModal
       isOpen={showVideoModal}
       onClose={() => setShowVideoModal(false)}
-      onVideoSelected={async (selection: VideoSelectionResult | null) => {
-        if (!selection) {
-          setShowVideoModal(false)
-          return
-        }
+      mediaType="video"
+      onMediaSelected={async (mediaUrl, _mediaType, mediaFile) => {
+        const videoUrl = mediaUrl
+        const videoFile = mediaFile || null
+        const derivedBunnyId = extractBunnyVideoIdFromUrl(videoUrl)
+        const bunnyVideoId = derivedBunnyId
+        const bunnyLibraryId = null
+        const thumbnailUrl = derivedBunnyId ? `${String(videoUrl).split(derivedBunnyId)[0]}${derivedBunnyId}/thumbnail.jpg` : null
+        const fileName = null
 
-        const { videoUrl, videoFile, fileName, bunnyVideoId, bunnyLibraryId, thumbnailUrl } = selection
-        const resolvedName =
-          (fileName && fileName.trim()) ||
-          (videoFile?.name ?? '').trim() ||
-          ''
+        const resolvedName = (videoFile?.name ?? '').trim() || (derivedBunnyId ? `video_${derivedBunnyId.slice(0, 12)}.mp4` : '')
 
         console.log('🎥 Video seleccionado:', {
           videoUrl,
@@ -3275,10 +3351,11 @@ Batido de Proteína,Desayuno,Batido con proteína en polvo plátano y leche,320,
           hasParentData: !!parentCsvData,
           hasParentSetter: !!parentSetCsvData,
           videoFileName: videoFile?.name,
-          hasVideoFile: !!videoFile
+          hasVideoFile: !!videoFile,
+          bunnyVideoId
         })
         
-        // Si hay un archivo de video, guardarlo inmediatamente para evitar que expire el blob
+        // Si hay un archivo de video, guardarlo inmediatamente
         if (videoFile) {
           const selectedIndices = Array.from(selectedRows)
           const currentData = csvData.length > 0 ? csvData : (parentCsvData || [])
@@ -3286,15 +3363,8 @@ Batido de Proteína,Desayuno,Batido con proteína en polvo plátano y leche,320,
           selectedIndices.forEach((idx) => {
             const exercise = currentData[idx]
             if (exercise && onVideoFileSelected) {
-              // Convertir blob URL a File si es necesario
-              if (videoUrl.startsWith('blob:')) {
-                // El archivo ya está disponible, solo guardarlo
-                onVideoFileSelected(exercise, idx, videoFile)
-                console.log(`💾 Guardando archivo de video inmediatamente para ejercicio ${idx}:`, videoFile.name)
-              } else {
-                // Es un video existente, no hay archivo que guardar
-                console.log(`ℹ️ Video existente seleccionado para ejercicio ${idx}, no se guarda archivo`)
-              }
+              onVideoFileSelected(exercise, idx, videoFile)
+              console.log(`💾 Guardando archivo de video inmediatamente para ejercicio ${idx}:`, videoFile.name)
             }
           })
         }
@@ -3379,9 +3449,36 @@ Batido de Proteína,Desayuno,Batido con proteína en polvo plátano y leche,320,
 
           console.log('✅ Video persistido en BD (PATCH /api/coach/exercises):', {
             count: results.length,
-            okCount: results.filter((r) => r.ok).length,
+            okCount: results.filter((r): r is { id: number; ok: true } => !!r && r.ok === true).length,
             ids
           })
+        }
+
+        const uploadVideoToBunnyStream = async (file: File, title?: string) => {
+          const formData = new FormData()
+          formData.append('file', file)
+          formData.append('title', title || file.name)
+
+          const resp = await fetch('/api/bunny/upload-video', {
+            method: 'POST',
+            credentials: 'include',
+            body: formData
+          })
+
+          const json = await resp.json().catch(() => null)
+
+          if (!resp.ok || !json?.success || !json?.streamUrl || !json?.videoId) {
+            const errMsg = json?.error || json?.message || resp.statusText
+            throw new Error(errMsg || 'Error subiendo video a Bunny')
+          }
+
+          return {
+            url: json.streamUrl as string,
+            fileName: (json.fileName as string) || file.name,
+            bunnyVideoId: json.videoId as string,
+            bunnyLibraryId: (json.libraryId as number) || null,
+            thumbnailUrl: (json.thumbnailUrl as string) || null
+          }
         }
 
         const uploadVideoToSupabaseStorage = async (file: File) => {
@@ -3413,18 +3510,38 @@ Batido de Proteína,Desayuno,Batido con proteína en polvo plátano y leche,320,
         // 3) Si es un archivo nuevo (blob), subirlo y persistirlo.
         if (videoFile && videoUrl && videoUrl.startsWith('blob:') && selectedExistingIds.length > 0) {
           try {
-            console.log('⬆️ Subiendo video nuevo a storage para persistir...', {
+            console.log('⬆️ Subiendo video nuevo para persistir...', {
               selectedExistingIds,
               productCategory,
               fileName: videoFile.name,
               fileSize: videoFile.size
             })
 
-            // En modo catálogo (activityId=0) no podemos usar /api/bunny/upload-video.
-            // Fallback estable: Supabase Storage.
-            const uploaded = await uploadVideoToSupabaseStorage(videoFile)
+            const desiredTitle = resolvedName || videoFile.name
 
-            console.log('✅ Video subido a storage:', {
+            let uploaded:
+              | {
+                  url: string
+                  fileName: string
+                  bunnyVideoId: string
+                  bunnyLibraryId: number | null
+                  thumbnailUrl: string | null
+                }
+              | {
+                  url: string
+                  fileName: string
+                }
+
+            try {
+              uploaded = await uploadVideoToBunnyStream(videoFile, desiredTitle)
+            } catch (e) {
+              console.warn('⚠️ Error subiendo video a Bunny, fallback a Supabase Storage:', {
+                error: String(e)
+              })
+              uploaded = await uploadVideoToSupabaseStorage(videoFile)
+            }
+
+            console.log('✅ Video subido:', {
               url: uploaded.url,
               fileName: uploaded.fileName,
               selectedExistingIds
@@ -3433,10 +3550,10 @@ Batido de Proteína,Desayuno,Batido con proteína en polvo plátano y leche,320,
             const payloadBase = {
               category: productCategory === 'nutricion' ? 'nutricion' : 'fitness',
               video_url: uploaded.url,
-              video_file_name: resolvedName || uploaded.fileName,
-              bunny_video_id: null,
-              bunny_library_id: null,
-              video_thumbnail_url: null
+              video_file_name: desiredTitle || uploaded.fileName,
+              bunny_video_id: (uploaded as any).bunnyVideoId ?? null,
+              bunny_library_id: (uploaded as any).bunnyLibraryId ?? null,
+              video_thumbnail_url: (uploaded as any).thumbnailUrl ?? null
             }
 
             // Actualizar estado local al URL final (reemplaza blob)
@@ -3449,10 +3566,10 @@ Batido de Proteína,Desayuno,Batido con proteína en polvo plátano y leche,320,
                 return {
                   ...row,
                   video_url: uploaded.url,
-                  video_file_name: resolvedName || uploaded.fileName || (row as any).video_file_name || '',
-                  bunny_video_id: null,
-                  bunny_library_id: null,
-                  video_thumbnail_url: null
+                  video_file_name: desiredTitle || uploaded.fileName || (row as any).video_file_name || '',
+                  bunny_video_id: (uploaded as any).bunnyVideoId ?? null,
+                  bunny_library_id: (uploaded as any).bunnyLibraryId ?? null,
+                  video_thumbnail_url: (uploaded as any).thumbnailUrl ?? null
                 }
               })
 
@@ -3495,7 +3612,6 @@ Batido de Proteína,Desayuno,Batido con proteína en polvo plátano y leche,320,
 
         setShowVideoModal(false)
       }}
-      selectedRowsCount={selectedRows.size}
     />
 
       {/* Bloque Manual */}
@@ -3760,19 +3876,52 @@ Batido de Proteína,Desayuno,Batido con proteína en polvo plátano y leche,320,
               <div className="flex items-center justify-between rounded-xl border border-orange-500/40 bg-orange-500/10 px-3 py-2">
                 <div className="flex items-center gap-2 text-xs text-orange-200 max-w-[220px]">
                   <Video className="h-4 w-4 text-orange-400" />
-                  <span className="truncate">{getVideoDisplayName(manualForm.video_file_name, manualForm.video_url)}</span>
+                  <span className="truncate">{getVideoDisplayName(manualForm.video_file_name, manualForm.video_url, manualForm.bunny_video_id)}</span>
                 </div>
-                <Button
-                  type="button"
-                  variant="ghost"
-                  size="sm"
-                  onClick={handleRemoveVideoFromManualForm}
-                  className="text-orange-200 hover:text-white hover:bg-orange-500/20 px-2 py-1"
-                >
-                  <Trash2 className="h-3 w-3 mr-1" />
-                  Eliminar
-                </Button>
+                <div className="flex items-center gap-2">
+                  <Button
+                    type="button"
+                    variant="ghost"
+                    size="sm"
+                    onClick={() => setShowAssignedVideoPreview((v) => !v)}
+                    className="text-orange-200 hover:text-white hover:bg-orange-500/20 px-2 py-1"
+                  >
+                    <Video className="h-3 w-3 mr-1" />
+                    Ver video
+                  </Button>
+                  <Button
+                    type="button"
+                    variant="ghost"
+                    size="sm"
+                    onClick={handleRemoveVideoFromManualForm}
+                    className="text-orange-200 hover:text-white hover:bg-orange-500/20 px-2 py-1"
+                    title="Quitar video"
+                  >
+                    <Trash2 className="h-3 w-3" />
+                  </Button>
+                </div>
               </div>
+
+              {showAssignedVideoPreview && (manualForm.video_url || manualForm.bunny_video_id) && (
+                <div className="mt-3 rounded-xl overflow-hidden border border-zinc-800">
+                  <div className="w-full aspect-video bg-black">
+                    <UniversalVideoPlayer
+                      videoUrl={manualForm.video_url}
+                      bunnyVideoId={manualForm.bunny_video_id || undefined}
+                      thumbnailUrl={manualForm.video_thumbnail_url || undefined}
+                      autoPlay={false}
+                      controls={true}
+                      muted={false}
+                      loop={false}
+                      forceIframeForBunny={true}
+                      className="w-full h-full"
+                      onError={(error) => {
+                        console.error('Error reproduciendo video asignado:', error)
+                      }}
+                    />
+                  </div>
+                </div>
+              )}
             </div>
           )}
           <div className="flex justify-end gap-3">
@@ -4667,8 +4816,9 @@ Batido de Proteína,Desayuno,Batido con proteína en polvo plátano y leche,320,
                       {(() => {
                         const url = (item as any).video_url || (item as any).video || ''
                         const fileName = (item as any).video_file_name
+                        const bunnyId = (item as any).bunny_video_id
                         if (!url && !fileName) return '-'
-                        const display = getVideoDisplayName(fileName, url)
+                        const display = getVideoDisplayName(fileName, url, bunnyId)
                         if (!display) return '-'
                         return display.length > 24 ? display.slice(0, 24) + '…' : display
                       })()}

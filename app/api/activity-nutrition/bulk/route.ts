@@ -16,6 +16,7 @@ type IncomingPlato = {
   grasas?: string | number
   receta?: string
   video_url?: string | null
+  video_file_name?: string | null
 }
 
 type BulkRequest = {
@@ -170,7 +171,8 @@ export async function POST(request: NextRequest) {
         carbohidratos,
         grasas,
         receta,
-        video_url
+        video_url,
+        video_file_name
       } = plato
 
       const tempIdValue = (plato as any).tempId
@@ -268,6 +270,7 @@ export async function POST(request: NextRequest) {
         grasas: NORMALIZE_NUMBER(grasas || (plato as any)['Grasas']),
         dificultad: dificultad,
         video_url: sanitizeNullable(video_url ? sanitizeText(video_url) : null),
+        video_file_name: coerceTextNullable(video_file_name),
         coach_id: user.id,
         activity_id: activityId
       }

@@ -332,6 +332,68 @@ export default function CreateProductModal({ isOpen, onClose, editingProduct, in
     ejerciciosUnicos: 0
   })
 
+  const derivedPreviewStats = useMemo(() => {
+    const safeNumber = (v: any) => {
+      const n = typeof v === 'number' ? v : parseInt(String(v ?? ''), 10)
+      return Number.isFinite(n) ? n : 0
+    }
+
+    const result = {
+      sesiones: safeNumber(weeklyStats.sesiones),
+      ejerciciosTotales: safeNumber(weeklyStats.ejerciciosTotales),
+      ejerciciosUnicos: safeNumber(weeklyStats.ejerciciosUnicos)
+    }
+
+    const hasNonZero = result.sesiones > 0 || result.ejerciciosTotales > 0 || result.ejerciciosUnicos > 0
+    if (hasNonZero) return result
+
+    const schedule = persistentCalendarSchedule
+    if (!schedule || typeof schedule !== 'object') return result
+
+    const uniqueIds = new Set<string>()
+    let totalEntries = 0
+
+    const visitValue = (value: any) => {
+      if (value === undefined || value === null) return
+      if (Array.isArray(value)) {
+        value.forEach(visitValue)
+        return
+      }
+      if (typeof value === 'object') {
+        // Casos típicos: { exerciseId }, { id }, { ejercicio_id }, { exercise_id }, { itemId }
+        const candidate =
+          (value as any).exerciseId ??
+          (value as any).exercise_id ??
+          (value as any).ejercicio_id ??
+          (value as any).id ??
+          (value as any).itemId
+
+        if (candidate !== undefined && candidate !== null) {
+          uniqueIds.add(String(candidate))
+          totalEntries += 1
+          return
+        }
+
+        Object.values(value).forEach(visitValue)
+        return
+      }
+
+      // Primitive (string/number)
+      uniqueIds.add(String(value))
+      totalEntries += 1
+    }
+
+    Object.values(schedule).forEach(visitValue)
+
+    const derived = {
+      sesiones: result.sesiones,
+      ejerciciosTotales: totalEntries,
+      ejerciciosUnicos: uniqueIds.size
+    }
+
+    return derived
+  }, [weeklyStats.sesiones, weeklyStats.ejerciciosTotales, weeklyStats.ejerciciosUnicos, persistentCalendarSchedule])
+
   // 🔍 Logs para entender carga de platos/ejercicios existentes en el PASO 4/5
   useEffect(() => {
     // Paso 4 (activities) removido - ahora se gestiona en tab "Mis Ejercicios/Platos"
@@ -1129,7 +1191,7 @@ export default function CreateProductModal({ isOpen, onClose, editingProduct, in
         index: number
         uploaded: boolean
         videoUrl?: string
-        meta: { videoId?: string; thumbnailUrl?: string; libraryId?: number; fileName?: string } | null
+        meta: { url?: string; videoId?: string; thumbnailUrl?: string; libraryId?: number; fileName?: string } | null
       }> = []
 
       for (const { exercise, index, file } of entries) {
@@ -1153,7 +1215,7 @@ export default function CreateProductModal({ isOpen, onClose, editingProduct, in
         }
 
         let finalVideoUrl: string | undefined
-        let meta: { videoId?: string; thumbnailUrl?: string; libraryId?: number; fileName?: string } | null =
+        let meta: { url?: string; videoId?: string; thumbnailUrl?: string; libraryId?: number; fileName?: string } | null =
           null
         let uploaded = false
         try {
@@ -1200,7 +1262,7 @@ export default function CreateProductModal({ isOpen, onClose, editingProduct, in
 
       if (uploadResults.some((result) => result.uploaded)) {
         setPersistentCsvData((prev) =>
-          prev.map((exercise, idx) => {
+          (prev ?? []).map((exercise, idx) => {
             const match = uploadResults.find((result) => result.index === idx && result.uploaded)
             if (!match || !exercise || typeof exercise !== 'object') {
               return exercise
@@ -1602,7 +1664,10 @@ export default function CreateProductModal({ isOpen, onClose, editingProduct, in
       setFieldErrors({})
 
       // ✅ SUBIR ARCHIVOS PENDIENTES ANTES DE CREAR/ACTUALIZAR EL PRODUCTO
-      let finalImageUrl = generalForm.image?.url || null
+      let finalImageUrl =
+        generalForm.image && typeof generalForm.image === 'object' && 'url' in generalForm.image
+          ? (generalForm.image as any).url
+          : null
       let finalVideoUrl = generalForm.videoUrl || null
       
       // Subir imagen pendiente si existe
@@ -1654,29 +1719,42 @@ export default function CreateProductModal({ isOpen, onClose, editingProduct, in
           
           const uploadResponse = await fetch('/api/bunny/upload-video', {
             method: 'POST',
+            credentials: 'include',
             body: formData
           })
-          
-          if (uploadResponse.ok) {
-            const uploadResult = await uploadResponse.json()
-            if (uploadResult.success) {
-              finalVideoUrl = uploadResult.streamUrl
-              uploadedVideoData = {
-                streamUrl: uploadResult.streamUrl,
-                videoId: uploadResult.videoId,
-                thumbnailUrl: uploadResult.thumbnailUrl,
-                fileName: pendingVideoFile.name
-              }
-              console.log('✅ Video subido exitosamente a Bunny.net:', finalVideoUrl)
-              console.log('📹 Video ID:', uploadResult.videoId)
-            }
-          } else {
-            console.error('❌ Error subiendo video a Bunny.net')
-            alert('Error al subir el video')
+
+          let uploadResult: any = null
+          try {
+            uploadResult = await uploadResponse.json()
+          } catch {
+            uploadResult = null
+          }
+
+          if (!uploadResponse.ok || !uploadResult?.success) {
+            const errorMsg =
+              uploadResult?.error ||
+              uploadResult?.message ||
+              `Error al subir el video (HTTP ${uploadResponse.status})`
+
+            console.error('❌ Error subiendo video a Bunny.net', {
+              status: uploadResponse.status,
+              uploadResult
+            })
+            alert(errorMsg)
             setIsPublishing(false)
             setPublishProgress('')
             return
           }
+
+          finalVideoUrl = uploadResult.streamUrl
+          uploadedVideoData = {
+            streamUrl: uploadResult.streamUrl,
+            videoId: uploadResult.videoId,
+            thumbnailUrl: uploadResult.thumbnailUrl,
+            fileName: pendingVideoFile.name
+          }
+          console.log('✅ Video subido exitosamente a Bunny.net:', finalVideoUrl)
+          console.log('📹 Video ID:', uploadResult.videoId)
         } catch (uploadError) {
           console.error('❌ Error en upload de video:', uploadError)
           alert('Error al subir el video')
@@ -2076,7 +2154,7 @@ export default function CreateProductModal({ isOpen, onClose, editingProduct, in
           index: number
           uploaded: boolean
           videoUrl?: string
-          meta: { videoId?: string; thumbnailUrl?: string; libraryId?: number; fileName?: string } | null
+          meta: { url?: string; videoId?: string; thumbnailUrl?: string; libraryId?: number; fileName?: string } | null
         }> = []
 
         for (const { exercise, index, file } of candidates) {
@@ -2121,14 +2199,37 @@ export default function CreateProductModal({ isOpen, onClose, editingProduct, in
 
           if (signature && completedUploads.has(signature)) {
             const cached = completedUploads.get(signature)!
-            if (cached.meta?.videoId && cached.meta?.url) {
+            const cachedMeta = cached.meta as
+              | {
+                  url?: string
+                  videoId?: string
+                  thumbnailUrl?: string
+                  libraryId?: number
+                  fileName?: string
+                }
+              | undefined
+
+            const cachedVideoId = cachedMeta?.videoId
+            const cachedThumb = cachedMeta?.thumbnailUrl
+            const cachedLibraryId = cachedMeta?.libraryId
+            const cachedFileName = cachedMeta?.fileName
+
+            if (cachedVideoId && cachedMeta?.url) {
               await assignVideoToExercise(numericId, {
-                url: cached.meta.url,
-                videoId: cached.meta.videoId,
-                thumbnailUrl: cached.meta.thumbnailUrl,
-                libraryId: cached.meta.libraryId,
-                fileName: cached.meta.fileName ?? fileToUpload.name
+                url: cachedMeta.url,
+                videoId: cachedVideoId,
+                thumbnailUrl: cachedThumb,
+                libraryId: cachedLibraryId,
+                fileName: cachedFileName ?? fileToUpload.name
               })
+            }
+
+            const fallbackMeta = {
+              url: cached.url,
+              videoId: cachedVideoId,
+              thumbnailUrl: cachedThumb,
+              libraryId: cachedLibraryId,
+              fileName: cachedFileName ?? fileToUpload.name
             }
 
             uploadResults.push({
@@ -2136,13 +2237,7 @@ export default function CreateProductModal({ isOpen, onClose, editingProduct, in
               index,
               uploaded: true,
               videoUrl: cached.url,
-              meta: cached.meta || {
-                url: cached.url,
-                videoId: cached.meta?.videoId,
-                thumbnailUrl: cached.meta?.thumbnailUrl,
-                libraryId: cached.meta?.libraryId,
-                fileName: cached.meta?.fileName ?? fileToUpload.name
-              }
+              meta: cachedMeta || fallbackMeta
             })
             continue
           }
@@ -2193,7 +2288,7 @@ export default function CreateProductModal({ isOpen, onClose, editingProduct, in
 
         if (uploadResults.length > 0) {
           setPersistentCsvData((prev) =>
-            prev.map((exercise, index) => {
+            (prev ?? []).map((exercise, index) => {
               if (!exercise || typeof exercise !== 'object' || Array.isArray(exercise)) {
                 return exercise
               }
@@ -2971,7 +3066,7 @@ export default function CreateProductModal({ isOpen, onClose, editingProduct, in
               index: number
               uploaded: boolean
               videoUrl?: string
-              meta: { videoId?: string; thumbnailUrl?: string; libraryId?: number; fileName?: string } | null
+              meta: { url?: string; videoId?: string; thumbnailUrl?: string; libraryId?: number; fileName?: string } | null
             }> = []
 
             for (const { exercise, index, file } of exercisesWithPotentialVideos) {
@@ -3026,7 +3121,7 @@ export default function CreateProductModal({ isOpen, onClose, editingProduct, in
 
                 let finalVideoUrl: string | undefined = exercise?.video_url
                 let uploaded = false
-                let meta: { videoId?: string; thumbnailUrl?: string; libraryId?: number; fileName?: string } | null =
+                let meta: { url?: string; videoId?: string; thumbnailUrl?: string; libraryId?: number; fileName?: string } | null =
                   null
 
                 const videoUrlIsBlob =
@@ -3108,7 +3203,7 @@ export default function CreateProductModal({ isOpen, onClose, editingProduct, in
                       if (videoUrlIsBlob && !blobUrlCache.has(exercise.video_url)) {
                         blobUrlCache.set(exercise.video_url, {
                           url: finalVideoUrl!,
-                          meta
+                          meta: meta || undefined
                         })
                       }
 
@@ -3154,12 +3249,12 @@ export default function CreateProductModal({ isOpen, onClose, editingProduct, in
                         }
 
                         if (videoUrlIsBlob) {
-                          blobUrlCache.set(exercise.video_url, { url: finalVideoUrl!, meta })
+                          blobUrlCache.set(exercise.video_url, { url: finalVideoUrl!, meta: meta || undefined })
                         }
 
                         signatureCandidates.forEach((signature) => {
                           if (signature) {
-                            completedUploads.set(signature, { url: finalVideoUrl!, meta })
+                            completedUploads.set(signature, { url: finalVideoUrl!, meta: meta || undefined })
                           }
                         })
 
@@ -3184,7 +3279,7 @@ export default function CreateProductModal({ isOpen, onClose, editingProduct, in
 
             if (uploadResults.length > 0) {
                   setPersistentCsvData((prev) =>
-                    prev.map((exercise, index) => {
+                    (prev ?? []).map((exercise, index) => {
                       if (!exercise || typeof exercise !== 'object' || Array.isArray(exercise)) {
                         return exercise
                       }
@@ -3428,20 +3523,10 @@ export default function CreateProductModal({ isOpen, onClose, editingProduct, in
   const loadWorkshopPdfs = async (activityId: number, tallerDetalles: any[]) => {
     try {
       // Cargar PDF general desde editingProduct o activity_media
-      let generalPdfUrl = null
+      let generalPdfUrl: string | null = null
       if (editingProduct) {
         generalPdfUrl = editingProduct.activity_media?.find((m: any) => m.pdf_url)?.pdf_url || 
                         editingProduct.media?.pdf_url
-        
-        if (generalPdfUrl) {
-          setWorkshopMaterial(prev => ({
-            ...prev,
-            pdfType: 'general',
-            pdfUrl: generalPdfUrl,
-            pdfFile: null // No tenemos el archivo, solo la URL
-          }))
-          return // Si hay PDF general, no cargar por tema
-        }
       }
       
       // Cargar PDFs por tema desde taller_detalles
@@ -3522,6 +3607,13 @@ export default function CreateProductModal({ isOpen, onClose, editingProduct, in
           return nextState
         })
         console.log('✅ PDFs por tema cargados en estado:', Object.keys(topicPdfs))
+      } else if (generalPdfUrl) {
+        setWorkshopMaterial(prev => ({
+          ...prev,
+          pdfType: 'general',
+          pdfUrl: generalPdfUrl,
+          pdfFile: null
+        }))
       } else {
         console.log('ℹ️ No se encontraron PDFs por tema en taller_detalles')
       }
@@ -3529,6 +3621,20 @@ export default function CreateProductModal({ isOpen, onClose, editingProduct, in
       console.error('❌ Error cargando PDFs del taller:', error)
     }
   }
+
+  const lastWorkshopScheduleLoadedRef = useRef<number | null>(null)
+
+  // Cargar Temas y Horarios cuando se entra al paso 4 (workshopSchedule) si estamos editando
+  useEffect(() => {
+    if (currentStep !== 'workshopSchedule') return
+    if (!editingProduct?.id) return
+    if (selectedType !== 'workshop') return
+
+    if (lastWorkshopScheduleLoadedRef.current === editingProduct.id) return
+    lastWorkshopScheduleLoadedRef.current = editingProduct.id
+
+    loadWorkshopData(editingProduct.id)
+  }, [currentStep, editingProduct?.id, selectedType])
 
   // Cargar PDFs cuando se entra al paso 5 (workshopMaterial) si estamos editando
   // IMPORTANTE: Siempre recargar cuando se entra al paso 5 para asegurar que los PDFs se muestren
@@ -3743,7 +3849,7 @@ export default function CreateProductModal({ isOpen, onClose, editingProduct, in
         ...specificForm,
         duration: editingProduct.duration?.toString() || '',
         capacity: editingProduct.capacity?.toString() || '',
-        level: editingProduct.level || '',
+        level: (editingProduct.difficulty || editingProduct.level || ''),
         stockQuantity: stockQuantity
       })
     }
@@ -4047,7 +4153,13 @@ export default function CreateProductModal({ isOpen, onClose, editingProduct, in
                   <div className="space-y-2">
                     <div className="text-sm font-semibold text-white">Video y foto</div>
                     <div className="mx-auto w-full md:w-[60%]">
-                      <div className="relative w-full aspect-video rounded-xl border border-white/10 bg-black overflow-hidden">
+                      <div
+                        className={`relative rounded-xl border border-white/10 bg-black overflow-hidden mx-auto ${
+                          inlineMediaType === 'image'
+                            ? 'w-[240px] max-w-full aspect-[5/6]'
+                            : 'w-full aspect-video'
+                        }`}
+                      >
                       {inlineMediaType === 'image' && (generalForm.image && typeof generalForm.image === 'object' && 'url' in generalForm.image && generalForm.image.url) ? (
                         <img
                           src={(generalForm.image as any).url}
@@ -4289,9 +4401,8 @@ export default function CreateProductModal({ isOpen, onClose, editingProduct, in
                     Temas y Horarios del Taller
                   </h3>
                   <WorkshopSimpleScheduler
-                    activityId={editingProduct?.id}
-                    initialSchedule={workshopSchedule}
-                    onScheduleChange={setWorkshopSchedule}
+                    sessions={workshopSchedule}
+                    onSessionsChange={setWorkshopSchedule}
                   />
                 </div>
               )}
@@ -4307,10 +4418,18 @@ export default function CreateProductModal({ isOpen, onClose, editingProduct, in
                         <ActivityCard
                           activity={{
                             ...(editingProduct as any),
+                            ...(generalForm.image && typeof generalForm.image === 'object' && 'url' in generalForm.image
+                              ? { image_url: (generalForm.image as any).url }
+                              : {}),
+                            // Reflejar siempre el precio actual del formulario
+                            price: (() => {
+                              const parsed = parseFloat(String(generalForm.price ?? '').replace(',', '.'))
+                              return Number.isFinite(parsed) ? parsed : ((editingProduct as any)?.price ?? 0)
+                            })(),
                             previewStats: {
-                              sesiones: weeklyStats.sesiones,
-                              ejerciciosTotales: weeklyStats.ejerciciosTotales,
-                              ejerciciosUnicos: weeklyStats.ejerciciosUnicos
+                              sesiones: derivedPreviewStats.sesiones,
+                              ejerciciosTotales: derivedPreviewStats.ejerciciosTotales,
+                              ejerciciosUnicos: derivedPreviewStats.ejerciciosUnicos
                             }
                           }}
                           size="small"

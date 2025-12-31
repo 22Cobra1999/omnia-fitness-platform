@@ -126,6 +126,9 @@ jspm_packages/
 tmp/
 temp/
 
+# local media exports
+OMNIA media/
+
 # playwright
 test-results/
 playwright-report/

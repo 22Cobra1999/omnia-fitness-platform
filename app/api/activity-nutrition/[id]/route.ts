@@ -289,7 +289,7 @@ export async function GET(
     }
 
     // Transformar los platos al formato esperado por el frontend
-    const transformedPlatos = (platos || []).map((plato: any) => {
+    const transformedPlatos = platos.map((plato: any) => {
       const activityMap = normalizeActivityMap(plato.activity_id)
       const primaryActivityIdKey = Object.keys(activityMap)[0]
       const primaryActivityId = primaryActivityIdKey ? parseInt(primaryActivityIdKey, 10) : null
@@ -310,6 +310,7 @@ export async function GET(
         grasas: plato.grasas || 0,
         receta: plato.receta || '',
         video_url: plato.video_url || null,
+        video_file_name: plato.video_file_name || null,
         is_active: isActive,
         activo: isActive,
         activity_map: activityMap,

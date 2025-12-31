@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createRouteHandlerClient } from '@/lib/supabase/supabase-server'
+import { bunnyClient } from '@/lib/bunny'
 import { hasActivity } from '@/lib/utils/exercise-activity-map'
 import { deleteVideoIfUnused } from '@/lib/bunny/video-cleanup'
 
@@ -66,6 +67,16 @@ export async function POST(request: NextRequest) {
 
     const previousVideoId = exerciseRow?.bunny_video_id || null
 
+    let bunnyTitle: string | null = null
+    try {
+      const info = await bunnyClient.getVideoInfo(String(videoId))
+      const raw = (info as any)?.title
+      const t = typeof raw === 'string' ? raw.trim() : ''
+      if (t) bunnyTitle = t.slice(0, 255)
+    } catch {
+      // ignore
+    }
+
     const updatePayload: Record<string, unknown> = {
       video_url: streamUrl,
       bunny_video_id: videoId,
@@ -74,7 +85,12 @@ export async function POST(request: NextRequest) {
     }
 
     if (fileName && typeof fileName === 'string') {
-      updatePayload.video_file_name = fileName
+      // Priorizar siempre el título oficial de Bunny si está disponible
+      updatePayload.video_file_name = bunnyTitle || fileName
+    }
+
+    if (!updatePayload.video_file_name && bunnyTitle) {
+      updatePayload.video_file_name = bunnyTitle
     }
 
     const { error: updateError } = await supabase

@@ -269,28 +269,84 @@ export async function PATCH(request: NextRequest) {
         ? null
         : Number(body.bunny_library_id)
     const video_thumbnail_url = typeof body?.video_thumbnail_url === 'string' ? body.video_thumbnail_url : null
+    const video_file_name = typeof body?.video_file_name === 'string' ? body.video_file_name : null
 
     // Ojo: no todas las tablas tienen las mismas columnas.
     // - nutrition_program_details: (según migrations actuales) tiene video_url, pero no bunny_* ni video_file_name.
     // - ejercicios_detalles: tiene video_url y (según add-bunny-video-support.sql) bunny_* y video_thumbnail_url.
-    const updatePayload: any = { video_url }
-    if (!isNutrition) {
-      updatePayload.bunny_video_id = bunny_video_id
-      updatePayload.bunny_library_id = Number.isFinite(bunny_library_id) ? bunny_library_id : null
-      updatePayload.video_thumbnail_url = video_thumbnail_url
+    const basePayload: any = { video_url }
+    if (video_file_name && video_file_name.trim() !== '') {
+      basePayload.video_file_name = video_file_name.trim().slice(0, 255)
     }
 
-    const selectFields = isNutrition
-      ? 'id, video_url'
-      : 'id, video_url, bunny_video_id, bunny_library_id, video_thumbnail_url'
+    const fullPayload: any = {
+      ...basePayload,
+      bunny_video_id,
+      bunny_library_id: Number.isFinite(bunny_library_id) ? bunny_library_id : null,
+      video_thumbnail_url
+    }
 
-    const { data, error } = await supabase
+    const selectFieldsFull = 'id, video_url, bunny_video_id, bunny_library_id, video_thumbnail_url, video_file_name'
+    const selectFieldsBase = 'id, video_url, video_file_name'
+
+    let data: any = null
+    let error: any = null
+
+    // 1) Update principal (nutrition_program_details o ejercicios_detalles)
+    const primaryAttempt = await supabase
       .from(tableName)
-      .update(updatePayload)
+      .update(isNutrition ? fullPayload : fullPayload)
       .eq('id', id)
       .eq('coach_id', user.id)
-      .select(selectFields)
+      .select(isNutrition ? selectFieldsFull : selectFieldsFull)
       .maybeSingle()
+
+    data = primaryAttempt.data
+    error = primaryAttempt.error
+
+    // 2) Si es nutrición y la tabla no tiene bunny_* todavía, reintentar con payload reducido
+    if (error && isNutrition) {
+      const code = (error as any)?.code
+      const message = String((error as any)?.message || '')
+      const missingColumn = code === '42703' || message.includes('does not exist') || message.includes('column')
+      if (missingColumn) {
+        const retry = await supabase
+          .from(tableName)
+          .update(basePayload)
+          .eq('id', id)
+          .eq('coach_id', user.id)
+          .select(selectFieldsBase)
+          .maybeSingle()
+        data = retry.data
+        error = retry.error
+      }
+    }
+
+    // 3) Best-effort: si es nutrición, espejar update en platos_detalles también
+    if (isNutrition) {
+      try {
+        const mirrorAttempt = await supabase
+          .from('platos_detalles')
+          .update(fullPayload)
+          .eq('id', id)
+          .eq('coach_id', user.id)
+
+        if (mirrorAttempt.error) {
+          const mirrorCode = (mirrorAttempt.error as any)?.code
+          const mirrorMsg = String((mirrorAttempt.error as any)?.message || '')
+          const mirrorMissing = mirrorCode === '42703' || mirrorMsg.includes('does not exist') || mirrorMsg.includes('column')
+          if (mirrorMissing) {
+            await supabase
+              .from('platos_detalles')
+              .update(basePayload)
+              .eq('id', id)
+              .eq('coach_id', user.id)
+          }
+        }
+      } catch {
+        // ignore
+      }
+    }
 
     if (error) {
       console.error('❌ COACH/EXERCISES: PATCH supabase error:', {
@@ -301,7 +357,7 @@ export async function PATCH(request: NextRequest) {
         tableName,
         id,
         coachId: user.id,
-        updatePayload
+        updatePayload: isNutrition ? fullPayload : fullPayload
       })
       return NextResponse.json(
         {

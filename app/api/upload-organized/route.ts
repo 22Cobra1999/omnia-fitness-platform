@@ -66,9 +66,19 @@ export async function POST(request: NextRequest) {
 
     // Crear un nombre de archivo único
     const fileExt = file.name.split('.').pop() || 'jpg'
+    const originalFileName = file.name
+    const originalBase = originalFileName.replace(/\.[^/.]+$/, '')
+    const safeBase = originalBase
+      .trim()
+      .replace(/\s+/g, '-')
+      .replace(/[^a-zA-Z0-9-_]/g, '')
+      .slice(0, 80)
+      .replace(/^-+/, '')
+      .replace(/-+$/, '')
     const timestamp = Date.now()
-    const randomString = Math.random().toString(36).substring(2, 15)
-    const fileName = `${timestamp}_${randomString}.${fileExt}`
+    const randomString = Math.random().toString(36).substring(2, 10)
+    const basePrefix = safeBase && safeBase.length > 0 ? safeBase : 'archivo'
+    const fileName = `${basePrefix}_${timestamp}_${randomString}.${fileExt}`
     const filePath = `coaches/${coachId}/${folder}/${fileName}`
 
     console.log('📁 [upload-organized] Preparando upload:', {
@@ -125,6 +135,7 @@ export async function POST(request: NextRequest) {
       success: true,
       url: urlData.publicUrl,
       fileName: fileName,
+      originalFileName: originalFileName,
       filePath: filePath
     })
   } catch (error: any) {

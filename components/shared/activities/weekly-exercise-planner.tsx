@@ -2593,6 +2593,8 @@ export function WeeklyExercisePlanner({ exercises, onScheduleChange, onPeriodsCh
 
   const summaryStats = getPatternStats()
   const weeksExceeded = weeksLimit !== null && summaryStats.totalWeeks > weeksLimit
+  const sessionsLimit = weeksLimit !== null ? weeksLimit * 7 : null
+  const sessionsExceeded = sessionsLimit !== null && summaryStats.totalSessions > sessionsLimit
   const uniqueExceeded = activitiesLimit !== null && summaryStats.uniqueExercises > activitiesLimit
 
   useEffect(() => {
@@ -2623,7 +2625,9 @@ export function WeeklyExercisePlanner({ exercises, onScheduleChange, onPeriodsCh
             </div>
             <div className="flex justify-between">
               <span className="text-gray-400">Sesiones:</span>
-              <span className="text-[#FF7939] font-medium">{summaryStats.totalSessions}</span>
+              <span className={`${sessionsExceeded ? 'text-red-400 font-semibold' : 'text-[#FF7939] font-medium'}`}>
+                {sessionsLimit !== null ? `${summaryStats.totalSessions}/${sessionsLimit}` : summaryStats.totalSessions}
+              </span>
             </div>
             <div className="flex justify-between">
               <span className="text-gray-400">{productCategory === 'nutricion' ? 'Platos totales:' : 'Ejercicios totales:'}</span>
@@ -2845,23 +2849,62 @@ export function WeeklyExercisePlanner({ exercises, onScheduleChange, onPeriodsCh
             const dayTypeCounts: Record<number, Record<string, number>> = {}
             const typeTotals: Record<string, number> = {}
 
+            const nutritionBlockDefaults = [
+              'Desayuno',
+              'Almuerzo',
+              'Merienda',
+              'Cena',
+              'Colación',
+              'Pre-entreno',
+              'Post-entreno',
+              'Otro'
+            ]
+
+            const getNutritionRowLabel = (typeKey: string) => {
+              const map: Record<string, string> = {
+                desayuno: 'Desayuno',
+                almuerzo: 'Almuerzo',
+                merienda: 'Merienda',
+                cena: 'Cena',
+                snack: 'Snack',
+                colacion: 'Colación',
+                'pre-entreno': 'Pre-entreno',
+                'post-entreno': 'Post-entreno',
+                otro: 'Otro'
+              }
+              return map[typeKey] || typeKey.charAt(0).toUpperCase() + typeKey.slice(1)
+            }
+
             DAYS.forEach((day) => {
               const dayEntry = weeklySchedule[currentWeek]?.[day.key]
               const exercises = getExercisesFromDay(dayEntry)
               const counts: Record<string, number> = {}
 
+              const dayBlockNames =
+                dayEntry && typeof dayEntry === 'object' && 'blockNames' in dayEntry
+                  ? ((dayEntry as any).blockNames as { [key: number]: string })
+                  : {}
+
               exercises.forEach((ex: any) => {
                 const fullExercise = availableExercises.find((a: any) => String(a.id) === String(ex.id))
-                const rawType =
-                  fullExercise?.type ||
-                  fullExercise?.tipo ||
-                  ex.type ||
-                  (ex as any)?.tipo ||
-                  (isNutrition ? 'otro' : 'General')
 
-                const normalizedType = isNutrition
-                  ? normalizeNutritionType(String(rawType))
-                  : normalizeExerciseType(String(rawType))
+                const normalizedType = (() => {
+                  if (isNutrition) {
+                    const blockId = Number(ex.block ?? (ex as any)?.bloque ?? 1)
+                    const fallbackName = nutritionBlockDefaults[blockId - 1] || 'Otro'
+                    const blockName = dayBlockNames?.[blockId] || fallbackName
+                    return normalizeNutritionType(String(blockName))
+                  }
+
+                  const rawType =
+                    fullExercise?.type ||
+                    fullExercise?.tipo ||
+                    ex.type ||
+                    (ex as any)?.tipo ||
+                    'General'
+
+                  return normalizeExerciseType(String(rawType))
+                })()
 
                 counts[normalizedType] = (counts[normalizedType] || 0) + 1
                 typeTotals[normalizedType] = (typeTotals[normalizedType] || 0) + 1
@@ -2876,7 +2919,7 @@ export function WeeklyExercisePlanner({ exercises, onScheduleChange, onPeriodsCh
             const rows: React.ReactElement[] = typesInWeek.map((typeKey) => {
               const scheme = getTypeColorScheme(typeKey, isNutrition)
               const typeLabel = isNutrition
-                ? typeKey.charAt(0).toUpperCase() + typeKey.slice(1)
+                ? getNutritionRowLabel(typeKey)
                 : typeKey
 
               return (

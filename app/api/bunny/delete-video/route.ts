@@ -23,42 +23,157 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ success: false, error: 'videoId requerido' }, { status: 400 })
     }
 
-    const { data: usageRows, error: usageError } = await supabase
-      .from('ejercicios_detalles')
-      .select('id')
-      .eq('bunny_video_id', videoId)
+    // Modo "force delete": no bloqueamos por referencias.
+    // El objetivo es que el archivo desaparezca de la lista, incluso si Bunny no lo tiene.
 
-    if (usageError) {
-      console.error('❌ Error verificando uso de video:', usageError)
-      return NextResponse.json({ success: false, error: 'No se pudo verificar uso del video' }, { status: 500 })
+    let deleted = false
+    try {
+      deleted = await bunnyClient.deleteVideo(videoId)
+    } catch (err) {
+      console.error('❌ Error llamando a Bunny deleteVideo (continuando igual):', err)
+      deleted = false
     }
 
-    const usages = usageRows || []
-    const stillReferenced = usages.filter((row) => {
-      if (!exerciseId) return true
-      return row.id !== exerciseId
-    })
+    // Limpiar referencias en BD para que el video desaparezca del producto aunque Bunny ya no lo tenga.
+    // 1) ejercicios_detalles
+    try {
+      if (exerciseId) {
+        await supabase
+          .from('ejercicios_detalles')
+          .update({
+            video_url: null,
+            bunny_video_id: null,
+            bunny_library_id: null,
+            video_thumbnail_url: null
+          })
+          .eq('id', exerciseId)
+          .eq('coach_id', user.id)
+      } else {
+        await supabase
+          .from('ejercicios_detalles')
+          .update({
+            video_url: null,
+            bunny_video_id: null,
+            bunny_library_id: null,
+            video_thumbnail_url: null
+          })
+          .eq('coach_id', user.id)
+          .eq('bunny_video_id', videoId)
 
-    if (stillReferenced.length > 0) {
-      return NextResponse.json({ success: false, skipped: true, reason: 'Video utilizado por otros ejercicios' })
+        await supabase
+          .from('ejercicios_detalles')
+          .update({
+            video_url: null,
+            bunny_video_id: null,
+            bunny_library_id: null,
+            video_thumbnail_url: null
+          })
+          .eq('coach_id', user.id)
+          .ilike('video_url', `%${videoId}%`)
+      }
+    } catch (dbErr) {
+      console.error('❌ Error limpiando ejercicios_detalles (continuando):', dbErr)
     }
 
-    const deleted = await bunnyClient.deleteVideo(videoId)
-
-    if (!deleted) {
-      return NextResponse.json({ success: false, error: 'No se pudo eliminar el video en Bunny.net' }, { status: 500 })
-    }
-
-    if (exerciseId) {
+    // 2) platos_detalles (nutrición)
+    try {
       await supabase
-        .from('ejercicios_detalles')
+        .from('platos_detalles')
         .update({
           video_url: null,
           bunny_video_id: null,
           bunny_library_id: null,
           video_thumbnail_url: null
-        })
-        .eq('id', exerciseId)
+        } as any)
+        .eq('coach_id', user.id)
+        .eq('bunny_video_id', videoId)
+
+      await supabase
+        .from('platos_detalles')
+        .update({
+          video_url: null,
+          bunny_video_id: null,
+          bunny_library_id: null,
+          video_thumbnail_url: null
+        } as any)
+        .eq('coach_id', user.id)
+        .ilike('video_url' as any, `%${videoId}%`)
+    } catch (dbErr) {
+      console.error('❌ Error limpiando platos_detalles (continuando):', dbErr)
+    }
+
+    // 3) activity_media (por activities del coach)
+    try {
+      const { data: coachActivities } = await supabase
+        .from('activities')
+        .select('id')
+        .eq('coach_id', user.id)
+
+      const activityIds = (coachActivities || []).map((a: any) => a.id)
+      if (activityIds.length > 0) {
+        await supabase
+          .from('activity_media')
+          .update({
+            video_url: null,
+            bunny_video_id: null,
+            bunny_library_id: null,
+            video_thumbnail_url: null
+          } as any)
+          .in('activity_id', activityIds)
+          .eq('bunny_video_id', videoId)
+
+        await supabase
+          .from('activity_media')
+          .update({
+            video_url: null,
+            bunny_video_id: null,
+            bunny_library_id: null,
+            video_thumbnail_url: null
+          } as any)
+          .in('activity_id', activityIds)
+          .ilike('video_url', `%${videoId}%`)
+      }
+    } catch (dbErr) {
+      console.error('❌ Error limpiando activity_media (continuando):', dbErr)
+    }
+
+    // 4) nutrition_program_details (no siempre tiene bunny_*; al menos limpiamos video_url si matchea por guid)
+    try {
+      const { data: coachActivities2 } = await supabase
+        .from('activities')
+        .select('id')
+        .eq('coach_id', user.id)
+
+      const activityIds = (coachActivities2 || []).map((a: any) => a.id)
+      if (activityIds.length > 0) {
+        const byIdAttempt = await supabase
+          .from('nutrition_program_details')
+          .update({ video_url: null, video_file_name: null } as any)
+          .in('activity_id', activityIds)
+          .eq('bunny_video_id' as any, videoId as any)
+
+        // Si bunny_video_id no existe como columna, esto va a fallar. En ese caso (o igual), limpiamos por URL.
+        if (byIdAttempt.error) {
+          console.warn('⚠️ No se pudo limpiar nutrition_program_details por bunny_video_id, intentando por video_url')
+        }
+
+        await supabase
+          .from('nutrition_program_details')
+          .update({ video_url: null, video_file_name: null } as any)
+          .in('activity_id', activityIds)
+          .ilike('video_url', `%${videoId}%`)
+      }
+    } catch (dbErr) {
+      console.error('❌ Error limpiando nutrition_program_details (continuando):', dbErr)
+    }
+
+    if (!deleted) {
+      // Comportamiento idempotente: si Bunny ya no lo tiene (o falla el delete), no bloqueamos la UX.
+      return NextResponse.json({
+        success: true,
+        deleted: false,
+        warning: 'No se pudo eliminar el video en Bunny.net (puede que ya no exista).'
+      })
     }
 
     return NextResponse.json({ success: true, deleted: true })

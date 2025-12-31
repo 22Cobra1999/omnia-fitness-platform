@@ -22,6 +22,7 @@ import {
 } from 'lucide-react'
 import { motion, AnimatePresence } from 'framer-motion'
 import Image from 'next/image'
+import { UniversalVideoPlayer } from '@/components/shared/video/universal-video-player'
 
 interface MediaSelectionModalProps {
   isOpen: boolean
@@ -67,6 +68,23 @@ export function MediaSelectionModal({
   const [isPreviewPlaying, setIsPreviewPlaying] = useState(false)
   const [videoDuration, setVideoDuration] = useState<number | null>(null)
   const [sourceFilter, setSourceFilter] = useState<'all' | 'cover' | 'catalog'>('all')
+
+  const getBunnyCdnBaseUrl = () => {
+    const cdn = process.env.NEXT_PUBLIC_BUNNY_STREAM_CDN_URL
+    // Fallback: mantener compatibilidad con UniversalVideoPlayer (que hoy usa este CDN hardcodeado)
+    const fallback = 'https://vz-37d7814d-402.b-cdn.net'
+    return typeof cdn === 'string' && cdn.trim() !== '' ? cdn.trim().replace(/\/$/, '') : fallback
+  }
+
+  const getBunnyStreamUrl = (videoId: string) => {
+    const cdn = getBunnyCdnBaseUrl()
+    return cdn ? `${cdn}/${videoId}/playlist.m3u8` : null
+  }
+
+  const getBunnyThumbnailUrl = (videoId: string) => {
+    const cdn = getBunnyCdnBaseUrl()
+    return cdn ? `${cdn}/${videoId}/thumbnail.jpg` : null
+  }
 
   // Establecer preview inicial cuando se carga el media
   useEffect(() => {
@@ -189,7 +207,7 @@ export function MediaSelectionModal({
         // Para imágenes, usar el mismo endpoint que el widget de almacenamiento
         console.log('🔄 MediaSelectionModal: Cargando imágenes del coach desde storage-files')
         
-        const response = await fetch('/api/coach/storage-files')
+        const response = await fetch('/api/coach/storage-files', { credentials: 'include' })
         const data = await response.json()
         
         console.log('📁 MediaSelectionModal: Respuesta de storage-files:', {
@@ -252,57 +270,65 @@ export function MediaSelectionModal({
           setError(data.error || 'Error desconocido')
         }
       } else {
-        // Para videos, usar el endpoint de coach-media (como antes)
-        console.log('🔄 MediaSelectionModal: Cargando videos del coach (activity_media)')
-        
-        const response = await fetch('/api/coach-media?all=true')
-        const data = await response.json()
-        
-        console.log('📁 MediaSelectionModal: Respuesta del servidor:', {
-          status: response.status, 
-          ok: response.ok, 
-          mediaCount: data.media?.length || 0,
-          error: data.error,
-          details: data.details,
-          allMedia: data.media,
-          debug: data.debug
-        })
-        
-        if (response.ok) {
-          const rawMedia: any[] = Array.isArray(data?.media)
-            ? data.media
-            : Array.isArray(data?.files)
-              ? data.files
-              : []
+        // Para videos, usar storage-files (más confiable que coach-media y no depende de Bunny "configurado" en ese endpoint)
+        console.log('🔄 MediaSelectionModal: Cargando videos del coach desde storage-files')
 
-          // ✅ Filtrar solo videos (si el backend ya devuelve solo videos, esto no elimina nada)
-          const filteredMedia = rawMedia.filter((item: any) => {
-            const hasVideoType = (item?.media_type || item?.mediaType) === 'video'
-            const hasVideoUrl = typeof item?.video_url === 'string' && item.video_url.trim() !== ''
-            const hasBunnyId = typeof item?.bunny_video_id === 'string' && item.bunny_video_id.trim() !== ''
-            return hasVideoType || hasVideoUrl || hasBunnyId
+        const response = await fetch('/api/coach/storage-files', { credentials: 'include' })
+        const data = await response.json()
+
+        console.log('📁 MediaSelectionModal: Respuesta de storage-files (videos):', {
+          status: response.status,
+          ok: response.ok,
+          filesCount: data.files?.length || 0,
+          success: data.success,
+          error: data.error
+        })
+
+        if (response.ok && data.success && Array.isArray(data.files)) {
+          const videoFiles = data.files.filter((file: any) => file.concept === 'video') || []
+
+          const convertedMedia: CoachMedia[] = videoFiles.map((file: any) => {
+            const bunnyId = String(file.fileId || '').trim()
+            const streamUrl = bunnyId ? getBunnyStreamUrl(bunnyId) : null
+            const thumbUrl = bunnyId ? getBunnyThumbnailUrl(bunnyId) : null
+
+            return {
+              id: bunnyId || `video-${file.fileName}`,
+              activity_id: file.activities?.[0]?.id || 0,
+              image_url: undefined,
+              video_url: streamUrl || undefined,
+              pdf_url: undefined,
+              bunny_video_id: bunnyId || undefined,
+              bunny_library_id: undefined,
+              video_thumbnail_url: thumbUrl || undefined,
+              filename: file.fileName || `video-${(bunnyId || '').slice(0, 8)}`,
+              media_type: 'video' as const,
+              size: file.sizeBytes || undefined,
+              type: 'video/mp4',
+              nombre_ejercicio: null,
+              nombre_plato: null,
+              activity_title: (() => {
+                const names = Array.isArray(file.activities)
+                  ? file.activities
+                      .map((a: any) => a?.name)
+                      .filter(Boolean)
+                  : []
+                if (names.length === 0) return ''
+                if (names.length === 1) return names[0]
+                return `${names[0]} +${names.length - 1}`
+              })(),
+              created_at: new Date().toISOString(),
+            }
           })
-          
-          console.log('🎯 MediaSelectionModal: Videos filtrados:', {
-            totalArchivos: data.media?.length || 0,
-            archivosFiltrados: filteredMedia.length,
-            archivos: filteredMedia.map((item: any) => ({
-              id: item.id,
-              filename: item.filename,
-              media_type: item.media_type,
-              video_url: item.video_url,
-              bunny_video_id: item.bunny_video_id
-            }))
-          })
-          
-          // Preservar items temporales que aún no se han encontrado en el servidor
+
           setMedia(prev => {
             const tempItems = prev.filter(item => item.id.startsWith('new-'))
-            // Si hay items temporales, mantenerlos hasta que se encuentren en el servidor
-            return tempItems.length > 0 ? [...filteredMedia, ...tempItems] : filteredMedia
+            return tempItems.length > 0 ? [...convertedMedia, ...tempItems] : convertedMedia
           })
+
+          // No bloquear preview por falta de env: usamos fallback CDN.
         } else {
-          console.error(`❌ Error cargando videos del coach:`, data.error, data.details)
+          console.error(`❌ Error cargando videos del coach desde storage-files:`, data.error)
           setError(data.error || 'Error desconocido')
         }
       }
@@ -466,7 +492,7 @@ export function MediaSelectionModal({
         video_url: mediaType === 'video' ? data.url : undefined,
         activity_title: '',
         created_at: new Date().toISOString(),
-        filename: data.fileName || file.name,
+        filename: (data.originalFileName || file.name) as string,
         media_type: mediaType,
         size: file.size,
         type: file.type
@@ -486,7 +512,7 @@ export function MediaSelectionModal({
 
       // Guardar la URL para que el useEffect actualice la selección cuando se recargue la lista
       setPendingUploadUrl(data.url)
-      setPendingUploadFileName(data.fileName || file.name)
+      setPendingUploadFileName((data.fileName || data.originalFileName || file.name) as string)
 
       // Recargar la lista en segundo plano para sincronizar con el servidor
       // El useEffect se encargará de actualizar la selección con el ID correcto del servidor
@@ -729,12 +755,13 @@ export function MediaSelectionModal({
                   {filteredMediaForView.map((item, index) => {
                     const isSelected = selectedMedia === item.id
                     const isCatalog = !!(item.nombre_ejercicio || item.nombre_plato)
-                    const usageLabel =
+                    const usageLabelRaw =
                       mediaType === 'image'
                         ? item.activity_title || 'Portada'
                         : isCatalog
                           ? item.nombre_ejercicio || item.nombre_plato || 'Sin uso'
                           : item.activity_title || 'Sin uso'
+                    const usageLabel = truncateFileName(usageLabelRaw, 15)
 
                     const coverSrc =
                       mediaType === 'image'
@@ -766,13 +793,63 @@ export function MediaSelectionModal({
                             <Image src={coverSrc} alt={item.filename} fill className="object-cover" />
                           ) : (
                             <div className="w-full h-full flex items-center justify-center text-gray-500 text-xs">
-                              Sin preview
+                              {mediaType === 'video' ? (
+                                item.video_url && String(item.video_url).startsWith('blob:') ? (
+                                  <video
+                                    src={item.video_url}
+                                    className="w-full h-full object-cover"
+                                    muted
+                                    playsInline
+                                    preload="metadata"
+                                  />
+                                ) : item.bunny_video_id ? (
+                                  <UniversalVideoPlayer
+                                    videoUrl={item.video_url || null}
+                                    bunnyVideoId={item.bunny_video_id}
+                                    autoPlay={false}
+                                    controls={false}
+                                    muted={true}
+                                    className="w-full h-full"
+                                  />
+                                ) : item.video_url ? (
+                                  <video
+                                    src={item.video_url}
+                                    className="w-full h-full object-cover"
+                                    muted
+                                    playsInline
+                                    preload="metadata"
+                                  />
+                                ) : (
+                                  'Sin preview'
+                                )
+                              ) : (
+                                'Sin preview'
+                              )}
                             </div>
                           )}
 
                           {mediaType === 'video' && (
                             <div className="absolute inset-0 flex items-center justify-center">
-                              <div className="w-9 h-9 rounded-full bg-black/60 border border-white/10 flex items-center justify-center">
+                              <div
+                                role="button"
+                                tabIndex={0}
+                                onClick={(e) => {
+                                  e.preventDefault()
+                                  e.stopPropagation()
+                                  setPreviewImage(item)
+                                  setIsPreviewPlaying((prev) => !prev)
+                                }}
+                                onKeyDown={(e) => {
+                                  if (e.key === 'Enter' || e.key === ' ') {
+                                    e.preventDefault()
+                                    e.stopPropagation()
+                                    setPreviewImage(item)
+                                    setIsPreviewPlaying((prev) => !prev)
+                                  }
+                                }}
+                                className="w-9 h-9 rounded-full bg-black/60 border border-white/10 flex items-center justify-center"
+                                aria-label="Reproducir"
+                              >
                                 <Play className="h-4 w-4 text-white ml-0.5" />
                               </div>
                             </div>

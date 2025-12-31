@@ -80,6 +80,7 @@ export function StorageUsageWidget(props: StorageUsageWidgetProps = {}) {
   const [expanded, setExpanded] = useState(false)
   const [collapsed, setCollapsed] = useState(true)
   const [viewMode, setViewMode] = useState<ViewMode>('usage')
+  const [conceptFilter, setConceptFilter] = useState<'all' | 'image' | 'video' | 'pdf'>('all')
   const [currentPlan, setCurrentPlan] = useState<PlanType | null>(null)
   const [editing, setEditing] = useState(true) // Siempre en modo edición
   const [fileToDelete, setFileToDelete] = useState<StorageFile | null>(null)
@@ -124,15 +125,37 @@ export function StorageUsageWidget(props: StorageUsageWidgetProps = {}) {
   const loadStorageUsage = async () => {
     setLoading(true)
     setError(null)
+
+    console.log('[storage-widget] loadStorageUsage start', {
+      hasUser: !!user,
+      userId: (user as any)?.id || null,
+      planProp: planProp || null,
+      currentPlan: currentPlan || null,
+      planType,
+      conceptFilter,
+      viewMode,
+    })
     
     try {
-      const usageResponse = await fetch('/api/coach/storage-usage')
+      const usageResponse = await fetch('/api/coach/storage-usage', { credentials: 'include' })
       
       if (!usageResponse.ok) {
+        console.warn('[storage-widget] storage-usage non-ok', {
+          status: usageResponse.status,
+          statusText: usageResponse.statusText
+        })
         throw new Error(`HTTP error! status: ${usageResponse.status}`)
       }
       
       const usageResult = await usageResponse.json()
+
+      console.log('[storage-widget] storage-usage response', {
+        success: usageResult?.success,
+        hasStorage: !!usageResult?.storage,
+        error: usageResult?.error,
+        total: usageResult?.storage?.total,
+        breakdown: usageResult?.storage?.breakdown
+      })
       
       if (usageResult.success && usageResult.storage) {
         setStorageData(usageResult.storage)
@@ -146,15 +169,50 @@ export function StorageUsageWidget(props: StorageUsageWidgetProps = {}) {
       // Cargar archivos detallados para las vistas (no bloquea el renderizado principal)
       setLoadingFiles(true)
       try {
-        const filesRes = await fetch('/api/coach/storage-files')
+        const filesRes = await fetch('/api/coach/storage-files', { credentials: 'include' })
         if (filesRes.ok) {
           const filesJson = await filesRes.json()
           if (filesJson.success && Array.isArray(filesJson.files)) {
+            const files = filesJson.files as StorageFile[]
+            const counts = files.reduce(
+              (acc: Record<string, number>, f: StorageFile) => {
+                acc[f.concept] = (acc[f.concept] || 0) + 1
+                return acc
+              },
+              {}
+            )
+
+            console.log('[storage-widget] storage-files response', {
+              success: filesJson.success,
+              total: files.length,
+              counts,
+              sample: files.slice(0, 12).map((f) => ({
+                concept: f.concept,
+                fileId: f.fileId,
+                fileName: f.fileName,
+                usesCount: f.usesCount,
+                activitiesCount: f.activities?.length || 0,
+                url: f.url || null
+              }))
+            })
+
             setStorageFiles(filesJson.files as StorageFile[])
           } else {
+            console.warn('[storage-widget] storage-files invalid payload', filesJson)
             setStorageFiles([])
           }
         } else {
+          let body: any = null
+          try {
+            body = await filesRes.text()
+          } catch {
+            body = null
+          }
+          console.warn('[storage-widget] storage-files non-ok', {
+            status: filesRes.status,
+            statusText: filesRes.statusText,
+            body
+          })
           setStorageFiles([])
         }
       } catch (filesErr) {
@@ -232,12 +290,15 @@ export function StorageUsageWidget(props: StorageUsageWidgetProps = {}) {
       const response = await fetch(endpoint, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
+        credentials: 'include',
         body: JSON.stringify(body)
       })
 
       const result = await response.json()
 
       if (response.ok && result.success) {
+        // Remover localmente para UX inmediata (la API ya limpió BD best-effort)
+        setStorageFiles((prev) => prev.filter((f) => f.fileId !== file.fileId))
         // Recargar datos
         await loadStorageUsage()
         setShowDeleteWarning(false)
@@ -331,7 +392,9 @@ export function StorageUsageWidget(props: StorageUsageWidgetProps = {}) {
   const getActivityView = () => {
     const activityMap = new Map<number, { name: string, files: StorageFile[], totalGB: number }>()
     
-    storageFiles.forEach(file => {
+    const filteredFiles = storageFiles.filter((file) => conceptFilter === 'all' || file.concept === conceptFilter)
+
+    filteredFiles.forEach(file => {
       file.activities.forEach(act => {
         if (!activityMap.has(act.id)) {
           activityMap.set(act.id, { name: act.name, files: [], totalGB: 0 })
@@ -349,7 +412,8 @@ export function StorageUsageWidget(props: StorageUsageWidgetProps = {}) {
 
   // Calcular uso total por archivo (tamaño * usos)
   const getUsageView = () => {
-    return storageFiles
+    const filteredFiles = storageFiles.filter((file) => conceptFilter === 'all' || file.concept === conceptFilter)
+    return filteredFiles
       .map(file => ({
         ...file,
         totalUsageGB: file.sizeGB * file.usesCount
@@ -534,6 +598,55 @@ export function StorageUsageWidget(props: StorageUsageWidgetProps = {}) {
           {/* Contenido según vista (solo cuando expandido) */}
           {!collapsed && (
           <div className="space-y-2">
+            {/* Filtros por tipo (imagen / video / pdf) */}
+            <div className="flex items-center justify-center gap-2 pb-2 border-b border-gray-800">
+              <button
+                onClick={() => setConceptFilter('image')}
+                className={`p-2 rounded-lg border transition-colors ${
+                  conceptFilter === 'image'
+                    ? 'bg-[#FF7939]/20 border-[#FF7939]/40 text-[#FF7939]'
+                    : 'bg-transparent border-gray-800 text-gray-400 hover:text-white hover:border-gray-700'
+                }`}
+                title="Filtrar: imágenes"
+              >
+                <ImageIcon className="w-4 h-4" />
+              </button>
+              <button
+                onClick={() => setConceptFilter('video')}
+                className={`p-2 rounded-lg border transition-colors ${
+                  conceptFilter === 'video'
+                    ? 'bg-[#FF7939]/20 border-[#FF7939]/40 text-[#FF7939]'
+                    : 'bg-transparent border-gray-800 text-gray-400 hover:text-white hover:border-gray-700'
+                }`}
+                title="Filtrar: videos"
+              >
+                <Film className="w-4 h-4" />
+              </button>
+              <button
+                onClick={() => setConceptFilter('pdf')}
+                className={`p-2 rounded-lg border transition-colors ${
+                  conceptFilter === 'pdf'
+                    ? 'bg-[#FF7939]/20 border-[#FF7939]/40 text-[#FF7939]'
+                    : 'bg-transparent border-gray-800 text-gray-400 hover:text-white hover:border-gray-700'
+                }`}
+                title="Filtrar: PDFs"
+              >
+                <FileText className="w-4 h-4" />
+              </button>
+              <button
+                onClick={() => setConceptFilter('all')}
+                className={`ml-2 px-2 py-1 rounded-lg border text-[11px] transition-colors ${
+                  conceptFilter === 'all'
+                    ? 'bg-gray-800 border-gray-700 text-white'
+                    : 'bg-transparent border-gray-800 text-gray-400 hover:text-white hover:border-gray-700'
+                }`}
+                title="Quitar filtro"
+                type="button"
+              >
+                Todos
+              </button>
+            </div>
+
             {/* Vista por Actividad */}
             {viewMode === 'activity' && (
               <>
@@ -541,7 +654,7 @@ export function StorageUsageWidget(props: StorageUsageWidgetProps = {}) {
                   <div className="flex justify-center items-center py-4">
                     <RefreshCw className="w-5 h-5 animate-spin text-[#FF7939]" />
                   </div>
-                ) : storageFiles.length > 0 ? (
+                ) : getActivityView().length > 0 ? (
                   <>
                     {getActivityView().slice(0, expanded ? getActivityView().length : 5).map((activity, idx) => {
                       const uniqueConcepts = [...new Set(activity.files.map(f => f.concept))]
@@ -618,7 +731,7 @@ export function StorageUsageWidget(props: StorageUsageWidgetProps = {}) {
                   <div className="flex justify-center items-center py-4">
                     <RefreshCw className="w-5 h-5 animate-spin text-[#FF7939]" />
                   </div>
-                ) : storageFiles.length > 0 ? (
+                ) : getUsageView().length > 0 ? (
                   <>
                     {getUsageView().slice(0, expanded ? getUsageView().length : 5).map((file, idx) => {
                       const getIcon = () => {

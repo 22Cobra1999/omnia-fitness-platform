@@ -272,6 +272,7 @@ export function VideoSelectionModal({
                             controls={true}
                             muted={false}
                             loop={false}
+                            forceIframeForBunny={true}
                             className="w-full h-full"
                             onError={(error) => {
                               console.error('Error cargando video en modal:', error)

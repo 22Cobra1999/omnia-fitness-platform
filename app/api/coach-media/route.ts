@@ -29,15 +29,42 @@ export async function GET(request: NextRequest) {
     const { searchParams } = new URL(request.url)
     const all = searchParams.get('all') === 'true'
 
-    // Obtener todas las actividades del coach
-    const { data: activities, error: activitiesError } = await supabase
-      .from('activities')
-      .select('id, title')
-      .eq('coach_id', user.id)
+    // Obtener todas las actividades del coach (incluye video preview/portada)
+    const activitiesSelectWithPreview = 'id, title, bunny_preview_video_id, preview_storage_provider'
+    const activitiesSelectWithoutPreview = 'id, title'
+
+    const fetchActivities = async (select: string) =>
+      supabase
+        .from('activities')
+        .select(select)
+        .eq('coach_id', user.id)
+
+    let { data: activities, error: activitiesError } = await fetchActivities(activitiesSelectWithPreview)
+
+    if (
+      activitiesError &&
+      (activitiesError.code === '42703' ||
+        activitiesError.message?.toLowerCase().includes('bunny_preview_video_id') ||
+        activitiesError.message?.toLowerCase().includes('preview_storage_provider'))
+    ) {
+      console.warn(
+        'Las columnas bunny_preview_video_id/preview_storage_provider no existen en activities, usando consulta alternativa sin esas columnas.'
+      )
+      const fallback = await fetchActivities(activitiesSelectWithoutPreview)
+      activities = fallback.data
+      activitiesError = fallback.error
+    }
 
     if (activitiesError) {
       console.error('Error obteniendo actividades:', activitiesError)
-      return NextResponse.json({ error: 'Error obteniendo actividades' }, { status: 500 })
+      return NextResponse.json(
+        {
+          error: 'Error obteniendo actividades',
+          details: activitiesError.message,
+          code: activitiesError.code
+        },
+        { status: 500 }
+      )
     }
 
     const activityIds = activities?.map((a: any) => a.id) || []
@@ -172,6 +199,29 @@ export async function GET(request: NextRequest) {
               video_file_name: item.video_file_name || null,
               nombre_ejercicio: null,
               nombre_plato: null
+            })
+          }
+        }
+      })
+    }
+
+    // Recolectar bunny_preview_video_id de activities (video de portada/preview)
+    if (activities && activities.length > 0) {
+      activities.forEach((activity: any) => {
+        const previewProvider = (activity as any)?.preview_storage_provider
+        const previewBunnyId = (activity as any)?.bunny_preview_video_id
+        if (previewProvider === 'bunny' && typeof previewBunnyId === 'string' && previewBunnyId.trim() !== '') {
+          const bunnyId = previewBunnyId.trim()
+          coachBunnyVideoIds.add(bunnyId)
+          if (!videosMap.has(bunnyId)) {
+            videosMap.set(bunnyId, {
+              video_url: bunnyClient.getStreamUrl(bunnyId),
+              bunny_video_id: bunnyId,
+              bunny_library_id: null,
+              video_thumbnail_url: null,
+              activity_id: activity.id,
+              video_file_name: activity.title ? String(activity.title).slice(0, 255) : null,
+              activity_title: activity.title || null
             })
           }
         }
@@ -462,16 +512,22 @@ export async function GET(request: NextRequest) {
     let formattedMedia: any[] = []
     
     // Si hay videos de Bunny, usar esos (fuente de verdad)
-    // IMPORTANTE: Solo mostrar videos que el coach tiene en BD (coachBunnyVideoIds)
+    // - all=false: mostrar solo videos referenciados en BD (evita mostrar videos de otros coaches)
+    // - all=true: mostrar TODOS los videos de la library configurada (útil para selector)
     if (allBunnyVideos.length > 0) {
-      // Filtrar solo videos que el coach tiene en BD para evitar mostrar videos de otros coaches
-      const coachVideosFromBunny = allBunnyVideos.filter((bunnyVideo: any) => 
-        coachBunnyVideoIds.has(bunnyVideo.guid)
-      )
+      const coachVideosFromBunny = all
+        ? allBunnyVideos
+        : allBunnyVideos.filter((bunnyVideo: any) => coachBunnyVideoIds.has(bunnyVideo.guid))
       
-      console.log(`✅ [COACH-MEDIA] Videos de Bunny filtrados por BD del coach: ${coachVideosFromBunny.length} de ${allBunnyVideos.length}`)
-      console.log(`✅ [COACH-MEDIA] coachBunnyVideoIds contiene:`, Array.from(coachBunnyVideoIds))
-      console.log(`✅ [COACH-MEDIA] Primeros 3 videos filtrados:`, coachVideosFromBunny.slice(0, 3).map((v: any) => v.guid))
+      console.log(
+        all
+          ? `✅ [COACH-MEDIA] Modo all=true: devolviendo TODOS los videos de Bunny: ${coachVideosFromBunny.length}`
+          : `✅ [COACH-MEDIA] Videos de Bunny filtrados por BD del coach: ${coachVideosFromBunny.length} de ${allBunnyVideos.length}`
+      )
+      if (!all) {
+        console.log(`✅ [COACH-MEDIA] coachBunnyVideoIds contiene:`, Array.from(coachBunnyVideoIds))
+      }
+      console.log(`✅ [COACH-MEDIA] Primeros 3 videos devueltos:`, coachVideosFromBunny.slice(0, 3).map((v: any) => v.guid))
       
       // ✅ Asegurar que solo se muestren videos únicos (agrupados por bunny_video_id)
       // Crear un Map para agrupar por bunny_video_id

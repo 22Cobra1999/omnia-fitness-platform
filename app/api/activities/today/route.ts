@@ -497,7 +497,7 @@ export async function GET(request: NextRequest) {
       const ejercicioIdsForQuery = ejercicioIds.length > 0 ? ejercicioIds.map(id => String(id)) : ['0']
       const { data: nutritionDetailsData, error: nutritionDetailsError } = await supabase
         .from('nutrition_program_details')
-        .select('id, nombre, receta_id, video_url, recetas(receta)')
+        .select('id, nombre, receta_id, video_url, video_file_name, recetas(receta)')
         .in('id', ejercicioIdsForQuery)
 
       if (nutritionDetailsError) {
@@ -1123,7 +1123,7 @@ async function getActivitiesFromPlanning(supabase: any, activityId: number, dia:
     // Obtener detalles de ejercicios desde la tabla correcta
     const tablaDetalles = categoria === 'nutricion' ? 'nutrition_program_details' : 'ejercicios_detalles'
     const camposSelect = categoria === 'nutricion'
-      ? 'id, nombre, tipo, descripcion, video_url, calorias, proteinas, carbohidratos, grasas, receta, ingredientes, minutos'
+      ? 'id, nombre, tipo, descripcion, video_url, video_file_name, calorias, proteinas, carbohidratos, grasas, receta, ingredientes, minutos'
       : 'id, nombre_ejercicio, tipo, descripcion, video_url, calorias, equipo, body_parts, intensidad, detalle_series, duracion_min'
     
     const { data: ejerciciosDetalles, error: ejerciciosError } = await supabase

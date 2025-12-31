@@ -24,6 +24,10 @@ export async function GET(_request: NextRequest) {
 
     const coachId = user.id
 
+    console.log('[storage-files] start', {
+      coachId,
+    })
+
     // Obtener todas las actividades del coach para nombres
     const { data: activities, error: activitiesError } = await supabase
       .from('activities')
@@ -35,12 +39,29 @@ export async function GET(_request: NextRequest) {
     }
 
     const activityMap = new Map<number, string>()
-    activities?.forEach(a => {
+    activities?.forEach((a: { id: number; title: string }) => {
       activityMap.set(a.id, a.title)
     })
-    const activityIds = activities?.map(a => a.id) || []
+    const activityIds = activities?.map((a: { id: number }) => a.id) || []
 
     const files: StorageFile[] = []
+
+    const extractBunnyGuidFromUrl = (url: string): string | null => {
+      if (!url) return null
+      const guidMatch = url.match(/([a-f0-9]{8}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{12})/i)
+      return guidMatch?.[1] || null
+    }
+
+    const extractActivityIds = (activityId: unknown): number[] => {
+      if (typeof activityId === 'number' && Number.isFinite(activityId)) return [activityId]
+      if (typeof activityId === 'string' && activityId.trim() !== '' && Number.isFinite(Number(activityId))) return [Number(activityId)]
+      if (activityId && typeof activityId === 'object') {
+        return Object.keys(activityId as Record<string, unknown>)
+          .map((k) => Number(k))
+          .filter((n) => Number.isFinite(n))
+      }
+      return []
+    }
 
     // ============================================
     // 1. VIDEOS: De activity_media y ejercicios_detalles
@@ -52,16 +73,24 @@ export async function GET(_request: NextRequest) {
       sizeBytes: number // Inicialmente 0, se actualiza cuando se obtiene de Bunny
     }>()
 
+    const nonBunnyVideoMap = new Map<string, {
+      video_url: string
+      fileName: string
+      activities: Set<number>
+      sizeBytes: number
+    }>()
+
     // Videos de activity_media
     if (activityIds.length > 0) {
       const { data: activityMedia, error: mediaError } = await supabase
         .from('activity_media')
-        .select('activity_id, bunny_video_id, video_file_name')
+        .select('activity_id, bunny_video_id, video_url, video_file_name')
         .in('activity_id', activityIds)
-        .not('bunny_video_id', 'is', null)
-        .neq('bunny_video_id', '')
 
       if (!mediaError && activityMedia) {
+        console.log('[storage-files] activity_media videos rows', {
+          count: activityMedia.length
+        })
         activityMedia.forEach((item: any) => {
           const bunnyId = item.bunny_video_id?.trim()
           if (bunnyId) {
@@ -74,23 +103,79 @@ export async function GET(_request: NextRequest) {
               })
             }
             const video = videoMap.get(bunnyId)!
-            if (item.activity_id) video.activities.add(item.activity_id)
+            extractActivityIds(item.activity_id).forEach((id) => video.activities.add(id))
+          } else if (item.video_url && String(item.video_url).trim() !== '') {
+            const urlKey = String(item.video_url).trim()
+            if (!nonBunnyVideoMap.has(urlKey)) {
+              nonBunnyVideoMap.set(urlKey, {
+                video_url: urlKey,
+                fileName: item.video_file_name || 'video.mp4',
+                activities: new Set(),
+                sizeBytes: 0
+              })
+            }
+            const video = nonBunnyVideoMap.get(urlKey)!
+            extractActivityIds(item.activity_id).forEach((id) => video.activities.add(id))
           }
         })
       }
     }
 
+    // Videos de platos_detalles (platos de nutrición)
+    const { data: platosDetalles, error: platosError } = await supabase
+      .from('platos_detalles')
+      .select('activity_id, bunny_video_id, video_url, video_file_name, nombre_plato')
+      .eq('coach_id', coachId)
+      .not('video_url', 'is', null)
+      .neq('video_url', '')
+
+    if (!platosError && platosDetalles) {
+      console.log('[storage-files] platos_detalles videos rows', {
+        count: platosDetalles.length
+      })
+      platosDetalles.forEach((item: any) => {
+        const bunnyId = item.bunny_video_id?.trim() || extractBunnyGuidFromUrl(String(item.video_url || ''))
+        if (bunnyId) {
+          if (!videoMap.has(bunnyId)) {
+            videoMap.set(bunnyId, {
+              bunny_video_id: bunnyId,
+              fileName: item.video_file_name || item.nombre_plato || `video-${bunnyId.substring(0, 8)}`,
+              activities: new Set(),
+              sizeBytes: 0
+            })
+          }
+          const video = videoMap.get(bunnyId)!
+          extractActivityIds(item.activity_id).forEach((id) => video.activities.add(id))
+        } else if (item.video_url && String(item.video_url).trim() !== '') {
+          const urlKey = String(item.video_url).trim()
+          if (!nonBunnyVideoMap.has(urlKey)) {
+            nonBunnyVideoMap.set(urlKey, {
+              video_url: urlKey,
+              fileName: item.video_file_name || item.nombre_plato || 'video.mp4',
+              activities: new Set(),
+              sizeBytes: 0
+            })
+          }
+          const video = nonBunnyVideoMap.get(urlKey)!
+          extractActivityIds(item.activity_id).forEach((id) => video.activities.add(id))
+        }
+      })
+    }
+
     // Videos de ejercicios_detalles
     const { data: ejerciciosDetalles, error: ejerciciosError } = await supabase
       .from('ejercicios_detalles')
-      .select('activity_id, bunny_video_id, video_file_name, nombre_ejercicio')
+      .select('activity_id, bunny_video_id, video_url, video_file_name, nombre_ejercicio')
       .eq('coach_id', coachId)
-      .not('bunny_video_id', 'is', null)
-      .neq('bunny_video_id', '')
+      .not('video_url', 'is', null)
+      .neq('video_url', '')
 
     if (!ejerciciosError && ejerciciosDetalles) {
+      console.log('[storage-files] ejercicios_detalles videos rows', {
+        count: ejerciciosDetalles.length
+      })
       ejerciciosDetalles.forEach((item: any) => {
-        const bunnyId = item.bunny_video_id?.trim()
+        const bunnyId = item.bunny_video_id?.trim() || extractBunnyGuidFromUrl(String(item.video_url || ''))
         if (bunnyId) {
           if (!videoMap.has(bunnyId)) {
             videoMap.set(bunnyId, {
@@ -101,25 +186,38 @@ export async function GET(_request: NextRequest) {
             })
           }
           const video = videoMap.get(bunnyId)!
-          if (item.activity_id) video.activities.add(item.activity_id)
+          extractActivityIds(item.activity_id).forEach((id) => video.activities.add(id))
+        } else if (item.video_url && String(item.video_url).trim() !== '') {
+          const urlKey = String(item.video_url).trim()
+          if (!nonBunnyVideoMap.has(urlKey)) {
+            nonBunnyVideoMap.set(urlKey, {
+              video_url: urlKey,
+              fileName: item.video_file_name || item.nombre_ejercicio || 'video.mp4',
+              activities: new Set(),
+              sizeBytes: 0
+            })
+          }
+          const video = nonBunnyVideoMap.get(urlKey)!
+          extractActivityIds(item.activity_id).forEach((id) => video.activities.add(id))
         }
       })
     }
 
-    // Videos de nutrition_program_details (si tienen bunny_video_id)
-    // Nota: nutrition_program_details puede tener video_url pero no necesariamente bunny_video_id
-    // Solo incluimos los que tengan bunny_video_id para ser consistentes
+    // Videos de nutrition_program_details
     if (activityIds.length > 0) {
       const { data: nutritionVideos, error: nutritionError } = await supabase
         .from('nutrition_program_details')
         .select('activity_id, bunny_video_id, video_url')
         .in('activity_id', activityIds)
-        .not('bunny_video_id', 'is', null)
-        .neq('bunny_video_id', '')
+        .not('video_url', 'is', null)
+        .neq('video_url', '')
 
       if (!nutritionError && nutritionVideos) {
+        console.log('[storage-files] nutrition_program_details videos rows', {
+          count: nutritionVideos.length
+        })
         nutritionVideos.forEach((item: any) => {
-          const bunnyId = item.bunny_video_id?.trim()
+          const bunnyId = item.bunny_video_id?.trim() || extractBunnyGuidFromUrl(String(item.video_url || ''))
           if (bunnyId) {
             if (!videoMap.has(bunnyId)) {
               // Extraer nombre del video_url si está disponible
@@ -141,6 +239,26 @@ export async function GET(_request: NextRequest) {
             }
             const video = videoMap.get(bunnyId)!
             if (item.activity_id) video.activities.add(item.activity_id)
+          } else if (item.video_url && String(item.video_url).trim() !== '') {
+            const urlKey = String(item.video_url).trim()
+            if (!nonBunnyVideoMap.has(urlKey)) {
+              let fileName = 'video.mp4'
+              try {
+                const urlParts = urlKey.split('/')
+                const lastPart = urlParts[urlParts.length - 1]
+                if (lastPart) fileName = lastPart.split('?')[0] || fileName
+              } catch {
+                // ignore
+              }
+              nonBunnyVideoMap.set(urlKey, {
+                video_url: urlKey,
+                fileName,
+                activities: new Set(),
+                sizeBytes: 0
+              })
+            }
+            const video = nonBunnyVideoMap.get(urlKey)!
+            if (item.activity_id) video.activities.add(item.activity_id)
           }
         })
       }
@@ -151,6 +269,13 @@ export async function GET(_request: NextRequest) {
       try {
         const videoInfo = await bunnyClient.getVideoInfo(bunnyId)
         if (videoInfo) {
+          const bunnyTitleRaw = (videoInfo as any).title
+          const bunnyTitle = typeof bunnyTitleRaw === 'string' ? bunnyTitleRaw.trim() : ''
+          if (bunnyTitle) {
+            // El objetivo del tab de Almacenamiento es mostrar el nombre oficial del video en Bunny.
+            video.fileName = bunnyTitle.slice(0, 255)
+          }
+
           // El storageSize puede venir en bytes
           // Bunny API puede devolverlo como storageSize, storage_size, o en metadata
           const sizeBytes = videoInfo.storageSize || 
@@ -193,9 +318,42 @@ export async function GET(_request: NextRequest) {
         concept: 'video',
         sizeBytes: video.sizeBytes || 0,
         sizeGB: (video.sizeBytes || 0) / (1024 * 1024 * 1024),
-        usesCount: video.activities.size,
+        usesCount: Math.max(1, video.activities.size),
         activities: activityList
       })
+    })
+
+    nonBunnyVideoMap.forEach((video, urlKey) => {
+      const activityList = Array.from(video.activities).map((id) => ({
+        id,
+        name: activityMap.get(id) || `Actividad ${id}`
+      }))
+
+      files.push({
+        fileId: urlKey,
+        fileName: video.fileName,
+        concept: 'video',
+        sizeBytes: video.sizeBytes || 0,
+        sizeGB: (video.sizeBytes || 0) / (1024 * 1024 * 1024),
+        usesCount: Math.max(1, video.activities.size),
+        activities: activityList,
+        url: video.video_url
+      })
+    })
+
+    console.log('[storage-files] aggregated videos', {
+      bunnyVideos: videoMap.size,
+      nonBunnyVideos: nonBunnyVideoMap.size,
+      sampleBunny: Array.from(videoMap.entries()).slice(0, 8).map(([id, v]) => ({
+        id,
+        fileName: v.fileName,
+        activitiesCount: v.activities.size,
+      })),
+      sampleNonBunny: Array.from(nonBunnyVideoMap.entries()).slice(0, 8).map(([id, v]) => ({
+        id,
+        fileName: v.fileName,
+        activitiesCount: v.activities.size,
+      })),
     })
 
     // ============================================
@@ -276,10 +434,10 @@ export async function GET(_request: NextRequest) {
 
       if (!storageError && storageImages) {
         const validImages = storageImages.filter(
-          f => !f.name.includes('.empty') && !f.name.includes('.keep')
+          (f: { name: string }) => !f.name.includes('.empty') && !f.name.includes('.keep')
         )
 
-        validImages.forEach((file) => {
+        validImages.forEach((file: { name: string; metadata?: any; size?: any }) => {
           const fileName = file.name
           
           // Excluir avatares (archivos que están identificados como avatares en user_profiles)
@@ -404,10 +562,10 @@ export async function GET(_request: NextRequest) {
 
       if (!storageError && storagePdfs) {
         const validPdfs = storagePdfs.filter(
-          f => !f.name.includes('.empty') && !f.name.includes('.keep')
+          (f: { name: string }) => !f.name.includes('.empty') && !f.name.includes('.keep')
         )
 
-        validPdfs.forEach((file) => {
+        validPdfs.forEach((file: { name: string; metadata?: any; size?: any }) => {
           const fileName = file.name
           const sizeBytes = parseInt(file.metadata?.size || (file as any).size || '0')
 
