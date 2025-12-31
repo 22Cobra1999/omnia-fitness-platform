@@ -81,6 +81,74 @@ export async function POST(request: NextRequest) {
   }
 }
 
+async function activatePendingPlanForSubscription(subscriptionId: string) {
+  const supabaseService = getSupabaseService()
+
+  // Buscar el plan pendiente asociado a la suscripción
+  const { data: pendingPlan, error: pendingError } = await supabaseService
+    .from('planes_uso_coach')
+    .select('*')
+    .eq('mercadopago_subscription_id', subscriptionId)
+    .eq('status', 'trial')
+    .order('created_at', { ascending: false })
+    .limit(1)
+    .maybeSingle()
+
+  if (pendingError) {
+    console.error('❌ Error buscando plan pending para suscripción:', pendingError)
+    return
+  }
+
+  if (!pendingPlan) {
+    return
+  }
+
+  const now = new Date().toISOString()
+
+  // Cancelar plan activo anterior (si existe)
+  const { data: activePlan, error: activeError } = await supabaseService
+    .from('planes_uso_coach')
+    .select('id')
+    .eq('coach_id', pendingPlan.coach_id)
+    .eq('status', 'active')
+    .order('started_at', { ascending: false })
+    .limit(1)
+    .maybeSingle()
+
+  if (activeError) {
+    console.warn('⚠️ Error buscando plan activo anterior:', activeError)
+  }
+
+  if (activePlan?.id) {
+    const { error: cancelError } = await supabaseService
+      .from('planes_uso_coach')
+      .update({ status: 'cancelled', updated_at: now })
+      .eq('id', activePlan.id)
+
+    if (cancelError) {
+      console.error('❌ Error cancelando plan activo anterior:', cancelError)
+      // continuar igual para no trabar el activation
+    }
+  }
+
+  // Activar el plan pending
+  const { error: activateError } = await supabaseService
+    .from('planes_uso_coach')
+    .update({ status: 'active', updated_at: now })
+    .eq('id', pendingPlan.id)
+
+  if (activateError) {
+    console.error('❌ Error activando plan pending:', activateError)
+  } else {
+    console.log('✅ Plan activado desde pending:', {
+      planId: pendingPlan.id,
+      coachId: pendingPlan.coach_id,
+      planType: pendingPlan.plan_type,
+      subscriptionId
+    })
+  }
+}
+
 /**
  * Maneja el pago de una renovación mensual de suscripción
  */
@@ -96,7 +164,7 @@ async function handleSubscriptionPayment(paymentData: any) {
 
     console.log('💰 Procesando pago de renovación de suscripción:', preApprovalId)
 
-    // Buscar el plan asociado a esta suscripción
+    // Buscar el plan activo asociado a esta suscripción (renovaciones)
     const { data: plan, error: planError } = await supabaseService
       .from('planes_uso_coach')
       .select('*')
@@ -213,8 +281,10 @@ async function handlePreApprovalNotification(preApprovalData: any) {
 
     console.log('📋 Notificación de preapproval:', subscriptionId, preApprovalData.status)
 
-    // Si es un pago autorizado, procesarlo
+    // Si la suscripción fue autorizada/pagada, activar el plan pendiente asociado
     if (preApprovalData.status === 'authorized' || preApprovalData.status === 'paid') {
+      await activatePendingPlanForSubscription(subscriptionId)
+      // Además tratamos como pago aprobado para renovar en caso de que ya exista plan activo
       await handleSubscriptionPayment({
         preapproval_id: subscriptionId,
         status: 'approved',
@@ -251,12 +321,12 @@ async function handleSubscriptionUpdateNotification(subscriptionId: string, acti
     console.log('📊 Información de suscripción:', JSON.stringify(subscriptionInfo, null, 2))
 
     const supabaseService = getSupabaseService()
-    // Buscar el plan asociado
+    // Buscar el plan asociado (puede estar pending o active)
     const { data: plan, error: planError } = await supabaseService
       .from('planes_uso_coach')
       .select('*')
       .eq('mercadopago_subscription_id', subscriptionId)
-      .order('started_at', { ascending: false })
+      .order('created_at', { ascending: false })
       .limit(1)
       .maybeSingle()
 
@@ -270,26 +340,33 @@ async function handleSubscriptionUpdateNotification(subscriptionId: string, acti
       return
     }
 
-    // Si la suscripción está autorizada y tiene próxima fecha de pago, renovar el plan
-    if (subscriptionInfo.status === 'authorized' && subscriptionInfo.auto_recurring) {
-      const nextPaymentDate = subscriptionInfo.auto_recurring.end_date || subscriptionInfo.next_payment_date
-      
-      if (nextPaymentDate) {
-        console.log('✅ Suscripción autorizada, actualizando fecha de expiración:', nextPaymentDate)
+    // Si la suscripción está autorizada, primero activar el plan pending (si existe)
+    if (subscriptionInfo.status === 'authorized') {
+      await activatePendingPlanForSubscription(subscriptionId)
+    }
 
-        const { error: updateError } = await supabaseService
-          .from('planes_uso_coach')
-          .update({
-            expires_at: nextPaymentDate,
-            updated_at: new Date().toISOString()
-          })
-          .eq('id', plan.id)
+    // Si la suscripción está autorizada, actualizar expiración (si MP no devuelve next_payment_date, usar 31 días desde ahora)
+    if (subscriptionInfo.status === 'authorized') {
+      const now = new Date()
+      const nextPaymentDate = subscriptionInfo.next_payment_date
+      const nextExpiresAt = nextPaymentDate
+        ? new Date(nextPaymentDate)
+        : new Date(now.getTime() + 31 * 24 * 60 * 60 * 1000)
 
-        if (updateError) {
-          console.error('❌ Error actualizando plan:', updateError)
-        } else {
-          console.log('✅ Plan actualizado exitosamente')
-        }
+      console.log('✅ Suscripción autorizada, actualizando fecha de expiración:', nextExpiresAt.toISOString())
+
+      const { error: updateError } = await supabaseService
+        .from('planes_uso_coach')
+        .update({
+          expires_at: nextExpiresAt.toISOString(),
+          updated_at: now.toISOString()
+        })
+        .eq('id', plan.id)
+
+      if (updateError) {
+        console.error('❌ Error actualizando plan:', updateError)
+      } else {
+        console.log('✅ Plan actualizado exitosamente')
       }
     } else if (subscriptionInfo.status === 'cancelled' || subscriptionInfo.status === 'paused') {
       // Si la suscripción fue cancelada o pausada, desactivar el plan

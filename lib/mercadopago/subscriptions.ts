@@ -21,7 +21,7 @@ const client = new MercadoPagoConfig({
   options: { timeout: 5000 }
 })
 
-const preApproval = new PreApproval(client)
+const preApproval = new PreApproval(client) as any
 
 export interface CreateSubscriptionParams {
   coachId: string
@@ -79,9 +79,9 @@ export async function createCoachSubscription({
       const response = await preApproval.create({ body: subscriptionData })
       
       // En modo prueba, usar sandbox_init_point si está disponible
-      const initPoint = isTestMode 
-        ? (response.sandbox_init_point || response.init_point)
-        : (response.init_point || response.sandbox_init_point)
+      const initPoint = isTestMode
+        ? ((response as any).sandbox_init_point || (response as any).init_point)
+        : ((response as any).init_point || (response as any).sandbox_init_point)
       
       console.log('✅ Suscripción creada exitosamente:', {
         id: response.id,
@@ -96,8 +96,17 @@ export async function createCoachSubscription({
         init_point: initPoint
       }
   } catch (error: any) {
-    console.error('❌ Error creando suscripción:', error)
-    throw new Error(`Error creando suscripción: ${error.message || 'Error desconocido'}`)
+    const errorDetails = {
+      message: error?.message,
+      name: error?.name,
+      status: error?.status,
+      cause: error?.cause,
+      response: error?.response?.data ?? error?.response ?? null
+    }
+    console.error('❌ Error creando suscripción:', errorDetails)
+    throw new Error(
+      `Error creando suscripción: ${error?.message || 'Error desconocido'} | details=${JSON.stringify(errorDetails)}`
+    )
   }
 }
 
@@ -106,7 +115,13 @@ export async function createCoachSubscription({
  */
 export async function getSubscriptionInfo(subscriptionId: string) {
   try {
-    const response = await preApproval.get({ preApprovalId: subscriptionId })
+    const response = await preApproval.get({ preApprovalId: subscriptionId } as any)
+
+    const nextPaymentDate =
+      (response as any)?.next_payment_date ||
+      (response as any)?.auto_recurring?.next_payment_date ||
+      null
+
     return {
       id: response.id,
       status: response.status,
@@ -114,12 +129,21 @@ export async function getSubscriptionInfo(subscriptionId: string) {
       payer_email: response.payer_email,
       auto_recurring: response.auto_recurring,
       payment_method_id: response.payment_method_id,
-      card_id: response.card_id,
-      next_payment_date: response.auto_recurring?.end_date || null
+      card_id: (response as any).card_id,
+      next_payment_date: nextPaymentDate
     }
   } catch (error: any) {
-    console.error('❌ Error obteniendo suscripción:', error)
-    throw new Error(`Error obteniendo suscripción: ${error.message || 'Error desconocido'}`)
+    const errorDetails = {
+      message: error?.message,
+      name: error?.name,
+      status: error?.status,
+      cause: error?.cause,
+      response: error?.response?.data ?? error?.response ?? null
+    }
+    console.error('❌ Error obteniendo suscripción:', errorDetails)
+    throw new Error(
+      `Error obteniendo suscripción: ${error?.message || 'Error desconocido'} | details=${JSON.stringify(errorDetails)}`
+    )
   }
 }
 
@@ -130,12 +154,14 @@ export async function cancelSubscription(subscriptionId: string) {
   try {
     console.log('🚫 Cancelando suscripción:', subscriptionId)
     
-    const response = await preApproval.update({
-      preApprovalId: subscriptionId,
-      body: {
-        status: 'cancelled'
-      }
-    })
+    const response = await preApproval.update(
+      {
+        preApprovalId: subscriptionId,
+        body: {
+          status: 'cancelled'
+        }
+      } as any
+    )
 
     console.log('✅ Suscripción cancelada:', {
       id: response.id,
@@ -159,12 +185,14 @@ export async function pauseSubscription(subscriptionId: string) {
   try {
     console.log('⏸️ Pausando suscripción:', subscriptionId)
     
-    const response = await preApproval.update({
-      preApprovalId: subscriptionId,
-      body: {
-        status: 'paused'
-      }
-    })
+    const response = await preApproval.update(
+      {
+        preApprovalId: subscriptionId,
+        body: {
+          status: 'paused'
+        }
+      } as any
+    )
 
     console.log('✅ Suscripción pausada:', {
       id: response.id,
@@ -188,12 +216,14 @@ export async function resumeSubscription(subscriptionId: string) {
   try {
     console.log('▶️ Reactivando suscripción:', subscriptionId)
     
-    const response = await preApproval.update({
-      preApprovalId: subscriptionId,
-      body: {
-        status: 'authorized'
-      }
-    })
+    const response = await preApproval.update(
+      {
+        preApprovalId: subscriptionId,
+        body: {
+          status: 'authorized'
+        }
+      } as any
+    )
 
     console.log('✅ Suscripción reactivada:', {
       id: response.id,

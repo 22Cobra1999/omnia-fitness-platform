@@ -327,10 +327,15 @@ export function PlanManagement() {
           })
         }
       } else {
-        setError(result.error || 'Error al cambiar plan')
+        // Mostrar detalles si existen (para debuggear el 500 de MercadoPago/BD)
+        const detailMsg = result.details ? `: ${typeof result.details === 'object' ? JSON.stringify(result.details) : result.details}` : ''
+        const fullError = (result.error || 'Error al cambiar plan') + detailMsg
+        
+        setError(fullError)
         setConfirmingPlan(null)
         toast.error('Error al cambiar plan', {
-          description: result.error || 'No se pudo cambiar el plan',
+          description: result.error ? (result.error + (result.details ? ` (${result.details})` : '')) : 'No se pudo cambiar el plan',
+          duration: 8000,
         })
       }
     } catch (err) {

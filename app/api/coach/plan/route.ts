@@ -180,10 +180,25 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: 'Coach no encontrado' }, { status: 404 })
     }
 
+    const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL
+    const serviceRoleKey = process.env.SUPABASE_SERVICE_ROLE_KEY
+
+    if (!supabaseUrl || !serviceRoleKey) {
+      return NextResponse.json(
+        {
+          success: false,
+          error: 'Configuración del servidor incompleta para cambiar el plan',
+          code: 'MISSING_SERVICE_ROLE',
+          details: 'Faltan NEXT_PUBLIC_SUPABASE_URL o SUPABASE_SERVICE_ROLE_KEY'
+        },
+        { status: 500 }
+      )
+    }
+
     // Crear cliente con service role para todas las operaciones
     const supabaseService = createClient(
-      process.env.NEXT_PUBLIC_SUPABASE_URL!,
-      process.env.SUPABASE_SERVICE_ROLE_KEY!
+      supabaseUrl,
+      serviceRoleKey
     )
 
     // Límites de almacenamiento por plan
@@ -265,34 +280,17 @@ export async function POST(request: NextRequest) {
     let newExpiresAt: Date
     let renewalCount = 0
 
+    // Downgrade a free desde un plan pago: debe respetar la suscripción vigente.
+    // Programamos el plan free para cuando venza el plan actual.
+    const isDowngradeToFree = plan_type === 'free' && !!currentPlan && currentPlan.plan_type !== 'free'
+
     if (isUpgrade) {
-      // UPGRADE: Cambio inmediato, comienza con 31 días nuevos desde ahora
+      // UPGRADE: el cambio de plan es inmediato, pero sólo después de que Mercado Pago autorice el pago.
+      // En esta API vamos a dejar el plan en estado pending y el webhook lo activará.
       newStartedAt = new Date(now)
-      
-      // 31 días nuevos del plan mejor (en milisegundos)
       const thirtyOneDaysMs = 31 * 24 * 60 * 60 * 1000
       newExpiresAt = new Date(now.getTime() + thirtyOneDaysMs)
-
-      // Desactivar el plan actual inmediatamente
-      if (currentPlan) {
-        const { error: updateError } = await supabaseService
-          .from('planes_uso_coach')
-          .update({ 
-            status: 'cancelled',
-            updated_at: now.toISOString()
-          })
-          .eq('id', currentPlan.id)
-
-        if (updateError) {
-          console.error('Error desactivando plan anterior:', updateError)
-          return NextResponse.json({ 
-            success: false, 
-            error: 'Error al desactivar plan anterior',
-            details: updateError.message 
-          }, { status: 500 })
-        }
-      }
-    } else if (isDowngrade) {
+    } else if (isDowngrade || isDowngradeToFree) {
       // DOWNGRADE: Conserva días restantes, el nuevo plan empieza cuando termina el actual
       if (!currentPlan || !currentPlan.expires_at) {
         return NextResponse.json({ 
@@ -306,14 +304,6 @@ export async function POST(request: NextRequest) {
       // 31 días desde que empiece (en milisegundos)
       const thirtyOneDaysMs = 31 * 24 * 60 * 60 * 1000
       newExpiresAt = new Date(newStartedAt.getTime() + thirtyOneDaysMs)
-
-      // Crear el plan pendiente (status: 'pending' para que no interfiera con el actual)
-      // Pero primero necesitamos cambiar el constraint único para permitir planes pending
-      // Por ahora, lo creamos como 'active' pero el plan actual sigue siendo el que se usa
-      // Necesitamos modificar la lógica para que el plan actual tenga prioridad hasta que expire
-      
-      // Por simplicidad, crearemos el plan con status 'pending' y luego lo activaremos cuando expire
-      // Por ahora, lo marcamos como 'active' pero el frontend debe verificar expires_at
     } else {
       // Sin plan actual, crear nuevo plan normal
       newStartedAt = new Date(now)
@@ -322,47 +312,32 @@ export async function POST(request: NextRequest) {
       newExpiresAt = new Date(now.getTime() + thirtyOneDaysMs)
     }
 
-    // Desactivar el plan actual según el tipo de cambio
-    if (currentPlan) {
-      const { error: updateError } = await supabaseService
-        .from('planes_uso_coach')
-        .update({ 
-          status: 'cancelled',
-          updated_at: now.toISOString()
-        })
-        .eq('id', currentPlan.id)
-
-      if (updateError) {
-        console.error('Error desactivando plan anterior:', updateError)
-        return NextResponse.json({ 
-          success: false, 
-          error: 'Error al desactivar plan anterior',
-          details: updateError.message 
-        }, { status: 500 })
-      }
-    }
-
     // Si es plan free, establecer renewal_count en 0
     if (plan_type === 'free') {
       renewalCount = 0
     }
 
-    // Si es un plan de pago (no free), cancelar suscripción anterior si existe
+    // Si es un plan de pago (no free), crear suscripción de Mercado Pago y generar un plan pending.
     let subscriptionId: string | null = null
     let subscriptionInitPoint: string | undefined = undefined
-    if (plan_type !== 'free' && currentPlan?.mercadopago_subscription_id) {
-      try {
-        const { cancelSubscription } = await import('@/lib/mercadopago/subscriptions')
-        await cancelSubscription(currentPlan.mercadopago_subscription_id)
-        console.log('✅ Suscripción anterior cancelada:', currentPlan.mercadopago_subscription_id)
-      } catch (error: any) {
-        console.error('⚠️ Error cancelando suscripción anterior:', error)
-        // Continuar aunque falle, el plan se cambiará de todos modos
-      }
-    }
 
-    // Si es un plan de pago (no free), crear suscripción de Mercado Pago
-    if (plan_type !== 'free') {
+    // Sólo en upgrades a planes de pago creamos suscripción en MercadoPago.
+    const shouldCreateSubscriptionNow = plan_type !== 'free' && isUpgrade
+
+    if (shouldCreateSubscriptionNow) {
+      const mpToken = process.env.TEST_MERCADOPAGO_ACCESS_TOKEN || process.env.MERCADOPAGO_ACCESS_TOKEN
+      if (!mpToken || String(mpToken).trim() === '') {
+        return NextResponse.json(
+          {
+            success: false,
+            error: 'No se puede iniciar el upgrade: Mercado Pago no está configurado',
+            code: 'MISSING_MERCADOPAGO_TOKEN',
+            details: 'Falta TEST_MERCADOPAGO_ACCESS_TOKEN o MERCADOPAGO_ACCESS_TOKEN'
+          },
+          { status: 500 }
+        )
+      }
+
       try {
         const { createCoachSubscription } = await import('@/lib/mercadopago/subscriptions')
         
@@ -397,7 +372,11 @@ export async function POST(request: NextRequest) {
       }
     }
 
-    // Crear el nuevo plan con los límites y fechas actualizados
+    // Determinar status del nuevo plan.
+    // En la DB, status permite: active | cancelled | expired | trial.
+    // Usamos 'trial' como estado "pendiente" para upgrades (y cambios programados), y el webhook lo activará.
+    const targetStatus = plan_type === 'free' && !isDowngradeToFree ? 'active' : 'trial'
+
     const { data: newPlan, error: createError } = await supabaseService
       .from('planes_uso_coach')
       .insert({
@@ -405,11 +384,11 @@ export async function POST(request: NextRequest) {
         plan_type,
         storage_limit_gb: newStorageLimit,
         storage_used_gb: storageUsed,
-        status: 'active',
+        status: targetStatus,
         started_at: newStartedAt.toISOString(),
         expires_at: newExpiresAt.toISOString(),
         renewal_count: renewalCount,
-        mercadopago_subscription_id: subscriptionId
+        mercadopago_subscription_id: shouldCreateSubscriptionNow ? subscriptionId : null
       })
       .select()
       .single()
@@ -476,15 +455,15 @@ export async function POST(request: NextRequest) {
       subscription_id: subscriptionId
     })
 
-    return NextResponse.json({ 
-      success: true, 
+    return NextResponse.json({
+      success: true,
       plan: newPlan,
       message,
       is_upgrade: isUpgrade,
       is_downgrade: isDowngrade,
       subscription_id: subscriptionId,
       subscription_init_point: subscriptionInitPoint,
-      requires_payment: plan_type !== 'free' && subscriptionId ? true : false
+      requires_payment: shouldCreateSubscriptionNow && !!subscriptionId
     })
 
   } catch (error) {

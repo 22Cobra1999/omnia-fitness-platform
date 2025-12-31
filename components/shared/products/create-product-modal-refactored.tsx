@@ -3884,7 +3884,7 @@ export default function CreateProductModal({ isOpen, onClose, editingProduct, in
           initial={{ opacity: 0 }}
           animate={{ opacity: 1 }}
           exit={{ opacity: 0 }}
-          className="fixed inset-0 bg-black/60 backdrop-blur-sm z-50 flex items-center justify-center p-4"
+          className="fixed inset-0 bg-black/60 backdrop-blur-sm z-50 flex items-center justify-center p-4 pb-[calc(env(safe-area-inset-bottom)+96px)] sm:pb-4"
           onClick={(e) => {
             // Cerrar solo si se hace click en el overlay, no en el modal
             if (e.target === e.currentTarget) {
@@ -4442,7 +4442,7 @@ export default function CreateProductModal({ isOpen, onClose, editingProduct, in
             </div>
 
             {/* Footer con botones de navegación */}
-            <div className="flex items-center justify-between p-6 border-t border-white/10">
+            <div className="flex items-center justify-between px-6 pt-4 pb-[calc(env(safe-area-inset-bottom)+24px)] sm:py-6 border-t border-white/10">
               <Button
                 variant="ghost"
                 onClick={() => {

@@ -37,27 +37,21 @@ ALTER TABLE planes_uso_coach ENABLE ROW LEVEL SECURITY;
 -- Política: Los coaches pueden ver su propio plan
 CREATE POLICY planes_uso_coach_select_policy ON planes_uso_coach
   FOR SELECT USING (
-    auth.uid() IN (
-      SELECT user_id FROM coaches WHERE id = coach_id
-    ) OR 
+    auth.uid() = coach_id OR 
     auth.role() = 'admin'
   );
 
 -- Política: Los coaches pueden insertar su propio plan
 CREATE POLICY planes_uso_coach_insert_policy ON planes_uso_coach
   FOR INSERT WITH CHECK (
-    auth.uid() IN (
-      SELECT user_id FROM coaches WHERE id = coach_id
-    ) OR 
+    auth.uid() = coach_id OR 
     auth.role() = 'admin'
   );
 
 -- Política: Los coaches pueden actualizar su propio plan (solo ciertos campos)
 CREATE POLICY planes_uso_coach_update_policy ON planes_uso_coach
   FOR UPDATE USING (
-    auth.uid() IN (
-      SELECT user_id FROM coaches WHERE id = coach_id
-    ) OR 
+    auth.uid() = coach_id OR 
     auth.role() = 'admin'
   );
 
