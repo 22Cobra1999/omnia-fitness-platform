@@ -13,15 +13,22 @@ const PLAN_PRICES = {
   premium: { price: 35000, currency: 'ARS', period: 'mensual' }
 }
 
-// Usar TEST_MERCADOPAGO_ACCESS_TOKEN si está disponible (modo prueba), sino usar MERCADOPAGO_ACCESS_TOKEN
-const accessToken = process.env.TEST_MERCADOPAGO_ACCESS_TOKEN || process.env.MERCADOPAGO_ACCESS_TOKEN!
+// Función auxiliar para inicializar el cliente de manera perezosa (lazy)
+// Esto evita errores si las variables de entorno no están listas al momento de importar el archivo
+const getPreApprovalClient = () => {
+  const accessToken = process.env.TEST_MERCADOPAGO_ACCESS_TOKEN || process.env.MERCADOPAGO_ACCESS_TOKEN
+  
+  if (!accessToken) {
+    throw new Error('MercadoPago Access Token no configurado (falta TEST_MERCADOPAGO_ACCESS_TOKEN o MERCADOPAGO_ACCESS_TOKEN)')
+  }
 
-const client = new MercadoPagoConfig({
-  accessToken: accessToken,
-  options: { timeout: 5000 }
-})
-
-const preApproval = new PreApproval(client) as any
+  const client = new MercadoPagoConfig({
+    accessToken: accessToken,
+    options: { timeout: 5000 }
+  })
+  
+  return new PreApproval(client) as any
+}
 
 export interface CreateSubscriptionParams {
   coachId: string
@@ -73,10 +80,11 @@ export async function createCoachSubscription({
 
     try {
       // Detectar si estamos en modo prueba (usa TEST_MERCADOPAGO_ACCESS_TOKEN si está disponible)
+      const accessToken = process.env.TEST_MERCADOPAGO_ACCESS_TOKEN || process.env.MERCADOPAGO_ACCESS_TOKEN || ''
       const isTestMode = !!process.env.TEST_MERCADOPAGO_ACCESS_TOKEN || accessToken.startsWith('TEST-')
       console.log(`📅 Creando suscripción de Mercado Pago (${isTestMode ? 'MODO PRUEBA' : 'MODO PRODUCCIÓN'}):`, JSON.stringify(subscriptionData, null, 2))
       
-      const response = await preApproval.create({ body: subscriptionData })
+      const response = await getPreApprovalClient().create({ body: subscriptionData })
       
       // En modo prueba, usar sandbox_init_point si está disponible
       const initPoint = isTestMode
@@ -115,7 +123,7 @@ export async function createCoachSubscription({
  */
 export async function getSubscriptionInfo(subscriptionId: string) {
   try {
-    const response = await preApproval.get({ preApprovalId: subscriptionId } as any)
+    const response = await getPreApprovalClient().get({ preApprovalId: subscriptionId } as any)
 
     const nextPaymentDate =
       (response as any)?.next_payment_date ||
@@ -154,7 +162,7 @@ export async function cancelSubscription(subscriptionId: string) {
   try {
     console.log('🚫 Cancelando suscripción:', subscriptionId)
     
-    const response = await preApproval.update(
+    const response = await getPreApprovalClient().update(
       {
         preApprovalId: subscriptionId,
         body: {
@@ -185,7 +193,7 @@ export async function pauseSubscription(subscriptionId: string) {
   try {
     console.log('⏸️ Pausando suscripción:', subscriptionId)
     
-    const response = await preApproval.update(
+    const response = await getPreApprovalClient().update(
       {
         preApprovalId: subscriptionId,
         body: {
@@ -216,7 +224,7 @@ export async function resumeSubscription(subscriptionId: string) {
   try {
     console.log('▶️ Reactivando suscripción:', subscriptionId)
     
-    const response = await preApproval.update(
+    const response = await getPreApprovalClient().update(
       {
         preApprovalId: subscriptionId,
         body: {
@@ -239,4 +247,3 @@ export async function resumeSubscription(subscriptionId: string) {
     throw new Error(`Error reactivando suscripción: ${error.message || 'Error desconocido'}`)
   }
 }
-
