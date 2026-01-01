@@ -33,10 +33,10 @@ const getPreApprovalClient = () => {
   if (!accessToken) {
     throw new Error(
       forceTest
-        ? 'MercadoPago Access Token no configurado (modo TEST: falta TEST_MERCADOPAGO_ACCESS_TOKEN)'
+        ? 'MercadoPago Access Token no configurado (modo TEST: falta TEST_MP_SUBSCRIPTIONS_ACCESS_TOKEN o TEST_MERCADOPAGO_ACCESS_TOKEN)'
         : (isProd
-          ? 'MercadoPago Access Token no configurado (falta MERCADOPAGO_ACCESS_TOKEN)'
-          : 'MercadoPago Access Token no configurado (falta TEST_MERCADOPAGO_ACCESS_TOKEN o MERCADOPAGO_ACCESS_TOKEN)')
+          ? 'MercadoPago Access Token no configurado (falta MP_SUBSCRIPTIONS_ACCESS_TOKEN o MERCADOPAGO_ACCESS_TOKEN)'
+          : 'MercadoPago Access Token no configurado (falta TEST_MP_SUBSCRIPTIONS_ACCESS_TOKEN/TEST_MERCADOPAGO_ACCESS_TOKEN o MP_SUBSCRIPTIONS_ACCESS_TOKEN/MERCADOPAGO_ACCESS_TOKEN)')
     )
   }
 
@@ -131,6 +131,22 @@ export async function createCoachSubscription({
           : ((process.env.TEST_MP_SUBSCRIPTIONS_ACCESS_TOKEN || process.env.TEST_MERCADOPAGO_ACCESS_TOKEN) ||
             (process.env.MP_SUBSCRIPTIONS_ACCESS_TOKEN || process.env.MERCADOPAGO_ACCESS_TOKEN) || ''))
       const isTestMode = forceTest || selectedAccessToken.startsWith('TEST-')
+
+      const tokenHint = selectedAccessToken
+        ? `${selectedAccessToken.slice(0, 8)}...${selectedAccessToken.slice(-4)}`
+        : 'EMPTY'
+      const payerEmailHint = payerEmail
+        ? payerEmail.replace(/(^.).*(@.*$)/, '$1***$2')
+        : 'EMPTY'
+
+      console.log('🔎 MP Suscripciones config:', {
+        mpMode: mpMode || '(unset)',
+        forceTest,
+        isTestMode,
+        payerEmail: payerEmailHint,
+        token: tokenHint
+      })
+
       console.log(`📅 Creando suscripción de Mercado Pago (${isTestMode ? 'MODO PRUEBA' : 'MODO PRODUCCIÓN'}):`, JSON.stringify(subscriptionData, null, 2))
       
       const response = await getPreApprovalClient().create({ body: subscriptionData })
@@ -153,12 +169,30 @@ export async function createCoachSubscription({
         init_point: initPoint
       }
   } catch (error: any) {
+    const isProd = process.env.NODE_ENV === 'production'
+    const selectedAccessToken = forceTest
+      ? ((process.env.TEST_MP_SUBSCRIPTIONS_ACCESS_TOKEN || process.env.TEST_MERCADOPAGO_ACCESS_TOKEN) || '')
+      : (isProd
+        ? ((process.env.MP_SUBSCRIPTIONS_ACCESS_TOKEN || process.env.MERCADOPAGO_ACCESS_TOKEN) || '')
+        : ((process.env.TEST_MP_SUBSCRIPTIONS_ACCESS_TOKEN || process.env.TEST_MERCADOPAGO_ACCESS_TOKEN) ||
+          (process.env.MP_SUBSCRIPTIONS_ACCESS_TOKEN || process.env.MERCADOPAGO_ACCESS_TOKEN) || ''))
+    const tokenHint = selectedAccessToken
+      ? `${selectedAccessToken.slice(0, 8)}...${selectedAccessToken.slice(-4)}`
+      : 'EMPTY'
+    const payerEmailHint = payerEmail
+      ? payerEmail.replace(/(^.).*(@.*$)/, '$1***$2')
+      : 'EMPTY'
+
     const errorDetails = {
       message: error?.message,
       name: error?.name,
       status: error?.status,
       cause: error?.cause,
-      response: error?.response?.data ?? error?.response ?? null
+      response: error?.response?.data ?? error?.response ?? null,
+      mpMode: mpMode || '(unset)',
+      forceTest,
+      payerEmail: payerEmailHint,
+      token: tokenHint
     }
     console.error('❌ Error creando suscripción:', errorDetails)
     throw new Error(
