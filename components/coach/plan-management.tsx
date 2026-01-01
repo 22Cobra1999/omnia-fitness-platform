@@ -530,10 +530,12 @@ function PlanManagement() {
                   <p className="text-lg font-bold text-[#FF7939]">
                     {formatPrice(currentPlanInfo.price)}
                   </p>
-                  <p className="text-xs text-gray-400">/mes</p>
-                  <p className="text-[10px] text-[#FFB0C8]">
-                    {PLAN_COMMISSION_PERCENT[currentPlanType]}% comisión
-                  </p>
+                  <div className="flex items-baseline justify-end gap-2">
+                    <p className="text-xs font-bold text-[#FFB0C8]">
+                      {PLAN_COMMISSION_PERCENT[currentPlanType]}%
+                    </p>
+                    <p className="text-xs text-gray-400">/mes</p>
+                  </div>
                 </>
               ) : null}
             </div>

@@ -156,15 +156,25 @@ export function GoogleCalendarConnection() {
 
   if (!isConnected) {
     return (
-      <div className="backdrop-blur-xl bg-black/40 border border-white/10 rounded-2xl p-4">
-        <div className="text-center space-y-3">
-          <p className="text-sm text-white/70">Conecta tu cuenta de Google Calendar para sincronizar eventos</p>
+      <div className="backdrop-blur-xl bg-black/40 border border-white/10 rounded-xl p-3">
+        <div className="flex items-start justify-between gap-2">
+          <div className="flex items-center gap-2 min-w-0">
+            <Calendar className="w-4 h-4 text-[#FF7939] flex-shrink-0" />
+            <h3 className="text-white font-medium text-sm">Google Calendar</h3>
+          </div>
+          <div className="flex items-center gap-1">
+            <span className="w-2 h-2 rounded-full bg-white/30" />
+            <span className="text-[11px] text-white/60">No conectado</span>
+          </div>
+        </div>
+
+        <div className="mt-3 flex items-center justify-center">
           <button
             onClick={handleConnect}
             disabled={connecting}
-            className="bg-[#FF7939]/80 hover:bg-[#FF7939] text-white text-sm font-medium py-2 px-4 rounded-lg transition-colors disabled:opacity-50"
+            className="h-7 px-3 bg-[#FF7939]/80 hover:bg-[#FF7939] text-white text-xs font-medium rounded-md transition-colors disabled:opacity-50"
           >
-            {connecting ? 'Conectando...' : 'Conectar Calendar'}
+            {connecting ? 'Conectando...' : 'Conectar'}
           </button>
         </div>
       </div>
@@ -173,59 +183,40 @@ export function GoogleCalendarConnection() {
 
   return (
     <div className="space-y-3 h-full">
-      {/* Frame de Google Calendar */}
-      <div className="backdrop-blur-xl bg-black/40 border border-white/10 rounded-xl p-3 h-full flex flex-col">
-        {/* Header con ícono y nombre */}
-        <div className="flex items-center gap-2.5 mb-3">
-          <div className="flex items-center gap-2 flex-1 min-w-0">
+      <div className="backdrop-blur-xl bg-black/40 border border-white/10 rounded-xl p-3 h-full">
+        <div className="flex items-start justify-between gap-2">
+          <div className="flex items-center gap-2 min-w-0">
             <Calendar className="w-4 h-4 text-[#FF7939] flex-shrink-0" />
             <h3 className="text-white font-medium text-sm">Google Calendar</h3>
           </div>
+
+          <div className="flex items-center gap-1">
+            <span className="w-2 h-2 rounded-full bg-green-500" />
+            <span className="text-[11px] text-white/80">Conectado</span>
+          </div>
         </div>
 
-        {/* Estado conectado */}
-        {isConnected && (
-          <div className="flex items-center gap-2 mb-3 pb-3 border-b border-white/5 flex-1">
-            <div className="w-2 h-2 bg-green-500 rounded-full"></div>
-            <p className="text-xs text-white/80">Conectado</p>
-          </div>
-        )}
+        <div className="mt-2 flex items-center gap-2">
+          <a
+            href="https://calendar.google.com"
+            target="_blank"
+            rel="noopener noreferrer"
+            className="flex items-center justify-center gap-1 h-7 w-7 bg-white/5 hover:bg-white/10 border border-white/10 text-white/80 text-xs rounded-md transition-colors flex-shrink-0"
+            aria-label="Ir a Google Calendar"
+          >
+            <ExternalLink className="w-3 h-3" />
+          </a>
 
-        {/* Botones de acción minimalistas */}
-        <div className="flex gap-2 items-center mt-auto">
-          {isConnected ? (
-            <>
-              <a
-                href="https://calendar.google.com"
-                target="_blank"
-                rel="noopener noreferrer"
-                className="flex items-center justify-center gap-1 h-6 px-2 bg-white/5 hover:bg-white/10 border border-white/10 text-white/80 text-xs rounded-md transition-colors"
-              >
-                <ExternalLink className="w-3 h-3" />
-              </a>
-              <button
-                onClick={() => setShowDisconnectModal(true)}
-                className="flex items-center justify-center h-6 px-2.5 text-[#FF7939] hover:text-[#FF8C42] text-xs transition-colors"
-              >
-                Desvincular
-              </button>
-            </>
-          ) : (
-            <button
-              onClick={handleConnect}
-              disabled={connecting}
-              className="flex items-center justify-center gap-1.5 flex-1 h-7 bg-[#FF7939]/80 hover:bg-[#FF7939] text-white text-xs rounded-md transition-colors disabled:opacity-50"
-            >
-              {connecting ? (
-                <>
-                  <Loader2 className="w-3 h-3 animate-spin" />
-                  <span>Conectando...</span>
-                </>
-              ) : (
-                'Conectar'
-              )}
-            </button>
-          )}
+          <p className="text-xs text-white/80 truncate flex-1 min-w-0">
+            {user?.email || '—'}
+          </p>
+
+          <button
+            onClick={() => setShowDisconnectModal(true)}
+            className="text-[#FF7939] hover:text-[#FF8C42] text-[13px] font-semibold transition-colors flex-shrink-0"
+          >
+            Desvincular
+          </button>
         </div>
       </div>
 
