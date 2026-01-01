@@ -16,16 +16,26 @@ const PLAN_PRICES = {
 // Función auxiliar para inicializar el cliente de manera perezosa (lazy)
 // Esto evita errores si las variables de entorno no están listas al momento de importar el archivo
 const getPreApprovalClient = () => {
+  const mpMode = (process.env.MERCADOPAGO_MODE || '').toLowerCase() // 'test' | 'production'
+  const forceTest = mpMode === 'test'
   const isProd = process.env.NODE_ENV === 'production'
-  const accessToken = isProd
-    ? process.env.MERCADOPAGO_ACCESS_TOKEN
-    : (process.env.TEST_MERCADOPAGO_ACCESS_TOKEN || process.env.MERCADOPAGO_ACCESS_TOKEN)
+
+  // En test mode siempre usar TEST token.
+  // En production mode usar PROD token.
+  // Si no se define MERCADOPAGO_MODE: prod => PROD token, dev => prefer TEST.
+  const accessToken = forceTest
+    ? process.env.TEST_MERCADOPAGO_ACCESS_TOKEN
+    : (isProd
+      ? process.env.MERCADOPAGO_ACCESS_TOKEN
+      : (process.env.TEST_MERCADOPAGO_ACCESS_TOKEN || process.env.MERCADOPAGO_ACCESS_TOKEN))
   
   if (!accessToken) {
     throw new Error(
-      isProd
-        ? 'MercadoPago Access Token no configurado (falta MERCADOPAGO_ACCESS_TOKEN)'
-        : 'MercadoPago Access Token no configurado (falta TEST_MERCADOPAGO_ACCESS_TOKEN o MERCADOPAGO_ACCESS_TOKEN)'
+      forceTest
+        ? 'MercadoPago Access Token no configurado (modo TEST: falta TEST_MERCADOPAGO_ACCESS_TOKEN)'
+        : (isProd
+          ? 'MercadoPago Access Token no configurado (falta MERCADOPAGO_ACCESS_TOKEN)'
+          : 'MercadoPago Access Token no configurado (falta TEST_MERCADOPAGO_ACCESS_TOKEN o MERCADOPAGO_ACCESS_TOKEN)')
     )
   }
 
@@ -61,6 +71,11 @@ export async function createCoachSubscription({
   reason
 }: CreateSubscriptionParams): Promise<SubscriptionResponse> {
   const planPrice = PLAN_PRICES[planType]
+  const mpMode = (process.env.MERCADOPAGO_MODE || '').toLowerCase()
+  const forceTest = mpMode === 'test'
+  const payerEmail = forceTest
+    ? (process.env.TEST_MERCADOPAGO_PAYER_EMAIL || email)
+    : email
   const rawAppUrl = (process.env.NEXT_PUBLIC_APP_URL?.trim() || '').replace(/\/$/, '')
   
   if (!rawAppUrl) {
@@ -106,9 +121,14 @@ export async function createCoachSubscription({
   }
 
     try {
-      // Detectar si estamos en modo prueba (usa TEST_MERCADOPAGO_ACCESS_TOKEN si está disponible)
-      const accessToken = process.env.TEST_MERCADOPAGO_ACCESS_TOKEN || process.env.MERCADOPAGO_ACCESS_TOKEN || ''
-      const isTestMode = !!process.env.TEST_MERCADOPAGO_ACCESS_TOKEN || accessToken.startsWith('TEST-')
+      // Detectar si estamos en modo prueba (NO inferir por existencia de env vars, sino por modo/token usado)
+      const isProd = process.env.NODE_ENV === 'production'
+      const selectedAccessToken = forceTest
+        ? (process.env.TEST_MERCADOPAGO_ACCESS_TOKEN || '')
+        : (isProd
+          ? (process.env.MERCADOPAGO_ACCESS_TOKEN || '')
+          : (process.env.TEST_MERCADOPAGO_ACCESS_TOKEN || process.env.MERCADOPAGO_ACCESS_TOKEN || ''))
+      const isTestMode = forceTest || selectedAccessToken.startsWith('TEST-')
       console.log(`📅 Creando suscripción de Mercado Pago (${isTestMode ? 'MODO PRUEBA' : 'MODO PRODUCCIÓN'}):`, JSON.stringify(subscriptionData, null, 2))
       
       const response = await getPreApprovalClient().create({ body: subscriptionData })

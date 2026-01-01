@@ -353,19 +353,25 @@ export async function POST(request: NextRequest) {
     const shouldCreateSubscriptionNow = plan_type !== 'free' && isUpgrade
 
     if (shouldCreateSubscriptionNow) {
+      const mpMode = (process.env.MERCADOPAGO_MODE || '').toLowerCase() // 'test' | 'production'
+      const forceTest = mpMode === 'test'
       const isProd = process.env.NODE_ENV === 'production'
-      const mpToken = isProd
-        ? process.env.MERCADOPAGO_ACCESS_TOKEN
-        : (process.env.TEST_MERCADOPAGO_ACCESS_TOKEN || process.env.MERCADOPAGO_ACCESS_TOKEN)
+      const mpToken = forceTest
+        ? process.env.TEST_MERCADOPAGO_ACCESS_TOKEN
+        : (isProd
+          ? process.env.MERCADOPAGO_ACCESS_TOKEN
+          : (process.env.TEST_MERCADOPAGO_ACCESS_TOKEN || process.env.MERCADOPAGO_ACCESS_TOKEN))
       if (!mpToken || String(mpToken).trim() === '') {
         return NextResponse.json(
           {
             success: false,
             error: 'No se puede iniciar el upgrade: Mercado Pago no está configurado',
             code: 'MISSING_MERCADOPAGO_TOKEN',
-            details: isProd
-              ? 'Falta MERCADOPAGO_ACCESS_TOKEN'
-              : 'Falta TEST_MERCADOPAGO_ACCESS_TOKEN o MERCADOPAGO_ACCESS_TOKEN'
+            details: forceTest
+              ? 'Modo TEST: falta TEST_MERCADOPAGO_ACCESS_TOKEN'
+              : (isProd
+                ? 'Falta MERCADOPAGO_ACCESS_TOKEN'
+                : 'Falta TEST_MERCADOPAGO_ACCESS_TOKEN o MERCADOPAGO_ACCESS_TOKEN')
           },
           { status: 500 }
         )
