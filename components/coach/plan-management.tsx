@@ -156,6 +156,7 @@ function PlanManagement() {
   const [changing, setChanging] = useState<string | null>(null)
   const [error, setError] = useState<string | null>(null)
   const [currentPlan, setCurrentPlan] = useState<any>(null)
+  const [pendingPlan, setPendingPlan] = useState<any>(null)
   const [showPlansDialog, setShowPlansDialog] = useState(false)
   const [confirmingPlan, setConfirmingPlan] = useState<string | null>(null)
   const [showPaymentSummary, setShowPaymentSummary] = useState(false)
@@ -231,6 +232,7 @@ function PlanManagement() {
       
       if (result.success) {
         setCurrentPlan(result.plan)
+        setPendingPlan(result.pending_plan || null)
       } else {
         setError(result.error || 'Error al cargar plan')
       }
@@ -473,14 +475,29 @@ function PlanManagement() {
     )
   }
 
-  const currentPlanType: PlanType = (currentPlan?.plan_type as PlanType) || 'free'
+  const currentPlanType: PlanType = currentPlan?.plan_type || 'free'
   const currentPlanInfo = PLAN_PRICES[currentPlanType]
   const CurrentIcon = PLAN_ICONS[currentPlanType]
   const currentColor = PLAN_COLORS[currentPlanType]
 
+  const pendingPlanType: PlanType | null = pendingPlan?.plan_type || null
+  const pendingPlanStartedAt = pendingPlan?.started_at || pendingPlan?.created_at || null
+
   return (
-    <>
-      <div ref={planSectionRef} className="bg-black rounded-2xl p-3 space-y-3">
+    <div ref={planSectionRef} className="space-y-4">
+      {pendingPlanType && pendingPlan?.status === 'trial' && (
+        <div className="rounded-xl border border-[#FF7939]/30 bg-[#FF7939]/10 p-4">
+          <p className="text-sm font-semibold text-white">
+            Upgrade pendiente de pago
+          </p>
+          <p className="text-xs text-gray-300 mt-1">
+            Tenés un cambio al plan <span className="font-semibold">{PLAN_NAMES[pendingPlanType]}</span> pendiente.
+            {pendingPlanStartedAt ? ` Se inició el ${formatDate(pendingPlanStartedAt)}.` : ''}
+          </p>
+        </div>
+      )}
+
+      <div className="bg-black rounded-2xl p-4 space-y-4">
         <h3 className="text-base font-semibold text-white">Mi Suscripción</h3>
         
         {/* Plan Actual - Diseño simplificado */}

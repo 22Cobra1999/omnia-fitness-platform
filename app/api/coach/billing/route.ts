@@ -169,7 +169,7 @@ export async function GET(request: NextRequest) {
         created_at,
         activity_enrollments!inner(
           activity_id,
-          activities!inner(
+          activities!activity_enrollments_activity_id_fkey!inner(
             id,
             title,
             price

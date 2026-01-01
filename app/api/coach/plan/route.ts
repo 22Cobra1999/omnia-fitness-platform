@@ -57,6 +57,16 @@ export async function GET(request: NextRequest) {
       .eq('status', 'active')
       .order('started_at', { ascending: false })
 
+    // También traer el plan pendiente más reciente (trial)
+    const { data: pendingPlan } = await supabaseService
+      .from('planes_uso_coach')
+      .select('*')
+      .eq('coach_id', coach.id)
+      .eq('status', 'trial')
+      .order('created_at', { ascending: false })
+      .limit(1)
+      .maybeSingle()
+
     if (checkError) {
       console.error('Error verificando plan existente:', checkError)
       return NextResponse.json({
@@ -81,7 +91,8 @@ export async function GET(request: NextRequest) {
     if (activePlan) {
       return NextResponse.json({ 
         success: true, 
-        plan: activePlan 
+        plan: activePlan,
+        pending_plan: pendingPlan || null
       })
     }
 
@@ -137,7 +148,8 @@ export async function GET(request: NextRequest) {
 
     return NextResponse.json({ 
       success: true, 
-      plan: newPlan 
+      plan: newPlan,
+      pending_plan: pendingPlan || null
     })
 
   } catch (error) {

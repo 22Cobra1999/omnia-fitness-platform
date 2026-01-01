@@ -53,7 +53,7 @@ export async function GET(request: NextRequest) {
       return NextResponse.json({ error: 'No hay ventas para exportar' }, { status: 404 });
     }
 
-    const activityIds = activities.map(a => a.id);
+    const activityIds = (activities as Array<{ id: string }>).map((a: { id: string }) => a.id);
 
     // Obtener enrollments
     const { data: enrollments } = await supabase
@@ -65,7 +65,7 @@ export async function GET(request: NextRequest) {
       return NextResponse.json({ error: 'No hay ventas para exportar' }, { status: 404 });
     }
 
-    const enrollmentIds = enrollments.map(e => e.id);
+    const enrollmentIds = (enrollments as Array<{ id: string }>).map((e: { id: string }) => e.id);
 
     // Construir query base
     let query = supabase
@@ -80,7 +80,7 @@ export async function GET(request: NextRequest) {
         created_at,
         activity_enrollments!inner(
           activity_id,
-          activities!inner(
+          activities!activity_enrollments_activity_id_fkey!inner(
             title,
             price
           )
@@ -124,7 +124,7 @@ export async function GET(request: NextRequest) {
     if (format === 'excel') {
       // Generar CSV (compatible con Excel)
       const headers = ['Fecha', 'Concepto', 'Monto Total', 'Comisión OMNIA', 'Fee Plan', 'Ganancia'];
-      const rows = salesData.map(sale => [
+      const rows = salesData.map((sale: any) => [
         sale.fecha,
         sale.concepto,
         sale.montoTotal.toFixed(2),
@@ -135,7 +135,7 @@ export async function GET(request: NextRequest) {
 
       const csvContent = [
         headers.join(','),
-        ...rows.map(row => row.join(','))
+        ...rows.map((row: any[]) => row.join(','))
       ].join('\n');
 
       return new NextResponse(csvContent, {
