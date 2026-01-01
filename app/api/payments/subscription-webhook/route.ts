@@ -56,7 +56,13 @@ export async function POST(request: NextRequest) {
         await handleSubscriptionPayment(data || body)
       } else {
         // Por defecto, tratar como actualización de suscripción
-        await handlePreApprovalNotification(data || body)
+        // MP a veces envía sólo { data: { id } } sin status: en ese caso, buscamos el estado real desde MP.
+        const subscriptionId = (data || body)?.id || (data || body)?.preapproval_id
+        if (subscriptionId) {
+          await handleSubscriptionUpdateNotification(subscriptionId, action || 'unknown')
+        } else {
+          await handlePreApprovalNotification(data || body)
+        }
       }
     } else if (type === 'payment' || action === 'payment.created' || action === 'payment.updated') {
       // Notificación de pago (renovación mensual)
@@ -281,6 +287,12 @@ async function handlePreApprovalNotification(preApprovalData: any) {
 
     console.log('📋 Notificación de preapproval:', subscriptionId, preApprovalData.status)
 
+    // Si MP no envía status, obtenerlo desde la API de MP y procesar en base a eso.
+    if (!preApprovalData.status) {
+      await handleSubscriptionUpdateNotification(subscriptionId, 'missing_status')
+      return
+    }
+
     // Si la suscripción fue autorizada/pagada, activar el plan pendiente asociado
     if (preApprovalData.status === 'authorized' || preApprovalData.status === 'paid') {
       await activatePendingPlanForSubscription(subscriptionId)
@@ -310,7 +322,7 @@ async function handleSubscriptionUpdateNotification(subscriptionId: string, acti
     console.log(`📋 Procesando notificación de suscripción (${action}):`, subscriptionId)
 
     // Obtener información actualizada de la suscripción desde Mercado Pago
-    const { getSubscriptionInfo } = await import('@/lib/mercadopago/subscriptions')
+    const { getSubscriptionInfo } = await import('../../../../lib/mercadopago/subscriptions')
     const subscriptionInfo = await getSubscriptionInfo(subscriptionId)
 
     if (!subscriptionInfo) {

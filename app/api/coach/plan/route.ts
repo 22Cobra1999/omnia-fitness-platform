@@ -391,7 +391,7 @@ export async function POST(request: NextRequest) {
       }
 
       try {
-        const { createCoachSubscription } = await import('@/lib/mercadopago/subscriptions')
+        const { createCoachSubscription } = await import('../../../../lib/mercadopago/subscriptions')
         
         // Obtener email del usuario
         const { data: { user: userData } } = await supabase.auth.getUser()
