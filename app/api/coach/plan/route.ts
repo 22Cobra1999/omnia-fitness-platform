@@ -357,10 +357,11 @@ export async function POST(request: NextRequest) {
       const forceTest = mpMode === 'test'
       const isProd = process.env.NODE_ENV === 'production'
       const mpToken = forceTest
-        ? process.env.TEST_MERCADOPAGO_ACCESS_TOKEN
+        ? (process.env.TEST_MP_SUBSCRIPTIONS_ACCESS_TOKEN || process.env.TEST_MERCADOPAGO_ACCESS_TOKEN)
         : (isProd
-          ? process.env.MERCADOPAGO_ACCESS_TOKEN
-          : (process.env.TEST_MERCADOPAGO_ACCESS_TOKEN || process.env.MERCADOPAGO_ACCESS_TOKEN))
+          ? (process.env.MP_SUBSCRIPTIONS_ACCESS_TOKEN || process.env.MERCADOPAGO_ACCESS_TOKEN)
+          : ((process.env.TEST_MP_SUBSCRIPTIONS_ACCESS_TOKEN || process.env.TEST_MERCADOPAGO_ACCESS_TOKEN) ||
+            (process.env.MP_SUBSCRIPTIONS_ACCESS_TOKEN || process.env.MERCADOPAGO_ACCESS_TOKEN)))
       if (!mpToken || String(mpToken).trim() === '') {
         return NextResponse.json(
           {
@@ -368,10 +369,10 @@ export async function POST(request: NextRequest) {
             error: 'No se puede iniciar el upgrade: Mercado Pago no está configurado',
             code: 'MISSING_MERCADOPAGO_TOKEN',
             details: forceTest
-              ? 'Modo TEST: falta TEST_MERCADOPAGO_ACCESS_TOKEN'
+              ? 'Modo TEST: falta TEST_MP_SUBSCRIPTIONS_ACCESS_TOKEN (o TEST_MERCADOPAGO_ACCESS_TOKEN como fallback)'
               : (isProd
-                ? 'Falta MERCADOPAGO_ACCESS_TOKEN'
-                : 'Falta TEST_MERCADOPAGO_ACCESS_TOKEN o MERCADOPAGO_ACCESS_TOKEN')
+                ? 'Falta MP_SUBSCRIPTIONS_ACCESS_TOKEN (o MERCADOPAGO_ACCESS_TOKEN como fallback)'
+                : 'Falta TEST_MP_SUBSCRIPTIONS_ACCESS_TOKEN/TEST_MERCADOPAGO_ACCESS_TOKEN o MP_SUBSCRIPTIONS_ACCESS_TOKEN/MERCADOPAGO_ACCESS_TOKEN')
           },
           { status: 500 }
         )

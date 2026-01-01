@@ -24,10 +24,11 @@ const getPreApprovalClient = () => {
   // En production mode usar PROD token.
   // Si no se define MERCADOPAGO_MODE: prod => PROD token, dev => prefer TEST.
   const accessToken = forceTest
-    ? process.env.TEST_MERCADOPAGO_ACCESS_TOKEN
+    ? (process.env.TEST_MP_SUBSCRIPTIONS_ACCESS_TOKEN || process.env.TEST_MERCADOPAGO_ACCESS_TOKEN)
     : (isProd
-      ? process.env.MERCADOPAGO_ACCESS_TOKEN
-      : (process.env.TEST_MERCADOPAGO_ACCESS_TOKEN || process.env.MERCADOPAGO_ACCESS_TOKEN))
+      ? (process.env.MP_SUBSCRIPTIONS_ACCESS_TOKEN || process.env.MERCADOPAGO_ACCESS_TOKEN)
+      : ((process.env.TEST_MP_SUBSCRIPTIONS_ACCESS_TOKEN || process.env.TEST_MERCADOPAGO_ACCESS_TOKEN) ||
+        (process.env.MP_SUBSCRIPTIONS_ACCESS_TOKEN || process.env.MERCADOPAGO_ACCESS_TOKEN)))
   
   if (!accessToken) {
     throw new Error(
@@ -102,7 +103,7 @@ export async function createCoachSubscription({
   const subscriptionData = {
     reason: reason || `Plan ${planType} - OMNIA`,
     external_reference: `coach_${coachId}_${planType}_${Date.now()}`,
-    payer_email: email,
+    payer_email: payerEmail,
     auto_recurring: {
       frequency: 1, // 1 = mensual
       frequency_type: 'months', // 'months' o 'days'
@@ -124,10 +125,11 @@ export async function createCoachSubscription({
       // Detectar si estamos en modo prueba (NO inferir por existencia de env vars, sino por modo/token usado)
       const isProd = process.env.NODE_ENV === 'production'
       const selectedAccessToken = forceTest
-        ? (process.env.TEST_MERCADOPAGO_ACCESS_TOKEN || '')
+        ? ((process.env.TEST_MP_SUBSCRIPTIONS_ACCESS_TOKEN || process.env.TEST_MERCADOPAGO_ACCESS_TOKEN) || '')
         : (isProd
-          ? (process.env.MERCADOPAGO_ACCESS_TOKEN || '')
-          : (process.env.TEST_MERCADOPAGO_ACCESS_TOKEN || process.env.MERCADOPAGO_ACCESS_TOKEN || ''))
+          ? ((process.env.MP_SUBSCRIPTIONS_ACCESS_TOKEN || process.env.MERCADOPAGO_ACCESS_TOKEN) || '')
+          : ((process.env.TEST_MP_SUBSCRIPTIONS_ACCESS_TOKEN || process.env.TEST_MERCADOPAGO_ACCESS_TOKEN) ||
+            (process.env.MP_SUBSCRIPTIONS_ACCESS_TOKEN || process.env.MERCADOPAGO_ACCESS_TOKEN) || ''))
       const isTestMode = forceTest || selectedAccessToken.startsWith('TEST-')
       console.log(`📅 Creando suscripción de Mercado Pago (${isTestMode ? 'MODO PRUEBA' : 'MODO PRODUCCIÓN'}):`, JSON.stringify(subscriptionData, null, 2))
       
