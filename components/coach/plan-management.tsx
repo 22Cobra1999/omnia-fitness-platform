@@ -48,6 +48,13 @@ const PLAN_PRICES = {
   premium: { price: 35000, currency: 'ARS', period: 'mensual' }
 }
 
+const PLAN_COMMISSION_PERCENT = {
+  free: 5,
+  basico: 5,
+  black: 4,
+  premium: 3
+}
+
 const PLAN_NAMES = {
   free: 'Free / Inicial',
   basico: 'Básico',
@@ -484,7 +491,8 @@ function PlanManagement() {
   const pendingPlanStartedAt = pendingPlan?.started_at || pendingPlan?.created_at || null
 
   return (
-    <div ref={planSectionRef} className="space-y-4">
+    <>
+      <div ref={planSectionRef} className="space-y-4">
       {pendingPlanType && pendingPlan?.status === 'trial' && (
         <div className="rounded-xl border border-[#FF7939]/30 bg-[#FF7939]/10 p-4">
           <p className="text-sm font-semibold text-white">
@@ -523,6 +531,9 @@ function PlanManagement() {
                     {formatPrice(currentPlanInfo.price)}
                   </p>
                   <p className="text-xs text-gray-400">/mes</p>
+                  <p className="text-[10px] text-[#FFB0C8]">
+                    {PLAN_COMMISSION_PERCENT[currentPlanType]}% comisión
+                  </p>
                 </>
               ) : null}
             </div>
@@ -543,6 +554,7 @@ function PlanManagement() {
         {error && (
           <div className="text-red-500 text-sm text-center py-2">{error}</div>
         )}
+      </div>
       </div>
 
       {/* Dialog de Planes */}
