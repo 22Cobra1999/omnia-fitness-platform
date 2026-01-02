@@ -78,6 +78,18 @@ export async function createCoachSubscription({
     ? (process.env.TEST_MERCADOPAGO_PAYER_EMAIL || email)
     : email
   const rawAppUrl = (process.env.NEXT_PUBLIC_APP_URL?.trim() || '').replace(/\/$/, '')
+
+  // Modo test acelerado (solo sandbox): permite probar cobros recurrentes sin esperar 1 mes.
+  // Configuración por env vars:
+  // - MP_TEST_RECURRING_FREQUENCY_TYPE=days
+  // - MP_TEST_RECURRING_FREQUENCY=1
+  // - MP_TEST_START_DELAY_MINUTES=5
+  const testFrequencyType = forceTest
+    ? (process.env.MP_TEST_RECURRING_FREQUENCY_TYPE || '').toLowerCase()
+    : ''
+  const isAcceleratedTest = forceTest && !!testFrequencyType
+  const testFrequency = Number(process.env.MP_TEST_RECURRING_FREQUENCY || 1)
+  const testStartDelayMinutes = Number(process.env.MP_TEST_START_DELAY_MINUTES || 5)
   
   if (!rawAppUrl) {
     throw new Error(
@@ -99,17 +111,17 @@ export async function createCoachSubscription({
     )
   }
 
-  // Crear suscripción con cobro automático mensual
+  // Crear suscripción con cobro automático recurrente
   const subscriptionData = {
     reason: reason || `Plan ${planType} - OMNIA`,
     external_reference: `coach_${coachId}_${planType}_${Date.now()}`,
     payer_email: payerEmail,
     auto_recurring: {
-      frequency: 1, // 1 = mensual
-      frequency_type: 'months', // 'months' o 'days'
+      frequency: isAcceleratedTest ? testFrequency : 1,
+      frequency_type: isAcceleratedTest ? testFrequencyType : 'months',
       transaction_amount: planPrice.price,
       currency_id: planPrice.currency,
-      start_date: new Date(Date.now() + 60000).toISOString(), // Comienza en 1 minuto
+      start_date: new Date(Date.now() + (isAcceleratedTest ? testStartDelayMinutes * 60 * 1000 : 60 * 1000)).toISOString(),
       // IMPORTANTE: No usar end_date: null en sandbox, puede causar problemas
       // Dejar que se renueve automáticamente sin especificar end_date
     },
@@ -148,6 +160,13 @@ export async function createCoachSubscription({
       })
 
       console.log(`📅 Creando suscripción de Mercado Pago (${isTestMode ? 'MODO PRUEBA' : 'MODO PRODUCCIÓN'}):`, JSON.stringify(subscriptionData, null, 2))
+      if (isAcceleratedTest) {
+        console.log('⚡ MP modo test acelerado habilitado:', {
+          frequency_type: testFrequencyType,
+          frequency: testFrequency,
+          start_delay_minutes: testStartDelayMinutes,
+        })
+      }
       
       const response = await getPreApprovalClient().create({ body: subscriptionData })
       
