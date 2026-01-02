@@ -345,9 +345,20 @@ export async function POST(request: NextRequest) {
     let newExpiresAt: Date
     let renewalCount = 0
 
-    // Si es downgrade desde un plan pago con suscripción activa, cancelar suscripción en Mercado Pago
+    const isPaidPlan = (p: any) => p && typeof p === 'string' && p !== 'free'
+
+    // Si pasamos de un plan pago a otro plan pago (aunque sea “más barato”), requiere pago/checkout
+    // porque se crea una nueva suscripción con el precio del nuevo plan.
+    const isPaidToPaidChange =
+      !!currentPlan && isPaidPlan(currentPlan.plan_type) && isPaidPlan(plan_type) && !isSamePlan
+
+    // Downgrade a free desde un plan pago: debe respetar la suscripción vigente.
+    // Programamos el plan free para cuando venza el plan actual.
+    const isDowngradeToFree = plan_type === 'free' && !!currentPlan && currentPlan.plan_type !== 'free'
+
+    // Si es downgrade a free desde un plan pago con suscripción activa, cancelar suscripción en Mercado Pago
     // para que no se renueve/cobre el próximo período. El plan actual sigue vigente hasta expires_at.
-    if (isDowngrade && currentPlan?.mercadopago_subscription_id) {
+    if (isDowngradeToFree && currentPlan?.mercadopago_subscription_id) {
       try {
         const { cancelSubscription } = await import('../../../../lib/mercadopago/subscriptions')
         await cancelSubscription(String(currentPlan.mercadopago_subscription_id))
@@ -360,17 +371,13 @@ export async function POST(request: NextRequest) {
       }
     }
 
-    // Downgrade a free desde un plan pago: debe respetar la suscripción vigente.
-    // Programamos el plan free para cuando venza el plan actual.
-    const isDowngradeToFree = plan_type === 'free' && !!currentPlan && currentPlan.plan_type !== 'free'
-
-    if (isUpgrade) {
+    if (isUpgrade || isPaidToPaidChange) {
       // UPGRADE: el cambio de plan es inmediato, pero sólo después de que Mercado Pago autorice el pago.
       // En esta API vamos a dejar el plan en estado pending y el webhook lo activará.
       newStartedAt = new Date(now)
       const thirtyOneDaysMs = 31 * 24 * 60 * 60 * 1000
       newExpiresAt = new Date(now.getTime() + thirtyOneDaysMs)
-    } else if (isDowngrade || isDowngradeToFree) {
+    } else if (isDowngradeToFree) {
       // DOWNGRADE: Conserva días restantes, el nuevo plan empieza cuando termina el actual
       if (!currentPlan || !currentPlan.expires_at) {
         return NextResponse.json({ 
@@ -401,8 +408,8 @@ export async function POST(request: NextRequest) {
     let subscriptionId: string | null = null
     let subscriptionInitPoint: string | undefined = undefined
 
-    // Sólo en upgrades a planes de pago creamos suscripción en MercadoPago.
-    const shouldCreateSubscriptionNow = plan_type !== 'free' && isUpgrade
+    // Crear suscripción en MercadoPago cuando el cambio requiere checkout (upgrade o cambio entre planes pagos).
+    const shouldCreateSubscriptionNow = plan_type !== 'free' && (isUpgrade || isPaidToPaidChange)
 
     if (shouldCreateSubscriptionNow) {
       const mpMode = (process.env.MERCADOPAGO_MODE || '').toLowerCase() // 'test' | 'production'
@@ -550,8 +557,9 @@ export async function POST(request: NextRequest) {
     }
 
     let message = `Plan cambiado a ${plan_type} exitosamente`
+    const requiresPayment = shouldCreateSubscriptionNow && !!subscriptionId
     
-    if (isUpgrade) {
+    if (requiresPayment) {
       message = `Plan actualizado a ${plan_type}. Tu nuevo plan comenzará ahora con 31 días completos.`
     } else if (isDowngrade) {
       // Calcular días hasta que empiece el nuevo plan
@@ -584,7 +592,7 @@ export async function POST(request: NextRequest) {
       is_downgrade: isDowngrade,
       subscription_id: subscriptionId,
       subscription_init_point: subscriptionInitPoint,
-      requires_payment: shouldCreateSubscriptionNow && !!subscriptionId
+      requires_payment: requiresPayment
     })
 
   } catch (error) {

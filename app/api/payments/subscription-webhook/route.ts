@@ -114,7 +114,7 @@ async function activatePendingPlanForSubscription(subscriptionId: string) {
   // Cancelar plan activo anterior (si existe)
   const { data: activePlan, error: activeError } = await supabaseService
     .from('planes_uso_coach')
-    .select('id')
+    .select('id, mercadopago_subscription_id')
     .eq('coach_id', pendingPlan.coach_id)
     .eq('status', 'active')
     .order('started_at', { ascending: false })
@@ -126,6 +126,20 @@ async function activatePendingPlanForSubscription(subscriptionId: string) {
   }
 
   if (activePlan?.id) {
+    // Cancelar la suscripción anterior en Mercado Pago (si existía) para evitar doble cobro.
+    if (activePlan.mercadopago_subscription_id) {
+      try {
+        const { cancelSubscription } = await import('../../../../lib/mercadopago/subscriptions')
+        await cancelSubscription(String(activePlan.mercadopago_subscription_id))
+        console.log('✅ Suscripción anterior cancelada en Mercado Pago:', activePlan.mercadopago_subscription_id)
+      } catch (e: any) {
+        console.warn('⚠️ No se pudo cancelar suscripción anterior en Mercado Pago:', {
+          subscriptionId: activePlan.mercadopago_subscription_id,
+          message: e?.message,
+        })
+      }
+    }
+
     const { error: cancelError } = await supabaseService
       .from('planes_uso_coach')
       .update({ status: 'cancelled', updated_at: now })
