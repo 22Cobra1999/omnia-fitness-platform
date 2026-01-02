@@ -11,6 +11,7 @@ function SubscriptionSuccessContent() {
   const router = useRouter();
   const [loading, setLoading] = useState(true);
   const [success, setSuccess] = useState(false);
+  const [pending, setPending] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [plan, setPlan] = useState<any>(null);
 
@@ -22,6 +23,7 @@ function SubscriptionSuccessContent() {
     const verifySubscription = async () => {
       try {
         setLoading(true);
+        setPending(false);
 
         // Si no hay preapproval_id, verificar por payment_id
         if (!preApprovalId && paymentId) {
@@ -62,7 +64,12 @@ function SubscriptionSuccessContent() {
 
           if (planData) {
             setPlan(planData);
-            setSuccess(true);
+            if (planData.status === 'active') {
+              setSuccess(true);
+            } else {
+              setPending(true);
+              setSuccess(false);
+            }
           } else {
             // Si no encontramos el plan, puede que el webhook aún no lo haya procesado
             // Esperar un poco y reintentar
@@ -78,7 +85,36 @@ function SubscriptionSuccessContent() {
 
               if (retryPlan) {
                 setPlan(retryPlan);
-                setSuccess(true);
+                if ((retryPlan as any).status === 'active') {
+                  setSuccess(true);
+                  setPending(false);
+                } else {
+                  setSuccess(false);
+                  setPending(true);
+                  // Reintentar una vez más por si el webhook llega con delay
+                  setTimeout(async () => {
+                    const { data: retryPlan2 } = await supabase
+                      .from('planes_uso_coach')
+                      .select('*')
+                      .eq('mercadopago_subscription_id', preApprovalId)
+                      .eq('coach_id', user.id)
+                      .order('created_at', { ascending: false })
+                      .limit(1)
+                      .maybeSingle();
+
+                    if (retryPlan2) {
+                      setPlan(retryPlan2);
+                      if ((retryPlan2 as any).status === 'active') {
+                        setSuccess(true);
+                        setPending(false);
+                      } else {
+                        setPending(true);
+                      }
+                    }
+                    setLoading(false);
+                  }, 4000);
+                  return;
+                }
               } else {
                 setError('Suscripción no encontrada. El webhook puede estar procesando el pago. Por favor, espera unos minutos y verifica tu plan.');
               }
@@ -163,6 +199,35 @@ function SubscriptionSuccessContent() {
               >
                 Ir a Mi Perfil
                 <ArrowRight className="w-4 h-4 ml-2" />
+              </Button>
+            </div>
+          </>
+        ) : pending ? (
+          <>
+            <div className="flex flex-col items-center justify-center py-10">
+              <Loader2 className="w-12 h-12 animate-spin text-[#FF7939] mb-4" />
+              <h2 className="text-xl font-semibold text-white mb-2">
+                Estamos confirmando tu suscripción…
+              </h2>
+              {plan && (
+                <div className="w-full mt-4 p-4 bg-[#0A0A0A] rounded-lg border border-gray-800">
+                  <p className="text-sm text-gray-400 mb-1">Plan pendiente</p>
+                  <p className="text-lg font-bold text-white capitalize">{plan.plan_type}</p>
+                  {plan.storage_limit_gb && (
+                    <p className="text-sm text-gray-400 mt-2">
+                      Almacenamiento: {plan.storage_limit_gb} GB
+                    </p>
+                  )}
+                </div>
+              )}
+              <p className="text-gray-400 text-center mt-6">
+                Si ya finalizaste el pago en Mercado Pago, puede tardar unos segundos en impactar.
+              </p>
+              <Button
+                onClick={handleGoToProfile}
+                className="w-full bg-[#FF7939] hover:bg-[#FF8C42] text-white mt-6"
+              >
+                Ir a Mi Perfil
               </Button>
             </div>
           </>
