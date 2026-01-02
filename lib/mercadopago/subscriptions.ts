@@ -262,8 +262,24 @@ export async function cancelSubscription(subscriptionId: string) {
       status: response.status
     }
   } catch (error: any) {
-    console.error('❌ Error cancelando suscripción:', error)
-    throw new Error(`Error cancelando suscripción: ${error.message || 'Error desconocido'}`)
+    const message = String(error?.message || '')
+    const status = Number(error?.status || error?.response?.status || 0)
+
+    // Mercado Pago devuelve 400 si la suscripción ya está cancelada.
+    // En downgrade esto es un caso OK (idempotente), no debe romper el flujo.
+    if (
+      status === 400 &&
+      message.toLowerCase().includes('can not modify a cancelled preapproval')
+    ) {
+      console.log('ℹ️ Suscripción ya estaba cancelada (idempotente):', subscriptionId)
+      return {
+        id: subscriptionId,
+        status: 'cancelled'
+      }
+    }
+
+    console.error('❌ Error cancelando suscripción:', { message, status })
+    throw new Error(`Error cancelando suscripción: ${message || 'Error desconocido'}`)
   }
 }
 
