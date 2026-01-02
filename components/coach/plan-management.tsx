@@ -489,6 +489,10 @@ function PlanManagement() {
 
   const pendingPlanType: PlanType | null = pendingPlan?.plan_type || null
   const pendingPlanStartedAt = pendingPlan?.started_at || pendingPlan?.created_at || null
+  const pendingHasSubscription = !!pendingPlan?.mercadopago_subscription_id
+  const pendingStartedInPastOrNow = pendingPlan?.started_at
+    ? new Date(pendingPlan.started_at).getTime() <= Date.now()
+    : false
 
   return (
     <>
@@ -496,11 +500,21 @@ function PlanManagement() {
       {pendingPlanType && pendingPlan?.status === 'trial' && (
         <div className="rounded-xl border border-[#FF7939]/30 bg-[#FF7939]/10 p-4">
           <p className="text-sm font-semibold text-white">
-            Upgrade pendiente de pago
+            {pendingHasSubscription ? 'Upgrade pendiente de pago' : 'Cambio de plan programado'}
           </p>
           <p className="text-xs text-gray-300 mt-1">
-            Tenés un cambio al plan <span className="font-semibold">{PLAN_NAMES[pendingPlanType]}</span> pendiente.
-            {pendingPlanStartedAt ? ` Se inició el ${formatDate(pendingPlanStartedAt)}.` : ''}
+            {pendingHasSubscription ? (
+              <>
+                Tenés un cambio al plan <span className="font-semibold">{PLAN_NAMES[pendingPlanType]}</span> pendiente de confirmación.
+                {pendingPlanStartedAt ? ` Se inició el ${formatDate(pendingPlanStartedAt)}.` : ''}
+              </>
+            ) : (
+              <>
+                Tu plan cambiará a <span className="font-semibold">{PLAN_NAMES[pendingPlanType]}</span>
+                {pendingPlanStartedAt ? ` el ${formatDate(pendingPlanStartedAt)}.` : '.'}
+                {pendingStartedInPastOrNow ? ' En breve se reflejará en tu cuenta.' : ''}
+              </>
+            )}
           </p>
         </div>
       )}
