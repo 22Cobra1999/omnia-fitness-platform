@@ -69,6 +69,18 @@ function SubscriptionSuccessContent() {
             } else {
               setPending(true);
               setSuccess(false);
+
+              // Fallback: consultar estado en Mercado Pago (sin depender del webhook)
+              // Si MP ya autorizó, este endpoint activará el plan y cancelará el anterior.
+              try {
+                await fetch('/api/payments/subscription-verify', {
+                  method: 'POST',
+                  headers: { 'Content-Type': 'application/json' },
+                  body: JSON.stringify({ subscription_id: preApprovalId })
+                })
+              } catch (e) {
+                // no romper UI
+              }
             }
           } else {
             // Si no encontramos el plan, puede que el webhook aún no lo haya procesado
@@ -91,6 +103,18 @@ function SubscriptionSuccessContent() {
                 } else {
                   setSuccess(false);
                   setPending(true);
+
+                  // Intentar activar vía verificación directa con Mercado Pago
+                  try {
+                    await fetch('/api/payments/subscription-verify', {
+                      method: 'POST',
+                      headers: { 'Content-Type': 'application/json' },
+                      body: JSON.stringify({ subscription_id: preApprovalId })
+                    })
+                  } catch (e) {
+                    // no romper UI
+                  }
+
                   // Reintentar una vez más por si el webhook llega con delay
                   setTimeout(async () => {
                     const { data: retryPlan2 } = await supabase
