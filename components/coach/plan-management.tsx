@@ -514,7 +514,7 @@ function PlanManagement() {
               <>
                 Tenés tiempo de seguir usando <span className="font-semibold">{PLAN_NAMES[currentPlanType]}</span>
                 {currentPlanExpiresAt ? ` hasta el ${formatDate(currentPlanExpiresAt)}.` : '.'}
-                {' '}Luego cambiará a <span className="font-semibold">{PLAN_NAMES[pendingPlanType]}</span>.
+                {' '}Luego cambiará a <span className="font-semibold">{PLAN_NAMES[pendingPlanType]}</span>. El cobro mensual se ajustará automáticamente.
               </>
             ) : pendingHasSubscription ? (
               <>
@@ -550,8 +550,8 @@ function PlanManagement() {
                     : `Activo • ${currentPlanInfo.period}`}
                 </p>
                 {currentPlanInfo.price > 0 && (
-                  <p className="text-[11px] text-gray-500 mt-0.5">
-                    Renovación mensual automática
+                  <p className="text-xs text-gray-300 mt-1">
+                    Débito automático mensual
                     {(currentNextPaymentDate || currentExpiresAt) ? (
                       <> • Próximo cobro: {formatDate(currentNextPaymentDate || currentExpiresAt)}</>
                     ) : null}
