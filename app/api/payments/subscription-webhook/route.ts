@@ -127,7 +127,7 @@ async function activatePendingPlanForSubscription(subscriptionId: string) {
 
   if (activePlan?.id) {
     // Cancelar la suscripción anterior en Mercado Pago (si existía) para evitar doble cobro.
-    if (activePlan.mercadopago_subscription_id) {
+    if (activePlan.mercadopago_subscription_id && String(activePlan.mercadopago_subscription_id) !== String(subscriptionId)) {
       try {
         const { cancelSubscription } = await import('../../../../lib/mercadopago/subscriptions')
         await cancelSubscription(String(activePlan.mercadopago_subscription_id))

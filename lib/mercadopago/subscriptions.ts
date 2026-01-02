@@ -202,6 +202,50 @@ export async function createCoachSubscription({
 }
 
 /**
+ * Actualiza el monto de cobro mensual de una suscripción existente.
+ * Se usa cuando se programa un downgrade a un plan pago más barato,
+ * para que el próximo ciclo cobre el nuevo monto automáticamente.
+ */
+export async function updateSubscriptionAmount(subscriptionId: string, planType: 'basico' | 'black' | 'premium') {
+  try {
+    const planPrice = PLAN_PRICES[planType]
+
+    console.log('💳 Actualizando monto de suscripción:', {
+      subscriptionId,
+      planType,
+      transaction_amount: planPrice.price,
+    })
+
+    const response = await getPreApprovalClient().update({
+      id: subscriptionId,
+      body: {
+        reason: `Plan ${planType} - OMNIA`,
+        auto_recurring: {
+          transaction_amount: planPrice.price,
+          currency_id: planPrice.currency,
+        },
+      },
+    } as any)
+
+    console.log('✅ Monto de suscripción actualizado:', {
+      id: response.id,
+      status: response.status,
+      planType,
+    })
+
+    return {
+      id: response.id,
+      status: response.status,
+    }
+  } catch (error: any) {
+    const message = String(error?.message || '')
+    const status = Number(error?.status || error?.response?.status || 0)
+    console.error('❌ Error actualizando monto de suscripción:', { message, status })
+    throw new Error(`Error actualizando monto de suscripción: ${message || 'Error desconocido'}`)
+  }
+}
+
+/**
  * Obtiene información de una suscripción existente
  */
 export async function getSubscriptionInfo(subscriptionId: string) {

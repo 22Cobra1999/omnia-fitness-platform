@@ -101,10 +101,46 @@ export async function GET(request: NextRequest) {
     if (pendingPlan?.started_at) {
       const pendingStart = new Date(pendingPlan.started_at)
       if (pendingStart <= now) {
+        // Marcar planes activos expirados como expired para no violar unicidad.
+        // (La consulta de activePlan ya filtra por expires_at, pero en DB puede seguir status='active')
+        try {
+          await supabaseService
+            .from('planes_uso_coach')
+            .update({ status: 'expired', updated_at: now.toISOString() })
+            .eq('coach_id', coach.id)
+            .eq('status', 'active')
+            .lte('expires_at', now.toISOString())
+        } catch (e) {
+          // no bloquear
+        }
+
+        // Si el pending es un plan pago, copiar la suscripción del plan anterior para mantener débito automático.
+        let previousSubscriptionId: string | null = null
+        try {
+          const { data: previousPlan } = await supabaseService
+            .from('planes_uso_coach')
+            .select('mercadopago_subscription_id')
+            .eq('coach_id', coach.id)
+            .in('status', ['active', 'expired', 'cancelled'])
+            .order('started_at', { ascending: false })
+            .limit(1)
+            .maybeSingle()
+          previousSubscriptionId = (previousPlan as any)?.mercadopago_subscription_id
+            ? String((previousPlan as any).mercadopago_subscription_id)
+            : null
+        } catch (e) {
+          // no bloquear
+        }
+
         const nowIso = now.toISOString()
         const { data: promotedPlan, error: promoteError } = await supabaseService
           .from('planes_uso_coach')
-          .update({ status: 'active', updated_at: nowIso })
+          .update({
+            status: 'active',
+            updated_at: nowIso,
+            mercadopago_subscription_id:
+              pendingPlan.plan_type !== 'free' ? (previousSubscriptionId ?? null) : null,
+          })
           .eq('id', pendingPlan.id)
           .select()
           .single()
@@ -347,10 +383,12 @@ export async function POST(request: NextRequest) {
 
     const isPaidPlan = (p: any) => p && typeof p === 'string' && p !== 'free'
 
-    // Si pasamos de un plan pago a otro plan pago (aunque sea “más barato”), requiere pago/checkout
-    // porque se crea una nueva suscripción con el precio del nuevo plan.
-    const isPaidToPaidChange =
-      !!currentPlan && isPaidPlan(currentPlan.plan_type) && isPaidPlan(plan_type) && !isSamePlan
+    // Regla de negocio:
+    // - Upgrade (a un plan más caro): requiere checkout ahora (nueva suscripción).
+    // - Downgrade a un plan pago más barato: se programa al final del período actual,
+    //   sin redirección. Se actualiza el monto de la suscripción existente para el próximo ciclo.
+    const isPaidToPaidDowngrade =
+      !!currentPlan && isPaidPlan(currentPlan.plan_type) && isPaidPlan(plan_type) && isDowngrade
 
     // Downgrade a free desde un plan pago: debe respetar la suscripción vigente.
     // Programamos el plan free para cuando venza el plan actual.
@@ -371,13 +409,31 @@ export async function POST(request: NextRequest) {
       }
     }
 
-    if (isUpgrade || isPaidToPaidChange) {
+    // Downgrade pago→pago: no hay checkout. Se programa para cuando termina el plan actual,
+    // y se actualiza el monto de la suscripción existente para el próximo ciclo.
+    if (isPaidToPaidDowngrade && currentPlan?.mercadopago_subscription_id) {
+      try {
+        const { updateSubscriptionAmount } = await import('../../../../lib/mercadopago/subscriptions')
+        await updateSubscriptionAmount(String(currentPlan.mercadopago_subscription_id), plan_type as any)
+        console.log('✅ Monto de suscripción Mercado Pago actualizado por downgrade programado:', {
+          subscriptionId: currentPlan.mercadopago_subscription_id,
+          nextPlan: plan_type,
+        })
+      } catch (e: any) {
+        console.warn('⚠️ No se pudo actualizar el monto de la suscripción en downgrade programado:', {
+          subscriptionId: currentPlan.mercadopago_subscription_id,
+          message: e?.message,
+        })
+      }
+    }
+
+    if (isUpgrade) {
       // UPGRADE: el cambio de plan es inmediato, pero sólo después de que Mercado Pago autorice el pago.
       // En esta API vamos a dejar el plan en estado pending y el webhook lo activará.
       newStartedAt = new Date(now)
       const thirtyOneDaysMs = 31 * 24 * 60 * 60 * 1000
       newExpiresAt = new Date(now.getTime() + thirtyOneDaysMs)
-    } else if (isDowngradeToFree) {
+    } else if (isDowngradeToFree || isPaidToPaidDowngrade) {
       // DOWNGRADE: Conserva días restantes, el nuevo plan empieza cuando termina el actual
       if (!currentPlan || !currentPlan.expires_at) {
         return NextResponse.json({ 
@@ -408,8 +464,8 @@ export async function POST(request: NextRequest) {
     let subscriptionId: string | null = null
     let subscriptionInitPoint: string | undefined = undefined
 
-    // Crear suscripción en MercadoPago cuando el cambio requiere checkout (upgrade o cambio entre planes pagos).
-    const shouldCreateSubscriptionNow = plan_type !== 'free' && (isUpgrade || isPaidToPaidChange)
+    // Sólo en upgrades a planes pagos creamos una nueva suscripción (checkout).
+    const shouldCreateSubscriptionNow = plan_type !== 'free' && isUpgrade
 
     if (shouldCreateSubscriptionNow) {
       const mpMode = (process.env.MERCADOPAGO_MODE || '').toLowerCase() // 'test' | 'production'
@@ -492,6 +548,8 @@ export async function POST(request: NextRequest) {
           started_at: newStartedAt.toISOString(),
           expires_at: newExpiresAt.toISOString(),
           renewal_count: renewalCount,
+          // En downgrade pago→pago programado NO asociamos la suscripción al plan pending para evitar que el webhook
+          // lo active antes de tiempo. Al momento de activar (GET), copiamos el subscription_id del plan anterior.
           mercadopago_subscription_id: shouldCreateSubscriptionNow ? subscriptionId : null
         })
         .select()
@@ -512,7 +570,9 @@ export async function POST(request: NextRequest) {
           started_at: newStartedAt.toISOString(),
           expires_at: newExpiresAt.toISOString(),
           renewal_count: renewalCount,
-          mercadopago_subscription_id: shouldCreateSubscriptionNow ? subscriptionId : null
+          mercadopago_subscription_id: shouldCreateSubscriptionNow
+            ? subscriptionId
+            : null
         })
         .select()
         .single()
