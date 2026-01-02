@@ -206,7 +206,7 @@ export async function createCoachSubscription({
  */
 export async function getSubscriptionInfo(subscriptionId: string) {
   try {
-    const response = await getPreApprovalClient().get({ preApprovalId: subscriptionId } as any)
+    const response = await getPreApprovalClient().get({ id: subscriptionId } as any)
 
     const nextPaymentDate =
       (response as any)?.next_payment_date ||
@@ -245,14 +245,12 @@ export async function cancelSubscription(subscriptionId: string) {
   try {
     console.log('🚫 Cancelando suscripción:', subscriptionId)
     
-    const response = await getPreApprovalClient().update(
-      {
-        preApprovalId: subscriptionId,
-        body: {
-          status: 'cancelled'
-        }
-      } as any
-    )
+    const response = await getPreApprovalClient().update({
+      id: subscriptionId,
+      body: {
+        status: 'cancelled'
+      }
+    } as any)
 
     console.log('✅ Suscripción cancelada:', {
       id: response.id,
