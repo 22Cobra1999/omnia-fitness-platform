@@ -47,7 +47,7 @@ export async function GET(request: NextRequest) {
     )
 
     // Verificar con service role si ya existe un plan activo
-    // Un plan está activo si: status = 'active' Y started_at <= now
+    // Un plan está activo si: status = 'active' Y started_at <= now Y (expires_at is null o expires_at > now)
     const now = new Date()
     
     const { data: existingPlans, error: checkError } = await supabaseService
@@ -80,11 +80,11 @@ export async function GET(request: NextRequest) {
       })
     }
 
-    // Buscar el plan que realmente está activo (started_at <= now)
+    // Buscar el plan que realmente está activo (started_at <= now y no expirado)
     const activePlan = existingPlans?.find(plan => {
-      if (!plan.started_at) return true // Si no tiene started_at, considerar activo
-      const startedAt = new Date(plan.started_at)
-      return startedAt <= now
+      const startedAtOk = !plan.started_at || new Date(plan.started_at) <= now
+      const notExpired = !plan.expires_at || new Date(plan.expires_at) > now
+      return startedAtOk && notExpired
     })
 
     // Si hay un plan activo, retornarlo
@@ -94,6 +94,31 @@ export async function GET(request: NextRequest) {
         plan: activePlan,
         pending_plan: pendingPlan || null
       })
+    }
+
+    // Si no hay plan activo (por ejemplo, el anterior expiró), pero existe un plan trial cuyo started_at ya llegó,
+    // lo promovemos a active automáticamente.
+    if (pendingPlan?.started_at) {
+      const pendingStart = new Date(pendingPlan.started_at)
+      if (pendingStart <= now) {
+        const nowIso = now.toISOString()
+        const { data: promotedPlan, error: promoteError } = await supabaseService
+          .from('planes_uso_coach')
+          .update({ status: 'active', updated_at: nowIso })
+          .eq('id', pendingPlan.id)
+          .select()
+          .single()
+
+        if (promoteError) {
+          console.error('Error promoviendo plan pending a active:', promoteError)
+        } else if (promotedPlan) {
+          return NextResponse.json({
+            success: true,
+            plan: promotedPlan,
+            pending_plan: null
+          })
+        }
+      }
     }
 
     // Si no tiene plan, crear uno free por defecto
@@ -320,6 +345,21 @@ export async function POST(request: NextRequest) {
     let newExpiresAt: Date
     let renewalCount = 0
 
+    // Si es downgrade desde un plan pago con suscripción activa, cancelar suscripción en Mercado Pago
+    // para que no se renueve/cobre el próximo período. El plan actual sigue vigente hasta expires_at.
+    if (isDowngrade && currentPlan?.mercadopago_subscription_id) {
+      try {
+        const { cancelSubscription } = await import('../../../../lib/mercadopago/subscriptions')
+        await cancelSubscription(String(currentPlan.mercadopago_subscription_id))
+        console.log('✅ Suscripción Mercado Pago cancelada por downgrade:', currentPlan.mercadopago_subscription_id)
+      } catch (e: any) {
+        console.warn('⚠️ No se pudo cancelar suscripción Mercado Pago en downgrade:', {
+          subscriptionId: currentPlan.mercadopago_subscription_id,
+          message: e?.message,
+        })
+      }
+    }
+
     // Downgrade a free desde un plan pago: debe respetar la suscripción vigente.
     // Programamos el plan free para cuando venza el plan actual.
     const isDowngradeToFree = plan_type === 'free' && !!currentPlan && currentPlan.plan_type !== 'free'
@@ -426,8 +466,9 @@ export async function POST(request: NextRequest) {
 
     // Determinar status del nuevo plan.
     // En la DB, status permite: active | cancelled | expired | trial.
-    // Usamos 'trial' como estado "pendiente" para upgrades (y cambios programados), y el webhook lo activará.
-    const targetStatus = plan_type === 'free' && !isDowngradeToFree ? 'active' : 'trial'
+    // Usamos 'trial' como estado "pendiente" para upgrades y downgrades programados.
+    // El upgrade se activa por webhook/verify; el downgrade se activará cuando started_at llegue (ver GET /api/coach/plan).
+    const targetStatus = (plan_type === 'free' && !isDowngradeToFree && !isDowngrade) ? 'active' : 'trial'
 
     let newPlan: any = null
     let createError: any = null
