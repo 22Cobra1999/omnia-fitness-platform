@@ -49,7 +49,7 @@ export async function POST(request: NextRequest) {
         // Cuando se actualiza o crea una suscripción, obtener los detalles desde Mercado Pago
         const subscriptionId = data?.id || body.id
         if (subscriptionId) {
-          await handleSubscriptionUpdateNotification(subscriptionId, action)
+          await handleSubscriptionUpdateNotification(subscriptionId, action, body)
         }
       } else if (action === 'payment.created' || action === 'payment.updated') {
         // Notificación de pago dentro de una suscripción
@@ -59,7 +59,7 @@ export async function POST(request: NextRequest) {
         // MP a veces envía sólo { data: { id } } sin status: en ese caso, buscamos el estado real desde MP.
         const subscriptionId = (data || body)?.id || (data || body)?.preapproval_id
         if (subscriptionId) {
-          await handleSubscriptionUpdateNotification(subscriptionId, action || 'unknown')
+          await handleSubscriptionUpdateNotification(subscriptionId, action || 'unknown', body)
         } else {
           await handlePreApprovalNotification(data || body)
         }
@@ -289,7 +289,7 @@ async function handlePreApprovalNotification(preApprovalData: any) {
 
     // Si MP no envía status, obtenerlo desde la API de MP y procesar en base a eso.
     if (!preApprovalData.status) {
-      await handleSubscriptionUpdateNotification(subscriptionId, 'missing_status')
+      await handleSubscriptionUpdateNotification(subscriptionId, 'missing_status', preApprovalData)
       return
     }
 
@@ -317,7 +317,7 @@ async function handlePreApprovalNotification(preApprovalData: any) {
  * Maneja notificaciones específicas de suscripción cuando se actualiza o crea
  * Obtiene los detalles actualizados desde Mercado Pago
  */
-async function handleSubscriptionUpdateNotification(subscriptionId: string, action: string) {
+async function handleSubscriptionUpdateNotification(subscriptionId: string, action: string, webhookPayload?: any) {
   try {
     console.log(`📋 Procesando notificación de suscripción (${action}):`, subscriptionId)
 
@@ -365,11 +365,7 @@ async function handleSubscriptionUpdateNotification(subscriptionId: string, acti
             ? new Date((subscriptionInfo as any).next_payment_date).toISOString()
             : null,
           mercadopago_subscription_info: subscriptionInfo as any,
-          mercadopago_subscription_last_webhook_payload: {
-            source: 'handleSubscriptionUpdateNotification',
-            action,
-            subscriptionId,
-          },
+          mercadopago_subscription_last_webhook_payload: webhookPayload ?? null,
           mercadopago_subscription_last_webhook_received_at: nowIso,
           updated_at: nowIso,
         })

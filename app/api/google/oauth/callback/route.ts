@@ -111,7 +111,7 @@ export async function GET(request: NextRequest) {
     // Obtener email real de la cuenta Google conectada (para mostrarlo en UI)
     let googleEmail: string | null = null;
     try {
-      const userInfoRes = await fetch('https://www.googleapis.com/oauth2/v2/userinfo', {
+      const userInfoRes = await fetch('https://openidconnect.googleapis.com/v1/userinfo', {
         headers: {
           Authorization: `Bearer ${access_token}`,
         },
