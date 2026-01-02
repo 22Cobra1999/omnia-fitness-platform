@@ -487,6 +487,9 @@ function PlanManagement() {
   const CurrentIcon = PLAN_ICONS[currentPlanType]
   const currentColor = PLAN_COLORS[currentPlanType]
 
+  const currentNextPaymentDate = currentPlan?.mercadopago_subscription_next_payment_date || null
+  const currentExpiresAt = currentPlan?.expires_at || null
+
   const pendingPlanType: PlanType | null = pendingPlan?.plan_type || null
   const pendingPlanStartedAt = pendingPlan?.started_at || pendingPlan?.created_at || null
   const pendingHasSubscription = !!pendingPlan?.mercadopago_subscription_id
@@ -546,6 +549,14 @@ function PlanManagement() {
                     ? currentPlanInfo.period 
                     : `Activo • ${currentPlanInfo.period}`}
                 </p>
+                {currentPlanInfo.price > 0 && (
+                  <p className="text-[11px] text-gray-500 mt-0.5">
+                    Renovación mensual automática
+                    {(currentNextPaymentDate || currentExpiresAt) ? (
+                      <> • Próximo cobro: {formatDate(currentNextPaymentDate || currentExpiresAt)}</>
+                    ) : null}
+                  </p>
+                )}
               </div>
             </div>
             <div className="text-right">
