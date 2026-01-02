@@ -352,6 +352,38 @@ async function handleSubscriptionUpdateNotification(subscriptionId: string, acti
       return
     }
 
+    // Guardar metadata de Mercado Pago para auditoría/diagnóstico
+    // (requiere columnas nuevas en planes_uso_coach; ver migración 20260102_add_mp_subscription_metadata_to_planes_uso_coach.sql)
+    try {
+      const nowIso = new Date().toISOString()
+      const { error: metaError } = await supabaseService
+        .from('planes_uso_coach')
+        .update({
+          mercadopago_subscription_status: subscriptionInfo.status ?? null,
+          mercadopago_subscription_payer_email: (subscriptionInfo as any).payer_email ?? null,
+          mercadopago_subscription_next_payment_date: (subscriptionInfo as any).next_payment_date
+            ? new Date((subscriptionInfo as any).next_payment_date).toISOString()
+            : null,
+          mercadopago_subscription_info: subscriptionInfo as any,
+          mercadopago_subscription_last_webhook_payload: {
+            source: 'handleSubscriptionUpdateNotification',
+            action,
+            subscriptionId,
+          },
+          mercadopago_subscription_last_webhook_received_at: nowIso,
+          updated_at: nowIso,
+        })
+        .eq('id', plan.id)
+
+      if (metaError) {
+        console.warn('⚠️ No se pudo persistir metadata de suscripción MP en plan:', metaError)
+      }
+    } catch (e: any) {
+      console.warn('⚠️ Error persistiendo metadata de suscripción MP en plan:', {
+        message: e?.message,
+      })
+    }
+
     // Si la suscripción está autorizada, primero activar el plan pending (si existe)
     if (subscriptionInfo.status === 'authorized') {
       await activatePendingPlanForSubscription(subscriptionId)

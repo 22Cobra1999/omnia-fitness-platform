@@ -108,6 +108,33 @@ export async function GET(request: NextRequest) {
     const encryptedAccessToken = encrypt(access_token);
     const encryptedRefreshToken = refresh_token ? encrypt(refresh_token) : null;
 
+    // Obtener email real de la cuenta Google conectada (para mostrarlo en UI)
+    let googleEmail: string | null = null;
+    try {
+      const userInfoRes = await fetch('https://www.googleapis.com/oauth2/v2/userinfo', {
+        headers: {
+          Authorization: `Bearer ${access_token}`,
+        },
+      });
+
+      if (userInfoRes.ok) {
+        const userInfo = await userInfoRes.json();
+        if (userInfo?.email && typeof userInfo.email === 'string') {
+          googleEmail = userInfo.email;
+        }
+      } else {
+        const text = await userInfoRes.text().catch(() => '');
+        console.warn('⚠️ [Google OAuth Callback] No se pudo obtener userinfo para email:', {
+          status: userInfoRes.status,
+          body: text?.slice?.(0, 500),
+        });
+      }
+    } catch (e: any) {
+      console.warn('⚠️ [Google OAuth Callback] Error obteniendo userinfo para email:', {
+        message: e?.message,
+      });
+    }
+
     // Calcular fecha de expiración
     const expiresAt = expires_in 
       ? new Date(Date.now() + expires_in * 1000).toISOString()
@@ -126,6 +153,7 @@ export async function GET(request: NextRequest) {
         refresh_token: encryptedRefreshToken, // Refresh token encriptado (si existe)
         expires_at: expiresAt,
         scope: scope || 'https://www.googleapis.com/auth/calendar',
+        google_email: googleEmail,
         updated_at: new Date().toISOString(),
       }, {
         onConflict: 'coach_id'

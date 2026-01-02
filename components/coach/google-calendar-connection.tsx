@@ -13,6 +13,7 @@ interface GoogleCalendarCredentials {
   refresh_token: string | null;
   expires_at: string | null;
   scope: string | null;
+  google_email?: string | null;
   created_at: string;
   updated_at: string;
 }
@@ -208,7 +209,7 @@ export function GoogleCalendarConnection() {
           </a>
 
           <p className="text-xs text-white/80 truncate flex-1 min-w-0">
-            {user?.email || '—'}
+            {credentials?.google_email || user?.email || '—'}
           </p>
 
           <button
