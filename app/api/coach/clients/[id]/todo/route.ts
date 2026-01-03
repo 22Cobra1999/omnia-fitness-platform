@@ -19,25 +19,22 @@ export async function GET(
 
     const { id } = await params
 
-    // Obtener tareas del cliente
-    const { data: client, error } = await supabase
-      .from('clients')
-      .select('todo_tasks')
-      .eq('id', id)
+    const { data: rows, error } = await supabase
+      .from('coach_client_pendings')
+      .select('id, task')
+      .eq('client_id', id)
       .eq('coach_id', user.id)
-      .single()
+      .order('created_at', { ascending: true })
 
     if (error) {
+      console.error('Error loading todo tasks:', error)
       return NextResponse.json(
-        { success: false, error: 'Cliente no encontrado' },
-        { status: 404 }
+        { success: false, error: 'Error al cargar tareas' },
+        { status: 500 }
       )
     }
 
-    return NextResponse.json({
-      success: true,
-      tasks: client?.todo_tasks || []
-    })
+    return NextResponse.json({ success: true, tasks: (rows || []).map((r: any) => r.task) })
 
   } catch (error) {
     console.error('Error loading todo tasks:', error)
@@ -75,44 +72,65 @@ export async function POST(
       )
     }
 
-    // Obtener tareas actuales
-    const { data: client } = await supabase
-      .from('clients')
-      .select('todo_tasks')
-      .eq('id', id)
-      .eq('coach_id', user.id)
-      .single()
-
-    const currentTasks = client?.todo_tasks || []
-    
-    // Limitar a 5 tareas máximo
-    if (currentTasks.length >= 5) {
-      return NextResponse.json(
-        { success: false, error: 'Máximo 5 tareas permitidas' },
-        { status: 400 }
-      )
-    }
-
-    const newTasks = [...currentTasks, task.trim()]
-
-    // Actualizar tareas
-    const { error } = await supabase
-      .from('clients')
-      .update({ todo_tasks: newTasks })
-      .eq('id', id)
+    const { count, error: countError } = await supabase
+      .from('coach_client_pendings')
+      .select('id', { count: 'exact', head: true })
+      .eq('client_id', id)
       .eq('coach_id', user.id)
 
-    if (error) {
+    if (countError) {
+      console.error('Error adding todo task:', countError)
+      const msg = String((countError as any)?.message || '')
+      if (msg.includes('coach_client_pendings') || msg.includes('relation') || msg.includes('does not exist')) {
+        return NextResponse.json(
+          { success: false, error: 'Falta crear la tabla coach_client_pendings en la base de datos' },
+          { status: 500 }
+        )
+      }
       return NextResponse.json(
         { success: false, error: 'Error al agregar tarea' },
         { status: 500 }
       )
     }
 
-    return NextResponse.json({
-      success: true,
-      tasks: newTasks
-    })
+    const currentCount = Number(count ?? 0) || 0
+
+    // Limitar a 5 tareas máximo
+    if (currentCount >= 5) {
+      return NextResponse.json(
+        { success: false, error: 'Máximo 5 tareas permitidas' },
+        { status: 400 }
+      )
+    }
+
+    const { error: insertError } = await supabase
+      .from('coach_client_pendings')
+      .insert({ coach_id: user.id, client_id: id, task: task.trim() })
+
+    if (insertError) {
+      console.error('Error adding todo task:', insertError)
+      return NextResponse.json(
+        { success: false, error: 'Error al agregar tarea' },
+        { status: 500 }
+      )
+    }
+
+    const { data: rows, error: listError } = await supabase
+      .from('coach_client_pendings')
+      .select('id, task')
+      .eq('client_id', id)
+      .eq('coach_id', user.id)
+      .order('created_at', { ascending: true })
+
+    if (listError) {
+      console.error('Error adding todo task:', listError)
+      return NextResponse.json(
+        { success: false, error: 'Error al agregar tarea' },
+        { status: 500 }
+      )
+    }
+
+    return NextResponse.json({ success: true, tasks: (rows || []).map((r: any) => r.task) })
 
   } catch (error) {
     console.error('Error adding todo task:', error)
@@ -150,44 +168,48 @@ export async function DELETE(
       )
     }
 
-    // Obtener tareas actuales
-    const { data: client } = await supabase
-      .from('clients')
-      .select('todo_tasks')
-      .eq('id', id)
+    const { data: rows, error: listError } = await supabase
+      .from('coach_client_pendings')
+      .select('id, task')
+      .eq('client_id', id)
       .eq('coach_id', user.id)
-      .single()
+      .order('created_at', { ascending: true })
 
-    const currentTasks = client?.todo_tasks || []
-    
-    if (taskIndex >= currentTasks.length) {
-      return NextResponse.json(
-        { success: false, error: 'Tarea no encontrada' },
-        { status: 404 }
-      )
-    }
-
-    // Eliminar tarea
-    const newTasks = currentTasks.filter((_: any, i: number) => i !== taskIndex)
-
-    // Actualizar tareas
-    const { error } = await supabase
-      .from('clients')
-      .update({ todo_tasks: newTasks })
-      .eq('id', id)
-      .eq('coach_id', user.id)
-
-    if (error) {
+    if (listError) {
+      console.error('Error deleting todo task:', listError)
       return NextResponse.json(
         { success: false, error: 'Error al eliminar tarea' },
         { status: 500 }
       )
     }
 
-    return NextResponse.json({
-      success: true,
-      tasks: newTasks
-    })
+    const ordered = rows || []
+
+    if (taskIndex >= ordered.length) {
+      return NextResponse.json(
+        { success: false, error: 'Tarea no encontrada' },
+        { status: 404 }
+      )
+    }
+
+    const rowToDelete = ordered[taskIndex]
+
+    const { error: deleteError } = await supabase
+      .from('coach_client_pendings')
+      .delete()
+      .eq('id', rowToDelete.id)
+      .eq('coach_id', user.id)
+
+    if (deleteError) {
+      console.error('Error deleting todo task:', deleteError)
+      return NextResponse.json(
+        { success: false, error: 'Error al eliminar tarea' },
+        { status: 500 }
+      )
+    }
+
+    const remaining = ordered.filter((_: any, i: number) => i !== taskIndex)
+    return NextResponse.json({ success: true, tasks: remaining.map((r: any) => r.task) })
 
   } catch (error) {
     console.error('Error deleting todo task:', error)
