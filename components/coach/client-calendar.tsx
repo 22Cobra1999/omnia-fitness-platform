@@ -65,6 +65,8 @@ export function ClientCalendar({ clientId, onLastWorkoutUpdate, onDaySelected, e
   const [selectedDate, setSelectedDate] = useState<Date | null>(null)
   const [dayData, setDayData] = useState<{ [key: string]: DayData }>({})
   const [loading, setLoading] = useState(true)
+  const [showMonthPicker, setShowMonthPicker] = useState(false)
+  const [monthPickerYear, setMonthPickerYear] = useState<number>(() => new Date().getFullYear())
   const [selectedDayExercises, setSelectedDayExercises] = useState<ExerciseExecution[]>([])
   const [editingOriginalExercise, setEditingOriginalExercise] = useState<ExerciseExecution | null>(null)
   const [showEditModal, setShowEditModal] = useState(false)
@@ -2276,6 +2278,16 @@ export function ClientCalendar({ clientId, onLastWorkoutUpdate, onDaySelected, e
     setCurrentDate(prev => new Date(prev.getFullYear(), prev.getMonth() + 1, 1))
   }
 
+  const toggleMonthPicker = () => {
+    setMonthPickerYear(currentDate.getFullYear())
+    setShowMonthPicker((prev) => !prev)
+  }
+
+  const handleSelectMonth = (monthIndex: number) => {
+    setCurrentDate(new Date(monthPickerYear, monthIndex, 1))
+    setShowMonthPicker(false)
+  }
+
   // Generar días del mes
   const generateCalendarDays = () => {
     const year = currentDate.getFullYear()
@@ -2391,9 +2403,13 @@ export function ClientCalendar({ clientId, onLastWorkoutUpdate, onDaySelected, e
           >
             <ChevronLeft className="h-4 w-4 text-gray-400 group-hover:text-[#FF7939]" />
           </button>
-          <span className="text-sm font-semibold text-white min-w-[120px] text-center">
+          <button
+            type="button"
+            onClick={toggleMonthPicker}
+            className="text-sm font-semibold text-white min-w-[120px] text-center hover:bg-[#FF7939]/10 rounded-lg px-2 py-1 transition-colors"
+          >
             {monthNames[currentDate.getMonth()]} {currentDate.getFullYear()}
-          </span>
+          </button>
           <button
             onClick={goToNextMonth}
             className="p-1.5 hover:bg-[#FF7939]/20 rounded-lg transition-all duration-200 group"
@@ -2437,6 +2453,50 @@ export function ClientCalendar({ clientId, onLastWorkoutUpdate, onDaySelected, e
         </div>
       </div>
 
+      {showMonthPicker && (
+        <div className="w-full bg-zinc-900/60 border border-zinc-700/30 rounded-xl p-3">
+          <div className="flex items-center justify-between mb-3">
+            <button
+              type="button"
+              onClick={() => setMonthPickerYear((y) => y - 1)}
+              className="p-1.5 hover:bg-[#FF7939]/20 rounded-lg transition-all duration-200"
+            >
+              <ChevronLeft className="h-4 w-4 text-gray-400" />
+            </button>
+
+            <div className="text-sm font-semibold text-white">{monthPickerYear}</div>
+
+            <button
+              type="button"
+              onClick={() => setMonthPickerYear((y) => y + 1)}
+              className="p-1.5 hover:bg-[#FF7939]/20 rounded-lg transition-all duration-200"
+            >
+              <ChevronRight className="h-4 w-4 text-gray-400" />
+            </button>
+          </div>
+
+          <div className="w-full overflow-x-auto">
+            <div className="flex gap-2 whitespace-nowrap pb-1">
+              {monthNames.map((m, idx) => {
+                const isCurrent = monthPickerYear === currentDate.getFullYear() && idx === currentDate.getMonth()
+                return (
+                  <button
+                    key={m}
+                    type="button"
+                    onClick={() => handleSelectMonth(idx)}
+                    className={`shrink-0 px-3 py-1 rounded-full text-xs font-semibold transition-colors ${
+                      isCurrent ? 'bg-[#FF7939] text-white' : 'bg-zinc-800/60 text-gray-300 hover:bg-zinc-700/60'
+                    }`}
+                  >
+                    {m}
+                  </button>
+                )
+              })}
+            </div>
+          </div>
+        </div>
+      )}
+
         {/* Calendario sin frame */}
         <div className="w-full">
         {/* Días de la semana sin fondo */}
@@ -2471,7 +2531,6 @@ export function ClientCalendar({ clientId, onLastWorkoutUpdate, onDaySelected, e
                   relative p-2 text-sm rounded-lg transition-all duration-300 min-h-[50px] flex flex-col items-center justify-start group
                   ${!isCurrentMonth ? 'text-gray-600 bg-transparent' : 'text-white'}
                   ${isSelected && !isSelectedForEdit && !isTargetForEdit ? 'bg-[#FF7939] text-white shadow-lg shadow-[#FF7939]/25' : ''}
-                  ${isToday && !isSelected ? 'border border-[#FF7939]/60' : ''}
                   ${isSelectedForEdit ? 'bg-[#FF7939]/30 border-2 border-[#FF7939] text-white' : ''}
                   ${isTargetForEdit ? 'bg-white text-black border-2 border-white' : ''}
                   ${hasExercises && !isToday && !isSelectedForEdit && !isTargetForEdit ? 'bg-zinc-800/50 hover:bg-zinc-700/70 cursor-pointer border border-zinc-600/30' : ''}
