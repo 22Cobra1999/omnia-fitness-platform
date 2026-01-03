@@ -2398,7 +2398,7 @@ export function ClientCalendar({ clientId, onLastWorkoutUpdate, onDaySelected, e
           {/* Navegación del mes - 50% */}
           <div className="flex-1 flex items-center justify-center gap-2">
           <button
-            onClick={goToPreviousMonth}
+            onClick={showMonthPicker ? () => setMonthPickerYear((y) => y - 1) : goToPreviousMonth}
             className="p-1.5 hover:bg-[#FF7939]/20 rounded-lg transition-all duration-200 group"
           >
             <ChevronLeft className="h-4 w-4 text-gray-400 group-hover:text-[#FF7939]" />
@@ -2408,10 +2408,10 @@ export function ClientCalendar({ clientId, onLastWorkoutUpdate, onDaySelected, e
             onClick={toggleMonthPicker}
             className="text-sm font-semibold text-white min-w-[120px] text-center hover:bg-[#FF7939]/10 rounded-lg px-2 py-1 transition-colors"
           >
-            {monthNames[currentDate.getMonth()]} {currentDate.getFullYear()}
+            {showMonthPicker ? monthPickerYear : `${monthNames[currentDate.getMonth()]} ${currentDate.getFullYear()}`}
           </button>
           <button
-            onClick={goToNextMonth}
+            onClick={showMonthPicker ? () => setMonthPickerYear((y) => y + 1) : goToNextMonth}
             className="p-1.5 hover:bg-[#FF7939]/20 rounded-lg transition-all duration-200 group"
           >
             <ChevronRight className="h-4 w-4 text-gray-400 group-hover:text-[#FF7939]" />
@@ -2454,27 +2454,7 @@ export function ClientCalendar({ clientId, onLastWorkoutUpdate, onDaySelected, e
       </div>
 
       {showMonthPicker && (
-        <div className="w-full bg-zinc-900/60 border border-zinc-700/30 rounded-xl p-3">
-          <div className="flex items-center justify-between mb-3">
-            <button
-              type="button"
-              onClick={() => setMonthPickerYear((y) => y - 1)}
-              className="p-1.5 hover:bg-[#FF7939]/20 rounded-lg transition-all duration-200"
-            >
-              <ChevronLeft className="h-4 w-4 text-gray-400" />
-            </button>
-
-            <div className="text-sm font-semibold text-white">{monthPickerYear}</div>
-
-            <button
-              type="button"
-              onClick={() => setMonthPickerYear((y) => y + 1)}
-              className="p-1.5 hover:bg-[#FF7939]/20 rounded-lg transition-all duration-200"
-            >
-              <ChevronRight className="h-4 w-4 text-gray-400" />
-            </button>
-          </div>
-
+        <div className="w-full">
           <div className="w-full overflow-x-auto">
             <div className="flex gap-2 whitespace-nowrap pb-1">
               {monthNames.map((m, idx) => {
