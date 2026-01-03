@@ -53,6 +53,16 @@ export function ClientsScreen() {
   const calendarContainerRef = useRef<HTMLDivElement>(null)
   const exercisesListRef = useRef<HTMLDivElement>(null)
 
+  const preserveModalScrollPosition = (fn: () => void) => {
+    const prevTop = calendarScrollRef.current?.scrollTop
+    fn()
+    setTimeout(() => {
+      if (calendarScrollRef.current && typeof prevTop === 'number') {
+        calendarScrollRef.current.scrollTop = prevTop
+      }
+    }, 0)
+  }
+
   const navigateToTab = (tab: string, section?: string) => {
     window.dispatchEvent(new CustomEvent('navigateToTab', { detail: { tab, section } }))
   }
@@ -477,7 +487,9 @@ export function ClientsScreen() {
               <button
                 className="text-center flex-1"
                 onClick={() => {
-                  setActiveClientPanel((prev) => (prev === 'progress' ? null : 'progress'))
+                  preserveModalScrollPosition(() => {
+                    setActiveClientPanel((prev) => (prev === 'progress' ? null : 'progress'))
+                  })
                 }}
               >
                 <div className="text-lg font-bold text-[#FF7939]">{clientDetail?.client?.progress || selectedClient.progress}%</div>
@@ -487,7 +499,9 @@ export function ClientsScreen() {
               <button
                 className="text-center flex-1 border-l border-zinc-800"
                 onClick={() => {
-                  setActiveClientPanel((prev) => (prev === 'activities' ? null : 'activities'))
+                  preserveModalScrollPosition(() => {
+                    setActiveClientPanel((prev) => (prev === 'activities' ? null : 'activities'))
+                  })
                 }}
               >
                 <div className="text-lg font-bold text-white">{clientDetail?.client?.activitiesCount || selectedClient.activitiesCount}</div>
@@ -498,9 +512,11 @@ export function ClientsScreen() {
                 className="text-center flex-1 border-l border-zinc-800"
                 onClick={() => {
                   if (selectedClient) {
-                    setActiveClientPanel((prev) => (prev === 'todo' ? null : 'todo'))
-                    setShowTodoSection(true)
-                    loadTodoTasks(selectedClient.id)
+                    preserveModalScrollPosition(() => {
+                      setActiveClientPanel((prev) => (prev === 'todo' ? null : 'todo'))
+                      setShowTodoSection(true)
+                      loadTodoTasks(selectedClient.id)
+                    })
                   }
                 }}
               >
@@ -511,7 +527,9 @@ export function ClientsScreen() {
               <button
                 className="text-center flex-1 border-l border-zinc-800"
                 onClick={() => {
-                  setActiveClientPanel((prev) => (prev === 'revenue' ? null : 'revenue'))
+                  preserveModalScrollPosition(() => {
+                    setActiveClientPanel((prev) => (prev === 'revenue' ? null : 'revenue'))
+                  })
                 }}
               >
                 <div className="text-lg font-bold text-white">
@@ -717,18 +735,7 @@ export function ClientsScreen() {
                     <div className="mt-4" ref={calendarContainerRef}>
                       <ClientCalendar 
                         clientId={selectedClient.id} 
-                        onDaySelected={() => {
-                          // Hacer scroll automático hacia la lista de ejercicios
-                          setTimeout(() => {
-                            if (calendarScrollRef.current && exercisesListRef.current) {
-                              const exercisesTop = exercisesListRef.current.offsetTop
-                              calendarScrollRef.current.scrollTo({
-                                top: exercisesTop - 100, // Offset para dejar espacio arriba
-                                behavior: 'smooth'
-                              })
-                            }
-                          }, 200)
-                        }}
+                        onDaySelected={() => {}}
                         exercisesListRef={exercisesListRef}
                       />
                     </div>
