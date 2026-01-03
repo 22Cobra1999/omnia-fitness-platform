@@ -1469,9 +1469,19 @@ export function ClientCalendar({ clientId, onLastWorkoutUpdate, onDaySelected, e
         })
 
         // ✅ Obtener información de actividades para determinar tipo y nombre
-        const actividadIdsNumeric = Array.from(actividadIds)
-          .map((id) => parseInt(id, 10))
-          .filter((id) => !Number.isNaN(id))
+        // Incluir también las actividades de enrollments aunque todavía no haya progreso (evita "Actividad <id>")
+        const enrollmentActivityIds = (allEnrollments || [])
+          .map((e: any) => parseInt(String(e.activity_id), 10))
+          .filter((id: number) => !Number.isNaN(id))
+
+        const actividadIdsNumeric = Array.from(
+          new Set(
+            Array.from(actividadIds)
+              .map((id) => parseInt(id, 10))
+              .filter((id) => !Number.isNaN(id))
+              .concat(enrollmentActivityIds)
+          )
+        )
         const { data: actividadesData } = await supabase
           .from('activities')
           .select('id, type, title')
