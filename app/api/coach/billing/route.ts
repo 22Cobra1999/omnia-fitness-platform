@@ -10,6 +10,7 @@ export async function GET(request: NextRequest) {
     const { searchParams } = new URL(request.url);
     const month = searchParams.get('month'); // YYYY-MM
     const year = searchParams.get('year'); // YYYY
+    const daysParam = searchParams.get('days'); // rolling range
 
     const supabase = await createRouteHandlerClient();
     const { data: { user }, error: authError } = await supabase.auth.getUser();
@@ -64,36 +65,49 @@ export async function GET(request: NextRequest) {
       .select('id, coach_id')
       .eq('coach_id', user.id);
 
-    // Construir filtro de fecha primero (necesario para suscripciones)
+    // Construir filtro de fecha
     const now = new Date();
-    let targetMonth: number;
-    let targetYear: number;
-    
-    if (month) {
-      // month viene como "YYYY-MM"
-      const parts = month.split('-');
-      targetYear = parseInt(parts[0]);
-      targetMonth = parseInt(parts[1]);
+    const days = daysParam ? Number(daysParam) : null;
+    let startDate: string;
+    let endDate: string;
+    let periodLabel: string;
+
+    if (days && Number.isFinite(days) && days > 0) {
+      const start = new Date(now.getTime() - days * 24 * 60 * 60 * 1000);
+      startDate = start.toISOString();
+      endDate = now.toISOString();
+      periodLabel = `last-${days}-days`;
     } else {
-      targetMonth = now.getMonth() + 1;
-      targetYear = now.getFullYear();
+      let targetMonth: number;
+      let targetYear: number;
+
+      if (month) {
+        // month viene como "YYYY-MM"
+        const parts = month.split('-');
+        targetYear = parseInt(parts[0]);
+        targetMonth = parseInt(parts[1]);
+      } else {
+        targetMonth = now.getMonth() + 1;
+        targetYear = now.getFullYear();
+      }
+
+      if (year) {
+        targetYear = parseInt(year);
+      }
+
+      // Validar que el mes y año sean válidos
+      if (isNaN(targetMonth) || targetMonth < 1 || targetMonth > 12) {
+        return NextResponse.json({ error: 'Mes inválido' }, { status: 400 });
+      }
+
+      if (isNaN(targetYear) || targetYear < 2000 || targetYear > 2100) {
+        return NextResponse.json({ error: 'Año inválido' }, { status: 400 });
+      }
+
+      startDate = new Date(targetYear, targetMonth - 1, 1).toISOString();
+      endDate = new Date(targetYear, targetMonth, 0, 23, 59, 59).toISOString();
+      periodLabel = `${targetYear}-${String(targetMonth).padStart(2, '0')}`;
     }
-    
-    if (year) {
-      targetYear = parseInt(year);
-    }
-    
-    // Validar que el mes y año sean válidos
-    if (isNaN(targetMonth) || targetMonth < 1 || targetMonth > 12) {
-      return NextResponse.json({ error: 'Mes inválido' }, { status: 400 });
-    }
-    
-    if (isNaN(targetYear) || targetYear < 2000 || targetYear > 2100) {
-      return NextResponse.json({ error: 'Año inválido' }, { status: 400 });
-    }
-    
-    const startDate = new Date(targetYear, targetMonth - 1, 1).toISOString();
-    const endDate = new Date(targetYear, targetMonth, 0, 23, 59, 59).toISOString();
 
     // Obtener suscripciones de planes del mes (siempre, incluso si no hay ventas)
     let planSubscriptionsList: Array<{id: string, date: string, planType: string, amount: number}> = [];
@@ -122,7 +136,7 @@ export async function GET(request: NextRequest) {
     if (!activities || activities.length === 0) {
       return NextResponse.json({
         success: true,
-        month: `${targetYear}-${String(targetMonth).padStart(2, '0')}`,
+        month: periodLabel,
         totalIncome: 0,
         totalCommission: 0,
         planFee: planFee,
@@ -143,7 +157,7 @@ export async function GET(request: NextRequest) {
     if (!enrollments || enrollments.length === 0) {
       return NextResponse.json({
         success: true,
-        month: `${targetYear}-${String(targetMonth).padStart(2, '0')}`,
+        month: periodLabel,
         totalIncome: 0,
         totalCommission: 0,
         planFee: planFee,
@@ -156,6 +170,8 @@ export async function GET(request: NextRequest) {
     const enrollmentIds = enrollments.map((e: any) => e.id);
 
     // Obtener pagos del mes
+    // Nota: payment_date puede venir null (ej: algunos registros antiguos).
+    // Para no perder ventas, filtramos por (payment_date en rango) OR (payment_date is null y created_at en rango).
     const { data: payments, error: paymentsError } = await supabase
       .from('banco')
       .select(`
@@ -180,15 +196,16 @@ export async function GET(request: NextRequest) {
       `)
       .in('enrollment_id', enrollmentIds)
       .eq('payment_status', 'completed')
-      .gte('payment_date', startDate)
-      .lte('payment_date', endDate)
-      .order('payment_date', { ascending: false });
+      .or(
+        `and(payment_date.gte.${startDate},payment_date.lte.${endDate}),and(payment_date.is.null,created_at.gte.${startDate},created_at.lte.${endDate})`
+      )
+      .order('created_at', { ascending: false });
 
     if (paymentsError) {
       console.error('Error obteniendo pagos:', paymentsError);
       return NextResponse.json({
         success: true,
-        month: `${targetYear}-${String(targetMonth).padStart(2, '0')}`,
+        month: periodLabel,
         totalIncome: 0,
         totalCommission: 0,
         planFee,
@@ -248,13 +265,16 @@ export async function GET(request: NextRequest) {
     // El fee del plan se expone por separado como gasto/abono mensual.
     const earnings = totalIncome - totalCommission;
 
+    const totalSales = invoices.length
+
     return NextResponse.json({
       success: true,
-      month: `${targetYear}-${String(targetMonth).padStart(2, '0')}`,
+      month: periodLabel,
       totalIncome,
       totalCommission,
       planFee,
       earnings,
+      totalSales,
       invoices,
       planSubscriptions: planSubscriptionsList,
       salesBreakdown,

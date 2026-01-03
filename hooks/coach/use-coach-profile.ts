@@ -19,6 +19,7 @@ interface CoachProfile {
   birth_date?: string | null
   age_years?: number | null
   certifications_count?: number
+  total_sales?: number | null
 }
 
 interface SalesData {
@@ -158,18 +159,15 @@ export function useCoachProfile() {
           location: coach.location || null,
           birth_date: coach.birth_date || null,
           age_years: computeAge(coach.birth_date || null),
-          certifications_count: certificationsCount
+          certifications_count: certificationsCount,
+          total_sales: null
         }
 
         setProfile(coachProfile)
 
-        // Obtener datos de ganancias del mes actual + breakdown real por tipo
+        // Obtener datos de ganancias (últimos 30 días) + breakdown real por tipo
         try {
-          const now = new Date()
-          const currentMonth = String(now.getMonth() + 1).padStart(2, '0')
-          const currentYear = now.getFullYear()
-          
-          const billingResponse = await fetch(`/api/coach/billing?month=${currentYear}-${currentMonth}&year=${currentYear}`)
+          const billingResponse = await fetch(`/api/coach/billing?days=30`)
           if (billingResponse.ok) {
             const billingData = await billingResponse.json()
             setEarningsData({
@@ -186,6 +184,8 @@ export function useCoachProfile() {
               documents: Number(breakdown.documents || 0),
               consultations: Number(breakdown.consultations || 0),
             })
+
+            setProfile((prev) => (prev ? { ...prev, total_sales: Number(billingData.totalSales || 0) } : prev))
           }
         } catch (earningsError) {
           console.error('Error cargando datos de ganancias:', earningsError)

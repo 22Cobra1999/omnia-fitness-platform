@@ -53,6 +53,20 @@ function MobileAppContent() {
     }
   }, [searchParams])
 
+  // Mantener la URL consistente con el tab activo
+  // Evita casos donde a veces queda /?tab=profile y otras veces / (sin query).
+  useEffect(() => {
+    if (typeof window === 'undefined') return
+    const tab = activeTab
+    // Solo reflejar tabs navegables por URL
+    const urlTabs = ['community', 'search', 'calendar', 'profile', 'messages']
+    if (!urlTabs.includes(tab)) return
+
+    const newUrl = new URL(window.location.href)
+    newUrl.searchParams.set('tab', tab)
+    window.history.replaceState({}, '', newUrl.toString())
+  }, [activeTab])
+
   // Manejar parámetro mp_auth para mostrar notificaciones
   useEffect(() => {
     if (typeof window === 'undefined') return

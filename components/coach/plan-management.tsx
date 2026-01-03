@@ -551,9 +551,8 @@ function PlanManagement() {
                 </p>
                 {currentPlanInfo.price > 0 && (
                   <p className="text-xs text-gray-300 mt-1">
-                    Débito automático mensual
                     {(currentNextPaymentDate || currentExpiresAt) ? (
-                      <> • Próximo cobro: {formatDate(currentNextPaymentDate || currentExpiresAt)}</>
+                      <>Próximo cobro: {formatDate(currentNextPaymentDate || currentExpiresAt)}</>
                     ) : null}
                   </p>
                 )}
