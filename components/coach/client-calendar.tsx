@@ -2829,7 +2829,7 @@ export function ClientCalendar({ clientId, onLastWorkoutUpdate, onDaySelected, e
                         exerciseDate.setHours(0, 0, 0, 0)
                         const isFutureDate = exerciseDate > today
                         
-                        return isFutureDate ? (
+                        return isFutureDate && !exercise.is_nutricion ? (
                           <button
                             onClick={() => handleEditSeries(exercise.id, exercise.detalle_series)}
                             className="p-1 text-gray-400 hover:text-[#FF7939] transition-colors ml-auto"
