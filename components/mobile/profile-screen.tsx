@@ -24,7 +24,6 @@ import {
   BookOpen,
   Users,
   FileText as DocumentIcon,
-  Coffee,
   MessageCircle,
   ShoppingCart,
   Clock,
@@ -623,6 +622,9 @@ export function ProfileScreen() {
               <p className="text-xs text-gray-500">
                 Ganancia Bruta: ${earningsData.totalIncome.toLocaleString('es-AR', { minimumFractionDigits: 0, maximumFractionDigits: 0 })}
               </p>
+              <p className="text-xs text-gray-500 mt-1">
+                Suscripción: -${earningsData.planFee.toLocaleString('es-AR', { minimumFractionDigits: 0, maximumFractionDigits: 0 })}
+              </p>
             </div>
           </div>
 
@@ -635,33 +637,33 @@ export function ProfileScreen() {
               {/* Programas */}
               <div 
                 className="bg-[#FF7939] flex items-center justify-center text-white text-xs font-medium"
-                style={{ width: `${(salesData.programs / Math.max(...Object.values(salesData), 1) * 100)}%` }}
+                style={{ width: `${((salesData.programs || 0) / Math.max((Object.values(salesData).reduce((a, b) => a + (Number(b) || 0), 0)), 1) * 100)}%` }}
               >
-                {salesData.programs > 0 && salesData.programs}
+                {salesData.programs > 0 && `${Math.round(salesData.programs / 1000)}k`}
               </div>
               
               {/* Talleres */}
               <div 
                 className="bg-[#FF8C42] flex items-center justify-center text-white text-xs font-medium"
-                style={{ width: `${(salesData.workshops / Math.max(...Object.values(salesData), 1) * 100)}%` }}
+                style={{ width: `${((salesData.workshops || 0) / Math.max((Object.values(salesData).reduce((a, b) => a + (Number(b) || 0), 0)), 1) * 100)}%` }}
               >
-                {salesData.workshops > 0 && salesData.workshops}
+                {salesData.workshops > 0 && `${Math.round(salesData.workshops / 1000)}k`}
               </div>
               
               {/* Documentos */}
               <div 
                 className="bg-[#FF9F5A] flex items-center justify-center text-white text-xs font-medium"
-                style={{ width: `${(salesData.documents / Math.max(...Object.values(salesData), 1) * 100)}%` }}
+                style={{ width: `${((salesData.documents || 0) / Math.max((Object.values(salesData).reduce((a, b) => a + (Number(b) || 0), 0)), 1) * 100)}%` }}
               >
-                {salesData.documents > 0 && salesData.documents}
+                {salesData.documents > 0 && `${Math.round(salesData.documents / 1000)}k`}
               </div>
               
-              {/* Cefe + Consultas combinado */}
+              {/* Consultas */}
               <div 
                 className="bg-white flex items-center justify-center text-[#121212] text-xs font-medium"
-                style={{ width: `${(salesData.cefe / Math.max(...Object.values(salesData), 1) * 100)}%` }}
+                style={{ width: `${((salesData.consultations || 0) / Math.max((Object.values(salesData).reduce((a, b) => a + (Number(b) || 0), 0)), 1) * 100)}%` }}
               >
-                {salesData.cefe > 0 && salesData.cefe}
+                {salesData.consultations > 0 && `${Math.round(salesData.consultations / 1000)}k`}
               </div>
             </div>
           </div>
@@ -681,8 +683,8 @@ export function ProfileScreen() {
               <span className="text-gray-400 text-center">Documentos</span>
             </div>
             <div className="flex flex-col items-center">
-              <Coffee className="h-4 w-4 text-white mb-1" />
-              <span className="text-gray-400 text-center">Cefe + Consultas</span>
+              <MessageCircle className="h-4 w-4 text-white mb-1" />
+              <span className="text-gray-400 text-center">Consultas</span>
             </div>
           </div>
         </div>

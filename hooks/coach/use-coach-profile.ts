@@ -25,7 +25,6 @@ interface SalesData {
   programs: number
   workshops: number
   documents: number
-  cefe: number
   consultations: number
 }
 
@@ -52,7 +51,6 @@ export function useCoachProfile() {
     programs: 0,
     workshops: 0,
     documents: 0,
-    cefe: 0,
     consultations: 0
   })
   const [earningsData, setEarningsData] = useState<EarningsData>({
@@ -130,6 +128,21 @@ export function useCoachProfile() {
           return age
         }
 
+        // Contar certificaciones desde coach_certifications (incluye no verificadas)
+        let certificationsCount = 0
+        try {
+          const { count: certCount, error: certError } = await supabase
+            .from('coach_certifications')
+            .select('id', { count: 'exact', head: true })
+            .eq('coach_id', user.id)
+
+          if (!certError) {
+            certificationsCount = certCount || 0
+          }
+        } catch {
+          // noop
+        }
+
         // Combinar datos del perfil
         const coachProfile: CoachProfile = {
           id: coach.id,
@@ -145,23 +158,12 @@ export function useCoachProfile() {
           location: coach.location || null,
           birth_date: coach.birth_date || null,
           age_years: computeAge(coach.birth_date || null),
-          certifications_count: Array.isArray(coach.certifications) ? coach.certifications.length : 0
+          certifications_count: certificationsCount
         }
 
         setProfile(coachProfile)
 
-        // Obtener datos de ventas (simulado por ahora)
-        // TODO: Implementar consultas reales a las tablas de ventas
-        const mockSalesData: SalesData = {
-          programs: 12,
-          workshops: 3,
-          documents: 8,
-          cefe: 30, // Combinado con consultas (5 + 25)
-          consultations: 0 // Ya incluido en cefe
-        }
-        setSalesData(mockSalesData)
-
-        // Obtener datos de ganancias del mes actual
+        // Obtener datos de ganancias del mes actual + breakdown real por tipo
         try {
           const now = new Date()
           const currentMonth = String(now.getMonth() + 1).padStart(2, '0')
@@ -175,6 +177,14 @@ export function useCoachProfile() {
               totalCommission: billingData.totalCommission || 0,
               planFee: billingData.planFee || 0,
               earnings: billingData.earnings || 0
+            })
+
+            const breakdown = billingData.salesBreakdown || {}
+            setSalesData({
+              programs: Number(breakdown.programs || 0),
+              workshops: Number(breakdown.workshops || 0),
+              documents: Number(breakdown.documents || 0),
+              consultations: Number(breakdown.consultations || 0),
             })
           }
         } catch (earningsError) {

@@ -201,11 +201,11 @@ export default function CoachProfileModal({
 
     try {
       const supabase = createClient()
-      const { data: coachData, error } = await supabase
-        .from('coaches')
-        .select('certifications')
-        .eq('id', coach.id)
-        .single()
+      const { data: certs, error } = await supabase
+        .from('coach_certifications')
+        .select('id, name, issuer, year, file_url, verified, created_at')
+        .eq('coach_id', coach.id)
+        .order('created_at', { ascending: false })
 
       if (error) {
         console.warn('⚠️ Error cargando certificados del coach:', error.message)
@@ -213,18 +213,12 @@ export default function CoachProfileModal({
         return
       }
 
-      if (coachData && coachData.certifications) {
-        // certifications es un array de strings (text[])
-        const certs = Array.isArray(coachData.certifications) 
-          ? coachData.certifications 
-          : []
-        const filteredCerts = certs.filter(Boolean)
-        console.log('📜 Certificados cargados:', filteredCerts)
-        setCoachCertifications(filteredCerts)
-      } else {
-        console.log('📜 No hay certificados para este coach')
-        setCoachCertifications([])
-      }
+      const normalized = (certs || []).map((c: any) => {
+        const issuer = c.issuer ? ` - ${c.issuer}` : ''
+        const year = c.year ? ` (${c.year})` : ''
+        return `${c.name || 'Certificación'}${issuer}${year}`
+      })
+      setCoachCertifications(normalized)
     } catch (error) {
       console.error('Error cargando certificados del coach:', error)
       setCoachCertifications([])

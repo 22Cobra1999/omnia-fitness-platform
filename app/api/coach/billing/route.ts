@@ -172,7 +172,9 @@ export async function GET(request: NextRequest) {
           activities!activity_enrollments_activity_id_fkey!inner(
             id,
             title,
-            price
+            price,
+            type,
+            categoria
           )
         )
       `)
@@ -202,6 +204,13 @@ export async function GET(request: NextRequest) {
     let totalIncome = 0;
     let totalCommission = 0;
 
+    const salesBreakdown = {
+      programs: 0,
+      workshops: 0,
+      documents: 0,
+      consultations: 0,
+    };
+
     const invoices = (payments || []).map((payment: any) => {
       const amount = parseFloat(payment.amount_paid?.toString() || '0');
       const commission = parseFloat(payment.marketplace_fee?.toString() || '0') || (amount * commissionRate);
@@ -209,6 +218,20 @@ export async function GET(request: NextRequest) {
 
       totalIncome += amount;
       totalCommission += commission;
+
+      const activity = payment.activity_enrollments?.activities;
+      const activityType = String(activity?.type || '').toLowerCase();
+      const activityCategory = String(activity?.categoria || '').toLowerCase();
+      const normalized = activityCategory || activityType;
+      if (normalized.includes('program')) {
+        salesBreakdown.programs += sellerAmount;
+      } else if (normalized.includes('workshop') || normalized.includes('taller')) {
+        salesBreakdown.workshops += sellerAmount;
+      } else if (normalized.includes('document') || normalized.includes('doc')) {
+        salesBreakdown.documents += sellerAmount;
+      } else if (normalized.includes('consult')) {
+        salesBreakdown.consultations += sellerAmount;
+      }
 
       return {
         id: payment.id,
@@ -221,7 +244,9 @@ export async function GET(request: NextRequest) {
       };
     });
 
-    const earnings = totalIncome - totalCommission - planFee;
+    // Ganancia neta del coach (por ventas/enrollments) sin incluir fee del plan.
+    // El fee del plan se expone por separado como gasto/abono mensual.
+    const earnings = totalIncome - totalCommission;
 
     return NextResponse.json({
       success: true,
@@ -232,6 +257,7 @@ export async function GET(request: NextRequest) {
       earnings,
       invoices,
       planSubscriptions: planSubscriptionsList,
+      salesBreakdown,
       planType
     });
 
