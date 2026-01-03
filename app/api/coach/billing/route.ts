@@ -239,14 +239,16 @@ export async function GET(request: NextRequest) {
       const activity = payment.activity_enrollments?.activities;
       const activityType = String(activity?.type || '').toLowerCase();
       const activityCategory = String(activity?.categoria || '').toLowerCase();
-      const normalized = activityCategory || activityType;
+      const activityTitle = String(activity?.title || '').toLowerCase();
+      // Priorizar el type (program/workshop/document/consultation) y usar categoria/título solo como fallback.
+      const normalized = activityType || activityCategory || activityTitle;
       if (normalized.includes('program')) {
         salesBreakdown.programs += sellerAmount;
       } else if (normalized.includes('workshop') || normalized.includes('taller')) {
         salesBreakdown.workshops += sellerAmount;
       } else if (normalized.includes('document') || normalized.includes('doc')) {
         salesBreakdown.documents += sellerAmount;
-      } else if (normalized.includes('consult')) {
+      } else if (normalized.includes('consult') || normalized.includes('cafe') || normalized.includes('coffee')) {
         salesBreakdown.consultations += sellerAmount;
       }
 

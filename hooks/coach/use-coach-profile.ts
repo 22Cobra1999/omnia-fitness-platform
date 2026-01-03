@@ -185,7 +185,9 @@ export function useCoachProfile() {
               consultations: Number(breakdown.consultations || 0),
             })
 
-            setProfile((prev) => (prev ? { ...prev, total_sales: Number(billingData.totalSales || 0) } : prev))
+            const totalSalesRaw = Number((billingData as any)?.totalSales)
+            const safeTotalSales = Number.isFinite(totalSalesRaw) ? totalSalesRaw : 0
+            setProfile((prev) => (prev ? { ...prev, total_sales: safeTotalSales } : prev))
           }
         } catch (earningsError) {
           console.error('Error cargando datos de ganancias:', earningsError)

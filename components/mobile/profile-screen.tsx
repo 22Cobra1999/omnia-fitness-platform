@@ -495,9 +495,8 @@ export function ProfileScreen() {
           coach={{
             ...coachProfile,
             rating: coachProfile?.rating,
-            total_sales: salesData ? 
-              (salesData.programs + salesData.workshops + salesData.documents + salesData.cefe + salesData.consultations) : 
-              null
+            // total_sales viene del billing endpoint (totalSales) y representa cantidad de ventas
+            total_sales: Number.isFinite(Number(coachProfile?.total_sales)) ? Number(coachProfile?.total_sales) : 0
           } || {}}
           variant="profile"
           showEditButton={true}
@@ -633,27 +632,39 @@ export function ProfileScreen() {
           
           {/* Barra de progreso segmentada - 4 segmentos */}
           <div className="mb-3">
-            <div className="flex rounded-xl overflow-hidden h-8">
+            {(() => {
+              const values = Object.values(salesData || {}) as any[]
+              const total = values.reduce((a, b) => a + (Number(b) || 0), 0)
+              const denom = Math.max(total, 1)
+
+              if (total <= 0) {
+                return (
+                  <div className="flex rounded-xl overflow-hidden h-8 bg-white/10" />
+                )
+              }
+
+              return (
+                <div className="flex rounded-xl overflow-hidden h-8">
               {/* Programas */}
               <div 
-                className="bg-[#FF7939] flex items-center justify-center text-white text-xs font-medium"
-                style={{ width: `${((salesData.programs || 0) / Math.max((Object.values(salesData).reduce((a, b) => a + (Number(b) || 0), 0)), 1) * 100)}%` }}
+                className="bg-[#FF6A00] flex items-center justify-center text-white text-xs font-medium"
+                style={{ width: `${((Number(salesData.programs) || 0) / denom) * 100}%` }}
               >
                 {salesData.programs > 0 && `${Math.round(salesData.programs / 1000)}k`}
               </div>
               
               {/* Talleres */}
               <div 
-                className="bg-[#FF8C42] flex items-center justify-center text-white text-xs font-medium"
-                style={{ width: `${((salesData.workshops || 0) / Math.max((Object.values(salesData).reduce((a, b) => a + (Number(b) || 0), 0)), 1) * 100)}%` }}
+                className="bg-[#FFD1A6] flex items-center justify-center text-[#121212] text-xs font-medium"
+                style={{ width: `${((Number(salesData.workshops) || 0) / denom) * 100}%` }}
               >
                 {salesData.workshops > 0 && `${Math.round(salesData.workshops / 1000)}k`}
               </div>
               
               {/* Documentos */}
               <div 
-                className="bg-[#FF9F5A] flex items-center justify-center text-white text-xs font-medium"
-                style={{ width: `${((salesData.documents || 0) / Math.max((Object.values(salesData).reduce((a, b) => a + (Number(b) || 0), 0)), 1) * 100)}%` }}
+                className="bg-[#FF9FC4] flex items-center justify-center text-white text-xs font-medium"
+                style={{ width: `${((Number(salesData.documents) || 0) / denom) * 100}%` }}
               >
                 {salesData.documents > 0 && `${Math.round(salesData.documents / 1000)}k`}
               </div>
@@ -661,25 +672,27 @@ export function ProfileScreen() {
               {/* Consultas */}
               <div 
                 className="bg-white flex items-center justify-center text-[#121212] text-xs font-medium"
-                style={{ width: `${((salesData.consultations || 0) / Math.max((Object.values(salesData).reduce((a, b) => a + (Number(b) || 0), 0)), 1) * 100)}%` }}
+                style={{ width: `${((Number(salesData.consultations) || 0) / denom) * 100}%` }}
               >
                 {salesData.consultations > 0 && `${Math.round(salesData.consultations / 1000)}k`}
               </div>
-            </div>
+                </div>
+              )
+            })()}
           </div>
           
           {/* Leyendas - 4 categorías */}
           <div className="grid grid-cols-4 gap-2 text-xs">
             <div className="flex flex-col items-center">
-              <BookOpen className="h-4 w-4 text-[#FF7939] mb-1" />
+              <BookOpen className="h-4 w-4 text-[#FF6A00] mb-1" />
               <span className="text-gray-400 text-center">Programas</span>
             </div>
             <div className="flex flex-col items-center">
-              <Users className="h-4 w-4 text-[#FF8C42] mb-1" />
+              <Users className="h-4 w-4 text-[#FFD1A6] mb-1" />
               <span className="text-gray-400 text-center">Talleres</span>
             </div>
             <div className="flex flex-col items-center">
-              <DocumentIcon className="h-4 w-4 text-[#FF9F5A] mb-1" />
+              <DocumentIcon className="h-4 w-4 text-[#FF9FC4] mb-1" />
               <span className="text-gray-400 text-center">Documentos</span>
             </div>
             <div className="flex flex-col items-center">

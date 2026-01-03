@@ -1,6 +1,6 @@
 "use client"
 
-import { MapPin, User, Star, Flame } from "lucide-react"
+import { Award, Flame, MapPin, Star, User } from "lucide-react"
 
 interface CoachPersonalInfoSectionProps {
   coach: {
@@ -229,80 +229,65 @@ export function CoachPersonalInfoSection({
 
         {/* Nombre centrado */}
         <div className="text-center mb-2">
-          <h1 className="text-lg font-semibold">
-            {displayName}
-          </h1>
+          <h1 className="text-lg font-semibold">{displayName}</h1>
         </div>
 
-        {/* Información organizada en filas */}
-        <div className="space-y-2">
-          {/* Rating, Ventas, Ubicación y edad */}
-          <div className="flex items-center justify-center space-x-4 flex-wrap">
-            {/* Rating */}
-            {coach.rating && coach.rating > 0 ? (
-              <div className="flex items-center text-[#FF7939]">
-                <Star className="h-4 w-4 fill-current mr-1" />
-                <span className="text-sm font-semibold">{coach.rating.toFixed(1)}</span>
-              </div>
-            ) : null}
-            
-            {/* Ventas totales */}
-            {coach.total_sales !== null && coach.total_sales !== undefined && (
-              <div className="flex items-center text-gray-300">
-                <span className="text-sm">{coach.total_sales} ventas</span>
-              </div>
-            )}
-            
-            {/* Ubicación */}
-            <div className="flex items-center space-x-1">
-              <MapPin className="h-4 w-4 text-gray-400" />
-              <span className="text-sm text-gray-300">
-                {coach.location || "No especificada"}
-              </span>
+        {/* Rating + Ventas + Certificaciones */}
+        <div className="flex items-center justify-center gap-4 mb-2 flex-wrap">
+          {coach.rating && coach.rating > 0 ? (
+            <div className="flex items-center text-[#FF7939]">
+              <Star className="h-4 w-4 fill-current mr-1" />
+              <span className="text-sm font-semibold">{coach.rating.toFixed(1)}</span>
             </div>
-            
-            {/* Edad */}
-            <div className="flex items-center space-x-1">
-              <span className="text-sm text-gray-300">
-                {coach.age_years ? `${coach.age_years} años` : "N/A"}
-              </span>
+          ) : null}
+
+          {coach.total_sales !== null && coach.total_sales !== undefined && (
+            <div className="flex items-center text-gray-300">
+              <span className="text-sm">{coach.total_sales} ventas</span>
             </div>
-          </div>
+          )}
 
-          {/* Bio */}
-          <div className="text-center">
-            <span className="text-sm text-gray-300">
-              {coach.bio || "Sin biografía"}
-            </span>
-          </div>
-
-          {/* Especialidades - chips estilo ActivityCard */}
-          <div className="text-center">
-            {specs.length === 0 ? (
-              <span className="text-sm text-gray-300">Sin especialidades</span>
-            ) : (
-              <div className="flex flex-wrap justify-center gap-1">
-                {specs.map((spec, idx) => (
-                  <span
-                    key={`${spec}-${idx}`}
-                    className="bg-[#FF7939]/20 text-[#FF7939] text-[10px] px-1.5 py-0.5 rounded-full font-medium border border-[#FF7939]/30 whitespace-nowrap"
-                  >
-                    {spec}
-                  </span>
-                ))}
-              </div>
-            )}
-          </div>
-
-          {/* Certificaciones */}
-          <div className="text-center">
-            <span className="text-sm text-gray-300">
-              Certificaciones: {certificationsCount}
-            </span>
+          <div className="flex items-center text-gray-300">
+            <Award className="h-4 w-4 text-gray-400 mr-1" />
+            <span className="text-sm">{certificationsCount} cert.</span>
           </div>
         </div>
+
+        {/* Ubicación + Edad */}
+        <div className="flex items-center justify-center gap-4 mb-3 flex-wrap">
+          <div className="flex items-center space-x-1">
+            <MapPin className="h-4 w-4 text-gray-400" />
+            <span className="text-sm text-gray-300">{coach.location || "No especificada"}</span>
+          </div>
+
+          {coach.age_years ? (
+            <div className="flex items-center">
+              <span className="text-sm text-gray-300">{coach.age_years} años</span>
+            </div>
+          ) : null}
+        </div>
+
+        {/* Bio */}
+        {coach.bio && (
+          <div className="text-center mb-3">
+            <p className="text-gray-300 text-sm">{coach.bio}</p>
+          </div>
+        )}
+
+        {/* Especialidades */}
+        {specs.length > 0 && (
+          <div className="flex flex-wrap justify-center gap-2 pt-1">
+            {specs.map((spec, idx) => (
+              <span
+                key={`${spec}-${idx}`}
+                className="bg-[#FF7939]/20 text-[#FF7939] text-xs px-3 py-1 rounded-full"
+              >
+                {spec}
+              </span>
+            ))}
+          </div>
+        )}
       </div>
     </div>
   )
 }
-
