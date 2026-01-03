@@ -1468,6 +1468,14 @@ export function ClientCalendar({ clientId, onLastWorkoutUpdate, onDaySelected, e
           }
         })
 
+        // ✅ Obtener enrollments para calcular versiones
+        const { data: allEnrollments } = await supabase
+          .from('activity_enrollments')
+          .select('id, activity_id, created_at, start_date')
+          .eq('client_id', clientId)
+          .eq('status', 'activa')
+          .order('created_at', { ascending: true })
+
         // ✅ Obtener información de actividades para determinar tipo y nombre
         // Incluir también las actividades de enrollments aunque todavía no haya progreso (evita "Actividad <id>")
         const enrollmentActivityIds = (allEnrollments || [])
@@ -1493,14 +1501,6 @@ export function ClientCalendar({ clientId, onLastWorkoutUpdate, onDaySelected, e
           actividadTypes.set(String(act.id), act.type)
           actividadTitulos.set(String(act.id), act.title)
         })
-
-        // ✅ Obtener enrollments para calcular versiones
-        const { data: allEnrollments } = await supabase
-          .from('activity_enrollments')
-          .select('id, activity_id, created_at, start_date')
-          .eq('client_id', clientId)
-          .eq('status', 'activa')
-          .order('created_at', { ascending: true })
 
         // ✅ Calcular versión para cada enrollment (basado en orden de compra del mismo producto)
         const enrollmentVersions = new Map<number, number>()
