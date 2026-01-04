@@ -847,6 +847,7 @@ export default function CreateProductModal({ isOpen, onClose, editingProduct, in
     image: null as File | { url: string } | null,
     videoUrl: '',
     modality: 'online',
+    included_meet_credits: 0 as number,
     is_public: false,
     objetivos: [] as string[],
     capacity: 'ilimitada' as string,
@@ -1957,6 +1958,7 @@ export default function CreateProductModal({ isOpen, onClose, editingProduct, in
         level: specificForm.level || 'beginner', // ✅ Corregido: level en lugar de difficulty
         capacity: capacity, // ✅ capacity guarda el stock (no stockQuantity)
         type: generalForm.modality || 'online', // ✅ Corregido: type en lugar de modality
+        included_meet_credits: selectedType === 'workshop' ? 0 : (generalForm.included_meet_credits || 0),
         is_public: generalForm.is_public !== false,
         // stockQuantity no existe - capacity es el campo que guarda el stock
         coach_id: user.id,
@@ -3827,6 +3829,14 @@ export default function CreateProductModal({ isOpen, onClose, editingProduct, in
       }
       
       // Establecer datos generales del formulario
+      const normalizeModality = (raw: any): 'online' | 'presencial' | 'híbrido' => {
+        const value = String(raw || 'online').toLowerCase().trim()
+        if (value === 'hibrido') return 'híbrido'
+        if (value === 'híbrido') return 'híbrido'
+        if (value === 'presencial') return 'presencial'
+        return 'online'
+      }
+
       setGeneralFormWithLogs({
         ...generalForm,
         name: editingProduct.name || '',
@@ -3834,7 +3844,10 @@ export default function CreateProductModal({ isOpen, onClose, editingProduct, in
         price: editingProduct.price?.toString() || '0',
         image: imageUrl ? { url: imageUrl } : null,
         videoUrl: editingProduct.video_url || '',
-        modality: (editingProduct.type as any) || 'online',
+        modality: normalizeModality((editingProduct as any).modality),
+        included_meet_credits: typeof (editingProduct as any).included_meet_credits === 'number'
+          ? (editingProduct as any).included_meet_credits
+          : parseInt(String((editingProduct as any).included_meet_credits ?? '0'), 10) || 0,
         is_public: editingProduct.is_public !== false,
         capacity: capacityType,
         stockQuantity: stockQuantity,
@@ -3983,7 +3996,7 @@ export default function CreateProductModal({ isOpen, onClose, editingProduct, in
                     <button
                       onClick={() => {
                         setSelectedType('document')
-                        setCurrentStep('general')
+                        setCurrentStep('programType')
                       }}
                       className={`p-3 rounded-lg border transition-all text-left flex items-start gap-2 ${
                         selectedType === 'document'
@@ -4042,36 +4055,40 @@ export default function CreateProductModal({ isOpen, onClose, editingProduct, in
                 mediaType={mediaModalType}
               />
 
-              {/* Paso 2: Categoría (solo para programas) */}
-              {currentStep === 'programType' && selectedType === 'program' && (
+              {/* Paso 2: Categoría y entrega (programas y documentos) */}
+              {currentStep === 'programType' && (selectedType === 'program' || selectedType === 'document') && (
                 <div className="space-y-4">
-                  <h3 className="text-base font-semibold text-white mb-6">
-                    ¿En qué categoría se enfoca tu producto?
-                  </h3>
-                  <div className="grid grid-cols-2 gap-3">
-                    {([
-                      { type: 'fitness' as ProgramSubType, label: 'Fitness', icon: Zap },
-                      { type: 'nutrition' as ProgramSubType, label: 'Nutrición', icon: UtensilsCrossed }
-                    ]).map(({ type, label, icon: Icon }) => (
-                      <button
-                        key={type}
-                        onClick={() => {
-                          setSelectedProgramType(type)
-                          setProductCategory(type === 'fitness' ? 'fitness' : 'nutricion')
-                        }}
-                        className={`p-3 rounded-lg border transition-all text-left ${
-                          selectedProgramType === type
-                            ? 'border-[#FF7939] bg-[#FF7939]/10'
-                            : 'border-white/10 bg-black hover:border-[#FF7939]/50'
-                        }`}
-                      >
-                        <Icon className="h-5 w-5 mb-1 text-[#FF7939]" />
-                        <h4 className="text-sm font-semibold text-white">
-                          {label}
-                        </h4>
-                      </button>
-                    ))}
-                  </div>
+                  {selectedType === 'program' && (
+                    <>
+                      <h3 className="text-base font-semibold text-white mb-6">
+                        ¿En qué categoría se enfoca tu producto?
+                      </h3>
+                      <div className="grid grid-cols-2 gap-3">
+                        {([
+                          { type: 'fitness' as ProgramSubType, label: 'Fitness', icon: Zap },
+                          { type: 'nutrition' as ProgramSubType, label: 'Nutrición', icon: UtensilsCrossed }
+                        ]).map(({ type, label, icon: Icon }) => (
+                          <button
+                            key={type}
+                            onClick={() => {
+                              setSelectedProgramType(type)
+                              setProductCategory(type === 'fitness' ? 'fitness' : 'nutricion')
+                            }}
+                            className={`p-3 rounded-lg border transition-all text-left ${
+                              selectedProgramType === type
+                                ? 'border-[#FF7939] bg-[#FF7939]/10'
+                                : 'border-white/10 bg-black hover:border-[#FF7939]/50'
+                            }`}
+                          >
+                            <Icon className="h-5 w-5 mb-1 text-[#FF7939]" />
+                            <h4 className="text-sm font-semibold text-white">
+                              {label}
+                            </h4>
+                          </button>
+                        ))}
+                      </div>
+                    </>
+                  )}
 
                   <div className="mt-6 space-y-5">
                     <div className="flex items-center justify-between rounded-lg border border-white/10 bg-black p-4">
@@ -4143,6 +4160,46 @@ export default function CreateProductModal({ isOpen, onClose, editingProduct, in
                         ))}
                       </div>
                     </div>
+
+                    {selectedType !== 'workshop' && (
+                      <div className="rounded-lg border border-white/10 bg-black p-4">
+                        <div className="flex items-center justify-between">
+                          <div className="space-y-1">
+                            <div className="text-sm font-semibold text-white">Créditos de meet</div>
+                            <div className="text-xs text-gray-400">Reuniones 1:1 incluidas por cliente.</div>
+                          </div>
+                          <Switch
+                            checked={(generalForm.included_meet_credits || 0) > 0}
+                            onCheckedChange={(checked) => {
+                              setGeneralFormWithLogs({
+                                ...generalForm,
+                                included_meet_credits: checked ? Math.max(generalForm.included_meet_credits || 1, 1) : 0
+                              })
+                            }}
+                          />
+                        </div>
+
+                        {(generalForm.included_meet_credits || 0) > 0 && (
+                          <div className="mt-4">
+                            <div className="text-xs text-gray-400 mb-1">Cantidad</div>
+                            <input
+                              inputMode="numeric"
+                              value={String(generalForm.included_meet_credits || 0)}
+                              onChange={(e) => {
+                                const raw = e.target.value.replace(/\D/g, '')
+                                const parsed = raw === '' ? 0 : Math.max(parseInt(raw, 10) || 0, 0)
+                                setGeneralFormWithLogs({
+                                  ...generalForm,
+                                  included_meet_credits: parsed
+                                })
+                              }}
+                              className="w-full bg-black border border-white/10 rounded-lg px-3 py-2 text-sm text-white placeholder:text-gray-600 focus:outline-none focus:border-[#FF7939]"
+                              placeholder="0"
+                            />
+                          </div>
+                        )}
+                      </div>
+                    )}
                   </div>
                 </div>
               )}

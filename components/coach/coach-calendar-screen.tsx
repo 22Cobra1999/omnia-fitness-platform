@@ -2,7 +2,7 @@
 
 import { useState, useEffect, useCallback, useMemo } from "react"
 import { createClient } from "@/lib/supabase/supabase-client"
-import { Calendar, Clock, Video, ExternalLink, Users, RefreshCw } from "lucide-react"
+import { Calendar, Clock, Video, ExternalLink, Users, RefreshCw, Plus } from "lucide-react"
 import { format, startOfMonth, endOfMonth, eachDayOfInterval, isSameDay, isToday, addMonths, subMonths, addDays, subDays, addYears, subYears } from "date-fns"
 import { es } from "date-fns/locale"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
@@ -56,10 +56,123 @@ export default function CoachCalendarScreen() {
   const [viewMode, setViewMode] = useState<'month' | 'today'>('month') // ✅ Vista: mes o hoy
   const [syncing, setSyncing] = useState(false)
   const [showMonthSelector, setShowMonthSelector] = useState(false)
-  const [showYearSelector, setShowYearSelector] = useState(false)
+  const [monthPickerYear, setMonthPickerYear] = useState<number>(() => new Date().getFullYear())
   const [cachedEvents, setCachedEvents] = useState<Map<string, CalendarEvent[]>>(new Map())
 
+  const [showCreateEventModal, setShowCreateEventModal] = useState(false)
+  const [createEventLoading, setCreateEventLoading] = useState(false)
+  const [clientsForMeet, setClientsForMeet] = useState<Array<{ id: string; name: string; email: string }>>([])
+  const [newEventTitle, setNewEventTitle] = useState('')
+  const [newEventDate, setNewEventDate] = useState<string>('')
+  const [newEventStartTime, setNewEventStartTime] = useState<string>('')
+  const [newEventEndTime, setNewEventEndTime] = useState<string>('')
+  const [newEventClientId, setNewEventClientId] = useState<string>('')
+  const [newEventIsFree, setNewEventIsFree] = useState(true)
+  const [newEventPrice, setNewEventPrice] = useState<string>('')
+
   const supabase = createClient()
+
+  const openCreateEventModal = () => {
+    const baseDate = selectedDate || new Date()
+    const yyyyMmDd = baseDate.toISOString().split('T')[0]
+    setNewEventDate(yyyyMmDd)
+    setNewEventStartTime('')
+    setNewEventEndTime('')
+    setNewEventTitle('')
+    setNewEventClientId('')
+    setNewEventIsFree(true)
+    setNewEventPrice('')
+    setShowCreateEventModal(true)
+  }
+
+  const closeCreateEventModal = () => {
+    setShowCreateEventModal(false)
+  }
+
+  const ensureClientsLoaded = useCallback(async () => {
+    try {
+      const res = await fetch('/api/coach/clients', { credentials: 'include' })
+      const data = await res.json().catch(() => null)
+      const list = Array.isArray(data?.clients) ? data.clients : []
+      setClientsForMeet(
+        list.map((c: any) => ({
+          id: String(c?.id || ''),
+          name: String(c?.name || 'Cliente'),
+          email: String(c?.email || ''),
+        })).filter((c: any) => !!c.id)
+      )
+    } catch {
+      setClientsForMeet([])
+    }
+  }, [])
+
+  const createEvent = async () => {
+    if (!coachId) return
+    if (!newEventTitle.trim()) {
+      toast.error('Ingresá un tema')
+      return
+    }
+    if (!newEventDate) {
+      toast.error('Seleccioná una fecha')
+      return
+    }
+    if (!newEventStartTime || !newEventEndTime) {
+      toast.error('Seleccioná hora de inicio y fin')
+      return
+    }
+
+    const startISO = new Date(`${newEventDate}T${newEventStartTime}:00`).toISOString()
+    const endISO = new Date(`${newEventDate}T${newEventEndTime}:00`).toISOString()
+
+    setCreateEventLoading(true)
+    try {
+      const notes = newEventIsFree
+        ? 'Gratis'
+        : `Precio: ${newEventPrice}`
+
+      const { data: inserted, error } = await supabase
+        .from('calendar_events')
+        .insert({
+          coach_id: coachId,
+          title: newEventTitle.trim(),
+          start_time: startISO,
+          end_time: endISO,
+          event_type: 'consultation',
+          status: 'scheduled',
+          client_id: newEventClientId || null,
+          notes,
+        } as any)
+        .select('id')
+        .maybeSingle()
+
+      if (error) {
+        console.error('Error creating event:', error)
+        toast.error('No se pudo crear el evento')
+        return
+      }
+
+      closeCreateEventModal()
+      toast.success('Evento creado')
+
+      // Intentar crear Meet automáticamente si Google está conectado
+      if (googleConnected && inserted?.id) {
+        try {
+          await fetch('/api/google/calendar/auto-create-meet', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            credentials: 'include',
+            body: JSON.stringify({ eventId: inserted.id }),
+          })
+        } catch {
+          // No bloquear
+        }
+      }
+
+      await getCoachEvents()
+    } finally {
+      setCreateEventLoading(false)
+    }
+  }
 
   // Verificar conexión con Google
   const checkGoogleConnection = useCallback(async () => {
@@ -269,7 +382,7 @@ export default function CoachCalendarScreen() {
             .in('id', clientIds)
 
           if (clients) {
-            clientNames = clients.reduce((acc, client) => {
+            clientNames = clients.reduce((acc: Record<string, string>, client: { id: string; full_name: string | null }) => {
               acc[client.id] = client.full_name || 'Cliente'
               return acc
             }, {} as Record<string, string>)
@@ -287,7 +400,7 @@ export default function CoachCalendarScreen() {
             .in('id', activityIds)
 
           if (activities) {
-            activityNames = activities.reduce((acc, activity) => {
+            activityNames = activities.reduce((acc: Record<string, string>, activity: { id: number; title: string | null }) => {
               acc[activity.id] = activity.title || 'Actividad'
               return acc
             }, {} as Record<string, string>)
@@ -472,37 +585,31 @@ export default function CoachCalendarScreen() {
   useEffect(() => {
     const handleClickOutside = (event: MouseEvent) => {
       const target = event.target as HTMLElement
-      if (!target.closest('[data-month-selector]') && !target.closest('[data-year-selector]')) {
+      if (!target.closest('[data-month-selector]')) {
         setShowMonthSelector(false)
-        setShowYearSelector(false)
       }
     }
     
-    if (showMonthSelector || showYearSelector) {
+    if (showMonthSelector) {
       document.addEventListener('mousedown', handleClickOutside)
       return () => document.removeEventListener('mousedown', handleClickOutside)
     }
-  }, [showMonthSelector, showYearSelector])
+  }, [showMonthSelector])
 
   // Efecto separado para verificar conexión de Google cuando cambia el usuario
   useEffect(() => {
     checkGoogleConnection()
   }, [checkGoogleConnection])
 
-  // Navegar entre años
-  const goToPreviousYear = () => setCurrentDate(subMonths(currentDate, 12))
-  const goToNextYear = () => setCurrentDate(addMonths(currentDate, 12))
+  const goToPreviousMonth = () => setCurrentDate(subMonths(currentDate, 1))
+  const goToNextMonth = () => setCurrentDate(addMonths(currentDate, 1))
+  const goToPreviousPickerYear = () => setMonthPickerYear((y) => y - 1)
+  const goToNextPickerYear = () => setMonthPickerYear((y) => y + 1)
   
   // Cambiar mes directamente
   const changeMonth = (monthIndex: number) => {
-    setCurrentDate(new Date(currentDate.getFullYear(), monthIndex, 1))
+    setCurrentDate(new Date(monthPickerYear, monthIndex, 1))
     setShowMonthSelector(false)
-  }
-  
-  // Cambiar año directamente
-  const changeYear = (year: number) => {
-    setCurrentDate(new Date(year, currentDate.getMonth(), 1))
-    setShowYearSelector(false)
   }
   
   // Meses en español
@@ -511,9 +618,7 @@ export default function CoachCalendarScreen() {
     'Julio', 'Agosto', 'Septiembre', 'Octubre', 'Noviembre', 'Diciembre'
   ]
   
-  // Generar años para el selector (año actual ± 5 años)
   const currentYear = currentDate.getFullYear()
-  const availableYears = Array.from({ length: 11 }, (_, i) => currentYear - 5 + i)
 
   // Manejar click en evento
   const handleEventClick = (event: CalendarEvent) => {
@@ -665,8 +770,8 @@ export default function CoachCalendarScreen() {
   return (
     <div className="h-screen bg-[#121212] overflow-y-auto pb-20">
       <div className="p-4">
-        {/* Botón de vista Hoy/Mes y Sincronizar - Centrado */}
-        <div className="mb-6 flex items-center justify-center gap-4">
+        {/* Botón Hoy/Mes centrado + crear meet a la derecha */}
+        <div className="mb-6 relative flex items-center justify-center">
           <Button
             variant="ghost"
             onClick={viewMode === 'month' ? goToToday : toggleView}
@@ -674,17 +779,18 @@ export default function CoachCalendarScreen() {
           >
             {viewMode === 'month' ? 'Hoy' : 'Mes'}
           </Button>
-          {googleConnected && (
-            <Button
-              variant="ghost"
-              onClick={handleSyncGoogleCalendar}
-              disabled={syncing}
-              className="text-[#FF7939] hover:bg-transparent hover:text-[#FF7939] font-light text-sm px-2 py-1 h-auto flex items-center gap-2"
-            >
-              <RefreshCw className={`h-4 w-4 ${syncing ? 'animate-spin' : ''}`} />
-              {syncing ? 'Sincronizando...' : 'Sincronizar'}
-            </Button>
-          )}
+
+          <button
+            type="button"
+            onClick={async () => {
+              if (clientsForMeet.length === 0) await ensureClientsLoaded()
+              openCreateEventModal()
+            }}
+            className="absolute right-0 w-7 h-7 rounded-full bg-[#FF7939] text-black flex items-center justify-center shadow-md shadow-[#FF7939]/20 hover:bg-[#ff8a55] transition-colors"
+            title="Crear Meet"
+          >
+            <Plus className="h-4 w-4" />
+          </button>
         </div>
 
         {/* Vista Mes */}
@@ -695,88 +801,60 @@ export default function CoachCalendarScreen() {
               <Button
                 variant="ghost"
                 size="sm"
-                onClick={goToPreviousYear}
+                onClick={showMonthSelector ? goToPreviousPickerYear : goToPreviousMonth}
                 className="text-white hover:bg-zinc-800"
-                title="Año anterior"
+                title={showMonthSelector ? 'Año anterior' : 'Mes anterior'}
               >
                 ←
               </Button>
               
-              <div className="flex items-center gap-2">
-                {/* Selector de año */}
-                <button
-                  onClick={() => {
-                    setShowYearSelector(!showYearSelector)
-                    setShowMonthSelector(false)
-                  }}
-                  className="text-lg font-semibold text-[#FFB366] hover:text-[#FF7939] transition-colors"
-                >
-                  {currentDate.getFullYear()}
-                </button>
-                
-                {/* Selector de mes */}
-                <button
-                  onClick={() => {
-                    setShowMonthSelector(!showMonthSelector)
-                    setShowYearSelector(false)
-                  }}
-                  className="text-lg font-semibold text-[#FFB366] capitalize hover:text-[#FF7939] transition-colors"
-                >
-                  {format(currentDate, 'MMMM', { locale: es })}
-                </button>
-              </div>
-              
-              <Button
-                variant="ghost"
-                size="sm"
-                onClick={goToNextYear}
-                className="text-white hover:bg-zinc-800"
-                title="Año siguiente"
+              <button
+                onClick={() => {
+                  setMonthPickerYear(currentDate.getFullYear())
+                  setShowMonthSelector((v) => !v)
+                }}
+                className="text-lg font-semibold text-[#FFB366] capitalize hover:text-[#FF7939] transition-colors"
               >
-                →
-              </Button>
+                {showMonthSelector
+                  ? String(monthPickerYear)
+                  : `${format(currentDate, 'MMMM', { locale: es })} ${currentDate.getFullYear()}`}
+              </button>
+
+              <div className="flex items-center gap-2">
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  onClick={showMonthSelector ? goToNextPickerYear : goToNextMonth}
+                  className="text-white hover:bg-zinc-800"
+                  title={showMonthSelector ? 'Año siguiente' : 'Mes siguiente'}
+                >
+                  →
+                </Button>
+              </div>
               
               {/* Selector de meses */}
               {showMonthSelector && (
                 <div 
                   data-month-selector
-                  className="absolute top-full left-1/2 transform -translate-x-1/2 mt-2 bg-zinc-900 border border-zinc-800 rounded-lg p-3 z-50 shadow-xl grid grid-cols-3 gap-2 min-w-[280px]"
+                  className="absolute top-full left-1/2 transform -translate-x-1/2 mt-2 z-50 w-full"
                 >
-                  {monthNames.map((month, index) => (
-                    <button
-                      key={index}
-                      onClick={() => changeMonth(index)}
-                      className={`px-4 py-2 rounded-lg text-sm transition-colors ${
-                        currentDate.getMonth() === index
-                          ? 'bg-[#FF7939] text-white font-semibold'
-                          : 'text-gray-300 hover:bg-zinc-800'
-                      }`}
-                    >
-                      {month}
-                    </button>
-                  ))}
-                </div>
-              )}
-              
-              {/* Selector de años */}
-              {showYearSelector && (
-                <div 
-                  data-year-selector
-                  className="absolute top-full left-1/2 transform -translate-x-1/2 mt-2 bg-zinc-900 border border-zinc-800 rounded-lg p-3 z-50 shadow-xl grid grid-cols-3 gap-2 min-w-[200px] max-h-[300px] overflow-y-auto"
-                >
-                  {availableYears.map((year) => (
-                    <button
-                      key={year}
-                      onClick={() => changeYear(year)}
-                      className={`px-4 py-2 rounded-lg text-sm transition-colors ${
-                        currentDate.getFullYear() === year
-                          ? 'bg-[#FF7939] text-white font-semibold'
-                          : 'text-gray-300 hover:bg-zinc-800'
-                      }`}
-                    >
-                      {year}
-                    </button>
-                  ))}
+                  <div className="w-full overflow-x-auto">
+                    <div className="flex gap-2 whitespace-nowrap pb-1">
+                      {monthNames.map((month, index) => (
+                        <button
+                          key={index}
+                          onClick={() => changeMonth(index)}
+                          className={`shrink-0 px-3 py-1 rounded-full text-xs font-semibold transition-colors ${
+                            monthPickerYear === currentYear && currentDate.getMonth() === index
+                              ? 'bg-[#FF7939] text-white'
+                              : 'bg-zinc-800/60 text-gray-300 hover:bg-zinc-700/60'
+                          }`}
+                        >
+                          {month}
+                        </button>
+                      ))}
+                    </div>
+                  </div>
                 </div>
               )}
             </div>
@@ -1266,6 +1344,124 @@ export default function CoachCalendarScreen() {
           />
         )}
       </div>
+
+      {showCreateEventModal && (
+        <div className="fixed inset-0 z-[60] bg-black/60 flex items-center justify-center p-4">
+          <div className="w-full max-w-md bg-zinc-950 border border-zinc-800 rounded-2xl p-4">
+            <div className="flex items-center justify-between mb-3">
+              <div className="text-white font-semibold">Crear Meet / Evento</div>
+              <button
+                type="button"
+                onClick={closeCreateEventModal}
+                className="w-8 h-8 rounded-full hover:bg-white/10 text-white flex items-center justify-center"
+              >
+                ×
+              </button>
+            </div>
+
+            <div className="space-y-3">
+              <div>
+                <div className="text-xs text-gray-400 mb-1">Tema</div>
+                <input
+                  value={newEventTitle}
+                  onChange={(e) => setNewEventTitle(e.target.value)}
+                  className="w-full bg-black/40 border border-white/10 rounded-lg px-3 py-2 text-sm text-white placeholder-gray-500 focus:outline-none focus:border-[#FF7939]"
+                  placeholder="Ej: Reunión seguimiento"
+                />
+              </div>
+
+              <div className="grid grid-cols-2 gap-2">
+                <div>
+                  <div className="text-xs text-gray-400 mb-1">Fecha</div>
+                  <input
+                    type="date"
+                    value={newEventDate}
+                    onChange={(e) => setNewEventDate(e.target.value)}
+                    className="w-full bg-black/40 border border-white/10 rounded-lg px-3 py-2 text-sm text-white focus:outline-none focus:border-[#FF7939]"
+                  />
+                </div>
+                <div>
+                  <div className="text-xs text-gray-400 mb-1">Cliente</div>
+                  <select
+                    value={newEventClientId}
+                    onChange={(e) => setNewEventClientId(e.target.value)}
+                    className="w-full bg-black/40 border border-white/10 rounded-lg px-3 py-2 text-sm text-white focus:outline-none focus:border-[#FF7939]"
+                  >
+                    <option value="">(Opcional)</option>
+                    {clientsForMeet.map((c) => (
+                      <option key={c.id} value={c.id}>{c.name}</option>
+                    ))}
+                  </select>
+                </div>
+              </div>
+
+              <div className="grid grid-cols-2 gap-2">
+                <div>
+                  <div className="text-xs text-gray-400 mb-1">Inicio</div>
+                  <input
+                    type="time"
+                    value={newEventStartTime}
+                    onChange={(e) => setNewEventStartTime(e.target.value)}
+                    className="w-full bg-black/40 border border-white/10 rounded-lg px-3 py-2 text-sm text-white focus:outline-none focus:border-[#FF7939]"
+                  />
+                </div>
+                <div>
+                  <div className="text-xs text-gray-400 mb-1">Fin</div>
+                  <input
+                    type="time"
+                    value={newEventEndTime}
+                    onChange={(e) => setNewEventEndTime(e.target.value)}
+                    className="w-full bg-black/40 border border-white/10 rounded-lg px-3 py-2 text-sm text-white focus:outline-none focus:border-[#FF7939]"
+                  />
+                </div>
+              </div>
+
+              <div className="flex items-center justify-between">
+                <div className="text-xs text-gray-400">Gratis</div>
+                <button
+                  type="button"
+                  onClick={() => setNewEventIsFree((v) => !v)}
+                  className={`w-12 h-6 rounded-full transition-colors ${newEventIsFree ? 'bg-[#FF7939]' : 'bg-zinc-700'}`}
+                >
+                  <div className={`h-5 w-5 rounded-full bg-black transition-transform ${newEventIsFree ? 'translate-x-6' : 'translate-x-1'}`} />
+                </button>
+              </div>
+
+              {!newEventIsFree && (
+                <div>
+                  <div className="text-xs text-gray-400 mb-1">Precio</div>
+                  <input
+                    inputMode="decimal"
+                    value={newEventPrice}
+                    onChange={(e) => setNewEventPrice(e.target.value)}
+                    className="w-full bg-black/40 border border-white/10 rounded-lg px-3 py-2 text-sm text-white placeholder-gray-500 focus:outline-none focus:border-[#FF7939]"
+                    placeholder="Ej: 15000"
+                  />
+                </div>
+              )}
+
+              <div className="flex gap-2 pt-2">
+                <button
+                  type="button"
+                  onClick={closeCreateEventModal}
+                  className="flex-1 px-4 py-2 rounded-lg bg-zinc-800 text-white text-sm hover:bg-zinc-700 transition-colors"
+                  disabled={createEventLoading}
+                >
+                  Cancelar
+                </button>
+                <button
+                  type="button"
+                  onClick={createEvent}
+                  className="flex-1 px-4 py-2 rounded-lg bg-[#FF7939] text-black text-sm font-semibold hover:bg-[#ff8a55] transition-colors disabled:opacity-60"
+                  disabled={createEventLoading}
+                >
+                  {createEventLoading ? 'Guardando...' : 'Crear'}
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   )
 }

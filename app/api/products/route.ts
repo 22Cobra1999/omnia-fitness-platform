@@ -604,6 +604,7 @@ export async function GET(request: NextRequest) {
           is_public: product.is_public || false,
           capacity: product.capacity !== null && product.capacity !== undefined ? product.capacity : null,
           modality: product.modality || null,
+          included_meet_credits: typeof (product as any).included_meet_credits === 'number' ? (product as any).included_meet_credits : 0,
           created_at: product.created_at,
           updated_at: product.updated_at,
           // Valores seguros para campos que pueden no existir
@@ -771,6 +772,7 @@ export async function POST(request: NextRequest) {
         type: body.modality === 'workshop' ? 'workshop' : (body.modality === 'document' ? 'document' : 'program'),
         // ✅ modality = modalidad (online/presencial/híbrido)
         modality: body.type || 'online',
+        included_meet_credits: body.modality === 'workshop' ? 0 : (typeof body.included_meet_credits === 'number' ? body.included_meet_credits : parseInt(String(body.included_meet_credits ?? '0'), 10) || 0),
         // ✅ categoria = fitness o nutricion (no confundir con type)
         categoria: body.categoria || 'fitness',
         difficulty: body.level, // Usar difficulty en lugar de level
@@ -1135,6 +1137,7 @@ export async function PUT(request: NextRequest) {
         type: body.modality === 'workshop' ? 'workshop' : (body.modality === 'document' ? 'document' : 'program'),
         // ✅ modality = modalidad (online/presencial/híbrido)
         modality: body.type || 'online',
+        included_meet_credits: body.modality === 'workshop' ? 0 : (typeof body.included_meet_credits === 'number' ? body.included_meet_credits : parseInt(String(body.included_meet_credits ?? '0'), 10) || 0),
         // ✅ categoria = fitness o nutricion (no confundir con type)
         categoria: body.categoria || 'fitness',
         difficulty: body.level,

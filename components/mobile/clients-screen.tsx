@@ -451,11 +451,31 @@ export function ClientsScreen() {
                     />
                   </div>
                   
-                  {/* Nombre */}
-                  <div className="flex items-center gap-2">
-                    <h3 className="font-semibold text-lg text-white">{selectedClient.name}</h3>
+                  {/* Nombre + acciones */}
+                  <div className="flex items-center justify-center gap-3">
                     <button
-                      className="p-1 hover:bg-black/20 rounded-full transition-colors"
+                      type="button"
+                      className="w-9 h-9 rounded-full bg-white/10 backdrop-blur-md border border-white/15 flex items-center justify-center shadow-sm hover:bg-white/15 transition-colors"
+                      title="Crear Meet"
+                      onClick={() => {
+                        try {
+                          const url = `/` + `?tab=calendar&clientId=${encodeURIComponent(selectedClient.id)}`
+                          router.push(url)
+                          navigateToTab('calendar')
+                        } catch {
+                          navigateToTab('calendar')
+                        }
+                      }}
+                    >
+                      <Calendar className="h-4 w-4 text-white/85" />
+                    </button>
+
+                    <h3 className="font-semibold text-lg text-white mx-1">{selectedClient.name}</h3>
+
+                    <button
+                      type="button"
+                      className="w-9 h-9 rounded-full bg-white/10 backdrop-blur-md border border-white/15 flex items-center justify-center shadow-sm hover:bg-white/15 transition-colors"
+                      title="Mensajes"
                       onClick={() => {
                         // Navegar a mensajes y dejar el clientId en query para poder preseleccionar conversación
                         try {
@@ -468,7 +488,7 @@ export function ClientsScreen() {
                         closeClientModal()
                       }}
                     >
-                      <MessageSquare className="h-4 w-4 text-white/80 hover:text-white" />
+                      <MessageSquare className="h-4 w-4 text-white/85" />
                     </button>
                   </div>
                   
@@ -594,6 +614,8 @@ export function ClientsScreen() {
                       </button>
                     </div>
 
+                    <div className="h-px w-full bg-white/10" />
+
                     {showTodoInput && (
                       <div className="flex gap-2">
                         <input
@@ -627,13 +649,13 @@ export function ClientsScreen() {
                       <div className="space-y-2">
                         {todoTasks.map((t, idx) => (
                           <div key={idx} className="flex items-center justify-between bg-black/30 rounded-lg px-3 py-2">
-                            <div className="text-sm text-white">{t}</div>
+                            <div className="text-sm text-white pr-3">{t}</div>
                             <button
-                              className="text-xs text-gray-300 hover:text-white"
+                              type="button"
                               onClick={() => completeTask(idx)}
-                            >
-                              Completar
-                            </button>
+                              className="w-5 h-5 rounded-full border border-white/30 hover:border-[#FF7939] hover:bg-[#FF7939]/20 transition-colors flex items-center justify-center shrink-0"
+                              title="Completar"
+                            />
                           </div>
                         ))}
                       </div>
