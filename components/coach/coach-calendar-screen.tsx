@@ -2,7 +2,7 @@
 
 import { useState, useEffect, useCallback, useMemo } from "react"
 import { createClient } from "@/lib/supabase/supabase-client"
-import { Calendar, Clock, Video, ExternalLink, Users, RefreshCw, Plus, Search } from "lucide-react"
+import { Calendar, Clock, Video, ExternalLink, Users, RefreshCw, Plus, Search, Pencil, ChevronDown, Trash2 } from "lucide-react"
 import { format, startOfMonth, endOfMonth, eachDayOfInterval, isSameDay, isToday, addMonths, subMonths, addDays, subDays, addYears, subYears } from "date-fns"
 import { es } from "date-fns/locale"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
@@ -14,6 +14,7 @@ import { toast } from 'sonner'
 // import { MeetingJoinButton } from "@/components/google/MeetingJoinButton"
 import { WorkshopEventModal } from "./workshop-event-modal"
 import { WorkshopEventDetailModal } from "./workshop-event-detail-modal"
+import { parseISO } from 'date-fns'
 
 interface CalendarEvent {
   id: string
@@ -48,7 +49,7 @@ export default function CoachCalendarScreen() {
   const [events, setEvents] = useState<CalendarEvent[]>([])
   const [loading, setLoading] = useState(true)
   const [currentDate, setCurrentDate] = useState(new Date())
-  const [selectedDate, setSelectedDate] = useState<Date | null>(null)
+  const [selectedDate, setSelectedDate] = useState<Date | null>(new Date())
   const [coachId, setCoachId] = useState<string | null>(null)
   const [googleConnected, setGoogleConnected] = useState(false)
   const [selectedEvent, setSelectedEvent] = useState<CalendarEvent | null>(null)
@@ -61,6 +62,11 @@ export default function CoachCalendarScreen() {
 
   const [showCreateEventModal, setShowCreateEventModal] = useState(false)
   const [createEventLoading, setCreateEventLoading] = useState(false)
+  const [meetModalMode, setMeetModalMode] = useState<'create' | 'edit'>('create')
+  const [editingEventId, setEditingEventId] = useState<string | null>(null)
+  const [editingEventMeetLink, setEditingEventMeetLink] = useState<string | null>(null)
+  const [editingEventGoogleId, setEditingEventGoogleId] = useState<string | null>(null)
+  const [isMeetEditing, setIsMeetEditing] = useState(false)
   const [clientsForMeet, setClientsForMeet] = useState<
     Array<{
       id: string
@@ -84,12 +90,85 @@ export default function CoachCalendarScreen() {
 
   const supabase = createClient()
 
-  const openCreateEventModal = () => {
+  const pad2 = (n: number) => String(n).padStart(2, '0')
+  const getDefaultStartTime = () => {
+    const now = new Date()
+    now.setMinutes(0, 0, 0)
+    now.setHours(now.getHours() + 1)
+    return `${pad2(now.getHours())}:${pad2(now.getMinutes())}`
+  }
+
+  const deleteMeeting = async () => {
+    if (meetModalMode !== 'edit' || !editingEventId) return
+    const ok = window.confirm('¿Eliminar esta reunión?')
+    if (!ok) return
+
+    setCreateEventLoading(true)
+    try {
+      const { error } = await supabase.from('calendar_events').delete().eq('id', editingEventId)
+      if (error) {
+        toast.error(error.message || 'No se pudo eliminar la reunión')
+        return
+      }
+
+      toast.success('Reunión eliminada')
+      closeCreateEventModal()
+      setCachedEvents(() => new Map())
+      await getCoachEvents()
+    } finally {
+      setCreateEventLoading(false)
+    }
+  }
+  const getDefaultEndTime = (startTime: string) => {
+    const [h, m] = startTime.split(':').map((v) => Number(v))
+    const end = new Date()
+    end.setHours(h, m || 0, 0, 0)
+    end.setHours(end.getHours() + 1)
+    return `${pad2(end.getHours())}:${pad2(end.getMinutes())}`
+  }
+
+  const openCreateEventModal = async (event?: CalendarEvent) => {
+    // Modo editar (reunión existente)
+    if (event && event.event_type === 'consultation') {
+      const start = parseISO(event.start_time)
+      const end = parseISO(event.end_time)
+
+      setMeetModalMode('edit')
+      setEditingEventId(event.id)
+      setEditingEventMeetLink(event.meet_link || null)
+      setEditingEventGoogleId(event.google_event_id || null)
+      setIsMeetEditing(false)
+
+      setNewEventDate(format(start, 'yyyy-MM-dd'))
+      setNewEventStartTime(format(start, 'HH:mm'))
+      setNewEventEndTime(format(end, 'HH:mm'))
+      setNewEventTitle(event.title || '')
+      setNewEventNotes(String(event.description || ''))
+
+      // Mantener clientes (no editable en edit para evitar inconsistencias)
+      setSelectedClientIds(event.client_id ? [event.client_id] : [])
+      setNewEventIsFree(true)
+      setNewEventPrice('')
+      setShowClientPicker(false)
+      setClientSearch('')
+      setShowCreateEventModal(true)
+
+      if (clientsForMeet.length === 0) await ensureClientsLoaded()
+      return
+    }
+
+    // Modo crear
+    setMeetModalMode('create')
+    setEditingEventId(null)
+    setEditingEventMeetLink(null)
+    setEditingEventGoogleId(null)
+    setIsMeetEditing(true)
+
     const baseDate = selectedDate || new Date()
-    const yyyyMmDd = baseDate.toISOString().split('T')[0]
-    setNewEventDate(yyyyMmDd)
-    setNewEventStartTime('')
-    setNewEventEndTime('')
+    setNewEventDate(format(baseDate, 'yyyy-MM-dd'))
+    const defaultStart = getDefaultStartTime()
+    setNewEventStartTime(defaultStart)
+    setNewEventEndTime(getDefaultEndTime(defaultStart))
     setNewEventTitle('')
     setNewEventNotes('')
     setSelectedClientIds([])
@@ -98,10 +177,17 @@ export default function CoachCalendarScreen() {
     setShowClientPicker(false)
     setClientSearch('')
     setShowCreateEventModal(true)
+
+    if (clientsForMeet.length === 0) await ensureClientsLoaded()
   }
 
   const closeCreateEventModal = () => {
     setShowCreateEventModal(false)
+    setMeetModalMode('create')
+    setEditingEventId(null)
+    setEditingEventMeetLink(null)
+    setEditingEventGoogleId(null)
+    setIsMeetEditing(false)
   }
 
   const ensureClientsLoaded = useCallback(async () => {
@@ -132,28 +218,13 @@ export default function CoachCalendarScreen() {
       toast.error('Ingresá un tema')
       return
     }
-    if (selectedClientIds.length === 0) {
+    if (meetModalMode === 'create' && selectedClientIds.length === 0) {
       toast.error('Seleccioná un cliente')
       return
     }
     if (!newEventDate) {
       toast.error('Seleccioná una fecha')
       return
-    }
-
-    const pad2 = (n: number) => String(n).padStart(2, '0')
-    const getDefaultStartTime = () => {
-      const now = new Date()
-      now.setMinutes(0, 0, 0)
-      now.setHours(now.getHours() + 1)
-      return `${pad2(now.getHours())}:${pad2(now.getMinutes())}`
-    }
-    const getDefaultEndTime = (startTime: string) => {
-      const [h, m] = startTime.split(':').map((v) => Number(v))
-      const end = new Date()
-      end.setHours(h, m || 0, 0, 0)
-      end.setHours(end.getHours() + 1)
-      return `${pad2(end.getHours())}:${pad2(end.getMinutes())}`
     }
 
     const finalStartTime = newEventStartTime || getDefaultStartTime()
@@ -164,6 +235,54 @@ export default function CoachCalendarScreen() {
 
     setCreateEventLoading(true)
     try {
+      if (meetModalMode === 'edit' && editingEventId) {
+        const { error: updateError } = await supabase
+          .from('calendar_events')
+          .update({
+            title: newEventTitle.trim(),
+            start_time: startISO,
+            end_time: endISO,
+            description: newEventNotes.trim() ? newEventNotes.trim() : null,
+            updated_at: new Date().toISOString(),
+          })
+          .eq('id', editingEventId)
+
+        if (updateError) {
+          console.error('Error updating event:', updateError)
+          toast.error(updateError.message || 'No se pudo actualizar el evento')
+          return
+        }
+
+        if (editingEventGoogleId) {
+          try {
+            await fetch('/api/google/calendar/update-event', {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              credentials: 'include',
+              body: JSON.stringify({
+                eventId: editingEventId,
+                startTime: startISO,
+                endTime: endISO,
+                title: newEventTitle.trim(),
+                description: newEventNotes.trim() ? newEventNotes.trim() : undefined,
+              }),
+            })
+          } catch {
+            // No bloquear
+          }
+        }
+
+        closeCreateEventModal()
+        toast.success('Cambios guardados')
+        setCachedEvents(() => new Map())
+        await getCoachEvents()
+        return
+      }
+
+      const normalizedPrice = newEventIsFree
+        ? null
+        : (String(newEventPrice || '').trim() ? Number(newEventPrice) : 0)
+
       const rows = selectedClientIds.map((clientId) => ({
         coach_id: coachId,
         title: newEventTitle.trim(),
@@ -172,6 +291,10 @@ export default function CoachCalendarScreen() {
         event_type: 'consultation',
         status: 'scheduled',
         client_id: clientId,
+        description: newEventNotes.trim() ? newEventNotes.trim() : null,
+        is_free: newEventIsFree,
+        price: normalizedPrice,
+        currency: 'ARS',
       }))
 
       const { data: inserted, error } = await supabase
@@ -188,26 +311,41 @@ export default function CoachCalendarScreen() {
       closeCreateEventModal()
       toast.success('Evento creado')
 
-      // Intentar crear Meet automáticamente si Google está conectado
-      if (googleConnected && Array.isArray(inserted) && inserted.length > 0) {
+      // Crear Meet link automáticamente para reuniones creadas con el +
+      // Usar el endpoint dedicado (create-meet) porque auto-create-meet está pensado para talleres.
+      if (Array.isArray(inserted) && inserted.length > 0) {
+        let anyMeetError = false
         for (const row of inserted) {
           const eventId = (row as any)?.id
           if (!eventId) continue
           try {
-            await fetch('/api/google/calendar/auto-create-meet', {
+            const resp = await fetch('/api/google/calendar/create-meet', {
               method: 'POST',
               headers: { 'Content-Type': 'application/json' },
               credentials: 'include',
               body: JSON.stringify({ eventId }),
             })
+
+            const json = await resp.json().catch(() => null)
+            if (!resp.ok || !json?.success) {
+              // Si no está conectado, dejar mensaje claro
+              if (json?.connected === false) {
+                anyMeetError = true
+              } else {
+                anyMeetError = true
+              }
+            }
           } catch {
-            // No bloquear
+            anyMeetError = true
           }
+        }
+
+        if (anyMeetError) {
+          toast.error('No se pudo generar el link de Meet')
         }
       }
 
       setCachedEvents(() => new Map())
-
       await getCoachEvents()
     } finally {
       setCreateEventLoading(false)
@@ -303,7 +441,11 @@ export default function CoachCalendarScreen() {
             meet_link,
             meet_link_id,
             google_event_id,
-            attendance_tracked
+            attendance_tracked,
+            description,
+            is_free,
+            price,
+            currency
           `)
           .eq('coach_id', user.id)
           .gte('start_time', monthStartISO)
@@ -585,6 +727,11 @@ export default function CoachCalendarScreen() {
     return eachDayOfInterval({ start: monthStart, end: monthEnd })
   }, [currentDate])
 
+  const leadingEmptyDays = useMemo(() => {
+    const monthStart = startOfMonth(currentDate)
+    return monthStart.getDay()
+  }, [currentDate])
+
   // Obtener eventos para una fecha específica
   const getEventsForDate = useCallback((date: Date) => {
     return events.filter(event =>
@@ -662,10 +809,14 @@ export default function CoachCalendarScreen() {
 
   // Manejar click en evento
   const handleEventClick = (event: CalendarEvent) => {
-    // Solo abrir modal para eventos de taller (workshop)
     if (event.event_type === 'workshop') {
       setSelectedEvent(event)
       setShowEventModal(true)
+      return
+    }
+
+    if (event.event_type === 'consultation') {
+      openCreateEventModal(event)
     }
   }
 
@@ -824,7 +975,7 @@ export default function CoachCalendarScreen() {
             type="button"
             onClick={async () => {
               if (clientsForMeet.length === 0) await ensureClientsLoaded()
-              openCreateEventModal()
+              await openCreateEventModal()
             }}
             className="absolute right-0 w-7 h-7 rounded-full bg-[#FF7939] text-black flex items-center justify-center shadow-md shadow-[#FF7939]/20 hover:bg-[#ff8a55] transition-colors"
             title="Crear Meet"
@@ -913,6 +1064,9 @@ export default function CoachCalendarScreen() {
 
             {/* Días del mes */}
             <div className="grid grid-cols-7 gap-2">
+              {Array.from({ length: leadingEmptyDays }).map((_, idx) => (
+                <div key={`empty-${idx}`} className="aspect-square p-2" />
+              ))}
               {daysInMonth.map(day => {
                 const dayEvents = getEventsForDate(day)
                 const googleEvents = dayEvents.filter(e => e.is_google_event || e.source === 'google_calendar')
@@ -1100,18 +1254,7 @@ export default function CoachCalendarScreen() {
           </Card>
         )}
 
-            {/* Mensaje cuando no hay eventos en el mes */}
-            {events.length === 0 && (
-              <Card className="bg-zinc-900 border-zinc-800">
-                <CardContent className="p-6 text-center">
-                  <Calendar className="h-12 w-12 text-gray-600 mx-auto mb-4" />
-                  <p className="text-white font-medium mb-2">No hay eventos este mes</p>
-                  <p className="text-gray-400 text-sm mb-4">
-                    Tus citas y eventos aparecerán aquí cuando los clientes reserven
-                  </p>
-                </CardContent>
-              </Card>
-            )}
+
           </>
         )}
 
@@ -1383,124 +1526,204 @@ export default function CoachCalendarScreen() {
             onUpdate={handleEventUpdate}
           />
         )}
+
+        {/* Las reuniones (consultation) reutilizan el modal de crear/editar Meet */}
       </div>
 
       {showCreateEventModal && (
         <div className="fixed inset-0 z-[60] bg-black/60 flex items-center justify-center p-4">
           <div className="w-full max-w-md bg-zinc-950 border border-zinc-800 rounded-2xl p-5">
             <div className="flex items-center justify-between mb-4">
-              <div className="text-white font-semibold text-lg">Crear Meet</div>
-              <button
-                type="button"
-                onClick={closeCreateEventModal}
-                className="w-8 h-8 rounded-full hover:bg-white/10 text-white flex items-center justify-center"
-              >
-                ×
-              </button>
+              <div className="text-white font-semibold text-lg">
+                {meetModalMode === 'edit' ? 'Detalle de reunión' : 'Crear Meet'}
+              </div>
+              <div className="flex items-center gap-2">
+                {meetModalMode === 'edit' && !isMeetEditing && (
+                  <button
+                    type="button"
+                    onClick={() => setIsMeetEditing(true)}
+                    className="w-8 h-8 rounded-full hover:bg-white/10 text-white flex items-center justify-center"
+                    title="Editar"
+                    aria-label="Editar"
+                  >
+                    <Pencil className="h-4 w-4" />
+                  </button>
+                )}
+
+                {meetModalMode === 'edit' && isMeetEditing && (
+                  <button
+                    type="button"
+                    onClick={deleteMeeting}
+                    disabled={createEventLoading}
+                    className="w-8 h-8 rounded-full hover:bg-white/10 text-white flex items-center justify-center"
+                    title="Eliminar"
+                    aria-label="Eliminar"
+                  >
+                    <Trash2 className="h-4 w-4" />
+                  </button>
+                )}
+
+                <button
+                  type="button"
+                  onClick={closeCreateEventModal}
+                  className="w-8 h-8 rounded-full hover:bg-white/10 text-white flex items-center justify-center"
+                  aria-label="Cerrar"
+                >
+                  ×
+                </button>
+              </div>
             </div>
 
             <div className="space-y-4">
+              {meetModalMode === 'edit' && !isMeetEditing && (
+                <div className="text-xs text-gray-400">
+                  Tocá el lápiz para editar
+                </div>
+              )}
               <div>
                 <div className="text-xs text-gray-400 mb-1">Tema</div>
-                <input
-                  value={newEventTitle}
-                  onChange={(e) => setNewEventTitle(e.target.value)}
-                  className="w-full bg-black/40 border border-white/10 rounded-lg px-3 py-2.5 text-sm text-white placeholder-gray-500 focus:outline-none focus:border-[#FF7939]"
-                  placeholder="Ej: Reunión de progreso"
-                />
+                {meetModalMode === 'edit' && !isMeetEditing ? (
+                  <div className="text-sm font-semibold text-white">{newEventTitle || '—'}</div>
+                ) : (
+                  <input
+                    value={newEventTitle}
+                    onChange={(e) => setNewEventTitle(e.target.value)}
+                    className="w-full bg-black/40 border border-white/10 rounded-lg px-3 py-2.5 text-sm text-white placeholder-gray-500 focus:outline-none focus:border-[#FF7939]"
+                    placeholder="Ej: Reunión de progreso"
+                  />
+                )}
               </div>
 
               <div>
                 <div className="text-xs text-gray-400 mb-1">Notas</div>
-                <input
-                  value={newEventNotes}
-                  onChange={(e) => setNewEventNotes(e.target.value)}
-                  className="w-full bg-black/40 border border-white/10 rounded-lg px-3 py-2.5 text-sm text-white placeholder-gray-500 focus:outline-none focus:border-[#FF7939]"
-                  placeholder="Añadir detalles adicionales..."
-                />
+                {meetModalMode === 'edit' && !isMeetEditing ? (
+                  <div className="text-sm text-gray-200 whitespace-pre-wrap">{newEventNotes || '—'}</div>
+                ) : (
+                  <input
+                    value={newEventNotes}
+                    onChange={(e) => setNewEventNotes(e.target.value)}
+                    className="w-full bg-black/40 border border-white/10 rounded-lg px-3 py-2.5 text-sm text-white placeholder-gray-500 focus:outline-none focus:border-[#FF7939]"
+                    placeholder="Añadir detalles adicionales..."
+                  />
+                )}
               </div>
 
-              <div className="grid grid-cols-2 gap-2">
-                <div>
-                  <div className="text-xs text-gray-400 mb-1">Fecha</div>
-                  <div className="relative">
-                    <input
-                      id="create-meet-date"
-                      type="date"
-                      value={newEventDate}
-                      onChange={(e) => setNewEventDate(e.target.value)}
-                      className="w-full bg-black/40 border border-white/10 rounded-lg pl-3 pr-10 py-2.5 text-sm text-white focus:outline-none focus:border-[#FF7939]"
-                    />
-                    <button
-                      type="button"
-                      onClick={() => {
-                        const el = document.getElementById('create-meet-date') as any
-                        if (!el) return
-                        if (typeof el.showPicker === 'function') el.showPicker()
-                        else el.focus()
-                      }}
-                      className="absolute right-2 top-1/2 -translate-y-1/2 w-7 h-7 rounded-md hover:bg-white/10 flex items-center justify-center"
-                      aria-label="Seleccionar fecha"
-                    >
+              {meetModalMode === 'edit' && !isMeetEditing ? (
+                <div className="space-y-2">
+                  <div className="flex items-center gap-5 text-gray-200">
+                    <div className="flex items-center gap-2">
                       <Calendar className="h-4 w-4 text-gray-300" />
-                    </button>
+                      <span className="text-sm font-medium text-white capitalize">
+                        {newEventDate ? format(new Date(`${newEventDate}T00:00:00`), 'dd MMM yyyy', { locale: es }) : '—'}
+                      </span>
+                    </div>
+                    <div className="flex items-center gap-2">
+                      <Clock className="h-4 w-4 text-gray-300" />
+                      <span className="text-sm font-medium text-white">
+                        {(newEventStartTime && newEventEndTime) ? `${newEventStartTime} – ${newEventEndTime}` : '—'}
+                      </span>
+                    </div>
+                  </div>
+
+                  <div className="text-sm font-semibold text-gray-200">
+                    {newEventIsFree ? 'Gratis' : `$${String(newEventPrice || '0')}`}
                   </div>
                 </div>
-                <div>
-                  <div className="flex items-center justify-between mb-1">
-                    <div className="text-xs text-gray-400">Precio</div>
-                    <button
-                      type="button"
-                      onClick={() => {
-                        setNewEventIsFree((prev) => {
-                          const nextIsFree = !prev
-                          if (!nextIsFree) {
-                            // Activado (con precio): default $0 si está vacío
-                            setNewEventPrice((p) => (String(p || '').trim() ? p : '0'))
-                          } else {
-                            // Gratis
-                            setNewEventPrice('')
-                          }
-                          return nextIsFree
-                        })
-                      }}
-                      className={`w-12 h-6 rounded-full transition-colors ${newEventIsFree ? 'bg-zinc-700' : 'bg-[#FF7939]'}`}
-                      aria-label="Toggle gratis"
-                    >
-                      <div
-                        className={`h-5 w-5 rounded-full bg-black transition-transform ${
-                          newEventIsFree ? 'translate-x-1' : 'translate-x-6'
-                        }`}
-                      />
-                    </button>
-                  </div>
-                  {newEventIsFree ? (
-                    <div className="py-2.5">
-                      <div className="text-sm font-semibold text-gray-400">Gratis</div>
-                    </div>
-                  ) : (
-                    <div className="w-full bg-black/40 border border-white/10 rounded-lg px-3 py-2.5 flex items-center gap-2 focus-within:border-[#FF7939]">
-                      <div className="text-sm text-gray-300">$</div>
+              ) : (
+                <>
+                  <div className="flex items-center gap-2">
+                    <Calendar className="h-4 w-4 text-gray-300 flex-shrink-0" />
+
+                    <div className="relative flex-shrink-0">
                       <input
-                        inputMode="decimal"
-                        value={String(newEventPrice || '')}
-                        onChange={(e) => setNewEventPrice(e.target.value)}
-                        className="w-full bg-transparent text-sm text-white placeholder-gray-500 focus:outline-none"
-                        placeholder="0"
+                        id="create-meet-date"
+                        type="date"
+                        value={newEventDate}
+                        onChange={(e) => setNewEventDate(e.target.value)}
+                        className="h-7 bg-black/40 border border-white/10 rounded-lg pl-2 pr-6 text-[13px] text-white focus:outline-none focus:border-[#FF7939]"
                       />
+                      <ChevronDown className="pointer-events-none absolute right-2 top-1/2 -translate-y-1/2 h-3 w-3 text-gray-500" />
                     </div>
-                  )}
-                </div>
-              </div>
+
+                    <div className="relative flex-shrink-0">
+                      <input
+                        type="time"
+                        value={newEventStartTime}
+                        onChange={(e) => setNewEventStartTime(e.target.value)}
+                        className="h-7 bg-black/40 border border-white/10 rounded-lg pl-2 pr-6 text-[13px] text-white focus:outline-none focus:border-[#FF7939]"
+                        aria-label="Hora inicio"
+                      />
+                      <ChevronDown className="pointer-events-none absolute right-2 top-1/2 -translate-y-1/2 h-3 w-3 text-gray-500" />
+                    </div>
+
+                    <Clock className="h-4 w-4 text-gray-300 flex-shrink-0" />
+
+                    <div className="relative flex-shrink-0">
+                      <input
+                        type="time"
+                        value={newEventEndTime}
+                        onChange={(e) => setNewEventEndTime(e.target.value)}
+                        className="h-7 bg-black/40 border border-white/10 rounded-lg pl-2 pr-6 text-[13px] text-white focus:outline-none focus:border-[#FF7939]"
+                        aria-label="Hora fin"
+                      />
+                      <ChevronDown className="pointer-events-none absolute right-2 top-1/2 -translate-y-1/2 h-3 w-3 text-gray-500" />
+                    </div>
+                  </div>
+
+                  <div className="w-full mt-3 flex items-center justify-center -translate-x-4">
+                    <div className="flex items-center gap-2">
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setNewEventIsFree((prev) => {
+                            const nextIsFree = !prev
+                            if (!nextIsFree) {
+                              // Activado (con precio): default $0 si está vacío
+                              setNewEventPrice((p) => (String(p || '').trim() ? p : '0'))
+                            } else {
+                              // Gratis
+                              setNewEventPrice('')
+                            }
+                            return nextIsFree
+                          })
+                        }}
+                        className={`w-12 h-6 rounded-full transition-colors ${newEventIsFree ? 'bg-zinc-700' : 'bg-[#FF7939]'}`}
+                        aria-label="Toggle gratis"
+                      >
+                        <div
+                          className={`h-5 w-5 rounded-full bg-black transition-transform ${
+                            newEventIsFree ? 'translate-x-1' : 'translate-x-6'
+                          }`}
+                        />
+                      </button>
+
+                      {newEventIsFree ? (
+                        <div className="text-sm font-semibold text-gray-400">Gratis</div>
+                      ) : (
+                        <div className="bg-black/40 border border-white/10 rounded-lg px-3 py-2.5 flex items-center gap-2 focus-within:border-[#FF7939]">
+                          <div className="text-sm text-gray-300">$</div>
+                          <input
+                            inputMode="decimal"
+                            value={String(newEventPrice || '')}
+                            onChange={(e) => setNewEventPrice(e.target.value)}
+                            className="w-20 bg-transparent text-sm text-white placeholder-gray-500 focus:outline-none"
+                            placeholder="0"
+                          />
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                </>
+              )}
 
               <div className="pt-1">
                 <div className="text-white font-semibold mb-2">Clientes</div>
 
-                <div className="border border-white/10 rounded-xl overflow-hidden bg-black/20">
+                <div className={meetModalMode === 'edit' && !isMeetEditing ? "space-y-2" : "border border-white/10 rounded-xl overflow-hidden bg-black/20"}>
                   {selectedClientIds.length > 0 && (
-                    <div className="border-b border-white/10">
+                    <div className={meetModalMode === 'edit' && !isMeetEditing ? "" : "border-b border-white/10"}>
                       {selectedClientIds
-                        .map((id) => clientsForMeet.find((c) => c.id === id))
+                        .map((id) => clientsForMeet.find((c) => c.id === id) || ({ id, name: 'Cliente' } as any))
                         .filter(Boolean)
                         .map((c: any) => {
                           const credits = Number(c.meet_credits_available ?? 0)
@@ -1508,7 +1731,11 @@ export default function CoachCalendarScreen() {
                           return (
                             <div
                               key={c.id}
-                              className="px-3 py-3 flex items-center gap-3 border-b border-white/10 last:border-b-0"
+                              className={
+                                meetModalMode === 'edit' && !isMeetEditing
+                                  ? 'flex items-center justify-between gap-3'
+                                  : 'px-3 py-3 flex items-center gap-3 border-b border-white/10 last:border-b-0'
+                              }
                             >
                               <div className="relative">
                                 <div className="w-10 h-10 rounded-full bg-zinc-800 overflow-hidden" />
@@ -1525,30 +1752,34 @@ export default function CoachCalendarScreen() {
                                 {credits} créditos disponibles
                               </div>
 
-                              <button
-                                type="button"
-                                onClick={() =>
-                                  setSelectedClientIds((prev) => prev.filter((x) => x !== c.id))
-                                }
-                                className="ml-2 w-7 h-7 rounded-md hover:bg-white/10 text-gray-300 flex items-center justify-center"
-                                aria-label="Quitar cliente"
-                              >
-                                ×
-                              </button>
+                              {!(meetModalMode === 'edit' && !isMeetEditing) && (
+                                <button
+                                  type="button"
+                                  onClick={() =>
+                                    setSelectedClientIds((prev) => prev.filter((x) => x !== c.id))
+                                  }
+                                  className="ml-2 w-7 h-7 rounded-md hover:bg-white/10 text-gray-300 flex items-center justify-center"
+                                  aria-label="Quitar cliente"
+                                >
+                                  ×
+                                </button>
+                              )}
                             </div>
                           )
                         })}
                     </div>
                   )}
 
-                  <button
-                    type="button"
-                    onClick={() => setShowClientPicker((v) => !v)}
-                    className="w-full text-left px-3 py-2.5 text-gray-400 hover:text-gray-300 flex items-center gap-2 hover:bg-white/5 transition-colors"
-                  >
-                    <span className="text-lg leading-none">+</span>
-                    <span className="text-sm">Seleccionar cliente</span>
-                  </button>
+                  {!(meetModalMode === 'edit' && !isMeetEditing) && (
+                    <button
+                      type="button"
+                      onClick={() => setShowClientPicker((v) => !v)}
+                      className="w-full text-left px-3 py-2.5 text-gray-400 hover:text-gray-300 flex items-center gap-2 hover:bg-white/5 transition-colors"
+                    >
+                      <span className="text-lg leading-none">+</span>
+                      <span className="text-sm">Seleccionar cliente</span>
+                    </button>
+                  )}
 
                   {showClientPicker && (
                     <div className="p-3 border-t border-white/10">
@@ -1620,13 +1851,29 @@ export default function CoachCalendarScreen() {
                 >
                   Cancelar
                 </button>
+
+                {meetModalMode === 'edit' && editingEventMeetLink && (
+                  <button
+                    type="button"
+                    onClick={() => window.open(editingEventMeetLink, '_blank')}
+                    className="px-4 py-2.5 rounded-xl bg-zinc-800 text-white text-sm hover:bg-zinc-700 transition-colors flex items-center gap-2"
+                    disabled={createEventLoading}
+                    title="Abrir enlace de Meet"
+                  >
+                    <Video className="h-4 w-4" />
+                    Meet
+                  </button>
+                )}
+
                 <button
                   type="button"
                   onClick={createEvent}
-                  className="flex-1 px-4 py-2.5 rounded-xl bg-[#FF7939] text-black text-sm font-semibold hover:bg-[#ff8a55] transition-colors disabled:opacity-60"
-                  disabled={createEventLoading}
+                  className="flex-1 px-4 py-2.5 rounded-xl bg-[#FF7939] text-black text-sm font-medium hover:bg-[#ff8a55] transition-colors"
+                  disabled={createEventLoading || (meetModalMode === 'edit' && !isMeetEditing)}
                 >
-                  {createEventLoading ? 'Guardando...' : 'Crear'}
+                  {createEventLoading
+                    ? (meetModalMode === 'edit' ? 'Guardando…' : 'Creando…')
+                    : (meetModalMode === 'edit' ? 'Guardar' : 'Crear')}
                 </button>
               </div>
             </div>

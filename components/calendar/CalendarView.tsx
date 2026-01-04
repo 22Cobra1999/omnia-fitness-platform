@@ -14,7 +14,7 @@ interface CalendarViewProps {
 
 export default function CalendarView({ activityIds, onActivityClick }: CalendarViewProps) {
   const [currentDate, setCurrentDate] = useState(new Date())
-  const [selectedDate, setSelectedDate] = useState<Date | null>(null)
+  const [selectedDate, setSelectedDate] = useState<Date | null>(new Date())
   const [activitiesByDate, setActivitiesByDate] = useState<Record<string, any[]>>({})
   const [activitiesInfo, setActivitiesInfo] = useState<Record<string, any>>({})
   const [loading, setLoading] = useState(true)
@@ -26,7 +26,7 @@ export default function CalendarView({ activityIds, onActivityClick }: CalendarV
       const { tab } = event.detail
       if (tab === 'calendar') {
         // Resetear fecha seleccionada
-        setSelectedDate(null)
+        setSelectedDate(new Date())
         
         // Scroll al inicio
         setTimeout(() => {
@@ -148,6 +148,7 @@ export default function CalendarView({ activityIds, onActivityClick }: CalendarV
   const monthStart = startOfMonth(currentDate)
   const monthEnd = endOfMonth(currentDate)
   const daysInMonth = eachDayOfInterval({ start: monthStart, end: monthEnd })
+  const leadingEmptyDays = monthStart.getDay()
 
   const previousMonth = () => {
     setCurrentDate(subMonths(currentDate, 1))
@@ -195,6 +196,9 @@ export default function CalendarView({ activityIds, onActivityClick }: CalendarV
       </div>
 
       <div className="grid grid-cols-7 gap-2">
+        {Array.from({ length: leadingEmptyDays }).map((_, idx) => (
+          <div key={`empty-${idx}`} className="aspect-square p-2" />
+        ))}
         {daysInMonth.map((day) => {
           const dateKey = format(day, 'yyyy-MM-dd')
           const activities = activitiesByDate[dateKey] || []
