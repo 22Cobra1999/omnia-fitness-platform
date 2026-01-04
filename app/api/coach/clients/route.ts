@@ -29,7 +29,7 @@ export async function GET(request: NextRequest) {
     // Primero, traer solo actividades del coach autenticado
     const { data: coachActivities, error: coachActivitiesError } = await supabase
       .from('activities')
-      .select('id, title, type, coach_id, price, categoria')
+      .select('id, title, type, coach_id, price, categoria, included_meet_credits')
       .eq('coach_id', user.id)
 
     if (coachActivitiesError) {
@@ -61,7 +61,7 @@ export async function GET(request: NextRequest) {
 
     const coachActivityIds = coachActivities.map((a: any) => a.id)
 
-    // Obtener inscripciones activas
+    // Obtener inscripciones
     let { data: enrollments, error: enrollmentsError } = await supabase
       .from('activity_enrollments')
       .select(`
@@ -69,7 +69,9 @@ export async function GET(request: NextRequest) {
         client_id,
         status,
         todo_list,
-        activity_id
+        activity_id,
+        meet_credits_total,
+        meet_credits_used
       `)
       .in('status', ['activa', 'active', 'pendiente', 'pending', 'finalizada', 'finished', 'expirada', 'expired'])
       .in('activity_id', coachActivityIds)
@@ -122,6 +124,19 @@ export async function GET(request: NextRequest) {
 
     // Obtener datos de usuarios
     const clientIds = [...new Set(enrollments.map((e: any) => e.client_id))]
+
+    // Créditos de meet por cliente (fuente de verdad): activity_enrollments
+    // Disponible = sum(meet_credits_total - meet_credits_used) entre todas las inscripciones del cliente.
+    const meetCreditsAvailableByClient = new Map<string, number>()
+    for (const e of enrollments || []) {
+      const cid = String(e?.client_id || '')
+      if (!cid) continue
+      const total = Number(e?.meet_credits_total ?? 0)
+      const used = Number(e?.meet_credits_used ?? 0)
+      const delta = (Number.isFinite(total) ? total : 0) - (Number.isFinite(used) ? used : 0)
+      meetCreditsAvailableByClient.set(cid, (meetCreditsAvailableByClient.get(cid) || 0) + Math.max(delta, 0))
+    }
+
     const { data: users, error: usersError } = await supabase
       .from('user_profiles')
       .select('id, full_name, email, avatar_url')
@@ -172,11 +187,17 @@ export async function GET(request: NextRequest) {
       const hasPending = statuses.has('pendiente') || statuses.has('pending')
       const clientStatus: 'active' | 'pending' | 'inactive' = hasActive ? 'active' : hasPending ? 'pending' : 'inactive'
 
+      const meetCreditsAvailable = Math.max(
+        Number(meetCreditsAvailableByClient.get(String(client.id)) || 0),
+        0
+      )
+
       return {
         id: client.id,
         name: client.name,
         email: client.email,
         avatar_url: client.avatar_url,
+        meet_credits_available: meetCreditsAvailable,
         progress: 0,
         status: clientStatus,
         lastActive: 'Nunca',

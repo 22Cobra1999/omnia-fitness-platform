@@ -2,7 +2,7 @@
 
 import React from 'react'
 import Image from 'next/image'
-import { Star, Calendar, Users, Globe, Dumbbell, Zap, Lock, Unlock, UtensilsCrossed, Flame, MapPin, RotateCcw, Pause, MonitorSmartphone } from 'lucide-react'
+import { Star, Calendar, Users, Globe, Dumbbell, Zap, Lock, Unlock, UtensilsCrossed, Flame, MapPin, RotateCcw, Pause, MonitorSmartphone, Video } from 'lucide-react'
 import type { Activity } from '@/types/activity'
 // Hooks removed - functionality to be reimplemented if needed
 // import { useProductStats } from '@/hooks/coach/use-product-stats'
@@ -420,6 +420,13 @@ const ActivityCard: React.FC<ActivityCardProps> = ({
   // Si es taller y tiene taller_activo = false, está finalizado/inactivo
   const tallerActivoValue = (activity as any).taller_activo
   const isWorkshopInactive = activity.type === 'workshop' && tallerActivoValue === false
+
+  const includedMeetCredits = (() => {
+    const raw = (activity as any).included_meet_credits
+    if (typeof raw === 'number') return raw
+    const parsed = parseInt(String(raw ?? '0'), 10)
+    return Number.isFinite(parsed) ? parsed : 0
+  })()
   
   // Silenciar logs de diagnóstico en producción
   
@@ -512,7 +519,7 @@ const ActivityCard: React.FC<ActivityCardProps> = ({
             </span>
           </div>
 
-         {/* 4. INTENSIDAD/DIETA - MODO TALLER - MODALIDAD - Sección fija */}
+         {/* 4. INTENSIDAD/DIETA - MODO TALLER / MEET - MODALIDAD - Sección fija */}
          <div className="flex items-center justify-between mb-4">
            <div className="flex items-center gap-2 text-[#FF7939]">
             {/* Para productos de nutrición, mostrar tipo de dieta en lugar de dificultad */}
@@ -554,6 +561,12 @@ const ActivityCard: React.FC<ActivityCardProps> = ({
                  )
                }
              })()}
+
+              {activity.type !== 'workshop' && includedMeetCredits > 0 && (
+                <div className="flex items-center justify-center flex-shrink-0" title="Incluye reuniones 1:1">
+                  <Video className="h-4 w-4 text-rose-100/90" />
+                </div>
+              )}
            </div>
            
            {/* Derecha: Modalidad - Siempre a la derecha */}

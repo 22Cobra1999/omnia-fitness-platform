@@ -1085,6 +1085,7 @@ export default function ProductsManagementScreen({ onTabChange }: ProductsManage
       // Para talleres: estado 'activo' desde taller_detalles
       taller_activo: (product as any).taller_activo, // ✅ Agregar capacity para mostrar en ActivityCard
       modality: product.modality || 'online',
+      included_meet_credits: (product as any).included_meet_credits,
       // ✅ Campos de ubicación para modalidad presencial
       location_name: (product as any).location_name || null,
       location_url: (product as any).location_url || null,

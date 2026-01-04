@@ -2,7 +2,7 @@
 
 import { useState, useEffect, useCallback, useMemo } from "react"
 import { createClient } from "@/lib/supabase/supabase-client"
-import { Calendar, Clock, Video, ExternalLink, Users, RefreshCw, Plus } from "lucide-react"
+import { Calendar, Clock, Video, ExternalLink, Users, RefreshCw, Plus, Search } from "lucide-react"
 import { format, startOfMonth, endOfMonth, eachDayOfInterval, isSameDay, isToday, addMonths, subMonths, addDays, subDays, addYears, subYears } from "date-fns"
 import { es } from "date-fns/locale"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
@@ -61,14 +61,26 @@ export default function CoachCalendarScreen() {
 
   const [showCreateEventModal, setShowCreateEventModal] = useState(false)
   const [createEventLoading, setCreateEventLoading] = useState(false)
-  const [clientsForMeet, setClientsForMeet] = useState<Array<{ id: string; name: string; email: string }>>([])
+  const [clientsForMeet, setClientsForMeet] = useState<
+    Array<{
+      id: string
+      name: string
+      email?: string
+      avatar_url?: string | null
+      status?: 'active' | 'pending' | 'inactive'
+      meet_credits_available?: number
+    }>
+  >([])
   const [newEventTitle, setNewEventTitle] = useState('')
+  const [newEventNotes, setNewEventNotes] = useState('')
   const [newEventDate, setNewEventDate] = useState<string>('')
   const [newEventStartTime, setNewEventStartTime] = useState<string>('')
   const [newEventEndTime, setNewEventEndTime] = useState<string>('')
-  const [newEventClientId, setNewEventClientId] = useState<string>('')
+  const [selectedClientIds, setSelectedClientIds] = useState<string[]>([])
   const [newEventIsFree, setNewEventIsFree] = useState(true)
   const [newEventPrice, setNewEventPrice] = useState<string>('')
+  const [showClientPicker, setShowClientPicker] = useState(false)
+  const [clientSearch, setClientSearch] = useState('')
 
   const supabase = createClient()
 
@@ -79,9 +91,12 @@ export default function CoachCalendarScreen() {
     setNewEventStartTime('')
     setNewEventEndTime('')
     setNewEventTitle('')
-    setNewEventClientId('')
+    setNewEventNotes('')
+    setSelectedClientIds([])
     setNewEventIsFree(true)
     setNewEventPrice('')
+    setShowClientPicker(false)
+    setClientSearch('')
     setShowCreateEventModal(true)
   }
 
@@ -99,6 +114,11 @@ export default function CoachCalendarScreen() {
           id: String(c?.id || ''),
           name: String(c?.name || 'Cliente'),
           email: String(c?.email || ''),
+          avatar_url: c?.avatar_url || null,
+          status: c?.status,
+          meet_credits_available: Number(
+            c?.meet_credits_available ?? c?.credits_available ?? c?.available_meet_credits ?? 0
+          ),
         })).filter((c: any) => !!c.id)
       )
     } catch {
@@ -112,42 +132,56 @@ export default function CoachCalendarScreen() {
       toast.error('Ingresá un tema')
       return
     }
+    if (selectedClientIds.length === 0) {
+      toast.error('Seleccioná un cliente')
+      return
+    }
     if (!newEventDate) {
       toast.error('Seleccioná una fecha')
       return
     }
-    if (!newEventStartTime || !newEventEndTime) {
-      toast.error('Seleccioná hora de inicio y fin')
-      return
+
+    const pad2 = (n: number) => String(n).padStart(2, '0')
+    const getDefaultStartTime = () => {
+      const now = new Date()
+      now.setMinutes(0, 0, 0)
+      now.setHours(now.getHours() + 1)
+      return `${pad2(now.getHours())}:${pad2(now.getMinutes())}`
+    }
+    const getDefaultEndTime = (startTime: string) => {
+      const [h, m] = startTime.split(':').map((v) => Number(v))
+      const end = new Date()
+      end.setHours(h, m || 0, 0, 0)
+      end.setHours(end.getHours() + 1)
+      return `${pad2(end.getHours())}:${pad2(end.getMinutes())}`
     }
 
-    const startISO = new Date(`${newEventDate}T${newEventStartTime}:00`).toISOString()
-    const endISO = new Date(`${newEventDate}T${newEventEndTime}:00`).toISOString()
+    const finalStartTime = newEventStartTime || getDefaultStartTime()
+    const finalEndTime = newEventEndTime || getDefaultEndTime(finalStartTime)
+
+    const startISO = new Date(`${newEventDate}T${finalStartTime}:00`).toISOString()
+    const endISO = new Date(`${newEventDate}T${finalEndTime}:00`).toISOString()
 
     setCreateEventLoading(true)
     try {
-      const notes = newEventIsFree
-        ? 'Gratis'
-        : `Precio: ${newEventPrice}`
+      const rows = selectedClientIds.map((clientId) => ({
+        coach_id: coachId,
+        title: newEventTitle.trim(),
+        start_time: startISO,
+        end_time: endISO,
+        event_type: 'consultation',
+        status: 'scheduled',
+        client_id: clientId,
+      }))
 
       const { data: inserted, error } = await supabase
         .from('calendar_events')
-        .insert({
-          coach_id: coachId,
-          title: newEventTitle.trim(),
-          start_time: startISO,
-          end_time: endISO,
-          event_type: 'consultation',
-          status: 'scheduled',
-          client_id: newEventClientId || null,
-          notes,
-        } as any)
+        .insert(rows as any)
         .select('id')
-        .maybeSingle()
 
       if (error) {
         console.error('Error creating event:', error)
-        toast.error('No se pudo crear el evento')
+        toast.error(error.message || 'No se pudo crear el evento')
         return
       }
 
@@ -155,18 +189,24 @@ export default function CoachCalendarScreen() {
       toast.success('Evento creado')
 
       // Intentar crear Meet automáticamente si Google está conectado
-      if (googleConnected && inserted?.id) {
-        try {
-          await fetch('/api/google/calendar/auto-create-meet', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            credentials: 'include',
-            body: JSON.stringify({ eventId: inserted.id }),
-          })
-        } catch {
-          // No bloquear
+      if (googleConnected && Array.isArray(inserted) && inserted.length > 0) {
+        for (const row of inserted) {
+          const eventId = (row as any)?.id
+          if (!eventId) continue
+          try {
+            await fetch('/api/google/calendar/auto-create-meet', {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              credentials: 'include',
+              body: JSON.stringify({ eventId }),
+            })
+          } catch {
+            // No bloquear
+          }
         }
       }
+
+      setCachedEvents(() => new Map())
 
       await getCoachEvents()
     } finally {
@@ -1347,9 +1387,9 @@ export default function CoachCalendarScreen() {
 
       {showCreateEventModal && (
         <div className="fixed inset-0 z-[60] bg-black/60 flex items-center justify-center p-4">
-          <div className="w-full max-w-md bg-zinc-950 border border-zinc-800 rounded-2xl p-4">
-            <div className="flex items-center justify-between mb-3">
-              <div className="text-white font-semibold">Crear Meet / Evento</div>
+          <div className="w-full max-w-md bg-zinc-950 border border-zinc-800 rounded-2xl p-5">
+            <div className="flex items-center justify-between mb-4">
+              <div className="text-white font-semibold text-lg">Crear Meet</div>
               <button
                 type="button"
                 onClick={closeCreateEventModal}
@@ -1359,92 +1399,223 @@ export default function CoachCalendarScreen() {
               </button>
             </div>
 
-            <div className="space-y-3">
+            <div className="space-y-4">
               <div>
                 <div className="text-xs text-gray-400 mb-1">Tema</div>
                 <input
                   value={newEventTitle}
                   onChange={(e) => setNewEventTitle(e.target.value)}
-                  className="w-full bg-black/40 border border-white/10 rounded-lg px-3 py-2 text-sm text-white placeholder-gray-500 focus:outline-none focus:border-[#FF7939]"
-                  placeholder="Ej: Reunión seguimiento"
+                  className="w-full bg-black/40 border border-white/10 rounded-lg px-3 py-2.5 text-sm text-white placeholder-gray-500 focus:outline-none focus:border-[#FF7939]"
+                  placeholder="Ej: Reunión de progreso"
+                />
+              </div>
+
+              <div>
+                <div className="text-xs text-gray-400 mb-1">Notas</div>
+                <input
+                  value={newEventNotes}
+                  onChange={(e) => setNewEventNotes(e.target.value)}
+                  className="w-full bg-black/40 border border-white/10 rounded-lg px-3 py-2.5 text-sm text-white placeholder-gray-500 focus:outline-none focus:border-[#FF7939]"
+                  placeholder="Añadir detalles adicionales..."
                 />
               </div>
 
               <div className="grid grid-cols-2 gap-2">
                 <div>
                   <div className="text-xs text-gray-400 mb-1">Fecha</div>
-                  <input
-                    type="date"
-                    value={newEventDate}
-                    onChange={(e) => setNewEventDate(e.target.value)}
-                    className="w-full bg-black/40 border border-white/10 rounded-lg px-3 py-2 text-sm text-white focus:outline-none focus:border-[#FF7939]"
-                  />
+                  <div className="relative">
+                    <input
+                      id="create-meet-date"
+                      type="date"
+                      value={newEventDate}
+                      onChange={(e) => setNewEventDate(e.target.value)}
+                      className="w-full bg-black/40 border border-white/10 rounded-lg pl-3 pr-10 py-2.5 text-sm text-white focus:outline-none focus:border-[#FF7939]"
+                    />
+                    <button
+                      type="button"
+                      onClick={() => {
+                        const el = document.getElementById('create-meet-date') as any
+                        if (!el) return
+                        if (typeof el.showPicker === 'function') el.showPicker()
+                        else el.focus()
+                      }}
+                      className="absolute right-2 top-1/2 -translate-y-1/2 w-7 h-7 rounded-md hover:bg-white/10 flex items-center justify-center"
+                      aria-label="Seleccionar fecha"
+                    >
+                      <Calendar className="h-4 w-4 text-gray-300" />
+                    </button>
+                  </div>
                 </div>
                 <div>
-                  <div className="text-xs text-gray-400 mb-1">Cliente</div>
-                  <select
-                    value={newEventClientId}
-                    onChange={(e) => setNewEventClientId(e.target.value)}
-                    className="w-full bg-black/40 border border-white/10 rounded-lg px-3 py-2 text-sm text-white focus:outline-none focus:border-[#FF7939]"
+                  <div className="flex items-center justify-between mb-1">
+                    <div className="text-xs text-gray-400">Precio</div>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setNewEventIsFree((prev) => {
+                          const nextIsFree = !prev
+                          if (!nextIsFree) {
+                            // Activado (con precio): default $0 si está vacío
+                            setNewEventPrice((p) => (String(p || '').trim() ? p : '0'))
+                          } else {
+                            // Gratis
+                            setNewEventPrice('')
+                          }
+                          return nextIsFree
+                        })
+                      }}
+                      className={`w-12 h-6 rounded-full transition-colors ${newEventIsFree ? 'bg-zinc-700' : 'bg-[#FF7939]'}`}
+                      aria-label="Toggle gratis"
+                    >
+                      <div
+                        className={`h-5 w-5 rounded-full bg-black transition-transform ${
+                          newEventIsFree ? 'translate-x-1' : 'translate-x-6'
+                        }`}
+                      />
+                    </button>
+                  </div>
+                  {newEventIsFree ? (
+                    <div className="py-2.5">
+                      <div className="text-sm font-semibold text-gray-400">Gratis</div>
+                    </div>
+                  ) : (
+                    <div className="w-full bg-black/40 border border-white/10 rounded-lg px-3 py-2.5 flex items-center gap-2 focus-within:border-[#FF7939]">
+                      <div className="text-sm text-gray-300">$</div>
+                      <input
+                        inputMode="decimal"
+                        value={String(newEventPrice || '')}
+                        onChange={(e) => setNewEventPrice(e.target.value)}
+                        className="w-full bg-transparent text-sm text-white placeholder-gray-500 focus:outline-none"
+                        placeholder="0"
+                      />
+                    </div>
+                  )}
+                </div>
+              </div>
+
+              <div className="pt-1">
+                <div className="text-white font-semibold mb-2">Clientes</div>
+
+                <div className="border border-white/10 rounded-xl overflow-hidden bg-black/20">
+                  {selectedClientIds.length > 0 && (
+                    <div className="border-b border-white/10">
+                      {selectedClientIds
+                        .map((id) => clientsForMeet.find((c) => c.id === id))
+                        .filter(Boolean)
+                        .map((c: any) => {
+                          const credits = Number(c.meet_credits_available ?? 0)
+                          const dotColor = c.status === 'active' ? 'bg-emerald-500' : 'bg-orange-500'
+                          return (
+                            <div
+                              key={c.id}
+                              className="px-3 py-3 flex items-center gap-3 border-b border-white/10 last:border-b-0"
+                            >
+                              <div className="relative">
+                                <div className="w-10 h-10 rounded-full bg-zinc-800 overflow-hidden" />
+                                <div
+                                  className={`absolute -bottom-0.5 -right-0.5 w-3 h-3 rounded-full ${dotColor} border-2 border-zinc-950`}
+                                />
+                              </div>
+
+                              <div className="flex-1 min-w-0">
+                                <div className="text-white text-sm font-medium leading-tight truncate">{c.name}</div>
+                              </div>
+
+                              <div className="text-[#FF7939] text-xs font-medium whitespace-nowrap">
+                                {credits} créditos disponibles
+                              </div>
+
+                              <button
+                                type="button"
+                                onClick={() =>
+                                  setSelectedClientIds((prev) => prev.filter((x) => x !== c.id))
+                                }
+                                className="ml-2 w-7 h-7 rounded-md hover:bg-white/10 text-gray-300 flex items-center justify-center"
+                                aria-label="Quitar cliente"
+                              >
+                                ×
+                              </button>
+                            </div>
+                          )
+                        })}
+                    </div>
+                  )}
+
+                  <button
+                    type="button"
+                    onClick={() => setShowClientPicker((v) => !v)}
+                    className="w-full text-left px-3 py-2.5 text-gray-400 hover:text-gray-300 flex items-center gap-2 hover:bg-white/5 transition-colors"
                   >
-                    <option value="">(Opcional)</option>
-                    {clientsForMeet.map((c) => (
-                      <option key={c.id} value={c.id}>{c.name}</option>
-                    ))}
-                  </select>
+                    <span className="text-lg leading-none">+</span>
+                    <span className="text-sm">Seleccionar cliente</span>
+                  </button>
+
+                  {showClientPicker && (
+                    <div className="p-3 border-t border-white/10">
+                      <div className="relative mb-3">
+                        <Search className="h-4 w-4 text-gray-400 absolute left-3 top-1/2 -translate-y-1/2" />
+                        <input
+                          value={clientSearch}
+                          onChange={(e) => setClientSearch(e.target.value)}
+                          className="w-full bg-black/40 border border-white/10 rounded-lg pl-9 pr-3 py-2.5 text-sm text-white placeholder-gray-500 focus:outline-none focus:border-[#FF7939]"
+                          placeholder="Buscar cliente..."
+                        />
+                      </div>
+
+                      <div className="max-h-56 overflow-y-auto rounded-lg border border-white/10">
+                        {clientsForMeet
+                          .filter((c) =>
+                            String(c.name || '')
+                              .toLowerCase()
+                              .includes(String(clientSearch || '').trim().toLowerCase())
+                          )
+                          .filter((c) => !selectedClientIds.includes(c.id))
+                          .map((c) => {
+                            const selected = selectedClientIds.includes(c.id)
+                            const credits = Number(c.meet_credits_available ?? 0)
+                            const dotColor = c.status === 'active' ? 'bg-emerald-500' : 'bg-orange-500'
+
+                            return (
+                              <button
+                                key={c.id}
+                                type="button"
+                                onClick={() => {
+                                  setSelectedClientIds((prev) =>
+                                    prev.includes(c.id) ? prev.filter((x) => x !== c.id) : [...prev, c.id]
+                                  )
+                                }}
+                                className={`w-full text-left px-3 py-3 flex items-center gap-3 border-b border-white/10 last:border-b-0 hover:bg-white/5 transition-colors ${
+                                  selected ? 'bg-white/5' : ''
+                                }`}
+                              >
+                                <div className="relative">
+                                  <div className="w-10 h-10 rounded-full bg-zinc-800 overflow-hidden" />
+                                  <div
+                                    className={`absolute -bottom-0.5 -right-0.5 w-3 h-3 rounded-full ${dotColor} border-2 border-zinc-950`}
+                                  />
+                                </div>
+
+                                <div className="flex-1 min-w-0">
+                                  <div className="text-white text-sm font-medium leading-tight truncate">{c.name}</div>
+                                </div>
+
+                                <div className="text-[#FF7939] text-xs font-medium whitespace-nowrap">
+                                  {credits} créditos disponibles
+                                </div>
+                              </button>
+                            )
+                          })}
+                      </div>
+                    </div>
+                  )}
                 </div>
               </div>
 
-              <div className="grid grid-cols-2 gap-2">
-                <div>
-                  <div className="text-xs text-gray-400 mb-1">Inicio</div>
-                  <input
-                    type="time"
-                    value={newEventStartTime}
-                    onChange={(e) => setNewEventStartTime(e.target.value)}
-                    className="w-full bg-black/40 border border-white/10 rounded-lg px-3 py-2 text-sm text-white focus:outline-none focus:border-[#FF7939]"
-                  />
-                </div>
-                <div>
-                  <div className="text-xs text-gray-400 mb-1">Fin</div>
-                  <input
-                    type="time"
-                    value={newEventEndTime}
-                    onChange={(e) => setNewEventEndTime(e.target.value)}
-                    className="w-full bg-black/40 border border-white/10 rounded-lg px-3 py-2 text-sm text-white focus:outline-none focus:border-[#FF7939]"
-                  />
-                </div>
-              </div>
-
-              <div className="flex items-center justify-between">
-                <div className="text-xs text-gray-400">Gratis</div>
-                <button
-                  type="button"
-                  onClick={() => setNewEventIsFree((v) => !v)}
-                  className={`w-12 h-6 rounded-full transition-colors ${newEventIsFree ? 'bg-[#FF7939]' : 'bg-zinc-700'}`}
-                >
-                  <div className={`h-5 w-5 rounded-full bg-black transition-transform ${newEventIsFree ? 'translate-x-6' : 'translate-x-1'}`} />
-                </button>
-              </div>
-
-              {!newEventIsFree && (
-                <div>
-                  <div className="text-xs text-gray-400 mb-1">Precio</div>
-                  <input
-                    inputMode="decimal"
-                    value={newEventPrice}
-                    onChange={(e) => setNewEventPrice(e.target.value)}
-                    className="w-full bg-black/40 border border-white/10 rounded-lg px-3 py-2 text-sm text-white placeholder-gray-500 focus:outline-none focus:border-[#FF7939]"
-                    placeholder="Ej: 15000"
-                  />
-                </div>
-              )}
-
-              <div className="flex gap-2 pt-2">
+              <div className="flex gap-2 pt-3">
                 <button
                   type="button"
                   onClick={closeCreateEventModal}
-                  className="flex-1 px-4 py-2 rounded-lg bg-zinc-800 text-white text-sm hover:bg-zinc-700 transition-colors"
+                  className="flex-1 px-4 py-2.5 rounded-xl bg-zinc-800 text-white text-sm hover:bg-zinc-700 transition-colors"
                   disabled={createEventLoading}
                 >
                   Cancelar
@@ -1452,7 +1623,7 @@ export default function CoachCalendarScreen() {
                 <button
                   type="button"
                   onClick={createEvent}
-                  className="flex-1 px-4 py-2 rounded-lg bg-[#FF7939] text-black text-sm font-semibold hover:bg-[#ff8a55] transition-colors disabled:opacity-60"
+                  className="flex-1 px-4 py-2.5 rounded-xl bg-[#FF7939] text-black text-sm font-semibold hover:bg-[#ff8a55] transition-colors disabled:opacity-60"
                   disabled={createEventLoading}
                 >
                   {createEventLoading ? 'Guardando...' : 'Crear'}

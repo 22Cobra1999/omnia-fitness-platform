@@ -2,7 +2,7 @@
 
 import React, { useState, useEffect, useCallback, useMemo, useRef } from 'react'
 import { Button } from '@/components/ui/button'
-import { X, Clock, Calendar, Users, Globe, MapPin, Star, ShoppingCart, Edit, ChevronRight, Trash2, Zap, UtensilsCrossed, Flame } from 'lucide-react'
+import { X, Clock, Calendar, Users, Globe, MapPin, Star, ShoppingCart, Edit, ChevronRight, Trash2, Zap, UtensilsCrossed, Flame, Video } from 'lucide-react'
 import { toast } from 'sonner'
 import { Switch } from '@/components/ui/switch'
 import { motion, AnimatePresence } from 'framer-motion'
@@ -391,6 +391,12 @@ export default function ClientProductModal({
   const productModality = productData?.modality || product.modality
   const totalSessions = productStats?.totalSessions || product.totalSessions || 0
   const exercisesCount = productStats?.uniqueExercises || product.exercisesCount || 0
+  const includedMeetCredits = (() => {
+    const raw = (product as any)?.included_meet_credits
+    if (typeof raw === 'number') return raw
+    const parsed = parseInt(String(raw ?? '0'), 10)
+    return Number.isFinite(parsed) ? parsed : 0
+  })()
   const programDuration = (() => {
     if (product.program_info?.program_duration) {
       const parsed = parseInt(String(product.program_info.program_duration), 10)
@@ -1257,7 +1263,7 @@ export default function ClientProductModal({
               {/* Title and Coach */}
               <div>
                 <div className="mb-3">
-                  <h3 className="text-xl font-bold text-white">{product.title}</h3>
+                  <h3 className="text-xl font-semibold text-white/85">{product.title}</h3>
                 </div>
                 
                 {/* Coach Profile Card - Clickeable solo si NO viene del perfil del coach */}
@@ -1283,7 +1289,7 @@ export default function ClientProductModal({
                     <div className="absolute -bottom-0.5 -right-0.5 w-3 h-3 bg-green-500 rounded-full border-2 border-gray-900"></div>
                   </div>
                   <div className="flex-1">
-                    <p className="text-white font-semibold">{product.coach_name || product.coach?.name || 'Coach'}</p>
+                    <p className="text-white/80 font-medium">{product.coach_name || product.coach?.name || 'Coach'}</p>
                     {product.coach_experience_years && (
                       <p className="text-gray-400 text-sm">{product.coach_experience_years} años de experiencia</p>
                     )}
@@ -1312,93 +1318,47 @@ export default function ClientProductModal({
                 )}
               </div>
 
-              {/* Description with expand/collapse */}
-              <div>
-                <h3 className="text-lg font-semibold mb-2 text-white">Descripción</h3>
-                <div className="text-gray-300 leading-relaxed">
-                  {isDescriptionExpanded ? (
-                    <p>{product.description}</p>
-                  ) : (
-                    <div>
-                      <p 
-                        className="overflow-hidden"
-                        style={{
-                          display: '-webkit-box',
-                          WebkitLineClamp: 3,
-                          WebkitBoxOrient: 'vertical',
-                          lineHeight: '1.5em',
-                          height: '4.5em'
-                        }}
-                      >
-                        {product.description}
-                      </p>
-                      {product.description && product.description.length > 150 && (
-                        <button
-                          onClick={() => setIsDescriptionExpanded(true)}
-                          className="text-[#FF7939] hover:text-[#FF6B00] text-sm mt-2"
-                        >
-                          ...ver más
-                        </button>
-                      )}
-                    </div>
-                  )}
-                  {isDescriptionExpanded && (
-                    <button
-                      onClick={() => setIsDescriptionExpanded(false)}
-                      className="text-[#FF7939] hover:text-[#FF6B00] text-sm mt-2"
-                    >
-                      ...ver menos
-                    </button>
-                  )}
-                </div>
-              </div>
-
-              {/* Statistics with words - 2x2 grid */}
-              <div className="grid grid-cols-2 gap-4 items-start w-full">
+              {/* Variables - 3 columnas x 2 filas */}
+              <div className="grid grid-cols-3 gap-4 items-start w-full">
                 {/* Fila 1 */}
-                <div className="flex items-center gap-2">
-                  <Calendar className="h-5 w-5 text-[#FF7939]" />
-                  <span className="text-gray-300">Sesiones: {statsLoading ? '...' : totalSessions}</span>
-                </div>
-                
-                {/* No mostrar ejercicios/platos para talleres */}
-                {product.type !== 'workshop' && (
-                  <div className={`flex items-center gap-2 ${exceedsActivities ? 'border-2 border-red-500 rounded-lg' : ''}`}>
-                    {product.categoria === 'nutricion' || product.categoria === 'nutrition' ? (
-                      <UtensilsCrossed className={`h-5 w-5 ${exceedsActivities ? 'text-red-500' : 'text-[#FF7939]'}`} />
-                    ) : (
-                      <Zap className={`h-5 w-5 ${exceedsActivities ? 'text-red-500' : 'text-[#FF7939]'}`} />
-                    )}
-                    <span className={exceedsActivities ? 'text-red-500 font-bold' : 'text-gray-300'}>
-                      {product.categoria === 'nutricion' || product.categoria === 'nutrition' ? 'Platos' : 'Ejercicios'}: {statsLoading ? '...' : planLimits?.activitiesLimit ? `${exercisesCount}/${planLimits.activitiesLimit}` : exercisesCount}
-                    </span>
+                <div className="flex flex-col items-center gap-1 text-center">
+                  <div className="flex items-center gap-2">
+                    <Calendar className="h-5 w-5 text-[#FF7939]" />
+                    <span className="text-white/60 font-medium">Sesiones</span>
                   </div>
+                  <div className="text-white/75 font-medium">
+                    {statsLoading ? '...' : totalSessions}
+                  </div>
+                </div>
+
+                <div className={`flex flex-col items-center gap-1 text-center ${exceedsWeeks ? 'border-2 border-red-500 rounded-lg p-1' : ''}`}>
+                  <div className="flex items-center gap-2">
+                    <Clock className={`h-5 w-5 ${exceedsWeeks ? 'text-red-500' : 'text-[#FF7939]'}`} />
+                    <span className={exceedsWeeks ? 'text-red-500 font-bold' : 'text-white/60 font-medium'}>Semanas</span>
+                  </div>
+                  <div className={exceedsWeeks ? 'text-red-500 font-bold' : 'text-white font-semibold'}>
+                    {product.type === 'workshop'
+                      ? (loadingWorkshopTopics ? '...' : (planLimits?.weeksLimit ? `${calculateWorkshopWeeks}/${planLimits.weeksLimit}` : calculateWorkshopWeeks || 0))
+                      : (planningStatsLoading ? '...' : planLimits?.weeksLimit ? `${weeksCount}/${planLimits.weeksLimit}` : (weeksCount || 'N/A'))}
+                  </div>
+                </div>
+
+                {productCapacity ? (
+                  <div className={`flex flex-col items-center gap-1 text-center ${exceedsStock ? 'border-2 border-red-500 rounded-lg p-1' : ''}`}>
+                    <div className="flex items-center gap-2">
+                      <Users className={`h-5 w-5 ${exceedsStock ? 'text-red-500' : 'text-[#FF7939]'}`} />
+                      <span className={exceedsStock ? 'text-red-500 font-bold' : 'text-white/60 font-medium'}>Cupos</span>
+                    </div>
+                    <div className={exceedsStock ? 'text-red-500 font-bold' : 'text-white font-semibold'}>
+                      {parseInt(productCapacity.toString()) >= 999 ? 'Ilimitados' : productCapacity}
+                    </div>
+                  </div>
+                ) : (
+                  <div />
                 )}
-                
+
                 {/* Fila 2 */}
-                {productCapacity && (
-                  <div className={`flex items-center gap-2 ${exceedsStock ? 'border-2 border-red-500 rounded-lg' : ''}`}>
-                    <Users className={`h-5 w-5 ${exceedsStock ? 'text-red-500' : 'text-[#FF7939]'}`} />
-                    <span className={exceedsStock ? 'text-red-500 font-bold' : 'text-gray-300'}>
-                      Cupos: {parseInt(productCapacity.toString()) >= 999 ? 'Ilimitados' : productCapacity}
-                    </span>
-                  </div>
-                )}
-                
-                <div className={`flex items-center gap-2 ${exceedsWeeks ? 'border-2 border-red-500 rounded-lg' : ''}`}>
-                  <Clock className={`h-5 w-5 ${exceedsWeeks ? 'text-red-500' : 'text-[#FF7939]'}`} />
-                  <span className={exceedsWeeks ? 'text-red-500 font-bold' : 'text-gray-300'}>
-                    Semanas: {
-                      product.type === 'workshop' 
-                        ? (loadingWorkshopTopics ? '...' : (planLimits?.weeksLimit ? `${calculateWorkshopWeeks}/${planLimits.weeksLimit}` : calculateWorkshopWeeks || 0))
-                        : (planningStatsLoading ? '...' : planLimits?.weeksLimit ? `${weeksCount}/${planLimits.weeksLimit}` : (weeksCount || 'N/A'))
-                    }
-                  </span>
-                </div>
-                
-                {/* Fila 3 - Dificultad y Modalidad (con lugar si es presencial) */}
                 <div className="flex items-center gap-2">
-                  {/* Para productos de nutrición, mostrar tipo de dieta en lugar de dificultad */}
                   {(product.categoria === 'nutricion' || product.categoria === 'nutrition' || productData?.categoria === 'nutricion' || productData?.categoria === 'nutrition') ? (
                     getDietTypeDisplay(productData?.dieta || product.dieta)
                   ) : (
@@ -1412,16 +1372,26 @@ export default function ClientProductModal({
                     </>
                   )}
                 </div>
-                
-                {/* Modalidad después (celda ocupa ambas columnas) */}
-                <div className="col-span-2 col-start-1 flex items-center gap-2 w-full min-w-0">
+
+                {product.type !== 'workshop' && includedMeetCredits > 0 ? (
+                  <div className="flex items-center gap-2">
+                    <Video className="h-5 w-5 text-rose-100/90" />
+                    <span className="text-gray-300">
+                      {includedMeetCredits} <span className="text-xs">meets</span> por cliente
+                    </span>
+                  </div>
+                ) : (
+                  <div />
+                )}
+
+                <div className="flex items-center justify-center gap-2 w-full min-w-0">
                   {(() => {
                     const locationName = productData?.location_name || product.location_name
                     const locationUrl = productData?.location_url || product.location_url
                     if (productModality === 'presencial') {
                       return (
                         <div className="overflow-x-auto whitespace-nowrap -mx-1 px-1 w-full min-w-0">
-                          <div className="inline-flex items-center gap-2 min-w-max">
+                          <div className="inline-flex items-center gap-2 min-w-max justify-center">
                             <MapPin className="h-5 w-5 text-red-500 flex-shrink-0" />
                             {locationName || locationUrl ? (
                               <button
@@ -1465,10 +1435,51 @@ export default function ClientProductModal({
                 
                 {/* Botón Upgrade de Plan - Solo si hay excesos, debajo de todas las variables */}
                 {(exceedsActivities || exceedsWeeks || exceedsStock) && (
-                  <div className="col-span-2 mt-2">
+                  <div className="col-span-3 mt-2">
                     {renderUpgradeButton()}
                   </div>
                 )}
+              </div>
+
+              {/* Descripción con expand/collapse (debajo de variables) */}
+              <div>
+                <h3 className="text-lg font-medium mb-2 text-white/80">Descripción</h3>
+                <div className="text-white/65 font-light leading-relaxed">
+                  {isDescriptionExpanded ? (
+                    <p>{product.description}</p>
+                  ) : (
+                    <div>
+                      <p
+                        className="overflow-hidden"
+                        style={{
+                          display: '-webkit-box',
+                          WebkitLineClamp: 3,
+                          WebkitBoxOrient: 'vertical',
+                          lineHeight: '1.5em',
+                          height: '4.5em'
+                        }}
+                      >
+                        {product.description}
+                      </p>
+                      {product.description && product.description.length > 150 && (
+                        <button
+                          onClick={() => setIsDescriptionExpanded(true)}
+                          className="text-[#FF7939] hover:text-[#FF6B00] text-sm mt-2"
+                        >
+                          ...ver más
+                        </button>
+                      )}
+                    </div>
+                  )}
+                  {isDescriptionExpanded && (
+                    <button
+                      onClick={() => setIsDescriptionExpanded(false)}
+                      className="text-[#FF7939] hover:text-[#FF6B00] text-sm mt-2"
+                    >
+                      ...ver menos
+                    </button>
+                  )}
+                </div>
               </div>
 
 
