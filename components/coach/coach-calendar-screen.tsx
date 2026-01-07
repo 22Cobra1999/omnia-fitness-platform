@@ -1,8 +1,8 @@
 'use client'
 
-import { useState, useEffect, useCallback, useMemo } from "react"
+import { useState, useEffect, useCallback, useMemo, useRef } from "react"
 import { createClient } from "@/lib/supabase/supabase-client"
-import { Calendar, Clock, Video, ExternalLink, Users, RefreshCw, Plus, Search, Pencil, ChevronDown, Trash2 } from "lucide-react"
+import { Calendar, Clock, Video, ExternalLink, Users, RefreshCw, Plus, Minus, Search, Pencil, ChevronDown, Trash2 } from "lucide-react"
 import { format, startOfMonth, endOfMonth, eachDayOfInterval, isSameDay, isToday, addMonths, subMonths, addDays, subDays, addYears, subYears } from "date-fns"
 import { es } from "date-fns/locale"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
@@ -15,6 +15,7 @@ import { toast } from 'sonner'
 import { WorkshopEventModal } from "./workshop-event-modal"
 import { WorkshopEventDetailModal } from "./workshop-event-detail-modal"
 import { parseISO } from 'date-fns'
+import { DeleteConfirmationDialog } from "@/components/shared/ui/delete-confirmation-dialog"
 
 interface CalendarEvent {
   id: string
@@ -60,6 +61,49 @@ export default function CoachCalendarScreen() {
   const [monthPickerYear, setMonthPickerYear] = useState<number>(() => new Date().getFullYear())
   const [cachedEvents, setCachedEvents] = useState<Map<string, CalendarEvent[]>>(new Map())
 
+  const [calendarMode, setCalendarMode] = useState<'events' | 'availability'>('events')
+  const [showAddMenu, setShowAddMenu] = useState(false)
+  const [availabilityStart, setAvailabilityStart] = useState('09:00')
+  const [availabilityEnd, setAvailabilityEnd] = useState('18:00')
+  const [availabilityScope, setAvailabilityScope] = useState<'month' | 'always'>('month')
+  const [availabilitySelectingDays, setAvailabilitySelectingDays] = useState(false)
+  const [availabilityWeekdays, setAvailabilityWeekdays] = useState<boolean[]>([false, false, false, false, false, false, false])
+  const [availabilityShowExtraLine, setAvailabilityShowExtraLine] = useState(false)
+  const [availabilityIsEditingRules, setAvailabilityIsEditingRules] = useState(false)
+  const [availabilitySaving, setAvailabilitySaving] = useState(false)
+  const [availabilityOpenDaysForRuleId, setAvailabilityOpenDaysForRuleId] = useState<string | null>(null)
+  const [availabilityOpenMonthsForRuleId, setAvailabilityOpenMonthsForRuleId] = useState<string | null>(null)
+  const [availabilityOpenTimeForRuleId, setAvailabilityOpenTimeForRuleId] = useState<string | null>(null)
+  const [availabilityDrafts, setAvailabilityDrafts] = useState<
+    Record<
+      string,
+      {
+        start: string
+        end: string
+        days: number[]
+        months: number[]
+      }
+    >
+  >({})
+  const [availabilityRules, setAvailabilityRules] = useState<
+    Array<{
+      id: string
+      dbKey?: {
+        start: string
+        end: string
+        scope: 'always' | 'month'
+        year?: number | null
+        month?: number | null
+      }
+      dbIds?: string[]
+      start: string
+      end: string
+      days: number[]
+      months?: number[]
+      scope: 'always' | 'months'
+    }>
+  >([])
+
   const [showCreateEventModal, setShowCreateEventModal] = useState(false)
   const [createEventLoading, setCreateEventLoading] = useState(false)
   const [meetModalMode, setMeetModalMode] = useState<'create' | 'edit'>('create')
@@ -67,6 +111,7 @@ export default function CoachCalendarScreen() {
   const [editingEventMeetLink, setEditingEventMeetLink] = useState<string | null>(null)
   const [editingEventGoogleId, setEditingEventGoogleId] = useState<string | null>(null)
   const [isMeetEditing, setIsMeetEditing] = useState(false)
+  const [showDeleteMeetDialog, setShowDeleteMeetDialog] = useState(false)
   const [clientsForMeet, setClientsForMeet] = useState<
     Array<{
       id: string
@@ -76,6 +121,9 @@ export default function CoachCalendarScreen() {
       status?: 'active' | 'pending' | 'inactive'
       meet_credits_available?: number
     }>
+  >([])
+  const [meetParticipants, setMeetParticipants] = useState<
+    Array<{ client_id: string; rsvp_status?: string; payment_status?: string; payment_id?: number | null }>
   >([])
   const [newEventTitle, setNewEventTitle] = useState('')
   const [newEventNotes, setNewEventNotes] = useState('')
@@ -88,9 +136,20 @@ export default function CoachCalendarScreen() {
   const [showClientPicker, setShowClientPicker] = useState(false)
   const [clientSearch, setClientSearch] = useState('')
 
+  const meetDateInputRef = useRef<HTMLInputElement | null>(null)
+
   const supabase = createClient()
 
   const pad2 = (n: number) => String(n).padStart(2, '0')
+  const formatArs = (value: any) => {
+    const n = Number(value)
+    const safe = Number.isFinite(n) ? n : 0
+    try {
+      return new Intl.NumberFormat('es-AR').format(safe)
+    } catch {
+      return String(safe)
+    }
+  }
   const getDefaultStartTime = () => {
     const now = new Date()
     now.setMinutes(0, 0, 0)
@@ -100,8 +159,6 @@ export default function CoachCalendarScreen() {
 
   const deleteMeeting = async () => {
     if (meetModalMode !== 'edit' || !editingEventId) return
-    const ok = window.confirm('¿Eliminar esta reunión?')
-    if (!ok) return
 
     setCreateEventLoading(true)
     try {
@@ -113,8 +170,8 @@ export default function CoachCalendarScreen() {
 
       toast.success('Reunión eliminada')
       closeCreateEventModal()
-      setCachedEvents(() => new Map())
-      await getCoachEvents()
+      await getCoachEvents(true)
+      await ensureClientsLoaded()
     } finally {
       setCreateEventLoading(false)
     }
@@ -145,8 +202,36 @@ export default function CoachCalendarScreen() {
       setNewEventTitle(event.title || '')
       setNewEventNotes(String(event.description || ''))
 
-      // Mantener clientes (no editable en edit para evitar inconsistencias)
-      setSelectedClientIds(event.client_id ? [event.client_id] : [])
+      // Cargar invitados desde calendar_event_participants (source of truth)
+      try {
+        const { data: parts, error: partsErr } = await supabase
+          .from('calendar_event_participants')
+          .select('client_id, rsvp_status, payment_status, payment_id')
+          .eq('event_id', event.id)
+
+        if (!partsErr && Array.isArray(parts)) {
+          const ids = parts
+            .map((p: any) => String(p?.client_id || ''))
+            .filter((id: string) => !!id)
+          setSelectedClientIds(ids)
+          setMeetParticipants(
+            parts
+              .map((p: any) => ({
+                client_id: String(p?.client_id || ''),
+                rsvp_status: p?.rsvp_status,
+                payment_status: p?.payment_status,
+                payment_id: p?.payment_id ?? null,
+              }))
+              .filter((p: any) => !!p.client_id)
+          )
+        } else {
+          setSelectedClientIds([])
+          setMeetParticipants([])
+        }
+      } catch {
+        setSelectedClientIds([])
+        setMeetParticipants([])
+      }
       setNewEventIsFree(true)
       setNewEventPrice('')
       setShowClientPicker(false)
@@ -188,6 +273,7 @@ export default function CoachCalendarScreen() {
     setEditingEventMeetLink(null)
     setEditingEventGoogleId(null)
     setIsMeetEditing(false)
+    setShowDeleteMeetDialog(false)
   }
 
   const ensureClientsLoaded = useCallback(async () => {
@@ -274,8 +360,8 @@ export default function CoachCalendarScreen() {
 
         closeCreateEventModal()
         toast.success('Cambios guardados')
-        setCachedEvents(() => new Map())
-        await getCoachEvents()
+        await getCoachEvents(true)
+        await ensureClientsLoaded()
         return
       }
 
@@ -283,29 +369,48 @@ export default function CoachCalendarScreen() {
         ? null
         : (String(newEventPrice || '').trim() ? Number(newEventPrice) : 0)
 
-      const rows = selectedClientIds.map((clientId) => ({
-        coach_id: coachId,
-        title: newEventTitle.trim(),
-        start_time: startISO,
-        end_time: endISO,
-        event_type: 'consultation',
-        status: 'scheduled',
-        client_id: clientId,
-        description: newEventNotes.trim() ? newEventNotes.trim() : null,
-        is_free: newEventIsFree,
-        price: normalizedPrice,
-        currency: 'ARS',
-      }))
-
-      const { data: inserted, error } = await supabase
+      // Nuevo modelo: 1 evento + N participantes en calendar_event_participants
+      const { data: insertedEvent, error } = await supabase
         .from('calendar_events')
-        .insert(rows as any)
+        .insert({
+          coach_id: coachId,
+          title: newEventTitle.trim(),
+          start_time: startISO,
+          end_time: endISO,
+          event_type: 'consultation',
+          status: 'scheduled',
+          description: newEventNotes.trim() ? newEventNotes.trim() : null,
+          is_free: newEventIsFree,
+          price: normalizedPrice,
+          currency: 'ARS',
+        } as any)
         .select('id')
+        .maybeSingle()
 
-      if (error) {
+      if (error || !insertedEvent?.id) {
         console.error('Error creating event:', error)
-        toast.error(error.message || 'No se pudo crear el evento')
+        toast.error(error?.message || 'No se pudo crear el evento')
         return
+      }
+
+      // Insertar invitados
+      try {
+        const participantRows = selectedClientIds.map((clientId) => ({
+          event_id: insertedEvent.id,
+          client_id: clientId,
+          rsvp_status: 'pending',
+          payment_status: newEventIsFree ? 'free' : 'unpaid',
+        }))
+
+        const { error: partErr } = await supabase
+          .from('calendar_event_participants')
+          .insert(participantRows as any)
+
+        if (partErr) {
+          console.error('Error inserting participants:', partErr)
+        }
+      } catch {
+        // No bloquear
       }
 
       closeCreateEventModal()
@@ -313,11 +418,10 @@ export default function CoachCalendarScreen() {
 
       // Crear Meet link automáticamente para reuniones creadas con el +
       // Usar el endpoint dedicado (create-meet) porque auto-create-meet está pensado para talleres.
-      if (Array.isArray(inserted) && inserted.length > 0) {
+      {
+        const eventId = insertedEvent.id
         let anyMeetError = false
-        for (const row of inserted) {
-          const eventId = (row as any)?.id
-          if (!eventId) continue
+        if (eventId) {
           try {
             const resp = await fetch('/api/google/calendar/create-meet', {
               method: 'POST',
@@ -345,8 +449,8 @@ export default function CoachCalendarScreen() {
         }
       }
 
-      setCachedEvents(() => new Map())
-      await getCoachEvents()
+      await getCoachEvents(true)
+      await ensureClientsLoaded()
     } finally {
       setCreateEventLoading(false)
     }
@@ -376,13 +480,13 @@ export default function CoachCalendarScreen() {
 
   // Obtener eventos del coach (Omnia + Google Calendar)
   // Optimizado: carga eventos de 3 meses (mes anterior, actual, siguiente) para cachear
-  const getCoachEvents = useCallback(async () => {
+  const getCoachEvents = useCallback(async (force = false) => {
     try {
       const cacheKey = `${currentDate.getFullYear()}-${currentDate.getMonth()}`
       
       // Verificar si ya tenemos eventos en caché para este mes
       // Solo usar cache si no estamos forzando recarga
-      if (cachedEvents.has(cacheKey)) {
+      if (!force && cachedEvents.has(cacheKey)) {
         const cached = cachedEvents.get(cacheKey) || []
         // Si el cache tiene eventos o es un array vacío válido, usarlo
         setEvents(cached)
@@ -436,7 +540,6 @@ export default function CoachCalendarScreen() {
             end_time,
             event_type,
             status,
-            client_id,
             activity_id,
             meet_link,
             meet_link_id,
@@ -462,6 +565,36 @@ export default function CoachCalendarScreen() {
       } catch (supabaseError: any) {
         console.error("Error inesperado obteniendo eventos de Supabase:", supabaseError)
         calendarEvents = []
+      }
+
+      // Enriquecer participantes desde calendar_event_participants (solo para eventos Omnia)
+      try {
+        const omniaEventIds = (calendarEvents || []).map((e: any) => e?.id).filter(Boolean)
+        if (omniaEventIds.length > 0) {
+          const { data: parts, error: partsErr } = await supabase
+            .from('calendar_event_participants')
+            .select('event_id')
+            .in('event_id', omniaEventIds as any)
+
+          if (!partsErr && Array.isArray(parts)) {
+            const countByEvent = new Map<string, number>()
+            for (const p of parts as any[]) {
+              const eid = String(p?.event_id || '')
+              if (!eid) continue
+              countByEvent.set(eid, (countByEvent.get(eid) || 0) + 1)
+            }
+            calendarEvents = (calendarEvents || []).map((e: any) => {
+              const count = countByEvent.get(String(e?.id || '')) || 0
+              return {
+                ...e,
+                current_participants: count,
+                max_participants: e?.max_participants ?? (count > 0 ? count : null),
+              }
+            })
+          }
+        }
+      } catch {
+        // No bloquear
       }
 
       // Obtener eventos de Google Calendar en paralelo
@@ -891,6 +1024,101 @@ export default function CoachCalendarScreen() {
     }
   }
 
+  useEffect(() => {
+    if (!coachId) return
+
+    const loadAvailability = async () => {
+      try {
+        const { data, error } = await supabase
+          .from('coach_availability_rules')
+          .select('id, coach_id, weekday, start_time, end_time, scope, year, month, timezone')
+          .eq('coach_id', coachId)
+          .order('start_time', { ascending: true })
+
+        if (error) {
+          console.error('Error loading coach availability:', error)
+          return
+        }
+
+        const toHHMM = (t: any) => {
+          const s = String(t || '')
+          if (!s) return ''
+          return s.slice(0, 5)
+        }
+
+        const rows = Array.isArray(data) ? data : []
+
+        type Group = {
+          id: string
+          dbIds: string[]
+          start: string
+          end: string
+          scope: 'always' | 'months'
+          dbKey: { start: string; end: string; scope: 'always' | 'month'; year?: number | null; month?: number | null }
+          days: Set<number>
+          months: Set<number>
+        }
+
+        const groups = new Map<string, Group>()
+
+        for (const r of rows as any[]) {
+          const start = toHHMM(r?.start_time)
+          const end = toHHMM(r?.end_time)
+          const weekday = Number(r?.weekday)
+          const dbScope = String(r?.scope || '').toLowerCase() === 'month' ? 'month' : 'always'
+          const year = r?.year == null ? null : Number(r.year)
+          const month = r?.month == null ? null : Number(r.month)
+          const id = String(r?.id || '')
+
+          if (!id || !start || !end || !Number.isFinite(weekday)) continue
+
+          const key = `${start}|${end}|${dbScope}|${year ?? ''}|${month ?? ''}`
+          const existing = groups.get(key)
+          if (!existing) {
+            const monthIndex = dbScope === 'month' && Number.isFinite(month) ? (month as number) - 1 : null
+            groups.set(key, {
+              id: key,
+              dbIds: [id],
+              start,
+              end,
+              scope: dbScope === 'month' ? 'months' : 'always',
+              dbKey: { start, end, scope: dbScope, year, month },
+              days: new Set([weekday]),
+              months: new Set(monthIndex == null ? [] : [monthIndex]),
+            })
+          } else {
+            existing.dbIds.push(id)
+            existing.days.add(weekday)
+            if (dbScope === 'month' && Number.isFinite(month)) existing.months.add((month as number) - 1)
+          }
+        }
+
+        const uiRules = Array.from(groups.values())
+          .map((g) => {
+            const days = Array.from(g.days.values()).sort((a, b) => a - b)
+            const months = Array.from(g.months.values()).sort((a, b) => a - b)
+            return {
+              id: g.id,
+              dbKey: g.dbKey,
+              dbIds: g.dbIds,
+              start: g.start,
+              end: g.end,
+              days,
+              months: g.scope === 'months' ? months : undefined,
+              scope: g.scope,
+            }
+          })
+          .sort((a, b) => (a.start + a.end).localeCompare(b.start + b.end))
+
+        setAvailabilityRules(uiRules)
+      } catch (e) {
+        console.error('Error loading coach availability:', e)
+      }
+    }
+
+    loadAvailability()
+  }, [coachId, supabase])
+
   if (loading) {
     return (
       <div className="flex items-center justify-center h-screen bg-[#121212]">
@@ -958,157 +1186,823 @@ export default function CoachCalendarScreen() {
     })
   }
 
+  const weekdayShort = ['Dom', 'Lun', 'Mar', 'Mié', 'Jue', 'Vie', 'Sáb']
+  const weekdayLong = ['domingo', 'lunes', 'martes', 'miércoles', 'jueves', 'viernes', 'sábado']
+  const monthLong = ['enero', 'febrero', 'marzo', 'abril', 'mayo', 'junio', 'julio', 'agosto', 'septiembre', 'octubre', 'noviembre', 'diciembre']
+  const monthTitle = ['Ene', 'Feb', 'Mar', 'Abr', 'May', 'Jun', 'Jul', 'Ago', 'Sep', 'Oct', 'Nov', 'Dic']
+
+  const formatDaysShort = (days: number[]) => {
+    if (days.length === 7) return 'Todos los días'
+    return days
+      .slice()
+      .sort((a, b) => a - b)
+      .map((d) => weekdayShort[d] || '')
+      .filter(Boolean)
+      .join(', ')
+  }
+
+  const formatDaysLong = (days: number[]) => {
+    if (days.length === 7) return 'todos los días'
+    return days
+      .slice()
+      .sort((a, b) => a - b)
+      .map((d) => weekdayLong[d] || '')
+      .filter(Boolean)
+      .join(', ')
+  }
+
+  const formatMonthsTitle = (months?: number[]) => {
+    const safe = Array.isArray(months) ? months : []
+    if (safe.length === 0) return ''
+    return safe
+      .slice()
+      .sort((a, b) => a - b)
+      .map((m) => monthTitle[m] || '')
+      .filter(Boolean)
+      .join(', ')
+  }
+
+  const formatMonthsLong = (months?: number[]) => {
+    const safe = Array.isArray(months) ? months : []
+    if (safe.length === 0) return ''
+    return safe
+      .slice()
+      .sort((a, b) => a - b)
+      .map((m) => monthLong[m] || '')
+      .filter(Boolean)
+      .join(' y ')
+  }
+
+  const isAllDays = (days: number[]) => Array.isArray(days) && new Set(days).size === 7
+  const isAllMonths = (months: number[]) => Array.isArray(months) && new Set(months).size === 12
+  const getTimezone = () => {
+    try {
+      return Intl.DateTimeFormat().resolvedOptions().timeZone || 'UTC'
+    } catch {
+      return 'UTC'
+    }
+  }
+
+  const ensureDraftsFromRules = () => {
+    setAvailabilityDrafts((prev) => {
+      const next = { ...prev }
+      for (const r of availabilityRules) {
+        if (next[r.id]) continue
+        next[r.id] = {
+          start: r.start,
+          end: r.end,
+          days: Array.isArray(r.days) ? r.days.slice() : [],
+          months:
+            r.scope === 'always'
+              ? Array.from({ length: 12 }, (_, i) => i)
+              : Array.isArray(r.months)
+                ? r.months.slice()
+                : [],
+        }
+      }
+      return next
+    })
+  }
+
+  const setDraft = (ruleId: string, patch: Partial<{ start: string; end: string; days: number[]; months: number[] }>) => {
+    setAvailabilityDrafts((prev) => ({
+      ...prev,
+      [ruleId]: {
+        start: patch.start ?? prev[ruleId]?.start ?? '09:00',
+        end: patch.end ?? prev[ruleId]?.end ?? '18:00',
+        days: patch.days ?? prev[ruleId]?.days ?? [0, 1, 2, 3, 4, 5, 6],
+        months: patch.months ?? prev[ruleId]?.months ?? Array.from({ length: 12 }, (_, i) => i),
+      },
+    }))
+  }
+
+  const saveAllAvailabilityDrafts = async () => {
+    if (!coachId) return
+    if (availabilitySaving) return
+
+    setAvailabilitySaving(true)
+    try {
+      const tz = getTimezone()
+      const year = currentYear
+      const all: Array<{ oldDbIds: string[]; inserts: any[]; ruleId: string }> = []
+
+      for (const r of availabilityRules) {
+        const d = availabilityDrafts[r.id]
+        if (!d) continue
+
+        const start = String(d.start || '').slice(0, 5)
+        const end = String(d.end || '').slice(0, 5)
+        const days = Array.isArray(d.days) ? Array.from(new Set(d.days)).sort((a, b) => a - b) : []
+        const months = Array.isArray(d.months) ? Array.from(new Set(d.months)).sort((a, b) => a - b) : []
+
+        if (!start || !end || days.length === 0) continue
+
+        const always = isAllDays(days) && isAllMonths(months)
+        const inserts: any[] = []
+
+        if (always) {
+          for (const wd of days) {
+            inserts.push({
+              coach_id: coachId,
+              weekday: wd,
+              start_time: `${start}:00`,
+              end_time: `${end}:00`,
+              scope: 'always',
+              year: null,
+              month: null,
+              timezone: tz,
+            })
+          }
+        } else {
+          for (const m of months) {
+            for (const wd of days) {
+              inserts.push({
+                coach_id: coachId,
+                weekday: wd,
+                start_time: `${start}:00`,
+                end_time: `${end}:00`,
+                scope: 'month',
+                year,
+                month: m + 1,
+                timezone: tz,
+              })
+            }
+          }
+        }
+
+        all.push({ oldDbIds: Array.isArray(r.dbIds) ? r.dbIds : [], inserts, ruleId: r.id })
+      }
+
+      // Delete + insert per rule (to keep it simple and consistent)
+      for (const item of all) {
+        if (item.oldDbIds.length > 0) {
+          const { error: delErr } = await supabase
+            .from('coach_availability_rules')
+            .delete()
+            .in('id', item.oldDbIds as any)
+
+          if (delErr) {
+            console.error('Error deleting old availability rows:', delErr)
+            toast.error(delErr.message || 'No se pudo guardar la disponibilidad')
+            return
+          }
+        }
+
+        if (item.inserts.length > 0) {
+          const { error: insErr } = await supabase
+            .from('coach_availability_rules')
+            .insert(item.inserts as any)
+
+          if (insErr) {
+            console.error('Error inserting availability rows:', insErr)
+            toast.error(insErr.message || 'No se pudo guardar la disponibilidad')
+            return
+          }
+        }
+      }
+
+      toast.success('Disponibilidad guardada')
+    } finally {
+      setAvailabilitySaving(false)
+    }
+  }
+
+  const deleteAvailabilityRule = async (id: string) => {
+    const rule = availabilityRules.find((r) => r.id === id)
+    if (!rule?.dbIds || rule.dbIds.length === 0) {
+      setAvailabilityRules((prev) => prev.filter((r) => r.id !== id))
+      return
+    }
+
+    try {
+      const { error } = await supabase
+        .from('coach_availability_rules')
+        .delete()
+        .in('id', rule.dbIds as any)
+
+      if (error) {
+        console.error('Error deleting availability rule:', error)
+        toast.error(error.message || 'No se pudo eliminar la regla')
+        return
+      }
+
+      setAvailabilityRules((prev) => prev.filter((r) => r.id !== id))
+    } catch (e) {
+      console.error('Error deleting availability rule:', e)
+      toast.error('No se pudo eliminar la regla')
+    }
+  }
+
   return (
     <div className="h-screen bg-[#121212] overflow-y-auto pb-20">
       <div className="p-4">
-        {/* Botón Hoy/Mes centrado + crear meet a la derecha */}
-        <div className="mb-6 relative flex items-center justify-center">
-          <Button
-            variant="ghost"
-            onClick={viewMode === 'month' ? goToToday : toggleView}
-            className="text-[#FF7939] hover:bg-transparent hover:text-[#FF7939] font-light text-sm px-2 py-1 h-auto"
-          >
-            {viewMode === 'month' ? 'Hoy' : 'Mes'}
-          </Button>
+        {/* Acciones arriba */}
+        <div className="mb-3 relative flex items-center justify-end">
+          {calendarMode === 'availability' ? (
+            <div className="flex items-center justify-end w-full">
+              <button
+                type="button"
+                onClick={() => {
+                  setCalendarMode('events')
+                  setShowAddMenu(false)
+                  setAvailabilitySelectingDays(false)
+                  setAvailabilityShowExtraLine(false)
+                }}
+                className={
+                  `w-8 h-8 rounded-full border flex items-center justify-center ` +
+                  `backdrop-blur-md bg-white/10 border-white/20 shadow-[0_8px_24px_rgba(0,0,0,0.35)] ` +
+                  `hover:bg-white/15 transition-colors`
+                }
+                title="Cerrar"
+                aria-label="Cerrar"
+              >
+                <Minus className="h-4 w-4 text-[#FF7939]" />
+              </button>
+            </div>
+          ) : (
+            <div className="flex items-center gap-2">
+              <div
+                className={
+                  `flex items-center gap-2 transition-all duration-200 ease-out ` +
+                  (showAddMenu ? 'opacity-100 translate-x-0 max-w-[320px]' : 'opacity-0 translate-x-2 max-w-0 pointer-events-none')
+                }
+              >
+                <button
+                  type="button"
+                  onClick={() => {
+                    setShowAddMenu(false)
+                    setCalendarMode('availability')
+                    setViewMode('month')
+                  }}
+                  className={
+                    `px-4 py-1.5 rounded-full border text-sm ` +
+                    `backdrop-blur-md bg-white/10 border-white/20 shadow-[0_8px_24px_rgba(0,0,0,0.35)] ` +
+                    `text-[#FF7939] hover:bg-white/15 transition-colors whitespace-nowrap`
+                  }
+                >
+                  Disponibilidad
+                </button>
 
-          <button
-            type="button"
-            onClick={async () => {
-              if (clientsForMeet.length === 0) await ensureClientsLoaded()
-              await openCreateEventModal()
-            }}
-            className="absolute right-0 w-7 h-7 rounded-full bg-[#FF7939] text-black flex items-center justify-center shadow-md shadow-[#FF7939]/20 hover:bg-[#ff8a55] transition-colors"
-            title="Crear Meet"
-          >
-            <Plus className="h-4 w-4" />
-          </button>
+                <button
+                  type="button"
+                  onClick={async () => {
+                    setShowAddMenu(false)
+                    setCalendarMode('events')
+                    if (clientsForMeet.length === 0) await ensureClientsLoaded()
+                    await openCreateEventModal()
+                  }}
+                  className={
+                    `px-4 py-1.5 rounded-full border text-sm ` +
+                    `backdrop-blur-md bg-white/10 border-white/20 shadow-[0_8px_24px_rgba(0,0,0,0.35)] ` +
+                    `text-[#FF7939] hover:bg-white/15 transition-colors whitespace-nowrap`
+                  }
+                >
+                  Meet
+                </button>
+              </div>
+
+              <button
+                type="button"
+                onClick={() => setShowAddMenu((v) => !v)}
+                className={
+                  `w-8 h-8 rounded-full border flex items-center justify-center ` +
+                  `backdrop-blur-md bg-white/10 border-white/20 shadow-[0_8px_24px_rgba(0,0,0,0.35)] ` +
+                  `hover:bg-white/15 transition-colors`
+                }
+                title={showAddMenu ? 'Cerrar' : 'Acciones'}
+                aria-label={showAddMenu ? 'Cerrar' : 'Acciones'}
+              >
+                {showAddMenu ? (
+                  <Minus className="h-4 w-4 text-[#FF7939]" />
+                ) : (
+                  <Plus className="h-4 w-4 text-[#FF7939]" />
+                )}
+              </button>
+            </div>
+          )}
         </div>
 
         {/* Vista Mes */}
         {viewMode === 'month' && (
           <>
-            {/* Navegación del mes y año */}
-            <div className="flex items-center justify-between mb-6 relative">
-              <Button
-                variant="ghost"
-                size="sm"
-                onClick={showMonthSelector ? goToPreviousPickerYear : goToPreviousMonth}
-                className="text-white hover:bg-zinc-800"
-                title={showMonthSelector ? 'Año anterior' : 'Mes anterior'}
-              >
-                ←
-              </Button>
-              
-              <button
-                onClick={() => {
-                  setMonthPickerYear(currentDate.getFullYear())
-                  setShowMonthSelector((v) => !v)
-                }}
-                className="text-lg font-semibold text-[#FFB366] capitalize hover:text-[#FF7939] transition-colors"
-              >
-                {showMonthSelector
-                  ? String(monthPickerYear)
-                  : `${format(currentDate, 'MMMM', { locale: es })} ${currentDate.getFullYear()}`}
-              </button>
+            {calendarMode === 'availability' && (
+              <div className="mb-4 relative z-[200]">
+                <div className="text-[12px] text-gray-400 mb-2">
+                  Los clientes sabrán cuándo estás disponible para invitarte a una meet
+                </div>
+                <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2 mb-2">
+                  <div className="text-white font-semibold">Disponibilidad</div>
+                  <div className="flex flex-wrap items-center gap-2 justify-start sm:justify-end">
+                    <button
+                      type="button"
+                      onClick={() => {
+                        if (!availabilityIsEditingRules) {
+                          ensureDraftsFromRules()
+                          setAvailabilityIsEditingRules(true)
+                        }
+                        const newId = `new-${Date.now()}`
+                        setAvailabilityRules((prev) => [
+                          ...prev,
+                          {
+                            id: newId,
+                            dbIds: [],
+                            start: '09:00',
+                            end: '18:00',
+                            days: [0, 1, 2, 3, 4, 5, 6],
+                            months: undefined,
+                            scope: 'always',
+                          },
+                        ])
+                        setDraft(newId, {
+                          start: '09:00',
+                          end: '18:00',
+                          days: [0, 1, 2, 3, 4, 5, 6],
+                          months: Array.from({ length: 12 }, (_, i) => i),
+                        })
+                        setAvailabilityOpenDaysForRuleId(newId)
+                        setAvailabilityOpenMonthsForRuleId(null)
+                      }}
+                      className={
+                        `flex items-center justify-center gap-1.5 px-3 py-1 rounded-full border text-[11px] ` +
+                        `backdrop-blur-md bg-white/10 border-[#FF7939]/30 shadow-[0_8px_24px_rgba(0,0,0,0.35)] ` +
+                        `text-[#FF7939] hover:bg-white/15 transition-colors whitespace-nowrap`
+                      }
+                    >
+                      <Plus className="h-3.5 w-3.5" />
+                      Agregar horario
+                    </button>
 
-              <div className="flex items-center gap-2">
-                <Button
-                  variant="ghost"
-                  size="sm"
-                  onClick={showMonthSelector ? goToNextPickerYear : goToNextMonth}
-                  className="text-white hover:bg-zinc-800"
-                  title={showMonthSelector ? 'Año siguiente' : 'Mes siguiente'}
-                >
-                  →
-                </Button>
-              </div>
-              
-              {/* Selector de meses */}
-              {showMonthSelector && (
-                <div 
-                  data-month-selector
-                  className="absolute top-full left-1/2 transform -translate-x-1/2 mt-2 z-50 w-full"
-                >
-                  <div className="w-full overflow-x-auto">
-                    <div className="flex gap-2 whitespace-nowrap pb-1">
-                      {monthNames.map((month, index) => (
-                        <button
-                          key={index}
-                          onClick={() => changeMonth(index)}
-                          className={`shrink-0 px-3 py-1 rounded-full text-xs font-semibold transition-colors ${
-                            monthPickerYear === currentYear && currentDate.getMonth() === index
-                              ? 'bg-[#FF7939] text-white'
-                              : 'bg-zinc-800/60 text-gray-300 hover:bg-zinc-700/60'
-                          }`}
-                        >
-                          {month}
-                        </button>
-                      ))}
-                    </div>
+                    <button
+                      type="button"
+                      onClick={async () => {
+                        if (availabilityIsEditingRules) {
+                          await saveAllAvailabilityDrafts()
+                          setAvailabilityIsEditingRules(false)
+                          setAvailabilityOpenDaysForRuleId(null)
+                          setAvailabilityOpenMonthsForRuleId(null)
+                          setAvailabilityOpenTimeForRuleId(null)
+                        } else {
+                          ensureDraftsFromRules()
+                          setAvailabilityIsEditingRules(true)
+                        }
+                      }}
+                      className={
+                        `px-3 py-1 rounded-full border text-[11px] transition-colors ` +
+                        `backdrop-blur-md bg-white/10 shadow-[0_8px_24px_rgba(0,0,0,0.35)] ` +
+                        (availabilityIsEditingRules
+                          ? 'border-white/20 text-white hover:bg-white/15'
+                          : 'border-[#FF7939]/30 text-[#FF7939] hover:bg-white/15') +
+                        ` whitespace-nowrap`
+                      }
+                    >
+                      {availabilityIsEditingRules ? (availabilitySaving ? 'Guardando…' : 'Listo') : 'Editar'}
+                    </button>
                   </div>
                 </div>
-              )}
-            </div>
 
-        {/* Calendario */}
-        <Card className="bg-zinc-900 border-zinc-800 mb-6">
-          <CardContent className="p-4">
-            {/* Días de la semana */}
-            <div className="grid grid-cols-7 gap-2 mb-2">
-              {['Dom', 'Lun', 'Mar', 'Mié', 'Jue', 'Vie', 'Sáb'].map(day => (
-                <div key={day} className="text-center text-xs font-medium text-gray-400">
-                  {day}
-                </div>
-              ))}
-            </div>
+                <div className="rounded-2xl border border-white/10 bg-white/5 backdrop-blur-md shadow-[0_8px_24px_rgba(0,0,0,0.35)] overflow-visible">
+                  {availabilityRules.map((rule, idx) => {
+                    const daysShort = formatDaysShort(rule.days)
+                    const monthsShort = rule.scope === 'always' ? 'Siempre' : formatMonthsTitle(rule.months)
+                    const daysLong = formatDaysLong(rule.days)
+                    const monthsLong = rule.scope === 'always' ? '' : formatMonthsLong(rule.months)
 
-            {/* Días del mes */}
-            <div className="grid grid-cols-7 gap-2">
-              {Array.from({ length: leadingEmptyDays }).map((_, idx) => (
-                <div key={`empty-${idx}`} className="aspect-square p-2" />
-              ))}
-              {daysInMonth.map(day => {
-                const dayEvents = getEventsForDate(day)
-                const googleEvents = dayEvents.filter(e => e.is_google_event || e.source === 'google_calendar')
-                const omniaEvents = dayEvents.filter(e => !e.is_google_event && e.source !== 'google_calendar')
-                const googleCount = googleEvents.length
-                const omniaCount = omniaEvents.length
-                const hasEvents = dayEvents.length > 0
-                const isSelected = selectedDate && isSameDay(day, selectedDate)
-                const isTodayDate = isToday(day)
+                    const nonEditText =
+                      rule.scope === 'always'
+                        ? `Disponible de ${rule.start} a ${rule.end} ${daysLong}`
+                        : `Disponible de ${rule.start} a ${rule.end} ${daysLong} en ${monthsLong}`
 
-                return (
-                  <button
-                    key={day.toISOString()}
-                    onClick={() => setSelectedDate(day)}
-                    className={`
-                      aspect-square p-2 rounded-lg text-sm font-medium transition-colors flex flex-col items-center justify-center
-                      ${isSelected ? 'bg-[#FF7939] text-white' : ''}
-                      ${isTodayDate && !isSelected ? 'bg-zinc-800 text-white' : ''}
-                      ${!isSelected && !isTodayDate ? 'text-gray-400 hover:bg-zinc-800' : ''}
-                    `}
-                  >
-                    <div className="text-center">{format(day, 'd')}</div>
-                    {hasEvents && (
-                      <div className="flex items-center justify-center gap-1 mt-0.5">
-                        {googleCount > 0 && (
-                          <span className="text-[10px] font-semibold text-blue-400 leading-none">
-                            {googleCount}
-                          </span>
-                        )}
-                        {omniaCount > 0 && (
-                          <span className="text-[10px] font-semibold text-[#FF7939] leading-none">
-                            {omniaCount}
-                          </span>
+                    const editText =
+                      rule.scope === 'always'
+                        ? `${rule.start} – ${rule.end} · ${daysShort} · Siempre`
+                        : `${rule.start} – ${rule.end} · ${daysShort} · ${monthsShort}`
+
+                    const draft = availabilityDrafts[rule.id]
+                    const draftDays = draft?.days ?? rule.days
+                    const draftMonths = draft?.months ?? (rule.scope === 'always' ? Array.from({ length: 12 }, (_, i) => i) : (rule.months ?? []))
+                    const isAlwaysDraft = isAllDays(draftDays) && isAllMonths(draftMonths)
+
+                    return (
+                      <div
+                        key={rule.id}
+                        className={
+                          `flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 px-4 py-3 ` +
+                          (idx !== availabilityRules.length - 1 ? 'border-b border-white/10' : '')
+                        }
+                      >
+                        <div className="flex items-start sm:items-center gap-3 min-w-0 w-full">
+                          <div className="w-6 h-6 rounded-full border border-[#FF7939]/40 bg-[#FF7939]/10 flex items-center justify-center flex-shrink-0">
+                            <Clock className="h-3.5 w-3.5 text-[#FFB366]" />
+                          </div>
+                          {availabilityIsEditingRules ? (
+                            <div className="flex flex-wrap items-center gap-2 min-w-0 w-full">
+                              <div className="relative flex-shrink-0">
+                                <button
+                                  type="button"
+                                  onClick={() => {
+                                    setAvailabilityOpenDaysForRuleId(null)
+                                    setAvailabilityOpenMonthsForRuleId(null)
+                                    setAvailabilityOpenTimeForRuleId((v) => (v === rule.id ? null : rule.id))
+                                  }}
+                                  className="inline-flex items-center px-1.5 py-0.5 rounded-xl border backdrop-blur-md bg-white/10 border-white/20 shadow-[0_8px_24px_rgba(0,0,0,0.35)] text-white text-[10px] leading-none tabular-nums tracking-tight whitespace-nowrap hover:bg-white/15 transition-colors"
+                                >
+                                  {`${(draft?.start ?? rule.start) || '00:00'} - ${(draft?.end ?? rule.end) || '00:00'}`}
+                                </button>
+
+                                {availabilityOpenTimeForRuleId === rule.id && (
+                                  <div className="absolute z-[9999] mt-2 w-44 rounded-xl border border-white/10 bg-zinc-950/95 backdrop-blur-md shadow-[0_12px_40px_rgba(0,0,0,0.6)] p-2">
+                                    <div className="flex items-center justify-between gap-2">
+                                      <input
+                                        type="time"
+                                        value={draft?.start ?? rule.start}
+                                        onChange={(e) => setDraft(rule.id, { start: e.target.value })}
+                                        className="h-8 w-full bg-black/40 border border-white/10 rounded-lg px-2 text-[12px] text-white focus:outline-none focus:border-[#FF7939] appearance-none [&::-webkit-calendar-picker-indicator]:hidden [&::-webkit-calendar-picker-indicator]:opacity-0"
+                                        aria-label="Hora inicio"
+                                      />
+                                      <input
+                                        type="time"
+                                        value={draft?.end ?? rule.end}
+                                        onChange={(e) => setDraft(rule.id, { end: e.target.value })}
+                                        className="h-8 w-full bg-black/40 border border-white/10 rounded-lg px-2 text-[12px] text-white focus:outline-none focus:border-[#FF7939] appearance-none [&::-webkit-calendar-picker-indicator]:hidden [&::-webkit-calendar-picker-indicator]:opacity-0"
+                                        aria-label="Hora fin"
+                                      />
+                                    </div>
+                                  </div>
+                                )}
+                              </div>
+
+                              <div className="relative">
+                                <button
+                                  type="button"
+                                  onClick={() => {
+                                    setAvailabilityOpenMonthsForRuleId(null)
+                                    setAvailabilityOpenDaysForRuleId((v) => (v === rule.id ? null : rule.id))
+                                  }}
+                                  className="px-2 py-1 rounded-xl border backdrop-blur-md bg-white/10 border-white/20 shadow-[0_8px_24px_rgba(0,0,0,0.35)] text-[11px] text-white hover:bg-white/15 transition-colors whitespace-nowrap max-w-[220px] truncate"
+                                >
+                                  {isAllDays(draftDays) ? 'Todos los días' : formatDaysShort(draftDays)}
+                                </button>
+
+                                {availabilityOpenDaysForRuleId === rule.id && (
+                                  <div className="absolute z-[9999] mt-2 w-44 rounded-xl border border-white/10 bg-zinc-950/95 backdrop-blur-md shadow-[0_12px_40px_rgba(0,0,0,0.6)] p-2">
+                                    <label className="flex items-center gap-2 px-2 py-1.5 rounded-lg text-[12px] text-white hover:bg-white/10 cursor-pointer">
+                                      <input
+                                        type="checkbox"
+                                        checked={isAllDays(draftDays)}
+                                        onChange={() => setDraft(rule.id, { days: [0, 1, 2, 3, 4, 5, 6] })}
+                                        className="accent-[#FF7939]"
+                                      />
+                                      Todos
+                                    </label>
+
+                                    {weekdayShort.map((lbl, d) => {
+                                      const selected = draftDays.includes(d)
+                                      return (
+                                        <label
+                                          key={lbl}
+                                          className={
+                                            `flex items-center gap-2 px-2 py-1.5 rounded-lg text-[12px] hover:bg-white/10 cursor-pointer ` +
+                                            (selected ? 'text-[#FFB366]' : 'text-white')
+                                          }
+                                        >
+                                          <input
+                                            type="checkbox"
+                                            checked={selected}
+                                            onChange={() => {
+                                              // Si estaba en "Todos los días", al tocar un día lo desmarcamos (todos menos ese).
+                                              if (isAllDays(draftDays)) {
+                                                const next = [0, 1, 2, 3, 4, 5, 6].filter((x) => x !== d)
+                                                setDraft(rule.id, { days: next.length === 0 ? [d] : next })
+                                                return
+                                              }
+
+                                              const next = selected ? draftDays.filter((x) => x !== d) : [...draftDays, d]
+                                              // Evitar selección vacía
+                                              setDraft(rule.id, { days: next.length === 0 ? [d] : next })
+                                            }}
+                                            className="accent-[#FF7939]"
+                                          />
+                                          {lbl}
+                                        </label>
+                                      )
+                                    })}
+                                  </div>
+                                )}
+                              </div>
+
+                              <div className="relative">
+                                <button
+                                  type="button"
+                                  onClick={() => {
+                                    setAvailabilityOpenDaysForRuleId(null)
+                                    setAvailabilityOpenMonthsForRuleId((v) => (v === rule.id ? null : rule.id))
+                                  }}
+                                  className={
+                                    `px-2 py-1 rounded-xl border backdrop-blur-md shadow-[0_8px_24px_rgba(0,0,0,0.35)] text-[11px] transition-colors whitespace-nowrap max-w-[220px] truncate ` +
+                                    'bg-white/10 border-white/20 text-white hover:bg-white/15'
+                                  }
+                                >
+                                  {isAllMonths(draftMonths) ? 'Todos los meses' : formatMonthsTitle(draftMonths)}
+                                </button>
+
+                                {availabilityOpenMonthsForRuleId === rule.id && (
+                                  <div className="absolute z-[9999] mt-2 w-44 rounded-xl border border-white/10 bg-zinc-950/95 backdrop-blur-md shadow-[0_12px_40px_rgba(0,0,0,0.6)] p-2 max-h-64 overflow-auto">
+                                    <label className="flex items-center gap-2 px-2 py-1.5 rounded-lg text-[12px] text-white hover:bg-white/10 cursor-pointer">
+                                      <input
+                                        type="checkbox"
+                                        checked={isAllMonths(draftMonths)}
+                                        onChange={() => setDraft(rule.id, { months: Array.from({ length: 12 }, (_, i) => i) })}
+                                        className="accent-[#FF7939]"
+                                      />
+                                      Todos
+                                    </label>
+
+                                    {monthTitle.map((lbl, m) => {
+                                      const selected = draftMonths.includes(m)
+                                      return (
+                                        <label
+                                          key={lbl}
+                                          className={
+                                            `flex items-center gap-2 px-2 py-1.5 rounded-lg text-[12px] hover:bg-white/10 cursor-pointer ` +
+                                            (selected ? 'text-[#FFB366]' : 'text-white')
+                                          }
+                                        >
+                                          <input
+                                            type="checkbox"
+                                            checked={selected}
+                                            onChange={() => {
+                                              // Si estaba en "Todos los meses", al tocar uno lo desmarcamos (todos menos ese).
+                                              if (isAllMonths(draftMonths)) {
+                                                const next = Array.from({ length: 12 }, (_, i) => i).filter((x) => x !== m)
+                                                setDraft(rule.id, { months: next.length === 0 ? [m] : next })
+                                                return
+                                              }
+
+                                              const next = selected ? draftMonths.filter((x) => x !== m) : [...draftMonths, m]
+                                              // Evitar selección vacía
+                                              setDraft(rule.id, { months: next.length === 0 ? [m] : next })
+                                            }}
+                                            className="accent-[#FF7939]"
+                                          />
+                                          {lbl}
+                                        </label>
+                                      )
+                                    })}
+                                  </div>
+                                )}
+                              </div>
+
+                              <button
+                                type="button"
+                                onClick={() => {
+                                  // Siempre = todos los días + todos los meses
+                                  setDraft(rule.id, {
+                                    days: [0, 1, 2, 3, 4, 5, 6],
+                                    months: Array.from({ length: 12 }, (_, i) => i),
+                                  })
+                                }}
+                                className={
+                                  `px-2 py-1 rounded-xl border backdrop-blur-md shadow-[0_8px_24px_rgba(0,0,0,0.35)] text-[11px] transition-colors whitespace-nowrap ` +
+                                  (isAlwaysDraft
+                                    ? 'bg-[#FF7939]/20 border-[#FF7939]/50 text-[#FF7939]'
+                                    : 'bg-white/10 border-white/20 text-white hover:bg-white/15')
+                                }
+                              >
+                                Siempre
+                              </button>
+                            </div>
+                          ) : (
+                            <div className="text-[15px] text-gray-200 w-full sm:w-auto break-words">
+                              {nonEditText}
+                            </div>
+                          )}
+                        </div>
+
+                        {availabilityIsEditingRules && (
+                          <button
+                            type="button"
+                            onClick={() => deleteAvailabilityRule(rule.id)}
+                            className={
+                              `w-9 h-9 rounded-full border flex items-center justify-center flex-shrink-0 ` +
+                              `border-[#FF7939]/40 bg-[#FF7939]/10 text-[#FFB366] ` +
+                              `hover:bg-[#FF7939]/20 transition-colors`
+                            }
+                            aria-label="Eliminar"
+                            title="Eliminar"
+                          >
+                            <Trash2 className="h-4 w-4" />
+                          </button>
                         )}
                       </div>
-                    )}
+                    )
+                  })}
+                </div>
+              </div>
+            )}
+
+            {/* Calendario */}
+            <Card className="bg-zinc-900 border-zinc-800 mb-6">
+              <CardHeader className="px-4 pt-4 pb-2">
+                <div className="flex items-center justify-between relative">
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    onClick={showMonthSelector ? goToPreviousPickerYear : goToPreviousMonth}
+                    className="text-white hover:bg-zinc-800"
+                    title={showMonthSelector ? 'Año anterior' : 'Mes anterior'}
+                  >
+                    ←
+                  </Button>
+
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setMonthPickerYear(currentYear)
+                      setShowMonthSelector((v) => !v)
+                    }}
+                    className="text-white font-semibold text-lg flex items-center gap-2 hover:text-[#FFB366] transition-colors"
+                    title="Cambiar mes"
+                  >
+                    {monthNames[currentDate.getMonth()]} {currentYear}
+                    <ChevronDown className="h-4 w-4" />
                   </button>
-                )
-              })}
-            </div>
-          </CardContent>
-        </Card>
+
+                  {showMonthSelector && (
+                    <div
+                      data-month-selector
+                      className="absolute top-11 left-1/2 -translate-x-1/2 z-50 w-[320px] rounded-2xl border border-white/10 bg-zinc-950/95 backdrop-blur-md shadow-[0_12px_40px_rgba(0,0,0,0.6)] p-3"
+                    >
+                      <div className="grid grid-cols-[1fr_96px] gap-3">
+                        {/* Meses */}
+                        <div className="grid grid-cols-1 gap-1 max-h-[260px] overflow-auto pr-1">
+                          {monthNames.map((m, idx) => {
+                            const active = idx === currentDate.getMonth() && monthPickerYear === currentYear
+                            return (
+                              <button
+                                key={m}
+                                type="button"
+                                onClick={() => changeMonth(idx)}
+                                className={
+                                  `px-3 py-2 rounded-xl text-left text-sm transition-colors ` +
+                                  (active
+                                    ? 'bg-[#FF7939]/20 text-[#FFB366] border border-[#FF7939]/40'
+                                    : 'text-white hover:bg-white/10')
+                                }
+                              >
+                                {m}
+                              </button>
+                            )
+                          })}
+                        </div>
+
+                        {/* Año */}
+                        <div className="flex flex-col items-center justify-between">
+                          <button
+                            type="button"
+                            onClick={goToNextPickerYear}
+                            className="w-full h-10 rounded-xl border border-white/10 bg-white/5 text-white hover:bg-white/10 transition-colors"
+                            aria-label="Año siguiente"
+                          >
+                            +
+                          </button>
+
+                          <div className="w-full text-center py-3 rounded-xl border border-white/10 bg-white/5 text-[#FFB366] font-semibold">
+                            {monthPickerYear}
+                          </div>
+
+                          <button
+                            type="button"
+                            onClick={goToPreviousPickerYear}
+                            className="w-full h-10 rounded-xl border border-white/10 bg-white/5 text-white hover:bg-white/10 transition-colors"
+                            aria-label="Año anterior"
+                          >
+                            −
+                          </button>
+                        </div>
+                      </div>
+                    </div>
+                  )}
+
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    onClick={showMonthSelector ? goToNextPickerYear : goToNextMonth}
+                    className="text-white hover:bg-zinc-800"
+                    title={showMonthSelector ? 'Año siguiente' : 'Mes siguiente'}
+                  >
+                    →
+                  </Button>
+                </div>
+              </CardHeader>
+
+              <CardContent className="px-4 pb-4">
+                <div className="grid grid-cols-7 gap-2 text-center text-xs text-gray-400 mb-2">
+                  {['Dom', 'Lun', 'Mar', 'Mié', 'Jue', 'Vie', 'Sáb'].map((day, idx) => (
+                    <div key={day} className="flex flex-col items-center gap-1">
+                      {calendarMode === 'availability' && availabilitySelectingDays ? (
+                        <button
+                          type="button"
+                          onClick={() =>
+                            setAvailabilityWeekdays((prev) => {
+                              const next = [...prev]
+                              next[idx] = !next[idx]
+                              return next
+                            })
+                          }
+                          className={
+                            `w-5 h-5 rounded-full border backdrop-blur-md ` +
+                            (availabilityWeekdays[idx]
+                              ? 'bg-[#FF7939]/25 border-[#FF7939]'
+                              : 'bg-white/10 border-white/20 hover:bg-white/15')
+                          }
+                          aria-label={`Toggle ${day}`}
+                          title={day}
+                        />
+                      ) : (
+                        <div className="h-5" />
+                      )}
+                      <div>{day}</div>
+                    </div>
+                  ))}
+                </div>
+
+                <div className="grid grid-cols-7 gap-1 sm:gap-2">
+                  {Array.from({ length: leadingEmptyDays }).map((_, idx) => (
+                    <div key={`empty-${idx}`} className="aspect-square p-2" />
+                  ))}
+                  {daysInMonth.map((day) => {
+                    const dayEvents = getEventsForDate(day)
+                    const hasEvents = dayEvents.length > 0
+                    const isSelected = selectedDate && isSameDay(day, selectedDate)
+                    const isTodayDate = isToday(day)
+
+                    return (
+                      <button
+                        key={day.toISOString()}
+                        type="button"
+                        onClick={() => setSelectedDate(day)}
+                        className={
+                          `aspect-square p-1.5 sm:p-2 rounded-lg text-sm font-medium transition-colors flex flex-col items-start justify-start ` +
+                          `${isSelected ? 'backdrop-blur-md bg-white/10 border border-[#FF7939]/40 shadow-[0_8px_24px_rgba(0,0,0,0.35)] text-white' : ''} ` +
+                          `${isTodayDate && !isSelected ? 'bg-zinc-800 text-white' : ''} ` +
+                          `${!isSelected && !isTodayDate ? 'text-gray-400 hover:bg-zinc-800' : ''}`
+                        }
+                      >
+                        <div className="w-full text-center">{format(day, 'd')}</div>
+
+                        {hasEvents && (
+                          <>
+                            {/* Mobile: mostrar solo cantidad */}
+                            <div className="sm:hidden mt-1 flex items-center justify-center w-full">
+                              <div
+                                className={
+                                  `w-6 h-6 rounded-full border flex items-center justify-center ` +
+                                  `backdrop-blur-md bg-[#FF7939]/10 border-[#FF7939]/40 shadow-[0_8px_24px_rgba(0,0,0,0.35)]`
+                                }
+                              >
+                                <span className={`text-[11px] font-bold leading-none ${isSelected ? 'text-white' : 'text-[#FFB366]'}`}>
+                                  {dayEvents.length}
+                                </span>
+                              </div>
+                            </div>
+
+                            {/* Desktop/tablet: mostrar títulos */}
+                            <div className="hidden sm:block mt-1 w-full space-y-1">
+                              {dayEvents.slice(0, 2).map((ev: any) => (
+                                <div
+                                  key={ev.id}
+                                  className={
+                                    `w-full px-1.5 py-1 rounded-full border text-[10px] leading-none truncate ` +
+                                    `backdrop-blur-md shadow-[0_8px_24px_rgba(0,0,0,0.35)] ` +
+                                    (ev?.event_type === 'workshop'
+                                      ? 'border-[#FF7939]/50 bg-[#FF7939]/50 text-zinc-950'
+                                      : 'border-[#FF7939]/40 bg-[#FF7939]/10 text-[#FFB366]')
+                                  }
+                                  title={ev.title}
+                                >
+                                  {ev.title}
+                                </div>
+                              ))}
+                              {dayEvents.length > 2 && (
+                                <div
+                                  className={
+                                    `w-full px-1.5 py-1 rounded-full border text-[10px] leading-none text-center ` +
+                                    `backdrop-blur-md shadow-[0_8px_24px_rgba(0,0,0,0.35)] ` +
+                                    `border-[#FF7939]/40 bg-transparent text-[#FFB366]`
+                                  }
+                                >
+                                  + {dayEvents.length - 2} más
+                                </div>
+                              )}
+                            </div>
+                          </>
+                        )}
+                      </button>
+                    )
+                  })}
+                </div>
+              </CardContent>
+            </Card>
 
         {/* Resumen de eventos - Minimalista */}
         <div className="bg-zinc-900/50 border border-zinc-800 rounded-lg p-3 mb-4">
@@ -1153,6 +2047,8 @@ export default function CoachCalendarScreen() {
                 <div className="space-y-1">
                   {selectedDateEvents.map(event => {
                     const isGoogleEvent = event.is_google_event || event.source === 'google_calendar'
+                    const isWorkshop = event.event_type === 'workshop'
+                    const isConsultation = event.event_type === 'consultation'
                     return (
                       <div
                         key={event.id}
@@ -1160,7 +2056,9 @@ export default function CoachCalendarScreen() {
                         className={`p-2 rounded-lg border transition-colors cursor-pointer hover:bg-zinc-800/80 ${
                           isGoogleEvent
                             ? 'bg-blue-950/30 border-blue-700/50 hover:border-blue-600/70'
-                            : 'bg-zinc-800/60 border-zinc-700/30 hover:border-[#FF7939]/40'
+                            : isWorkshop
+                              ? 'bg-[#FF7939]/10 border-[#FF7939]/40 hover:bg-[#FF7939]/15'
+                              : 'bg-zinc-800/60 border-zinc-700/30 hover:border-[#FF7939]/40'
                         }`}
                       >
                         {/* Diseño mejorado y más limpio */}
@@ -1202,17 +2100,24 @@ export default function CoachCalendarScreen() {
                                 <div className="flex items-center gap-1 text-gray-300">
                                   <Users className="h-3 w-3" />
                                   <span className="font-medium">
-                                    {event.current_participants || 0}/{event.max_participants || 'N/A'}
+                                    {(event.event_type === 'consultation' ? 1 : (event.current_participants || 0))}/{(event.event_type === 'consultation' ? 1 : (event.max_participants || 'N/A'))}
                                   </span>
                                 </div>
                               )}
                               
                               {/* Tipo - Solo para eventos de Omnia */}
                               {!isGoogleEvent && (
-                                <div className="px-2 py-0.5 rounded-full bg-zinc-700 text-gray-300 text-xs font-medium">
-                                  {event.event_type === 'workshop' ? 'Taller' : 
-                                   event.event_type === 'consultation' ? 'Programa' : 
-                                   event.event_type === 'other' ? 'Doc' : event.event_type}
+                                <div
+                                  className={
+                                    `px-2 py-0.5 rounded-full text-xs font-medium border ` +
+                                    (isWorkshop
+                                      ? 'bg-[#FF7939]/50 text-zinc-950 border-[#FF7939]/50'
+                                      : isConsultation
+                                        ? 'bg-[#FF7939]/10 text-[#FFB366] border-[#FF7939]/40'
+                                        : 'bg-zinc-700 text-gray-300 border-zinc-600')
+                                  }
+                                >
+                                  {isWorkshop ? 'Taller' : isConsultation ? 'Meet' : event.event_type === 'other' ? 'Doc' : event.event_type}
                                 </div>
                               )}
                               
@@ -1430,7 +2335,7 @@ export default function CoachCalendarScreen() {
                                             <div className="flex items-center gap-1 text-gray-300">
                                               <Users className="h-3 w-3" />
                                               <span className="font-medium">
-                                                {event.current_participants || 0}/{event.max_participants || 'N/A'}
+                                                {(event.event_type === 'consultation' ? 1 : (event.current_participants || 0))}/{(event.event_type === 'consultation' ? 1 : (event.max_participants || 'N/A'))}
                                               </span>
                                             </div>
                                           )}
@@ -1439,7 +2344,7 @@ export default function CoachCalendarScreen() {
                                           {!isGoogleEvent && (
                                             <div className="px-2 py-0.5 rounded-full bg-zinc-700 text-gray-300 text-xs font-medium">
                                               {event.event_type === 'workshop' ? 'Taller' : 
-                                               event.event_type === 'consultation' ? 'Programa' : 
+                                               event.event_type === 'consultation' ? 'Meet' : 
                                                event.event_type === 'other' ? 'Doc' : event.event_type}
                                             </div>
                                           )}
@@ -1533,10 +2438,7 @@ export default function CoachCalendarScreen() {
       {showCreateEventModal && (
         <div className="fixed inset-0 z-[60] bg-black/60 flex items-center justify-center p-4">
           <div className="w-full max-w-md bg-zinc-950 border border-zinc-800 rounded-2xl p-5">
-            <div className="flex items-center justify-between mb-4">
-              <div className="text-white font-semibold text-lg">
-                {meetModalMode === 'edit' ? 'Detalle de reunión' : 'Crear Meet'}
-              </div>
+            <div className="flex items-center justify-end mb-2">
               <div className="flex items-center gap-2">
                 {meetModalMode === 'edit' && !isMeetEditing && (
                   <button
@@ -1547,19 +2449,6 @@ export default function CoachCalendarScreen() {
                     aria-label="Editar"
                   >
                     <Pencil className="h-4 w-4" />
-                  </button>
-                )}
-
-                {meetModalMode === 'edit' && isMeetEditing && (
-                  <button
-                    type="button"
-                    onClick={deleteMeeting}
-                    disabled={createEventLoading}
-                    className="w-8 h-8 rounded-full hover:bg-white/10 text-white flex items-center justify-center"
-                    title="Eliminar"
-                    aria-label="Eliminar"
-                  >
-                    <Trash2 className="h-4 w-4" />
                   </button>
                 )}
 
@@ -1574,62 +2463,80 @@ export default function CoachCalendarScreen() {
               </div>
             </div>
 
-            <div className="space-y-4">
-              {meetModalMode === 'edit' && !isMeetEditing && (
-                <div className="text-xs text-gray-400">
-                  Tocá el lápiz para editar
-                </div>
-              )}
-              <div>
-                <div className="text-xs text-gray-400 mb-1">Tema</div>
-                {meetModalMode === 'edit' && !isMeetEditing ? (
-                  <div className="text-sm font-semibold text-white">{newEventTitle || '—'}</div>
-                ) : (
-                  <input
+            <div className="mb-1">
+              {meetModalMode === 'edit' ? (
+                isMeetEditing ? (
+                  <textarea
                     value={newEventTitle}
                     onChange={(e) => setNewEventTitle(e.target.value)}
-                    className="w-full bg-black/40 border border-white/10 rounded-lg px-3 py-2.5 text-sm text-white placeholder-gray-500 focus:outline-none focus:border-[#FF7939]"
-                    placeholder="Ej: Reunión de progreso"
+                    rows={2}
+                    className="w-full bg-transparent text-white font-semibold text-xl leading-snug focus:outline-none resize-none"
+                    placeholder="Reunión"
                   />
-                )}
-              </div>
+                ) : (
+                  <div className="text-white font-semibold text-xl leading-snug break-words whitespace-normal">
+                    {newEventTitle || 'Reunión'}
+                  </div>
+                )
+              ) : (
+                <textarea
+                  value={newEventTitle}
+                  onChange={(e) => setNewEventTitle(e.target.value)}
+                  rows={2}
+                  className="w-full bg-transparent text-white font-semibold text-xl leading-snug focus:outline-none resize-none placeholder:text-gray-500"
+                  placeholder="Escribí nombre de la meet"
+                />
+              )}
+            </div>
+
+            <div className="space-y-2">
+              {meetModalMode === 'edit' && !isMeetEditing && (
+                <div className="flex items-center gap-2">
+                  <div className="flex items-center gap-2 bg-black/30 border border-white/10 rounded-lg px-3 py-2 text-sm text-gray-200">
+                    <Calendar className="h-4 w-4 text-gray-300" />
+                    <span className="font-medium">
+                      {newEventDate ? format(new Date(`${newEventDate}T00:00:00`), 'dd MMM yyyy', { locale: es }) : '—'}
+                    </span>
+                  </div>
+
+                  <div className="flex items-center gap-2 bg-black/30 border border-white/10 rounded-lg px-3 py-2 text-sm text-gray-200">
+                    <Clock className="h-4 w-4 text-gray-300" />
+                    <span className="font-medium">
+                      {(newEventStartTime && newEventEndTime) ? `${newEventStartTime} – ${newEventEndTime}` : '—'}
+                    </span>
+                  </div>
+
+                  <div
+                    className={
+                      `ml-auto px-3 py-2 rounded-lg text-sm font-semibold ` +
+                      (newEventIsFree
+                        ? 'bg-emerald-900/40 text-emerald-200 border border-emerald-800/40'
+                        : 'bg-orange-900/40 text-orange-200 border border-orange-800/40')
+                    }
+                  >
+                    {newEventIsFree ? 'Gratis' : `$${formatArs(newEventPrice || '0')}`}
+                  </div>
+                </div>
+              )}
 
               <div>
-                <div className="text-xs text-gray-400 mb-1">Notas</div>
+                <div className="text-sm font-semibold text-white">Notas</div>
                 {meetModalMode === 'edit' && !isMeetEditing ? (
-                  <div className="text-sm text-gray-200 whitespace-pre-wrap">{newEventNotes || '—'}</div>
+                  <div className="text-sm text-gray-300 mt-1">{newEventNotes || '—'}</div>
                 ) : (
-                  <input
+                  <textarea
                     value={newEventNotes}
                     onChange={(e) => setNewEventNotes(e.target.value)}
-                    className="w-full bg-black/40 border border-white/10 rounded-lg px-3 py-2.5 text-sm text-white placeholder-gray-500 focus:outline-none focus:border-[#FF7939]"
+                    rows={3}
+                    className="w-full mt-1 bg-black/40 border border-white/10 rounded-lg px-3 py-3 text-sm text-white placeholder-gray-500 focus:outline-none focus:border-[#FF7939] resize-none min-h-[88px]"
                     placeholder="Añadir detalles adicionales..."
                   />
                 )}
               </div>
 
-              {meetModalMode === 'edit' && !isMeetEditing ? (
-                <div className="space-y-2">
-                  <div className="flex items-center gap-5 text-gray-200">
-                    <div className="flex items-center gap-2">
-                      <Calendar className="h-4 w-4 text-gray-300" />
-                      <span className="text-sm font-medium text-white capitalize">
-                        {newEventDate ? format(new Date(`${newEventDate}T00:00:00`), 'dd MMM yyyy', { locale: es }) : '—'}
-                      </span>
-                    </div>
-                    <div className="flex items-center gap-2">
-                      <Clock className="h-4 w-4 text-gray-300" />
-                      <span className="text-sm font-medium text-white">
-                        {(newEventStartTime && newEventEndTime) ? `${newEventStartTime} – ${newEventEndTime}` : '—'}
-                      </span>
-                    </div>
-                  </div>
+              <div className="border-t border-dashed border-white/10" />
 
-                  <div className="text-sm font-semibold text-gray-200">
-                    {newEventIsFree ? 'Gratis' : `$${String(newEventPrice || '0')}`}
-                  </div>
-                </div>
-              ) : (
+              {meetModalMode === 'edit' && !isMeetEditing ? null : (
                 <>
                   <div className="flex items-center gap-2">
                     <Calendar className="h-4 w-4 text-gray-300 flex-shrink-0" />
@@ -1638,11 +2545,26 @@ export default function CoachCalendarScreen() {
                       <input
                         id="create-meet-date"
                         type="date"
+                        ref={meetDateInputRef}
                         value={newEventDate}
                         onChange={(e) => setNewEventDate(e.target.value)}
                         className="h-7 bg-black/40 border border-white/10 rounded-lg pl-2 pr-6 text-[13px] text-white focus:outline-none focus:border-[#FF7939]"
                       />
-                      <ChevronDown className="pointer-events-none absolute right-2 top-1/2 -translate-y-1/2 h-3 w-3 text-gray-500" />
+                      <button
+                        type="button"
+                        onClick={() => {
+                          const el = meetDateInputRef.current
+                          if (!el) return
+                          // showPicker is supported in some browsers; fallback focuses/clicks.
+                          ;(el as any).showPicker?.()
+                          el.focus()
+                          el.click()
+                        }}
+                        className="absolute right-2 top-1/2 -translate-y-1/2 h-5 w-5 flex items-center justify-center"
+                        aria-label="Elegir fecha"
+                      >
+                        <ChevronDown className="h-3 w-3 text-[#FF7939]" />
+                      </button>
                     </div>
 
                     <div className="relative flex-shrink-0">
@@ -1717,7 +2639,9 @@ export default function CoachCalendarScreen() {
               )}
 
               <div className="pt-1">
-                <div className="text-white font-semibold mb-2">Clientes</div>
+                <div className="text-white font-semibold mb-2">
+                  Clientes ({selectedClientIds.length})
+                </div>
 
                 <div className={meetModalMode === 'edit' && !isMeetEditing ? "space-y-2" : "border border-white/10 rounded-xl overflow-hidden bg-black/20"}>
                   {selectedClientIds.length > 0 && (
@@ -1728,12 +2652,26 @@ export default function CoachCalendarScreen() {
                         .map((c: any) => {
                           const credits = Number(c.meet_credits_available ?? 0)
                           const dotColor = c.status === 'active' ? 'bg-emerald-500' : 'bg-orange-500'
+                          const participant = meetParticipants.find((p) => p.client_id === c.id)
+                          const rsvp = String(participant?.rsvp_status || 'pending')
+                          const pay = String(participant?.payment_status || '')
+                          const badge =
+                            rsvp === 'confirmed'
+                              ? { text: 'Confirmado', cls: 'bg-emerald-900/40 text-emerald-200 border border-emerald-800/40' }
+                              : rsvp === 'declined' || rsvp === 'cancelled'
+                                ? { text: 'Cancelado', cls: 'bg-red-900/40 text-red-300 border border-red-800/40' }
+                                : { text: 'Pendiente', cls: 'bg-orange-900/40 text-orange-200 border border-orange-800/40' }
+
+                          const creditsLine =
+                            credits > 0
+                              ? `${credits} créditos disponibles`
+                              : 'Sin créditos'
                           return (
                             <div
                               key={c.id}
                               className={
                                 meetModalMode === 'edit' && !isMeetEditing
-                                  ? 'flex items-center justify-between gap-3'
+                                  ? 'px-3 py-3 flex items-center justify-between gap-3 bg-black/20 border border-white/10 rounded-xl'
                                   : 'px-3 py-3 flex items-center gap-3 border-b border-white/10 last:border-b-0'
                               }
                             >
@@ -1746,11 +2684,21 @@ export default function CoachCalendarScreen() {
 
                               <div className="flex-1 min-w-0">
                                 <div className="text-white text-sm font-medium leading-tight truncate">{c.name}</div>
+                                <div className="text-xs text-gray-400">{creditsLine}</div>
                               </div>
 
-                              <div className="text-[#FF7939] text-xs font-medium whitespace-nowrap">
-                                {credits} créditos disponibles
-                              </div>
+                              {meetModalMode === 'edit' && !isMeetEditing ? (
+                                <div className="flex flex-col items-end gap-1">
+                                  <div className={`px-3 py-1 rounded-lg text-xs font-semibold ${badge.cls}`}>{badge.text}</div>
+                                  {badge.text === 'Pendiente' && (
+                                    <div className="text-xs text-orange-200">Consumirá 1 crédito</div>
+                                  )}
+                                </div>
+                              ) : (
+                                <div className="text-[#FF7939] text-xs font-medium whitespace-nowrap">
+                                  {credits} créditos disponibles
+                                </div>
+                              )}
 
                               {!(meetModalMode === 'edit' && !isMeetEditing) && (
                                 <button
@@ -1842,42 +2790,93 @@ export default function CoachCalendarScreen() {
                 </div>
               </div>
 
-              <div className="flex gap-2 pt-3">
-                <button
-                  type="button"
-                  onClick={closeCreateEventModal}
-                  className="flex-1 px-4 py-2.5 rounded-xl bg-zinc-800 text-white text-sm hover:bg-zinc-700 transition-colors"
-                  disabled={createEventLoading}
-                >
-                  Cancelar
-                </button>
+              {(meetModalMode === 'edit' || meetModalMode === 'create') && (
+                <div className="pt-3 flex items-center justify-between gap-3">
+                  {meetModalMode === 'edit' && !isMeetEditing && editingEventMeetLink ? (
+                    <button
+                      type="button"
+                      onClick={() => window.open(editingEventMeetLink, '_blank')}
+                      className="flex-1 px-4 py-2.5 rounded-xl bg-zinc-800 text-white text-sm hover:bg-zinc-700 transition-colors flex items-center justify-center gap-2"
+                      disabled={createEventLoading}
+                      title="Abrir enlace de Meet"
+                    >
+                      <Video className="h-4 w-4" />
+                      Ir a la meet
+                    </button>
+                  ) : (
+                    <div className="flex-1" />
+                  )}
 
-                {meetModalMode === 'edit' && editingEventMeetLink && (
-                  <button
-                    type="button"
-                    onClick={() => window.open(editingEventMeetLink, '_blank')}
-                    className="px-4 py-2.5 rounded-xl bg-zinc-800 text-white text-sm hover:bg-zinc-700 transition-colors flex items-center gap-2"
-                    disabled={createEventLoading}
-                    title="Abrir enlace de Meet"
-                  >
-                    <Video className="h-4 w-4" />
-                    Meet
-                  </button>
-                )}
+                  {(meetModalMode === 'edit' && isMeetEditing) && (
+                    <div className="flex items-center justify-between gap-2 w-full">
+                      <button
+                        type="button"
+                        onClick={() => setShowDeleteMeetDialog(true)}
+                        className="px-4 py-2.5 rounded-xl bg-zinc-900 border border-red-500/30 text-red-400 text-sm hover:bg-red-500/10 transition-colors flex items-center gap-2"
+                        disabled={createEventLoading}
+                        title="Eliminar"
+                        aria-label="Eliminar"
+                      >
+                        <Trash2 className="h-4 w-4" />
+                        Eliminar
+                      </button>
 
-                <button
-                  type="button"
-                  onClick={createEvent}
-                  className="flex-1 px-4 py-2.5 rounded-xl bg-[#FF7939] text-black text-sm font-medium hover:bg-[#ff8a55] transition-colors"
-                  disabled={createEventLoading || (meetModalMode === 'edit' && !isMeetEditing)}
-                >
-                  {createEventLoading
-                    ? (meetModalMode === 'edit' ? 'Guardando…' : 'Creando…')
-                    : (meetModalMode === 'edit' ? 'Guardar' : 'Crear')}
-                </button>
-              </div>
+                      <div className="flex items-center gap-2 justify-end">
+                      <button
+                        type="button"
+                        onClick={() => setIsMeetEditing(false)}
+                        className="px-5 py-2.5 rounded-xl bg-zinc-800 text-white text-sm hover:bg-zinc-700 transition-colors"
+                        disabled={createEventLoading}
+                      >
+                        Cancelar
+                      </button>
+                      <button
+                        type="button"
+                        onClick={createEvent}
+                        className="px-5 py-2.5 rounded-xl bg-[#FF7939] text-black text-sm font-medium hover:bg-[#ff8a55] transition-colors"
+                        disabled={createEventLoading}
+                      >
+                        Guardar cambios
+                      </button>
+                      </div>
+                    </div>
+                  )}
+
+                  {meetModalMode === 'create' && (
+                    <div className="flex items-center gap-2 justify-end">
+                      <button
+                        type="button"
+                        onClick={closeCreateEventModal}
+                        className="px-5 py-2.5 rounded-xl bg-zinc-800 text-white text-sm hover:bg-zinc-700 transition-colors"
+                        disabled={createEventLoading}
+                      >
+                        Cancelar
+                      </button>
+                      <button
+                        type="button"
+                        onClick={createEvent}
+                        className="px-5 py-2.5 rounded-xl bg-[#FF7939] text-black text-sm font-medium hover:bg-[#ff8a55] transition-colors"
+                        disabled={createEventLoading}
+                      >
+                        {createEventLoading ? 'Creando…' : 'Crear'}
+                      </button>
+                    </div>
+                  )}
+                </div>
+              )}
             </div>
           </div>
+
+          <DeleteConfirmationDialog
+            isOpen={showDeleteMeetDialog}
+            onClose={() => setShowDeleteMeetDialog(false)}
+            onConfirm={async () => {
+              setShowDeleteMeetDialog(false)
+              await deleteMeeting()
+            }}
+            title="Eliminar Meet"
+            description="¿Seguro que querés eliminar esta reunión? Esta acción no se puede deshacer."
+          />
         </div>
       )}
     </div>

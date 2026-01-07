@@ -8,7 +8,7 @@ import { useAuth } from "@/contexts/auth-context";
 import { ActivitySurveyModal } from "../activities/activity-survey-modal";
 import { StartActivityModal } from "../activities/StartActivityModal";
 import { StartActivityInfoModal } from "../activities/StartActivityInfoModal";
-import { Flame, Edit, X, Save, Clock, Zap, ChevronLeft, ChevronRight, ChevronDown, ChevronUp } from 'lucide-react';
+import { Flame, Edit, X, Save, Clock, Zap, ChevronLeft, ChevronRight, ChevronDown, ChevronUp, CalendarClock } from 'lucide-react';
 import { SettingsIcon } from '@/components/shared/ui/settings-icon';
 import { MessagesIcon } from '@/components/shared/ui/messages-icon';
 import { OmniaLogoText } from '@/components/shared/ui/omnia-logo';
@@ -150,6 +150,45 @@ export default function TodayScreen({ activityId, onBack }: { activityId: string
   // Estados para el modal de encuesta
   const [showSurveyModal, setShowSurveyModal] = React.useState(false);
   const [hasUserSubmittedSurvey, setHasUserSubmittedSurvey] = React.useState(false);
+  const [meetCreditsAvailable, setMeetCreditsAvailable] = React.useState<number | null>(null);
+
+  const objetivos = React.useMemo(() => {
+    const src: any = enrollment?.activity || programInfo || null
+    let list: any = src?.objetivos
+
+    if (!list || !Array.isArray(list)) {
+      list = []
+      const ws = src?.workshop_type
+      if (ws) {
+        try {
+          let parsed: any = ws
+          if (typeof ws === 'string') {
+            const trimmed = ws.trim()
+            if (trimmed.startsWith('{') || trimmed.startsWith('[')) {
+              parsed = JSON.parse(trimmed)
+            }
+          }
+
+          if (parsed && typeof parsed === 'object' && !Array.isArray(parsed) && (parsed as any).objetivos) {
+            list = String((parsed as any).objetivos)
+              .split(';')
+              .map((obj: string) => obj.trim())
+              .filter((obj: string) => obj.length > 0)
+          } else if (Array.isArray(parsed)) {
+            list = parsed
+          }
+        } catch (e) {
+          list = []
+        }
+      }
+    }
+
+    const valid = (Array.isArray(list) ? list : [])
+      .map((o: any) => String(o ?? '').trim())
+      .filter((o: string) => o && o !== 'Enel' && o !== 'Ene' && o.length > 2)
+
+    return valid
+  }, [enrollment?.activity, programInfo])
 
   // Consultar directamente en Supabase si el usuario ya calificó este programa
   React.useEffect(() => {
@@ -178,6 +217,58 @@ export default function TodayScreen({ activityId, onBack }: { activityId: string
 
     checkSurveyStatus();
   }, [user?.id, activityId]);
+
+  React.useEffect(() => {
+    const fetchMeetCredits = async () => {
+      try {
+        const clientId = String(user?.id || '')
+        const actId = Number(activityId)
+        if (!clientId || !Number.isFinite(actId)) {
+          setMeetCreditsAvailable(null)
+          return
+        }
+
+        const supabaseClient = createClient();
+        const { data, error } = await supabaseClient
+          .from('activity_enrollments')
+          .select('meet_credits_total, updated_at')
+          .eq('client_id', clientId)
+          .eq('activity_id', actId)
+          .order('updated_at', { ascending: false })
+          .limit(1)
+          .maybeSingle();
+
+        if (error && error.code !== 'PGRST116') {
+          console.error('Error obteniendo meet credits por actividad:', error)
+          setMeetCreditsAvailable(null)
+          return
+        }
+
+        const credits = Number((data as any)?.meet_credits_total ?? 0)
+        setMeetCreditsAvailable(Number.isFinite(credits) ? credits : 0)
+      } catch (e) {
+        console.error('Error obteniendo meet credits:', e)
+        setMeetCreditsAvailable(null)
+      }
+    }
+
+    fetchMeetCredits()
+  }, [user?.id, activityId]);
+
+  const handleScheduleMeetClick = () => {
+    const coachId = String(enrollment?.activity?.coach_id || programInfo?.coach_id || '')
+    const actId = String(activityId || '')
+    if (!coachId || !actId) return
+
+    try {
+      localStorage.setItem('scheduleMeetContext', JSON.stringify({ coachId, activityId: actId, source: 'activity' }))
+      sessionStorage.setItem('scheduleMeetIntent', '1')
+    } catch (e) {
+      console.error('Error guardando scheduleMeetContext:', e)
+    }
+
+    window.location.href = '/?tab=calendar'
+  }
 
   // Funciones helper para calcular semana basada en lunes
   const getWeekNumber = (date: Date) => {
@@ -2261,60 +2352,90 @@ export default function TodayScreen({ activityId, onBack }: { activityId: string
               ←
             </button>
 
-            {/* Botón de calificación al mismo nivel que la flecha */}
-            {!hasUserSubmittedSurvey && (
+            <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
               <button
-                onClick={handleOpenSurveyModal}
+                onClick={handleScheduleMeetClick}
                 style={{
                   padding: '4px 10px',
                   height: 24,
                   display: 'flex',
                   alignItems: 'center',
                   justifyContent: 'center',
-                  background: 'rgba(255, 106, 0, 0.1)',
-                  border: '1px solid rgba(255, 106, 0, 0.3)',
+                  gap: 6,
+                  background: 'rgba(255, 255, 255, 0.10)',
+                  border: '1px solid rgba(255, 106, 0, 0.35)',
                   borderRadius: 12,
-                  color: '#FF6A00',
+                  color: '#FFFFFF',
                   fontSize: 11,
-                  fontWeight: 500,
+                  fontWeight: 600,
                   cursor: 'pointer',
                   transition: 'all 0.2s ease',
-                  flexShrink: 0
-                }}
-                onMouseEnter={(e) => {
-                  e.currentTarget.style.background = 'rgba(255, 106, 0, 0.2)';
-                  e.currentTarget.style.borderColor = 'rgba(255, 106, 0, 0.5)';
-                  e.currentTarget.style.transform = 'scale(1.05)';
-                }}
-                onMouseLeave={(e) => {
-                  e.currentTarget.style.background = 'rgba(255, 106, 0, 0.1)';
-                  e.currentTarget.style.borderColor = 'rgba(255, 106, 0, 0.3)';
-                  e.currentTarget.style.transform = 'scale(1)';
+                  flexShrink: 0,
+                  backdropFilter: 'blur(14px)',
+                  WebkitBackdropFilter: 'blur(14px)'
                 }}
               >
-                Calificar
+                <CalendarClock size={14} color="#FF6A00" />
+                <span>
+                  {(Number.isFinite(meetCreditsAvailable as any) ? meetCreditsAvailable : 0)} meet disponibles
+                </span>
               </button>
-            )}
-            {hasUserSubmittedSurvey && (
-              <div
-                style={{
-                  padding: '4px 10px',
-                  height: 24,
-                  display: 'flex',
-                  alignItems: 'center',
-                  justifyContent: 'center',
-                  background: 'rgba(34, 197, 94, 0.1)',
-                  border: '1px solid rgba(34, 197, 94, 0.3)',
-                  borderRadius: 12,
-                  color: '#22C55E',
-                  fontSize: 11,
-                  fontWeight: 500,
-                  flexShrink: 0
-                }}
-              >
-                ✓ Calificado
-              </div>
-            )}
+
+              {/* Botón de calificación al mismo nivel que la flecha */}
+              {!hasUserSubmittedSurvey && (
+                <button
+                  onClick={handleOpenSurveyModal}
+                  style={{
+                    padding: '4px 10px',
+                    height: 24,
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    background: 'rgba(255, 106, 0, 0.1)',
+                    border: '1px solid rgba(255, 106, 0, 0.3)',
+                    borderRadius: 12,
+                    color: '#FF6A00',
+                    fontSize: 11,
+                    fontWeight: 500,
+                    cursor: 'pointer',
+                    transition: 'all 0.2s ease',
+                    flexShrink: 0
+                  }}
+                  onMouseEnter={(e) => {
+                    e.currentTarget.style.background = 'rgba(255, 106, 0, 0.2)';
+                    e.currentTarget.style.borderColor = 'rgba(255, 106, 0, 0.5)';
+                    e.currentTarget.style.transform = 'scale(1.05)';
+                  }}
+                  onMouseLeave={(e) => {
+                    e.currentTarget.style.background = 'rgba(255, 106, 0, 0.1)';
+                    e.currentTarget.style.borderColor = 'rgba(255, 106, 0, 0.3)';
+                    e.currentTarget.style.transform = 'scale(1)';
+                  }}
+                >
+                  Calificar
+                </button>
+              )}
+              {hasUserSubmittedSurvey && (
+                <div
+                  style={{
+                    padding: '4px 10px',
+                    height: 24,
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    background: 'rgba(34, 197, 94, 0.1)',
+                    border: '1px solid rgba(34, 197, 94, 0.3)',
+                    borderRadius: 12,
+                    color: '#22C55E',
+                    fontSize: 11,
+                    fontWeight: 500,
+                    flexShrink: 0
+                  }}
+                >
+                  ✓ Calificado
+                </div>
+              )}
+            </div>
           </div>
 
           {/* Título centrado y grande */}
@@ -2427,6 +2548,38 @@ export default function TodayScreen({ activityId, onBack }: { activityId: string
               return null;
             })()}
           </div>
+
+          {objetivos.length > 0 && (
+            <div
+              style={{
+                display: 'flex',
+                gap: 6,
+                overflowX: 'auto',
+                width: '100%',
+                paddingBottom: 2,
+              }}
+            >
+              {objetivos.map((objetivo: string, idx: number) => (
+                <span
+                  key={`${objetivo}-${idx}`}
+                  style={{
+                    background: 'rgba(255, 106, 0, 0.18)',
+                    border: '1px solid rgba(255, 106, 0, 0.28)',
+                    color: '#FF6A00',
+                    fontSize: 11,
+                    fontWeight: 600,
+                    padding: '4px 8px',
+                    borderRadius: 999,
+                    whiteSpace: 'nowrap',
+                    flexShrink: 0,
+                  }}
+                  title={objetivo}
+                >
+                  {objetivo}
+                </span>
+              ))}
+            </div>
+          )}
 
           {/* Descripción dentro del frame */}
           {programInfo?.description && (

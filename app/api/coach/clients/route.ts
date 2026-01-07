@@ -70,8 +70,7 @@ export async function GET(request: NextRequest) {
         status,
         todo_list,
         activity_id,
-        meet_credits_total,
-        meet_credits_used
+        meet_credits_total
       `)
       .in('status', ['activa', 'active', 'pendiente', 'pending', 'finalizada', 'finished', 'expirada', 'expired'])
       .in('activity_id', coachActivityIds)
@@ -125,16 +124,37 @@ export async function GET(request: NextRequest) {
     // Obtener datos de usuarios
     const clientIds = [...new Set(enrollments.map((e: any) => e.client_id))]
 
-    // Créditos de meet por cliente (fuente de verdad): activity_enrollments
-    // Disponible = sum(meet_credits_total - meet_credits_used) entre todas las inscripciones del cliente.
+    // Créditos de meet por cliente (fuente de verdad): client_meet_credits_ledger
+    // Fallback: si no existe/no hay datos, usar sum(meet_credits_total) desde enrollments.
     const meetCreditsAvailableByClient = new Map<string, number>()
-    for (const e of enrollments || []) {
-      const cid = String(e?.client_id || '')
-      if (!cid) continue
-      const total = Number(e?.meet_credits_total ?? 0)
-      const used = Number(e?.meet_credits_used ?? 0)
-      const delta = (Number.isFinite(total) ? total : 0) - (Number.isFinite(used) ? used : 0)
-      meetCreditsAvailableByClient.set(cid, (meetCreditsAvailableByClient.get(cid) || 0) + Math.max(delta, 0))
+    let usedLedgerFallback = false
+    try {
+      const { data: ledger, error: ledgerError } = await supabase
+        .from('client_meet_credits_ledger')
+        .select('client_id, meet_credits_available')
+        .eq('coach_id', user.id)
+
+      if (!ledgerError && Array.isArray(ledger) && ledger.length > 0) {
+        for (const row of ledger) {
+          const cid = String((row as any)?.client_id || '')
+          if (!cid) continue
+          meetCreditsAvailableByClient.set(cid, Math.max(Number((row as any)?.meet_credits_available ?? 0), 0))
+        }
+      } else {
+        usedLedgerFallback = true
+      }
+    } catch {
+      usedLedgerFallback = true
+    }
+
+    if (usedLedgerFallback) {
+      for (const e of enrollments || []) {
+        const cid = String(e?.client_id || '')
+        if (!cid) continue
+        const total = Number(e?.meet_credits_total ?? 0)
+        const delta = Number.isFinite(total) ? total : 0
+        meetCreditsAvailableByClient.set(cid, (meetCreditsAvailableByClient.get(cid) || 0) + Math.max(delta, 0))
+      }
     }
 
     const { data: users, error: usersError } = await supabase
@@ -232,7 +252,7 @@ export async function GET(request: NextRequest) {
         enrollmentsCount: enrollments?.length || 0,
         enrollmentStatuses,
         clientsMapCount: clientsMap.size,
-        usedFallback: true,
+        usedFallback: usedLedgerFallback,
         coachActivityIdsSample,
         enrollmentsSample
       }

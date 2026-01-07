@@ -12,6 +12,10 @@ export function CalendarScreen({ onTabChange }: CalendarScreenProps) {
   const [clientId, setClientId] = useState<string | null>(null)
   const [activityIds, setActivityIds] = useState<string[]>([])
   const [loading, setLoading] = useState(true)
+  const [scheduleMeetContext, setScheduleMeetContext] = useState<
+    | { coachId: string; activityId?: string; source?: string }
+    | null
+  >(null)
   const supabase = useMemo(() => createClient(), [])
 
   // Listener para resetear al origen cuando se presiona el tab activo
@@ -22,6 +26,7 @@ export function CalendarScreen({ onTabChange }: CalendarScreenProps) {
         // Limpiar localStorage de actividad seleccionada
         if (typeof window !== 'undefined') {
           localStorage.removeItem('selectedActivityFromCalendar')
+          localStorage.removeItem('scheduleMeetContext')
         }
         
         // Scroll al inicio
@@ -34,6 +39,43 @@ export function CalendarScreen({ onTabChange }: CalendarScreenProps) {
     window.addEventListener('reset-tab-to-origin', handleResetToOrigin as EventListener)
     return () => {
       window.removeEventListener('reset-tab-to-origin', handleResetToOrigin as EventListener)
+    }
+  }, [])
+
+  useEffect(() => {
+    if (typeof window === 'undefined') return
+    try {
+      const hasIntent = sessionStorage.getItem('scheduleMeetIntent') === '1'
+      if (!hasIntent) {
+        // En refresh / navegación directa, abrir calendario del cliente en modo normal.
+        // El modo schedule-meet solo debe activarse por una intención explícita.
+        setScheduleMeetContext(null)
+        try {
+          localStorage.removeItem('scheduleMeetContext')
+        } catch {
+          // ignore
+        }
+        return
+      }
+
+      // Consumir intent (solo una vez)
+      sessionStorage.removeItem('scheduleMeetIntent')
+
+      const raw = localStorage.getItem('scheduleMeetContext')
+      if (!raw) {
+        setScheduleMeetContext(null)
+        return
+      }
+      const parsed = JSON.parse(raw)
+      const coachId = String(parsed?.coachId || '')
+      const activityId = parsed?.activityId ? String(parsed?.activityId || '') : undefined
+      if (!coachId) {
+        setScheduleMeetContext(null)
+        return
+      }
+      setScheduleMeetContext({ coachId, activityId, source: parsed?.source })
+    } catch (e) {
+      setScheduleMeetContext(null)
     }
   }, [])
 
@@ -85,7 +127,7 @@ export function CalendarScreen({ onTabChange }: CalendarScreenProps) {
         console.error("Error getting enrollments:", enrollmentsError)
         setActivityIds([])
       } else if (enrollments && enrollments.length > 0) {
-        const ids = enrollments.map(enrollment => enrollment.activity_id.toString())
+        const ids = (enrollments as any[]).map((enrollment: any) => String(enrollment.activity_id).toString())
         console.log('📅 [CalendarScreen] Actividades activas encontradas:', ids)
         setActivityIds(ids)
       } else {
@@ -134,10 +176,12 @@ export function CalendarScreen({ onTabChange }: CalendarScreenProps) {
   }
 
   return (
-    <div className="h-screen bg-[#121212] overflow-hidden">
+    <div className="h-screen bg-[#121212] overflow-y-auto">
       <CalendarView 
         activityIds={activityIds} 
         onActivityClick={handleActivityClick}
+        scheduleMeetContext={scheduleMeetContext}
+        onSetScheduleMeetContext={setScheduleMeetContext}
       />
     </div>
   )
