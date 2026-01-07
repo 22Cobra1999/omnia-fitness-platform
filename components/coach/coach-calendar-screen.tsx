@@ -2,7 +2,7 @@
 
 import { useState, useEffect, useCallback, useMemo, useRef } from "react"
 import { createClient } from "@/lib/supabase/supabase-client"
-import { Calendar, Clock, Video, ExternalLink, Users, RefreshCw, Plus, Minus, Search, Pencil, ChevronDown, Trash2 } from "lucide-react"
+import { Bell, Calendar, Clock, Video, ExternalLink, Users, RefreshCw, Plus, Minus, Search, Pencil, ChevronDown, Trash2 } from "lucide-react"
 import { format, startOfMonth, endOfMonth, eachDayOfInterval, isSameDay, isToday, addMonths, subMonths, addDays, subDays, addYears, subYears } from "date-fns"
 import { es } from "date-fns/locale"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
@@ -16,6 +16,7 @@ import { WorkshopEventModal } from "./workshop-event-modal"
 import { WorkshopEventDetailModal } from "./workshop-event-detail-modal"
 import { parseISO } from 'date-fns'
 import { DeleteConfirmationDialog } from "@/components/shared/ui/delete-confirmation-dialog"
+import { MeetNotificationsModal } from "@/components/shared/meet-notifications-modal"
 
 interface CalendarEvent {
   id: string
@@ -63,6 +64,8 @@ export default function CoachCalendarScreen() {
 
   const [calendarMode, setCalendarMode] = useState<'events' | 'availability'>('events')
   const [showAddMenu, setShowAddMenu] = useState(false)
+  const [showMeetNotifications, setShowMeetNotifications] = useState(false)
+  const [meetNotificationsCount, setMeetNotificationsCount] = useState<number>(0)
   const [availabilityStart, setAvailabilityStart] = useState('09:00')
   const [availabilityEnd, setAvailabilityEnd] = useState('18:00')
   const [availabilityScope, setAvailabilityScope] = useState<'month' | 'always'>('month')
@@ -139,6 +142,86 @@ export default function CoachCalendarScreen() {
   const meetDateInputRef = useRef<HTMLInputElement | null>(null)
 
   const supabase = createClient()
+
+  useEffect(() => {
+    const loadMeetNotificationCount = async () => {
+      try {
+        if (!coachId) {
+          setMeetNotificationsCount(0)
+          return
+        }
+
+        const { data: myEvents, error: myEventsError } = await supabase
+          .from('calendar_events')
+          .select('id')
+          .eq('coach_id', coachId)
+          .eq('event_type', 'consultation')
+          .limit(200)
+
+        if (myEventsError) {
+          setMeetNotificationsCount(0)
+          return
+        }
+
+        const ids = (myEvents || []).map((e: any) => String(e?.id || '')).filter(Boolean)
+        if (ids.length === 0) {
+          setMeetNotificationsCount(0)
+          return
+        }
+
+        const { count, error } = await supabase
+          .from('calendar_event_participants')
+          .select('id', { count: 'exact' })
+          .in('event_id', ids)
+          .eq('rsvp_status', 'pending')
+          .neq('participant_role', 'coach')
+
+        if (error) {
+          setMeetNotificationsCount(0)
+          return
+        }
+
+        setMeetNotificationsCount(Number.isFinite(count as any) ? (count as any) : 0)
+      } catch {
+        setMeetNotificationsCount(0)
+      }
+    }
+
+    loadMeetNotificationCount()
+  }, [coachId, supabase, events])
+
+  const openMeetById = async (eventId: string) => {
+    try {
+      const found = events.find((e) => String(e.id) === String(eventId))
+      if (found) {
+        await openCreateEventModal(found)
+        setShowMeetNotifications(false)
+        return
+      }
+
+      const { data: ev, error } = await supabase
+        .from('calendar_events')
+        .select('id, title, description, start_time, end_time, event_type, status, meet_link, google_event_id')
+        .eq('id', eventId)
+        .maybeSingle()
+
+      if (error || !ev?.id) return
+      await openCreateEventModal({
+        id: String(ev.id),
+        title: String(ev.title || 'Meet'),
+        start_time: String(ev.start_time),
+        end_time: String(ev.end_time),
+        event_type: 'consultation',
+        status: (ev.status as any) || 'scheduled',
+        description: ev.description == null ? undefined : String(ev.description || ''),
+        meet_link: ev.meet_link == null ? undefined : String(ev.meet_link || ''),
+        google_event_id: ev.google_event_id == null ? undefined : String(ev.google_event_id || ''),
+      } as any)
+      setShowMeetNotifications(false)
+    } catch {
+      // ignore
+    }
+  }
 
   const pad2 = (n: number) => String(n).padStart(2, '0')
   const formatArs = (value: any) => {
@@ -298,7 +381,7 @@ export default function CoachCalendarScreen() {
     }
   }, [])
 
-  const createEvent = async () => {
+  const handleCreateEvent = async () => {
     if (!coachId) return
     if (!newEventTitle.trim()) {
       toast.error('Ingresá un tema')
@@ -369,6 +452,11 @@ export default function CoachCalendarScreen() {
         ? null
         : (String(newEventPrice || '').trim() ? Number(newEventPrice) : 0)
 
+      if (selectedClientIds.length === 0) {
+        toast.error('Seleccioná al menos 1 cliente para enviar la solicitud de Meet')
+        return
+      }
+
       // Nuevo modelo: 1 evento + N participantes en calendar_event_participants
       const { data: insertedEvent, error } = await supabase
         .from('calendar_events')
@@ -393,24 +481,46 @@ export default function CoachCalendarScreen() {
         return
       }
 
-      // Insertar invitados
-      try {
-        const participantRows = selectedClientIds.map((clientId) => ({
+      // Insertar participantes (bloqueante). Si falla, rollback borrando el evento.
+      const participantRows = [
+        // Coach como host
+        {
+          event_id: insertedEvent.id,
+          client_id: coachId,
+          rsvp_status: 'confirmed',
+          payment_status: 'free',
+          participant_role: 'coach',
+          is_host: true,
+          invited_by_role: 'coach',
+          invited_by_user_id: coachId,
+        },
+        // Cliente(s) invitados
+        ...selectedClientIds.map((clientId) => ({
           event_id: insertedEvent.id,
           client_id: clientId,
           rsvp_status: 'pending',
           payment_status: newEventIsFree ? 'free' : 'unpaid',
-        }))
+          participant_role: 'client',
+          is_host: false,
+          invited_by_role: 'coach',
+          invited_by_user_id: coachId,
+        })),
+      ]
 
-        const { error: partErr } = await supabase
-          .from('calendar_event_participants')
-          .insert(participantRows as any)
+      const { error: partErr } = await supabase
+        .from('calendar_event_participants')
+        .upsert(participantRows as any, { onConflict: 'event_id,client_id' })
 
-        if (partErr) {
-          console.error('Error inserting participants:', partErr)
+      if (partErr) {
+        console.error('Error inserting participants:', partErr)
+        // rollback: evitar events huérfanos que el cliente no ve
+        try {
+          await supabase.from('calendar_events').delete().eq('id', insertedEvent.id)
+        } catch {
+          // best effort
         }
-      } catch {
-        // No bloquear
+        toast.error(partErr.message || 'No se pudo enviar la solicitud al cliente')
+        return
       }
 
       closeCreateEventModal()
@@ -1397,7 +1507,7 @@ export default function CoachCalendarScreen() {
     <div className="h-screen bg-[#121212] overflow-y-auto pb-20">
       <div className="p-4">
         {/* Acciones arriba */}
-        <div className="mb-3 relative flex items-center justify-end">
+        <div className="mb-3 relative flex items-center justify-between">
           {calendarMode === 'availability' ? (
             <div className="flex items-center justify-end w-full">
               <button
@@ -1420,67 +1530,101 @@ export default function CoachCalendarScreen() {
               </button>
             </div>
           ) : (
-            <div className="flex items-center gap-2">
-              <div
-                className={
-                  `flex items-center gap-2 transition-all duration-200 ease-out ` +
-                  (showAddMenu ? 'opacity-100 translate-x-0 max-w-[320px]' : 'opacity-0 translate-x-2 max-w-0 pointer-events-none')
-                }
-              >
-                <button
-                  type="button"
-                  onClick={() => {
-                    setShowAddMenu(false)
-                    setCalendarMode('availability')
-                    setViewMode('month')
-                  }}
-                  className={
-                    `px-4 py-1.5 rounded-full border text-sm ` +
-                    `backdrop-blur-md bg-white/10 border-white/20 shadow-[0_8px_24px_rgba(0,0,0,0.35)] ` +
-                    `text-[#FF7939] hover:bg-white/15 transition-colors whitespace-nowrap`
-                  }
-                >
-                  Disponibilidad
-                </button>
-
-                <button
-                  type="button"
-                  onClick={async () => {
-                    setShowAddMenu(false)
-                    setCalendarMode('events')
-                    if (clientsForMeet.length === 0) await ensureClientsLoaded()
-                    await openCreateEventModal()
-                  }}
-                  className={
-                    `px-4 py-1.5 rounded-full border text-sm ` +
-                    `backdrop-blur-md bg-white/10 border-white/20 shadow-[0_8px_24px_rgba(0,0,0,0.35)] ` +
-                    `text-[#FF7939] hover:bg-white/15 transition-colors whitespace-nowrap`
-                  }
-                >
-                  Meet
-                </button>
-              </div>
-
+            <div className="flex items-center justify-between w-full">
               <button
                 type="button"
-                onClick={() => setShowAddMenu((v) => !v)}
+                onClick={() => setShowMeetNotifications(true)}
                 className={
-                  `w-8 h-8 rounded-full border flex items-center justify-center ` +
+                  `relative w-8 h-8 rounded-full border flex items-center justify-center ` +
                   `backdrop-blur-md bg-white/10 border-white/20 shadow-[0_8px_24px_rgba(0,0,0,0.35)] ` +
                   `hover:bg-white/15 transition-colors`
                 }
-                title={showAddMenu ? 'Cerrar' : 'Acciones'}
-                aria-label={showAddMenu ? 'Cerrar' : 'Acciones'}
+                title="Notificaciones"
+                aria-label="Notificaciones"
               >
-                {showAddMenu ? (
-                  <Minus className="h-4 w-4 text-[#FF7939]" />
-                ) : (
-                  <Plus className="h-4 w-4 text-[#FF7939]" />
+                <Bell className="h-4 w-4 text-[#FF7939]" />
+                {meetNotificationsCount > 0 && (
+                  <span
+                    className="absolute -top-1 -right-1 min-w-[18px] h-[18px] px-1 rounded-full text-[10px] font-bold flex items-center justify-center"
+                    style={{ background: '#FF7939', color: '#000' }}
+                  >
+                    {meetNotificationsCount}
+                  </span>
                 )}
               </button>
+
+              <div className="flex items-center gap-2">
+                <div
+                  className={
+                    `flex items-center gap-2 transition-all duration-200 ease-out ` +
+                    (showAddMenu ? 'opacity-100 translate-x-0 max-w-[320px]' : 'opacity-0 translate-x-2 max-w-0 pointer-events-none')
+                  }
+                >
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setShowAddMenu(false)
+                      setCalendarMode('availability')
+                      setViewMode('month')
+                    }}
+                    className={
+                      `px-4 py-1.5 rounded-full border text-sm ` +
+                      `backdrop-blur-md bg-white/10 border-white/20 shadow-[0_8px_24px_rgba(0,0,0,0.35)] ` +
+                      `text-[#FF7939] hover:bg-white/15 transition-colors whitespace-nowrap`
+                    }
+                  >
+                    Disponibilidad
+                  </button>
+
+                  <button
+                    type="button"
+                    onClick={async () => {
+                      setShowAddMenu(false)
+                      setCalendarMode('events')
+                      if (clientsForMeet.length === 0) await ensureClientsLoaded()
+                      await openCreateEventModal()
+                    }}
+                    className={
+                      `px-4 py-1.5 rounded-full border text-sm ` +
+                      `backdrop-blur-md bg-white/10 border-white/20 shadow-[0_8px_24px_rgba(0,0,0,0.35)] ` +
+                      `text-[#FF7939] hover:bg-white/15 transition-colors whitespace-nowrap`
+                    }
+                  >
+                    Meet
+                  </button>
+                </div>
+
+                <button
+                  type="button"
+                  onClick={() => setShowAddMenu((v) => !v)}
+                  className={
+                    `w-8 h-8 rounded-full border flex items-center justify-center ` +
+                    `backdrop-blur-md bg-white/10 border-white/20 shadow-[0_8px_24px_rgba(0,0,0,0.35)] ` +
+                    `hover:bg-white/15 transition-colors`
+                  }
+                  title={showAddMenu ? 'Cerrar' : 'Acciones'}
+                  aria-label={showAddMenu ? 'Cerrar' : 'Acciones'}
+                >
+                  {showAddMenu ? (
+                    <Minus className="h-4 w-4 text-[#FF7939]" />
+                  ) : (
+                    <Plus className="h-4 w-4 text-[#FF7939]" />
+                  )}
+                </button>
+              </div>
             </div>
           )}
         </div>
+
+        <MeetNotificationsModal
+          open={showMeetNotifications}
+          onClose={() => setShowMeetNotifications(false)}
+          role="coach"
+          supabase={supabase}
+          userId={coachId || ''}
+          coachId={coachId || ''}
+          onOpenMeet={(eventId) => openMeetById(eventId)}
+        />
 
         {/* Vista Mes */}
         {viewMode === 'month' && (

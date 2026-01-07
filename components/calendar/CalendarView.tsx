@@ -4,10 +4,11 @@ import { useState, useEffect, useMemo, useRef, Fragment } from "react"
 import { createClient } from '@/lib/supabase/supabase-client'
 import { format, startOfMonth, endOfMonth, eachDayOfInterval, isSameDay, isToday, addMonths, subMonths, startOfWeek, addDays } from "date-fns"
 import { es } from "date-fns/locale"
-import { ChevronLeft, ChevronRight, Flame, Plus, Minus, Video, X } from "lucide-react"
+import { Bell, ChevronLeft, ChevronRight, Clock, Flame, Plus, Minus, Utensils, Video, X } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import Image from "next/image"
+import { MeetNotificationsModal } from "@/components/shared/meet-notifications-modal"
 
 interface CalendarViewProps {
   activityIds: string[]
@@ -19,6 +20,7 @@ interface CalendarViewProps {
 export default function CalendarView({ activityIds, onActivityClick, scheduleMeetContext, onSetScheduleMeetContext }: CalendarViewProps) {
   const [currentDate, setCurrentDate] = useState(new Date())
   const [selectedDate, setSelectedDate] = useState<Date | null>(new Date())
+  const [authUserId, setAuthUserId] = useState<string | null>(null)
   const [activitiesByDate, setActivitiesByDate] = useState<Record<string, any[]>>({})
   const [activitiesInfo, setActivitiesInfo] = useState<Record<string, any>>({})
   const [dayMinutesByDate, setDayMinutesByDate] = useState<
@@ -61,6 +63,8 @@ export default function CalendarView({ activityIds, onActivityClick, scheduleMee
       pendingMinutes: number
     }>
   >([])
+
+  const selectedDayKeyRef = useRef<string | null>(null)
   const [loading, setLoading] = useState(true)
   const [showAddMenu, setShowAddMenu] = useState(false)
   const [showCoachRow, setShowCoachRow] = useState(false)
@@ -99,6 +103,9 @@ export default function CalendarView({ activityIds, onActivityClick, scheduleMee
     | null
   >(null)
 
+  const [showMeetNotifications, setShowMeetNotifications] = useState(false)
+  const [meetNotificationsCount, setMeetNotificationsCount] = useState<number>(0)
+
   const [selectedMeetRequest, setSelectedMeetRequest] = useState<
     | {
         coachId: string
@@ -109,8 +116,21 @@ export default function CalendarView({ activityIds, onActivityClick, scheduleMee
       }
     | null
   >(null)
-  const supabase = createClient()
+  const supabase = useMemo(() => createClient(), [])
   const dayDetailRef = useRef<HTMLDivElement | null>(null)
+
+  useEffect(() => {
+    const loadAuthUserId = async () => {
+      try {
+        const { data } = await supabase.auth.getUser()
+        const uid = data?.user?.id ? String(data.user.id) : null
+        setAuthUserId(uid)
+      } catch {
+        setAuthUserId(null)
+      }
+    }
+    loadAuthUserId()
+  }, [supabase])
 
   const formatMinutes = (minsRaw: number) => {
     const mins = Number.isFinite(minsRaw) ? Math.max(0, Math.round(minsRaw)) : 0
@@ -477,17 +497,19 @@ export default function CalendarView({ activityIds, onActivityClick, scheduleMee
       try {
         if (!selectedDate) {
           setSelectedDayActivityItems([])
+          selectedDayKeyRef.current = null
           return
         }
 
         const { data: auth } = await supabase.auth.getUser()
         const user = auth?.user
         if (!user?.id) {
-          setSelectedDayActivityItems([])
+          // Evitar borrar el estado si hay un glitch temporal de auth; si no, desaparecen los pendientes.
           return
         }
 
         const dayKey = format(selectedDate, 'yyyy-MM-dd')
+        selectedDayKeyRef.current = dayKey
 
         const toInt = (v: any) => {
           const n = Number(v)
@@ -667,10 +689,15 @@ export default function CalendarView({ activityIds, onActivityClick, scheduleMee
           .filter((x) => x.pendingMinutes > 0 || x.pendingCountLabel !== 'Sin pendientes')
           .sort((a, b) => b.pendingMinutes - a.pendingMinutes)
 
-        setSelectedDayActivityItems(list)
+        setSelectedDayActivityItems((prev) => {
+          const prevDayKey = selectedDayKeyRef.current
+          // Si estamos en el mismo día y el nuevo cálculo vino vacío, no pisar (evita que “desaparezcan”).
+          if (prevDayKey === dayKey && prev.length > 0 && list.length === 0) return prev
+          return list
+        })
       } catch (e) {
         console.error('Error loading selected day breakdown:', e)
-        setSelectedDayActivityItems([])
+        // No borrar el estado para evitar que desaparezcan pendientes por fallos transitorios.
       }
     }
 
@@ -711,6 +738,65 @@ export default function CalendarView({ activityIds, onActivityClick, scheduleMee
 
     loadCoachProfiles()
   }, [purchasedCoachIds, supabase])
+
+  useEffect(() => {
+    const loadMeetNotificationCount = async () => {
+      try {
+        if (!authUserId) {
+          setMeetNotificationsCount(0)
+          return
+        }
+
+        const { count, error } = await supabase
+          .from('calendar_event_participants')
+          .select('id', { count: 'exact' })
+          .eq('client_id', authUserId)
+          .eq('rsvp_status', 'pending')
+
+        if (error) {
+          setMeetNotificationsCount(0)
+          return
+        }
+        setMeetNotificationsCount(Number.isFinite(count as any) ? (count as any) : 0)
+      } catch {
+        setMeetNotificationsCount(0)
+      }
+    }
+
+    loadMeetNotificationCount()
+  }, [supabase, meetEventsByDate, authUserId])
+
+  const openMeetById = async (eventId: string) => {
+    try {
+      const all = Object.values(meetEventsByDate || {}).flat()
+      const found = all.find((m: any) => String(m?.id || '') === String(eventId))
+      if (found) {
+        setSelectedMeetEvent(found as any)
+        setShowMeetNotifications(false)
+        return
+      }
+
+      const { data: ev, error } = await supabase
+        .from('calendar_events')
+        .select('id, title, description, meet_link, start_time, end_time, coach_id')
+        .eq('id', eventId)
+        .maybeSingle()
+
+      if (error || !ev?.id) return
+      setSelectedMeetEvent({
+        id: String(ev.id),
+        title: ev.title == null ? null : String(ev.title || ''),
+        start_time: String(ev.start_time),
+        end_time: ev.end_time ? String(ev.end_time) : null,
+        coach_id: ev.coach_id ? String(ev.coach_id) : null,
+        meet_link: ev.meet_link ? String(ev.meet_link) : null,
+        description: ev.description == null ? null : String(ev.description || ''),
+      })
+      setShowMeetNotifications(false)
+    } catch {
+      // ignore
+    }
+  }
 
   useEffect(() => {
     const loadMeetCredits = async () => {
@@ -1167,7 +1253,29 @@ export default function CalendarView({ activityIds, onActivityClick, scheduleMee
   return (
     <div className="p-4 text-white">
       {/* Acciones arriba (fuera del frame del calendario) */}
-      <div className="mb-3 relative flex items-center justify-end">
+      <div className="mb-3 relative flex items-center justify-between">
+        <button
+          type="button"
+          onClick={() => setShowMeetNotifications(true)}
+          className={
+            `relative w-8 h-8 rounded-full border flex items-center justify-center ` +
+            `backdrop-blur-md bg-white/10 border-white/20 shadow-[0_8px_24px_rgba(0,0,0,0.35)] ` +
+            `hover:bg-white/15 transition-colors`
+          }
+          title="Notificaciones"
+          aria-label="Notificaciones"
+        >
+          <Bell className="h-4 w-4 text-[#FF7939]" />
+          {meetNotificationsCount > 0 && (
+            <span
+              className="absolute -top-1 -right-1 min-w-[18px] h-[18px] px-1 rounded-full text-[10px] font-bold flex items-center justify-center"
+              style={{ background: '#FF7939', color: '#000' }}
+            >
+              {meetNotificationsCount}
+            </span>
+          )}
+        </button>
+
         <div className="flex items-center gap-2">
           <div
             className={
@@ -1215,6 +1323,15 @@ export default function CalendarView({ activityIds, onActivityClick, scheduleMee
           </button>
         </div>
       </div>
+
+      <MeetNotificationsModal
+        open={showMeetNotifications}
+        onClose={() => setShowMeetNotifications(false)}
+        role="client"
+        supabase={supabase}
+        userId={authUserId || ''}
+        onOpenMeet={(eventId) => openMeetById(eventId)}
+      />
 
       {(showCoachRow || !!selectedCoachProfile) && (
         <div className="mb-3">
@@ -1569,48 +1686,29 @@ export default function CalendarView({ activityIds, onActivityClick, scheduleMee
 
       {selectedDate && meetViewMode === 'month' && (
         <div className="mt-4" ref={dayDetailRef}>
-          <h3 className="text-sm font-semibold mb-3 text-white/90">
-            Actividades para {format(selectedDate, 'dd/MM/yyyy', { locale: es })}
-          </h3>
-
           {(() => {
             const key = format(selectedDate, 'yyyy-MM-dd')
             const mins = dayMinutesByDate[key]
-            if (!mins) return null
-            const pending = (mins.fitnessMinutesPending || 0) + (mins.nutritionMinutesPending || 0)
-            const total = pending + (mins.meetsMinutes || 0)
-            if (total <= 0) return null
+            const meets = meetEventsByDate[key] || []
+            const pendingMinutes = (mins?.fitnessMinutesPending ?? 0) + (mins?.nutritionMinutesPending ?? 0)
+            const meetMinutes = mins?.meetsMinutes ?? 0
+            const dateLabel = isToday(selectedDate) ? 'Hoy' : format(selectedDate, 'dd/MM/yyyy', { locale: es })
+            const summaryParts: string[] = []
+            if (pendingMinutes > 0) summaryParts.push(`${formatMinutes(pendingMinutes)} de actividades`)
+            if (meetMinutes > 0) summaryParts.push(`${formatMinutes(meetMinutes)} en vivo`)
+            const summary = summaryParts.join(' · ')
+
             return (
               <div className="mb-3">
-                <div className="text-xs text-white/70">
-                  {pending > 0 ? (
-                    <span>Pendiente: <span className="text-white/90 font-semibold">{formatMinutes(pending)}</span></span>
-                  ) : null}
-                  {pending > 0 && mins.meetsMinutes > 0 ? <span> · </span> : null}
-                  {mins.meetsMinutes > 0 ? (
-                    <span>Meets: <span className="text-white/90 font-semibold">{formatMinutes(mins.meetsMinutes)}</span></span>
-                  ) : null}
+                <div className="flex items-center gap-2">
+                  <h3 className="text-base font-semibold text-white/95">Actividades · {dateLabel}</h3>
                 </div>
-
-                {(mins.pendingExercises > 0 || mins.pendingPlates > 0 || pending > 0) && (
-                  <div className="mt-2 flex flex-wrap items-center gap-2">
-                    {mins.pendingExercises > 0 && (
-                      <span className="inline-flex items-center px-2.5 py-1 rounded-full border text-[11px] font-semibold backdrop-blur-md bg-white/10 border-white/20 text-white">
-                        {mins.pendingExercises} ejercicios
-                      </span>
-                    )}
-                    {mins.pendingPlates > 0 && (
-                      <span className="inline-flex items-center px-2.5 py-1 rounded-full border text-[11px] font-semibold backdrop-blur-md bg-white/10 border-white/20 text-white">
-                        {mins.pendingPlates} platos
-                      </span>
-                    )}
-                    {pending > 0 && (
-                      <span className="inline-flex items-center px-2.5 py-1 rounded-full border text-[11px] font-semibold border-[#FF7939]/40 bg-[#FF7939]/10 text-[#FFB366]">
-                        {formatMinutes(pending)}
-                      </span>
-                    )}
+                {summary ? (
+                  <div className="mt-1 text-xs text-white/70 flex items-center gap-2">
+                    <Clock className="h-3.5 w-3.5 text-[#FF7939]" />
+                    <span>{dateLabel} · <span className="text-white/80">{summary}</span></span>
                   </div>
-                )}
+                ) : null}
               </div>
             )
           })()}
@@ -1620,72 +1718,110 @@ export default function CalendarView({ activityIds, onActivityClick, scheduleMee
             const meets = meetEventsByDate[key] || []
             if (meets.length === 0) return null
             return (
-              <div className="mb-3 space-y-2">
-                {meets.map((m) => {
-                  const start = new Date(m.start_time)
-                  const end = m.end_time ? new Date(m.end_time) : null
-                  const label = `${format(start, 'HH:mm')}${end && !Number.isNaN(end.getTime()) ? ` – ${format(end, 'HH:mm')}` : ''}`
-                  const coachName = m.coach_id
-                    ? (coachProfiles.find((c) => c.id === String(m.coach_id))?.full_name || 'Coach')
-                    : 'Coach'
-                  const isPending = String((m as any)?.rsvp_status || 'pending') === 'pending'
+              <div className="mb-4">
+                <div className="text-[11px] tracking-widest text-white/45 mb-2">MEET</div>
+                <div className="space-y-2">
+                  {meets.map((m) => {
+                    const start = new Date(m.start_time)
+                    const end = m.end_time ? new Date(m.end_time) : null
+                    const label = `${format(start, 'HH:mm')}${end && !Number.isNaN(end.getTime()) ? ` – ${format(end, 'HH:mm')}` : ''}`
+                    const isPending = String((m as any)?.rsvp_status || 'pending') === 'pending'
+
+                    const handleEnter = () => {
+                      if (!isPending && m.meet_link) {
+                        try {
+                          window.open(String(m.meet_link), '_blank', 'noopener,noreferrer')
+                          return
+                        } catch {
+                          // fallback
+                        }
+                      }
+                      setSelectedMeetEvent(m)
+                    }
+
+                    return (
+                      <div
+                        key={m.id}
+                        className={
+                          `w-full rounded-xl border px-3 py-2 flex items-center justify-between gap-3 ` +
+                          `border-white/10 bg-white/5`
+                        }
+                      >
+                        <div className="flex items-center gap-3 min-w-0">
+                          <Video className={isPending ? 'h-4 w-4 text-[#FF7939]' : 'h-4 w-4 text-white/70'} />
+                          <div className="min-w-0">
+                            <div className="text-sm font-semibold text-white truncate">{m.title ? String(m.title) : 'Meet'}</div>
+                            <div className="text-xs text-white/65 truncate">{label}</div>
+                          </div>
+                        </div>
+                        <button
+                          type="button"
+                          onClick={handleEnter}
+                          className={
+                            `px-4 py-1.5 rounded-full text-xs font-semibold border transition-colors flex-shrink-0 ` +
+                            `border-[#FF7939]/60 text-[#FFB366] hover:bg-[#FF7939]/10`
+                          }
+                        >
+                          Ir a la meet
+                        </button>
+                      </div>
+                    )
+                  })}
+                </div>
+              </div>
+            )
+          })()}
+
+          {selectedDayActivityItems.length > 0 && (
+            <div className="mb-4">
+              <div className="text-[11px] tracking-widest text-white/45 mb-2">PENDIENTES</div>
+              <div className="space-y-2">
+                {selectedDayActivityItems.map((it) => {
+                  const isNutri = String(it.activityTypeLabel || '').toLowerCase().includes('nutri')
+
+                  const totalPlates = (() => {
+                    const raw = String(it.pendingCountLabel || '')
+                    if (!raw.toLowerCase().includes('plato')) return null
+                    const m = raw.match(/(\d+)/)
+                    if (!m) return null
+                    const n = Number(m[1])
+                    return Number.isFinite(n) ? n : null
+                  })()
+                  const done = 0
+                  const subtitle = totalPlates != null ? `${done}/${totalPlates} platos` : it.pendingCountLabel
+
                   return (
                     <button
-                      key={m.id}
+                      key={it.activityId}
                       type="button"
-                      onClick={() => setSelectedMeetEvent(m)}
-                      className="w-full text-left p-3 rounded-xl border border-white/30 bg-black hover:bg-white/5 transition-colors"
+                      onClick={() => onActivityClick(it.activityId)}
+                      className="w-full text-left px-3 py-2 rounded-xl border border-white/10 bg-white/5 hover:bg-white/7 transition-colors"
                     >
                       <div className="flex items-center justify-between gap-3">
-                        <div className="flex flex-col flex-1 min-w-0">
-                          <span className="text-sm font-semibold text-white truncate">{m.title ? String(m.title) : 'Meet'}</span>
-                          <span className="text-[11px] text-gray-300 mt-0.5">{label} · {coachName}</span>
+                        <div className="flex items-center gap-3 min-w-0">
+                          {isNutri ? (
+                            <Utensils className="h-4 w-4 text-[#FF7939]" />
+                          ) : (
+                            <Flame className="h-4 w-4 text-[#FF7939]" />
+                          )}
+                          <div className="min-w-0">
+                            <div className="text-sm font-semibold text-white truncate">{it.activityTitle}</div>
+                            <div className="text-xs text-white/65 truncate">{subtitle}</div>
+                          </div>
                         </div>
                         <span
                           className={
-                            isPending
-                              ? 'flex-shrink-0 px-2 py-1 rounded-full text-[10px] font-semibold text-[#FF3B30] bg-[#FF3B30]/10 border border-[#FF3B30]/50'
-                              : 'flex-shrink-0 px-2 py-1 rounded-full text-[10px] font-semibold text-white bg-black/60 border border-white/60'
+                            `px-4 py-1.5 rounded-full text-xs font-semibold border transition-colors flex-shrink-0 ` +
+                            `border-white/15 text-white/80 hover:bg-white/10`
                           }
                         >
-                          Meet
+                          Ir al programa
                         </span>
                       </div>
                     </button>
                   )
                 })}
               </div>
-            )
-          })()}
-
-          {selectedDayActivityItems.length > 0 && (
-            <div className="mb-3 space-y-2">
-              {selectedDayActivityItems.map((it) => (
-                <button
-                  key={it.activityId}
-                  type="button"
-                  onClick={() => onActivityClick(it.activityId)}
-                  className={
-                    `w-full text-left p-3 rounded-xl border relative ` +
-                    `${it.borderClass} ${it.bgClass} ` +
-                    `hover:bg-white/5 transition-colors`
-                  }
-                  style={{ backgroundClip: 'padding-box' }}
-                >
-                  <div className="flex items-center justify-between gap-3">
-                    <div className="flex flex-col flex-1 min-w-0">
-                      <span className="text-sm font-semibold text-white truncate">{it.activityTitle}</span>
-                      <span className="text-[11px] text-gray-300 mt-0.5">{it.activityTypeLabel} · {it.pendingCountLabel}</span>
-                    </div>
-
-                    {it.pendingMinutes > 0 && (
-                      <span className="flex-shrink-0 inline-flex items-center px-2.5 py-1 rounded-full border text-[11px] font-semibold border-[#FF7939]/40 bg-[#FF7939]/10 text-[#FFB366]">
-                        {formatMinutes(it.pendingMinutes)}
-                      </span>
-                    )}
-                  </div>
-                </button>
-              ))}
             </div>
           )}
 
