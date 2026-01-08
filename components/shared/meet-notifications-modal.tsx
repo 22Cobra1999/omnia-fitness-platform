@@ -14,6 +14,13 @@ type NotificationItem = {
   title: string
   startTime: string
   endTime: string | null
+  reschedulePending?: {
+    toStartTime: string
+    toEndTime: string | null
+    fromStartTime: string
+    fromEndTime: string | null
+    note: string | null
+  } | null
   meetLink: string | null
   otherUserId: string
   otherUserName: string
@@ -48,7 +55,8 @@ export function MeetNotificationsModal({
     const now = new Date()
     return {
       from: addDays(now, -45).toISOString(),
-      to: addDays(now, 90).toISOString(),
+      to: addDays(now, 365).toISOString(),
+      nowIso: now.toISOString(),
     }
   }, [])
 
@@ -88,7 +96,6 @@ export function MeetNotificationsModal({
           .select('id, title, start_time, end_time, meet_link, coach_id')
           .in('id', eventIds)
           .eq('event_type', 'consultation')
-          .gte('start_time', range.from)
           .lt('start_time', range.to)
 
         if (eventsError) {
@@ -115,11 +122,31 @@ export function MeetNotificationsModal({
           eventById[String(e.id)] = e
         })
 
+        const { data: reschedules } = await supabase
+          .from('calendar_event_reschedule_requests')
+          .select('event_id, from_start_time, from_end_time, to_start_time, to_end_time, note, status, created_at')
+          .in('event_id', eventIds)
+          .eq('status', 'pending')
+          .order('created_at', { ascending: false })
+
+        const pendingRescheduleByEventId: Record<string, any> = {}
+        ;(reschedules || []).forEach((r: any) => {
+          const eid = String(r?.event_id || '')
+          if (!eid) return
+          if (pendingRescheduleByEventId[eid]) return
+          pendingRescheduleByEventId[eid] = r
+        })
+
         const out: NotificationItem[] = (myParts || [])
           .map((p: any) => {
             const eid = String(p?.event_id || '')
             const ev = eventById[eid]
             if (!ev?.id) return null
+
+            const endIso = ev.end_time ? String(ev.end_time) : null
+            const startIso = String(ev.start_time)
+            const endsAfterNow = endIso ? endIso >= range.nowIso : startIso >= range.nowIso
+            if (!endsAfterNow) return null
 
             const rsvpStatus = String(p?.rsvp_status || 'pending')
             const invitedByRole = p?.invited_by_role == null ? null : String(p.invited_by_role)
@@ -136,6 +163,17 @@ export function MeetNotificationsModal({
               title: ev.title ? String(ev.title) : 'Meet',
               startTime: String(ev.start_time),
               endTime: ev.end_time ? String(ev.end_time) : null,
+              reschedulePending: (() => {
+                const rr = pendingRescheduleByEventId[eid]
+                if (!rr?.to_start_time) return null
+                return {
+                  toStartTime: String(rr.to_start_time),
+                  toEndTime: rr.to_end_time ? String(rr.to_end_time) : null,
+                  fromStartTime: String(rr.from_start_time),
+                  fromEndTime: rr.from_end_time ? String(rr.from_end_time) : null,
+                  note: rr.note == null ? null : String(rr.note),
+                }
+              })(),
               meetLink: ev.meet_link ? String(ev.meet_link) : null,
               otherUserId: coachId,
               otherUserName: coachName,
@@ -156,7 +194,6 @@ export function MeetNotificationsModal({
         .select('id, title, start_time, end_time, meet_link')
         .eq('coach_id', coachId)
         .eq('event_type', 'consultation')
-        .gte('start_time', range.from)
         .lt('start_time', range.to)
 
       if (eventsError) {
@@ -207,12 +244,32 @@ export function MeetNotificationsModal({
         eventById[String(e.id)] = e
       })
 
+      const { data: reschedules } = await supabase
+        .from('calendar_event_reschedule_requests')
+        .select('event_id, from_start_time, from_end_time, to_start_time, to_end_time, note, status, created_at')
+        .in('event_id', eventIds)
+        .eq('status', 'pending')
+        .order('created_at', { ascending: false })
+
+      const pendingRescheduleByEventId: Record<string, any> = {}
+      ;(reschedules || []).forEach((r: any) => {
+        const eid = String(r?.event_id || '')
+        if (!eid) return
+        if (pendingRescheduleByEventId[eid]) return
+        pendingRescheduleByEventId[eid] = r
+      })
+
       const out: NotificationItem[] = (parts || [])
         .filter((p: any) => String(p?.participant_role || '') !== 'coach')
         .map((p: any) => {
           const eid = String(p?.event_id || '')
           const ev = eventById[eid]
           if (!ev?.id) return null
+
+          const endIso = ev.end_time ? String(ev.end_time) : null
+          const startIso = String(ev.start_time)
+          const endsAfterNow = endIso ? endIso >= range.nowIso : startIso >= range.nowIso
+          if (!endsAfterNow) return null
 
           const rsvpStatus = String(p?.rsvp_status || 'pending')
           const invitedByRole = p?.invited_by_role == null ? null : String(p.invited_by_role)
@@ -228,6 +285,17 @@ export function MeetNotificationsModal({
             title: ev.title ? String(ev.title) : 'Meet',
             startTime: String(ev.start_time),
             endTime: ev.end_time ? String(ev.end_time) : null,
+            reschedulePending: (() => {
+              const rr = pendingRescheduleByEventId[eid]
+              if (!rr?.to_start_time) return null
+              return {
+                toStartTime: String(rr.to_start_time),
+                toEndTime: rr.to_end_time ? String(rr.to_end_time) : null,
+                fromStartTime: String(rr.from_start_time),
+                fromEndTime: rr.from_end_time ? String(rr.from_end_time) : null,
+                note: rr.note == null ? null : String(rr.note),
+              }
+            })(),
             meetLink: ev.meet_link ? String(ev.meet_link) : null,
             otherUserId: clientId,
             otherUserName: clientName,
@@ -357,7 +425,27 @@ export function MeetNotificationsModal({
                       <div className="min-w-0">
                         <div className="text-sm font-semibold text-white truncate">{it.title}</div>
                         <div className="mt-0.5 text-xs text-white/65 truncate">{describe(it)}</div>
-                        <div className="mt-1 text-xs text-white/55">{dateLabel} · {timeLabel}</div>
+                        {it.reschedulePending ? (
+                          <div className="mt-1 space-y-0.5">
+                            <div className="text-xs text-[#FFB366]">
+                              {format(new Date(it.reschedulePending.toStartTime), 'dd MMM', { locale: es })} ·
+                              {' '}
+                              {(() => {
+                                const a = new Date(it.reschedulePending!.toStartTime)
+                                const b = it.reschedulePending!.toEndTime ? new Date(it.reschedulePending!.toEndTime as string) : null
+                                return `${format(a, 'HH:mm')}${b && !Number.isNaN(b.getTime()) ? ` – ${format(b, 'HH:mm')}` : ''}`
+                              })()}
+                            </div>
+                            <div className="text-xs text-white/45 line-through">
+                              {dateLabel} · {timeLabel}
+                            </div>
+                            {it.reschedulePending.note && it.reschedulePending.note.trim().length > 0 && (
+                              <div className="text-[11px] text-white/60 truncate">Nota: {it.reschedulePending.note}</div>
+                            )}
+                          </div>
+                        ) : (
+                          <div className="mt-1 text-xs text-white/55">{dateLabel} · {timeLabel}</div>
+                        )}
                       </div>
                       <div className="flex items-center gap-2 flex-shrink-0">
                         <Video className={pending ? 'h-4 w-4 text-[#FF7939]' : 'h-4 w-4 text-white/60'} />

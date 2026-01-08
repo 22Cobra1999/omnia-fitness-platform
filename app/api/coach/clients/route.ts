@@ -26,6 +26,34 @@ export async function GET(request: NextRequest) {
   const supabase = authSupabase
   try {
 
+    const countKeys = (raw: any): number => {
+      if (!raw) return 0
+      if (Array.isArray(raw)) return raw.length
+      if (typeof raw === 'object') return Object.keys(raw).length
+      if (typeof raw === 'string') {
+        try {
+          const parsed = JSON.parse(raw)
+          if (Array.isArray(parsed)) return parsed.length
+          if (parsed && typeof parsed === 'object') return Object.keys(parsed).length
+          return 0
+        } catch {
+          return 0
+        }
+      }
+      return 0
+    }
+
+    const formatLastActive = (iso: string | null): string => {
+      if (!iso) return 'Nunca'
+      try {
+        const d = new Date(iso)
+        if (Number.isNaN(d.getTime())) return 'Nunca'
+        return d.toLocaleDateString('es-ES', { day: '2-digit', month: '2-digit', year: '2-digit' })
+      } catch {
+        return 'Nunca'
+      }
+    }
+
     // Primero, traer solo actividades del coach autenticado
     const { data: coachActivities, error: coachActivitiesError } = await supabase
       .from('activities')
@@ -167,7 +195,88 @@ export async function GET(request: NextRequest) {
       return NextResponse.json({ success: false, error: usersError.message }, { status: 500 })
     }
 
-    // No necesitamos consultar banco, calcularemos ingresos desde activities
+    // Buscar pagos reales en banco (prefer seller_amount, fallback amount_paid)
+    const enrollmentIdsAll = (enrollments || [])
+      .map((e: any) => e?.id)
+      .filter((id: any) => typeof id === 'number' || typeof id === 'string')
+      .map((id: any) => (typeof id === 'number' ? id : Number(id)))
+      .filter((id: number) => Number.isFinite(id) && id > 0)
+
+    let bancoRows: any[] = []
+    if (enrollmentIdsAll.length > 0 || coachActivityIds.length > 0) {
+      let bancoQuery = supabase
+        .from('banco')
+        .select('id, enrollment_id, activity_id, client_id, seller_amount, amount_paid, payment_status')
+
+      const conditions: string[] = []
+      if (enrollmentIdsAll.length > 0) {
+        conditions.push(`enrollment_id.in.(${enrollmentIdsAll.join(',')})`)
+      }
+      if (coachActivityIds.length > 0) {
+        const ids = coachActivityIds.map((id: any) => Number(id)).filter((id: number) => Number.isFinite(id) && id > 0)
+        if (ids.length > 0) {
+          conditions.push(`activity_id.in.(${ids.join(',')})`)
+        }
+      }
+      if (conditions.length > 0) {
+        bancoQuery = bancoQuery.or(conditions.join(','))
+      }
+
+      const { data: bancoData } = await bancoQuery
+      bancoRows = bancoData || []
+    }
+
+    const paidByEnrollmentId = new Map<number, number>()
+    for (const row of bancoRows) {
+      const paid = Number((row as any)?.seller_amount ?? (row as any)?.amount_paid ?? 0) || 0
+      const enrId = Number((row as any)?.enrollment_id)
+      if (Number.isFinite(enrId) && enrId > 0) {
+        paidByEnrollmentId.set(enrId, (paidByEnrollmentId.get(enrId) || 0) + paid)
+      }
+    }
+
+    // Progreso agregado + última ejercitación (se toma de tablas progreso_cliente / progreso_cliente_nutricion)
+    const todayIso = new Date().toISOString().slice(0, 10)
+    const progressCache = new Map<string, { completedSum: number; totalSum: number; lastCompletedDate: string | null }>()
+    const computeProgressAggForActivity = async (clientId: string, activityId: number, activityType: string) => {
+      const cacheKey = `${clientId}:${activityId}:${activityType}`
+      const cached = progressCache.get(cacheKey)
+      if (cached) return cached
+
+      const actType = String(activityType || '')
+      const isNutrition = actType.includes('nutri')
+      const table = isNutrition ? 'progreso_cliente_nutricion' : 'progreso_cliente'
+
+      const { data: progressRows } = await supabase
+        .from(table)
+        .select('fecha, ejercicios_completados, ejercicios_pendientes')
+        .eq('cliente_id', clientId)
+        .eq('actividad_id', activityId)
+        .lte('fecha', todayIso)
+        .order('fecha', { ascending: false })
+        .limit(120)
+
+      let completedSum = 0
+      let totalSum = 0
+      let lastCompletedDate: string | null = null
+
+      for (const r of progressRows || []) {
+        const c = countKeys((r as any)?.ejercicios_completados)
+        const p = countKeys((r as any)?.ejercicios_pendientes)
+        const fecha = String((r as any)?.fecha || '')
+        completedSum += c
+        totalSum += c + p
+        if (c > 0 && fecha) {
+          if (!lastCompletedDate || fecha > lastCompletedDate) {
+            lastCompletedDate = fecha
+          }
+        }
+      }
+
+      const result = { completedSum, totalSum, lastCompletedDate }
+      progressCache.set(cacheKey, result)
+      return result
+    }
 
     // Agrupar por cliente
     const clientsMap = new Map()
@@ -201,7 +310,7 @@ export async function GET(request: NextRequest) {
     }
 
     // Fallback básico si por algún motivo el procesamiento avanzado falla
-    const basicClients = Array.from(clientsMap.values()).map((client: any) => {
+    const basicClients = await Promise.all(Array.from(clientsMap.values()).map(async (client: any) => {
       const statuses = new Set<string>((client.enrollments || []).map((e: any) => String(e?.status || '').toLowerCase()))
       const hasActive = statuses.has('activa') || statuses.has('active')
       const hasPending = statuses.has('pendiente') || statuses.has('pending')
@@ -212,20 +321,62 @@ export async function GET(request: NextRequest) {
         0
       )
 
+      // To Do: total de tasks por enrollment.todo_list
+      const todoCount = (client.enrollments || []).reduce((sum: number, enrollment: any) => {
+        const raw = enrollment?.todo_list
+        if (!raw) return sum
+        if (Array.isArray(raw)) return sum + raw.length
+        if (typeof raw === 'string') {
+          try {
+            const parsed = JSON.parse(raw)
+            return sum + (Array.isArray(parsed) ? parsed.length : 0)
+          } catch {
+            return sum
+          }
+        }
+        return sum
+      }, 0)
+
+      // Ingresos reales (solo compras de actividades del coach)
+      const totalRevenue = (client.enrollments || []).reduce((sum: number, enrollment: any) => {
+        const enrId = Number(enrollment?.id)
+        const paid = Number.isFinite(enrId) ? (paidByEnrollmentId.get(enrId) || 0) : 0
+        return sum + paid
+      }, 0)
+
+      // Progreso total: agregado/ponderado por total de ejercicios (sumatoria de progreso tables)
+      let completedAgg = 0
+      let totalAgg = 0
+      let lastCompletedDateAgg: string | null = null
+      for (const enrollment of client.enrollments || []) {
+        const activity = activities?.find((a: any) => String(a.id) === String(enrollment.activity_id))
+        const activityIdNum = Number(enrollment?.activity_id)
+        if (!activity || !Number.isFinite(activityIdNum)) continue
+        const agg = await computeProgressAggForActivity(String(client.id), activityIdNum, String(activity?.type || ''))
+        completedAgg += agg.completedSum
+        totalAgg += agg.totalSum
+        if (agg.lastCompletedDate) {
+          if (!lastCompletedDateAgg || agg.lastCompletedDate > lastCompletedDateAgg) {
+            lastCompletedDateAgg = agg.lastCompletedDate
+          }
+        }
+      }
+      const progress = totalAgg > 0 ? Math.round((completedAgg / totalAgg) * 100) : 0
+
       return {
         id: client.id,
         name: client.name,
         email: client.email,
         avatar_url: client.avatar_url,
         meet_credits_available: meetCreditsAvailable,
-        progress: 0,
+        progress,
         status: clientStatus,
-        lastActive: 'Nunca',
+        lastActive: formatLastActive(lastCompletedDateAgg),
         totalExercises: 0,
         completedExercises: 0,
-        totalRevenue: 0,
+        totalRevenue,
         activitiesCount: (client.activities || []).length,
-        todoCount: 0,
+        todoCount,
         activities: (client.activities || []).map((a: any) => ({
           id: a.id,
           title: a.title,
@@ -233,7 +384,7 @@ export async function GET(request: NextRequest) {
           amountPaid: a.amountPaid || a.price || 0
         }))
       }
-    })
+    }))
 
     const coachActivityIdsSample = coachActivityIds.slice(0, 5).map((id: any) => ({ value: id, type: typeof id }))
     const enrollmentsSample = (enrollments || []).slice(0, 5).map((e: any) => ({

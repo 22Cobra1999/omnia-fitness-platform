@@ -6,7 +6,21 @@ export async function GET(
   { params }: { params: { id: string } }
 ) {
   try {
-    const activityId = parseInt(params.id)
+    const rawParamId = params?.id
+    const rawUrlId = (() => {
+      try {
+        const pathname = new URL(request.url).pathname
+        // /api/activities/:id/check-coach-survey
+        const parts = pathname.split('/').filter(Boolean)
+        const idIndex = parts.findIndex((p) => p === 'activities')
+        if (idIndex === -1) return undefined
+        return parts[idIndex + 1]
+      } catch {
+        return undefined
+      }
+    })()
+
+    const activityId = parseInt(String(rawParamId ?? rawUrlId ?? ''), 10)
     if (isNaN(activityId)) {
       return NextResponse.json({ 
         success: false, 

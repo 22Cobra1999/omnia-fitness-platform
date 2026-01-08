@@ -289,6 +289,7 @@ export function WeeklyExercisePlanner({ exercises, onScheduleChange, onPeriodsCh
   const [selectedExercises, setSelectedExercises] = useState<Set<string>>(new Set())
   const [weekLimitError, setWeekLimitError] = useState<string | null>(null)
   const [searchTerm, setSearchTerm] = useState<string>('') // Término de búsqueda para filtrar platos/ejercicios
+  const [isExerciseSelectorOpen, setIsExerciseSelectorOpen] = useState(false)
 
   // Huella de los ejercicios disponibles (IDs) para detectar eliminaciones en Paso 4
   const availableExerciseIdsFingerprint = React.useMemo(() => {
@@ -2983,69 +2984,89 @@ export function WeeklyExercisePlanner({ exercises, onScheduleChange, onPeriodsCh
       {/* Lista de ejercicios/platos - sección debajo */}
       <div className="mt-8">
         <div className="flex items-center justify-between mb-4">
-          <h4 className="text-white font-light text-lg">{productCategory === 'nutricion' ? 'Selecciona platos' : 'Selecciona ejercicios'}</h4>
-           <button
-             onClick={() => {
-               // Solo considerar ejercicios activos para seleccionar todos
-               const activeExercises = finalAvailableExercises.filter(ex => 
-                 (ex as any).is_active !== false && (ex as any).activo !== false
-               )
-               const allActiveSelected = activeExercises.length > 0 && activeExercises.every(ex => selectedExercises.has(ex.id))
-               if (allActiveSelected) {
-                 clearSelection()
-               } else {
-                 selectAllExercises()
-               }
-             }}
-             className="text-[#FF7939] text-sm font-light hover:text-[#FF6B35] transition-colors"
-           >
-             {(() => {
-               const activeExercises = finalAvailableExercises.filter(ex => 
-                 (ex as any).is_active !== false && (ex as any).activo !== false
-               )
-               const allActiveSelected = activeExercises.length > 0 && activeExercises.every(ex => selectedExercises.has(ex.id))
-               return allActiveSelected ? 'Ninguno' : 'Todos'
-             })()}
-           </button>
+          <h4 className="text-white font-light text-lg">
+            {productCategory === 'nutricion' ? 'Selecciona platos' : 'Selecciona ejercicios'}
+          </h4>
+          <Button
+            type="button"
+            variant="outline"
+            size="sm"
+            className="border-white/10 bg-white/5 hover:bg-white/10 text-white"
+            onClick={() => setIsExerciseSelectorOpen((v) => !v)}
+          >
+            {isExerciseSelectorOpen
+              ? 'Ocultar'
+              : (productCategory === 'nutricion' ? 'Agregar platos' : 'Agregar ejercicios')}
+          </Button>
         </div>
-        
-        {/* Campo de búsqueda */}
-        <div className="mb-4 relative">
-          <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 w-4 h-4" />
-          <Input
-            type="text"
-            placeholder={`Buscar ${productCategory === 'nutricion' ? 'platos' : 'ejercicios'}...`}
-            value={searchTerm}
-            onChange={(e) => setSearchTerm(e.target.value)}
-            className="pl-10 bg-gray-900/40 border-gray-700/70 text-white placeholder:text-gray-500 focus:border-[#FF7939] focus:ring-[#FF7939]"
-          />
-        </div>
-        
-        {/* Totales de macros y calorías para selección (solo nutrición) */}
-        {productCategory === 'nutricion' && selectedExercises.size > 0 && (
-          <div className="mb-3 text-center">
-            <span className="text-xs text-[#FF7939]">
-              P: {selectedNutritionTotals.proteinas}g&nbsp;|&nbsp;
-              C: {selectedNutritionTotals.carbohidratos}g&nbsp;|&nbsp;
-              G: {selectedNutritionTotals.grasas}g&nbsp;|&nbsp;
-              {selectedNutritionTotals.calorias}kcal
-            </span>
-          </div>
-        )}
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-2">
-          {(() => {
-            // Filtrar ejercicios/platos basado en el término de búsqueda
-            const filteredExercises = searchTerm.trim() === '' 
-              ? finalAvailableExercises 
-              : finalAvailableExercises.filter(ex => {
-                  const searchLower = searchTerm.toLowerCase()
-                  const name = (ex.name || '').toLowerCase()
-                  const description = (ex.description || '').toLowerCase()
-                  const type = ((ex.type || ex.tipo) || '').toLowerCase()
-                  return name.includes(searchLower) || description.includes(searchLower) || type.includes(searchLower)
-                })
-            
-            return filteredExercises.map((exercise) => {
+
+        {isExerciseSelectorOpen && (
+          <>
+            <div className="flex items-center justify-between mb-4">
+              <div />
+              <button
+                onClick={() => {
+                  // Solo considerar ejercicios activos para seleccionar todos
+                  const activeExercises = finalAvailableExercises.filter(ex =>
+                    (ex as any).is_active !== false && (ex as any).activo !== false
+                  )
+                  const allActiveSelected = activeExercises.length > 0 && activeExercises.every(ex => selectedExercises.has(ex.id))
+                  if (allActiveSelected) {
+                    clearSelection()
+                  } else {
+                    selectAllExercises()
+                  }
+                }}
+                className="text-[#FF7939] text-sm font-light hover:text-[#FF6B35] transition-colors"
+              >
+                {(() => {
+                  const activeExercises = finalAvailableExercises.filter(ex =>
+                    (ex as any).is_active !== false && (ex as any).activo !== false
+                  )
+                  const allActiveSelected = activeExercises.length > 0 && activeExercises.every(ex => selectedExercises.has(ex.id))
+                  return allActiveSelected ? 'Ninguno' : 'Todos'
+                })()}
+              </button>
+            </div>
+
+            {/* Campo de búsqueda */}
+            <div className="mb-4 relative">
+              <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 w-4 h-4" />
+              <Input
+                type="text"
+                placeholder={`Buscar ${productCategory === 'nutricion' ? 'platos' : 'ejercicios'}...`}
+                value={searchTerm}
+                onChange={(e) => setSearchTerm(e.target.value)}
+                className="pl-10 bg-gray-900/40 border-gray-700/70 text-white placeholder:text-gray-500 focus:border-[#FF7939] focus:ring-[#FF7939]"
+              />
+            </div>
+
+            {/* Totales de macros y calorías para selección (solo nutrición) */}
+            {productCategory === 'nutricion' && selectedExercises.size > 0 && (
+              <div className="mb-3 text-center">
+                <span className="text-xs text-[#FF7939]">
+                  P: {selectedNutritionTotals.proteinas}g&nbsp;|&nbsp;
+                  C: {selectedNutritionTotals.carbohidratos}g&nbsp;|&nbsp;
+                  G: {selectedNutritionTotals.grasas}g&nbsp;|&nbsp;
+                  {selectedNutritionTotals.calorias}kcal
+                </span>
+              </div>
+            )}
+
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-2">
+              {(() => {
+                // Filtrar ejercicios/platos basado en el término de búsqueda
+                const filteredExercises = searchTerm.trim() === ''
+                  ? finalAvailableExercises
+                  : finalAvailableExercises.filter(ex => {
+                      const searchLower = searchTerm.toLowerCase()
+                      const name = (ex.name || '').toLowerCase()
+                      const description = (ex.description || '').toLowerCase()
+                      const type = ((ex.type || ex.tipo) || '').toLowerCase()
+                      return name.includes(searchLower) || description.includes(searchLower) || type.includes(searchLower)
+                    })
+
+                return filteredExercises.map((exercise) => {
             const isInactive = (exercise as any).is_active === false || (exercise as any).activo === false
             
             // Debug log para verificar estado
@@ -3157,7 +3178,9 @@ export function WeeklyExercisePlanner({ exercises, onScheduleChange, onPeriodsCh
           })
           })()}
         </div>
-      </div>
+      </>
+    )}
+  </div>
 
       {/* Modal para ver/editar ejercicios del día con sistema de bloques */}
       {showDayExercises && selectedDay && (

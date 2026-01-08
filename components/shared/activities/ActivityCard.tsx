@@ -403,13 +403,13 @@ const ActivityCard: React.FC<ActivityCardProps> = ({
         const getSizeClasses = () => {
           switch (size) {
             case 'small':
-              return 'w-40 h-[30rem]' // 480px de altura - balanceada
+              return 'w-40 h-[30rem]' // 480px de altura - asegurar visibilidad de precio
             case 'medium':
-              return 'w-full h-[30rem]' // 480px de altura - balanceada
+              return 'w-64 h-[32rem]' // altura media
             case 'large':
-              return 'w-full h-[32rem]' // 512px de altura - balanceada
+              return 'w-80 h-[36rem]' // altura grande
             default:
-              return 'w-full h-[30rem]'
+              return 'w-64 h-[32rem]'
           }
         }
 
@@ -475,7 +475,7 @@ const ActivityCard: React.FC<ActivityCardProps> = ({
         </div>
 
         {/* Activity Info - Estructura fija y consistente para todas las cards */}
-        <div className="p-4 flex-1 flex flex-col h-full min-h-[600px]">
+        <div className="p-4 flex-1 flex flex-col h-full min-h-0">
           
           {/* 1. NOMBRE DEL PROGRAMA - Sección fija */}
           <div className="mb-3">
@@ -622,7 +622,7 @@ const ActivityCard: React.FC<ActivityCardProps> = ({
 
 
          {/* 6. OBJETIVOS/TAGS - Sección fija (siempre presente para mantener alineación) */}
-         <div className="flex gap-1 mb-1 justify-start overflow-x-auto h-6">
+         <div className="flex flex-nowrap gap-1 mb-1 justify-start overflow-x-auto min-h-[1.5rem]">
             {/* Para productos de nutrición, usar tipo de dieta como "objetivo" principal */}
             {((activity.categoria === 'nutricion' || activity.categoria === 'nutrition') && (activity as any).dieta) ? (
               <span

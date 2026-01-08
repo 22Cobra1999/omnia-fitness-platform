@@ -27,8 +27,8 @@ import { UniversalVideoPlayer } from '@/components/shared/video/universal-video-
 interface MediaSelectionModalProps {
   isOpen: boolean
   onClose: () => void
-  onMediaSelected: (mediaUrl: string, mediaType: 'image' | 'video', mediaFile?: File) => void
-  mediaType: 'image' | 'video'
+  onMediaSelected: (mediaUrl: string, mediaType: 'image' | 'video' | 'pdf', mediaFile?: File) => void
+  mediaType: 'image' | 'video' | 'pdf'
 }
 
 interface CoachMedia {
@@ -43,7 +43,7 @@ interface CoachMedia {
   activity_title: string
   created_at: string
   filename: string
-  media_type: 'image' | 'video'
+  media_type: 'image' | 'video' | 'pdf'
   size?: number // Tamaño en bytes
   type?: string // Tipo MIME
   nombre_ejercicio?: string | null
@@ -330,6 +330,55 @@ export function MediaSelectionModal({
         } else {
           console.error(`❌ Error cargando videos del coach desde storage-files:`, data.error)
           setError(data.error || 'Error desconocido')
+        }
+      }
+
+      if (mediaType === 'pdf') {
+        console.log('🔄 MediaSelectionModal: Cargando PDFs del coach desde storage-files')
+
+        const response = await fetch('/api/coach/storage-files', { credentials: 'include' })
+        const data = await response.json()
+
+        console.log('📁 MediaSelectionModal: Respuesta de storage-files (pdf):', {
+          status: response.status,
+          ok: response.ok,
+          filesCount: data.files?.length || 0,
+          success: data.success,
+          error: data.error
+        })
+
+        if (response.ok && data.success && Array.isArray(data.files)) {
+          const pdfFiles = data.files.filter((file: any) => file.concept === 'pdf') || []
+
+          const convertedMedia: CoachMedia[] = pdfFiles.map((file: any) => ({
+            id: file.fileId || `pdf-${file.fileName}`,
+            activity_id: file.activities?.[0]?.id || 0,
+            pdf_url: file.url || undefined,
+            image_url: undefined,
+            video_url: undefined,
+            bunny_video_id: undefined,
+            bunny_library_id: undefined,
+            video_thumbnail_url: undefined,
+            filename: file.fileName || '',
+            media_type: 'pdf' as const,
+            size: file.sizeBytes || undefined,
+            type: 'application/pdf',
+            activity_title: (() => {
+              const names = Array.isArray(file.activities)
+                ? file.activities
+                    .map((a: any) => a?.name)
+                    .filter(Boolean)
+                : []
+              if (names.length === 0) return 'Documento'
+              if (names.length === 1) return names[0]
+              return `${names[0]} +${names.length - 1}`
+            })(),
+            created_at: new Date().toISOString()
+          }))
+
+          setMedia(convertedMedia)
+        } else {
+          setError(data.error || 'Error cargando PDFs')
         }
       }
     } catch (error) {

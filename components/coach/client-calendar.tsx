@@ -35,6 +35,7 @@ interface ExerciseExecution {
   ejercicio_nombre?: string
   actividad_titulo?: string
   actividad_id?: number
+  actividad_coach_id?: string | number | null
   enrollment_id?: number
   version?: number
   detalle_series?: any | null
@@ -48,8 +49,23 @@ interface DayData {
   date: string
   exerciseCount: number
   completedCount: number
+  totalMinutes: number
   exercises: ExerciseExecution[]
   activities: string[]
+}
+
+interface ClientDaySummaryRow {
+  id: string
+  client_id: string
+  day: string
+  activity_id: number | null
+  calendar_event_id: string | null
+  activity_title: string | null
+  coach_id: string | null
+  fitness_mins: number | null
+  nutri_mins: number | null
+  calendar_mins: number | null
+  total_mins: number | null
 }
 
 interface ActivityFilterOption {
@@ -75,12 +91,19 @@ export function ClientCalendar({ clientId, onLastWorkoutUpdate, onDaySelected, e
   const [showConfirmModal, setShowConfirmModal] = useState(false)
   const [isSelectingNewDate, setIsSelectingNewDate] = useState(false)
   const [applyToAllSameDays, setApplyToAllSameDays] = useState(false)
+  const [selectedActivityIdsForDateChange, setSelectedActivityIdsForDateChange] = useState<string[]>([])
   const [selectedDayForEdit, setSelectedDayForEdit] = useState<Date | null>(null)
   const [targetDayForEdit, setTargetDayForEdit] = useState<Date | null>(null)
   const [editingExerciseId, setEditingExerciseId] = useState<string | null>(null)
   const [editingSeries, setEditingSeries] = useState<any[]>([])
   const [availableExercises, setAvailableExercises] = useState<any[]>([])
   const [showExerciseDropdown, setShowExerciseDropdown] = useState(false)
+
+  const [otherMinutesByDate, setOtherMinutesByDate] = useState<Record<string, number>>({})
+
+  const [summaryRowsByDate, setSummaryRowsByDate] = useState<Record<string, ClientDaySummaryRow[]>>({})
+  const [activityDetailsByKey, setActivityDetailsByKey] = useState<Record<string, ExerciseExecution[]>>({})
+  const [expandedActivityKeys, setExpandedActivityKeys] = useState<Record<string, boolean>>({})
 
   const [activityFilterOptions, setActivityFilterOptions] = useState<ActivityFilterOption[]>([])
   const [activeEnrollmentFilterId, setActiveEnrollmentFilterId] = useState<number | null>(null)
@@ -95,6 +118,361 @@ export function ClientCalendar({ clientId, onLastWorkoutUpdate, onDaySelected, e
   const dayDetailRef = exercisesListRef ?? internalExercisesListRef
 
   const supabase = createClient()
+
+  const [currentCoachId, setCurrentCoachId] = useState<string | null>(null)
+
+  useEffect(() => {
+    let mounted = true
+    ;(async () => {
+      try {
+        const { data, error } = await supabase.auth.getUser()
+        if (!mounted) return
+        if (error) {
+          setCurrentCoachId(null)
+          return
+        }
+        setCurrentCoachId(data?.user?.id ?? null)
+      } catch {
+        if (!mounted) return
+        setCurrentCoachId(null)
+      }
+    })()
+    return () => {
+      mounted = false
+    }
+  }, [supabase])
+
+  const formatMinutesCompact = (totalMinutes: number | null | undefined): string => {
+    const mins = Number(totalMinutes || 0)
+    if (!Number.isFinite(mins) || mins <= 0) return ''
+    const h = Math.floor(mins / 60)
+    const m = mins % 60
+    if (h > 0 && m > 0) return `${h}h ${m}m`
+    if (h > 0) return `${h}h`
+    return `${m}m`
+  }
+
+  const getExerciseMinutes = (ex: ExerciseExecution): number => {
+    const minsFromFitness = Number(ex.duracion ?? 0) || 0
+    const minsFromNutri = Number(ex.nutricion_macros?.minutos ?? 0) || 0
+    const mins = Math.max(minsFromFitness, minsFromNutri)
+    return mins > 0 ? mins : 0
+  }
+
+  const getMonthRange = () => {
+    const monthStart = new Date(currentDate.getFullYear(), currentDate.getMonth(), 1)
+    const monthEnd = new Date(currentDate.getFullYear(), currentDate.getMonth() + 1, 0)
+    const monthStartStr = monthStart.toISOString().split('T')[0]
+    const monthEndStr = monthEnd.toISOString().split('T')[0]
+    return { monthStart, monthEnd, monthStartStr, monthEndStr }
+  }
+
+  const fetchClientCalendarSummary = async () => {
+    try {
+      setLoading(true)
+
+      const { monthStartStr, monthEndStr } = getMonthRange()
+
+      const { data: summaryRows, error: summaryErr } = await supabase
+        .from('client_day_activity_summary_v')
+        .select(
+          'id, client_id, day, activity_id, calendar_event_id, activity_title, coach_id, fitness_mins, nutri_mins, calendar_mins, total_mins'
+        )
+        .eq('client_id', clientId)
+        .gte('day', monthStartStr)
+        .lte('day', monthEndStr)
+
+      if (summaryErr) {
+        console.warn('⚠️ [CLIENT CALENDAR] Error cargando view client_day_activity_summary_v:', summaryErr)
+      }
+
+      const rows = (Array.isArray(summaryRows) ? summaryRows : []) as ClientDaySummaryRow[]
+      const byDate: Record<string, ClientDaySummaryRow[]> = {}
+      const processed: { [key: string]: DayData } = {}
+
+      for (const r of rows) {
+        const dayKey = String(r.day)
+        if (!byDate[dayKey]) byDate[dayKey] = []
+        byDate[dayKey].push(r)
+      }
+
+      Object.keys(byDate).forEach((dayKey) => {
+        const list = byDate[dayKey] || []
+        const totalMinutes = list.reduce((acc, r) => acc + (Number(r.total_mins ?? 0) || 0), 0)
+        processed[dayKey] = {
+          date: dayKey,
+          // En la vista el "count" deja de ser útil; lo usamos como cantidad de filas de resumen
+          exerciseCount: list.length,
+          completedCount: 0,
+          totalMinutes,
+          exercises: [],
+          activities: []
+        }
+      })
+
+      setSummaryRowsByDate(byDate)
+      setDayData(processed)
+
+      // Ya no necesitamos otherMinutesByDate separado: podemos derivarlo desde summaryRowsByDate.
+      // Lo dejamos por compatibilidad con UI, pero lo seteamos vacío.
+      setOtherMinutesByDate({})
+
+      if (onLastWorkoutUpdate) {
+        onLastWorkoutUpdate(null)
+      }
+    } catch (e) {
+      console.warn('⚠️ [CLIENT CALENDAR] Error general cargando resumen del calendario:', e)
+      setSummaryRowsByDate({})
+      setDayData({})
+    } finally {
+      setLoading(false)
+    }
+  }
+
+  const loadDayActivityDetails = async (dayStr: string, activityId: number) => {
+    const cacheKey = `${dayStr}::${String(activityId)}`
+    if (activityDetailsByKey[cacheKey]) return
+
+    try {
+      const { data: actRow } = await supabase
+        .from('activities')
+        .select('id, title, coach_id, type')
+        .eq('id', activityId)
+        .single()
+
+      const actividadTitulo = actRow?.title || `Actividad ${activityId}`
+      const actividadCoachId = actRow?.coach_id ?? null
+
+      const details: ExerciseExecution[] = []
+      const idsToResolve = new Set<string>()
+
+      // Fitness
+      const { data: progressRecord } = await supabase
+        .from('progreso_cliente')
+        .select('id, fecha, actividad_id, ejercicios_completados, ejercicios_pendientes, detalles_series, minutos_json, calorias_json')
+        .eq('cliente_id', clientId)
+        .eq('fecha', dayStr)
+        .eq('actividad_id', activityId)
+        .maybeSingle()
+
+      if (progressRecord) {
+        let completados: string[] = []
+        let pendientes: string[] = []
+        try {
+          const rawCompleted = typeof (progressRecord as any).ejercicios_completados === 'string'
+            ? JSON.parse((progressRecord as any).ejercicios_completados || '{}')
+            : (progressRecord as any).ejercicios_completados
+          const rawPending = typeof (progressRecord as any).ejercicios_pendientes === 'string'
+            ? JSON.parse((progressRecord as any).ejercicios_pendientes || '{}')
+            : (progressRecord as any).ejercicios_pendientes
+
+          if (Array.isArray(rawCompleted)) completados = rawCompleted.map((x: any) => String(x))
+          else if (rawCompleted && typeof rawCompleted === 'object') completados = Object.keys(rawCompleted).map((k) => String(k).split('_')[0])
+
+          if (Array.isArray(rawPending)) pendientes = rawPending.map((x: any) => String(x))
+          else if (rawPending && typeof rawPending === 'object') pendientes = Object.keys(rawPending).map((k) => String(k).split('_')[0])
+
+          completados = [...new Set(completados)]
+          pendientes = [...new Set(pendientes)]
+        } catch {
+          completados = []
+          pendientes = []
+        }
+
+        const allIds = [...new Set([...completados, ...pendientes])]
+
+        // Parse detalles_series/minutos/calorias para mins/kcal
+        let detallesSeriesObj: any = null
+        let minutosObj: any = null
+        let caloriasObj: any = null
+        try {
+          detallesSeriesObj = typeof (progressRecord as any).detalles_series === 'string'
+            ? JSON.parse((progressRecord as any).detalles_series)
+            : (progressRecord as any).detalles_series
+        } catch {
+          detallesSeriesObj = null
+        }
+        try {
+          minutosObj = typeof (progressRecord as any).minutos_json === 'string'
+            ? JSON.parse((progressRecord as any).minutos_json)
+            : (progressRecord as any).minutos_json
+        } catch {
+          minutosObj = null
+        }
+        try {
+          caloriasObj = typeof (progressRecord as any).calorias_json === 'string'
+            ? JSON.parse((progressRecord as any).calorias_json)
+            : (progressRecord as any).calorias_json
+        } catch {
+          caloriasObj = null
+        }
+
+        for (const ejId of allIds) {
+          const baseId = String(ejId)
+          idsToResolve.add(baseId)
+          const isCompleted = completados.includes(baseId)
+
+          const duracion = (() => {
+            try {
+              if (!minutosObj || typeof minutosObj !== 'object') return undefined
+              const matchingKey = Object.keys(minutosObj).find((k) => String(k).split('_')[0] === baseId)
+              const value = matchingKey ? (minutosObj as any)[matchingKey] : (minutosObj as any)[baseId]
+              return value ? Number(value) : undefined
+            } catch {
+              return undefined
+            }
+          })()
+
+          const calorias_estimadas = (() => {
+            try {
+              if (!caloriasObj || typeof caloriasObj !== 'object') return undefined
+              const matchingKey = Object.keys(caloriasObj).find((k) => String(k).split('_')[0] === baseId)
+              const value = matchingKey ? (caloriasObj as any)[matchingKey] : (caloriasObj as any)[baseId]
+              return value ? Number(value) : undefined
+            } catch {
+              return undefined
+            }
+          })()
+
+          const detalleSeriesValue = (() => {
+            try {
+              if (!detallesSeriesObj || typeof detallesSeriesObj !== 'object' || Array.isArray(detallesSeriesObj)) return null
+              const matchingKey = Object.keys(detallesSeriesObj).find((k) => String(k).split('_')[0] === baseId)
+              const detalle = matchingKey ? (detallesSeriesObj as any)[matchingKey] : (detallesSeriesObj as any)[baseId]
+              if (detalle && typeof detalle === 'object' && detalle.detalle_series) return detalle.detalle_series
+              return detalle || null
+            } catch {
+              return null
+            }
+          })()
+
+          details.push({
+            id: `fit-${String((progressRecord as any).id)}-${baseId}`,
+            ejercicio_id: baseId,
+            completado: isCompleted,
+            fecha_ejercicio: dayStr,
+            duracion,
+            calorias_estimadas,
+            ejercicio_nombre: undefined,
+            actividad_titulo: actividadTitulo,
+            actividad_id: activityId,
+            actividad_coach_id: actividadCoachId,
+            detalle_series: detalleSeriesValue,
+            minutosJson: minutosObj,
+            caloriasJson: caloriasObj
+          })
+        }
+      }
+
+      // Nutrición
+      const { data: nutriRecord } = await supabase
+        .from('progreso_cliente_nutricion')
+        .select('id, fecha, actividad_id, ejercicios_completados, ejercicios_pendientes, macros, ingredientes')
+        .eq('cliente_id', clientId)
+        .eq('fecha', dayStr)
+        .eq('actividad_id', activityId)
+        .maybeSingle()
+
+      if (nutriRecord) {
+        let macrosData: any = null
+        let ingredientesData: any = null
+        try {
+          macrosData = typeof (nutriRecord as any).macros === 'string' ? JSON.parse((nutriRecord as any).macros) : (nutriRecord as any).macros
+        } catch {
+          macrosData = null
+        }
+        try {
+          ingredientesData = typeof (nutriRecord as any).ingredientes === 'string'
+            ? JSON.parse((nutriRecord as any).ingredientes)
+            : (nutriRecord as any).ingredientes
+        } catch {
+          ingredientesData = null
+        }
+
+        const keys = macrosData && typeof macrosData === 'object' ? Object.keys(macrosData) : []
+        for (const key of keys) {
+          const baseId = String(key).split('_')[0]
+          if (baseId) idsToResolve.add(baseId)
+          const nombre = ingredientesData?.[key]?.nombre
+          const minutos = macrosData?.[key]?.minutos
+          const kcal = macrosData?.[key]?.calorias
+
+          details.push({
+            id: `nut-${String((nutriRecord as any).id)}-${key}`,
+            ejercicio_id: baseId,
+            completado: false,
+            fecha_ejercicio: dayStr,
+            duracion: minutos !== undefined && minutos !== null ? Number(minutos) : undefined,
+            calorias_estimadas: kcal !== undefined && kcal !== null ? Number(kcal) : undefined,
+            ejercicio_nombre: nombre || undefined,
+            actividad_titulo: actividadTitulo,
+            actividad_id: activityId,
+            actividad_coach_id: actividadCoachId,
+            is_nutricion: true,
+            nutrition_record_id: String((nutriRecord as any).id),
+            nutrition_key: String(key),
+            nutricion_macros: {
+              proteinas: macrosData?.[key]?.proteinas !== undefined ? Number(macrosData?.[key]?.proteinas) : undefined,
+              carbohidratos: macrosData?.[key]?.carbohidratos !== undefined ? Number(macrosData?.[key]?.carbohidratos) : undefined,
+              grasas: macrosData?.[key]?.grasas !== undefined ? Number(macrosData?.[key]?.grasas) : undefined,
+              calorias: kcal !== undefined && kcal !== null ? Number(kcal) : undefined,
+              minutos: minutos !== undefined && minutos !== null ? Number(minutos) : undefined
+            }
+          })
+        }
+      }
+
+      // Resolver nombres (ejercicios + platos) para lo que falte
+      const idsArray = Array.from(idsToResolve)
+        .map((id) => parseInt(String(id), 10))
+        .filter((id) => !Number.isNaN(id))
+
+      const [ejRes, plRes] = await Promise.all([
+        idsArray.length
+          ? supabase.from('ejercicios_detalles').select('id, nombre_ejercicio').in('id', idsArray)
+          : Promise.resolve({ data: [], error: null } as any),
+        idsArray.length
+          ? supabase.from('nutrition_program_details').select('id, nombre').in('id', idsArray)
+          : Promise.resolve({ data: [], error: null } as any)
+      ])
+
+      const nameMap = new Map<string, string>()
+      ;(Array.isArray((ejRes as any)?.data) ? (ejRes as any).data : []).forEach((r: any) => {
+        if (r?.id) nameMap.set(String(r.id), String(r.nombre_ejercicio || ''))
+      })
+      ;(Array.isArray((plRes as any)?.data) ? (plRes as any).data : []).forEach((r: any) => {
+        if (r?.id) nameMap.set(String(r.id), String(r.nombre || ''))
+      })
+
+      const enriched = details.map((d) => {
+        if (d.ejercicio_nombre) return d
+        const nm = nameMap.get(String(d.ejercicio_id))
+        return {
+          ...d,
+          ejercicio_nombre: nm || (d.is_nutricion ? `Plato ${d.ejercicio_id}` : `Ejercicio ${d.ejercicio_id}`)
+        }
+      })
+
+      setActivityDetailsByKey((prev) => ({ ...prev, [cacheKey]: enriched }))
+
+      // Mantener compatibilidad con editores existentes que leen de selectedDayExercises
+      // (los detalles se cargan on-demand por actividad).
+      try {
+        const selectedDayStr = selectedDate ? selectedDate.toISOString().split('T')[0] : null
+        if (selectedDayStr === dayStr) {
+          setSelectedDayExercises((prev) => {
+            const filtered = (prev || []).filter((e) => String(e.actividad_id ?? '') !== String(activityId))
+            return [...filtered, ...enriched]
+          })
+        }
+      } catch {
+        // ignore
+      }
+    } catch (e) {
+      console.warn('⚠️ [CLIENT CALENDAR] Error cargando detalle por actividad:', e)
+      setActivityDetailsByKey((prev) => ({ ...prev, [cacheKey]: [] }))
+    }
+  }
 
   const loadNutritionPlatesForActivity = async (activityIdNum: number): Promise<any[]> => {
     if (!activityIdNum || Number.isNaN(activityIdNum)) return []
@@ -193,21 +571,9 @@ export function ClientCalendar({ clientId, onLastWorkoutUpdate, onDaySelected, e
   }, [selectedDayExercises])
 
   const filteredDayData = (() => {
-    if (!activeEnrollmentFilterId) return dayData
-    const filtered: { [key: string]: DayData } = {}
-    Object.keys(dayData).forEach(dateKey => {
-      const d = dayData[dateKey]
-      const exercises = (d?.exercises || []).filter(ex => ex.enrollment_id === activeEnrollmentFilterId)
-      if (exercises.length > 0) {
-        filtered[dateKey] = {
-          ...d,
-          exercises,
-          exerciseCount: exercises.length,
-          completedCount: exercises.filter(e => e.completado).length
-        }
-      }
-    })
-    return filtered
+    // La vista de resumen no trae enrollment_id, así que por ahora no filtramos por enrollment
+    // (evitamos romper la grilla mensual y el resumen del día).
+    return dayData
   })()
 
   // Función para calcular la última ejercitación (último día que completó al menos un ejercicio)
@@ -1292,6 +1658,7 @@ export function ClientCalendar({ clientId, onLastWorkoutUpdate, onDaySelected, e
       setNewDate(null)
       setSelectedDayForEdit(null)
       setTargetDayForEdit(null)
+      setSelectedActivityIdsForDateChange([])
     } else {
       // Activar modo de selección
       setEditingDate(date)
@@ -1299,6 +1666,24 @@ export function ClientCalendar({ clientId, onLastWorkoutUpdate, onDaySelected, e
       setSelectedDayForEdit(date)
       setTargetDayForEdit(null)
       setIsSelectingNewDate(true)
+
+      try {
+        const dayStr = date.toISOString().split('T')[0]
+        const activitiesFromLoadedDetail = (dayData?.[dayStr]?.exercises || [])
+          .map((e) => e.actividad_id)
+          .filter((id) => id !== undefined && id !== null)
+          .map((id) => String(id))
+
+        const activitiesFromSummary = (summaryRowsByDate?.[dayStr] || [])
+          .map((r) => r.activity_id)
+          .filter((id) => id !== undefined && id !== null)
+          .map((id) => String(id))
+
+        const activitiesForDay = activitiesFromLoadedDetail.length > 0 ? activitiesFromLoadedDetail : activitiesFromSummary
+        setSelectedActivityIdsForDateChange(Array.from(new Set(activitiesForDay)))
+      } catch {
+        setSelectedActivityIdsForDateChange([])
+      }
     }
   }
 
@@ -1330,13 +1715,54 @@ export function ClientCalendar({ clientId, onLastWorkoutUpdate, onDaySelected, e
         newDayOfWeek
       })
 
-      // TODO: Implementar edición de fechas con progreso_cliente
-      // Por ahora solo actualizar el registro individual
-      const { error } = await supabase
+      const selectedSet = new Set((selectedActivityIdsForDateChange || []).map(String))
+      const shouldFilterByActivity = selectedSet.size > 0
+
+      const progressUpdate = await supabase
         .from('progreso_cliente')
         .update({ fecha: newDateStr })
         .eq('cliente_id', clientId)
         .eq('fecha', oldDateStr)
+
+      if (progressUpdate.error) {
+        console.error('❌ [EDIT DATE] Error actualizando progreso_cliente:', progressUpdate.error)
+      }
+
+      const nutritionUpdate = await supabase
+        .from('progreso_cliente_nutricion')
+        .update({ fecha: newDateStr })
+        .eq('cliente_id', clientId)
+        .eq('fecha', oldDateStr)
+
+      if (nutritionUpdate.error) {
+        console.error('❌ [EDIT DATE] Error actualizando progreso_cliente_nutricion:', nutritionUpdate.error)
+      }
+
+      // Si hay filtro de actividades, re-hacer updates con filtro por actividad
+      // (Supabase no permite condicionar dinámicamente el query sin duplicar; hacemos el camino correcto cuando hay selección)
+      if (shouldFilterByActivity) {
+        const progressFiltered = await supabase
+          .from('progreso_cliente')
+          .update({ fecha: newDateStr })
+          .eq('cliente_id', clientId)
+          .eq('fecha', oldDateStr)
+          .in('actividad_id', Array.from(selectedSet))
+
+        if (progressFiltered.error) {
+          console.error('❌ [EDIT DATE] Error actualizando progreso_cliente (filtrado):', progressFiltered.error)
+        }
+
+        const nutritionFiltered = await supabase
+          .from('progreso_cliente_nutricion')
+          .update({ fecha: newDateStr })
+          .eq('cliente_id', clientId)
+          .eq('fecha', oldDateStr)
+          .in('actividad_id', Array.from(selectedSet))
+
+        if (nutritionFiltered.error) {
+          console.error('❌ [EDIT DATE] Error actualizando progreso_cliente_nutricion (filtrado):', nutritionFiltered.error)
+        }
+      }
       
       // Cerrar modales y recargar datos
       setShowConfirmModal(false)
@@ -1346,9 +1772,10 @@ export function ClientCalendar({ clientId, onLastWorkoutUpdate, onDaySelected, e
       setApplyToAllSameDays(false)
       setSelectedDayForEdit(null)
       setTargetDayForEdit(null)
+      setSelectedActivityIdsForDateChange([])
       
       // Recargar los datos del calendario
-      await fetchClientExercises()
+      await fetchClientCalendarSummary()
       
     } catch (error) {
       console.error('❌ [EDIT DATE] Error general:', error)
@@ -1689,6 +2116,7 @@ export function ClientCalendar({ clientId, onLastWorkoutUpdate, onDaySelected, e
               date: fecha,
               exerciseCount: 0,
               completedCount: 0,
+              totalMinutes: 0,
               exercises: [],
               activities: []
             }
@@ -1826,6 +2254,11 @@ export function ClientCalendar({ clientId, onLastWorkoutUpdate, onDaySelected, e
             if (isCompleted) {
               processedData[fecha].completedCount += 1
             }
+
+            const mins = Number(duracion ?? 0) || 0
+            if (mins > 0) {
+              processedData[fecha].totalMinutes += mins
+            }
           })
         })
 
@@ -1838,6 +2271,7 @@ export function ClientCalendar({ clientId, onLastWorkoutUpdate, onDaySelected, e
               date: fecha,
               exerciseCount: 0,
               completedCount: 0,
+              totalMinutes: 0,
               exercises: [],
               activities: []
             }
@@ -1942,7 +2376,7 @@ export function ClientCalendar({ clientId, onLastWorkoutUpdate, onDaySelected, e
                 const enrollmentForActivity = pickEnrollmentForDate(allEnrollments, record.actividad_id, fecha)
                 const enrollmentId = enrollmentForActivity?.id
                 const version = enrollmentId ? enrollmentVersions.get(enrollmentId) : undefined
-                const actividadTitulo = record.actividad_id ? actividadTitulos.get(record.actividad_id) : undefined
+                const actividadTitulo = record.actividad_id ? actividadTitulos.get(String(record.actividad_id)) : undefined
 
                 const exerciseData: ExerciseExecution = {
                   id: `nut-${record.id}-${key}-${item.bloque}`,
@@ -1976,6 +2410,11 @@ export function ClientCalendar({ clientId, onLastWorkoutUpdate, onDaySelected, e
                 if (isCompleted) {
                   processedData[fecha].completedCount += 1
                 }
+
+                const mins = Number(minutos ?? 0) || 0
+                if (mins > 0) {
+                  processedData[fecha].totalMinutes += mins
+                }
               })
           } else {
             const keysUnique = Array.from(new Set([...completadosKeys, ...pendientesKeys]))
@@ -1993,7 +2432,7 @@ export function ClientCalendar({ clientId, onLastWorkoutUpdate, onDaySelected, e
               const enrollmentForActivity = pickEnrollmentForDate(allEnrollments, record.actividad_id, fecha)
               const enrollmentId = enrollmentForActivity?.id
               const version = enrollmentId ? enrollmentVersions.get(enrollmentId) : undefined
-              const actividadTitulo = record.actividad_id ? actividadTitulos.get(record.actividad_id) : undefined
+              const actividadTitulo = record.actividad_id ? actividadTitulos.get(String(record.actividad_id)) : undefined
 
               const exerciseData: ExerciseExecution = {
                 id: `nut-${record.id}-${key}`,
@@ -2025,9 +2464,92 @@ export function ClientCalendar({ clientId, onLastWorkoutUpdate, onDaySelected, e
               if (isCompleted) {
                 processedData[fecha].completedCount += 1
               }
+
+              const mins = Number(minutos ?? 0) || 0
+              if (mins > 0) {
+                processedData[fecha].totalMinutes += mins
+              }
             })
           }
         })
+
+        // ✅ Calendar events del cliente (otras ocupaciones) - sumar al total del día
+        const eventsMinutesByDate: Record<string, number> = {}
+        try {
+          const monthStart = new Date(currentDate.getFullYear(), currentDate.getMonth(), 1)
+          const monthEndExclusive = new Date(currentDate.getFullYear(), currentDate.getMonth() + 1, 1)
+
+          const { data: parts, error: partsErr } = await supabase
+            .from('calendar_event_participants')
+            .select('event_id')
+            .eq('client_id', clientId)
+
+          if (partsErr) {
+            console.warn('⚠️ [CLIENT CALENDAR] Error obteniendo calendar_event_participants:', partsErr)
+          }
+
+          const eventIds = Array.from(
+            new Set(
+              (parts || [])
+                .map((p: any) => String(p?.event_id || ''))
+                .filter((id: string) => !!id)
+            )
+          )
+
+          const eventsRes = eventIds.length
+            ? await supabase
+                .from('calendar_events')
+                .select('id, start_time, end_time')
+                .in('id', eventIds)
+                .gte('start_time', monthStart.toISOString())
+                .lt('start_time', monthEndExclusive.toISOString())
+            : { data: [], error: null }
+
+          if ((eventsRes as any)?.error) {
+            console.warn('⚠️ [CLIENT CALENDAR] Error obteniendo calendar_events:', (eventsRes as any).error)
+          }
+
+          const events = Array.isArray((eventsRes as any)?.data) ? (eventsRes as any).data : []
+          events.forEach((ev: any) => {
+            if (!ev?.start_time) return
+            const start = new Date(String(ev.start_time))
+            if (Number.isNaN(start.getTime())) return
+            const end = ev.end_time ? new Date(String(ev.end_time)) : null
+            const mins = (() => {
+              if (end && !Number.isNaN(end.getTime())) {
+                const diff = (end.getTime() - start.getTime()) / 60000
+                return diff > 0 ? diff : 0
+              }
+              return 30
+            })()
+            const dayKey = start.toISOString().split('T')[0]
+            if (!dayKey) return
+            const add = Math.round(mins)
+            if (!eventsMinutesByDate[dayKey]) eventsMinutesByDate[dayKey] = 0
+            eventsMinutesByDate[dayKey] += add
+          })
+
+          Object.keys(eventsMinutesByDate).forEach((dayKey) => {
+            const mins = Number(eventsMinutesByDate[dayKey] || 0) || 0
+            if (mins <= 0) return
+
+            // Consideramos estos minutos como "otras actividades"
+            fechasConRegistros.add(dayKey)
+            if (!processedData[dayKey]) {
+              processedData[dayKey] = {
+                date: dayKey,
+                exerciseCount: 0,
+                completedCount: 0,
+                totalMinutes: 0,
+                exercises: [],
+                activities: []
+              }
+            }
+            processedData[dayKey].totalMinutes += mins
+          })
+        } catch (e) {
+          console.warn('⚠️ [CLIENT CALENDAR] Error cargando calendar events:', e)
+        }
 
         // ✅ Solo mostrar días con registros reales, NO agregar planificación futura
         // Filtrar processedData para incluir solo días con registros reales
@@ -2039,6 +2561,7 @@ export function ClientCalendar({ clientId, onLastWorkoutUpdate, onDaySelected, e
         })
 
         setDayData(processedDataFiltered)
+        setOtherMinutesByDate(eventsMinutesByDate)
 
         // Calcular la última ejercitación (último día que completó al menos un ejercicio)
         const lastWorkoutDate = calculateLastWorkoutDate(processedDataFiltered)
@@ -2248,7 +2771,7 @@ export function ClientCalendar({ clientId, onLastWorkoutUpdate, onDaySelected, e
   // Obtener datos de ejercicios del cliente
   useEffect(() => {
     if (clientId) {
-      fetchClientExercises()
+      fetchClientCalendarSummary()
     }
   }, [clientId, supabase, currentDate]) // ✅ Agregar currentDate para recargar cuando cambia el mes
 
@@ -2325,9 +2848,9 @@ export function ClientCalendar({ clientId, onLastWorkoutUpdate, onDaySelected, e
     }
 
     // Modo normal - mostrar ejercicios del día (aunque esté vacío)
-    const data = getDayData(date)
     setSelectedDate(date)
-    setSelectedDayExercises(data?.exercises || [])
+    setSelectedDayExercises([])
+    setExpandedActivityKeys({})
     setSelectedDayForEdit(null)
     setTargetDayForEdit(null)
   }
@@ -2348,10 +2871,9 @@ export function ClientCalendar({ clientId, onLastWorkoutUpdate, onDaySelected, e
 
   useEffect(() => {
     if (!selectedDate) return
-    const dateString = selectedDate.toISOString().split('T')[0]
-    const data = filteredDayData[dateString]
-    setSelectedDayExercises(data?.exercises || [])
-  }, [activeEnrollmentFilterId, selectedDate])
+    // No auto-cargamos detalle acá; se hace lazy al expandir una actividad.
+    setSelectedDayExercises([])
+  }, [selectedDate])
 
   // Formatear fecha
   const formatDate = (date: Date) => {
@@ -2534,7 +3056,7 @@ export function ClientCalendar({ clientId, onLastWorkoutUpdate, onDaySelected, e
                   {date.getDate()}
                 </div>
                 
-                {/* Número de ejercicios siempre en la misma posición */}
+                {/* Tiempo total siempre en la misma posición */}
                 <div className="mt-1 h-5 flex items-center justify-center">
                   {hasExercises ? (
                     <div className={`
@@ -2546,7 +3068,7 @@ export function ClientCalendar({ clientId, onLastWorkoutUpdate, onDaySelected, e
                         : 'bg-zinc-700 text-gray-300 group-hover:bg-zinc-600'
                       }
                     `}>
-                      {dayData.exerciseCount}
+                      {formatMinutesCompact(dayData.totalMinutes) || dayData.exerciseCount}
                     </div>
                   ) : (
                     <div className="h-4"></div>
@@ -2556,7 +3078,7 @@ export function ClientCalendar({ clientId, onLastWorkoutUpdate, onDaySelected, e
                 {/* Indicador de hover */}
                 {hasExercises && (
                   <div className="absolute inset-0 rounded-lg border-2 border-transparent group-hover:border-[#FF7939]/30 transition-all duration-200 pointer-events-none"></div>
-              )}
+                )}
               </button>
           )
         })}
@@ -2625,429 +3147,363 @@ export function ClientCalendar({ clientId, onLastWorkoutUpdate, onDaySelected, e
               </button>
           </div>
           
-          {selectedDayExercises.length === 0 ? (
-            <div className="text-sm text-gray-500">Sin actividades para este día</div>
-          ) : (
-            <div className="space-y-3">
-              {selectedDayExercises.map((exercise, index) => {
-              const seriesBlocks = getSeriesBlocks(exercise.detalle_series, exercise.duracion, exercise.ejercicio_id, exercise.minutosJson)
-              const isCompleted = exercise.completado
-              const activityIdStr = exercise.actividad_id !== undefined && exercise.actividad_id !== null ? String(exercise.actividad_id) : null
-              const nutritionPlateOptions = activityIdStr ? (nutritionPlateOptionsByActivity[activityIdStr] || []) : []
-              const canEditNutrition = exercise.is_nutricion ? canEditNutritionForDay(exercise) : false
-              
+          {(() => {
+            const dayStr = selectedDate.toISOString().split('T')[0]
+            const rows = summaryRowsByDate?.[dayStr] || []
+
+            const totalMins = rows.reduce((acc, r) => acc + (Number(r.total_mins ?? 0) || 0), 0)
+            const ownedMins = rows.reduce((acc, r) => {
+              const isActivityRow = r.activity_id !== null && r.activity_id !== undefined
+              if (!isActivityRow) return acc
+              if (!currentCoachId) return acc + (Number(r.total_mins ?? 0) || 0)
+              const isOwned = r.coach_id && String(r.coach_id) === String(currentCoachId)
+              return isOwned ? acc + (Number(r.total_mins ?? 0) || 0) : acc
+            }, 0)
+            const otherMinsTotal = Math.max(0, totalMins - ownedMins)
+
+            const hasAny = rows.length > 0
+            if (!hasAny) {
+              return <div className="text-sm text-gray-500">Sin actividades para este día</div>
+            }
+
+            const ownedActivityRows = rows.filter((r) => {
+              const isActivityRow = r.activity_id !== null && r.activity_id !== undefined
+              if (!isActivityRow) return false
+              if (!currentCoachId) return true
+              return r.coach_id && String(r.coach_id) === String(currentCoachId)
+            })
+
+            const otherRows = rows.filter((r) => {
+              const isActivityRow = r.activity_id !== null && r.activity_id !== undefined
+              if (!isActivityRow) return true // calendar event (meet/other)
+              if (!currentCoachId) return false
+              return !(r.coach_id && String(r.coach_id) === String(currentCoachId))
+            })
+
+            const otherMeetRows = otherRows.filter((r) => r.calendar_event_id)
+
+            const renderSummaryRow = (row: ClientDaySummaryRow, allowExpand: boolean) => {
+              const minutes = Number(row.total_mins ?? 0) || 0
+              const title = row.activity_title || (row.activity_id ? `Actividad ${row.activity_id}` : 'Evento')
+
+              const activityId = row.activity_id !== null && row.activity_id !== undefined ? Number(row.activity_id) : null
+              const expandedKey = activityId ? `${dayStr}::${String(activityId)}` : null
+              const expanded = expandedKey ? !!expandedActivityKeys?.[expandedKey] : false
+
               return (
-              <div key={exercise.id} className="w-full flex items-start gap-3 py-3 border-b border-zinc-700/30 last:border-b-0">
-                {/* Ícono de fuego - naranja si completado, gris si no */}
-                <div className="flex items-center justify-center w-10 pt-1 shrink-0">
-                  <Flame className={`h-5 w-5 ${isCompleted ? 'text-[#FF7939]' : 'text-gray-600'}`} />
-                </div>
-
-                {/* Nombre del ejercicio y detalle de series */}
-                <div className="flex-1 min-w-0">
-                  {editingExerciseId === exercise.id ? (
-                    <div className="relative mb-1 exercise-dropdown">
-                      <button
-                        type="button"
-                        onClick={(e) => {
-                          e.preventDefault()
-                          setShowExerciseDropdown(!showExerciseDropdown)
-                        }}
-                        className="flex items-center justify-between w-full px-3 py-2 text-sm font-semibold text-white bg-[#2A2A2A] border border-[#3A3A3A] rounded-lg hover:bg-[#3A3A3A] transition-colors"
-                      >
-                        <span>{exercise.ejercicio_nombre}</span>
-                        <ChevronDown className={`h-4 w-4 transition-transform ${showExerciseDropdown ? 'rotate-180' : ''}`} />
-                      </button>
-                      
-                      {showExerciseDropdown && (
-                        <div className="absolute top-full left-0 right-0 z-50 mt-1 bg-[#1E1E1E] border border-[#3A3A3A] rounded-lg shadow-lg max-h-48 overflow-y-auto">
-                          {availableExercises.length > 0 ? (
-                            availableExercises.map((ex) => (
-                              <button
-                                type="button"
-                                key={ex.id}
-                                onClick={(e) => {
-                                  e.preventDefault()
-                                  handleChangeExercise(String(ex.id))
-                                }}
-                                className={`w-full px-3 py-2 text-left text-sm hover:bg-[#3A3A3A] transition-colors ${
-                                  String(ex.id) === String(exercise.ejercicio_id)
-                                    ? 'bg-[#FF7939]/20 text-[#FF7939]'
-                                    : 'text-white'
-                                }`}
-                              >
-                                {ex.nombre_ejercicio}
-                              </button>
-                            ))
-                          ) : (
-                            <div className="px-3 py-2 text-sm text-gray-400">
-                              No hay ejercicios disponibles
-                            </div>
-                          )}
-                        </div>
-                      )}
+                <div key={row.id} className="space-y-2 border-b border-zinc-700/30 pb-3 last:border-b-0">
+                  <button
+                    type="button"
+                    onClick={async () => {
+                      if (!allowExpand || !activityId) return
+                      const next = !expanded
+                      setExpandedActivityKeys((prev) => ({ ...prev, [expandedKey!]: next }))
+                      if (next) {
+                        await loadDayActivityDetails(dayStr, activityId)
+                      }
+                    }}
+                    className={`w-full flex items-center justify-between ${allowExpand && activityId ? 'cursor-pointer' : 'cursor-default'}`}
+                  >
+                    <div className="text-sm font-semibold text-gray-200 text-left">
+                      {title}
                     </div>
-                  ) : (
-                    <>
-                      {/* Nombre */}
-                      <div className="font-semibold text-white truncate">
-                        {exercise.ejercicio_nombre || `Ejercicio ${exercise.ejercicio_id}`}
-                      </div>
-                      
-                      {!(exercise.is_nutricion && editingNutritionId === exercise.id) && (
-                        <div className="mt-1 flex items-center justify-between gap-2 text-xs">
-                          <div className="flex flex-wrap items-center gap-x-3 gap-y-1 min-w-0">
-                            {exercise.actividad_titulo && (
-                              <span className="text-[#FF7939] font-medium">
-                                {exercise.actividad_titulo}
-                                {exercise.version && exercise.version > 1 && (
-                                  <span className="text-gray-400 ml-1">v{exercise.version}</span>
-                                )}
-                              </span>
-                            )}
+                    <div className="text-xs text-gray-400">{formatMinutesCompact(minutes) || '0m'}</div>
+                  </button>
 
-                            {exercise.duracion ? (
-                              <span className="text-gray-300">{exercise.duracion}min</span>
-                            ) : null}
-
-                            {(() => {
-                              const baseId = exercise.ejercicio_id?.split('_')[0]
-                              const key = baseId ? `${baseId}_1` : undefined
-                              const kcalFromJson = key ? getCaloriasForBlock(key, exercise.ejercicio_id, exercise.caloriasJson) : undefined
-                              const kcal = kcalFromJson !== undefined ? kcalFromJson : exercise.calorias_estimadas
-                              return kcal !== undefined && kcal > 0 ? (
-                                <span className="text-gray-300">{kcal}kcal</span>
-                              ) : null
-                            })()}
-
-                            {exercise.is_nutricion && (
-                              <span className="text-gray-400">
-                                P:{exercise.nutricion_macros?.proteinas ?? '-'}g | C:{exercise.nutricion_macros?.carbohidratos ?? '-'}g | G:{exercise.nutricion_macros?.grasas ?? '-'}g
-                              </span>
-                            )}
-                          </div>
-
-                          {exercise.is_nutricion ? (() => {
-                            const canEditNutrition = canEditNutritionForDay(exercise)
-                            return (
-                              <button
-                                type="button"
-                                onClick={() => handleEditNutrition(exercise)}
-                                disabled={!canEditNutrition}
-                                className={`p-1 rounded transition-colors ml-auto ${
-                                  canEditNutrition
-                                    ? 'text-gray-400 hover:text-[#FF7939] hover:bg-[#FF7939]/10'
-                                    : 'text-gray-600 cursor-not-allowed'
-                                }`}
-                                title="Editar"
-                              >
-                                <Edit className="h-4 w-4" />
-                              </button>
-                            )
-                          })() : null}
-                        </div>
-                      )}
-                      
-                      {!exercise.is_nutricion && seriesBlocks.length > 0 ? (
-                        <div className="mt-1 text-xs text-gray-400 truncate">
-                          {seriesBlocks.length} bloque(s)
-                        </div>
-                      ) : null}
-                    </>
-                  )}
-                  
-                  {/* Editor de series expandido */}
-                  {editingExerciseId === exercise.id ? (
+                  {allowExpand && activityId && expandedKey && expanded ? (
                     <div className="space-y-2">
-                      {editingSeries.map((serie, index) => (
-                        <div key={index} className="flex items-center gap-2 py-1">
-                          {/* Siempre mostrar indicador de bloque */}
-                          <div className="w-6 h-6 flex items-center justify-center text-xs text-[#FF7939] font-bold bg-[#FF7939]/10 rounded-full">
-                            {index + 1}
-                          </div>
-                          <div className="flex flex-col">
-                            <label className="text-[10px] text-gray-500 mb-0.5">Series</label>
-                            <input
-                              type="number"
-                              placeholder="3"
-                              value={serie.series}
-                              onChange={(e) => handleUpdateSeries(index, 'series', e.target.value)}
-                              className="w-14 px-2 py-1 text-xs bg-[#2A2A2A] border border-[#3A3A3A] rounded text-white placeholder:text-gray-400"
-                            />
-                          </div>
-                          <span className="text-gray-400 text-xs mt-4">×</span>
-                          <div className="flex flex-col">
-                            <label className="text-[10px] text-gray-500 mb-0.5">Reps</label>
-                            <input
-                              type="number"
-                              placeholder="15"
-                              value={serie.repeticiones}
-                              onChange={(e) => handleUpdateSeries(index, 'repeticiones', e.target.value)}
-                              className="w-14 px-2 py-1 text-xs bg-[#2A2A2A] border border-[#3A3A3A] rounded text-white placeholder:text-gray-400"
-                            />
-                          </div>
-                          <span className="text-gray-400 text-xs mt-4">×</span>
-                          <div className="flex flex-col">
-                            <label className="text-[10px] text-gray-500 mb-0.5">Peso (kg)</label>
-                            <input
-                              type="number"
-                              step="0.5"
-                              placeholder="50"
-                              value={serie.peso}
-                              onChange={(e) => handleUpdateSeries(index, 'peso', e.target.value)}
-                              className="w-14 px-2 py-1 text-xs bg-[#2A2A2A] border border-[#3A3A3A] rounded text-white placeholder:text-gray-400"
-                            />
-                          </div>
-                          <span className="text-gray-400 text-xs mt-4">|</span>
-                          <div className="flex flex-col">
-                            <label className="text-[10px] text-gray-500 mb-0.5">Min (min)</label>
-                            <input
-                              type="number"
-                              placeholder="10"
-                              value={serie.minutos || ''}
-                              onChange={(e) => handleUpdateSeries(index, 'minutos', e.target.value)}
-                              className="w-14 px-2 py-1 text-xs bg-[#2A2A2A] border border-[#3A3A3A] rounded text-white placeholder:text-gray-400"
-                            />
-                          </div>
-                          <span className="text-gray-400 text-xs mt-4">|</span>
-                          <div className="flex flex-col">
-                            <label className="text-[10px] text-gray-500 mb-0.5">Kcal</label>
-                            <input
-                              type="number"
-                              placeholder="100"
-                              value={serie.calorias || ''}
-                              onChange={(e) => handleUpdateSeries(index, 'calorias', e.target.value)}
-                              className="w-14 px-2 py-1 text-xs bg-[#2A2A2A] border border-[#3A3A3A] rounded text-white placeholder:text-gray-400"
-                            />
-                          </div>
-                          {/* Siempre mostrar botón de eliminar, pero solo permitir eliminar si hay más de 1 bloque */}
-                          <button
-                            type="button"
-                            onClick={() => handleRemoveSeries(index)}
-                            disabled={editingSeries.length <= 1}
-                            className={`ml-2 p-1 rounded transition-colors ${
-                              editingSeries.length <= 1 
-                                ? 'text-gray-600 cursor-not-allowed' 
-                                : 'text-red-400 hover:text-red-300 hover:bg-red-900/20'
-                            }`}
-                            title={editingSeries.length <= 1 ? "Mínimo 1 bloque requerido" : "Eliminar bloque"}
-                          >
-                            <svg className="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
-                            </svg>
-                          </button>
-                        </div>
-                      ))}
-                      
-                      {/* Botón para agregar más bloques */}
-                      <button
-                        type="button"
-                        onClick={handleAddSeries}
-                        className="flex items-center justify-center w-8 h-8 text-[#FF7939] hover:text-[#FF7939]/80 hover:bg-[#FF7939]/10 rounded-full transition-colors"
-                        title="Agregar bloque"
-                      >
-                        <svg className="h-5 w-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
-                        </svg>
-                      </button>
-                      
-                      <div className="flex items-center gap-2 mt-2">
-                        <button
-                          type="button"
-                          onClick={handleSaveSeries}
-                          className="px-3 py-1 text-xs bg-[#FF7939] hover:bg-[#FF7939]/80 text-white rounded transition-colors"
-                        >
-                          Guardar
-                        </button>
-                        <button
-                          type="button"
-                          onClick={handleCancelEditSeries}
-                          className="px-3 py-1 text-xs bg-gray-600 hover:bg-gray-700 text-white rounded transition-colors"
-                        >
-                          Cancelar
-                        </button>
-                      </div>
-                    </div>
-                  ) : (
-                    <div className="flex items-center justify-between mt-2">
-                      {/* Botón de editar series - solo si la fecha es futura */}
                       {(() => {
-                        const today = new Date()
-                        today.setHours(0, 0, 0, 0)
-                        const exerciseDate = new Date(exercise.fecha_ejercicio)
-                        exerciseDate.setHours(0, 0, 0, 0)
-                        const isFutureDate = exerciseDate > today
-                        
-                        return isFutureDate && !exercise.is_nutricion ? (
-                          <button
-                            onClick={() => handleEditSeries(exercise.id, exercise.detalle_series)}
-                            className="p-1 text-gray-400 hover:text-[#FF7939] transition-colors ml-auto"
-                            title="Editar series"
-                          >
-                            <Edit className="h-3 w-3" />
-                          </button>
-                        ) : null
-                      })()}
-                      {exercise.is_nutricion ? (
-                        editingNutritionId === exercise.id && editingNutritionMacros ? (
-                          <div className="flex flex-wrap gap-2 items-end">
-                            <div className="flex flex-col min-w-[180px]">
-                              <label className="text-[10px] text-gray-500 mb-0.5">Plato</label>
-                              <select
-                                value={editingNutritionPlateId || ''}
-                                onChange={(e) => {
-                                  const nextPlateId = e.target.value
-                                  setEditingNutritionPlateId(nextPlateId)
+                        const items = activityDetailsByKey?.[expandedKey] || []
+                        return items.length > 0 ? (
+                          <div className="space-y-0">
+                            {items.map((exercise) => {
+                              const seriesBlocks = getSeriesBlocks(
+                                exercise.detalle_series,
+                                exercise.duracion,
+                                exercise.ejercicio_id,
+                                exercise.minutosJson
+                              )
+                              const isCompleted = exercise.completado
+                              const activityIdStr =
+                                exercise.actividad_id !== undefined && exercise.actividad_id !== null
+                                  ? String(exercise.actividad_id)
+                                  : null
+                              const nutritionPlateOptions = activityIdStr ? (nutritionPlateOptionsByActivity[activityIdStr] || []) : []
+                              const canEditNutrition = exercise.is_nutricion ? canEditNutritionForDay(exercise) : false
 
-                                  const selectedPlate = nutritionPlateOptions.find((p: any) => String(p?.id) === String(nextPlateId))
-                                  if (!selectedPlate) return
+                              return (
+                                <div
+                                  key={exercise.id}
+                                  className="w-full flex items-start gap-3 py-3 border-b border-zinc-700/30 last:border-b-0"
+                                >
+                                  <div className="flex items-center justify-center w-10 pt-1 shrink-0">
+                                    <Flame className={`h-5 w-5 ${isCompleted ? 'text-[#FF7939]' : 'text-gray-600'}`} />
+                                  </div>
 
-                                  setEditingNutritionMacros((prev) => {
-                                    if (!prev) return prev
-                                    const next = {
-                                      ...prev,
-                                      proteinas: selectedPlate?.proteinas !== undefined && selectedPlate?.proteinas !== null ? String(selectedPlate.proteinas) : '',
-                                      carbohidratos: selectedPlate?.carbohidratos !== undefined && selectedPlate?.carbohidratos !== null ? String(selectedPlate.carbohidratos) : '',
-                                      grasas: selectedPlate?.grasas !== undefined && selectedPlate?.grasas !== null ? String(selectedPlate.grasas) : '',
-                                      calorias:
-                                        selectedPlate?.calorias !== undefined && selectedPlate?.calorias !== null
-                                          ? String(selectedPlate.calorias)
-                                          : (selectedPlate?.calorías !== undefined && selectedPlate?.calorías !== null ? String(selectedPlate.calorías) : ''),
-                                      minutos: selectedPlate?.minutos !== undefined && selectedPlate?.minutos !== null ? String(selectedPlate.minutos) : ''
-                                    }
-                                    return next
-                                  })
-                                }}
-                                className="w-full px-2 py-1 text-xs bg-[#2A2A2A] border border-[#3A3A3A] rounded text-white"
-                              >
-                                <option value="">Seleccionar</option>
-                                {nutritionPlateOptions.map((p: any) => (
-                                  <option key={String(p.id)} value={String(p.id)}>
-                                    {p.nombre_plato || p.nombre || `Plato ${p.id}`}
-                                  </option>
-                                ))}
-                              </select>
-                            </div>
-                            <div className="flex flex-col">
-                              <label className="text-[10px] text-gray-500 mb-0.5">Prot (g)</label>
-                              <input
-                                type="number"
-                                value={editingNutritionMacros.proteinas}
-                                onChange={(e) => setEditingNutritionMacros(prev => prev ? { ...prev, proteinas: e.target.value } : prev)}
-                                className="w-16 px-2 py-1 text-xs bg-[#2A2A2A] border border-[#3A3A3A] rounded text-white"
-                              />
-                            </div>
-                            <div className="flex flex-col">
-                              <label className="text-[10px] text-gray-500 mb-0.5">Carb (g)</label>
-                              <input
-                                type="number"
-                                value={editingNutritionMacros.carbohidratos}
-                                onChange={(e) => setEditingNutritionMacros(prev => prev ? { ...prev, carbohidratos: e.target.value } : prev)}
-                                className="w-16 px-2 py-1 text-xs bg-[#2A2A2A] border border-[#3A3A3A] rounded text-white"
-                              />
-                            </div>
-                            <div className="flex flex-col">
-                              <label className="text-[10px] text-gray-500 mb-0.5">Grasas (g)</label>
-                              <input
-                                type="number"
-                                value={editingNutritionMacros.grasas}
-                                onChange={(e) => setEditingNutritionMacros(prev => prev ? { ...prev, grasas: e.target.value } : prev)}
-                                className="w-16 px-2 py-1 text-xs bg-[#2A2A2A] border border-[#3A3A3A] rounded text-white"
-                              />
-                            </div>
-                            <div className="flex flex-col">
-                              <label className="text-[10px] text-gray-500 mb-0.5">Kcal</label>
-                              <input
-                                type="number"
-                                value={editingNutritionMacros.calorias}
-                                onChange={(e) => setEditingNutritionMacros(prev => prev ? { ...prev, calorias: e.target.value } : prev)}
-                                className="w-16 px-2 py-1 text-xs bg-[#2A2A2A] border border-[#3A3A3A] rounded text-white"
-                              />
-                            </div>
-                            <div className="flex flex-col">
-                              <label className="text-[10px] text-gray-500 mb-0.5">Min</label>
-                              <input
-                                type="number"
-                                value={editingNutritionMacros.minutos}
-                                onChange={(e) => setEditingNutritionMacros(prev => prev ? { ...prev, minutos: e.target.value } : prev)}
-                                className="w-16 px-2 py-1 text-xs bg-[#2A2A2A] border border-[#3A3A3A] rounded text-white"
-                              />
-                            </div>
-                            <div className="flex items-center gap-2 ml-auto">
-                              <button
-                                type="button"
-                                onClick={() => handleSaveNutrition(exercise)}
-                                disabled={!canEditNutrition}
-                                className={`p-1 rounded transition-colors ${
-                                  canEditNutrition
-                                    ? 'text-[#FF7939] hover:bg-[#FF7939]/10'
-                                    : 'text-gray-600 cursor-not-allowed'
-                                }`}
-                                title="Guardar"
-                              >
-                                <Check className="h-4 w-4" />
-                              </button>
-                              <button
-                                type="button"
-                                onClick={handleCancelNutrition}
-                                className="p-1 rounded text-gray-400 hover:text-white hover:bg-zinc-700/40 transition-colors"
-                                title="Cancelar"
-                              >
-                                <X className="h-4 w-4" />
-                              </button>
-                              <button
-                                type="button"
-                                onClick={() => {
-                                  if (!canEditNutrition) return
-                                  setConfirmDeleteNutritionId(exercise.id)
-                                }}
-                                disabled={!canEditNutrition}
-                                className={`p-1 rounded transition-colors ${
-                                  canEditNutrition
-                                    ? 'text-red-500 hover:bg-red-500/10'
-                                    : 'text-gray-600 cursor-not-allowed'
-                                }`}
-                                title="Eliminar"
-                              >
-                                <Trash2 className="h-4 w-4" />
-                              </button>
-                            </div>
+                                  <div className="flex-1 min-w-0">
+                                    {editingExerciseId === exercise.id ? (
+                                      <div className="relative mb-1 exercise-dropdown">
+                                        <button
+                                          type="button"
+                                          onClick={(e) => {
+                                            e.preventDefault()
+                                            setShowExerciseDropdown(!showExerciseDropdown)
+                                          }}
+                                          className="flex items-center justify-between w-full px-3 py-2 text-sm font-semibold text-white bg-[#2A2A2A] border border-[#3A3A3A] rounded-lg hover:bg-[#3A3A3A] transition-colors"
+                                        >
+                                          <span>{exercise.ejercicio_nombre}</span>
+                                          <ChevronDown
+                                            className={`h-4 w-4 transition-transform ${showExerciseDropdown ? 'rotate-180' : ''}`}
+                                          />
+                                        </button>
+
+                                        {showExerciseDropdown && (
+                                          <div className="absolute top-full left-0 right-0 z-50 mt-1 bg-[#1E1E1E] border border-[#3A3A3A] rounded-lg shadow-lg max-h-48 overflow-y-auto">
+                                            {availableExercises.length > 0 ? (
+                                              availableExercises.map((ex) => (
+                                                <button
+                                                  type="button"
+                                                  key={ex.id}
+                                                  onClick={(e) => {
+                                                    e.preventDefault()
+                                                    handleChangeExercise(String(ex.id))
+                                                  }}
+                                                  className={`w-full px-3 py-2 text-left text-sm hover:bg-[#3A3A3A] transition-colors ${
+                                                    String(ex.id) === String(exercise.ejercicio_id)
+                                                      ? 'bg-[#FF7939]/20 text-[#FF7939]'
+                                                      : 'text-white'
+                                                  }`}
+                                                >
+                                                  {ex.nombre_ejercicio}
+                                                </button>
+                                              ))
+                                            ) : (
+                                              <div className="px-3 py-2 text-sm text-gray-400">No hay ejercicios disponibles</div>
+                                            )}
+                                          </div>
+                                        )}
+                                      </div>
+                                    ) : (
+                                      <div className="text-sm font-semibold text-gray-300 truncate">{exercise.ejercicio_nombre}</div>
+                                    )}
+
+                                    <div className="flex flex-wrap items-center gap-2 mt-1">
+                                      {exercise.duracion ? <span className="text-xs text-gray-500">{exercise.duracion} min</span> : null}
+                                      {exercise.calorias_estimadas ? (
+                                        <span className="text-xs text-gray-500">{exercise.calorias_estimadas} kcal</span>
+                                      ) : null}
+                                    </div>
+
+                                    {exercise.detalle_series ? (
+                                      <div className="text-xs text-gray-500 mt-1">{exercise.detalle_series}</div>
+                                    ) : null}
+
+                                    {exercise.is_nutricion ? (
+                                      <div className="mt-2">
+                                        {editingNutritionId === exercise.id && editingNutritionMacros ? (
+                                          <div className="flex flex-wrap gap-2 items-end">
+                                            <div className="flex flex-col min-w-[180px]">
+                                              <label className="text-[10px] text-gray-500 mb-0.5">Plato</label>
+                                              <select
+                                                value={editingNutritionPlateId || ''}
+                                                onChange={(e) => {
+                                                  const nextPlateId = e.target.value
+                                                  setEditingNutritionPlateId(nextPlateId)
+
+                                                  const selectedPlate = nutritionPlateOptions.find(
+                                                    (p: any) => String(p?.id) === String(nextPlateId)
+                                                  )
+                                                  if (!selectedPlate) return
+
+                                                  setEditingNutritionMacros((prev) => {
+                                                    if (!prev) return prev
+                                                    const next = {
+                                                      ...prev,
+                                                      proteinas:
+                                                        selectedPlate?.proteinas !== undefined && selectedPlate?.proteinas !== null
+                                                          ? String(selectedPlate.proteinas)
+                                                          : '',
+                                                      carbohidratos:
+                                                        selectedPlate?.carbohidratos !== undefined && selectedPlate?.carbohidratos !== null
+                                                          ? String(selectedPlate.carbohidratos)
+                                                          : '',
+                                                      grasas:
+                                                        selectedPlate?.grasas !== undefined && selectedPlate?.grasas !== null
+                                                          ? String(selectedPlate.grasas)
+                                                          : '',
+                                                      calorias:
+                                                        selectedPlate?.calorias !== undefined && selectedPlate?.calorias !== null
+                                                          ? String(selectedPlate.calorias)
+                                                          : (
+                                                              selectedPlate?.calorías !== undefined && selectedPlate?.calorías !== null
+                                                                ? String(selectedPlate.calorías)
+                                                                : ''
+                                                            ),
+                                                      minutos:
+                                                        selectedPlate?.minutos !== undefined && selectedPlate?.minutos !== null
+                                                          ? String(selectedPlate.minutos)
+                                                          : ''
+                                                    }
+                                                    return next
+                                                  })
+                                                }}
+                                                className="w-full px-2 py-1 text-xs bg-[#2A2A2A] border border-[#3A3A3A] rounded text-white"
+                                              >
+                                                <option value="">Seleccionar</option>
+                                                {nutritionPlateOptions.map((p: any) => (
+                                                  <option key={String(p.id)} value={String(p.id)}>
+                                                    {p.nombre_plato || p.nombre || `Plato ${p.id}`}
+                                                  </option>
+                                                ))}
+                                              </select>
+                                            </div>
+                                            <div className="flex flex-col">
+                                              <label className="text-[10px] text-gray-500 mb-0.5">Prot (g)</label>
+                                              <input
+                                                type="number"
+                                                value={editingNutritionMacros.proteinas}
+                                                onChange={(e) =>
+                                                  setEditingNutritionMacros((prev) =>
+                                                    prev ? { ...prev, proteinas: e.target.value } : prev
+                                                  )
+                                                }
+                                                className="w-16 px-2 py-1 text-xs bg-[#2A2A2A] border border-[#3A3A3A] rounded text-white"
+                                              />
+                                            </div>
+                                            <div className="flex flex-col">
+                                              <label className="text-[10px] text-gray-500 mb-0.5">Carb (g)</label>
+                                              <input
+                                                type="number"
+                                                value={editingNutritionMacros.carbohidratos}
+                                                onChange={(e) =>
+                                                  setEditingNutritionMacros((prev) =>
+                                                    prev ? { ...prev, carbohidratos: e.target.value } : prev
+                                                  )
+                                                }
+                                                className="w-16 px-2 py-1 text-xs bg-[#2A2A2A] border border-[#3A3A3A] rounded text-white"
+                                              />
+                                            </div>
+                                            <div className="flex flex-col">
+                                              <label className="text-[10px] text-gray-500 mb-0.5">Grasas (g)</label>
+                                              <input
+                                                type="number"
+                                                value={editingNutritionMacros.grasas}
+                                                onChange={(e) =>
+                                                  setEditingNutritionMacros((prev) => (prev ? { ...prev, grasas: e.target.value } : prev))
+                                                }
+                                                className="w-16 px-2 py-1 text-xs bg-[#2A2A2A] border border-[#3A3A3A] rounded text-white"
+                                              />
+                                            </div>
+                                            <div className="flex flex-col">
+                                              <label className="text-[10px] text-gray-500 mb-0.5">Kcal</label>
+                                              <input
+                                                type="number"
+                                                value={editingNutritionMacros.calorias}
+                                                onChange={(e) =>
+                                                  setEditingNutritionMacros((prev) =>
+                                                    prev ? { ...prev, calorias: e.target.value } : prev
+                                                  )
+                                                }
+                                                className="w-16 px-2 py-1 text-xs bg-[#2A2A2A] border border-[#3A3A3A] rounded text-white"
+                                              />
+                                            </div>
+                                            <div className="flex flex-col">
+                                              <label className="text-[10px] text-gray-500 mb-0.5">Min</label>
+                                              <input
+                                                type="number"
+                                                value={editingNutritionMacros.minutos}
+                                                onChange={(e) =>
+                                                  setEditingNutritionMacros((prev) =>
+                                                    prev ? { ...prev, minutos: e.target.value } : prev
+                                                  )
+                                                }
+                                                className="w-16 px-2 py-1 text-xs bg-[#2A2A2A] border border-[#3A3A3A] rounded text-white"
+                                              />
+                                            </div>
+                                            <div className="flex items-center gap-2 ml-auto">
+                                              <button
+                                                type="button"
+                                                onClick={() => handleSaveNutrition(exercise)}
+                                                disabled={!canEditNutrition}
+                                                className={`p-1 rounded transition-colors ${
+                                                  canEditNutrition ? 'text-[#FF7939] hover:bg-[#FF7939]/10' : 'text-gray-600 cursor-not-allowed'
+                                                }`}
+                                                title="Guardar"
+                                              >
+                                                <Check className="h-4 w-4" />
+                                              </button>
+                                              <button
+                                                type="button"
+                                                onClick={handleCancelNutrition}
+                                                className="p-1 rounded text-gray-400 hover:text-white hover:bg-zinc-700/40 transition-colors"
+                                                title="Cancelar"
+                                              >
+                                                <X className="h-4 w-4" />
+                                              </button>
+                                              <button
+                                                type="button"
+                                                onClick={() => {
+                                                  if (!canEditNutrition) return
+                                                  setConfirmDeleteNutritionId(exercise.id)
+                                                }}
+                                                disabled={!canEditNutrition}
+                                                className={`p-1 rounded transition-colors ${
+                                                  canEditNutrition ? 'text-red-500 hover:bg-red-500/10' : 'text-gray-600 cursor-not-allowed'
+                                                }`}
+                                                title="Eliminar"
+                                              >
+                                                <Trash2 className="h-4 w-4" />
+                                              </button>
+                                            </div>
+                                          </div>
+                                        ) : null}
+                                      </div>
+                                    ) : null}
+                                  </div>
+                                </div>
+                              )
+                            })}
                           </div>
                         ) : (
-                          null
+                          <div className="text-xs text-gray-500">Cargando detalle...</div>
                         )
-                      ) : null}
+                      })()}
                     </div>
-                  )}
+                  ) : null}
                 </div>
-                {confirmDeleteNutritionId === exercise.id && (
-                  <div className="mt-2 flex items-center justify-end gap-2">
-                    <button
-                      type="button"
-                      onClick={() => handleDeleteNutrition(exercise)}
-                      className="p-1 rounded text-red-500 hover:bg-red-500/10 transition-colors"
-                      title="Confirmar eliminación"
-                    >
-                      <Check className="h-4 w-4" />
-                    </button>
-                    <button
-                      type="button"
-                      onClick={() => setConfirmDeleteNutritionId(null)}
-                      className="p-1 rounded text-gray-400 hover:text-white hover:bg-zinc-700/40 transition-colors"
-                      title="Cancelar"
-                    >
-                      <X className="h-4 w-4" />
-                    </button>
+              )
+            }
+
+            return (
+              <div className="space-y-3">
+                <div className="bg-zinc-800/30 rounded-lg p-3 border border-zinc-700/30">
+                  <div className="flex items-center justify-between text-xs">
+                    <span className="text-gray-400">Tus programas</span>
+                    <span className="text-gray-200 font-semibold">{formatMinutesCompact(ownedMins) || '0m'}</span>
+                  </div>
+                  <div className="flex items-center justify-between text-xs mt-1">
+                    <span className="text-gray-400">Otras actividades</span>
+                    <span className="text-gray-200 font-semibold">{formatMinutesCompact(otherMinsTotal) || '0m'}</span>
+                  </div>
+                </div>
+
+                {ownedActivityRows.length > 0 && (
+                  <div className="space-y-3">
+                    {ownedActivityRows.map((r) => renderSummaryRow(r, true))}
+                  </div>
+                )}
+
+                {otherMeetRows.length > 0 && (
+                  <div className="space-y-3">
+                    <div className="text-xs font-semibold text-gray-400 uppercase tracking-wide">Otras actividades</div>
+                    {otherMeetRows.map((r) => renderSummaryRow(r, false))}
                   </div>
                 )}
               </div>
-              )
-              })}
-            </div>
-          )}
-        </div>
-      )}
-
+            )
+          })()}
+          </div>
+        )}
 
       {/* Modal de confirmación */}
       {showConfirmModal && (
@@ -3085,6 +3541,66 @@ export function ClientCalendar({ clientId, onLastWorkoutUpdate, onDaySelected, e
                         El {formatDate(newDate)} ya tiene {getDayData(newDate)!.exerciseCount} ejercicio(s) programado(s)
                       </div>
                     </div>
+                  </div>
+                </div>
+              )}
+
+              {editingDate && (
+                <div className="bg-zinc-800/30 rounded-lg p-4 border border-zinc-700/30">
+                  <div className="font-medium text-white text-sm mb-2">Aplicar a actividades</div>
+                  <div className="space-y-2">
+                    {(() => {
+                      const dayStr = editingDate.toISOString().split('T')[0]
+                      const exs = dayData?.[dayStr]?.exercises || []
+                      const sumRows = summaryRowsByDate?.[dayStr] || []
+
+                      const map = new Map<string, { id: string; label: string }>()
+
+                      // Preferimos lo ya cargado por detalle (si existe)
+                      for (const ex of exs) {
+                        const id = ex.actividad_id !== undefined && ex.actividad_id !== null ? String(ex.actividad_id) : ''
+                        if (!id) continue
+                        const title = ex.actividad_titulo || `Actividad ${id}`
+                        const ver = ex.version && ex.version > 1 ? ` v${ex.version}` : ''
+                        const label = `${title}${ver}`
+                        if (!map.has(id)) map.set(id, { id, label })
+                      }
+
+                      // Si todavía no hay detalle cargado, usamos la view
+                      if (map.size === 0) {
+                        for (const r of sumRows) {
+                          const id = r.activity_id !== undefined && r.activity_id !== null ? String(r.activity_id) : ''
+                          if (!id) continue
+                          const title = r.activity_title || `Actividad ${id}`
+                          const label = `${title}`
+                          if (!map.has(id)) map.set(id, { id, label })
+                        }
+                      }
+
+                      const opts = Array.from(map.values())
+                      if (opts.length === 0) {
+                        return <div className="text-xs text-gray-400">No hay actividades detectadas para este día.</div>
+                      }
+
+                      return opts.map((opt) => {
+                        const checked = selectedActivityIdsForDateChange.includes(opt.id)
+                        return (
+                          <label key={opt.id} className="flex items-center gap-2 text-sm text-gray-200">
+                            <input
+                              type="checkbox"
+                              checked={checked}
+                              onChange={(e) => {
+                                const next = e.target.checked
+                                  ? Array.from(new Set([...(selectedActivityIdsForDateChange || []), opt.id]))
+                                  : (selectedActivityIdsForDateChange || []).filter((x) => x !== opt.id)
+                                setSelectedActivityIdsForDateChange(next)
+                              }}
+                            />
+                            <span className="text-gray-300">{opt.label}</span>
+                          </label>
+                        )
+                      })
+                    })()}
                   </div>
                 </div>
               )}

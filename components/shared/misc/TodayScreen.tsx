@@ -2002,7 +2002,12 @@ export default function TodayScreen({ activityId, onBack }: { activityId: string
             const calorias = item.calorias ?? item.calorias ?? null;
             
             console.log(`📋 [TodayScreen] Mapeando ${categoria === 'nutricion' ? 'plato' : 'ejercicio'} ${ejercicioId}:`, {
-              nombre: item.nombre_ejercicio || item.name || item.nombre,
+              nombre: item.nombre_plato || item.title || item.nombre_ejercicio || item.name || item.nombre,
+              nombre_plato: item.nombre_plato,
+              title: item.title,
+              nombre_ejercicio: item.nombre_ejercicio,
+              name: item.name,
+              nombre_raw: item.nombre,
               categoria,
               proteinas: item.proteinas,
               carbohidratos: item.carbohidratos,
@@ -2019,7 +2024,7 @@ export default function TodayScreen({ activityId, onBack }: { activityId: string
               // id único que combina ejercicio_id, bloque y orden para evitar duplicados
               id: `${ejercicioId}_${bloque}_${orden}`,
               title: categoria === 'nutricion' 
-                ? (item.nombre_ejercicio || item.name || item.nombre || item.ejercicio_name || `Plato ${ejercicioId}`)
+                ? (item.nombre_plato || item.title || item.nombre_ejercicio || item.name || item.nombre || item.ejercicio_name || `Plato ${ejercicioId}`)
                 : (item.nombre_ejercicio || item.name || item.ejercicio_name || `Ejercicio ${ejercicioId}`),
               subtitle: item.formatted_series || item.detalle_series || 'Sin especificar',
               type: item.tipo || item.type || 'general',
@@ -3682,7 +3687,7 @@ export default function TodayScreen({ activityId, onBack }: { activityId: string
                     <UniversalVideoPlayer
                       key={`video-${selectedVideo.url}-${isVideoPanelExpanded}`}
                       videoUrl={selectedVideo.url}
-                      bunnyVideoId={selectedVideo.bunnyVideoId || undefined}
+                      bunnyVideoId={(selectedVideo as any).bunnyVideoId || undefined}
                       autoPlay={true}
                       controls={true}
                       className="w-full h-full"
@@ -3908,22 +3913,28 @@ export default function TodayScreen({ activityId, onBack }: { activityId: string
                               style={{
                                 display: 'flex',
                                 alignItems: 'center',
-                                justifyContent: 'space-between',
+                                justifyContent: 'flex-start',
                                 cursor: 'pointer',
                                 marginBottom: isIngredientesExpanded ? 12 : 0,
                                 transition: 'all 0.2s ease'
                               }}
                             >
-                              <h3 style={{
-                                color: '#FFFFFF',
-                                fontSize: 16,
-                                fontWeight: 600,
-                                margin: 0,
-                                letterSpacing: '-0.01em'
-                              }}>
-                                Ingredientes
-                              </h3>
                               <div style={{
+                                display: 'flex',
+                                alignItems: 'center',
+                                gap: 8
+                              }}>
+                                <h3 style={{
+                                  color: '#FFFFFF',
+                                  fontSize: 16,
+                                  fontWeight: 600,
+                                  margin: 0,
+                                  letterSpacing: '-0.01em'
+                                }}>
+                                  Ingredientes
+                                </h3>
+
+                                <div style={{
                                 width: 24,
                                 height: 24,
                                 display: 'flex',
@@ -3935,6 +3946,7 @@ export default function TodayScreen({ activityId, onBack }: { activityId: string
                                 <svg width="16" height="16" viewBox="0 0 16 16" fill="none">
                                   <path d="M4 6L8 10L12 6" stroke="rgba(255, 255, 255, 0.6)" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/>
                                 </svg>
+                              </div>
                               </div>
                             </div>
                             {isIngredientesExpanded && (
@@ -4560,10 +4572,13 @@ export default function TodayScreen({ activityId, onBack }: { activityId: string
                         }
                       }}
                       style={{
-                        padding: '10px 20px',
-                        borderRadius: 8,
-                        background: isDone ? '#CC4A1A' : 'transparent',
-                        border: '1px solid #CC4A1A',
+                        padding: '10px 22px',
+                        borderRadius: 14,
+                        background: isDone ? '#FF7939' : 'rgba(255, 121, 57, 0.10)',
+                        border: isDone ? '1px solid rgba(255, 121, 57, 0.75)' : '1px solid rgba(255, 121, 57, 0.50)',
+                        boxShadow: isDone
+                          ? '0 12px 32px rgba(255, 121, 57, 0.22), inset 0 1px 0 rgba(255, 255, 255, 0.10)'
+                          : '0 10px 26px rgba(0, 0, 0, 0.35)',
                         display: 'flex',
                         alignItems: 'center',
                         justifyContent: 'center',
@@ -4573,21 +4588,29 @@ export default function TodayScreen({ activityId, onBack }: { activityId: string
                       }}
                       onMouseEnter={(e) => {
                         if (!isDone) {
-                          e.currentTarget.style.background = 'rgba(204, 74, 26, 0.1)';
+                          e.currentTarget.style.background = 'rgba(255, 121, 57, 0.15)';
+                          e.currentTarget.style.border = '1px solid rgba(255, 121, 57, 0.65)';
+                          e.currentTarget.style.boxShadow = '0 14px 34px rgba(255, 121, 57, 0.12), 0 10px 26px rgba(0, 0, 0, 0.35)';
                         } else {
-                          e.currentTarget.style.background = '#D45A1F';
+                          e.currentTarget.style.background = '#FF7939';
+                          e.currentTarget.style.border = '1px solid rgba(255, 121, 57, 0.85)';
+                          e.currentTarget.style.boxShadow = '0 14px 34px rgba(255, 121, 57, 0.22), inset 0 1px 0 rgba(255, 255, 255, 0.12)';
                         }
                       }}
                       onMouseLeave={(e) => {
                         if (!isDone) {
-                          e.currentTarget.style.background = 'transparent';
+                          e.currentTarget.style.background = 'rgba(255, 121, 57, 0.10)';
+                          e.currentTarget.style.border = '1px solid rgba(255, 121, 57, 0.50)';
+                          e.currentTarget.style.boxShadow = '0 10px 26px rgba(0, 0, 0, 0.35)';
                         } else {
-                          e.currentTarget.style.background = '#CC4A1A';
+                          e.currentTarget.style.background = '#FF7939';
+                          e.currentTarget.style.border = '1px solid rgba(255, 121, 57, 0.75)';
+                          e.currentTarget.style.boxShadow = '0 12px 32px rgba(255, 121, 57, 0.22), inset 0 1px 0 rgba(255, 255, 255, 0.10)';
                         }
                       }}
                     >
                       <span style={{
-                        color: isDone ? '#FFFFFF' : '#CC4A1A',
+                        color: isDone ? '#000000' : '#FFB366',
                         fontSize: 14,
                         fontWeight: 600,
                         letterSpacing: '0.01em'

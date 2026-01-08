@@ -4,17 +4,38 @@ import { useState, useEffect, useMemo, useRef, Fragment } from "react"
 import { createClient } from '@/lib/supabase/supabase-client'
 import { format, startOfMonth, endOfMonth, eachDayOfInterval, isSameDay, isToday, addMonths, subMonths, startOfWeek, addDays } from "date-fns"
 import { es } from "date-fns/locale"
-import { Bell, ChevronLeft, ChevronRight, Clock, Flame, Plus, Minus, Utensils, Video, X } from "lucide-react"
+import { Bell, Calendar as CalendarIcon, ChevronLeft, ChevronRight, Clock, Flame, Plus, Minus, Utensils, Video, X, Zap, Target, GraduationCap } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import Image from "next/image"
 import { MeetNotificationsModal } from "@/components/shared/meet-notifications-modal"
+import { createCheckoutProPreference, redirectToMercadoPagoCheckout } from '@/lib/mercadopago/checkout-pro'
 
 interface CalendarViewProps {
   activityIds: string[]
   onActivityClick: (activityId: string) => void
-  scheduleMeetContext?: { coachId: string; activityId?: string; source?: string } | null
-  onSetScheduleMeetContext?: (ctx: { coachId: string; activityId?: string; source?: string } | null) => void
+  scheduleMeetContext?: {
+    coachId: string
+    activityId?: string
+    source?: string
+    purchase?: {
+      kind: 'consultation'
+      durationMinutes: number
+      price: number
+      label: string
+    }
+  } | null
+  onSetScheduleMeetContext?: (ctx: {
+    coachId: string
+    activityId?: string
+    source?: string
+    purchase?: {
+      kind: 'consultation'
+      durationMinutes: number
+      price: number
+      label: string
+    }
+  } | null) => void
 }
 
 export default function CalendarView({ activityIds, onActivityClick, scheduleMeetContext, onSetScheduleMeetContext }: CalendarViewProps) {
@@ -70,6 +91,15 @@ export default function CalendarView({ activityIds, onActivityClick, scheduleMee
   const [showCoachRow, setShowCoachRow] = useState(false)
   const [coachProfiles, setCoachProfiles] = useState<Array<{ id: string; full_name: string; avatar_url?: string | null }>>([])
   const [meetCreditsByCoachId, setMeetCreditsByCoachId] = useState<Record<string, number>>({})
+  const [coachConsultations, setCoachConsultations] = useState<{
+    express: { active: boolean; price: number; time: number; name: string }
+    puntual: { active: boolean; price: number; time: number; name: string }
+    profunda: { active: boolean; price: number; time: number; name: string }
+  }>({
+    express: { active: false, price: 0, time: 15, name: 'Express' },
+    puntual: { active: false, price: 0, time: 30, name: 'Consulta puntual' },
+    profunda: { active: false, price: 0, time: 60, name: 'Sesión profunda' },
+  })
   const [coachAvailabilityRows, setCoachAvailabilityRows] = useState<
     Array<{
       id: string
@@ -86,6 +116,7 @@ export default function CalendarView({ activityIds, onActivityClick, scheduleMee
   const [selectedMeetRsvpStatus, setSelectedMeetRsvpStatus] = useState<string>('pending')
   const [selectedMeetParticipantsCount, setSelectedMeetParticipantsCount] = useState<number>(0)
   const [selectedMeetRsvpLoading, setSelectedMeetRsvpLoading] = useState<boolean>(false)
+  const [confirmDeclineStep, setConfirmDeclineStep] = useState<boolean>(false)
   const [meetViewMode, setMeetViewMode] = useState<'month' | 'week'>('month')
   const [meetWeekStart, setMeetWeekStart] = useState<Date>(startOfWeek(new Date(), { weekStartsOn: 1 }))
   const [bookedSlotsByDay, setBookedSlotsByDay] = useState<Record<string, Set<string>>>({})
@@ -99,6 +130,53 @@ export default function CalendarView({ activityIds, onActivityClick, scheduleMee
         coach_id?: string | null
         meet_link?: string | null
         description?: string | null
+      }
+    | null
+  >(null)
+
+  const [meetPurchasePaid, setMeetPurchasePaid] = useState(false)
+  const purchaseContext = scheduleMeetContext?.purchase
+  const isPaidMeetFlow = purchaseContext?.kind === 'consultation'
+
+  const [pendingReschedule, setPendingReschedule] = useState<
+    | {
+        id: string
+        from_start_time: string
+        from_end_time: string | null
+        to_start_time: string
+        to_end_time: string | null
+        note: string | null
+        status: string
+      }
+    | null
+  >(null)
+
+  const [reschedulePreview, setReschedulePreview] = useState<
+    | {
+        dayKey: string
+        timeHHMM: string
+        toStartIso: string
+        toEndIso: string
+        note: string
+      }
+    | null
+  >(null)
+  const [rescheduleContext, setRescheduleContext] = useState<
+    | {
+        eventId: string
+        coachId: string
+        fromStart: string
+        fromEnd: string | null
+        durationMinutes: number
+        snapshot: {
+          id: string
+          title?: string | null
+          start_time: string
+          end_time: string | null
+          coach_id?: string | null
+          meet_link?: string | null
+          description?: string | null
+        }
       }
     | null
   >(null)
@@ -156,6 +234,46 @@ export default function CalendarView({ activityIds, onActivityClick, scheduleMee
     if (!selectedCoachId) return null
     return coachProfiles.find((c) => c.id === selectedCoachId) || null
   }, [coachProfiles, selectedCoachId])
+
+  useEffect(() => {
+    const loadCoachConsultations = async () => {
+      try {
+        if (!selectedCoachId) return
+        const { data, error } = await supabase
+          .from('coaches')
+          .select('cafe, cafe_enabled, meet_30, meet_30_enabled, meet_1, meet_1_enabled')
+          .eq('id', selectedCoachId)
+          .single()
+
+        if (error || !data) return
+
+        setCoachConsultations({
+          express: {
+            active: !!(data as any).cafe_enabled,
+            price: Number((data as any).cafe ?? 0) || 0,
+            time: 15,
+            name: 'Express',
+          },
+          puntual: {
+            active: !!(data as any).meet_30_enabled,
+            price: Number((data as any).meet_30 ?? 0) || 0,
+            time: 30,
+            name: 'Consulta puntual',
+          },
+          profunda: {
+            active: !!(data as any).meet_1_enabled,
+            price: Number((data as any).meet_1 ?? 0) || 0,
+            time: 60,
+            name: 'Sesión profunda',
+          },
+        })
+      } catch {
+        // ignore
+      }
+    }
+
+    loadCoachConsultations()
+  }, [selectedCoachId, supabase])
 
   // Listener para resetear al origen cuando se presiona el tab activo
   useEffect(() => {
@@ -707,7 +825,14 @@ export default function CalendarView({ activityIds, onActivityClick, scheduleMee
   useEffect(() => {
     const loadCoachProfiles = async () => {
       try {
-        if (!purchasedCoachIds || purchasedCoachIds.length === 0) {
+        const ids = Array.from(
+          new Set([
+            ...(Array.isArray(purchasedCoachIds) ? purchasedCoachIds : []),
+            selectedCoachId || '',
+          ].filter((x) => !!x))
+        )
+
+        if (ids.length === 0) {
           setCoachProfiles([])
           return
         }
@@ -715,7 +840,7 @@ export default function CalendarView({ activityIds, onActivityClick, scheduleMee
         const { data, error } = await supabase
           .from('user_profiles')
           .select('id, full_name, avatar_url')
-          .in('id', purchasedCoachIds)
+          .in('id', ids)
 
         if (error) {
           console.error('Error fetching coach profiles:', error)
@@ -737,7 +862,7 @@ export default function CalendarView({ activityIds, onActivityClick, scheduleMee
     }
 
     loadCoachProfiles()
-  }, [purchasedCoachIds, supabase])
+  }, [purchasedCoachIds, selectedCoachId, supabase])
 
   useEffect(() => {
     const loadMeetNotificationCount = async () => {
@@ -841,6 +966,62 @@ export default function CalendarView({ activityIds, onActivityClick, scheduleMee
 
     loadMeetCredits()
   }, [purchasedCoachIds, supabase])
+
+  useEffect(() => {
+    if (!selectedMeetEvent?.id) {
+      setConfirmDeclineStep(false)
+      return
+    }
+    setConfirmDeclineStep(false)
+  }, [selectedMeetEvent?.id])
+
+  useEffect(() => {
+    const loadPendingReschedule = async () => {
+      try {
+        if (!selectedMeetEvent?.id) {
+          setPendingReschedule(null)
+          return
+        }
+        const { data: auth } = await supabase.auth.getUser()
+        const user = auth?.user
+        if (!user?.id) {
+          setPendingReschedule(null)
+          return
+        }
+
+        const { data: rr, error } = await supabase
+          .from('calendar_event_reschedule_requests')
+          .select('id, from_start_time, from_end_time, to_start_time, to_end_time, note, status, created_at')
+          .eq('event_id', selectedMeetEvent.id)
+          .eq('status', 'pending')
+          .order('created_at', { ascending: false })
+          .limit(1)
+
+        if (error) {
+          setPendingReschedule(null)
+          return
+        }
+        const row = (rr || [])[0]
+        if (!row?.id) {
+          setPendingReschedule(null)
+          return
+        }
+        setPendingReschedule({
+          id: String(row.id),
+          from_start_time: String(row.from_start_time),
+          from_end_time: row.from_end_time ? String(row.from_end_time) : null,
+          to_start_time: String(row.to_start_time),
+          to_end_time: row.to_end_time ? String(row.to_end_time) : null,
+          note: row.note == null ? null : String(row.note),
+          status: String(row.status || 'pending'),
+        })
+      } catch {
+        setPendingReschedule(null)
+      }
+    }
+
+    loadPendingReschedule()
+  }, [selectedMeetEvent?.id, supabase])
 
   useEffect(() => {
     const loadCoachAvailability = async () => {
@@ -1140,6 +1321,48 @@ export default function CalendarView({ activityIds, onActivityClick, scheduleMee
     }
   }, [availableSlotDays, coachAvailabilityRows, currentDate, selectedCoachId])
 
+  useEffect(() => {
+    if (!isPaidMeetFlow) {
+      setMeetPurchasePaid(false)
+      return
+    }
+
+    if (typeof window === 'undefined') return
+
+    try {
+      const url = new URL(window.location.href)
+      const purchaseSuccess = url.searchParams.get('purchase_success')
+      const activityIdParam = url.searchParams.get('activity_id')
+      const preferenceId = url.searchParams.get('preference_id')
+      const paymentId = url.searchParams.get('payment_id')
+
+      const ctxActivityId = scheduleMeetContext?.activityId ? String(scheduleMeetContext.activityId) : null
+      const sameActivity = !!ctxActivityId && !!activityIdParam && String(activityIdParam) === String(ctxActivityId)
+
+      const showSuccess = sessionStorage.getItem('show_purchase_success') === 'true'
+      const storedActivityId = sessionStorage.getItem('last_purchase_activity_id')
+      const sameStored = !!ctxActivityId && !!storedActivityId && String(storedActivityId) === String(ctxActivityId)
+
+      if ((purchaseSuccess === 'true' || showSuccess) && (sameActivity || sameStored) && (preferenceId || paymentId)) {
+        setMeetPurchasePaid(true)
+
+        // limpiar params
+        url.searchParams.delete('purchase_success')
+        url.searchParams.delete('preference_id')
+        url.searchParams.delete('payment_id')
+        url.searchParams.delete('activity_id')
+        url.searchParams.delete('status')
+        window.history.replaceState({}, '', url.toString())
+
+        sessionStorage.removeItem('show_purchase_success')
+        sessionStorage.removeItem('purchase_preference_id')
+        sessionStorage.removeItem('purchase_payment_id')
+      }
+    } catch {
+      // ignore
+    }
+  }, [isPaidMeetFlow, scheduleMeetContext?.activityId])
+
   const getSlotsForDate = (date: Date) => {
     if (!selectedCoachId) return [] as string[]
     const weekday = date.getDay()
@@ -1333,10 +1556,12 @@ export default function CalendarView({ activityIds, onActivityClick, scheduleMee
         onOpenMeet={(eventId) => openMeetById(eventId)}
       />
 
-      {(showCoachRow || !!selectedCoachProfile) && (
+      {(showCoachRow || !!selectedCoachId) && (
         <div className="mb-3">
           {coachProfiles.length === 0 ? (
-            <div className="text-sm text-gray-400">No tenés coaches asociados a compras.</div>
+            <div className="text-sm text-gray-400">
+              {selectedCoachId ? 'Cargando coach...' : 'No tenés coaches asociados a compras.'}
+            </div>
           ) : (
             <div className="flex items-center gap-3 overflow-x-auto pb-1">
               {coachProfiles.map((coach) => {
@@ -1380,7 +1605,7 @@ export default function CalendarView({ activityIds, onActivityClick, scheduleMee
           )}
 
           {selectedCoachId && (
-            <div className="mt-2 flex items-center justify-end">
+            <div className="mt-2 flex items-start justify-between gap-3">
               <button
                 type="button"
                 onClick={() => {
@@ -1391,13 +1616,234 @@ export default function CalendarView({ activityIds, onActivityClick, scheduleMee
                   }
                   onSetScheduleMeetContext?.(null)
                   setMeetViewMode('month')
+                  setSelectedMeetRequest(null)
+                  setMeetPurchasePaid(false)
                 }}
                 className="px-3 py-1.5 rounded-full border text-[11px] font-semibold backdrop-blur-md bg-white/10 border-white/20 text-white hover:bg-white/15 transition-colors"
               >
                 Quitar coach
               </button>
+
+              {isPaidMeetFlow && (
+                <div className="w-full max-w-[520px] rounded-2xl border border-white/10 bg-white/5 backdrop-blur-md p-3">
+                  <div className="grid grid-cols-3 gap-3">
+                    <button
+                      type="button"
+                      className="flex flex-col items-center justify-center p-3 rounded-lg border border-white/10 bg-black/20 hover:border-[#FF7939]/60 transition-colors"
+                    >
+                      <Zap className="w-5 h-5 text-[#FF7939] mb-1.5" strokeWidth={2} fill="none" />
+                      <div className="text-white font-semibold text-xs text-center">{coachConsultations.express.name}</div>
+                      <div className="text-gray-400 text-xs">{coachConsultations.express.time} min</div>
+                      <div className="mt-1 text-[#FF7939] font-bold text-sm">${coachConsultations.express.price}</div>
+                    </button>
+
+                    <button
+                      type="button"
+                      className="flex flex-col items-center justify-center p-3 rounded-lg border border-white/10 bg-black/20 hover:border-[#FF7939]/60 transition-colors"
+                    >
+                      <Target className="w-5 h-5 text-[#FF7939] mb-1.5" strokeWidth={2} fill="none" />
+                      <div className="text-white font-semibold text-xs text-center">{coachConsultations.puntual.name}</div>
+                      <div className="text-gray-400 text-xs">{coachConsultations.puntual.time} min</div>
+                      <div className="mt-1 text-[#FF7939] font-bold text-sm">${coachConsultations.puntual.price}</div>
+                    </button>
+
+                    <button
+                      type="button"
+                      className="flex flex-col items-center justify-center p-3 rounded-lg border border-white/10 bg-black/20 hover:border-[#FF7939]/60 transition-colors"
+                    >
+                      <GraduationCap className="w-5 h-5 text-[#FF7939] mb-1.5" strokeWidth={2} fill="none" />
+                      <div className="text-white font-semibold text-xs text-center">{coachConsultations.profunda.name}</div>
+                      <div className="text-gray-400 text-xs">{coachConsultations.profunda.time} min</div>
+                      <div className="mt-1 text-[#FF7939] font-bold text-sm">${coachConsultations.profunda.price}</div>
+                    </button>
+                  </div>
+
+                  <div className="mt-3 flex flex-wrap items-center gap-2">
+                    <div className="flex items-center gap-2 bg-black/30 border border-white/10 rounded-lg px-3 py-2 text-xs text-white/75">
+                      <CalendarIcon className="h-3.5 w-3.5 text-[#FFB366]" />
+                      <span>
+                        {selectedMeetRequest
+                          ? format(new Date(`${selectedMeetRequest.dayKey}T00:00:00`), 'dd MMM yyyy', { locale: es })
+                          : 'Elegí un día'}
+                      </span>
+                    </div>
+                    <div className="flex items-center gap-2 bg-black/30 border border-white/10 rounded-lg px-3 py-2 text-xs text-white/75">
+                      <Clock className="h-3.5 w-3.5 text-[#FFB366]" />
+                      <span>{selectedMeetRequest ? selectedMeetRequest.timeHHMM : 'Elegí un horario'}</span>
+                    </div>
+                  </div>
+
+                  <div className="mt-3">
+                    <button
+                      type="button"
+                      disabled={!selectedMeetRequest || meetPurchasePaid || !(scheduleMeetContext?.activityId)}
+                      onClick={async () => {
+                        if (!selectedMeetRequest) return
+                        const actId = scheduleMeetContext?.activityId ? String(scheduleMeetContext.activityId) : null
+                        if (!actId) return
+
+                        try {
+                          sessionStorage.setItem(
+                            'pending_meet_booking',
+                            JSON.stringify({
+                              coachId: String(selectedMeetRequest.coachId),
+                              activityId: actId,
+                              dayKey: selectedMeetRequest.dayKey,
+                              timeHHMM: selectedMeetRequest.timeHHMM,
+                              durationMinutes: Number(purchaseContext?.durationMinutes ?? 30) || 30,
+                            })
+                          )
+                        } catch {
+                          // ignore
+                        }
+
+                        const res = await createCheckoutProPreference(actId)
+                        if (res?.success && res?.initPoint) {
+                          redirectToMercadoPagoCheckout(res.initPoint, actId, res.preferenceId)
+                        }
+                      }}
+                      className={
+                        meetPurchasePaid
+                          ? 'w-full px-4 py-2.5 rounded-xl bg-white/10 text-white/70 text-sm font-semibold border border-white/15'
+                          : 'w-full px-4 py-2.5 rounded-xl bg-[#FF7939] text-black text-sm font-semibold hover:opacity-95 transition-opacity disabled:opacity-50 disabled:cursor-not-allowed'
+                      }
+                    >
+                      {meetPurchasePaid ? 'Pago confirmado' : 'Pagar'}
+                    </button>
+
+                    {!meetPurchasePaid && (
+                      <div className="mt-2 text-[11px] text-white/55">
+                        Para confirmar el horario, primero realizá el pago.
+                      </div>
+                    )}
+                  </div>
+                </div>
+              )}
             </div>
           )}
+        </div>
+      )}
+
+      {rescheduleContext && reschedulePreview && (
+        <div
+          className="fixed inset-0 z-[75] bg-black/60 flex items-center justify-center p-4"
+          role="dialog"
+          aria-modal="true"
+          onClick={() => setReschedulePreview(null)}
+        >
+          <div
+            className="w-full max-w-md bg-zinc-950 border border-zinc-800 rounded-2xl p-5"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="flex items-center justify-between">
+              <div className="text-white font-semibold text-xl">Confirmar reprogramación</div>
+              <button
+                type="button"
+                onClick={() => setReschedulePreview(null)}
+                className="w-8 h-8 rounded-full hover:bg-white/10 text-white flex items-center justify-center"
+                aria-label="Cerrar"
+              >
+                <span className="text-xl leading-none">×</span>
+              </button>
+            </div>
+
+            <div className="mt-3 text-sm text-white/70">
+              Revisá el nuevo horario antes de enviar la solicitud.
+            </div>
+
+            <div className="mt-4 flex flex-wrap items-center gap-2">
+              <div className="flex items-center gap-2 bg-black/30 border border-[#FF7939]/30 rounded-lg px-3 py-2 text-sm text-gray-200">
+                <CalendarIcon className="h-4 w-4 text-[#FFB366]" />
+                <span className="font-medium">{format(new Date(reschedulePreview.toStartIso), 'dd MMM yyyy', { locale: es })}</span>
+              </div>
+              <div className="flex items-center gap-2 bg-black/30 border border-[#FF7939]/30 rounded-lg px-3 py-2 text-sm text-gray-200">
+                <Clock className="h-4 w-4 text-[#FFB366]" />
+                <span className="font-medium">
+                  {(() => {
+                    const a = new Date(reschedulePreview.toStartIso)
+                    const b = new Date(reschedulePreview.toEndIso)
+                    return `${format(a, 'HH:mm')} – ${format(b, 'HH:mm')}`
+                  })()}
+                </span>
+              </div>
+
+              <div className="flex items-center gap-2 bg-black/30 border border-white/10 rounded-lg px-3 py-2 text-xs text-white/55">
+                <CalendarIcon className="h-4 w-4 text-white/45" />
+                <span className="line-through">{format(new Date(rescheduleContext.fromStart), 'dd MMM yyyy', { locale: es })}</span>
+              </div>
+              <div className="flex items-center gap-2 bg-black/30 border border-white/10 rounded-lg px-3 py-2 text-xs text-white/55">
+                <Clock className="h-4 w-4 text-white/45" />
+                <span className="line-through">
+                  {(() => {
+                    const a = new Date(rescheduleContext.fromStart)
+                    const b = rescheduleContext.fromEnd ? new Date(rescheduleContext.fromEnd) : null
+                    return `${format(a, 'HH:mm')}${b && !Number.isNaN(b.getTime()) ? ` – ${format(b, 'HH:mm')}` : ''}`
+                  })()}
+                </span>
+              </div>
+            </div>
+
+            <div className="mt-4">
+              <div className="text-base font-semibold text-white">Nota (opcional)</div>
+              <textarea
+                value={reschedulePreview.note}
+                onChange={(e) => setReschedulePreview((p) => (p ? { ...p, note: e.target.value } : p))}
+                className="mt-2 w-full rounded-xl bg-zinc-900 border border-white/10 px-3 py-2 text-sm text-white outline-none focus:border-[#FF7939]/60"
+                rows={3}
+                placeholder="Dejá un mensaje para tu coach..."
+              />
+            </div>
+
+            <div className="mt-4 flex flex-col gap-2">
+              <button
+                type="button"
+                className="w-full px-4 py-2.5 rounded-xl bg-[#FF7939] text-black text-sm font-semibold hover:opacity-95 transition-opacity"
+                onClick={() => {
+                  const send = async () => {
+                    try {
+                      const { data: auth } = await supabase.auth.getUser()
+                      const user = auth?.user
+                      if (!user?.id) return
+
+                      const { error } = await supabase
+                        .from('calendar_event_reschedule_requests')
+                        .insert({
+                          event_id: rescheduleContext.eventId,
+                          requested_by_user_id: user.id,
+                          requested_by_role: 'client',
+                          from_start_time: rescheduleContext.fromStart,
+                          from_end_time: rescheduleContext.fromEnd,
+                          to_start_time: reschedulePreview.toStartIso,
+                          to_end_time: reschedulePreview.toEndIso,
+                          note: reschedulePreview.note?.trim() ? reschedulePreview.note.trim() : null,
+                          status: 'pending',
+                        })
+
+                      if (error) return
+
+                      setReschedulePreview(null)
+                      setRescheduleContext(null)
+                      setMeetViewMode('month')
+                      setSelectedMeetEvent(rescheduleContext.snapshot)
+                    } catch {
+                      // ignore
+                    }
+                  }
+                  send()
+                }}
+              >
+                Enviar solicitud
+              </button>
+
+              <button
+                type="button"
+                className="w-full px-4 py-2.5 rounded-xl bg-zinc-900 text-white text-sm border border-white/15 hover:bg-zinc-800 transition-colors"
+                onClick={() => setReschedulePreview(null)}
+              >
+                Volver
+              </button>
+            </div>
+          </div>
         </div>
       )}
 
@@ -1527,6 +1973,22 @@ export default function CalendarView({ activityIds, onActivityClick, scheduleMee
                                       onClick={() => {
                                         if (disabled) return
                                         if (!selectedCoachId) return
+
+                                        if (rescheduleContext) {
+                                          const startIso = new Date(`${dayKey}T${t}:00`).toISOString()
+                                          const endIso = new Date(
+                                            new Date(startIso).getTime() + rescheduleContext.durationMinutes * 60 * 1000
+                                          ).toISOString()
+                                          setReschedulePreview({
+                                            dayKey,
+                                            timeHHMM: t,
+                                            toStartIso: startIso,
+                                            toEndIso: endIso,
+                                            note: '',
+                                          })
+                                          return
+                                        }
+
                                         setSelectedMeetRequest({
                                           coachId: String(selectedCoachId),
                                           dayKey,
@@ -1739,6 +2201,10 @@ export default function CalendarView({ activityIds, onActivityClick, scheduleMee
                       setSelectedMeetEvent(m)
                     }
 
+                    const handleOpenDetail = () => {
+                      setSelectedMeetEvent(m)
+                    }
+
                     return (
                       <div
                         key={m.id}
@@ -1746,6 +2212,12 @@ export default function CalendarView({ activityIds, onActivityClick, scheduleMee
                           `w-full rounded-xl border px-3 py-2 flex items-center justify-between gap-3 ` +
                           `border-white/10 bg-white/5`
                         }
+                        role="button"
+                        tabIndex={0}
+                        onClick={handleOpenDetail}
+                        onKeyDown={(e) => {
+                          if (e.key === 'Enter' || e.key === ' ') handleOpenDetail()
+                        }}
                       >
                         <div className="flex items-center gap-3 min-w-0">
                           <Video className={isPending ? 'h-4 w-4 text-[#FF7939]' : 'h-4 w-4 text-white/70'} />
@@ -1756,7 +2228,10 @@ export default function CalendarView({ activityIds, onActivityClick, scheduleMee
                         </div>
                         <button
                           type="button"
-                          onClick={handleEnter}
+                          onClick={(e) => {
+                            e.stopPropagation()
+                            handleEnter()
+                          }}
                           className={
                             `px-4 py-1.5 rounded-full text-xs font-semibold border transition-colors flex-shrink-0 ` +
                             `border-[#FF7939]/60 text-[#FFB366] hover:bg-[#FF7939]/10`
@@ -1778,6 +2253,11 @@ export default function CalendarView({ activityIds, onActivityClick, scheduleMee
               <div className="space-y-2">
                 {selectedDayActivityItems.map((it) => {
                   const isNutri = String(it.activityTypeLabel || '').toLowerCase().includes('nutri')
+                  const coachNameForActivity = (() => {
+                    const cid = activitiesInfo?.[String(it.activityId)]?.coach_id
+                    if (!cid) return null
+                    return coachProfiles.find((c) => c.id === String(cid))?.full_name || null
+                  })()
 
                   const totalPlates = (() => {
                     const raw = String(it.pendingCountLabel || '')
@@ -1806,7 +2286,12 @@ export default function CalendarView({ activityIds, onActivityClick, scheduleMee
                           )}
                           <div className="min-w-0">
                             <div className="text-sm font-semibold text-white truncate">{it.activityTitle}</div>
-                            <div className="text-xs text-white/65 truncate">{subtitle}</div>
+                            <div className="text-xs text-white/65 truncate">
+                              {subtitle}
+                              {isNutri && coachNameForActivity ? (
+                                <span className="text-white/45"> · {coachNameForActivity}</span>
+                              ) : null}
+                            </div>
                           </div>
                         </div>
                         <span
@@ -1948,6 +2433,13 @@ export default function CalendarView({ activityIds, onActivityClick, scheduleMee
               const coachName = selectedMeetEvent.coach_id
                 ? (coachProfiles.find((c) => c.id === String(selectedMeetEvent.coach_id))?.full_name || 'Coach')
                 : 'Coach'
+              const coachAvatarUrl = selectedMeetEvent.coach_id
+                ? (coachProfiles.find((c) => c.id === String(selectedMeetEvent.coach_id))?.avatar_url || null)
+                : null
+
+              const nowMs = Date.now()
+              const startMs = start.getTime()
+              const canEditRsvp = Number.isFinite(startMs) && startMs - nowMs > 24 * 60 * 60 * 1000
 
               const isConfirmed = selectedMeetRsvpStatus === 'confirmed'
               const isDeclined = selectedMeetRsvpStatus === 'declined'
@@ -1997,6 +2489,7 @@ export default function CalendarView({ activityIds, onActivityClick, scheduleMee
               }
 
               const handleDecline = async () => {
+                if (!canEditRsvp) return
                 try {
                   setSelectedMeetRsvpLoading(true)
                   const { data: auth } = await supabase.auth.getUser()
@@ -2082,6 +2575,31 @@ export default function CalendarView({ activityIds, onActivityClick, scheduleMee
 
               const handleSuggestNewTime = () => {
                 if (!selectedMeetEvent?.coach_id) return
+                const durationMinutes = (() => {
+                  const a = new Date(selectedMeetEvent.start_time).getTime()
+                  const b = selectedMeetEvent.end_time ? new Date(selectedMeetEvent.end_time).getTime() : NaN
+                  if (!Number.isFinite(a) || !Number.isFinite(b)) return 60
+                  const mins = Math.round((b - a) / 60000)
+                  return mins > 0 ? mins : 60
+                })()
+
+                setRescheduleContext({
+                  eventId: String(selectedMeetEvent.id),
+                  coachId: String(selectedMeetEvent.coach_id),
+                  fromStart: String(selectedMeetEvent.start_time),
+                  fromEnd: selectedMeetEvent.end_time ? String(selectedMeetEvent.end_time) : null,
+                  durationMinutes,
+                  snapshot: {
+                    id: String(selectedMeetEvent.id),
+                    title: selectedMeetEvent.title ?? null,
+                    start_time: String(selectedMeetEvent.start_time),
+                    end_time: selectedMeetEvent.end_time ? String(selectedMeetEvent.end_time) : null,
+                    coach_id: selectedMeetEvent.coach_id ? String(selectedMeetEvent.coach_id) : null,
+                    meet_link: selectedMeetEvent.meet_link ? String(selectedMeetEvent.meet_link) : null,
+                    description: selectedMeetEvent.description ?? null,
+                  },
+                })
+
                 handlePickCoachForMeet(String(selectedMeetEvent.coach_id))
                 setMeetViewMode('week')
                 setMeetWeekStart(startOfWeek(start, { weekStartsOn: 1 }))
@@ -2090,20 +2608,68 @@ export default function CalendarView({ activityIds, onActivityClick, scheduleMee
 
               return (
                 <>
-                  <div className="mb-1 text-white font-semibold text-xl leading-snug break-words whitespace-normal">
+                  <div className="mb-0.5 text-white font-semibold text-xl leading-snug break-words whitespace-normal">
                     {selectedMeetEvent.title ? String(selectedMeetEvent.title) : 'Meet'}
                   </div>
 
+                  <div className="mt-2 flex items-center gap-2">
+                    <div className="w-8 h-8 rounded-full overflow-hidden bg-white/10 border border-white/10 flex-shrink-0">
+                      <Image
+                        src={coachAvatarUrl || '/placeholder.svg?height=64&width=64&query=coach'}
+                        alt={coachName}
+                        width={32}
+                        height={32}
+                        className="w-8 h-8 object-cover"
+                      />
+                    </div>
+                    <div className="text-sm font-medium text-white/60">{coachName}</div>
+                  </div>
+
                   <div className="mt-2 flex flex-wrap items-center gap-2">
-                    <div className="flex items-center gap-2 bg-black/30 border border-white/10 rounded-lg px-3 py-2 text-sm text-gray-200">
-                      <span className="font-medium">{dateLabel}</span>
-                    </div>
-                    <div className="flex items-center gap-2 bg-black/30 border border-white/10 rounded-lg px-3 py-2 text-sm text-gray-200">
-                      <span className="font-medium">{timeLabel}</span>
-                    </div>
-                    <div className="ml-auto px-3 py-2 rounded-lg text-sm font-semibold bg-[#FF7939]/10 text-[#FFB366] border border-[#FF7939]/40">
-                      {coachName}
-                    </div>
+                    {pendingReschedule ? (
+                      <>
+                        <div className="flex items-center gap-2 bg-black/30 border border-[#FF7939]/30 rounded-lg px-3 py-2 text-sm text-gray-200">
+                          <CalendarIcon className="h-4 w-4 text-[#FFB366]" />
+                          <span className="font-medium">{format(new Date(pendingReschedule.to_start_time), 'dd MMM yyyy', { locale: es })}</span>
+                        </div>
+                        <div className="flex items-center gap-2 bg-black/30 border border-[#FF7939]/30 rounded-lg px-3 py-2 text-sm text-gray-200">
+                          <Clock className="h-4 w-4 text-[#FFB366]" />
+                          <span className="font-medium">
+                            {(() => {
+                              const a = new Date(pendingReschedule.to_start_time)
+                              const b = pendingReschedule.to_end_time ? new Date(pendingReschedule.to_end_time) : null
+                              return `${format(a, 'HH:mm')}${b && !Number.isNaN(b.getTime()) ? ` – ${format(b, 'HH:mm')}` : ''}`
+                            })()}
+                          </span>
+                        </div>
+
+                        <div className="flex items-center gap-2 bg-black/30 border border-white/10 rounded-lg px-3 py-2 text-xs text-white/55">
+                          <CalendarIcon className="h-4 w-4 text-white/45" />
+                          <span className="line-through">{format(new Date(pendingReschedule.from_start_time), 'dd MMM yyyy', { locale: es })}</span>
+                        </div>
+                        <div className="flex items-center gap-2 bg-black/30 border border-white/10 rounded-lg px-3 py-2 text-xs text-white/55">
+                          <Clock className="h-4 w-4 text-white/45" />
+                          <span className="line-through">
+                            {(() => {
+                              const a = new Date(pendingReschedule.from_start_time)
+                              const b = pendingReschedule.from_end_time ? new Date(pendingReschedule.from_end_time) : null
+                              return `${format(a, 'HH:mm')}${b && !Number.isNaN(b.getTime()) ? ` – ${format(b, 'HH:mm')}` : ''}`
+                            })()}
+                          </span>
+                        </div>
+                      </>
+                    ) : (
+                      <>
+                        <div className="flex items-center gap-2 bg-black/30 border border-white/10 rounded-lg px-3 py-2 text-sm text-gray-200">
+                          <CalendarIcon className="h-4 w-4 text-white/60" />
+                          <span className="font-medium">{dateLabel}</span>
+                        </div>
+                        <div className="flex items-center gap-2 bg-black/30 border border-white/10 rounded-lg px-3 py-2 text-sm text-gray-200">
+                          <Clock className="h-4 w-4 text-white/60" />
+                          <span className="font-medium">{timeLabel}</span>
+                        </div>
+                      </>
+                    )}
                   </div>
 
                   <div className="mt-3 text-sm font-semibold text-white/90">
@@ -2125,12 +2691,26 @@ export default function CalendarView({ activityIds, onActivityClick, scheduleMee
                     </div>
                   )}
 
+                  {!canEditRsvp && !isConfirmed && !isDeclined && !isCancelled && (
+                    <div className="mt-2 text-xs text-white/60">
+                      Solo podés cambiar el estado si faltan más de 24hs para la meet.
+                    </div>
+                  )}
+
                   <div className="pt-4 flex flex-col gap-2">
-                    {!isConfirmed ? (
+                    {pendingReschedule ? (
+                      <button
+                        type="button"
+                        disabled
+                        className="w-full px-4 py-2.5 rounded-xl bg-zinc-800 text-white/80 text-sm font-semibold border border-white/15"
+                      >
+                        Solicitud enviada
+                      </button>
+                    ) : !isConfirmed ? (
                       <>
                         <button
                           type="button"
-                          disabled={selectedMeetRsvpLoading}
+                          disabled={selectedMeetRsvpLoading || !canEditRsvp}
                           onClick={handleAccept}
                           className="w-full px-4 py-2.5 rounded-xl bg-[#FF7939] text-black text-sm font-semibold hover:opacity-95 transition-opacity disabled:opacity-60"
                         >
@@ -2139,7 +2719,7 @@ export default function CalendarView({ activityIds, onActivityClick, scheduleMee
 
                         <button
                           type="button"
-                          disabled={selectedMeetRsvpLoading}
+                          disabled={selectedMeetRsvpLoading || !canEditRsvp}
                           onClick={handleSuggestNewTime}
                           className="w-full px-4 py-2.5 rounded-xl bg-zinc-800 text-white text-sm hover:bg-zinc-700 transition-colors disabled:opacity-60"
                         >
@@ -2148,11 +2728,17 @@ export default function CalendarView({ activityIds, onActivityClick, scheduleMee
 
                         <button
                           type="button"
-                          disabled={selectedMeetRsvpLoading}
-                          onClick={handleDecline}
+                          disabled={selectedMeetRsvpLoading || !canEditRsvp}
+                          onClick={() => {
+                            if (!confirmDeclineStep) {
+                              setConfirmDeclineStep(true)
+                              return
+                            }
+                            handleDecline()
+                          }}
                           className="w-full px-4 py-2.5 rounded-xl bg-zinc-900 text-white text-sm border border-white/15 hover:bg-zinc-800 transition-colors disabled:opacity-60"
                         >
-                          Rechazar
+                          {confirmDeclineStep ? 'Confirmar rechazo' : 'Rechazar'}
                         </button>
                       </>
                     ) : (
@@ -2225,6 +2811,11 @@ export default function CalendarView({ activityIds, onActivityClick, scheduleMee
                 return `${String(hh).padStart(2, '0')}:${String(mm).padStart(2, '0')}`
               })()}`
 
+              const canConfirm = (() => {
+                if (isPaidMeetFlow) return meetPurchasePaid
+                return creditsAvailable > 0
+              })()
+
               return (
                 <>
                   <div className="mt-3 flex flex-wrap items-center gap-2">
@@ -2278,23 +2869,91 @@ export default function CalendarView({ activityIds, onActivityClick, scheduleMee
                   </div>
 
                   <div className="mt-4">
-                    <div className="text-base font-semibold text-white">Esto consumirá 1 crédito</div>
-                    <div className="mt-1 text-sm text-white/70">
-                      Tenés <span className="text-white/90 font-semibold">{Number.isFinite(creditsAvailable) ? creditsAvailable : 0}</span> créditos disponibles con este coach.
+                    <div className="text-base font-semibold text-white">
+                      {isPaidMeetFlow ? 'Resumen de pago' : 'Esto consumirá 1 crédito'}
                     </div>
+
+                    {isPaidMeetFlow ? (
+                      <div className="mt-1 text-sm text-white/70">
+                        Total: <span className="text-white/90 font-semibold">${Number(purchaseContext?.price ?? 0) || 0}</span>
+                        {' '}· Duración:{' '}
+                        <span className="text-white/90 font-semibold">{Number(purchaseContext?.durationMinutes ?? 30) || 30} min</span>
+                      </div>
+                    ) : (
+                      <div className="mt-1 text-sm text-white/70">
+                        Tenés{' '}
+                        <span className="text-white/90 font-semibold">{Number.isFinite(creditsAvailable) ? creditsAvailable : 0}</span>
+                        {' '}créditos disponibles con este coach.
+                      </div>
+                    )}
                   </div>
 
-                  <div className="pt-4 flex flex-col gap-2">
+                  <div className="mt-4 flex flex-col gap-2">
                     <button
                       type="button"
-                      className="w-full px-4 py-2.5 rounded-xl bg-[#FF7939] text-black text-sm font-semibold hover:opacity-95 transition-opacity"
-                      onClick={() => {
-                        // TODO: crear la solicitud en DB (calendar_events + participants) vía RPC/endpoint.
-                        setSelectedMeetRequest(null)
+                      disabled={!canConfirm}
+                      className={
+                        canConfirm
+                          ? 'w-full px-4 py-2.5 rounded-xl bg-[#FF7939] text-black text-sm font-semibold hover:opacity-95 transition-opacity'
+                          : 'w-full px-4 py-2.5 rounded-xl bg-white/10 text-white/70 text-sm font-semibold border border-white/15 cursor-not-allowed'
+                      }
+                      onClick={async () => {
+                        if (!authUserId) return
+                        if (!selectedCoachId) return
+                        if (!canConfirm) return
+
+                        try {
+                          const startIso = new Date(`${selectedMeetRequest.dayKey}T${selectedMeetRequest.timeHHMM}:00`).toISOString()
+                          const duration = isPaidMeetFlow
+                            ? (Number(purchaseContext?.durationMinutes ?? 30) || 30)
+                            : 30
+                          const endIso = new Date(new Date(startIso).getTime() + duration * 60 * 1000).toISOString()
+
+                          const { data: newEvent, error: eventError } = await supabase
+                            .from('calendar_events')
+                            .insert({
+                              coach_id: selectedMeetRequest.coachId,
+                              client_id: authUserId,
+                              title: selectedMeetRequest.title,
+                              description: selectedMeetRequest.description || null,
+                              start_time: startIso,
+                              end_time: endIso,
+                              event_type: 'consultation',
+                              status: 'scheduled',
+                              activity_id: scheduleMeetContext?.activityId ? Number(scheduleMeetContext.activityId) : null,
+                            })
+                            .select('id')
+                            .single()
+
+                          if (eventError || !newEvent?.id) {
+                            return
+                          }
+
+                          await supabase
+                            .from('calendar_event_participants')
+                            .insert({
+                              event_id: newEvent.id,
+                              client_id: authUserId,
+                              rsvp_status: 'pending',
+                            })
+
+                          setSelectedMeetRequest(null)
+                          setMeetViewMode('month')
+                        } catch {
+                          // ignore
+                        }
                       }}
                     >
                       Confirmar solicitud
                     </button>
+
+                    {!canConfirm && (
+                      <div className="text-[11px] text-white/55">
+                        {isPaidMeetFlow
+                          ? 'Primero realizá el pago para confirmar el horario.'
+                          : 'No tenés créditos disponibles para solicitar este meet.'}
+                      </div>
+                    )}
 
                     <button
                       type="button"

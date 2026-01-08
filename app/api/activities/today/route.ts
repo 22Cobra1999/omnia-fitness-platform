@@ -1,5 +1,9 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { createRouteHandlerClient } from '../../../../lib/supabase/supabase-server';
+import { getSupabaseAdmin } from '@/lib/config/db';
+
+export const dynamic = 'force-dynamic'
+export const revalidate = 0
 
 export async function GET(request: NextRequest) {
   try {
@@ -488,22 +492,76 @@ export async function GET(request: NextRequest) {
     // Toda la información necesaria (nombre, macros, receta, minutos, ingredientes)
     // viene desde progreso_cliente_nutricion (campos JSONB: ejercicios_pendientes, macros, receta).
     let ejerciciosDetalles: any[] | null = null;
+    let recetasByEjercicioId: Record<string, { id: string; ejercicio_id: string; nombre: string | null; receta: string | null }> = {}
     if (categoria === 'nutricion') {
       console.log('🍽️ [API] Categoría nutrición: NO se consulta nutrition_program_details. Se usará SOLO progreso_cliente_nutricion (macros/receta/ejercicios_pendientes).', {
         ejercicioIds,
         tiene_macros: !!progressRecord && !!(progressRecord as any).macros,
         tiene_ingredientes: !!progressRecord && !!(progressRecord as any).ingredientes
       });
-      const ejercicioIdsForQuery = ejercicioIds.length > 0 ? ejercicioIds.map(id => String(id)) : ['0']
-      const { data: nutritionDetailsData, error: nutritionDetailsError } = await supabase
-        .from('nutrition_program_details')
-        .select('id, nombre, receta_id, video_url, video_file_name, recetas(receta)')
-        .in('id', ejercicioIdsForQuery)
+      const ejercicioIdsForQuery = (ejercicioIds || [])
+        .map((id: any) => {
+          const n = typeof id === 'number' ? id : parseInt(String(id || ''), 10)
+          return Number.isFinite(n) ? n : null
+        })
+        .filter((n: any) => n !== null)
 
-      if (nutritionDetailsError) {
-        console.error('❌ [API] Error consultando nutrition_program_details:', nutritionDetailsError)
+      const idsForQuerySafe = ejercicioIdsForQuery.length > 0 ? ejercicioIdsForQuery : [0]
+      // ⚠️ IMPORTANTE: esta lectura debe evitar RLS del cliente.
+      // Usamos service role para poder resolver nombre/receta aunque el usuario no tenga policy.
+      const adminSupabase = await getSupabaseAdmin();
+
+      // 1) Lookup directo en recetas por ejercicio_id (nuevo vínculo)
+      try {
+        const { data: recetasRows, error: recetasError } = await adminSupabase
+          .from('recetas')
+          .select('id, ejercicio_id, nombre, receta')
+          .in('ejercicio_id', idsForQuerySafe as any)
+
+        if (recetasError) {
+          console.error('❌ [API] Error consultando recetas por ejercicio_id:', recetasError)
+        } else {
+          recetasByEjercicioId = {}
+          ;(recetasRows || []).forEach((r: any) => {
+            const eid = r?.ejercicio_id != null ? String(r.ejercicio_id) : ''
+            if (!eid) return
+            recetasByEjercicioId[eid] = {
+              id: String(r?.id || ''),
+              ejercicio_id: eid,
+              nombre: r?.nombre == null ? null : String(r.nombre || ''),
+              receta: r?.receta == null ? null : String(r.receta || ''),
+            }
+          })
+
+          console.log('🍽️ [API] recetas lookup by ejercicio_id', {
+            ejercicioIds: idsForQuerySafe,
+            returnedCount: Array.isArray(recetasRows) ? recetasRows.length : 0,
+            sample: Array.isArray(recetasRows)
+              ? (recetasRows as any[]).slice(0, 10).map((r: any) => ({ ejercicio_id: r?.ejercicio_id, nombre: r?.nombre, receta: r?.receta ? 'present' : null }))
+              : [],
+          })
+        }
+      } catch (e) {
+        console.error('❌ [API] Error cargando recetas por ejercicio_id:', e)
       }
-      ejerciciosDetalles = nutritionDetailsData || []
+
+      // 2) Mantener nutrition_program_details SOLO para video_url/video_file_name (opcional)
+      try {
+        const { data: nutritionDetailsData, error: nutritionDetailsError } = await adminSupabase
+          .from('nutrition_program_details')
+          .select('id, video_url, video_file_name')
+          .in('id', idsForQuerySafe as any)
+
+        if (nutritionDetailsError) {
+          console.error('❌ [API] Error consultando nutrition_program_details (video):', nutritionDetailsError)
+          ejerciciosDetalles = []
+        } else {
+          ejerciciosDetalles = nutritionDetailsData || []
+        }
+      } catch (e) {
+        console.error('❌ [API] Error consultando nutrition_program_details (video) try/catch:', e)
+        ejerciciosDetalles = []
+      }
     } else {
       const tablaDetalles = 'ejercicios_detalles';
       const camposSelect = 'id, nombre_ejercicio, tipo, descripcion, video_url, calorias, equipo, body_parts, intensidad, detalle_series, duracion_min';
@@ -719,10 +777,10 @@ export async function GET(request: NextRequest) {
       if (categoria === 'nutricion') {
         macrosData = macrosParsed[key] || null;
         const detalleIdStr = String(detalle.ejercicio_id)
-        const nutritionRow = (ejerciciosDetalles || []).find((r: any) => String(r?.id) === detalleIdStr)
-        const recetaText = nutritionRow?.recetas?.receta || null
+        const recetaLookup = recetasByEjercicioId[detalleIdStr]
+        const recetaText = recetaLookup?.receta || null
         const recetaData: any = {
-          nombre: nutritionRow?.nombre || null,
+          nombre: recetaLookup?.nombre || null,
           receta: recetaText,
           minutos: null
         }
@@ -750,12 +808,14 @@ export async function GET(request: NextRequest) {
       }
       
       // Obtener nombre
-      let nombreFinal: string;
+      let nombreFinal = "";
       if (categoria === 'nutricion') {
         // Para nutrición: nombre viene de recetaData.nombre
         const detalleIdStr = String(detalle.ejercicio_id)
-        const nutritionRow = (ejerciciosDetalles || []).find((r: any) => String(r?.id) === detalleIdStr)
-        nombreFinal = nutritionRow?.nombre || `Plato ${detalle.ejercicio_id}`;
+        const recetaLookup = recetasByEjercicioId[detalleIdStr]
+        nombreFinal =
+          recetaLookup?.nombre ||
+          `Plato ${detalle.ejercicio_id}`;
       } else {
         // Para fitness: nombre viene de ejercicio
         nombreFinal = ejercicio?.nombre_ejercicio || `Ejercicio ${detalle.ejercicio_id}`;
@@ -792,6 +852,8 @@ export async function GET(request: NextRequest) {
         id: `${(progressRecord ? (progressRecord as any).id : 0) || 0}-${detalle.ejercicio_id}-${key}`,
         exercise_id: detalle.ejercicio_id,
         nombre_ejercicio: nombreFinal,
+        nombre_plato: categoria === 'nutricion' ? nombreFinal : null,
+        title: nombreFinal,
         name: nombreFinal,
         tipo: categoria,
         type: categoria,
@@ -831,8 +893,11 @@ export async function GET(request: NextRequest) {
           ? Number(macrosData.grasas)
           : null;
         const detalleIdStr = String(detalle.ejercicio_id)
-        const nutritionRow = (ejerciciosDetalles || []).find((r: any) => String(r?.id) === detalleIdStr)
-        transformedExercise.receta = nutritionRow?.recetas?.receta || null;
+        const recetaLookup = recetasByEjercicioId[detalleIdStr]
+        transformedExercise.receta = recetaLookup?.receta || null;
+        // Nombre del plato: fuente de verdad recetas.nombre (migración), fallback temporal a nutrition_program_details.nombre
+        transformedExercise.nombre =
+          recetaLookup?.nombre || transformedExercise.nombre
         // Los ingredientes vienen directamente del campo ingredientes de progreso_cliente_nutricion
         transformedExercise.ingredientes = ingredientesData || null;
       }

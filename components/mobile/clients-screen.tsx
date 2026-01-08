@@ -504,17 +504,10 @@ export function ClientsScreen() {
 
             {/* Estadísticas - fondo negro, sticky arriba */}
             <div className="flex justify-between items-center bg-black px-4 py-3 border-b border-zinc-800 sticky top-0 z-20">
-              <button
-                className="text-center flex-1"
-                onClick={() => {
-                  preserveModalScrollPosition(() => {
-                    setActiveClientPanel((prev) => (prev === 'progress' ? null : 'progress'))
-                  })
-                }}
-              >
+              <div className="text-center flex-1">
                 <div className="text-lg font-bold text-[#FF7939]">{clientDetail?.client?.progress || selectedClient.progress}%</div>
                 <div className="text-xs text-gray-400">Progreso</div>
-              </button>
+              </div>
 
               <button
                 className="text-center flex-1 border-l border-zinc-800"
@@ -544,19 +537,12 @@ export function ClientsScreen() {
                 <div className="text-xs text-gray-400">To Do</div>
               </button>
 
-              <button
-                className="text-center flex-1 border-l border-zinc-800"
-                onClick={() => {
-                  preserveModalScrollPosition(() => {
-                    setActiveClientPanel((prev) => (prev === 'revenue' ? null : 'revenue'))
-                  })
-                }}
-              >
+              <div className="text-center flex-1 border-l border-zinc-800">
                 <div className="text-lg font-bold text-white">
                   ${clientDetail?.client?.totalRevenue || selectedClient.totalRevenue}
                 </div>
                 <div className="text-xs text-gray-400">Ingresos</div>
-              </button>
+              </div>
             </div>
 
             {/* Panel inline debajo de métricas (sin scroll) */}

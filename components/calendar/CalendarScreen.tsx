@@ -13,7 +13,17 @@ export function CalendarScreen({ onTabChange }: CalendarScreenProps) {
   const [activityIds, setActivityIds] = useState<string[]>([])
   const [loading, setLoading] = useState(true)
   const [scheduleMeetContext, setScheduleMeetContext] = useState<
-    | { coachId: string; activityId?: string; source?: string }
+    | {
+        coachId: string
+        activityId?: string
+        source?: string
+        purchase?: {
+          kind: 'consultation'
+          durationMinutes: number
+          price: number
+          label: string
+        }
+      }
     | null
   >(null)
   const supabase = useMemo(() => createClient(), [])
@@ -73,7 +83,17 @@ export function CalendarScreen({ onTabChange }: CalendarScreenProps) {
         setScheduleMeetContext(null)
         return
       }
-      setScheduleMeetContext({ coachId, activityId, source: parsed?.source })
+      const purchaseRaw = parsed?.purchase
+      const purchase = purchaseRaw && typeof purchaseRaw === 'object'
+        ? {
+            kind: 'consultation' as const,
+            durationMinutes: Number((purchaseRaw as any).durationMinutes ?? 0) || 0,
+            price: Number((purchaseRaw as any).price ?? 0) || 0,
+            label: String((purchaseRaw as any).label || 'Meet')
+          }
+        : undefined
+
+      setScheduleMeetContext({ coachId, activityId, source: parsed?.source, purchase })
     } catch (e) {
       setScheduleMeetContext(null)
     }

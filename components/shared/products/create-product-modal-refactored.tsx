@@ -5,9 +5,9 @@ import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Textarea } from "@/components/ui/textarea"
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
+import { Select, SelectContent, SelectGroup, SelectItem, SelectLabel, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Switch } from "@/components/ui/switch"
-import { ChevronLeft, ChevronRight, ChevronDown, Plus, X, Upload, Calendar, Clock, Users, FileText, Eye, Edit, Check, Video, Play, Image as ImageIcon, Globe, MapPin, Trash2, Target, DollarSign, Eye as EyeIcon, EyeOff, Pencil, Flame, Lock, Unlock, Coins, MonitorSmartphone, Loader2, RotateCcw, RefreshCw, ExternalLink, UtensilsCrossed, Zap } from "lucide-react"
+import { ChevronLeft, ChevronRight, ChevronDown, Plus, X, Upload, Calendar, Clock, Users, FileText, Eye, Edit, Check, Video, Play, Image as ImageIcon, Globe, MapPin, Trash2, Target, DollarSign, Eye as EyeIcon, EyeOff, Pencil, Flame, Lock, Unlock, Coins, MonitorSmartphone, Loader2, RotateCcw, RefreshCw, ExternalLink, UtensilsCrossed, Zap, FileUp, Trash } from "lucide-react"
 import { motion, AnimatePresence } from "framer-motion"
 import { ProductPreviewCard } from '@/components/shared/products/product-preview-card'
 import ActivityCard from '@/components/shared/activities/ActivityCard'
@@ -41,38 +41,90 @@ interface CreateProductModalProps {
 type ProductType = 'workshop' | 'program' | 'document'
 type ProgramSubType = 'fitness' | 'nutrition'
 
-const FITNESS_OBJECTIVE_OPTIONS = [
-  'Pérdida de peso',
-  'Ganancia muscular',
-  'Resistencia',
-  'Flexibilidad',
-  'Rehabilitación',
-  'Bienestar general',
-  'Movilidad',
-  'Mindfulness',
-  'Fuerza',
-  'Velocidad',
-  'Coordinación',
-  'Equilibrio',
-  'Potencia'
-]
+const FITNESS_OBJECTIVE_GROUPS = {
+  Entrenamiento: [
+    'Fuerza',
+    'Pérdida de peso',
+    'Ganancia muscular',
+    'Resistencia',
+    'Potencia',
+    'Velocidad',
+    'Movilidad',
+    'Flexibilidad',
+    'Coordinación',
+    'Equilibrio'
+  ],
+  Deporte: [
+    'Fútbol',
+    'Running',
+    'Tenis',
+    'Básquet',
+    'Natación',
+    'Ciclismo',
+    'Yoga'
+  ]
+} as const
 
-// Opciones específicas de nutrición: más alineadas a tipos de dieta / enfoque alimentario
-const NUTRITION_OBJECTIVE_OPTIONS = [
-  'Déficit calórico',
-  'Mantenimiento',
-  'Superávit calórico',
-  'Baja en carbohidratos',
-  'Keto',
-  'Paleo',
-  'Vegana',
-  'Vegetariana',
-  'Mediterránea',
-  'Balanceada',
-  'Mejorar hábitos',
-  'Salud digestiva',
-  'Rendimiento deportivo'
-]
+const NUTRITION_OBJECTIVE_GROUPS = {
+  Objetivo: [
+    'Pérdida de peso',
+    'Ganancia muscular',
+    'Mejorar hábitos',
+    'Rendimiento deportivo'
+  ],
+  Dieta: [
+    'Balanceada',
+    'Mediterránea',
+    'Baja en carbohidratos',
+    'Keto',
+    'Paleo',
+    'Vegana',
+    'Vegetariana'
+  ],
+  Enfoque: ['Salud digestiva']
+} as const
+
+const FITNESS_RESTRICTION_GROUPS = {
+  Lesión: ['Rodilla', 'Hombro', 'Espalda', 'Tobillo', 'Muñeca'],
+  Condición: ['Hipertensión', 'Embarazo']
+} as const
+
+const NUTRITION_RESTRICTION_GROUPS = {
+  Alergia: ['Gluten', 'Lactosa', 'Maní', 'Frutos secos', 'Huevos', 'Mariscos'],
+  Preferencia: ['Vegana', 'Vegetariana']
+} as const
+
+const splitSemicolonList = (value: unknown): string[] => {
+  if (Array.isArray(value)) {
+    return Array.from(
+      new Set(
+        value
+          .map((v) => String(v ?? '').trim())
+          .filter((v) => v.length > 0)
+      )
+    )
+  }
+
+  if (typeof value === 'string') {
+    return Array.from(
+      new Set(
+        value
+          .split(';')
+          .map((v) => v.trim())
+          .filter((v) => v.length > 0)
+      )
+    )
+  }
+
+  return []
+}
+
+const groupsToSelectItems = (groups: Record<string, readonly string[]>) => {
+  return Object.entries(groups).map(([label, options]) => ({
+    label,
+    options: Array.from(options)
+  }))
+}
 
 const INTENSITY_CHOICES = [
   { value: 'beginner', label: 'Principiante', flames: 1 },
@@ -150,6 +202,10 @@ export default function CreateProductModal({ isOpen, onClose, editingProduct, in
   // Estado para selección de media de portada
   const [isMediaModalOpen, setIsMediaModalOpen] = useState(false)
   const [mediaModalType, setMediaModalType] = useState<'image' | 'video'>('image')
+
+  // Estado para selección de PDFs (Material del taller)
+  const [isPdfModalOpen, setIsPdfModalOpen] = useState(false)
+  const [pdfModalContext, setPdfModalContext] = useState<{ scope: 'general' } | { scope: 'topic'; topicTitle: string } | null>(null)
 
   // Estado para lista inline de media (imagen / video) en el paso 3
   type InlineMediaType = 'image' | 'video'
@@ -850,6 +906,7 @@ export default function CreateProductModal({ isOpen, onClose, editingProduct, in
     included_meet_credits: 0 as number,
     is_public: false,
     objetivos: [] as string[],
+    restricciones: [] as string[],
     capacity: 'ilimitada' as string,
     stockQuantity: '0' as string,
     dietType: '' as string,
@@ -879,6 +936,55 @@ export default function CreateProductModal({ isOpen, onClose, editingProduct, in
     }
     
     setGeneralForm(newForm)
+  }
+
+  const [objetivosToAdd, setObjetivosToAdd] = useState('')
+  const [restriccionesToAdd, setRestriccionesToAdd] = useState('')
+
+  const objectiveOptions = useMemo(() => {
+    return productCategory === 'nutricion'
+      ? groupsToSelectItems(NUTRITION_OBJECTIVE_GROUPS)
+      : groupsToSelectItems(FITNESS_OBJECTIVE_GROUPS)
+  }, [productCategory])
+
+  const restrictionOptions = useMemo(() => {
+    return productCategory === 'nutricion'
+      ? groupsToSelectItems(NUTRITION_RESTRICTION_GROUPS)
+      : groupsToSelectItems(FITNESS_RESTRICTION_GROUPS)
+  }, [productCategory])
+
+  const addObjetivo = (value: string) => {
+    const v = String(value || '').trim()
+    if (!v) return
+    setGeneralFormWithLogs({
+      ...generalForm,
+      objetivos: Array.from(new Set([...(generalForm.objetivos || []), v]))
+    })
+  }
+
+  const removeObjetivo = (value: string) => {
+    const next = (generalForm.objetivos || []).filter((x) => x !== value)
+    setGeneralFormWithLogs({
+      ...generalForm,
+      objetivos: next
+    })
+  }
+
+  const addRestriccion = (value: string) => {
+    const v = String(value || '').trim()
+    if (!v) return
+    setGeneralFormWithLogs({
+      ...generalForm,
+      restricciones: Array.from(new Set([...(generalForm.restricciones || []), v]))
+    })
+  }
+
+  const removeRestriccion = (value: string) => {
+    const next = (generalForm.restricciones || []).filter((x) => x !== value)
+    setGeneralFormWithLogs({
+      ...generalForm,
+      restricciones: next
+    })
   }
 
   useEffect(() => {
@@ -1557,17 +1663,14 @@ export default function CreateProductModal({ isOpen, onClose, editingProduct, in
     inlineFileInputRef.current.click()
   }
 
-  const handleMediaSelection = (mediaUrl: string, mediaType: 'image' | 'video', mediaFile?: File) => {
+  const handleMediaSelection = (mediaUrl: string, mediaType: 'image' | 'video' | 'pdf', mediaFile?: File) => {
+    if (mediaType === 'pdf') {
+      return
+    }
     console.log('🎯 CREATE-PRODUCT-MODAL: Media seleccionada:', { 
       mediaUrl, 
       mediaType, 
-      isNewFile: !!mediaFile,
-      isTemporaryUrl: mediaUrl.startsWith('blob:'),
-      mediaFile: mediaFile ? {
-        name: mediaFile.name,
-        size: mediaFile.size,
-        type: mediaFile.type
-      } : null
+      hasFile: !!mediaFile
     })
     
     if (mediaType === 'image') {
@@ -1599,6 +1702,48 @@ export default function CreateProductModal({ isOpen, onClose, editingProduct, in
     }
     console.log('✅ CREATE-PRODUCT-MODAL: Media guardada correctamente en estado local')
     setIsMediaModalOpen(false)
+  }
+
+  const truncateLabel = (value: string, max = 20) => {
+    const v = String(value || '')
+    if (v.length <= max) return v
+    return `${v.slice(0, max)}...`
+  }
+
+  const openPdfGallery = (context: { scope: 'general' } | { scope: 'topic'; topicTitle: string }) => {
+    setPdfModalContext(context)
+    setIsPdfModalOpen(true)
+  }
+
+  const handlePdfSelected = (mediaUrl: string, _mediaType: 'image' | 'video' | 'pdf', mediaFile?: File) => {
+    if (!pdfModalContext) {
+      setIsPdfModalOpen(false)
+      return
+    }
+
+    if (pdfModalContext.scope === 'general') {
+      setWorkshopMaterial(prev => ({
+        ...prev,
+        pdfFile: mediaFile || null,
+        pdfUrl: mediaFile ? null : mediaUrl
+      }))
+    } else {
+      const topicTitle = pdfModalContext.topicTitle
+      setWorkshopMaterial(prev => ({
+        ...prev,
+        topicPdfs: {
+          ...(prev.topicPdfs || {}),
+          [topicTitle]: {
+            file: mediaFile || null,
+            url: mediaFile ? null : mediaUrl,
+            fileName: mediaFile ? mediaFile.name : truncateLabel(String(mediaUrl || 'PDF'))
+          }
+        }
+      }))
+    }
+
+    setIsPdfModalOpen(false)
+    setPdfModalContext(null)
   }
 
   const clearFieldError = (fieldName: string) => {
@@ -1976,6 +2121,7 @@ export default function CreateProductModal({ isOpen, onClose, editingProduct, in
         workshopMaterial: selectedType === 'workshop' ? finalWorkshopMaterial : null,
         // ✅ ENVIAR OBJETIVOS COMO ARRAY (la API los guardará en workshop_type)
         objetivos: generalForm.objetivos && generalForm.objetivos.length > 0 ? generalForm.objetivos : [],
+        restricciones: generalForm.restricciones && generalForm.restricciones.length > 0 ? generalForm.restricciones : [],
         // ✅ WORKSHOP_TYPE (objetivos se manejan por separado)
         workshop_type: null,
         // ✅ INCLUIR DATOS DE UBICACIÓN PARA MODALIDAD PRESENCIAL
@@ -3439,7 +3585,7 @@ export default function CreateProductModal({ isOpen, onClose, editingProduct, in
         throw new Error('Error al cargar datos del taller')
       }
       
-      const { success, data: tallerDetalles } = await response.json()
+      const { success, data: tallerDetalles, calendarEvents } = await response.json()
       console.log('📊 Datos del taller cargados desde taller_detalles:', tallerDetalles)
       
       if (success && Array.isArray(tallerDetalles)) {
@@ -3453,6 +3599,29 @@ export default function CreateProductModal({ isOpen, onClose, editingProduct, in
           duration: number
           isPrimary?: boolean
         }> = []
+
+        const calculateDuration = (startTime?: string, endTime?: string) => {
+          try {
+            if (!startTime || !endTime) return 0
+            const [startHour, startMin] = String(startTime).split(':').map((n) => parseInt(n, 10))
+            const [endHour, endMin] = String(endTime).split(':').map((n) => parseInt(n, 10))
+            if (
+              !Number.isFinite(startHour) ||
+              !Number.isFinite(startMin) ||
+              !Number.isFinite(endHour) ||
+              !Number.isFinite(endMin)
+            ) {
+              return 0
+            }
+            const startMinutes = startHour * 60 + startMin
+            const endMinutes = endHour * 60 + endMin
+            const diffMinutes = endMinutes - startMinutes
+            if (!Number.isFinite(diffMinutes) || diffMinutes <= 0) return 0
+            return Math.round((diffMinutes / 60) * 10) / 10
+          } catch {
+            return 0
+          }
+        }
         
         // Extraer todas las fechas existentes para verificar si ya pasaron
         const allExistingDates: string[] = []
@@ -3460,20 +3629,83 @@ export default function CreateProductModal({ isOpen, onClose, editingProduct, in
         // Procesar cada tema de taller
         tallerDetalles.forEach((tema: any) => {
           console.log('🎯 Procesando tema:', tema.nombre)
-          
-          // Procesar horarios originales
-          if (tema.originales?.fechas_horarios && Array.isArray(tema.originales.fechas_horarios)) {
-            tema.originales.fechas_horarios.forEach((horario: any) => {
-              if (horario.fecha) {
-                allExistingDates.push(horario.fecha)
+
+          // Procesar horarios originales (puede venir como JSON string desde la BD)
+          let originales = tema.originales
+          try {
+            if (typeof originales === 'string') {
+              const trimmed = originales.trim()
+              if (trimmed) {
+                originales = JSON.parse(trimmed)
               }
+            }
+          } catch (e) {
+            console.warn('⚠️ No se pudo parsear tema.originales, se ignora:', {
+              tema: tema?.nombre,
+              originalesRaw: typeof tema?.originales === 'string' ? tema.originales.slice(0, 80) : tema?.originales,
+              error: e
+            })
+            originales = null
+          }
+
+          // Normalizar múltiples formatos históricos
+          // - { fechas_horarios: [...] }
+          // - { fechas_horarios: "{...}" } (string)
+          // - [ {fecha,hora_inicio,hora_fin,...}, ... ]
+          // - { originales: { fechas_horarios: [...] } }
+          let fechasHorarios: any[] | null = null
+          try {
+            if (Array.isArray(originales)) {
+              fechasHorarios = originales
+            } else if (originales?.fechas_horarios) {
+              let fh = originales.fechas_horarios
+              if (typeof fh === 'string') {
+                const trimmed = fh.trim()
+                if (trimmed) {
+                  fh = JSON.parse(trimmed)
+                }
+              }
+              if (Array.isArray(fh)) fechasHorarios = fh
+              else if (fh?.fechas_horarios && Array.isArray(fh.fechas_horarios)) fechasHorarios = fh.fechas_horarios
+            } else if (originales?.originales?.fechas_horarios && Array.isArray(originales.originales.fechas_horarios)) {
+              fechasHorarios = originales.originales.fechas_horarios
+            }
+          } catch (e) {
+            console.warn('⚠️ No se pudo normalizar fechas_horarios:', { tema: tema?.nombre, error: e })
+            fechasHorarios = null
+          }
+
+          if (!fechasHorarios) {
+            console.log('⚠️ Tema sin fechas_horarios detectables:', {
+              tema: tema?.nombre,
+              originalesType: Array.isArray(originales) ? 'array' : typeof originales,
+              originalesKeys: originales && typeof originales === 'object' ? Object.keys(originales) : null,
+              originalesSample: (() => {
+                try {
+                  if (typeof originales === 'string') return originales.slice(0, 120)
+                  return originales
+                } catch {
+                  return null
+                }
+              })()
+            })
+          }
+
+          if (fechasHorarios && Array.isArray(fechasHorarios)) {
+            fechasHorarios.forEach((horario: any) => {
+              const fecha = horario?.fecha
+              const horaInicio = horario?.hora_inicio
+              const horaFin = horario?.hora_fin
+              if (!fecha || !horaInicio || !horaFin) return
+
+              allExistingDates.push(fecha)
               sessions.push({
                 title: tema.nombre,
                 description: tema.descripcion || '',
-                date: horario.fecha,
-                startTime: horario.hora_inicio,
-                endTime: horario.hora_fin,
-                duration: 2, // Duración calculada por diferencia de horas
+                date: fecha,
+                startTime: horaInicio,
+                endTime: horaFin,
+                duration: calculateDuration(horaInicio, horaFin),
                 isPrimary: true
               })
             })
@@ -3481,6 +3713,62 @@ export default function CreateProductModal({ isOpen, onClose, editingProduct, in
         })
         
         console.log('✅ Sesiones procesadas desde taller_detalles:', sessions)
+
+        // Fallback: si taller_detalles no tiene horarios, usar calendar_events (workshop)
+        if (sessions.length === 0 && Array.isArray(calendarEvents) && calendarEvents.length > 0) {
+          const formatDateToLocalString = (date: Date): string => {
+            const year = date.getFullYear()
+            const month = String(date.getMonth() + 1).padStart(2, '0')
+            const day = String(date.getDate()).padStart(2, '0')
+            return `${year}-${month}-${day}`
+          }
+
+          const formatTimeHHMM = (date: Date): string => {
+            const hh = String(date.getHours()).padStart(2, '0')
+            const mm = String(date.getMinutes()).padStart(2, '0')
+            return `${hh}:${mm}`
+          }
+
+          const fromCalendar: typeof sessions = []
+          const extractedDates: string[] = []
+
+          calendarEvents.forEach((ev: any) => {
+            try {
+              const start = ev?.start_time ? new Date(ev.start_time) : null
+              const end = ev?.end_time ? new Date(ev.end_time) : null
+              if (!start || !end || isNaN(start.getTime()) || isNaN(end.getTime())) return
+
+              const titleRaw = String(ev?.title || '').trim()
+              const topicTitle = titleRaw.replace(/^taller\s*:\s*/i, '').trim() || 'Sin título'
+              const dateStr = formatDateToLocalString(start)
+              const startTime = formatTimeHHMM(start)
+              const endTime = formatTimeHHMM(end)
+
+              extractedDates.push(dateStr)
+              fromCalendar.push({
+                title: topicTitle,
+                description: '',
+                date: dateStr,
+                startTime,
+                endTime,
+                duration: calculateDuration(startTime, endTime),
+                isPrimary: true
+              })
+            } catch {
+              return
+            }
+          })
+
+          if (fromCalendar.length > 0) {
+            console.log('♻️ Fallback calendar_events → sessions:', {
+              count: fromCalendar.length,
+              sample: fromCalendar.slice(0, 3)
+            })
+            sessions.push(...fromCalendar)
+            allExistingDates.push(...extractedDates)
+          }
+        }
+
         setWorkshopSchedule(sessions)
         setExistingWorkshopDates(allExistingDates)
         
@@ -3838,17 +4126,18 @@ export default function CreateProductModal({ isOpen, onClose, editingProduct, in
       }
 
       setGeneralFormWithLogs({
-        ...generalForm,
-        name: editingProduct.name || '',
-        description: editingProduct.description || '',
-        price: editingProduct.price?.toString() || '0',
+        name: editingProduct.name,
+        description: editingProduct.description,
+        price: String(editingProduct.price || ''),
         image: imageUrl ? { url: imageUrl } : null,
         videoUrl: editingProduct.video_url || '',
         modality: normalizeModality((editingProduct as any).modality),
-        included_meet_credits: typeof (editingProduct as any).included_meet_credits === 'number'
-          ? (editingProduct as any).included_meet_credits
+        included_meet_credits: editingProduct.modality === 'workshop'
+          ? 0
           : parseInt(String((editingProduct as any).included_meet_credits ?? '0'), 10) || 0,
         is_public: editingProduct.is_public !== false,
+        objetivos: splitSemicolonList((editingProduct as any).objetivos),
+        restricciones: splitSemicolonList((editingProduct as any).restricciones),
         capacity: capacityType,
         stockQuantity: stockQuantity,
         location_name: (editingProduct as any).location_name || '',
@@ -3897,7 +4186,7 @@ export default function CreateProductModal({ isOpen, onClose, editingProduct, in
           initial={{ opacity: 0 }}
           animate={{ opacity: 1 }}
           exit={{ opacity: 0 }}
-          className="fixed inset-0 bg-black/60 backdrop-blur-sm z-50 flex items-center justify-center p-4 pb-[calc(env(safe-area-inset-bottom)+96px)] sm:pb-4"
+          className="fixed inset-0 bg-black z-40 flex items-center justify-center px-4 pt-20 pb-16 sm:pt-16 sm:pb-16"
           onClick={(e) => {
             // Cerrar solo si se hace click en el overlay, no en el modal
             if (e.target === e.currentTarget) {
@@ -3909,11 +4198,11 @@ export default function CreateProductModal({ isOpen, onClose, editingProduct, in
             initial={{ scale: 0.95, opacity: 0 }}
             animate={{ scale: 1, opacity: 1 }}
             exit={{ scale: 0.95, opacity: 0 }}
-            className="bg-[#0B0B0B] rounded-2xl max-w-4xl w-full max-h-[90vh] overflow-hidden flex flex-col border border-white/10 shadow-2xl"
+            className="bg-[#0B0B0B] rounded-2xl max-w-4xl w-full h-full overflow-hidden flex flex-col border border-white/10 shadow-2xl"
             onClick={(e) => e.stopPropagation()}
           >
             {/* Header */}
-            <div className="flex items-center justify-between p-6 border-b border-white/10">
+            <div className="sticky top-0 z-50 bg-[#0b0b0b]/95 backdrop-blur-md h-14 sm:h-20 flex items-center justify-between px-4 sm:px-6 border-b border-white/10">
               <div className="flex items-center gap-4">
                 <button
                   onClick={() => onClose(false)}
@@ -3921,7 +4210,7 @@ export default function CreateProductModal({ isOpen, onClose, editingProduct, in
                 >
                   <X className="h-5 w-5" />
                 </button>
-                <h2 className="text-xl font-bold text-white">
+                <h2 className="text-base sm:text-lg font-bold text-white truncate whitespace-nowrap">
                   {stepTitle}
                 </h2>
               </div>
@@ -3950,7 +4239,7 @@ export default function CreateProductModal({ isOpen, onClose, editingProduct, in
             </div>
 
             {/* Contenido del modal - Scrollable */}
-            <div className="flex-1 overflow-y-auto p-6">
+            <div className="flex-1 overflow-y-auto p-4 sm:p-6">
               {/* Paso 1: Tipo de Producto */}
               {currentStep === 'type' && (
                 <div className="space-y-4">
@@ -4053,6 +4342,16 @@ export default function CreateProductModal({ isOpen, onClose, editingProduct, in
                 onClose={() => setIsMediaModalOpen(false)}
                 onMediaSelected={handleMediaSelection}
                 mediaType={mediaModalType}
+              />
+
+              <MediaSelectionModal
+                isOpen={isPdfModalOpen}
+                onClose={() => {
+                  setIsPdfModalOpen(false)
+                  setPdfModalContext(null)
+                }}
+                onMediaSelected={handlePdfSelected}
+                mediaType={'pdf'}
               />
 
               {/* Paso 2: Categoría y entrega (programas y documentos) */}
@@ -4161,7 +4460,7 @@ export default function CreateProductModal({ isOpen, onClose, editingProduct, in
                       </div>
                     </div>
 
-                    {selectedType !== 'workshop' && (
+                    {(selectedType === 'program' || selectedType === 'document') && (
                       <div className="rounded-lg border border-white/10 bg-black p-4">
                         <div className="flex items-center justify-between">
                           <div className="space-y-1">
@@ -4349,10 +4648,100 @@ export default function CreateProductModal({ isOpen, onClose, editingProduct, in
                     </div>
                   </div>
 
-                  <div className="rounded-xl border border-white/10 bg-black p-4">
+                  <div className="space-y-2">
+                    <div className="text-sm font-semibold text-white">Objetivos</div>
+                    <div className="flex items-center gap-2">
+                      <Select
+                        value={objetivosToAdd}
+                        onValueChange={(v) => {
+                          setObjetivosToAdd(v)
+                          addObjetivo(v)
+                          setObjetivosToAdd('')
+                        }}
+                      >
+                        <SelectTrigger className="bg-black border-white/10 text-white">
+                          <SelectValue placeholder="Seleccionar objetivo" />
+                        </SelectTrigger>
+                        <SelectContent className="bg-black border-white/10 text-white">
+                          {objectiveOptions.map((group) => (
+                            <React.Fragment key={group.label}>
+                              <SelectGroup>
+                                <SelectLabel className="text-white/70">{group.label}</SelectLabel>
+                                {group.options.map((opt) => (
+                                  <SelectItem key={`${group.label}-${opt}`} value={opt} className="text-white">
+                                    {opt}
+                                  </SelectItem>
+                                ))}
+                              </SelectGroup>
+                            </React.Fragment>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                    </div>
+                    <div className="flex gap-2 overflow-x-auto pb-1">
+                      {(generalForm.objetivos || []).map((obj) => (
+                        <button
+                          key={obj}
+                          type="button"
+                          onClick={() => removeObjetivo(obj)}
+                          className="bg-[#FF7939]/20 text-[#FF7939] text-xs px-3 py-1.5 rounded-full font-medium border border-[#FF7939]/30 whitespace-nowrap flex-shrink-0"
+                          title="Eliminar"
+                        >
+                          {obj}
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+
+                  <div className="space-y-2">
+                    <div className="text-sm font-semibold text-white">Restricciones</div>
+                    <div className="flex items-center gap-2">
+                      <Select
+                        value={restriccionesToAdd}
+                        onValueChange={(v) => {
+                          setRestriccionesToAdd(v)
+                          addRestriccion(v)
+                          setRestriccionesToAdd('')
+                        }}
+                      >
+                        <SelectTrigger className="bg-black border-white/10 text-white">
+                          <SelectValue placeholder="Seleccionar restricción" />
+                        </SelectTrigger>
+                        <SelectContent className="bg-black border-white/10 text-white">
+                          {restrictionOptions.map((group) => (
+                            <React.Fragment key={group.label}>
+                              <SelectGroup>
+                                <SelectLabel className="text-white/70">{group.label}</SelectLabel>
+                                {group.options.map((opt) => (
+                                  <SelectItem key={`${group.label}-${opt}`} value={opt} className="text-white">
+                                    {opt}
+                                  </SelectItem>
+                                ))}
+                              </SelectGroup>
+                            </React.Fragment>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                    </div>
+                    <div className="flex gap-2 overflow-x-auto pb-1">
+                      {(generalForm.restricciones || []).map((r) => (
+                        <button
+                          key={r}
+                          type="button"
+                          onClick={() => removeRestriccion(r)}
+                          className="bg-white/10 text-white/80 text-xs px-3 py-1.5 rounded-full font-medium border border-white/10 whitespace-nowrap flex-shrink-0"
+                          title="Eliminar"
+                        >
+                          {r}
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+
+                  <div className="space-y-2">
                     <div className="text-sm font-semibold text-white">Cupos × Precio − Comisión = Total</div>
 
-                    <div className="mt-3 rounded-lg border border-white/10 bg-black/40 p-3">
+                    <div className="rounded-lg border border-white/10 bg-black/20 p-3">
                       <div className="grid grid-cols-12 gap-2 items-center text-sm">
                         <button
                           type="button"
@@ -4377,13 +4766,27 @@ export default function CreateProductModal({ isOpen, onClose, editingProduct, in
 
                         <span className="col-span-1 text-gray-500 text-center">×</span>
 
-                        <Input
-                          value={generalForm.price}
-                          onChange={(e) => handlePriceChange(e.target.value)}
-                          onBlur={handlePriceBlur}
-                          placeholder="0.00"
-                          className="col-span-5 sm:col-span-3 h-10 bg-black border-white/10 text-white placeholder:text-gray-600"
-                        />
+                        <div className="col-span-5 sm:col-span-3 flex items-center h-10 rounded-md border border-white/10 bg-black px-3">
+                          <span className="text-white/60 mr-2">$</span>
+                          <input
+                            value={generalForm.price}
+                            onChange={(e) => handlePriceChange(e.target.value)}
+                            onBlur={handlePriceBlur}
+                            placeholder="0.00"
+                            className="w-full bg-transparent outline-none text-white placeholder:text-gray-600"
+                          />
+                        </div>
+
+                        <div className="col-span-12 flex items-center justify-center pt-2">
+                          <span className="text-white/70 font-medium">
+                            Cupos{' '}
+                            {generalForm.capacity === 'ilimitada'
+                              ? '∞'
+                              : (generalForm.stockQuantity || '0')}
+                            {' '}×{' '}
+                            ${generalForm.price || '0'}
+                          </span>
+                        </div>
 
                         <div className="col-span-12 flex items-center justify-center gap-2 pt-2">
                           <span className="text-gray-500">−</span>
@@ -4418,10 +4821,6 @@ export default function CreateProductModal({ isOpen, onClose, editingProduct, in
               {/* Otros pasos... */}
               {currentStep === 'weeklyPlan' && (
                 <div className="space-y-6">
-                  <h3 className="text-lg font-semibold text-white mb-4">
-                    Organización
-                  </h3>
-
                   {coachCatalogError && (
                     <div className="text-xs text-red-400">{coachCatalogError}</div>
                   )}
@@ -4454,9 +4853,6 @@ export default function CreateProductModal({ isOpen, onClose, editingProduct, in
 
               {currentStep === 'workshopSchedule' && (
                 <div className="space-y-6">
-                  <h3 className="text-lg font-semibold text-white mb-4">
-                    Temas y Horarios del Taller
-                  </h3>
                   <WorkshopSimpleScheduler
                     sessions={workshopSchedule}
                     onSessionsChange={setWorkshopSchedule}
@@ -4464,42 +4860,245 @@ export default function CreateProductModal({ isOpen, onClose, editingProduct, in
                 </div>
               )}
 
+              {currentStep === 'workshopMaterial' && selectedType === 'workshop' && (
+                <div className="space-y-4">
+                  <div className="space-y-4">
+                    <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
+                      <button
+                        type="button"
+                        onClick={() =>
+                          setWorkshopMaterial(prev => ({
+                            ...prev,
+                            pdfType: 'none',
+                            pdfFile: null,
+                            pdfUrl: null,
+                            topicPdfs: {}
+                          }))
+                        }
+                        className={`rounded-lg border px-3 py-3 text-left transition-all ${
+                          workshopMaterial.pdfType === 'none'
+                            ? 'border-[#FF7939] bg-[#FF7939]/10'
+                            : 'border-white/10 bg-white/5 hover:bg-white/10'
+                        }`}
+                      >
+                        <div className="text-sm font-semibold text-white">Sin PDF</div>
+                        <div className="text-xs text-gray-400">No agregar material.</div>
+                      </button>
+
+                      <button
+                        type="button"
+                        onClick={() =>
+                          setWorkshopMaterial(prev => ({
+                            ...prev,
+                            pdfType: 'general',
+                            topicPdfs: {}
+                          }))
+                        }
+                        className={`rounded-lg border px-3 py-3 text-left transition-all ${
+                          workshopMaterial.pdfType === 'general'
+                            ? 'border-[#FF7939] bg-[#FF7939]/10'
+                            : 'border-white/10 bg-white/5 hover:bg-white/10'
+                        }`}
+                      >
+                        <div className="text-sm font-semibold text-white">Un PDF para todos</div>
+                        <div className="text-xs text-gray-400">El mismo archivo en cada tema.</div>
+                      </button>
+
+                      <button
+                        type="button"
+                        onClick={() =>
+                          setWorkshopMaterial(prev => ({
+                            ...prev,
+                            pdfType: 'by-topic',
+                            pdfFile: null,
+                            pdfUrl: null
+                          }))
+                        }
+                        className={`rounded-lg border px-3 py-3 text-left transition-all ${
+                          workshopMaterial.pdfType === 'by-topic'
+                            ? 'border-[#FF7939] bg-[#FF7939]/10'
+                            : 'border-white/10 bg-white/5 hover:bg-white/10'
+                        }`}
+                      >
+                        <div className="text-sm font-semibold text-white">PDF por tema</div>
+                        <div className="text-xs text-gray-400">Un archivo distinto para cada tema.</div>
+                      </button>
+                    </div>
+
+                    {workshopMaterial.pdfType === 'general' && (
+                      <div className="space-y-2">
+                        <div className="text-sm font-semibold text-white">PDF general</div>
+                        <div className="flex items-center gap-2">
+                          <button
+                            type="button"
+                            onClick={() => openPdfGallery({ scope: 'general' })}
+                            className="inline-flex items-center justify-center w-9 h-9 rounded-md border border-white/10 bg-white/10 hover:bg-white/15 transition-all"
+                            title="Seleccionar PDF"
+                          >
+                            <FileUp className="w-4 h-4 text-[#FF7939]" />
+                          </button>
+                          {(workshopMaterial.pdfFile || workshopMaterial.pdfUrl) ? (
+                            <button
+                              type="button"
+                              onClick={() =>
+                                setWorkshopMaterial(prev => ({
+                                  ...prev,
+                                  pdfFile: null,
+                                  pdfUrl: null
+                                }))
+                              }
+                              className="inline-flex items-center justify-center w-9 h-9 rounded-md border border-white/10 bg-white/10 hover:bg-white/15 transition-all"
+                              title="Quitar PDF"
+                            >
+                              <Trash className="w-4 h-4 text-red-400" />
+                            </button>
+                          ) : (
+                            <div className="text-xs text-gray-500">Sin archivos seleccionados</div>
+                          )}
+                        </div>
+                        {(workshopMaterial.pdfUrl || workshopMaterial.pdfFile) && (
+                          <div className="text-xs text-gray-500">
+                            {truncateLabel(workshopMaterial.pdfFile?.name || workshopMaterial.pdfUrl || '')}
+                          </div>
+                        )}
+                      </div>
+                    )}
+
+                    {workshopMaterial.pdfType === 'by-topic' && (
+                      <div className="space-y-3">
+                        <div className="text-sm font-semibold text-white">PDFs por tema</div>
+                        <div className="space-y-3">
+                          {Array.from(
+                            new Set(
+                              (workshopSchedule || [])
+                                .map((s: any) => String(s?.title || '').trim())
+                                .filter(Boolean)
+                            )
+                          ).map((topicTitle) => {
+                            const current = workshopMaterial.topicPdfs?.[topicTitle]
+                            return (
+                              <div
+                                key={topicTitle}
+                                className="py-2"
+                              >
+                                <div className="text-sm font-semibold text-white mb-2">{topicTitle}</div>
+                                <div className="flex items-center gap-2">
+                                  <button
+                                    type="button"
+                                    onClick={() => openPdfGallery({ scope: 'topic', topicTitle })}
+                                    className="inline-flex items-center justify-center w-9 h-9 rounded-md border border-white/10 bg-white/10 hover:bg-white/15 transition-all"
+                                    title="Seleccionar PDF"
+                                  >
+                                    <FileUp className="w-4 h-4 text-[#FF7939]" />
+                                  </button>
+
+                                  {(current?.file || current?.url) ? (
+                                    <button
+                                      type="button"
+                                      onClick={() => {
+                                        setWorkshopMaterial(prev => {
+                                          const next = { ...(prev.topicPdfs || {}) }
+                                          delete (next as any)[topicTitle]
+                                          return {
+                                            ...prev,
+                                            topicPdfs: next
+                                          }
+                                        })
+                                      }}
+                                      className="inline-flex items-center justify-center w-9 h-9 rounded-md border border-white/10 bg-white/10 hover:bg-white/15 transition-all"
+                                      title="Quitar PDF"
+                                    >
+                                      <Trash className="w-4 h-4 text-red-400" />
+                                    </button>
+                                  ) : (
+                                    <div className="text-xs text-gray-500">Sin archivos seleccionados</div>
+                                  )}
+                                </div>
+
+                                {(current?.url || current?.file) && (
+                                  <div className="text-xs text-gray-500 mt-1">
+                                    {truncateLabel(current?.file?.name || current?.url || '')}
+                                  </div>
+                                )}
+
+                                <div className="mt-3 h-px w-full bg-white/10" />
+                              </div>
+                            )
+                          })}
+                        </div>
+                      </div>
+                    )}
+                  </div>
+                </div>
+              )}
+
               {currentStep === 'preview' && (
                 <div className="space-y-6">
-                  <h3 className="text-lg font-semibold text-white mb-4">
-                    Vista Previa
-                  </h3>
-                  {editingProduct && (
-                    <div className="flex justify-center">
-                      <div className="flex-shrink-0 w-48">
-                        <ActivityCard
-                          activity={{
-                            ...(editingProduct as any),
-                            ...(generalForm.image && typeof generalForm.image === 'object' && 'url' in generalForm.image
-                              ? { image_url: (generalForm.image as any).url }
-                              : {}),
-                            // Reflejar siempre el precio actual del formulario
-                            price: (() => {
-                              const parsed = parseFloat(String(generalForm.price ?? '').replace(',', '.'))
-                              return Number.isFinite(parsed) ? parsed : ((editingProduct as any)?.price ?? 0)
-                            })(),
-                            previewStats: {
-                              sesiones: derivedPreviewStats.sesiones,
-                              ejerciciosTotales: derivedPreviewStats.ejerciciosTotales,
-                              ejerciciosUnicos: derivedPreviewStats.ejerciciosUnicos
-                            }
-                          }}
-                          size="small"
-                        />
-                      </div>
+                  <div className="flex justify-center">
+                    <div className="flex-shrink-0 w-48">
+                      <ActivityCard
+                        activity={{
+                          ...(editingProduct ? (editingProduct as any) : {}),
+                          // En creación: asegurar título/descripcion
+                          title: generalForm.name || (editingProduct as any)?.title || (editingProduct as any)?.name || 'Sin título',
+                          description: generalForm.description || (editingProduct as any)?.description || '',
+                          categoria: productCategory === 'nutricion' ? 'nutricion' : 'fitness',
+                          difficulty: specificForm.level || (editingProduct as any)?.difficulty || 'beginner',
+                          ...(selectedType === 'workshop'
+                            ? (() => {
+                                const titles = new Set<string>()
+                                const dates = new Set<string>()
+                                ;(workshopSchedule || []).forEach((s: any) => {
+                                  const t = String(s?.title || '').trim()
+                                  if (t) titles.add(t)
+                                  const d = String(s?.date || '').trim()
+                                  if (d) dates.add(d)
+                                })
+                                const now = new Date()
+                                now.setHours(0, 0, 0, 0)
+                                const hasFuture = (workshopSchedule || []).some((s: any) => {
+                                  const ds = String(s?.date || '').trim()
+                                  if (!ds) return false
+                                  const dd = new Date(ds)
+                                  dd.setHours(0, 0, 0, 0)
+                                  return dd >= now
+                                })
+                                return {
+                                  type: 'workshop',
+                                  cantidadTemas: titles.size,
+                                  cantidadDias: dates.size,
+                                  // Forzar estado activo en preview si hay fechas futuras
+                                  taller_activo: hasFuture,
+                                  is_finished: !hasFuture
+                                }
+                              })()
+                            : {}),
+                          // Mostrar objetivos seleccionados en el preview
+                          objetivos: generalForm.objetivos || [],
+                          ...(generalForm.image && typeof generalForm.image === 'object' && 'url' in generalForm.image
+                            ? { image_url: (generalForm.image as any).url }
+                            : {}),
+                          // Reflejar siempre el precio actual del formulario
+                          price: (() => {
+                            const parsed = parseFloat(String(generalForm.price ?? '').replace(',', '.'))
+                            return Number.isFinite(parsed) ? parsed : ((editingProduct as any)?.price ?? 0)
+                          })(),
+                          previewStats: {
+                            sesiones: derivedPreviewStats.sesiones,
+                            ejerciciosTotales: derivedPreviewStats.ejerciciosTotales,
+                            ejerciciosUnicos: derivedPreviewStats.ejerciciosUnicos
+                          }
+                        }}
+                        size="small"
+                      />
                     </div>
-                  )}
+                  </div>
                 </div>
               )}
             </div>
 
             {/* Footer con botones de navegación */}
-            <div className="flex items-center justify-between px-6 pt-4 pb-[calc(env(safe-area-inset-bottom)+24px)] sm:py-6 border-t border-white/10">
+            <div className="sticky bottom-0 z-50 bg-[#0b0b0b]/95 backdrop-blur-md h-16 sm:h-20 flex items-center justify-between px-4 sm:px-6 pb-[calc(env(safe-area-inset-bottom)+12px)] border-t border-white/10">
               <Button
                 variant="ghost"
                 onClick={() => {
@@ -4543,7 +5142,7 @@ export default function CreateProductModal({ isOpen, onClose, editingProduct, in
                       }
                     }}
                     disabled={!selectedType || (currentStep === 'programType' && selectedType === 'program' && !selectedProgramType)}
-                    className="bg-[#FF7939] hover:bg-[#E66829] text-white"
+                    className="border border-white/10 bg-white/10 hover:bg-white/15 backdrop-blur-md text-white shadow-[0_8px_30px_rgba(0,0,0,0.35)]"
                   >
                     Siguiente
                     <ChevronRight className="h-4 w-4 ml-2" />

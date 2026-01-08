@@ -31,7 +31,11 @@ type Product = {
   total_program_reviews?: number
   activity_media?: Array<{ image_url?: string; video_url?: string }>
   image_url?: string
-  media?: { image_url?: string }
+  media?: { image_url?: string; video_url?: string }
+  video_url?: string
+  capacity?: string | number | null
+  modality?: string | null
+  objetivos?: string[]
   sessions_per_client?: number
   is_paused?: boolean
 }
@@ -42,15 +46,11 @@ type SortDirection = 'asc' | 'desc'
 // Componente memoizado para las cards de productos
 const ProductCard = memo(({ 
   product, 
-  onEdit, 
   onPreview, 
-  onDelete, 
   convertProductToActivity 
 }: {
   product: Product
-  onEdit: (product: Product) => void
   onPreview: (product: Product) => void
-  onDelete: (product: Product) => void
   convertProductToActivity: (product: Product) => any
 }) => {
   return (
@@ -59,8 +59,6 @@ const ProductCard = memo(({
         activity={convertProductToActivity(product)}
         size="small"
         onClick={() => onPreview(product)}
-        onEdit={() => onEdit(product)}
-        onDelete={() => onDelete(product)}
       />
     </div>
   )
@@ -1473,8 +1471,8 @@ export default function ProductsManagementScreen({ onTabChange }: ProductsManage
           </div>
         </div>
 
-        {/* Contenido según tab activo */}
-        {activeMainTab === 'products' && (
+        {/* Contenido según tab activo (mantener montado para evitar refetch al cambiar de sub-tab) */}
+        <div className={activeMainTab === 'products' ? 'block' : 'hidden'}>
           <div className="bg-[#0F0F0F] rounded-2xl border border-[#1A1A1A] overflow-hidden">
             {/* Header de tabla con filtros */}
             <div className="p-4 border-b border-[#1A1A1A]">
@@ -1681,9 +1679,7 @@ export default function ProductsManagementScreen({ onTabChange }: ProductsManage
                       <ProductCard
                         key={product.id}
                         product={product}
-                        onEdit={handleEditProduct}
                         onPreview={handlePreviewProduct}
-                        onDelete={handleDeleteProduct}
                         convertProductToActivity={convertProductToActivity}
                       />
                     ))}
@@ -1692,9 +1688,9 @@ export default function ProductsManagementScreen({ onTabChange }: ProductsManage
               )}
             </div>
           </div>
-        )}
+        </div>
 
-        {activeMainTab === 'exercises' && (
+        <div className={activeMainTab === 'exercises' ? 'block' : 'hidden'}>
           <>
             {/* Sub-tabs: Fitness / Nutrición - Centrados y más separados */}
             <div className="flex items-center justify-center gap-8 mb-6">
@@ -1730,11 +1726,11 @@ export default function ProductsManagementScreen({ onTabChange }: ProductsManage
               />
             </div>
           </>
-        )}
+        </div>
 
-        {activeMainTab === 'storage' && (
-            <StorageUsageWidget />
-        )}
+        <div className={activeMainTab === 'storage' ? 'block' : 'hidden'}>
+          <StorageUsageWidget />
+        </div>
       </div>
 
       {/* Modal placeholder */}
@@ -1794,68 +1790,68 @@ export default function ProductsManagementScreen({ onTabChange }: ProductsManage
 
 
       {/* Product Modal - Usando el mismo modal que el cliente */}
+
       {selectedProduct && (
         <ClientProductModal
           isOpen={isProductModalOpen}
           onClose={async () => {
-            // Cerrar también el modal de encuesta si está abierto
-            setShowSurveyModalInDetail(false)
-            setSurveyModalProduct(null)
-            
-            // Refrescar el producto desde la API antes de cerrar
-            try {
-              console.log('🔄 Refrescando producto al cerrar modal:', selectedProduct.id)
-              const response = await fetch(API_ENDPOINTS.PRODUCTS, {
-                credentials: 'include' // ✅ Incluir cookies en la petición
-              })
-              if (response.ok) {
-                const result = await response.json()
-                if (result.success && result.products && result.products.length > 0) {
-                  // Buscar el producto actualizado en la lista
-                  const refreshedProduct = result.products.find((p: Product) => p.id === selectedProduct.id)
-                  if (refreshedProduct) {
-                    console.log('✅ Producto refrescado:', {
-                      id: refreshedProduct.id,
-                      is_paused: refreshedProduct.is_paused,
-                      old_is_paused: selectedProduct.is_paused
-                    })
-                    
-                    // Actualizar el producto en la lista
-                    setProducts(prevProducts => 
-                      prevProducts.map(p => 
-                        p.id === refreshedProduct.id ? refreshedProduct : p
-                      )
-                    )
-                  }
-                }
-              }
-            } catch (error) {
-              console.error('❌ Error refrescando producto:', error)
-            }
-            
+            const productIdToRefresh = selectedProduct?.id
+            const prevPausedState = selectedProduct?.is_paused
+
+            // ✅ Cerrar UI primero (instantáneo)
             setIsProductModalOpen(false)
             setSelectedProduct(null)
-            // Cerrar también el modal de encuesta si está abierto
             setShowSurveyModalInDetail(false)
             setSurveyModalProduct(null)
+
+            // ✅ Refrescar en background para no bloquear el click
+            setTimeout(async () => {
+              if (!productIdToRefresh) return
+              try {
+                console.log('🔄 Refrescando producto al cerrar modal:', productIdToRefresh)
+                const response = await fetch(API_ENDPOINTS.PRODUCTS, {
+                  credentials: 'include' // ✅ Incluir cookies en la petición
+                })
+                if (!response.ok) return
+                const result = await response.json()
+                if (!result.success || !result.products || result.products.length === 0) return
+
+                const refreshedProduct = result.products.find((p: Product) => p.id === productIdToRefresh)
+                if (!refreshedProduct) return
+
+                console.log('✅ Producto refrescado:', {
+                  id: refreshedProduct.id,
+                  is_paused: refreshedProduct.is_paused,
+                  old_is_paused: prevPausedState
+                })
+
+                setProducts(prevProducts =>
+                  prevProducts.map(p =>
+                    p.id === refreshedProduct.id ? refreshedProduct : p
+                  )
+                )
+              } catch (error) {
+                console.error('❌ Error refrescando producto:', error)
+              }
+            }, 0)
           }}
           product={{
             ...convertProductToActivity(selectedProduct),
             isOwnProduct: true
           }}
-          navigationContext={null}
+          navigationContext={undefined}
           showEditButton={true}
           onEdit={async () => {
             // Desde el detalle, especialmente desde el aviso "Agregar nuevas fechas"
-            // Si es un taller finalizado con encuesta, abrir directamente en paso 5
+            // Si es un taller finalizado con encuesta, abrir directamente en el paso 5
             if (selectedProduct) {
-              const isWorkshopFinished = selectedProduct.type === 'workshop' && 
+              const isWorkshopFinished = selectedProduct.type === 'workshop' &&
                 ((selectedProduct as any).is_finished === true || (selectedProduct as any).taller_activo === false)
-              
+
               if (isWorkshopFinished) {
                 // Verificar si tiene encuesta (primero en caché, luego en backend)
                 const hasSurveyInCache = completedCoachSurveys[selectedProduct.id]
-                
+
                 if (hasSurveyInCache) {
                   // Ya tiene encuesta en caché, abrir directamente en paso 5 con aviso de cambio de fechas
                   setEditingProduct(selectedProduct)
@@ -1865,12 +1861,12 @@ export default function ProductsManagementScreen({ onTabChange }: ProductsManage
                   setIsModalOpen(true)
                   return
                 }
-                
+
                 // Si no está en caché, verificar en backend
                 try {
                   const response = await fetch(`/api/activities/${selectedProduct.id}/check-coach-survey`)
                   const result = await response.json()
-                  
+
                   if (result.hasSurvey) {
                     // Guardar en caché
                     setCompletedCoachSurveys((prev) => ({
@@ -1889,7 +1885,7 @@ export default function ProductsManagementScreen({ onTabChange }: ProductsManage
                   console.error('Error verificando encuesta:', error)
                 }
               }
-              
+
               // Para otros casos o si no tiene encuesta, usar la lógica normal de edición
               handleEditProduct(selectedProduct)
               setIsProductModalOpen(false)

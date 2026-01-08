@@ -371,7 +371,16 @@ export async function GET(request: NextRequest) {
       if (activity.workshop_type) {
         try {
           const parsed = JSON.parse(activity.workshop_type)
-          if (Array.isArray(parsed)) {
+          if (parsed && typeof parsed === 'object' && !Array.isArray(parsed) && parsed.objetivos) {
+            if (typeof parsed.objetivos === 'string') {
+              objetivos = parsed.objetivos
+                .split(';')
+                .map((obj: string) => obj.trim())
+                .filter((obj: string) => obj.length > 0)
+            } else if (Array.isArray(parsed.objetivos)) {
+              objetivos = parsed.objetivos
+            }
+          } else if (Array.isArray(parsed)) {
             objetivos = parsed
           }
         } catch (error) {

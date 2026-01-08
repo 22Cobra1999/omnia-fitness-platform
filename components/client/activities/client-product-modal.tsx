@@ -1,6 +1,6 @@
 "use client"
 
-import React, { useState, useEffect, useCallback, useMemo, useRef } from 'react'
+import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { Button } from '@/components/ui/button'
 import { X, Clock, Calendar, Users, Globe, MapPin, Star, ShoppingCart, Edit, ChevronRight, Trash2, Zap, UtensilsCrossed, Flame, Video } from 'lucide-react'
 import { toast } from 'sonner'
@@ -14,6 +14,17 @@ import { UniversalVideoPlayer } from '@/components/shared/video/universal-video-
 import { PaymentMethodsModal } from '@/components/shared/payments/payment-methods-modal'
 import { useAuth } from '@/contexts/auth-context'
 import { getPlanLimit, type PlanType } from '@/lib/utils/plan-limits'
+
+type CacheEntry<T> = {
+  value: T
+  cachedAt: number
+}
+
+const WORKSHOP_TOPICS_CACHE_TTL_MS = 5 * 60 * 1000
+const PLANNING_STATS_CACHE_TTL_MS = 5 * 60 * 1000
+
+const workshopTopicsCache = new Map<string, CacheEntry<any[]>>()
+const planningStatsCache = new Map<string, CacheEntry<number | null>>()
 
 interface ClientProductModalProps {
   isOpen: boolean
@@ -229,9 +240,9 @@ export default function ClientProductModal({
   
   // Hook removed - using default values
   // const { stats: productStats, loading: statsLoading, product: productData, refresh: refreshStats } = useProductStats(product.id)
-  const productStats = { totalSessions: 0, uniqueExercises: 0 }
+  const productStats: { totalSessions: number; uniqueExercises: number; totalWeeks?: number } = { totalSessions: 0, uniqueExercises: 0 }
   const statsLoading = false
-  const productData = null
+  const productData: any = null
   const refreshStats = () => {}
   const [weeksFromPlanning, setWeeksFromPlanning] = useState<number | null>(null)
   const [planningStatsLoading, setPlanningStatsLoading] = useState(false)
@@ -449,6 +460,14 @@ export default function ClientProductModal({
       return
     }
     
+    const cacheKey = String(product.id)
+    const cached = planningStatsCache.get(cacheKey)
+    if (cached && Date.now() - cached.cachedAt < PLANNING_STATS_CACHE_TTL_MS) {
+      setWeeksFromPlanning(cached.value)
+      setPlanningStatsLoading(false)
+      return
+    }
+
     // Crear nuevo AbortController para esta petición
     abortControllerRef.current = new AbortController()
     const signal = abortControllerRef.current.signal
@@ -472,8 +491,10 @@ export default function ClientProductModal({
           const totalWeeks = semanas * (periods || 1)
           console.log('🔢 Semanas desde planificación:', { semanas, periods, totalWeeks })
           setWeeksFromPlanning(totalWeeks)
+          planningStatsCache.set(cacheKey, { value: totalWeeks, cachedAt: Date.now() })
         } else {
           setWeeksFromPlanning(null)
+          planningStatsCache.set(cacheKey, { value: null, cachedAt: Date.now() })
         }
       })
       .catch(error => {
@@ -629,7 +650,15 @@ export default function ClientProductModal({
   // Función para cargar temas y horarios del taller
   const loadWorkshopTopics = async () => {
     if (!product.id || product.type !== 'workshop') return
-    
+
+    const cacheKey = String(product.id)
+    const cached = workshopTopicsCache.get(cacheKey)
+    if (cached && Date.now() - cached.cachedAt < WORKSHOP_TOPICS_CACHE_TTL_MS) {
+      setWorkshopTopics(cached.value)
+      setLoadingWorkshopTopics(false)
+      return
+    }
+
     setLoadingWorkshopTopics(true)
     try {
       const response = await fetch(`/api/taller-detalles?actividad_id=${product.id}`, {
@@ -659,8 +688,10 @@ export default function ClientProductModal({
       
       if (success && Array.isArray(tallerDetalles)) {
         setWorkshopTopics(tallerDetalles)
+        workshopTopicsCache.set(cacheKey, { value: tallerDetalles, cachedAt: Date.now() })
       } else {
         setWorkshopTopics([])
+        workshopTopicsCache.set(cacheKey, { value: [], cachedAt: Date.now() })
       }
     } catch (error) {
       console.error('Error loading workshop topics:', error)
@@ -1050,7 +1081,7 @@ export default function ClientProductModal({
           initial={{ opacity: 0 }}
           animate={{ opacity: 1 }}
           exit={{ opacity: 0 }}
-          transition={{ duration: 0.05, exit: { duration: 0.01 } }}
+          transition={{ duration: 0.05 }}
           className="fixed inset-0 bg-black/80 z-40 flex items-center justify-center p-4 pt-20"
           onClick={handleClose}
         >
@@ -1058,7 +1089,7 @@ export default function ClientProductModal({
           initial={{ scale: 0.95, opacity: 0 }}
           animate={{ scale: 1, opacity: 1 }}
           exit={{ opacity: 0, scale: 0.95 }}
-          transition={{ duration: 0.05, exit: { duration: 0.01 } }}
+          transition={{ duration: 0.05 }}
           className="bg-[#1A1A1A] rounded-2xl w-full max-w-4xl border border-[#2A2A2A] max-h-[90vh] overflow-y-auto"
           onClick={(e) => e.stopPropagation()}
         >
@@ -1358,79 +1389,85 @@ export default function ClientProductModal({
                 )}
 
                 {/* Fila 2 */}
-                <div className="flex items-center gap-2">
-                  {(product.categoria === 'nutricion' || product.categoria === 'nutrition' || productData?.categoria === 'nutricion' || productData?.categoria === 'nutrition') ? (
-                    getDietTypeDisplay(productData?.dieta || product.dieta)
-                  ) : (
-                    <>
-                      {getDifficultyFires(product.difficulty)}
-                      <span className="text-gray-300">
-                        {product.difficulty === 'beginner' ? 'Principiante' :
-                         product.difficulty === 'intermediate' ? 'Intermedio' :
-                         product.difficulty === 'advanced' ? 'Avanzado' : 'Intermedio'}
-                      </span>
-                    </>
-                  )}
+                <div className="flex flex-col items-center gap-1 text-center">
+                  <div className="flex items-center gap-2">
+                    {(product.categoria === 'nutricion' || product.categoria === 'nutrition' || productData?.categoria === 'nutricion' || productData?.categoria === 'nutrition') ? (
+                      getDietTypeDisplay(productData?.dieta || product.dieta)
+                    ) : (
+                      <>
+                        {getDifficultyFires(product.difficulty)}
+                        <span className="text-gray-300">
+                          {product.difficulty === 'beginner' ? 'Principiante' :
+                           product.difficulty === 'intermediate' ? 'Intermedio' :
+                           product.difficulty === 'advanced' ? 'Avanzado' : 'Intermedio'}
+                        </span>
+                      </>
+                    )}
+                  </div>
                 </div>
 
                 {product.type !== 'workshop' && includedMeetCredits > 0 ? (
-                  <div className="flex items-center gap-2">
-                    <Video className="h-5 w-5 text-rose-100/90" />
-                    <span className="text-gray-300">
-                      {includedMeetCredits} <span className="text-xs">meets</span> por cliente
-                    </span>
+                  <div className="flex flex-col items-center gap-1 text-center">
+                    <div className="flex items-center gap-2">
+                      <Video className="h-5 w-5 text-rose-100/90" />
+                      <span className="text-gray-300">
+                        {includedMeetCredits} <span className="text-xs">meets</span> por cliente
+                      </span>
+                    </div>
                   </div>
                 ) : (
                   <div />
                 )}
 
-                <div className="flex items-center justify-center gap-2 w-full min-w-0">
-                  {(() => {
-                    const locationName = productData?.location_name || product.location_name
-                    const locationUrl = productData?.location_url || product.location_url
-                    if (productModality === 'presencial') {
-                      return (
-                        <div className="overflow-x-auto whitespace-nowrap -mx-1 px-1 w-full min-w-0">
-                          <div className="inline-flex items-center gap-2 min-w-max justify-center">
-                            <MapPin className="h-5 w-5 text-red-500 flex-shrink-0" />
-                            {locationName || locationUrl ? (
-                              <button
-                                onClick={() => {
-                                  if (locationUrl) {
-                                    let mapsUrl = locationUrl
-                                    if (!locationUrl.startsWith('http://') && !locationUrl.startsWith('https://')) {
-                                      mapsUrl = `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(locationUrl)}`
+                <div className="flex flex-col items-center gap-1 text-center w-full min-w-0">
+                  <div className="flex items-center justify-center gap-2 w-full min-w-0">
+                    {(() => {
+                      const locationName = productData?.location_name || product.location_name
+                      const locationUrl = productData?.location_url || product.location_url
+                      if (productModality === 'presencial') {
+                        return (
+                          <div className="overflow-x-auto whitespace-nowrap -mx-1 px-1 w-full min-w-0">
+                            <div className="inline-flex items-center gap-2 min-w-max justify-center">
+                              <MapPin className="h-5 w-5 text-red-500 flex-shrink-0" />
+                              {locationName || locationUrl ? (
+                                <button
+                                  onClick={() => {
+                                    if (locationUrl) {
+                                      let mapsUrl = locationUrl
+                                      if (!locationUrl.startsWith('http://') && !locationUrl.startsWith('https://')) {
+                                        mapsUrl = `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(locationUrl)}`
+                                      }
+                                      window.open(mapsUrl, '_blank')
                                     }
-                                    window.open(mapsUrl, '_blank')
-                                  }
-                                }}
-                                className="inline-flex items-center text-red-500 underline hover:text-red-400 whitespace-nowrap"
-                                title={locationUrl ? 'Abrir en Google Maps' : 'Ubicación'}
-                              >
-                                {locationName || locationUrl || 'Ver ubicación'}
-                              </button>
-                            ) : (
-                              <span className="text-gray-300">Presencial</span>
-                            )}
+                                  }}
+                                  className="inline-flex items-center text-red-500 underline hover:text-red-400 whitespace-nowrap"
+                                  title={locationUrl ? 'Abrir en Google Maps' : 'Ubicación'}
+                                >
+                                  {locationName || locationUrl || 'Ver ubicación'}
+                                </button>
+                              ) : (
+                                <span className="text-gray-300">Presencial</span>
+                              )}
+                            </div>
                           </div>
-                        </div>
-                      )
-                    }
-                    if (productModality === 'hibrido') {
+                        )
+                      }
+                      if (productModality === 'hibrido') {
+                        return (
+                          <>
+                            <Globe className="h-5 w-5 text-yellow-500" />
+                            <span className="text-gray-300">Híbrido</span>
+                          </>
+                        )
+                      }
                       return (
                         <>
-                          <Globe className="h-5 w-5 text-yellow-500" />
-                          <span className="text-gray-300">Híbrido</span>
+                          <Globe className="h-5 w-5 text-white" />
+                          <span className="text-gray-300">Online</span>
                         </>
                       )
-                    }
-                    return (
-                      <>
-                        <Globe className="h-5 w-5 text-white" />
-                        <span className="text-gray-300">Online</span>
-                      </>
-                    )
-                  })()}
+                    })()}
+                  </div>
                 </div>
                 
                 {/* Botón Upgrade de Plan - Solo si hay excesos, debajo de todas las variables */}
@@ -1440,6 +1477,23 @@ export default function ClientProductModal({
                   </div>
                 )}
               </div>
+
+              {/* Objetivos Section - Horizontal scrollable */}
+              {product.objetivos && Array.isArray(product.objetivos) && product.objetivos.length > 0 && (
+                <div>
+                  <h4 className="text-white font-semibold mb-3">Objetivos</h4>
+                  <div className="flex gap-2 overflow-x-auto pb-2">
+                    {product.objetivos.map((objetivo: string, index: number) => (
+                      <span
+                        key={index}
+                        className="bg-[#FF7939]/20 text-[#FF7939] text-sm px-3 py-1.5 rounded-full font-medium border border-[#FF7939]/30 whitespace-nowrap flex-shrink-0"
+                      >
+                        {objetivo}
+                      </span>
+                    ))}
+                  </div>
+                </div>
+              )}
 
               {/* Descripción con expand/collapse (debajo de variables) */}
               <div>
@@ -1481,24 +1535,6 @@ export default function ClientProductModal({
                   )}
                 </div>
               </div>
-
-
-              {/* Objetivos Section - Horizontal scrollable */}
-              {product.objetivos && Array.isArray(product.objetivos) && product.objetivos.length > 0 && (
-                <div className="border-t border-gray-800 pt-4">
-                  <h4 className="text-white font-semibold mb-3">Objetivos</h4>
-                  <div className="flex gap-2 overflow-x-auto pb-2">
-                    {product.objetivos.map((objetivo: string, index: number) => (
-                      <span 
-                        key={index}
-                        className="bg-[#FF7939]/20 text-[#FF7939] text-sm px-3 py-1.5 rounded-full font-medium border border-[#FF7939]/30 whitespace-nowrap flex-shrink-0"
-                      >
-                        {objetivo}
-                      </span>
-                    ))}
-                  </div>
-                </div>
-              )}
 
               {/* Location for presencial activities - Mostrar si hay ubicación */}
               {/* Ya no mostramos sección de Ubicación aparte si la modalidad presencial ya mostró el lugar arriba */}

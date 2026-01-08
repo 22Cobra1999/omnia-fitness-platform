@@ -5,6 +5,35 @@ import { createClient } from '@supabase/supabase-js'
 export const dynamic = 'force-dynamic'
 export const runtime = 'nodejs'
 
+const splitSemicolonList = (value: unknown): string[] => {
+  if (Array.isArray(value)) {
+    return Array.from(
+      new Set(
+        value
+          .map((v) => String(v ?? '').trim())
+          .filter((v) => v.length > 0)
+      )
+    )
+  }
+
+  if (typeof value === 'string') {
+    return Array.from(
+      new Set(
+        value
+          .split(';')
+          .map((v) => v.trim())
+          .filter((v) => v.length > 0)
+      )
+    )
+  }
+
+  return []
+}
+
+const joinSemicolonList = (value: unknown): string => {
+  return splitSemicolonList(value).join(';')
+}
+
 // Función para verificar y pausar productos automáticamente si exceden el límite
 async function checkAndPauseProductsIfNeeded(coachId: string) {
   try {
@@ -339,6 +368,52 @@ export async function GET(request: NextRequest) {
           // Para nutrición: obtener platos de nutrition_program_details
           // Intentar múltiples estrategias para encontrar los platos
           let platos: any[] = []
+
+          // Estrategia 0: match directo por activity_id (legacy) como número o string
+          try {
+            const { data: platosByActivityId } = await supabase
+              .from('nutrition_program_details')
+              .select('id')
+              .eq('activity_id', product.id)
+
+            if (platosByActivityId && platosByActivityId.length > 0) {
+              platos = platosByActivityId
+            }
+          } catch (e) {
+            // ignore
+          }
+
+          if (platos.length === 0) {
+            try {
+              const { data: platosByActivityIdStr } = await supabase
+                .from('nutrition_program_details')
+                .select('id')
+                .eq('activity_id', product.id.toString())
+
+              if (platosByActivityIdStr && platosByActivityIdStr.length > 0) {
+                platos = platosByActivityIdStr
+              }
+            } catch (e) {
+              // ignore
+            }
+          }
+
+          // Estrategia 0b: activity_id_new JSONB con .contains()
+          if (platos.length === 0) {
+            try {
+              const activityKeyObjNew = { [product.id.toString()]: { activo: true } }
+              const { data: platosJsonbNew } = await supabase
+                .from('nutrition_program_details')
+                .select('id')
+                .contains('activity_id_new', activityKeyObjNew)
+
+              if (platosJsonbNew && platosJsonbNew.length > 0) {
+                platos = platosJsonbNew
+              }
+            } catch (e) {
+              // ignore
+            }
+          }
           
           // Estrategia 1: JSONB con .contains()
           try {
@@ -360,7 +435,7 @@ export async function GET(request: NextRequest) {
             try {
               const { data: allPlatos } = await supabase
                 .from('nutrition_program_details')
-                .select('id, activity_id')
+                .select('id, activity_id, activity_id_new')
                 .eq('coach_id', user.id)
               
               if (allPlatos) {
@@ -372,6 +447,15 @@ export async function GET(request: NextRequest) {
                   // Verificar si es integer (formato legacy)
                   if (typeof plato.activity_id === 'number') {
                     return plato.activity_id === product.id
+                  }
+                  // Verificar si es string (formato legacy)
+                  if (typeof plato.activity_id === 'string') {
+                    return plato.activity_id === product.id.toString()
+                  }
+
+                  // Verificar JSONB nuevo
+                  if (plato.activity_id_new && typeof plato.activity_id_new === 'object') {
+                    return product.id.toString() in plato.activity_id_new
                   }
                   return false
                 })
@@ -595,8 +679,8 @@ export async function GET(request: NextRequest) {
         
         const finalProduct = {
           id: product.id,
-          title: product.title || 'Sin título',
-          name: product.title || 'Sin título', // Alias para compatibilidad
+          title: (product as any).title || (product as any).name || 'Sin título',
+          name: (product as any).title || (product as any).name || 'Sin título', // Alias para compatibilidad
           description: product.description || 'Sin descripción',
           price: product.price || 0,
           type: product.type || 'activity',
@@ -622,11 +706,12 @@ export async function GET(request: NextRequest) {
           activity_media: media ? [media] : [],
           // Objetivos desde workshop_type
           objetivos: objetivos,
+          restricciones: splitSemicolonList((product as any).restricciones),
           // Categoría para determinar si es nutrición
           categoria: product.categoria,
           // Ubicación para actividades presenciales
-          location_url: product.location_url,
-          location_name: product.location_name,
+          location_name: (product as any).location_name || null,
+          location_url: (product as any).location_url || null,
           // Modo de taller (individual/grupal) - solo para talleres
           workshop_mode: product.type === 'workshop' ? ((product as any).workshop_mode || 'grupal') : undefined,
           // Cantidad de participantes por clase (solo para talleres grupales)
@@ -725,23 +810,10 @@ export async function POST(request: NextRequest) {
       return 0
     }
     
-    const totalCapacityUsed = ((existingActivitiesError ? [] : existingActivities) || [])
-      .filter((activity) => {
-        if (!activity?.type) return true
-        const type = activity.type.toLowerCase()
-        return type !== 'document'
-      })
-      .reduce((sum, activity) => sum + normalizeCapacity(activity.capacity), 0)
-    
-    const isDocumentProduct = typeof body.modality === 'string' && body.modality.toLowerCase() === 'document'
-    
     // Ajustar capacity (stock) automáticamente si excede los límites
     let adjustedCapacity = body.capacity ?? null
     
-    if (isDocumentProduct) {
-      adjustedCapacity = null
-      console.log('ℹ️ Producto de tipo documento: la venta es ilimitada, no se aplica límite de cupos.')
-    } else if (adjustedCapacity !== null && adjustedCapacity !== undefined) {
+    if (adjustedCapacity !== null && adjustedCapacity !== undefined) {
       const numericCapacity = normalizeCapacity(adjustedCapacity)
       let targetCapacity = numericCapacity
       
@@ -750,10 +822,10 @@ export async function POST(request: NextRequest) {
         targetCapacity = stockLimit
       }
       
-      const remainingCapacity = Math.max(totalClientsLimit - totalCapacityUsed, 0)
+      const remainingCapacity = Math.max(totalClientsLimit - (existingActivitiesError ? 0 : existingActivities.reduce((sum, activity) => sum + normalizeCapacity(activity.capacity), 0)), 0)
       if (targetCapacity > remainingCapacity) {
         console.log(
-          `⚠️ Stock excede límite total de clientes (${totalClientsLimit}). Cupos usados actualmente: ${totalCapacityUsed}. Ajustando a ${remainingCapacity}`
+          `⚠️ Stock excede límite total de clientes (${totalClientsLimit}). Cupos usados actualmente: ${existingActivitiesError ? 0 : existingActivities.reduce((sum, activity) => sum + normalizeCapacity(activity.capacity), 0)}. Ajustando a ${remainingCapacity}`
         )
         targetCapacity = remainingCapacity
       }
@@ -762,43 +834,46 @@ export async function POST(request: NextRequest) {
     }
     
     // Crear producto en activities (la tabla real)
-    const { data: product, error: productError } = await supabase
+    const { data: newActivity, error: insertError } = await supabaseService
       .from('activities')
-      .insert({
-        title: body.name, // Usar title en lugar de name
-        description: body.description,
-        price: body.price,
-        // ✅ type = tipo de producto (workshop/program/document) - solo estos 3 valores
-        type: body.modality === 'workshop' ? 'workshop' : (body.modality === 'document' ? 'document' : 'program'),
-        // ✅ modality = modalidad (online/presencial/híbrido)
-        modality: body.type || 'online',
-        included_meet_credits: body.modality === 'workshop' ? 0 : (typeof body.included_meet_credits === 'number' ? body.included_meet_credits : parseInt(String(body.included_meet_credits ?? '0'), 10) || 0),
-        // ✅ categoria = fitness o nutricion (no confundir con type)
-        categoria: body.categoria || 'fitness',
-        difficulty: body.level, // Usar difficulty en lugar de level
-        is_public: body.is_public,
-        capacity: adjustedCapacity,
-        // stockQuantity no existe en la tabla activities
-        coach_id: user.id,
-        // ✅ GUARDAR OBJETIVOS EN workshop_type como JSON
-        workshop_type: body.objetivos && Array.isArray(body.objetivos) && body.objetivos.length > 0
-          ? JSON.stringify(body.objetivos)
-          : (body.workshop_type || (body.modality === 'workshop' ? 'general' : null)),
-        // ✅ Campos de ubicación para modalidad presencial
-        location_name: body.location_name || null,
-        location_url: body.location_url || null,
-        // ✅ NUEVO: Días para acceder al producto
-        dias_acceso: body.dias_acceso || 30,
-        // ✅ NUEVO: Modo de taller (individual/grupal)
-        workshop_mode: body.workshop_mode || 'grupal',
-        // ✅ NUEVO: Cantidad de participantes por clase (solo para talleres grupales)
-        participants_per_class: body.participants_per_class || null
-      })
+      .insert([
+        {
+          title: body.name, // Usar title en lugar de name
+          description: body.description,
+          price: body.price,
+          // ✅ type = tipo de producto (workshop/program/document) - solo estos 3 valores
+          type: body.modality === 'workshop' ? 'workshop' : (body.modality === 'document' ? 'document' : 'program'),
+          // ✅ modality = modalidad (online/presencial/híbrido)
+          modality: body.type || 'online',
+          included_meet_credits: body.modality === 'workshop' ? 0 : (typeof body.included_meet_credits === 'number' ? body.included_meet_credits : parseInt(String(body.included_meet_credits ?? '0'), 10) || 0),
+          // ✅ categoria = fitness o nutricion (no confundir con type)
+          categoria: body.categoria || 'fitness',
+          difficulty: body.level, // Usar difficulty en lugar de level
+          is_public: body.is_public,
+          capacity: adjustedCapacity,
+          restricciones: joinSemicolonList(body.restricciones),
+          // stockQuantity no existe en la tabla activities
+          coach_id: user.id,
+          // ✅ GUARDAR OBJETIVOS EN workshop_type como JSON
+          workshop_type: splitSemicolonList(body.objetivos).length > 0
+            ? JSON.stringify({ objetivos: joinSemicolonList(body.objetivos) })
+            : (body.workshop_type || (body.modality === 'workshop' ? 'general' : null)),
+          // ✅ Campos de ubicación para modalidad presencial
+          location_name: body.location_name || null,
+          location_url: body.location_url || null,
+          // ✅ NUEVO: Días para acceder al producto
+          dias_acceso: body.dias_acceso || 30,
+          // ✅ NUEVO: Modo de taller (individual/grupal)
+          workshop_mode: body.workshop_mode || 'grupal',
+          // ✅ NUEVO: Cantidad de participantes por clase (solo para talleres grupales)
+          participants_per_class: body.participants_per_class || null
+        }
+      ])
       .select()
       .single()
     
-    if (productError) {
-      return NextResponse.json({ error: productError.message }, { status: 500 })
+    if (insertError) {
+      return NextResponse.json({ error: insertError.message }, { status: 500 })
     }
     
     // Verificar y pausar productos automáticamente si exceden el límite del plan
@@ -828,7 +903,8 @@ export async function POST(request: NextRequest) {
           cupo: 20 // Cupo por defecto
         }
         
-        if (session.isPrimary) {
+        // Si no viene isPrimary (viejas versiones del UI), asumir que es horario principal
+        if (session.isPrimary !== false) {
           topic.originales.push(horarioItem)
         } else {
           topic.secundarios.push(horarioItem)
@@ -866,7 +942,7 @@ export async function POST(request: NextRequest) {
         await supabase
           .from('activity_media')
           .insert({
-            activity_id: product.id,
+            activity_id: newActivity.id,
             pdf_url: generalPdfUrl
           })
       }
@@ -891,7 +967,7 @@ export async function POST(request: NextRequest) {
         
         // Insertar en taller_detalles con activo = true si hay fechas futuras
         const topicInsert: any = {
-          actividad_id: product.id,
+          actividad_id: newActivity.id,
           nombre: topicData.nombre || 'Sin título',
           descripcion: topicData.descripcion || '',
           originales: originalesJson,
@@ -919,8 +995,8 @@ export async function POST(request: NextRequest) {
     // Devolver formato esperado por el modal
     return NextResponse.json({ 
       success: true, 
-      productId: product.id,
-      product: product 
+      productId: newActivity.id,
+      product: newActivity 
     })
     
   } catch (error) {
@@ -1126,37 +1202,40 @@ export async function PUT(request: NextRequest) {
         capacity: adjustedCapacity
       }
     })
+
+    const updateData: any = {
+      title: body.name,
+      description: body.description,
+      price: body.price,
+      // ✅ type = tipo de producto (workshop/program/document) - solo estos 3 valores
+      type: body.modality === 'workshop' ? 'workshop' : (body.modality === 'document' ? 'document' : 'program'),
+      // ✅ modality = modalidad (online/presencial/híbrido)
+      modality: body.type || 'online',
+      included_meet_credits: body.modality === 'workshop' ? 0 : (typeof body.included_meet_credits === 'number' ? body.included_meet_credits : parseInt(String(body.included_meet_credits ?? '0'), 10) || 0),
+      // ✅ categoria = fitness o nutricion (no confundir con type)
+      categoria: body.categoria || 'fitness',
+      difficulty: body.level,
+      is_public: body.is_public,
+      capacity: adjustedCapacity,
+      restricciones: joinSemicolonList(body.restricciones),
+      // ✅ GUARDAR OBJETIVOS EN workshop_type como JSON
+      workshop_type: splitSemicolonList(body.objetivos).length > 0
+        ? JSON.stringify({ objetivos: joinSemicolonList(body.objetivos) })
+        : (body.workshop_type || (body.modality === 'workshop' ? 'general' : null)),
+      // ✅ Campos de ubicación para modalidad presencial
+      location_name: body.location_name || null,
+      location_url: body.location_url || null,
+      // ✅ NUEVO: Días para acceder al producto
+      dias_acceso: body.dias_acceso || 30,
+      // ✅ NUEVO: Modo de taller (individual/grupal)
+      workshop_mode: body.workshop_mode || 'grupal',
+      // ✅ NUEVO: Cantidad de participantes por clase (solo para talleres grupales)
+      participants_per_class: body.participants_per_class || null
+    }
     
     const { data: product, error: productError } = await supabase
       .from('activities')
-      .update({
-        title: body.name,
-        description: body.description,
-        price: body.price,
-        // ✅ type = tipo de producto (workshop/program/document) - solo estos 3 valores
-        type: body.modality === 'workshop' ? 'workshop' : (body.modality === 'document' ? 'document' : 'program'),
-        // ✅ modality = modalidad (online/presencial/híbrido)
-        modality: body.type || 'online',
-        included_meet_credits: body.modality === 'workshop' ? 0 : (typeof body.included_meet_credits === 'number' ? body.included_meet_credits : parseInt(String(body.included_meet_credits ?? '0'), 10) || 0),
-        // ✅ categoria = fitness o nutricion (no confundir con type)
-        categoria: body.categoria || 'fitness',
-        difficulty: body.level,
-        is_public: body.is_public,
-        capacity: adjustedCapacity,
-        // ✅ GUARDAR OBJETIVOS EN workshop_type como JSON
-        workshop_type: body.objetivos && Array.isArray(body.objetivos) && body.objetivos.length > 0
-          ? JSON.stringify(body.objetivos)
-          : (body.workshop_type || (body.modality === 'workshop' ? 'general' : null)),
-        // ✅ Campos de ubicación para modalidad presencial
-        location_name: body.location_name || null,
-        location_url: body.location_url || null,
-        // ✅ NUEVO: Días para acceder al producto
-        dias_acceso: body.dias_acceso || 30,
-        // ✅ NUEVO: Modo de taller (individual/grupal)
-        workshop_mode: body.workshop_mode || 'grupal',
-        // ✅ NUEVO: Cantidad de participantes por clase (solo para talleres grupales)
-        participants_per_class: body.participants_per_class || null
-      })
+      .update(updateData)
       .eq('id', body.editingProductId)
       .eq('coach_id', user.id) // Seguridad: solo el coach dueño puede actualizar
       .select()
@@ -1281,7 +1360,8 @@ export async function PUT(request: NextRequest) {
           cupo: 20 // Cupo por defecto
         }
         
-        if (session.isPrimary) {
+        // Si no viene isPrimary (viejas versiones del UI), asumir que es horario principal
+        if (session.isPrimary !== false) {
           topic.originales.push(horarioItem)
         } else {
           topic.secundarios.push(horarioItem)
@@ -1302,6 +1382,45 @@ export async function PUT(request: NextRequest) {
         if (hasFutureDates) {
           hasAnyFutureDates = true
           break
+        }
+      }
+
+      // Si el taller estaba finalizado y se agregaron nuevas fechas futuras, generar nueva versión y reactivar
+      if (hasAnyFutureDates) {
+        const formatDateSpanish = (date: Date | string): string => {
+          const d = typeof date === 'string' ? new Date(date) : date
+          const day = String(d.getDate()).padStart(2, '0')
+          const month = String(d.getMonth() + 1).padStart(2, '0')
+          const year = String(d.getFullYear()).slice(-2)
+          return `${day}/${month}/${year}`
+        }
+
+        const { data: currentActivity } = await supabase
+          .from('activities')
+          .select('is_finished, workshop_versions')
+          .eq('id', body.editingProductId)
+          .single()
+
+        const wasFinished = currentActivity?.is_finished === true
+        if (wasFinished) {
+          const versions = (currentActivity as any)?.workshop_versions?.versions || []
+          const nextVersion = (Array.isArray(versions) ? versions.length : 0) + 1
+          const newVersion = {
+            version: nextVersion,
+            empezada_el: formatDateSpanish(new Date()),
+            finalizada_el: null
+          }
+
+          await supabase
+            .from('activities')
+            .update({
+              is_finished: false,
+              finished_at: null,
+              workshop_versions: {
+                versions: [...(Array.isArray(versions) ? versions : []), newVersion]
+              }
+            })
+            .eq('id', body.editingProductId)
         }
       }
       

@@ -195,6 +195,7 @@ export async function GET(request: NextRequest) {
     
     const fitnessData: any = {}
     const workshopData: any = {} // Datos específicos para talleres
+    const nutritionData: any = {}
     
     // Para cada actividad, obtener estadísticas usando el nuevo cálculo
     for (const activityId of programActivityIds) {
@@ -378,6 +379,12 @@ export async function GET(request: NextRequest) {
             totalSessions = 0
             console.log(`🥗 Actividad ${activityId} (Nutrición): Sin planificación`)
           }
+
+          nutritionData[activityId] = {
+            exercisesCount: ejerciciosCount,
+            totalSessions,
+            periods: periodosUnicos,
+          }
         } else {
           const { data: ejercicios } = await supabase
             .from('ejercicios_detalles')
@@ -501,6 +508,7 @@ export async function GET(request: NextRequest) {
       const rating = ratingsData[activity.id] || { avg_rating: 0, total_reviews: 0 }
       const coach = coachesData[activity.coach_id] || null
       const fitness = fitnessData[activity.id] || { exercisesCount: 0, totalSessions: 0 }
+      const nutrition = nutritionData[activity.id] || { exercisesCount: 0, totalSessions: 0 }
       const workshop = workshopData[activity.id] || null
       
       // Parsear objetivos desde workshop_type si existe
@@ -523,12 +531,19 @@ export async function GET(request: NextRequest) {
       
       // Para talleres, usar datos de workshop; para otros, usar fitness
       const isWorkshop = activity.type === 'workshop'
-      const exercisesCount = isWorkshop && workshop 
-        ? workshop.cantidadTemas 
-        : fitness.exercisesCount || 0
+      const isNutrition = activity.categoria === 'nutricion' || activity.categoria === 'nutrition'
+
+      const exercisesCount = isWorkshop && workshop
+        ? workshop.cantidadTemas
+        : isNutrition
+          ? (nutrition.exercisesCount || 0)
+          : (fitness.exercisesCount || 0)
+
       const totalSessions = isWorkshop && workshop
         ? workshop.cantidadDias
-        : fitness.totalSessions || 0
+        : isNutrition
+          ? (nutrition.totalSessions || 0)
+          : (fitness.totalSessions || 0)
       
       return {
         ...activity,

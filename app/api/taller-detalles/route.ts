@@ -75,13 +75,36 @@ export async function GET(request: NextRequest) {
       )
     }
 
+    // Fallback: horarios guardados como eventos en calendar_events (workshop)
+    const runEventsQuery = async (sb: any) =>
+      sb
+        .from('calendar_events')
+        .select('id, title, start_time, end_time, event_type, status')
+        .eq('activity_id', parseInt(actividadId))
+        .eq('event_type', 'workshop')
+        .order('start_time', { ascending: true })
+
+    let { data: calendarEvents, error: eventsError } = await runEventsQuery(service || anon)
+    if (eventsError && service && isInvalidApiKeyError(eventsError)) {
+      console.warn('⚠️ [taller-detalles] Invalid service role key (calendar_events); retrying with anon client')
+      ;({ data: calendarEvents, error: eventsError } = await runEventsQuery(anon))
+    }
+
+    if (eventsError) {
+      console.warn('⚠️ Error consultando calendar_events para taller (se continúa sin eventos):', {
+        message: eventsError.message,
+        code: (eventsError as any).code
+      })
+    }
+
     console.log('✅ Datos de taller cargados exitosamente:', tallerDetalles?.length || 0, 'temas')
 
     // Transformar datos al formato esperado por el frontend
     const transformedData = {
       success: true,
       data: tallerDetalles || [],
-      count: tallerDetalles?.length || 0
+      count: tallerDetalles?.length || 0,
+      calendarEvents: calendarEvents || []
     }
 
     return NextResponse.json(transformedData)

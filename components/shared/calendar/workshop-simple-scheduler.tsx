@@ -55,6 +55,13 @@ export function WorkshopSimpleScheduler({ sessions, onSessionsChange }: Workshop
   const [isEditingExistingTopic, setIsEditingExistingTopic] = useState(false)
   const [originalSessionsBackup, setOriginalSessionsBackup] = useState<WorkshopSession[]>([])
 
+  const isInEditorMode =
+    editingTime ||
+    isEditingExistingTopic ||
+    Boolean(topicTitle.trim()) ||
+    selectedDates.size > 0 ||
+    timeSlots.length > 0
+
   // Función para convertir Date a string YYYY-MM-DD en zona horaria local
   const formatDateToLocalString = (date: Date): string => {
     const year = date.getFullYear()
@@ -179,23 +186,33 @@ const getTotalHoursForDate = (dateString: string) => {
 
   const handleAddTimeSlot = () => {
     if (selectedDates.size === 0) return
+
+    // Evitar duraciones inválidas
+    const duration = calculateDuration(currentStartTime, currentEndTime)
+    if (!Number.isFinite(duration) || duration <= 0) return
     
     const newSlot: TimeSlot = {
       id: Date.now().toString(),
       dates: Array.from(selectedDates),
       startTime: currentStartTime,
       endTime: currentEndTime,
-      duration: calculateDuration(currentStartTime, currentEndTime)
+      duration
     }
     
     setTimeSlots(prev => [...prev, newSlot])
-    
-    // Limpiar selección
-    setSelectedDates(new Set())
+    // Mantener selección para permitir agregar múltiples horarios sobre las mismas fechas
   }
 
-  const handleRemoveTimeSlot = (id: string) => {
-    setTimeSlots(prev => prev.filter(slot => slot.id !== id))
+  const handleRemoveTimeSlotDate = (id: string, dateToRemove: string) => {
+    setTimeSlots(prev =>
+      prev
+        .map(slot => {
+          if (slot.id !== id) return slot
+          const nextDates = slot.dates.filter(d => d !== dateToRemove)
+          return { ...slot, dates: nextDates }
+        })
+        .filter(slot => slot.dates.length > 0)
+    )
   }
 
 
@@ -211,6 +228,14 @@ const getTotalHoursForDate = (dateString: string) => {
     const month = (d.getMonth() + 1).toString().padStart(2, '0')
     const year = d.getFullYear().toString().slice(-2)
     return `${day}/${month}/${year}`
+  }
+
+  const isPastDate = (dateString: string) => {
+    const d = new Date(dateString)
+    d.setHours(0, 0, 0, 0)
+    const now = new Date()
+    now.setHours(0, 0, 0, 0)
+    return d < now
   }
 
   // Calcular resumen del tema
@@ -254,14 +279,10 @@ const getTotalHoursForDate = (dateString: string) => {
       
       // Enviar sesiones al componente padre
       onSessionsChange([...sessions, ...newSessions])
-      
-      // Guardar el tema finalizado
-      setFinishedTopic({
-        title: topicTitle,
-        description: topicDescription,
-        timeSlots: [...timeSlots]
-      })
-      setShowSummary(true)
+
+      // Al guardar, colapsar el editor (sin mostrar resumen arriba)
+      setFinishedTopic(null)
+      setShowSummary(false)
       // Limpiar todo para permitir nuevo tema
       setTopicTitle("")
       setTopicDescription("")
@@ -520,13 +541,15 @@ const getTotalHoursForDate = (dateString: string) => {
           {/* Fechas seleccionadas - Simple */}
           {selectedDates.size > 0 && (
             <div className="mt-4 flex items-center justify-between text-sm">
-              <div className="flex flex-wrap gap-2">
+              <div className="flex flex-wrap gap-2 mb-2">
                 {Array.from(selectedDates).map(date => (
                   <span
                     key={date}
-                    className="px-3 py-1.5 text-sm rounded font-medium bg-[#FF7939] text-white"
+                    className={`px-2 py-0.5 bg-[#FF7939]/15 text-[#FF7939] text-xs rounded-md font-semibold ${
+                      isPastDate(date) ? 'line-through opacity-60' : ''
+                    }`}
                   >
-                    {formatDate(date)}
+                    {formatDateShort(date)}
                   </span>
                 ))}
               </div>
@@ -540,7 +563,8 @@ const getTotalHoursForDate = (dateString: string) => {
           )}
         </div>
 
-        {/* Columna Derecha: Horarios */}
+        {/* Columna Derecha: Horarios (solo en modo edición/creación) */}
+        {isInEditorMode && (
         <div className="space-y-6">
           {/* Horario Principal */}
           <div 
@@ -560,73 +584,83 @@ const getTotalHoursForDate = (dateString: string) => {
             
             {/* Input de horarios */}
             {editingTime && (
-              <div className="space-y-2 mb-3">
-                <div className="flex items-center gap-2">
+              <div className="mb-3 grid grid-cols-1 sm:grid-cols-2 gap-2">
+                <div className="flex items-center gap-2 rounded-xl border border-white/10 bg-black/20 px-2 py-1">
                   <input
                     type="time"
                     value={currentStartTime}
                     onChange={(e) => setCurrentStartTime(e.target.value)}
-                    className="flex-1 px-2 py-1 bg-[#1A1A1A] border-b border-[#3A3A3A] text-white text-xs focus:border-[#FF7939] focus:outline-none"
+                    className="w-full px-2 py-1 bg-transparent text-white text-xs focus:outline-none"
                   />
                   <span className="text-gray-500 text-xs">-</span>
                   <input
                     type="time"
                     value={currentEndTime}
                     onChange={(e) => setCurrentEndTime(e.target.value)}
-                    className="flex-1 px-2 py-1 bg-[#1A1A1A] border-b border-[#3A3A3A] text-white text-xs focus:border-[#FF7939] focus:outline-none"
+                    className="w-full px-2 py-1 bg-transparent text-white text-xs focus:outline-none"
                   />
                   <button
                     onClick={handleAddTimeSlot}
                     disabled={selectedDates.size === 0}
-                    className="px-3 py-1 bg-[#FF7939] hover:bg-[#FF6B35] disabled:bg-gray-600 disabled:cursor-not-allowed text-white rounded text-xs font-medium transition-colors flex items-center gap-1"
+                    className="px-3 py-1 rounded-lg text-xs font-semibold transition-all border border-white/10 bg-white/10 hover:bg-white/15 text-white disabled:opacity-50 disabled:cursor-not-allowed"
                   >
                     <Plus className="w-3 h-3" />
-                    Agregar
+                  </button>
+                </div>
+
+                <div className="grid grid-cols-2 gap-2">
+                  <button
+                    onClick={handleFinishTopic}
+                    disabled={timeSlots.length === 0 || !topicTitle.trim()}
+                    className="w-full py-2 rounded-xl font-semibold transition-all border border-[#FF7939]/30 bg-gradient-to-r from-[#3a221b] to-[#20130f] text-[#ffb999] text-sm disabled:opacity-50 disabled:cursor-not-allowed"
+                  >
+                    Guardar
+                  </button>
+
+                  <button
+                    onClick={handleCancelEdit}
+                    disabled={!isEditingExistingTopic}
+                    className="w-full py-2 rounded-xl font-semibold transition-all border border-white/10 bg-white/5 hover:bg-white/10 text-white text-sm disabled:opacity-40 disabled:cursor-not-allowed"
+                  >
+                    Cancelar
                   </button>
                 </div>
               </div>
             )}
             
-            {/* Lista de time slots principales - Compacto */}
+            {/* Lista de horarios agregados (filas fecha - hora) */}
             <div className="space-y-1">
-              {timeSlots.map(slot => (
-                <div
-                  key={slot.id}
-                  className="flex items-center justify-between w-full py-2 px-1 hover:bg-gray-800/30 transition-colors border-l-2 border-[#FF7939]"
-                >
-                  <div className="flex items-center gap-3 flex-1">
-                    <div className="flex items-center gap-3 text-sm">
-                      {/* Horario */}
-                      <span className="text-white font-medium min-w-[80px]">
-                        {slot.startTime}-{slot.endTime} ({slot.duration}h)
-                      </span>
-                      
-                      {/* Separador */}
-                      <span className="text-gray-500">|</span>
-                      
-                      {/* Fechas compactas */}
-                      <div className="flex gap-1">
-                        {slot.dates.map(date => (
-                          <span
-                            key={date}
-                            className="px-1.5 py-0.5 bg-[#FF7939] text-white text-xs rounded"
-                          >
-                            {formatDateShort(date)}
-                          </span>
-                        ))}
-                      </div>
-                    </div>
-                  </div>
-                  <button
-                    onClick={() => handleRemoveTimeSlot(slot.id)}
-                    className="p-1 hover:bg-gray-800 rounded transition-colors ml-2"
+              {timeSlots.flatMap(slot =>
+                slot.dates.map(date => (
+                  <div
+                    key={`${slot.id}-${date}`}
+                    className="flex items-center justify-between rounded-lg border border-white/10 bg-black/10 px-2 py-1"
                   >
-                    <Trash2 className="w-3 h-3 text-red-400" />
-                  </button>
-                </div>
-              ))}
+                    <div className="text-xs text-white/90 flex items-center gap-2">
+                      <span
+                        className={`px-2 py-0.5 rounded-md bg-[#FF7939]/15 text-[#FF7939] font-semibold ${
+                          isPastDate(date) ? 'line-through opacity-60' : ''
+                        }`}
+                      >
+                        {formatDateShort(date)}
+                      </span>
+                      <span className="text-gray-400">—</span>
+                      <span className={`font-medium text-white ${isPastDate(date) ? 'line-through opacity-60' : ''}`}>
+                        {slot.startTime}-{slot.endTime}
+                      </span>
+                    </div>
+                    <button
+                      onClick={() => handleRemoveTimeSlotDate(slot.id, date)}
+                      className="p-1 rounded hover:bg-white/5 transition-colors"
+                      title="Eliminar"
+                    >
+                      <Trash2 className="w-3 h-3 text-red-400" />
+                    </button>
+                  </div>
+                ))
+              )}
               {timeSlots.length === 0 && (
-                <div className="text-center text-xs text-gray-500 py-3">
+                <div className="text-center text-xs text-gray-500 py-2">
                   No hay horarios configurados
                 </div>
               )}
@@ -634,10 +668,11 @@ const getTotalHoursForDate = (dateString: string) => {
           </div>
 
         </div>
+        )}
       </div>
 
       {/* Resumen del Tema - Ultra Compacto */}
-      {showSummary && finishedTopic && (
+      {isInEditorMode && showSummary && finishedTopic && (
         <div className="pt-4">
           <div className="p-2 rounded">
             <div className="flex items-center justify-between">
@@ -696,96 +731,86 @@ const getTotalHoursForDate = (dateString: string) => {
         </div>
       )}
 
-      {/* Botones Finales - Ancho completo */}
-      {!showSummary && (
-        <div className="pt-4 space-y-2">
-          <button
-            onClick={handleFinishTopic}
-            disabled={timeSlots.length === 0 || !topicTitle.trim()}
-            className="w-full py-3 bg-[#FF7939] hover:bg-[#FF6B35] disabled:bg-gray-600 disabled:cursor-not-allowed text-white rounded font-medium transition-colors"
-          >
-            Finalizar Tema
-          </button>
-          
-          {/* Botón Cancelar Edición - Solo visible cuando se está editando */}
-          {isEditingExistingTopic && (
-            <button
-              onClick={handleCancelEdit}
-              className="w-full py-2 bg-gray-600 hover:bg-gray-700 text-white rounded font-medium transition-colors text-sm"
-            >
-              Cancelar Edición
-            </button>
-          )}
-        </div>
-      )}
+      {/* Botones Finales (se movieron al header de edición para un layout más compacto) */}
 
       {/* Lista de temas programados - Agrupación inteligente */}
       {sessions.length > 0 && (
-        <div className="mt-6">
-          <h3 className="text-base font-medium text-white mb-2">Temas Programados</h3>
+        <div className="mt-5">
+          <div className="flex items-center gap-2 mb-2">
+            <div className="w-1 h-6 rounded bg-[#FF7939]" />
+            <h3 className="text-base font-medium text-white">Temas Programados</h3>
+          </div>
           <div className="space-y-2">
             {getGroupedSessions().map((group, index) => (
               <div
                 key={index}
-                className="bg-[#1A1A1A] rounded-lg p-3 border border-[#3A3A3A] hover:border-[#FF7939] transition-colors"
+                className="bg-[#121212] rounded-lg p-3 border border-white/10 hover:border-[#FF7939]/60 transition-colors"
               >
-                <div className="flex items-start justify-between">
-                  <div className="flex-1">
-                    {/* Nombre del tema */}
-                    <h4 className="text-white font-medium text-base mb-2">
-                      {group.title}
-                    </h4>
-                    
-                    {/* Fechas compactas en una línea */}
-                    <div className="flex items-center gap-2 text-sm mb-2">
-                      <span className="text-gray-400 text-xs">Fechas:</span>
-                      <div className="flex gap-1 flex-wrap">
-                        {group.allDates
-                          .sort()
-                          .map(date => {
-                            const isPastDate = new Date(date) < new Date()
+                <div className="relative">
+                  <div className="flex items-start justify-between gap-3">
+                    <div className="flex-1 min-w-0">
+                      {/* Nombre del tema */}
+                      <h4 className="text-white font-medium text-base mb-1 truncate">
+                        {group.title}
+                      </h4>
+
+                      {/* Horarios (fecha - hora) */}
+                      <div className="mt-2 space-y-1">
+                        {group.sessions
+                          .slice()
+                          .sort((a, b) => {
+                            const ad = String(a.date || '')
+                            const bd = String(b.date || '')
+                            if (ad !== bd) return ad.localeCompare(bd)
+                            return String(a.startTime || '').localeCompare(String(b.startTime || ''))
+                          })
+                          .map((s, i) => {
+                            const past = isPastDate(String(s.date || ''))
                             return (
-                              <span
-                                key={date}
-                                className={`px-1.5 py-0.5 text-xs rounded ${
-                                  isPastDate 
-                                    ? 'bg-gray-500 text-gray-300 line-through' 
-                                    : 'bg-[#FF7939] text-white'
-                                }`}
-                              >
-                                {formatDateShort(date)}
-                              </span>
+                              <div key={`${s.date}-${s.startTime}-${s.endTime}-${i}`} className="flex items-center gap-2 text-xs">
+                                <span
+                                  className={`px-2 py-0.5 rounded-md bg-[#FF7939]/15 text-[#FF7939] font-semibold ${
+                                    past ? 'line-through opacity-60' : ''
+                                  }`}
+                                >
+                                  {formatDateShort(String(s.date || ''))}
+                                </span>
+                                <span className="text-gray-500">—</span>
+                                <span className={`text-white font-medium ${past ? 'line-through opacity-60' : ''}`}>
+                                  {s.startTime}-{s.endTime}
+                                </span>
+                              </div>
                             )
                           })}
                       </div>
                     </div>
-                    
-                    {/* Información del tema - Compacto para iPhone */}
-                    <div className="flex items-center gap-3 text-xs text-gray-300">
-                      <span className="text-[#FF7939] font-medium">
-                        {group.totalHours}h totales
-                      </span>
-                      <span className="text-gray-500">|</span>
-                      <span>{group.sessions.length} sesiones</span>
+
+                    {/* Botones de acción */}
+                    <div className="flex flex-col items-end gap-1">
+                      <div className="flex gap-1">
+                        <button
+                          onClick={() => handleEditGroupedTopic(group.title)}
+                          className="p-2 hover:bg-[#FF7939] hover:bg-opacity-20 rounded transition-colors"
+                          title="Editar tema"
+                        >
+                          <Edit3 className="w-4 h-4 text-[#FF7939]" />
+                        </button>
+                        <button
+                          onClick={() => handleDeleteGroupedTopic(group.title)}
+                          className="p-2 hover:bg-red-600 hover:bg-opacity-20 rounded transition-colors"
+                          title="Eliminar tema"
+                        >
+                          <Trash className="w-4 h-4 text-red-500" />
+                        </button>
+                      </div>
                     </div>
                   </div>
-                  
-                  {/* Botones de acción - Compactos para iPhone */}
-                  <div className="flex items-center gap-1 ml-2">
-                    <button
-                      onClick={() => handleEditGroupedTopic(group.title)}
-                      className="p-1.5 hover:bg-[#FF7939] hover:bg-opacity-20 rounded transition-colors"
-                      title="Editar tema completo"
-                    >
-                      <Edit3 className="w-3.5 h-3.5 text-[#FF7939]" />
-                    </button>
-                    <button
-                      onClick={() => handleDeleteGroupedTopic(group.title)}
-                      className="p-1.5 hover:bg-red-600 hover:bg-opacity-20 rounded transition-colors"
-                      title="Eliminar tema completo"
-                    >
-                      <Trash className="w-3.5 h-3.5 text-red-500" />
-                    </button>
+
+                  <div className="mt-2 flex justify-end">
+                    <div className="text-[11px] text-gray-300 text-right leading-tight">
+                      Total <span className="text-[#FF7939] font-semibold">{Math.round(group.totalHours * 10) / 10} h</span>{' '}
+                      <span className="text-white/80">{group.allDates?.length ?? new Set(group.sessions.map(s => String(s.date || ''))).size} días</span>
+                    </div>
                   </div>
                 </div>
               </div>

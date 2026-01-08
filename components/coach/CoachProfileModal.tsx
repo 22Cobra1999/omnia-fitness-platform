@@ -291,8 +291,7 @@ export default function CoachProfileModal({
           categoria: 'consultation',
           modality: 'online',
           is_public: false,
-          is_active: true,
-          workshop_mode: type === 'express' ? 'express' : type === 'puntual' ? 'puntual' : 'profunda'
+          is_active: true
         })
         .select()
         .single()
@@ -308,16 +307,35 @@ export default function CoachProfileModal({
         return
       }
 
-      // Abrir el modal de compra con la actividad creada
-      setSelectedConsultationActivity({
-        ...consultationActivity,
-        coach: {
-          id: coach.id,
-          full_name: coach.name
+      // Redirigir a Calendar para seleccionar horario (modo meet pago)
+      try {
+        const ctx = {
+          coachId: coach.id,
+          activityId: String(consultationActivity.id),
+          source: 'coach_profile_consultation',
+          purchase: {
+            kind: 'consultation',
+            durationMinutes: Number(consultation.time) || 30,
+            price: Number(consultation.price) || 0,
+            label:
+              type === 'express'
+                ? 'Meet 15 min'
+                : type === 'puntual'
+                  ? 'Meet 30 min'
+                  : 'Meet 60 min'
+          }
         }
-      })
-      setIsPurchaseModalOpen(true)
+        localStorage.setItem('scheduleMeetContext', JSON.stringify(ctx))
+        sessionStorage.setItem('scheduleMeetIntent', '1')
+        window.dispatchEvent(new CustomEvent('omnia-force-tab-change', { detail: { tab: 'calendar' } }))
+      } catch (e) {
+        console.error('Error redirigiendo a calendario:', e)
+      }
+
+      // Cerrar modal de coach (opcional) y limpiar loading
+      setIsCafeViewOpen(false)
       setIsProcessingPurchase(null)
+      onClose()
     } catch (error: any) {
       console.error('Error en la compra de consulta:', error)
       toast({
@@ -432,18 +450,25 @@ export default function CoachProfileModal({
               {/* Icono de Café en la misma fila */}
               <button
                 onClick={() => setIsCafeViewOpen((prev) => !prev)}
-                className="relative w-10 h-10 rounded-full flex items-center justify-center bg-transparent border-2 transition-all duration-200 hover:bg-[#1A1A1A]/50"
+                className={
+                  'relative w-10 h-10 rounded-full flex items-center justify-center border transition-all duration-200 ' +
+                  'backdrop-blur-md bg-white/5 hover:bg-white/10 ' +
+                  'shadow-[0_8px_30px_rgba(0,0,0,0.35)]'
+                }
                 style={{
                   borderColor:
                     coachConsultations.express.active ||
                     coachConsultations.puntual.active ||
                     coachConsultations.profunda.active
-                      ? '#FF7939'
-                      : '#4B5563',
+                      ? 'rgba(255,121,57,0.65)'
+                      : 'rgba(255,255,255,0.14)',
                 }}
               >
                 <Coffee
-                  className="h-5 w-5 transition-colors duration-200"
+                  className={
+                    'h-5 w-5 transition-all duration-200 ' +
+                    (isCafeViewOpen ? 'opacity-40' : 'opacity-100')
+                  }
                   style={{
                     color:
                       coachConsultations.express.active ||
@@ -460,17 +485,11 @@ export default function CoachProfileModal({
             {isCafeViewOpen && (
               <div className="mb-4">
                 {/* Header: Símbolo de café y "Meet con el coach" en la misma línea, centrados */}
-                <div className="flex items-center justify-center gap-2 mb-3 relative">
+                <div className="flex items-center justify-center gap-2 mb-3">
                   <Coffee className="w-5 h-5 text-[#FF7939]" />
                   <h3 className="text-white font-semibold text-sm">
                     Meet con el coach
                   </h3>
-                  <button
-                    onClick={() => setIsCafeViewOpen(false)}
-                    className="absolute top-0 right-0 text-gray-400 hover:text-white transition-colors"
-                  >
-                    <X className="h-4 w-4" />
-                  </button>
                 </div>
 
                 {/* Grid horizontal de consultas (una al lado de la otra) */}
@@ -515,11 +534,7 @@ export default function CoachProfileModal({
                       className="flex flex-col items-center justify-center p-3 rounded-lg border border-[#2A2A2A] bg-[#1A1A1A] hover:border-[#FF7939] hover:bg-[#1A1A1A]/80 transition-all duration-200 disabled:opacity-50 disabled:cursor-not-allowed"
                     >
                       {/* Icono */}
-                      <MessageSquare
-                        className="w-5 h-5 text-[#FF7939] mb-1.5"
-                        strokeWidth={2}
-                        fill="none"
-                      />
+                      <Target className="w-5 h-5 text-[#FF7939] mb-1.5" strokeWidth={2} fill="none" />
                       {/* Nombre */}
                       <h4 className="text-white font-semibold text-xs text-center mb-0.5">
                         {coachConsultations.puntual.name}
@@ -551,7 +566,7 @@ export default function CoachProfileModal({
                       className="flex flex-col items-center justify-center p-3 rounded-lg border border-[#2A2A2A] bg-[#1A1A1A] hover:border-[#FF7939] hover:bg-[#1A1A1A]/80 transition-all duration-200 disabled:opacity-50 disabled:cursor-not-allowed"
                     >
                       {/* Icono */}
-                      <Target className="w-5 h-5 text-[#FF7939] mb-1.5" strokeWidth={2} fill="none" />
+                      <GraduationCap className="w-5 h-5 text-[#FF7939] mb-1.5" strokeWidth={2} fill="none" />
                       {/* Nombre */}
                       <h4 className="text-white font-semibold text-xs text-center mb-0.5">
                         {coachConsultations.profunda.name}

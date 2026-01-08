@@ -38,6 +38,8 @@ function MobileAppContent() {
   const [activeTab, setActiveTab] = useState("community")
   const userRole = user?.level || "client"
   const searchParams = useSearchParams()
+
+  const urlTabs = ['community', 'search', 'calendar', 'activity', 'profile', 'messages', 'clients', 'products-management']
   
   // Manejo de errores globales
   useErrorHandler()
@@ -48,7 +50,7 @@ function MobileAppContent() {
   // Manejar parámetro tab de la URL
   useEffect(() => {
     const tabParam = searchParams.get('tab')
-    if (tabParam && ['community', 'search', 'calendar', 'profile', 'messages'].includes(tabParam)) {
+    if (tabParam && urlTabs.includes(tabParam)) {
       setActiveTab(tabParam)
     }
   }, [searchParams])
@@ -59,7 +61,6 @@ function MobileAppContent() {
     if (typeof window === 'undefined') return
     const tab = activeTab
     // Solo reflejar tabs navegables por URL
-    const urlTabs = ['community', 'search', 'calendar', 'profile', 'messages']
     if (!urlTabs.includes(tab)) return
 
     const newUrl = new URL(window.location.href)
