@@ -20,7 +20,6 @@ export function ActivityDetailExpanded({ activity, onBack }: ActivityDetailExpan
   // const { stats, loading, product } = useProductStats(activity.id)
   const stats = { totalSessions: 0, uniqueExercises: 0 }
   const loading = false
-  const product = null
   
   const vimeoId = extractVimeoId(activity.video_url || '')
   
@@ -28,11 +27,10 @@ export function ActivityDetailExpanded({ activity, onBack }: ActivityDetailExpan
   const totalSessions = stats.totalSessions || activity.totalSessions || 0
   const uniqueExercises = stats.uniqueExercises || activity.exercisesCount || 0
   
-  // Usar los datos del producto del hook si están disponibles
-  const productCapacity = product?.capacity || activity.capacity
-  const productModality = product?.modality || activity.modality
-  const locationName = product?.location_name || activity.location_name
-  const locationUrl = product?.location_url || activity.location_url
+  const productCapacity = (activity as any).capacity
+  const productModality = (activity as any).modality
+  const locationName = (activity as any).location_name
+  const locationUrl = (activity as any).location_url
   
   // Parsear objetivos
   let objetivos = []
@@ -229,8 +227,8 @@ export function ActivityDetailExpanded({ activity, onBack }: ActivityDetailExpan
             </div>
             
             <div className="flex items-center space-x-2">
-              {getCategoryIcon(activity.categoria)}
-              <span className="text-gray-300">{getCategoryLabel(activity.categoria)}: {loading ? '...' : uniqueExercises}</span>
+              {getCategoryIcon(activity.categoria ?? undefined)}
+              <span className="text-gray-300">{getCategoryLabel(activity.categoria ?? undefined)}: {loading ? '...' : uniqueExercises}</span>
             </div>
             
             {productCapacity && (
@@ -243,8 +241,8 @@ export function ActivityDetailExpanded({ activity, onBack }: ActivityDetailExpan
             )}
             
             <div className="flex items-center space-x-2">
-              {getModalityIcon(productModality)}
-              <span className="text-gray-300">{getModalityLabel(productModality)}</span>
+              {getModalityIcon(productModality ?? undefined)}
+              <span className="text-gray-300">{getModalityLabel(productModality ?? undefined)}</span>
             </div>
           </div>
 
@@ -252,7 +250,7 @@ export function ActivityDetailExpanded({ activity, onBack }: ActivityDetailExpan
           {objetivos && objetivos.length > 0 && (
             <div>
               <h3 className="text-lg font-semibold mb-2">Objetivos</h3>
-              <div className="flex gap-2 overflow-x-auto pb-2">
+              <div className="flex gap-2 overflow-x-auto hide-scrollbar pb-2">
                 {objetivos.map((objetivo, index) => (
                   <span 
                     key={index}

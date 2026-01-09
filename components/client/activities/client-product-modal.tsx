@@ -1482,7 +1482,7 @@ export default function ClientProductModal({
               {product.objetivos && Array.isArray(product.objetivos) && product.objetivos.length > 0 && (
                 <div>
                   <h4 className="text-white font-semibold mb-3">Objetivos</h4>
-                  <div className="flex gap-2 overflow-x-auto pb-2">
+                  <div className="flex gap-2 overflow-x-auto hide-scrollbar pb-2">
                     {product.objetivos.map((objetivo: string, index: number) => (
                       <span
                         key={index}

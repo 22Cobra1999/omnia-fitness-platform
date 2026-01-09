@@ -28,6 +28,32 @@ export function CalendarScreen({ onTabChange }: CalendarScreenProps) {
   >(null)
   const supabase = useMemo(() => createClient(), [])
 
+  const readScheduleMeetContextFromStorage = useCallback(() => {
+    if (typeof window === 'undefined') return null
+    try {
+      const raw = localStorage.getItem('scheduleMeetContext')
+      if (!raw) return null
+      const parsed = JSON.parse(raw)
+      const coachId = String(parsed?.coachId || '')
+      const activityId = parsed?.activityId ? String(parsed?.activityId || '') : undefined
+      if (!coachId) return null
+
+      const purchaseRaw = parsed?.purchase
+      const purchase = purchaseRaw && typeof purchaseRaw === 'object'
+        ? {
+            kind: 'consultation' as const,
+            durationMinutes: Number((purchaseRaw as any).durationMinutes ?? 0) || 0,
+            price: Number((purchaseRaw as any).price ?? 0) || 0,
+            label: String((purchaseRaw as any).label || 'Meet')
+          }
+        : undefined
+
+      return { coachId, activityId, source: parsed?.source, purchase }
+    } catch {
+      return null
+    }
+  }, [])
+
   // Listener para resetear al origen cuando se presiona el tab activo
   useEffect(() => {
     const handleResetToOrigin = (event: CustomEvent) => {
@@ -54,50 +80,41 @@ export function CalendarScreen({ onTabChange }: CalendarScreenProps) {
 
   useEffect(() => {
     if (typeof window === 'undefined') return
+
     try {
       const hasIntent = sessionStorage.getItem('scheduleMeetIntent') === '1'
-      if (!hasIntent) {
-        // En refresh / navegación directa, abrir calendario del cliente en modo normal.
-        // El modo schedule-meet solo debe activarse por una intención explícita.
-        setScheduleMeetContext(null)
+
+      // Consumir intent (solo una vez)
+      if (hasIntent) {
+        sessionStorage.removeItem('scheduleMeetIntent')
+      }
+
+      // Robustez: si existe contexto en localStorage, lo tomamos.
+      // Esto evita el caso donde el CalendarScreen ya estaba montado o el intent se perdió.
+      const ctx = readScheduleMeetContextFromStorage()
+      setScheduleMeetContext(ctx)
+
+      // En refresh / navegación directa sin intención y sin contexto, abrir modo normal.
+      if (!hasIntent && !ctx) {
         try {
           localStorage.removeItem('scheduleMeetContext')
         } catch {
           // ignore
         }
-        return
       }
-
-      // Consumir intent (solo una vez)
-      sessionStorage.removeItem('scheduleMeetIntent')
-
-      const raw = localStorage.getItem('scheduleMeetContext')
-      if (!raw) {
-        setScheduleMeetContext(null)
-        return
-      }
-      const parsed = JSON.parse(raw)
-      const coachId = String(parsed?.coachId || '')
-      const activityId = parsed?.activityId ? String(parsed?.activityId || '') : undefined
-      if (!coachId) {
-        setScheduleMeetContext(null)
-        return
-      }
-      const purchaseRaw = parsed?.purchase
-      const purchase = purchaseRaw && typeof purchaseRaw === 'object'
-        ? {
-            kind: 'consultation' as const,
-            durationMinutes: Number((purchaseRaw as any).durationMinutes ?? 0) || 0,
-            price: Number((purchaseRaw as any).price ?? 0) || 0,
-            label: String((purchaseRaw as any).label || 'Meet')
-          }
-        : undefined
-
-      setScheduleMeetContext({ coachId, activityId, source: parsed?.source, purchase })
-    } catch (e) {
+    } catch {
       setScheduleMeetContext(null)
     }
-  }, [])
+  }, [readScheduleMeetContextFromStorage])
+
+  useEffect(() => {
+    const handler = () => {
+      const ctx = readScheduleMeetContextFromStorage()
+      setScheduleMeetContext(ctx)
+    }
+    window.addEventListener('omnia-refresh-schedule-meet', handler as EventListener)
+    return () => window.removeEventListener('omnia-refresh-schedule-meet', handler as EventListener)
+  }, [readScheduleMeetContextFromStorage])
 
   // Función para manejar el clic en una actividad
   const handleActivityClick = (activityId: string) => {

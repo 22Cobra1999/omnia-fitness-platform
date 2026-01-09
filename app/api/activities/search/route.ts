@@ -84,6 +84,12 @@ export async function GET(request: NextRequest) {
       *,
       activity_media!activity_media_activity_id_fkey(*)
     `)
+
+    // Por defecto, las consultas no son "productos": se muestran solo en la sección Café.
+    // Evitamos que aparezcan en search/listados generales.
+    if (!typeFilter || typeFilter !== 'consultation') {
+      query = query.neq('type', 'consultation')
+    }
     if (searchTerm) {
       query = query.or(`title.ilike.%${searchTerm}%,description.ilike.%${searchTerm}%`)
     }

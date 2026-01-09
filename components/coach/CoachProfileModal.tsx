@@ -328,6 +328,7 @@ export default function CoachProfileModal({
         localStorage.setItem('scheduleMeetContext', JSON.stringify(ctx))
         sessionStorage.setItem('scheduleMeetIntent', '1')
         window.dispatchEvent(new CustomEvent('omnia-force-tab-change', { detail: { tab: 'calendar' } }))
+        window.dispatchEvent(new CustomEvent('omnia-refresh-schedule-meet'))
       } catch (e) {
         console.error('Error redirigiendo a calendario:', e)
       }

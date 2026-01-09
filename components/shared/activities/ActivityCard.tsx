@@ -622,7 +622,7 @@ const ActivityCard: React.FC<ActivityCardProps> = ({
 
 
          {/* 6. OBJETIVOS/TAGS - Sección fija (siempre presente para mantener alineación) */}
-         <div className="flex flex-nowrap gap-1 mb-1 justify-start overflow-x-auto min-h-[1.5rem]">
+         <div className="flex flex-nowrap gap-1 mb-1 justify-start overflow-x-auto hide-scrollbar min-h-[1.5rem] pb-1">
             {/* Para productos de nutrición, usar tipo de dieta como "objetivo" principal */}
             {((activity.categoria === 'nutricion' || activity.categoria === 'nutrition') && (activity as any).dieta) ? (
               <span

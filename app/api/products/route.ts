@@ -64,6 +64,7 @@ async function checkAndPauseProductsIfNeeded(coachId: string) {
       .select('id, created_at')
       .eq('coach_id', coachId)
       .eq('is_paused', false)
+      .neq('type', 'consultation')
       .order('created_at', { ascending: true }) // ASCENDENTE: los más antiguos primero
     
     if (countError) {
@@ -129,6 +130,7 @@ export async function GET(request: NextRequest) {
       .from('activities')
       .select('*')
       .eq('coach_id', user.id)
+      .neq('type', 'consultation')
       .order('created_at', { ascending: false })
     
     if (productsError) {
@@ -165,6 +167,7 @@ export async function GET(request: NextRequest) {
       .from('activities')
       .select('*')
       .eq('coach_id', user.id)
+      .neq('type', 'consultation')
       .order('created_at', { ascending: false })
     
     // Usar productos actualizados si están disponibles, sino usar los originales

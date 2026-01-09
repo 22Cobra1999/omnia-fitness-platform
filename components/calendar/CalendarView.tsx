@@ -1,6 +1,6 @@
 "use client"
 
-import { useState, useEffect, useMemo, useRef, Fragment } from "react"
+import { useState, useEffect, useMemo, useRef, Fragment, useCallback } from "react"
 import { createClient } from '@/lib/supabase/supabase-client'
 import { format, startOfMonth, endOfMonth, eachDayOfInterval, isSameDay, isToday, addMonths, subMonths, startOfWeek, addDays } from "date-fns"
 import { es } from "date-fns/locale"
@@ -39,6 +39,7 @@ interface CalendarViewProps {
 }
 
 export default function CalendarView({ activityIds, onActivityClick, scheduleMeetContext, onSetScheduleMeetContext }: CalendarViewProps) {
+  const supabase = useMemo(() => createClient(), [])
   const [currentDate, setCurrentDate] = useState(new Date())
   const [selectedDate, setSelectedDate] = useState<Date | null>(new Date())
   const [authUserId, setAuthUserId] = useState<string | null>(null)
@@ -99,6 +100,15 @@ export default function CalendarView({ activityIds, onActivityClick, scheduleMee
     express: { active: false, price: 0, time: 15, name: 'Express' },
     puntual: { active: false, price: 0, time: 30, name: 'Consulta puntual' },
     profunda: { active: false, price: 0, time: 60, name: 'Sesión profunda' },
+  })
+
+  const selectedCoachId = scheduleMeetContext?.coachId ? String(scheduleMeetContext.coachId) : null
+
+  const [selectedConsultationType, setSelectedConsultationType] = useState<'express' | 'puntual' | 'profunda'>(() => {
+    const mins = Number(scheduleMeetContext?.purchase?.durationMinutes ?? 30) || 30
+    if (mins <= 15) return 'express'
+    if (mins >= 60) return 'profunda'
+    return 'puntual'
   })
   const [coachAvailabilityRows, setCoachAvailabilityRows] = useState<
     Array<{
@@ -181,6 +191,93 @@ export default function CalendarView({ activityIds, onActivityClick, scheduleMee
     | null
   >(null)
 
+  const requiredSlotBlocks = useMemo(() => {
+    const mins = Number(rescheduleContext?.durationMinutes ?? purchaseContext?.durationMinutes ?? 30) || 30
+    return Math.max(1, Math.ceil(mins / 30))
+  }, [purchaseContext?.durationMinutes, rescheduleContext?.durationMinutes])
+
+  const hasAutoOpenedPaidFlowRef = useRef(false)
+
+  useEffect(() => {
+    const mins = Number(scheduleMeetContext?.purchase?.durationMinutes ?? 0) || 0
+    if (!mins) return
+    if (mins <= 15) setSelectedConsultationType('express')
+    else if (mins >= 60) setSelectedConsultationType('profunda')
+    else setSelectedConsultationType('puntual')
+  }, [scheduleMeetContext?.purchase?.durationMinutes])
+
+  const applyConsultationSelection = useCallback(async (type: 'express' | 'puntual' | 'profunda') => {
+    if (!selectedCoachId) return
+    if (typeof window === 'undefined') return
+
+    const consultation = coachConsultations[type]
+    if (!consultation?.active || Number(consultation.price) <= 0) return
+
+    setSelectedConsultationType(type)
+    setMeetPurchasePaid(false)
+    setSelectedMeetRequest(null)
+
+    const durationMinutes = Number(consultation.time) || (type === 'express' ? 15 : type === 'profunda' ? 60 : 30)
+    const price = Number(consultation.price) || 0
+    const label = type === 'express' ? 'Meet 15 min' : type === 'puntual' ? 'Meet 30 min' : 'Meet 60 min'
+
+    // Reusar activityId si ya se creó para este coach + tipo
+    const cacheKey = `consultationActivityId:${String(selectedCoachId)}:${type}`
+    const cached = localStorage.getItem(cacheKey)
+    let activityId = cached ? String(cached) : ''
+
+    if (!activityId) {
+      try {
+        const consultationTitle = type === 'express'
+          ? 'Consulta Express - 15 min'
+          : type === 'puntual'
+            ? 'Consulta Puntual - 30 min'
+            : 'Sesión Profunda - 60 min'
+
+        const { data: inserted, error } = await supabase
+          .from('activities')
+          .insert({
+            coach_id: selectedCoachId,
+            title: consultationTitle,
+            description: `Consulta con coach`,
+            type: 'consultation',
+            price,
+            categoria: 'consultation',
+            modality: 'online',
+            is_public: false,
+            is_active: true,
+          })
+          .select('id')
+          .single()
+
+        if (!error && inserted?.id != null) {
+          activityId = String(inserted.id)
+          try {
+            localStorage.setItem(cacheKey, activityId)
+          } catch {
+            // ignore
+          }
+        }
+      } catch {
+        // ignore
+      }
+    }
+
+    const nextCtx = {
+      coachId: String(selectedCoachId),
+      activityId: activityId || scheduleMeetContext?.activityId,
+      source: scheduleMeetContext?.source || 'calendar',
+      purchase: { kind: 'consultation' as const, durationMinutes, price, label },
+    }
+
+    try {
+      localStorage.setItem('scheduleMeetContext', JSON.stringify(nextCtx))
+    } catch {
+      // ignore
+    }
+    onSetScheduleMeetContext?.(nextCtx)
+  }, [coachConsultations, onSetScheduleMeetContext, scheduleMeetContext?.activityId, scheduleMeetContext?.source, selectedCoachId, supabase])
+
   const [showMeetNotifications, setShowMeetNotifications] = useState(false)
   const [meetNotificationsCount, setMeetNotificationsCount] = useState<number>(0)
 
@@ -194,7 +291,6 @@ export default function CalendarView({ activityIds, onActivityClick, scheduleMee
       }
     | null
   >(null)
-  const supabase = useMemo(() => createClient(), [])
   const dayDetailRef = useRef<HTMLDivElement | null>(null)
 
   useEffect(() => {
@@ -228,8 +324,6 @@ export default function CalendarView({ activityIds, onActivityClick, scheduleMee
     })
     return Array.from(ids)
   }, [activitiesInfo])
-
-  const selectedCoachId = scheduleMeetContext?.coachId ? String(scheduleMeetContext.coachId) : null
   const selectedCoachProfile = useMemo(() => {
     if (!selectedCoachId) return null
     return coachProfiles.find((c) => c.id === selectedCoachId) || null
@@ -1105,7 +1199,7 @@ export default function CalendarView({ activityIds, onActivityClick, scheduleMee
 
         const { data, error } = await supabase
           .from('calendar_events')
-          .select('start_time, event_type, coach_id')
+          .select('start_time, end_time, event_type, coach_id')
           .eq('coach_id', selectedCoachId)
           .eq('event_type', 'consultation')
           .gte('start_time', start.toISOString())
@@ -1119,11 +1213,23 @@ export default function CalendarView({ activityIds, onActivityClick, scheduleMee
 
         const map: Record<string, Set<string>> = {}
         ;(data || []).forEach((row: any) => {
-          const dt = new Date(row.start_time)
-          const dayKey = format(dt, 'yyyy-MM-dd')
-          const timeKey = format(dt, 'HH:mm')
-          if (!map[dayKey]) map[dayKey] = new Set<string>()
-          map[dayKey].add(timeKey)
+          const startDt = new Date(row.start_time)
+          const endDt = row.end_time ? new Date(row.end_time) : new Date(startDt.getTime() + 30 * 60 * 1000)
+
+          const startMs = startDt.getTime()
+          const endMs = endDt.getTime()
+          if (!Number.isFinite(startMs) || !Number.isFinite(endMs)) return
+
+          // Marcar todos los slots de 30 min que ocupa el evento
+          const cursor = new Date(startDt)
+          cursor.setSeconds(0, 0)
+          while (cursor.getTime() < endMs) {
+            const dayKey = format(cursor, 'yyyy-MM-dd')
+            const timeKey = format(cursor, 'HH:mm')
+            if (!map[dayKey]) map[dayKey] = new Set<string>()
+            map[dayKey].add(timeKey)
+            cursor.setMinutes(cursor.getMinutes() + 30)
+          }
         })
         setBookedSlotsByDay(map)
       } catch (e) {
@@ -1138,7 +1244,7 @@ export default function CalendarView({ activityIds, onActivityClick, scheduleMee
   useEffect(() => {
     const loadBookedSlotsMonth = async () => {
       try {
-        if (!selectedCoachId || meetViewMode !== 'month') {
+        if (!selectedCoachId) {
           setBookedSlotsByDayMonth({})
           return
         }
@@ -1148,7 +1254,7 @@ export default function CalendarView({ activityIds, onActivityClick, scheduleMee
 
         const { data, error } = await supabase
           .from('calendar_events')
-          .select('start_time, event_type, coach_id')
+          .select('start_time, end_time, event_type, coach_id')
           .eq('coach_id', selectedCoachId)
           .eq('event_type', 'consultation')
           .gte('start_time', start.toISOString())
@@ -1162,11 +1268,22 @@ export default function CalendarView({ activityIds, onActivityClick, scheduleMee
 
         const map: Record<string, Set<string>> = {}
         ;(data || []).forEach((row: any) => {
-          const dt = new Date(row.start_time)
-          const dayKey = format(dt, 'yyyy-MM-dd')
-          const timeKey = format(dt, 'HH:mm')
-          if (!map[dayKey]) map[dayKey] = new Set<string>()
-          map[dayKey].add(timeKey)
+          const startDt = new Date(row.start_time)
+          const endDt = row.end_time ? new Date(row.end_time) : new Date(startDt.getTime() + 30 * 60 * 1000)
+
+          const startMs = startDt.getTime()
+          const endMs = endDt.getTime()
+          if (!Number.isFinite(startMs) || !Number.isFinite(endMs)) return
+
+          const cursor = new Date(startDt)
+          cursor.setSeconds(0, 0)
+          while (cursor.getTime() < endMs) {
+            const dayKey = format(cursor, 'yyyy-MM-dd')
+            const timeKey = format(cursor, 'HH:mm')
+            if (!map[dayKey]) map[dayKey] = new Set<string>()
+            map[dayKey].add(timeKey)
+            cursor.setMinutes(cursor.getMinutes() + 30)
+          }
         })
         setBookedSlotsByDayMonth(map)
       } catch (e) {
@@ -1176,7 +1293,7 @@ export default function CalendarView({ activityIds, onActivityClick, scheduleMee
     }
 
     loadBookedSlotsMonth()
-  }, [currentDate, meetViewMode, selectedCoachId, supabase])
+  }, [currentDate, selectedCoachId, supabase])
 
   useEffect(() => {
     const loadSelectedMeetDetails = async () => {
@@ -1281,7 +1398,24 @@ export default function CalendarView({ activityIds, onActivityClick, scheduleMee
           const h = Math.floor(t / 60)
           const m = t % 60
           const hhmm = `${String(h).padStart(2, '0')}:${String(m).padStart(2, '0')}`
-          if (!booked.has(hhmm)) slots.add(hhmm)
+
+          // Validar bloques contiguos según duración
+          let ok = true
+          for (let i = 0; i < requiredSlotBlocks; i++) {
+            const nextMins = t + i * 30
+            if (nextMins + 30 > end) {
+              ok = false
+              break
+            }
+            const nh = Math.floor(nextMins / 60)
+            const nm = nextMins % 60
+            const nHHMM = `${String(nh).padStart(2, '0')}:${String(nm).padStart(2, '0')}`
+            if (booked.has(nHHMM)) {
+              ok = false
+              break
+            }
+          }
+          if (ok) slots.add(hhmm)
         }
       }
 
@@ -1289,7 +1423,7 @@ export default function CalendarView({ activityIds, onActivityClick, scheduleMee
     }
 
     return result
-  }, [bookedSlotsByDayMonth, coachAvailabilityRows, currentDate, selectedCoachId])
+  }, [bookedSlotsByDayMonth, coachAvailabilityRows, currentDate, requiredSlotBlocks, selectedCoachId])
 
   const availableSlotDays = useMemo(() => {
     return new Set<string>(Object.keys(availableSlotsCountByDay || {}))
@@ -1320,6 +1454,30 @@ export default function CalendarView({ activityIds, onActivityClick, scheduleMee
       })
     }
   }, [availableSlotDays, coachAvailabilityRows, currentDate, selectedCoachId])
+
+  useEffect(() => {
+    if (!isPaidMeetFlow) {
+      hasAutoOpenedPaidFlowRef.current = false
+      return
+    }
+    if (!selectedCoachId) return
+    if (hasAutoOpenedPaidFlowRef.current) return
+
+    const days = Array.from(availableSlotDays.values()).sort((a, b) => a.localeCompare(b))
+    if (days.length === 0) return
+
+    try {
+      const first = new Date(`${days[0]}T00:00:00`)
+      setSelectedDate(first)
+      setMeetViewMode('week')
+      setMeetWeekStart(startOfWeek(first, { weekStartsOn: 1 }))
+      setShowCoachRow(true)
+      setShowAddMenu(false)
+      hasAutoOpenedPaidFlowRef.current = true
+    } catch {
+      // ignore
+    }
+  }, [availableSlotDays, isPaidMeetFlow, selectedCoachId])
 
   useEffect(() => {
     if (!isPaidMeetFlow) {
@@ -1393,12 +1551,29 @@ export default function CalendarView({ activityIds, onActivityClick, scheduleMee
       return r.year === year && r.month === month
     })
 
+    const dayKey = format(date, 'yyyy-MM-dd')
+    const booked = (meetViewMode === 'week' ? bookedSlotsByDay?.[dayKey] : bookedSlotsByDayMonth?.[dayKey]) || new Set<string>()
+
     const slots = new Set<string>()
     for (const r of rows) {
       const start = toMinutes(r.start_time)
       const end = toMinutes(r.end_time)
       for (let t = start; t + 30 <= end; t += 30) {
-        slots.add(toHHMM(t))
+        // Validar bloques contiguos según duración
+        let ok = true
+        for (let i = 0; i < requiredSlotBlocks; i++) {
+          const nextMins = t + i * 30
+          if (nextMins + 30 > end) {
+            ok = false
+            break
+          }
+          const n = toHHMM(nextMins)
+          if (booked.has(n)) {
+            ok = false
+            break
+          }
+        }
+        if (ok) slots.add(toHHMM(t))
       }
     }
     return Array.from(slots.values()).sort((a, b) => a.localeCompare(b))
@@ -1568,37 +1743,82 @@ export default function CalendarView({ activityIds, onActivityClick, scheduleMee
                 const isSelected = !!selectedCoachId && coach.id === selectedCoachId
                 const isDimmed = !!selectedCoachId && coach.id !== selectedCoachId
                 return (
-                  <button
-                    key={coach.id}
-                    type="button"
-                    onClick={() => handlePickCoachForMeet(coach.id)}
-                    className={
-                      `relative w-[180px] h-[120px] rounded-2xl overflow-hidden flex-shrink-0 border bg-black/30 transition-colors ` +
-                      (isSelected
-                        ? 'border-[#FF7939]/60 shadow-[0_10px_30px_rgba(255,121,57,0.18)]'
-                        : 'border-white/10 hover:bg-white/5') +
-                      (isDimmed ? ' opacity-45' : '')
-                    }
-                  >
-                    <div className="absolute inset-0">
-                      <Image
-                        src={coach.avatar_url || '/placeholder.svg?height=160&width=160&query=coach'}
-                        alt={coach.full_name}
-                        fill
-                        className={(isDimmed ? 'object-cover grayscale' : 'object-cover')}
-                        sizes="180px"
-                      />
-                    </div>
-
-                    <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-black/30 to-transparent" />
-
-                    <div className="absolute left-3 right-3 bottom-3">
-                      <div className="text-white text-base font-semibold truncate">{coach.full_name}</div>
-                      <div className="mt-2 inline-flex items-center px-2.5 py-1 rounded-full border text-[11px] font-semibold backdrop-blur-md bg-white/10 border-[#FF7939]/40 text-white">
-                        {(meetCreditsByCoachId[coach.id] ?? 0)} meets disponibles
+                  <div key={coach.id} className="flex items-center gap-3 flex-shrink-0">
+                    <button
+                      type="button"
+                      onClick={() => handlePickCoachForMeet(coach.id)}
+                      className={
+                        `relative w-[180px] h-[120px] rounded-2xl overflow-hidden flex-shrink-0 border bg-black/30 transition-colors ` +
+                        (isSelected
+                          ? 'border-[#FF7939]/60 shadow-[0_10px_30px_rgba(255,121,57,0.18)]'
+                          : 'border-white/10 hover:bg-white/5') +
+                        (isDimmed ? ' opacity-45' : '')
+                      }
+                    >
+                      <div className="absolute inset-0">
+                        <Image
+                          src={coach.avatar_url || '/placeholder.svg?height=160&width=160&query=coach'}
+                          alt={coach.full_name}
+                          fill
+                          className={(isDimmed ? 'object-cover grayscale' : 'object-cover')}
+                          sizes="180px"
+                        />
                       </div>
-                    </div>
-                  </button>
+
+                      <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-black/30 to-transparent" />
+
+                      <div className="absolute left-3 right-3 bottom-3">
+                        <div className="text-white text-base font-semibold truncate">{coach.full_name}</div>
+                        <div className="mt-2 inline-flex items-center px-2.5 py-1 rounded-full border text-[11px] font-semibold backdrop-blur-md bg-white/10 border-[#FF7939]/40 text-white">
+                          {(meetCreditsByCoachId[coach.id] ?? 0)} meets disponibles
+                        </div>
+                      </div>
+                    </button>
+
+                    {isPaidMeetFlow && isSelected && (
+                      <div className="flex items-center gap-6 pr-2">
+                        <button
+                          type="button"
+                          onClick={() => applyConsultationSelection('express')}
+                          className={
+                            `flex flex-col items-center transition-opacity ` +
+                            (selectedConsultationType === 'express' ? 'opacity-100' : 'opacity-70 hover:opacity-100')
+                          }
+                        >
+                          <Zap className="w-5 h-5 text-[#FF7939]" strokeWidth={2} fill="none" />
+                          <div className="mt-1 text-white text-xs font-semibold">Express</div>
+                          <div className="text-gray-400 text-[11px]">15 min</div>
+                          <div className="mt-0.5 text-[#FF7939] text-sm font-bold">${coachConsultations.express.price}</div>
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => applyConsultationSelection('puntual')}
+                          className={
+                            `flex flex-col items-center transition-opacity ` +
+                            (selectedConsultationType === 'puntual' ? 'opacity-100' : 'opacity-70 hover:opacity-100')
+                          }
+                        >
+                          <Target className="w-5 h-5 text-[#FF7939]" strokeWidth={2} fill="none" />
+                          <div className="mt-1 text-white text-xs font-semibold">Consulta puntual</div>
+                          <div className="text-gray-400 text-[11px]">30 min</div>
+                          <div className="mt-0.5 text-[#FF7939] text-sm font-bold">${coachConsultations.puntual.price}</div>
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => applyConsultationSelection('profunda')}
+                          className={
+                            `flex flex-col items-center transition-opacity ` +
+                            (selectedConsultationType === 'profunda' ? 'opacity-100' : 'opacity-70 hover:opacity-100')
+                          }
+                        >
+                          <GraduationCap className="w-5 h-5 text-[#FF7939]" strokeWidth={2} fill="none" />
+                          <div className="mt-1 text-white text-xs font-semibold">Sesión profunda</div>
+                          <div className="text-gray-400 text-[11px]">60 min</div>
+                          <div className="mt-0.5 text-[#FF7939] text-sm font-bold">${coachConsultations.profunda.price}</div>
+                        </button>
+                      </div>
+                    )}
+                  </div>
                 )
               })}
             </div>
@@ -1623,102 +1843,6 @@ export default function CalendarView({ activityIds, onActivityClick, scheduleMee
               >
                 Quitar coach
               </button>
-
-              {isPaidMeetFlow && (
-                <div className="w-full max-w-[520px] rounded-2xl border border-white/10 bg-white/5 backdrop-blur-md p-3">
-                  <div className="grid grid-cols-3 gap-3">
-                    <button
-                      type="button"
-                      className="flex flex-col items-center justify-center p-3 rounded-lg border border-white/10 bg-black/20 hover:border-[#FF7939]/60 transition-colors"
-                    >
-                      <Zap className="w-5 h-5 text-[#FF7939] mb-1.5" strokeWidth={2} fill="none" />
-                      <div className="text-white font-semibold text-xs text-center">{coachConsultations.express.name}</div>
-                      <div className="text-gray-400 text-xs">{coachConsultations.express.time} min</div>
-                      <div className="mt-1 text-[#FF7939] font-bold text-sm">${coachConsultations.express.price}</div>
-                    </button>
-
-                    <button
-                      type="button"
-                      className="flex flex-col items-center justify-center p-3 rounded-lg border border-white/10 bg-black/20 hover:border-[#FF7939]/60 transition-colors"
-                    >
-                      <Target className="w-5 h-5 text-[#FF7939] mb-1.5" strokeWidth={2} fill="none" />
-                      <div className="text-white font-semibold text-xs text-center">{coachConsultations.puntual.name}</div>
-                      <div className="text-gray-400 text-xs">{coachConsultations.puntual.time} min</div>
-                      <div className="mt-1 text-[#FF7939] font-bold text-sm">${coachConsultations.puntual.price}</div>
-                    </button>
-
-                    <button
-                      type="button"
-                      className="flex flex-col items-center justify-center p-3 rounded-lg border border-white/10 bg-black/20 hover:border-[#FF7939]/60 transition-colors"
-                    >
-                      <GraduationCap className="w-5 h-5 text-[#FF7939] mb-1.5" strokeWidth={2} fill="none" />
-                      <div className="text-white font-semibold text-xs text-center">{coachConsultations.profunda.name}</div>
-                      <div className="text-gray-400 text-xs">{coachConsultations.profunda.time} min</div>
-                      <div className="mt-1 text-[#FF7939] font-bold text-sm">${coachConsultations.profunda.price}</div>
-                    </button>
-                  </div>
-
-                  <div className="mt-3 flex flex-wrap items-center gap-2">
-                    <div className="flex items-center gap-2 bg-black/30 border border-white/10 rounded-lg px-3 py-2 text-xs text-white/75">
-                      <CalendarIcon className="h-3.5 w-3.5 text-[#FFB366]" />
-                      <span>
-                        {selectedMeetRequest
-                          ? format(new Date(`${selectedMeetRequest.dayKey}T00:00:00`), 'dd MMM yyyy', { locale: es })
-                          : 'Elegí un día'}
-                      </span>
-                    </div>
-                    <div className="flex items-center gap-2 bg-black/30 border border-white/10 rounded-lg px-3 py-2 text-xs text-white/75">
-                      <Clock className="h-3.5 w-3.5 text-[#FFB366]" />
-                      <span>{selectedMeetRequest ? selectedMeetRequest.timeHHMM : 'Elegí un horario'}</span>
-                    </div>
-                  </div>
-
-                  <div className="mt-3">
-                    <button
-                      type="button"
-                      disabled={!selectedMeetRequest || meetPurchasePaid || !(scheduleMeetContext?.activityId)}
-                      onClick={async () => {
-                        if (!selectedMeetRequest) return
-                        const actId = scheduleMeetContext?.activityId ? String(scheduleMeetContext.activityId) : null
-                        if (!actId) return
-
-                        try {
-                          sessionStorage.setItem(
-                            'pending_meet_booking',
-                            JSON.stringify({
-                              coachId: String(selectedMeetRequest.coachId),
-                              activityId: actId,
-                              dayKey: selectedMeetRequest.dayKey,
-                              timeHHMM: selectedMeetRequest.timeHHMM,
-                              durationMinutes: Number(purchaseContext?.durationMinutes ?? 30) || 30,
-                            })
-                          )
-                        } catch {
-                          // ignore
-                        }
-
-                        const res = await createCheckoutProPreference(actId)
-                        if (res?.success && res?.initPoint) {
-                          redirectToMercadoPagoCheckout(res.initPoint, actId, res.preferenceId)
-                        }
-                      }}
-                      className={
-                        meetPurchasePaid
-                          ? 'w-full px-4 py-2.5 rounded-xl bg-white/10 text-white/70 text-sm font-semibold border border-white/15'
-                          : 'w-full px-4 py-2.5 rounded-xl bg-[#FF7939] text-black text-sm font-semibold hover:opacity-95 transition-opacity disabled:opacity-50 disabled:cursor-not-allowed'
-                      }
-                    >
-                      {meetPurchasePaid ? 'Pago confirmado' : 'Pagar'}
-                    </button>
-
-                    {!meetPurchasePaid && (
-                      <div className="mt-2 text-[11px] text-white/55">
-                        Para confirmar el horario, primero realizá el pago.
-                      </div>
-                    )}
-                  </div>
-                </div>
-              )}
             </div>
           )}
         </div>
@@ -2803,9 +2927,12 @@ export default function CalendarView({ activityIds, onActivityClick, scheduleMee
                 coachProfiles.find((c) => c.id === String(selectedMeetRequest.coachId))?.full_name || 'Coach'
               const creditsAvailable = Number(meetCreditsByCoachId?.[String(selectedMeetRequest.coachId)] ?? 0)
               const dateLabel = format(new Date(`${selectedMeetRequest.dayKey}T00:00:00`), 'dd MMM yyyy', { locale: es })
+              const durationMins = isPaidMeetFlow
+                ? (Number(purchaseContext?.durationMinutes ?? 30) || 30)
+                : 30
               const timeLabel = `${selectedMeetRequest.timeHHMM} – ${(() => {
                 const [h, m] = selectedMeetRequest.timeHHMM.split(':').map((x) => parseInt(x, 10))
-                const total = (Number.isFinite(h) ? h : 0) * 60 + (Number.isFinite(m) ? m : 0) + 30
+                const total = (Number.isFinite(h) ? h : 0) * 60 + (Number.isFinite(m) ? m : 0) + durationMins
                 const hh = Math.floor(total / 60)
                 const mm = total % 60
                 return `${String(hh).padStart(2, '0')}:${String(mm).padStart(2, '0')}`
@@ -2889,6 +3016,44 @@ export default function CalendarView({ activityIds, onActivityClick, scheduleMee
                   </div>
 
                   <div className="mt-4 flex flex-col gap-2">
+                    {isPaidMeetFlow && !meetPurchasePaid && (
+                      <button
+                        type="button"
+                        disabled={!(scheduleMeetContext?.activityId)}
+                        className={
+                          scheduleMeetContext?.activityId
+                            ? 'w-full px-4 py-2.5 rounded-xl bg-[#FF7939] text-black text-sm font-semibold hover:opacity-95 transition-opacity'
+                            : 'w-full px-4 py-2.5 rounded-xl bg-white/10 text-white/70 text-sm font-semibold border border-white/15 cursor-not-allowed'
+                        }
+                        onClick={async () => {
+                          const actId = scheduleMeetContext?.activityId ? String(scheduleMeetContext.activityId) : null
+                          if (!actId) return
+
+                          try {
+                            sessionStorage.setItem(
+                              'pending_meet_booking',
+                              JSON.stringify({
+                                coachId: String(selectedMeetRequest.coachId),
+                                activityId: actId,
+                                dayKey: selectedMeetRequest.dayKey,
+                                timeHHMM: selectedMeetRequest.timeHHMM,
+                                durationMinutes: Number(purchaseContext?.durationMinutes ?? 30) || 30,
+                              })
+                            )
+                          } catch {
+                            // ignore
+                          }
+
+                          const res = await createCheckoutProPreference(actId)
+                          if (res?.success && res?.initPoint) {
+                            redirectToMercadoPagoCheckout(res.initPoint, actId, res.preferenceId)
+                          }
+                        }}
+                      >
+                        Pagar
+                      </button>
+                    )}
+
                     <button
                       type="button"
                       disabled={!canConfirm}
@@ -2947,12 +3112,8 @@ export default function CalendarView({ activityIds, onActivityClick, scheduleMee
                       Confirmar solicitud
                     </button>
 
-                    {!canConfirm && (
-                      <div className="text-[11px] text-white/55">
-                        {isPaidMeetFlow
-                          ? 'Primero realizá el pago para confirmar el horario.'
-                          : 'No tenés créditos disponibles para solicitar este meet.'}
-                      </div>
+                    {!canConfirm && !isPaidMeetFlow && (
+                      <div className="text-[11px] text-white/55">No tenés créditos disponibles para solicitar este meet.</div>
                     )}
 
                     <button
