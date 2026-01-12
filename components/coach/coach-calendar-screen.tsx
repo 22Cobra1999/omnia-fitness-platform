@@ -2849,7 +2849,7 @@ export default function CoachCalendarScreen() {
 
                           // Calcular costo estimado en UI
                           let cost = 0
-                          if (!newEventIsFree && newEventStartTime && newEventEndTime) {
+                          if (newEventStartTime && newEventEndTime) {
                             const [sh, sm] = newEventStartTime.split(':').map(Number)
                             const [eh, em] = newEventEndTime.split(':').map(Number)
                             if (!isNaN(sh) && !isNaN(eh)) {
