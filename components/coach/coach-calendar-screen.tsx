@@ -2886,8 +2886,16 @@ export default function CoachCalendarScreen() {
                               {meetModalMode === 'edit' && !isMeetEditing ? (
                                 <div className="flex flex-col items-end gap-1">
                                   <div className={`px-3 py-1 rounded-lg text-xs font-semibold ${badge.cls}`}>{badge.text}</div>
-                                  {badge.text === 'Pendiente' && (
-                                    <div className="text-xs text-orange-200">Consumirá 1 crédito</div>
+
+                                  {/* Mostrar estado de pago en modo lectura */}
+                                  {pay === 'credit_deduction' && (
+                                    <div className="text-xs text-emerald-400 font-medium">Pagado con 1 crédito</div>
+                                  )}
+                                  {pay === 'free' && (
+                                    <div className="text-xs text-emerald-400 font-medium">Gratis</div>
+                                  )}
+                                  {(pay === 'unpaid' || !pay) && (
+                                    <div className="text-xs text-red-400 font-medium">Pago Pendiente / Insuficiente</div>
                                   )}
                                 </div>
                               ) : (
