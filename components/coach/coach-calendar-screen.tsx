@@ -2861,10 +2861,7 @@ export default function CoachCalendarScreen() {
                             }
                           }
 
-                          const creditsLine =
-                            credits >= cost
-                              ? (cost > 0 ? `Consumirá ${cost} créditos` : `${credits} créditos disponibles`)
-                              : `Consumirá ${cost} créditos (Saldo: ${credits})`
+                          const creditsLine = `${credits} créditos disponibles`
                           return (
                             <div
                               key={c.id}
@@ -2895,6 +2892,7 @@ export default function CoachCalendarScreen() {
                                 </div>
                               ) : (
                                 <div className="flex flex-col items-end">
+                                  {/* Right Side: Consumption Logic */}
                                   <div className={`text-xs font-medium whitespace-nowrap ${credits >= cost ? 'text-[#FF7939]' : (newEventIsFree && credits > 0 ? 'text-[#FF7939]' : 'text-red-400')}`}>
                                     {/* 
                                       Lógica de visualización:
