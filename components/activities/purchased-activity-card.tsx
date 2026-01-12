@@ -27,37 +27,37 @@ export function PurchasedActivityCard({ enrollment, nextActivity, realProgress, 
   const { activity } = enrollment
   const [isNavigating, setIsNavigating] = useState(false)
   const [pendingCount, setPendingCount] = useState<number | null>(null)
-  
+
   // Usar el progreso real calculado (enrollment.progress no existe en la base de datos)
   const progress = realProgress !== undefined ? realProgress : 0
-  
+
   // Verificar si el programa ya ha comenzado
   const hasStarted = enrollment.start_date !== null;
-  
+
   // Calcular días restantes para empezar y verificar si está bloqueado
   const getDaysRemainingAndBlocked = () => {
     if (hasStarted) {
       return { daysRemaining: null, isBlocked: false, isLastDay: false }
     }
-    
+
     const today = new Date()
     today.setHours(0, 0, 0, 0)
-    
+
     const purchaseDate = new Date(enrollment.created_at)
     purchaseDate.setHours(0, 0, 0, 0)
-    
+
     const diasAcceso = activity.dias_acceso || 30 // Default 30 días si no está definido
     const expirationDate = new Date(purchaseDate)
     expirationDate.setDate(purchaseDate.getDate() + diasAcceso)
-    
+
     const daysRemaining = Math.ceil((expirationDate.getTime() - today.getTime()) / (1000 * 60 * 60 * 24))
     const isLastDay = daysRemaining === 0
     // Bloquear solo si pasaron los días (el último día puede empezarlo sin problema)
     const isBlocked = daysRemaining < 0
-    
+
     return { daysRemaining, isBlocked, isLastDay }
   }
-  
+
   const { daysRemaining, isBlocked } = getDaysRemainingAndBlocked()
 
   // Obtener ejercicios/platos pendientes del día de hoy
@@ -72,11 +72,11 @@ export function PurchasedActivityCard({ enrollment, nextActivity, realProgress, 
       try {
         const supabase = createClient()
         const { data: { session } } = await supabase.auth.getSession()
-        
+
         if (!session?.user) return
 
         const today = new Date().toISOString().split('T')[0]
-        
+
         // Obtener registro de progreso del día de hoy - usar maybeSingle para evitar error 406
         const { data: progressRecord, error } = await supabase
           .from('progreso_cliente')
@@ -94,7 +94,7 @@ export function PurchasedActivityCard({ enrollment, nextActivity, realProgress, 
 
         if (progressRecord?.ejercicios_pendientes) {
           let pendientes: any = {}
-          
+
           try {
             if (typeof progressRecord.ejercicios_pendientes === 'string') {
               pendientes = JSON.parse(progressRecord.ejercicios_pendientes)
@@ -124,16 +124,16 @@ export function PurchasedActivityCard({ enrollment, nextActivity, realProgress, 
   const handleCardClick = async (e: React.MouseEvent) => {
     e.preventDefault()
     e.stopPropagation()
-    
+
     // Si está bloqueado, no permitir acceso
     if (isBlocked) {
       return
     }
-    
+
     if (isNavigating) return
-    
+
     setIsNavigating(true)
-    
+
     try {
       if (onActivityClick) {
         // Usar callback si está disponible (para aplicación móvil)
@@ -153,7 +153,7 @@ export function PurchasedActivityCard({ enrollment, nextActivity, realProgress, 
       setIsNavigating(false)
     }
   }
-  
+
   // Formatear fecha de compra
   const formatPurchaseDate = (dateString: string) => {
     const date = new Date(dateString)
@@ -167,16 +167,16 @@ export function PurchasedActivityCard({ enrollment, nextActivity, realProgress, 
   // Obtener tipo de actividad basado en la categoría - usar categoria directamente de la base de datos
   // La columna en la BD es 'categoria', no 'category'
   const categoria = activity.categoria || (activity as any).category || 'fitness'
-  
+
   // Debug: Log para verificar la categoría
-  if (process.env.NODE_ENV === 'development') {
+  /* if (process.env.NODE_ENV === 'development') {
     console.log('🔍 PurchasedActivityCard - Activity ID:', activity.id, 'Categoria:', categoria, 'Raw activity:', {
       categoria: activity.categoria,
       category: (activity as any).category,
       type: activity.type
     })
-  }
-  
+  } */
+
   const getActivityTypeDisplay = (category: string) => {
     const cat = category?.toLowerCase() || ''
     switch (cat) {
@@ -204,7 +204,7 @@ export function PurchasedActivityCard({ enrollment, nextActivity, realProgress, 
       month: 'short'
     })
   }
-  
+
   // Formatear días restantes
   const formatDaysRemaining = (days: number | null) => {
     if (days === null) return null
@@ -218,14 +218,13 @@ export function PurchasedActivityCard({ enrollment, nextActivity, realProgress, 
   const imageUrl = activity.media?.image_url || null
 
   return (
-    <Card 
-      className={`relative overflow-hidden rounded-xl shadow-xl transition-all duration-300 ${
-        isBlocked 
-          ? 'opacity-50 cursor-not-allowed' 
-          : isNavigating 
-            ? 'opacity-75 scale-95 cursor-pointer' 
+    <Card
+      className={`relative overflow-hidden rounded-xl shadow-xl transition-all duration-300 ${isBlocked
+          ? 'opacity-50 cursor-not-allowed'
+          : isNavigating
+            ? 'opacity-75 scale-95 cursor-pointer'
             : 'hover:scale-[1.01] cursor-pointer'
-      }`}
+        }`}
       onClick={handleCardClick}
       style={{
         background: 'rgba(30, 30, 30, 0.6)',
@@ -249,13 +248,13 @@ export function PurchasedActivityCard({ enrollment, nextActivity, realProgress, 
             <span className="text-2xl font-bold text-white">{activity.title.charAt(0)}</span>
           </div>
         )}
-        
+
         {/* Overlay con gradiente para glassmorphism */}
         <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-black/40 to-transparent" />
-        
+
         {/* Badge de categoría en la esquina superior derecha - glassmorphism */}
         <div className="absolute top-2 right-2 z-10">
-          <Badge 
+          <Badge
             className="text-xs font-semibold px-2.5 py-0.5 rounded-full border-0 text-white"
             style={{
               background: 'rgba(255, 255, 255, 0.15)',
@@ -270,7 +269,7 @@ export function PurchasedActivityCard({ enrollment, nextActivity, realProgress, 
 
         {/* Ícono de fuego con pendientes del día en la esquina superior derecha */}
         {hasStarted && pendingCount !== null && pendingCount > 0 && (
-          <div 
+          <div
             className="absolute top-2 right-2 z-10 flex items-center gap-1.5 px-2 py-1 rounded-full"
             style={{
               background: 'rgba(255, 121, 57, 0.2)',
@@ -283,12 +282,12 @@ export function PurchasedActivityCard({ enrollment, nextActivity, realProgress, 
             <span className="text-xs font-bold text-white">{pendingCount}</span>
           </div>
         )}
-        
+
         {/* Contenido principal: Título y progreso - Compacto */}
         <div className="absolute bottom-12 left-0 right-0 p-3 z-10">
           <div className="space-y-1.5">
-            <h3 
-              className="font-bold text-lg leading-tight text-white drop-shadow-2xl overflow-hidden" 
+            <h3
+              className="font-bold text-lg leading-tight text-white drop-shadow-2xl overflow-hidden"
               style={{
                 display: '-webkit-box',
                 WebkitLineClamp: 2,
@@ -299,17 +298,17 @@ export function PurchasedActivityCard({ enrollment, nextActivity, realProgress, 
             >
               {activity.title}
             </h3>
-            
+
             {/* Barra de progreso compacta */}
             {progress > 0 && (
               <div className="flex items-center gap-2">
-                <div 
+                <div
                   className="relative h-1 flex-1 rounded-full overflow-hidden"
                   style={{
                     background: 'rgba(255, 121, 57, 0.2)',
                   }}
                 >
-                  <div 
+                  <div
                     className="h-full rounded-full transition-all duration-300"
                     style={{
                       width: `${progress}%`,
@@ -346,9 +345,8 @@ export function PurchasedActivityCard({ enrollment, nextActivity, realProgress, 
                   {formatStartDate(enrollment.start_date)}
                 </span>
               ) : daysRemaining !== null ? (
-                <span className={`text-xs font-medium drop-shadow-lg ${
-                  isBlocked ? 'text-red-400' : daysRemaining <= 3 ? 'text-yellow-400' : 'text-white/90'
-                }`}>
+                <span className={`text-xs font-medium drop-shadow-lg ${isBlocked ? 'text-red-400' : daysRemaining <= 3 ? 'text-yellow-400' : 'text-white/90'
+                  }`}>
                   {formatDaysRemaining(daysRemaining)}
                 </span>
               ) : null}

@@ -33,7 +33,7 @@ async function isWorkshopFinished(supabase: any, activityId: number): Promise<bo
     // Verificar si la última fecha ya pasó
     const now = new Date()
     const lastDate = new Date(Math.max(...allDates.map(date => new Date(date).getTime())))
-    
+
     return lastDate < now
   } catch (error) {
     console.error('Error verificando si taller está finalizado:', error)
@@ -53,7 +53,7 @@ export async function GET(request: NextRequest) {
     const typeFilter = searchParams.get("type") // e.g., 'fitness', 'nutrition'
     const difficultyFilter = searchParams.get("difficulty") // e.g., 'beginner', 'intermediate'
     const coachIdFilter = searchParams.get("coachId") // Filter by specific coach
-    
+
     // Preferir service role; si no está disponible, usar sesión del usuario.
     let supabase = createServiceRoleClient()
     let usingServiceRole = Boolean(supabase)
@@ -85,6 +85,8 @@ export async function GET(request: NextRequest) {
       activity_media!activity_media_activity_id_fkey(*)
     `)
 
+    // Por defecto, las consultas no son "productos": se muestran solo en la sección Café.
+    // Evitamos que aparezcan en search/listados generales.
     // Por defecto, las consultas no son "productos": se muestran solo en la sección Café.
     // Evitamos que aparezcan en search/listados generales.
     if (!typeFilter || typeFilter !== 'consultation') {
@@ -198,11 +200,11 @@ export async function GET(request: NextRequest) {
     const programActivityIds = activities
       .filter((a: any) => a.type === 'fitness' || a.type === 'program' || a.type === 'workshop')
       .map((a: any) => a.id)
-    
+
     const fitnessData: any = {}
     const workshopData: any = {} // Datos específicos para talleres
     const nutritionData: any = {}
-    
+
     // Para cada actividad, obtener estadísticas usando el nuevo cálculo
     for (const activityId of programActivityIds) {
       let isWorkshop = false
@@ -516,7 +518,7 @@ export async function GET(request: NextRequest) {
       const fitness = fitnessData[activity.id] || { exercisesCount: 0, totalSessions: 0 }
       const nutrition = nutritionData[activity.id] || { exercisesCount: 0, totalSessions: 0 }
       const workshop = workshopData[activity.id] || null
-      
+
       // Parsear objetivos desde workshop_type si existe
       let objetivos = []
       if (activity.workshop_type) {
@@ -534,7 +536,7 @@ export async function GET(request: NextRequest) {
           console.error('Error parseando objetivos:', error)
         }
       }
-      
+
       // Para talleres, usar datos de workshop; para otros, usar fitness
       const isWorkshop = activity.type === 'workshop'
       const isNutrition = activity.categoria === 'nutricion' || activity.categoria === 'nutrition'
@@ -550,7 +552,7 @@ export async function GET(request: NextRequest) {
         : isNutrition
           ? (nutrition.totalSessions || 0)
           : (fitness.totalSessions || 0)
-      
+
       return {
         ...activity,
         // Incluir objetivos parseados

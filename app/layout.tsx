@@ -33,7 +33,7 @@ if (typeof window !== "undefined" && "serviceWorker" in navigator && !isServiceW
 export const metadata: Metadata = {
   title: "OMNIA",
   description: "OMNIA platform",
-    generator: 'v0.dev'
+  generator: 'v0.dev'
 }
 
 export default function RootLayout({
@@ -42,7 +42,7 @@ export default function RootLayout({
   children: React.ReactNode
 }) {
   return (
-    <html lang="en">
+    <html lang="en" suppressHydrationWarning>
       <head>
         {/* Script para prevenir registro automático de Service Workers en entornos no soportados */}
         {!isServiceWorkerSupported && (

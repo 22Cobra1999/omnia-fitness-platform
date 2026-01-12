@@ -3,7 +3,9 @@
 import { useEffect, useMemo, useState } from 'react'
 import { format, addDays } from 'date-fns'
 import { es } from 'date-fns/locale'
-import { Bell, Video, X } from 'lucide-react'
+import { Bell, Video, X, Clock, CheckCircle2, XCircle, Ban } from 'lucide-react'
+
+// ... (existing code)
 
 type Role = 'client' | 'coach'
 
@@ -113,14 +115,14 @@ export function MeetNotificationsModal({
           : { data: [] }
 
         const coachIdToName: Record<string, string> = {}
-        ;(coachProfiles || []).forEach((p: any) => {
-          coachIdToName[String(p.id)] = String(p.full_name || 'Coach')
-        })
+          ; (coachProfiles || []).forEach((p: any) => {
+            coachIdToName[String(p.id)] = String(p.full_name || 'Coach')
+          })
 
         const eventById: Record<string, any> = {}
-        ;(events || []).forEach((e: any) => {
-          eventById[String(e.id)] = e
-        })
+          ; (events || []).forEach((e: any) => {
+            eventById[String(e.id)] = e
+          })
 
         const { data: reschedules } = await supabase
           .from('calendar_event_reschedule_requests')
@@ -130,12 +132,12 @@ export function MeetNotificationsModal({
           .order('created_at', { ascending: false })
 
         const pendingRescheduleByEventId: Record<string, any> = {}
-        ;(reschedules || []).forEach((r: any) => {
-          const eid = String(r?.event_id || '')
-          if (!eid) return
-          if (pendingRescheduleByEventId[eid]) return
-          pendingRescheduleByEventId[eid] = r
-        })
+          ; (reschedules || []).forEach((r: any) => {
+            const eid = String(r?.event_id || '')
+            if (!eid) return
+            if (pendingRescheduleByEventId[eid]) return
+            pendingRescheduleByEventId[eid] = r
+          })
 
         const out: NotificationItem[] = (myParts || [])
           .map((p: any) => {
@@ -235,14 +237,14 @@ export function MeetNotificationsModal({
         : { data: [] }
 
       const clientIdToName: Record<string, string> = {}
-      ;(clientProfiles || []).forEach((p: any) => {
-        clientIdToName[String(p.id)] = String(p.full_name || 'Cliente')
-      })
+        ; (clientProfiles || []).forEach((p: any) => {
+          clientIdToName[String(p.id)] = String(p.full_name || 'Cliente')
+        })
 
       const eventById: Record<string, any> = {}
-      ;(events || []).forEach((e: any) => {
-        eventById[String(e.id)] = e
-      })
+        ; (events || []).forEach((e: any) => {
+          eventById[String(e.id)] = e
+        })
 
       const { data: reschedules } = await supabase
         .from('calendar_event_reschedule_requests')
@@ -252,12 +254,12 @@ export function MeetNotificationsModal({
         .order('created_at', { ascending: false })
 
       const pendingRescheduleByEventId: Record<string, any> = {}
-      ;(reschedules || []).forEach((r: any) => {
-        const eid = String(r?.event_id || '')
-        if (!eid) return
-        if (pendingRescheduleByEventId[eid]) return
-        pendingRescheduleByEventId[eid] = r
-      })
+        ; (reschedules || []).forEach((r: any) => {
+          const eid = String(r?.event_id || '')
+          if (!eid) return
+          if (pendingRescheduleByEventId[eid]) return
+          pendingRescheduleByEventId[eid] = r
+        })
 
       const out: NotificationItem[] = (parts || [])
         .filter((p: any) => String(p?.participant_role || '') !== 'coach')
@@ -375,10 +377,20 @@ export function MeetNotificationsModal({
       return `${it.otherUserName} actualizó la meet`
     }
 
-    if (it.rsvpStatus === 'pending') return `${it.otherUserName} te invitó a una meet`
-    if (it.rsvpStatus === 'confirmed') return `Meet confirmada con ${it.otherUserName}`
-    if (it.rsvpStatus === 'declined') return `Meet rechazada con ${it.otherUserName}`
-    if (it.rsvpStatus === 'cancelled') return `Meet cancelada con ${it.otherUserName}`
+    // Role is client
+    if (it.rsvpStatus === 'pending') {
+      // If invited by role is 'client', it means *I* (the client) requested it but it's still pending
+      // But this notification list is usually for "incoming" things or updates?
+      // Actually the list filters for things that have updates.
+      // If invitedByRole is coach, the coach invited me.
+      if (it.invitedByRole === 'coach') return `${it.otherUserName} te invitó a una meet`
+      return `Solicitud enviada a ${it.otherUserName}`
+    }
+
+    if (it.rsvpStatus === 'confirmed') return `Solicitud aceptada por ${it.otherUserName}`
+    if (it.rsvpStatus === 'declined') return `Solicitud rechazada por ${it.otherUserName}`
+    if (it.rsvpStatus === 'cancelled') return `Meet cancelada por ${it.otherUserName}`
+
     return `Meet actualizada con ${it.otherUserName}`
   }
 
@@ -419,8 +431,18 @@ export function MeetNotificationsModal({
                 const pending = it.rsvpStatus === 'pending'
                 const isActing = actingId === it.id
 
+                const getStatusVisuals = () => {
+                  if (it.rsvpStatus === 'confirmed') return { icon: CheckCircle2, color: 'text-green-500', bg: 'bg-green-500/10', border: 'border-green-500/20' }
+                  if (it.rsvpStatus === 'declined') return { icon: XCircle, color: 'text-red-500', bg: 'bg-red-500/10', border: 'border-red-500/20' }
+                  if (it.rsvpStatus === 'cancelled') return { icon: Ban, color: 'text-red-400', bg: 'bg-red-500/10', border: 'border-red-500/20' }
+                  return { icon: Clock, color: 'text-[#FF7939]', bg: 'bg-white/5', border: 'border-white/10' }
+                }
+
+                const visuals = getStatusVisuals()
+                const StatusIcon = visuals.icon
+
                 return (
-                  <div key={it.id} className="rounded-xl border border-white/10 bg-white/5 px-3 py-2">
+                  <div key={it.id} className={`rounded-xl border ${visuals.border} ${visuals.bg} px-3 py-2`}>
                     <div className="flex items-start justify-between gap-3">
                       <div className="min-w-0">
                         <div className="text-sm font-semibold text-white truncate">{it.title}</div>
@@ -448,14 +470,23 @@ export function MeetNotificationsModal({
                         )}
                       </div>
                       <div className="flex items-center gap-2 flex-shrink-0">
-                        <Video className={pending ? 'h-4 w-4 text-[#FF7939]' : 'h-4 w-4 text-white/60'} />
+                        <StatusIcon className={`h-4 w-4 ${visuals.color}`} />
                         <button
                           type="button"
                           onClick={() => onOpenMeet(it.eventId)}
-                          className="px-3 py-1.5 rounded-full text-xs font-semibold border border-[#FF7939]/60 text-[#FFB366] hover:bg-[#FF7939]/10"
+                          className={`px-3 py-1.5 rounded-full text-xs font-semibold border border-[#FF7939]/60 text-[#FFB366] hover:bg-[#FF7939]/10 ${pending ? '' : 'hidden'}`}
                         >
                           Ver
                         </button>
+                        {!pending && (
+                          <button
+                            type="button"
+                            onClick={() => onOpenMeet(it.eventId)}
+                            className="px-3 py-1.5 rounded-full text-xs font-semibold border border-white/10 text-white/60 hover:bg-white/5"
+                          >
+                            Ver
+                          </button>
+                        )}
                       </div>
                     </div>
 

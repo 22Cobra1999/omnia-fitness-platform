@@ -4,7 +4,7 @@ import { useState, useEffect, useMemo, useRef, Fragment, useCallback } from "rea
 import { createClient } from '@/lib/supabase/supabase-client'
 import { format, startOfMonth, endOfMonth, eachDayOfInterval, isSameDay, isToday, addMonths, subMonths, startOfWeek, addDays } from "date-fns"
 import { es } from "date-fns/locale"
-import { Bell, Calendar as CalendarIcon, ChevronLeft, ChevronRight, Clock, Flame, Plus, Minus, Utensils, Video, X, Zap, Target, GraduationCap } from "lucide-react"
+import { Bell, Calendar as CalendarIcon, ChevronLeft, ChevronRight, Clock, Flame, Plus, Minus, Utensils, Video, X, Zap, Target, GraduationCap, CheckCircle2, XCircle, Ban, Users, User } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import Image from "next/image"
@@ -133,6 +133,59 @@ export default function CalendarView({ activityIds, onActivityClick, scheduleMee
   const [bookedSlotsByDayMonth, setBookedSlotsByDayMonth] = useState<Record<string, Set<string>>>({})
   const [selectedMeetEvent, setSelectedMeetEvent] = useState<
     | {
+      id: string
+      title?: string | null
+      start_time: string
+      end_time: string | null
+      coach_id?: string | null
+      meet_link?: string | null
+      description?: string | null
+    }
+    | null
+  >(null)
+
+  const [meetPurchasePaid, setMeetPurchasePaid] = useState(false)
+  const [showSuccessModal, setShowSuccessModal] = useState(false)
+  const [successModalData, setSuccessModalData] = useState<{
+    coachName: string
+    date: string
+    time: string
+    duration: number
+  } | null>(null)
+  const purchaseContext = scheduleMeetContext?.purchase
+  const isPaidMeetFlow = purchaseContext?.kind === 'consultation'
+
+  const [pendingReschedule, setPendingReschedule] = useState<
+    | {
+      id: string
+      from_start_time: string
+      from_end_time: string | null
+      to_start_time: string
+      to_end_time: string | null
+      note: string | null
+      status: string
+    }
+    | null
+  >(null)
+
+  const [reschedulePreview, setReschedulePreview] = useState<
+    | {
+      dayKey: string
+      timeHHMM: string
+      toStartIso: string
+      toEndIso: string
+      note: string
+    }
+    | null
+  >(null)
+  const [rescheduleContext, setRescheduleContext] = useState<
+    | {
+      eventId: string
+      coachId: string
+      fromStart: string
+      fromEnd: string | null
+      durationMinutes: number
+      snapshot: {
         id: string
         title?: string | null
         start_time: string
@@ -141,53 +194,7 @@ export default function CalendarView({ activityIds, onActivityClick, scheduleMee
         meet_link?: string | null
         description?: string | null
       }
-    | null
-  >(null)
-
-  const [meetPurchasePaid, setMeetPurchasePaid] = useState(false)
-  const purchaseContext = scheduleMeetContext?.purchase
-  const isPaidMeetFlow = purchaseContext?.kind === 'consultation'
-
-  const [pendingReschedule, setPendingReschedule] = useState<
-    | {
-        id: string
-        from_start_time: string
-        from_end_time: string | null
-        to_start_time: string
-        to_end_time: string | null
-        note: string | null
-        status: string
-      }
-    | null
-  >(null)
-
-  const [reschedulePreview, setReschedulePreview] = useState<
-    | {
-        dayKey: string
-        timeHHMM: string
-        toStartIso: string
-        toEndIso: string
-        note: string
-      }
-    | null
-  >(null)
-  const [rescheduleContext, setRescheduleContext] = useState<
-    | {
-        eventId: string
-        coachId: string
-        fromStart: string
-        fromEnd: string | null
-        durationMinutes: number
-        snapshot: {
-          id: string
-          title?: string | null
-          start_time: string
-          end_time: string | null
-          coach_id?: string | null
-          meet_link?: string | null
-          description?: string | null
-        }
-      }
+    }
     | null
   >(null)
 
@@ -283,12 +290,12 @@ export default function CalendarView({ activityIds, onActivityClick, scheduleMee
 
   const [selectedMeetRequest, setSelectedMeetRequest] = useState<
     | {
-        coachId: string
-        dayKey: string
-        timeHHMM: string
-        title: string
-        description: string
-      }
+      coachId: string
+      dayKey: string
+      timeHHMM: string
+      title: string
+      description: string
+    }
     | null
   >(null)
   const dayDetailRef = useRef<HTMLDivElement | null>(null)
@@ -376,7 +383,7 @@ export default function CalendarView({ activityIds, onActivityClick, scheduleMee
       if (tab === 'calendar') {
         // Resetear fecha seleccionada
         setSelectedDate(new Date())
-        
+
         // Scroll al inicio
         setTimeout(() => {
           window.scrollTo({ top: 0, behavior: 'smooth' })
@@ -439,10 +446,10 @@ export default function CalendarView({ activityIds, onActivityClick, scheduleMee
           if (progress) {
             progress.forEach((p: any) => {
               const dateKey = p.fecha.split('T')[0]
-              
+
               // Calcular cantidad de actividades pendientes de HOY
               let pendingCount = 0
-              
+
               // Intentar desde ejercicios_pendientes (array)
               if (Array.isArray(p.ejercicios_pendientes)) {
                 pendingCount = p.ejercicios_pendientes.length
@@ -456,12 +463,12 @@ export default function CalendarView({ activityIds, onActivityClick, scheduleMee
                   // Ignorar error de parseo
                 }
               }
-              
+
               // Si no hay ejercicios_pendientes, intentar contar desde detalles_series
               if (pendingCount === 0 && p.detalles_series) {
                 try {
-                  const detalles = typeof p.detalles_series === 'string' 
-                    ? JSON.parse(p.detalles_series) 
+                  const detalles = typeof p.detalles_series === 'string'
+                    ? JSON.parse(p.detalles_series)
                     : p.detalles_series
                   if (detalles && typeof detalles === 'object') {
                     pendingCount = Object.keys(detalles).length
@@ -474,10 +481,10 @@ export default function CalendarView({ activityIds, onActivityClick, scheduleMee
               if (!activitiesMap[dateKey]) {
                 activitiesMap[dateKey] = []
               }
-              activitiesMap[dateKey].push({ 
-                id: activityId, 
+              activitiesMap[dateKey].push({
+                id: activityId,
                 fecha: p.fecha,
-                pendingCount 
+                pendingCount
               })
             })
           }
@@ -542,7 +549,7 @@ export default function CalendarView({ activityIds, onActivityClick, scheduleMee
           console.error('Error fetching progreso_cliente_daily_summary:', summaryError)
         }
 
-        ;(summaryRows || []).forEach((row: any) => {
+        ; (summaryRows || []).forEach((row: any) => {
           const dayKey = String(row?.fecha || '').split('T')[0]
           if (!dayKey) return
           const fitnessTotal = toInt(row?.fitness_mins)
@@ -568,7 +575,7 @@ export default function CalendarView({ activityIds, onActivityClick, scheduleMee
         //    Hacemos 2 pasos (participants -> events) para evitar edge cases con joins.
         const { data: myParts, error: myPartsError } = await supabase
           .from('calendar_event_participants')
-          .select('event_id, rsvp_status')
+          .select('event_id, rsvp_status, invited_by_role')
           .eq('client_id', user.id)
 
         if (myPartsError) {
@@ -598,22 +605,25 @@ export default function CalendarView({ activityIds, onActivityClick, scheduleMee
           }
         }
 
-        const eventIdToRsvp: Record<string, string> = {}
-        ;(myParts || []).forEach((p: any) => {
-          const eid = String(p?.event_id || '')
-          if (!eid) return
-          eventIdToRsvp[eid] = String(p?.rsvp_status || 'pending')
-        })
+        const eventIdToParticipantInfo: Record<string, { rsvp: string; invitedBy: string | null }> = {}
+          ; (myParts || []).forEach((p: any) => {
+            const eid = String(p?.event_id || '')
+            if (!eid) return
+            eventIdToParticipantInfo[eid] = {
+              rsvp: String(p?.rsvp_status || 'pending'),
+              invitedBy: p?.invited_by_role ? String(p.invited_by_role) : null,
+            }
+          })
 
-        const candidateEventIds = Object.keys(eventIdToRsvp)
+        const candidateEventIds = Object.keys(eventIdToParticipantInfo)
         const meetEventsRes = candidateEventIds.length
           ? await supabase
-              .from('calendar_events')
-              .select('id, title, description, meet_link, start_time, end_time, event_type, coach_id')
-              .in('id', candidateEventIds)
-              .eq('event_type', 'consultation')
-              .gte('start_time', monthStart.toISOString())
-              .lt('start_time', addDays(monthEnd, 1).toISOString())
+            .from('calendar_events')
+            .select('id, title, description, meet_link, start_time, end_time, event_type, coach_id')
+            .in('id', candidateEventIds)
+            .eq('event_type', 'consultation')
+            .gte('start_time', monthStart.toISOString())
+            .lt('start_time', addDays(monthEnd, 1).toISOString())
           : { data: [], error: null }
 
         if (meetEventsRes && (meetEventsRes as any).error) {
@@ -645,48 +655,51 @@ export default function CalendarView({ activityIds, onActivityClick, scheduleMee
             meet_link?: string | null
             description?: string | null
             rsvp_status?: string | null
+            invited_by_role?: string | null
           }>
         > = {}
-        ;(meetEventsSafe || []).forEach((ev: any) => {
-          if (!ev?.start_time) return
-          const start = new Date(ev.start_time)
-          if (Number.isNaN(start.getTime())) return
-          const dayKey = format(start, 'yyyy-MM-dd')
+          ; (meetEventsSafe || []).forEach((ev: any) => {
+            if (!ev?.start_time) return
+            const start = new Date(ev.start_time)
+            if (Number.isNaN(start.getTime())) return
+            const dayKey = format(start, 'yyyy-MM-dd')
 
-          const end = ev.end_time ? new Date(ev.end_time) : null
-          const minutes = (() => {
-            if (end && !Number.isNaN(end.getTime())) {
-              const diff = (end.getTime() - start.getTime()) / 60000
-              return diff > 0 ? diff : 0
+            const end = ev.end_time ? new Date(ev.end_time) : null
+            const minutes = (() => {
+              if (end && !Number.isNaN(end.getTime())) {
+                const diff = (end.getTime() - start.getTime()) / 60000
+                return diff > 0 ? diff : 0
+              }
+              return 30
+            })()
+
+            if (!agg[dayKey]) {
+              agg[dayKey] = {
+                fitnessMinutesTotal: 0,
+                fitnessMinutesPending: 0,
+                nutritionMinutesTotal: 0,
+                nutritionMinutesPending: 0,
+                meetsMinutes: 0,
+                pendingExercises: 0,
+                pendingPlates: 0,
+              }
             }
-            return 30
-          })()
+            agg[dayKey].meetsMinutes += Math.round(minutes)
 
-          if (!agg[dayKey]) {
-            agg[dayKey] = {
-              fitnessMinutesTotal: 0,
-              fitnessMinutesPending: 0,
-              nutritionMinutesTotal: 0,
-              nutritionMinutesPending: 0,
-              meetsMinutes: 0,
-              pendingExercises: 0,
-              pendingPlates: 0,
-            }
-          }
-          agg[dayKey].meetsMinutes += Math.round(minutes)
-
-          if (!meetMap[dayKey]) meetMap[dayKey] = []
-          meetMap[dayKey].push({
-            id: String(ev.id),
-            title: ev.title == null ? null : String(ev.title || ''),
-            start_time: String(ev.start_time),
-            end_time: ev.end_time ? String(ev.end_time) : null,
-            coach_id: ev.coach_id ? String(ev.coach_id) : null,
-            meet_link: ev.meet_link ? String(ev.meet_link) : null,
-            description: ev.description == null ? null : String(ev.description || ''),
-            rsvp_status: String(eventIdToRsvp[String(ev.id)] || 'pending'),
+            if (!meetMap[dayKey]) meetMap[dayKey] = []
+            const pInfo = eventIdToParticipantInfo[String(ev.id)]
+            meetMap[dayKey].push({
+              id: String(ev.id),
+              title: ev.title == null ? null : String(ev.title || ''),
+              start_time: String(ev.start_time),
+              end_time: ev.end_time ? String(ev.end_time) : null,
+              coach_id: ev.coach_id ? String(ev.coach_id) : null,
+              meet_link: ev.meet_link ? String(ev.meet_link) : null,
+              description: ev.description == null ? null : String(ev.description || ''),
+              rsvp_status: String(pInfo?.rsvp || 'pending'),
+              invited_by_role: pInfo?.invitedBy || null,
+            })
           })
-        })
 
         Object.keys(meetMap).forEach((k) => {
           meetMap[k].sort((a, b) => String(a.start_time).localeCompare(String(b.start_time)))
@@ -780,7 +793,7 @@ export default function CalendarView({ activityIds, onActivityClick, scheduleMee
           console.error('Error fetching progreso_cliente for day breakdown:', progressError)
         }
 
-        ;(progressRows || []).forEach((row: any) => {
+        ; (progressRows || []).forEach((row: any) => {
           const activityId = String(row?.actividad_id ?? '')
           if (!activityId) return
           const pendingKeys = pendingKeysFromRaw(row?.ejercicios_pendientes)
@@ -810,7 +823,7 @@ export default function CalendarView({ activityIds, onActivityClick, scheduleMee
           console.error('Error fetching progreso_cliente_nutricion for day breakdown:', nutriError)
         }
 
-        ;(nutriRows || []).forEach((row: any) => {
+        ; (nutriRows || []).forEach((row: any) => {
           const activityId = String(row?.actividad_id ?? '')
           if (!activityId) return
           const pendingKeys = pendingKeysFromRaw(row?.ejercicios_pendientes)
@@ -1045,12 +1058,12 @@ export default function CalendarView({ activityIds, onActivityClick, scheduleMee
         }
 
         const map: Record<string, number> = {}
-        ;(data || []).forEach((row: any) => {
-          const coachId = String(row?.coach_id || '')
-          if (!coachId) return
-          const credits = Number(row?.meet_credits_available ?? 0)
-          map[coachId] = Number.isFinite(credits) ? credits : 0
-        })
+          ; (data || []).forEach((row: any) => {
+            const coachId = String(row?.coach_id || '')
+            if (!coachId) return
+            const credits = Number(row?.meet_credits_available ?? 0)
+            map[coachId] = Number.isFinite(credits) ? credits : 0
+          })
         setMeetCreditsByCoachId(map)
       } catch (e) {
         console.error('Error fetching meet credits:', e)
@@ -1119,6 +1132,7 @@ export default function CalendarView({ activityIds, onActivityClick, scheduleMee
 
   useEffect(() => {
     const loadCoachAvailability = async () => {
+      console.log('[CalendarView] loadCoachAvailability start', { selectedCoachId })
       try {
         if (!selectedCoachId) {
           setCoachAvailabilityRows([])
@@ -1197,6 +1211,12 @@ export default function CalendarView({ activityIds, onActivityClick, scheduleMee
         const start = meetWeekStart
         const end = addDays(meetWeekStart, 7)
 
+        console.log('[CalendarView] loadBookedSlots calling supabase...', {
+          selectedCoachId,
+          start: start.toISOString(),
+          end: end.toISOString()
+        })
+
         const { data, error } = await supabase
           .from('calendar_events')
           .select('start_time, end_time, event_type, coach_id')
@@ -1212,25 +1232,25 @@ export default function CalendarView({ activityIds, onActivityClick, scheduleMee
         }
 
         const map: Record<string, Set<string>> = {}
-        ;(data || []).forEach((row: any) => {
-          const startDt = new Date(row.start_time)
-          const endDt = row.end_time ? new Date(row.end_time) : new Date(startDt.getTime() + 30 * 60 * 1000)
+          ; (data || []).forEach((row: any) => {
+            const startDt = new Date(row.start_time)
+            const endDt = row.end_time ? new Date(row.end_time) : new Date(startDt.getTime() + 30 * 60 * 1000)
 
-          const startMs = startDt.getTime()
-          const endMs = endDt.getTime()
-          if (!Number.isFinite(startMs) || !Number.isFinite(endMs)) return
+            const startMs = startDt.getTime()
+            const endMs = endDt.getTime()
+            if (!Number.isFinite(startMs) || !Number.isFinite(endMs)) return
 
-          // Marcar todos los slots de 30 min que ocupa el evento
-          const cursor = new Date(startDt)
-          cursor.setSeconds(0, 0)
-          while (cursor.getTime() < endMs) {
-            const dayKey = format(cursor, 'yyyy-MM-dd')
-            const timeKey = format(cursor, 'HH:mm')
-            if (!map[dayKey]) map[dayKey] = new Set<string>()
-            map[dayKey].add(timeKey)
-            cursor.setMinutes(cursor.getMinutes() + 30)
-          }
-        })
+            // Marcar todos los slots de 30 min que ocupa el evento
+            const cursor = new Date(startDt)
+            cursor.setSeconds(0, 0)
+            while (cursor.getTime() < endMs) {
+              const dayKey = format(cursor, 'yyyy-MM-dd')
+              const timeKey = format(cursor, 'HH:mm')
+              if (!map[dayKey]) map[dayKey] = new Set<string>()
+              map[dayKey].add(timeKey)
+              cursor.setMinutes(cursor.getMinutes() + 30)
+            }
+          })
         setBookedSlotsByDay(map)
       } catch (e) {
         console.error('Error fetching booked meet slots:', e)
@@ -1252,6 +1272,12 @@ export default function CalendarView({ activityIds, onActivityClick, scheduleMee
         const start = startOfMonth(currentDate)
         const end = addDays(endOfMonth(currentDate), 1)
 
+        console.log('[CalendarView] loadBookedSlotsMonth calling supabase...', {
+          selectedCoachId,
+          start: start.toISOString(),
+          end: end.toISOString()
+        })
+
         const { data, error } = await supabase
           .from('calendar_events')
           .select('start_time, end_time, event_type, coach_id')
@@ -1267,24 +1293,24 @@ export default function CalendarView({ activityIds, onActivityClick, scheduleMee
         }
 
         const map: Record<string, Set<string>> = {}
-        ;(data || []).forEach((row: any) => {
-          const startDt = new Date(row.start_time)
-          const endDt = row.end_time ? new Date(row.end_time) : new Date(startDt.getTime() + 30 * 60 * 1000)
+          ; (data || []).forEach((row: any) => {
+            const startDt = new Date(row.start_time)
+            const endDt = row.end_time ? new Date(row.end_time) : new Date(startDt.getTime() + 30 * 60 * 1000)
 
-          const startMs = startDt.getTime()
-          const endMs = endDt.getTime()
-          if (!Number.isFinite(startMs) || !Number.isFinite(endMs)) return
+            const startMs = startDt.getTime()
+            const endMs = endDt.getTime()
+            if (!Number.isFinite(startMs) || !Number.isFinite(endMs)) return
 
-          const cursor = new Date(startDt)
-          cursor.setSeconds(0, 0)
-          while (cursor.getTime() < endMs) {
-            const dayKey = format(cursor, 'yyyy-MM-dd')
-            const timeKey = format(cursor, 'HH:mm')
-            if (!map[dayKey]) map[dayKey] = new Set<string>()
-            map[dayKey].add(timeKey)
-            cursor.setMinutes(cursor.getMinutes() + 30)
-          }
-        })
+            const cursor = new Date(startDt)
+            cursor.setSeconds(0, 0)
+            while (cursor.getTime() < endMs) {
+              const dayKey = format(cursor, 'yyyy-MM-dd')
+              const timeKey = format(cursor, 'HH:mm')
+              if (!map[dayKey]) map[dayKey] = new Set<string>()
+              map[dayKey].add(timeKey)
+              cursor.setMinutes(cursor.getMinutes() + 30)
+            }
+          })
         setBookedSlotsByDayMonth(map)
       } catch (e) {
         console.error('Error fetching month booked meet slots:', e)
@@ -2493,7 +2519,7 @@ export default function CalendarView({ activityIds, onActivityClick, scheduleMee
 
                     {/* Fuego con cantidad DENTRO del frame, bien visible */}
                     {pendingCount > 0 && (
-                      <div 
+                      <div
                         className="flex-shrink-0 w-8 h-8 rounded-full flex items-center justify-center"
                         style={{
                           background: '#FF7939',
@@ -2570,6 +2596,16 @@ export default function CalendarView({ activityIds, onActivityClick, scheduleMee
               const isCancelled = selectedMeetRsvpStatus === 'cancelled'
               const isGroup = selectedMeetParticipantsCount > 1
               const classLabel = isGroup ? 'Clase grupal' : 'Individual'
+
+              const invitedBy = (selectedMeetEvent as any)?.invited_by_role
+              const invitedByLabel = invitedBy === 'client' ? 'Solicitado por vos' : (invitedBy === 'coach' ? `Solicitado por ${coachName}` : null)
+
+              const statusLabel = (() => {
+                if (isConfirmed) return 'Confirmada'
+                if (isDeclined) return 'Rechazada'
+                if (isCancelled) return 'Cancelada'
+                return 'Pendiente'
+              })()
 
               const handleAccept = async () => {
                 try {
@@ -2749,7 +2785,41 @@ export default function CalendarView({ activityIds, onActivityClick, scheduleMee
                     <div className="text-sm font-medium text-white/60">{coachName}</div>
                   </div>
 
-                  <div className="mt-2 flex flex-wrap items-center gap-2">
+                  <div className="mt-3 flex flex-wrap items-center gap-2">
+                    {(() => {
+                      let Icon = Clock
+                      let style = 'bg-[#FF7939]/10 text-[#FFB366] border-[#FF7939]/30'
+                      if (isConfirmed) {
+                        Icon = CheckCircle2
+                        style = 'bg-green-500/10 text-green-400 border-green-500/20'
+                      } else if (isDeclined) {
+                        Icon = XCircle
+                        style = 'bg-red-500/10 text-red-400 border-red-500/20'
+                      } else if (isCancelled) {
+                        Icon = Ban
+                        style = 'bg-red-500/10 text-red-400 border-red-500/20'
+                      }
+
+                      return (
+                        <div className={`px-2.5 py-1 rounded-md text-xs font-semibold border flex items-center gap-1.5 ${style}`}>
+                          <Icon className="h-3.5 w-3.5" />
+                          {statusLabel}
+                        </div>
+                      )
+                    })()}
+
+                    {invitedByLabel && (
+                      <div className="px-2.5 py-1 rounded-md text-xs font-medium bg-white/5 text-white/60 border border-white/10 flex items-center gap-1.5">
+                        {invitedBy === 'client' ? <Users className="h-3.5 w-3.5" /> : <User className="h-3.5 w-3.5" />}
+                        {invitedByLabel}
+                      </div>
+                    )}
+                    <div className="px-2.5 py-1 rounded-md text-xs font-medium bg-white/5 text-white/60 border border-white/10">
+                      {classLabel}
+                    </div>
+                  </div>
+
+                  <div className="mt-3 flex flex-wrap items-center gap-2">
                     {pendingReschedule ? (
                       <>
                         <div className="flex items-center gap-2 bg-black/30 border border-[#FF7939]/30 rounded-lg px-3 py-2 text-sm text-gray-200">
@@ -2796,10 +2866,6 @@ export default function CalendarView({ activityIds, onActivityClick, scheduleMee
                     )}
                   </div>
 
-                  <div className="mt-3 text-sm font-semibold text-white/90">
-                    {classLabel}
-                  </div>
-
                   {selectedMeetEvent.description && String(selectedMeetEvent.description).trim().length > 0 && (
                     <div className="mt-4">
                       <div className="text-base font-semibold text-white">Notas</div>
@@ -2809,11 +2875,7 @@ export default function CalendarView({ activityIds, onActivityClick, scheduleMee
                     </div>
                   )}
 
-                  {(isDeclined || isCancelled) && (
-                    <div className="mt-2 text-xs text-white/70">
-                      Estado: <span className="text-white/90 font-semibold">{isDeclined ? 'Rechazada' : 'Cancelada'}</span>
-                    </div>
-                  )}
+
 
                   {!canEditRsvp && !isConfirmed && !isDeclined && !isCancelled && (
                     <div className="mt-2 text-xs text-white/60">
@@ -2887,7 +2949,10 @@ export default function CalendarView({ activityIds, onActivityClick, scheduleMee
                             Ir a la meet
                           </button>
                         ) : (
-                          <div className="flex-1 text-sm text-gray-400">Sin link disponible</div>
+                          <div className="flex-1 px-4 py-2.5 rounded-xl bg-white/5 border border-white/10 text-white/40 text-sm flex items-center justify-center gap-2 cursor-not-allowed">
+                            <Video className="h-4 w-4 opacity-50" />
+                            <span>Sin link disponible</span>
+                          </div>
                         )}
                       </div>
                     )}
@@ -2965,9 +3030,9 @@ export default function CalendarView({ activityIds, onActivityClick, scheduleMee
                         setSelectedMeetRequest((prev) =>
                           prev
                             ? {
-                                ...prev,
-                                title: e.target.value,
-                              }
+                              ...prev,
+                              title: e.target.value,
+                            }
                             : prev
                         )
                       }
@@ -2984,9 +3049,9 @@ export default function CalendarView({ activityIds, onActivityClick, scheduleMee
                         setSelectedMeetRequest((prev) =>
                           prev
                             ? {
-                                ...prev,
-                                description: e.target.value,
-                              }
+                              ...prev,
+                              description: e.target.value,
+                            }
                             : prev
                         )
                       }
@@ -3063,6 +3128,7 @@ export default function CalendarView({ activityIds, onActivityClick, scheduleMee
                           : 'w-full px-4 py-2.5 rounded-xl bg-white/10 text-white/70 text-sm font-semibold border border-white/15 cursor-not-allowed'
                       }
                       onClick={async () => {
+                        console.log('[CalendarView] Confirm button clicked', { authUserId, selectedCoachId, canConfirm, selectedMeetRequest })
                         if (!authUserId) return
                         if (!selectedCoachId) return
                         if (!canConfirm) return
@@ -3074,23 +3140,28 @@ export default function CalendarView({ activityIds, onActivityClick, scheduleMee
                             : 30
                           const endIso = new Date(new Date(startIso).getTime() + duration * 60 * 1000).toISOString()
 
+                          const payload = {
+                            coach_id: selectedMeetRequest.coachId,
+                            client_id: authUserId,
+                            title: selectedMeetRequest.title,
+                            description: selectedMeetRequest.description || null,
+                            start_time: startIso,
+                            end_time: endIso,
+                            event_type: 'consultation',
+                            status: 'scheduled',
+                            activity_id: scheduleMeetContext?.activityId ? Number(scheduleMeetContext.activityId) : null,
+                          };
+
+                          console.log('[CalendarView] Inserting calendar event with payload:', payload);
+
                           const { data: newEvent, error: eventError } = await supabase
                             .from('calendar_events')
-                            .insert({
-                              coach_id: selectedMeetRequest.coachId,
-                              client_id: authUserId,
-                              title: selectedMeetRequest.title,
-                              description: selectedMeetRequest.description || null,
-                              start_time: startIso,
-                              end_time: endIso,
-                              event_type: 'consultation',
-                              status: 'scheduled',
-                              activity_id: scheduleMeetContext?.activityId ? Number(scheduleMeetContext.activityId) : null,
-                            })
+                            .insert(payload)
                             .select('id')
                             .single()
 
                           if (eventError || !newEvent?.id) {
+                            console.error('[CalendarView] Insert failed:', eventError);
                             return
                           }
 
@@ -3102,8 +3173,24 @@ export default function CalendarView({ activityIds, onActivityClick, scheduleMee
                               rsvp_status: 'pending',
                             })
 
-                          setSelectedMeetRequest(null)
+                          const coachName = selectedCoachProfile?.full_name || 'Coach'
+                          const dateFormatted = format(new Date(payload.start_time), "EEEE d 'de' MMMM", { locale: es })
+
+                          setSuccessModalData({
+                            coachName,
+                            date: dateFormatted,
+                            time: selectedMeetRequest.timeHHMM,
+                            duration,
+                          })
+
                           setMeetViewMode('month')
+                          setSelectedMeetRequest(null)
+
+                          if (onSetScheduleMeetContext) {
+                            onSetScheduleMeetContext(null)
+                          }
+
+                          setShowSuccessModal(true)
                         } catch {
                           // ignore
                         }
@@ -3127,6 +3214,38 @@ export default function CalendarView({ activityIds, onActivityClick, scheduleMee
                 </>
               )
             })()}
+          </div>
+        </div>
+      )}
+      {/* Success Modal */}
+      {showSuccessModal && successModalData && (
+        <div className="fixed inset-0 z-[60] flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm animate-in fade-in duration-200">
+          <div className="max-w-sm w-full bg-[#1C1C1E]/90 backdrop-blur-xl border border-white/10 rounded-3xl p-6 shadow-2xl scale-100 animate-in zoom-in-95 duration-200">
+            <div className="flex flex-col items-center text-center">
+              <div className="w-16 h-16 rounded-full bg-green-500/20 flex items-center justify-center mb-4">
+                <CalendarIcon className="w-8 h-8 text-green-500" />
+              </div>
+
+              <h3 className="text-xl font-bold text-white mb-2">¡Solicitud Enviada!</h3>
+
+              <p className="text-white/70 text-sm leading-relaxed mb-6">
+                Tu solicitud fue enviada a <span className="text-white font-medium">{successModalData.coachName}</span> para un meet de {successModalData.duration} min el día {successModalData.date} a las {successModalData.time} hs.
+              </p>
+
+              <div className="bg-white/5 rounded-xl p-3 mb-6 w-full">
+                <div className="flex items-center gap-3 text-xs text-white/50">
+                  <Clock className="w-4 h-4 text-[#FF7939]" />
+                  <span>El coach suele responder en promedio en <span className="text-white">2 horas</span>.</span>
+                </div>
+              </div>
+
+              <button
+                onClick={() => setShowSuccessModal(false)}
+                className="w-full py-3 rounded-xl bg-[#FF7939] text-black font-bold text-sm hover:opacity-90 transition-opacity"
+              >
+                Entendido
+              </button>
+            </div>
           </div>
         </div>
       )}

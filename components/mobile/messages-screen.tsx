@@ -46,7 +46,7 @@ export function MessagesScreen() {
   const supabase = createClient()
 
   // Obtener la conversación seleccionada desde el estado
-  const selectedConversation = selectedConversationId 
+  const selectedConversation = selectedConversationId
     ? conversations.find(c => c.id === selectedConversationId) || null
     : null
 
@@ -56,18 +56,19 @@ export function MessagesScreen() {
   useEffect(() => {
     const checkUserRole = async () => {
       if (!user) return
-      
+
       const { data: coachData } = await supabase
         .from('coaches')
         .select('id')
         .eq('id', user.id)
         .maybeSingle()
-      
+
       setIsCoach(!!coachData)
     }
 
     checkUserRole()
   }, [user, supabase])
+
 
   // Obtener nombre y avatar del contacto
   const contactName = selectedConversation
@@ -95,13 +96,13 @@ export function MessagesScreen() {
         isLoadingRef.current = true
         setLoading(true)
       }
-      
+
       // Obtener conversaciones del usuario
       const { data: conversationsData, error: conversationsError } = await supabase
         .from('conversations')
         .select('*')
-        .or(isCoach 
-          ? `coach_id.eq.${user.id}` 
+        .or(isCoach
+          ? `coach_id.eq.${user.id}`
           : `client_id.eq.${user.id}`
         )
         .eq('is_active', true)
@@ -167,7 +168,7 @@ export function MessagesScreen() {
 
       setConversations(formattedConversations)
       hasLoadedConversationsRef.current = true
-      
+
       if (!silent) {
         setLoading(false)
         isLoadingRef.current = false
@@ -225,8 +226,8 @@ export function MessagesScreen() {
           .eq('id', conversationId)
 
         // Actualizar estado local
-        setConversations(prev => prev.map(conv => 
-          conv.id === conversationId 
+        setConversations(prev => prev.map(conv =>
+          conv.id === conversationId
             ? { ...conv, [updateField]: 0 }
             : conv
         ))
@@ -278,13 +279,13 @@ export function MessagesScreen() {
         .eq('id', selectedConversationId)
 
       // Actualizar estado local
-      setConversations(prev => prev.map(conv => 
-        conv.id === selectedConversationId 
+      setConversations(prev => prev.map(conv =>
+        conv.id === selectedConversationId
           ? {
-              ...conv,
-              last_message_preview: newMessage.trim().substring(0, 50),
-              last_message_at: new Date().toISOString(),
-            }
+            ...conv,
+            last_message_preview: newMessage.trim().substring(0, 50),
+            last_message_at: new Date().toISOString(),
+          }
           : conv
       ))
 
@@ -319,7 +320,7 @@ export function MessagesScreen() {
       hasLoadedConversationsRef.current = false
       return
     }
-    
+
     // Solo cargar si no hemos cargado antes y ya sabemos el rol
     if (isCoach !== null && !hasLoadedConversationsRef.current) {
       loadConversations(false)
@@ -332,6 +333,88 @@ export function MessagesScreen() {
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [selectedConversationId]) // Removido loadMessages para evitar loops
+
+  // Manejar intento de chat desde perfil de coach
+  useEffect(() => {
+    // Solo proceder si:
+    // 1. Tenemos usuario
+    // 2. Sabemos si es coach o no
+    // 3. Ya se cargaron las conversaciones (para no duplicar o fallar busqueda)
+    if (!user || isCoach === null || !hasLoadedConversationsRef.current) return
+
+    const checkChatIntent = async () => {
+      const intentRaw = localStorage.getItem('startChatWithCoach')
+      if (!intentRaw) return
+
+      console.log('💬 [MessagesScreen] Detectada intención de chat:', intentRaw)
+
+      try {
+        const intent = JSON.parse(intentRaw)
+        // Importante: Limpiar inmediatamente para no recargar en loop si algo falla, 
+        // pero idealmente después de procesar. Aquí lo hacemos antes para asegurar.
+        localStorage.removeItem('startChatWithCoach')
+
+        if (!intent.coachId) return
+
+        // 1. Buscar si ya existe conversación
+        const existingConv = conversations.find(c =>
+          (isCoach ? c.client_id : c.coach_id) === intent.coachId
+        )
+
+        if (existingConv) {
+          console.log('💬 [MessagesScreen] Conversación existente encontrada:', existingConv.id)
+          setSelectedConversationId(existingConv.id)
+          return
+        }
+
+        // 2. Si no existe, crear nueva
+        console.log('💬 [MessagesScreen] Creando nueva conversación...')
+        setLoading(true)
+
+        // Verificar si existe la conversación en BD aunque no esté en local
+        const { data: existingDbConv } = await supabase
+          .from('conversations')
+          .select('*')
+          .eq('client_id', isCoach ? intent.coachId : user.id)
+          .eq('coach_id', isCoach ? user.id : intent.coachId)
+          .maybeSingle()
+
+        if (existingDbConv) {
+          console.log('💬 [MessagesScreen] Conversación encontrada en BD:', existingDbConv.id)
+          // Recargar conversaciones y seleccionar
+          await loadConversations()
+          setSelectedConversationId(existingDbConv.id)
+        } else {
+          // Crear nueva conversación
+          const { data: newConv, error } = await supabase
+            .from('conversations')
+            .insert({
+              client_id: isCoach ? intent.coachId : user.id,
+              coach_id: isCoach ? user.id : intent.coachId,
+              is_active: true,
+              client_unread_count: 0,
+              coach_unread_count: 0
+            })
+            .select()
+            .single()
+
+          if (error) {
+            console.error('💬 [MessagesScreen] Error creando conversación:', error)
+          } else if (newConv) {
+            console.log('💬 [MessagesScreen] Conversación creada:', newConv.id)
+            await loadConversations()
+            setSelectedConversationId(newConv.id)
+          }
+        }
+      } catch (e) {
+        console.error('💬 [MessagesScreen] Error procesando intención de chat:', e)
+      } finally {
+        setLoading(false)
+      }
+    }
+
+    checkChatIntent()
+  }, [user, isCoach, conversations, loadConversations, supabase])
 
   // Polling para nuevos mensajes
   useEffect(() => {
@@ -375,6 +458,150 @@ export function MessagesScreen() {
     )
   }
 
+  // Manejar intento de chat desde perfil de coach
+  /* eslint-disable react-hooks/rules-of-hooks */
+  useEffect(() => {
+    if (!user || isCoach === null || !hasLoadedConversationsRef.current) return
+
+    const checkChatIntent = async () => {
+      const intentRaw = localStorage.getItem('startChatWithCoach')
+      if (!intentRaw) return
+
+      try {
+        const intent = JSON.parse(intentRaw)
+        localStorage.removeItem('startChatWithCoach')
+
+        if (!intent.coachId) return
+
+        // 1. Buscar si ya existe conversación
+        const existingConv = conversations.find(c =>
+          (isCoach ? c.client_id : c.coach_id) === intent.coachId
+        )
+
+        if (existingConv) {
+          setSelectedConversationId(existingConv.id)
+          return
+        }
+
+        // 2. Si no existe, crear nueva
+        setLoading(true)
+
+        // Verificar si existe la conversación en BD aunque no esté en local
+        const { data: existingDbConv } = await supabase
+          .from('conversations')
+          .select('*')
+          .eq('client_id', isCoach ? intent.coachId : user.id)
+          .eq('coach_id', isCoach ? user.id : intent.coachId)
+          .maybeSingle()
+
+        if (existingDbConv) {
+          // Recargar conversaciones y seleccionar
+          await loadConversations()
+          setSelectedConversationId(existingDbConv.id)
+        } else {
+          // Crear nueva conversación
+          const { data: newConv, error } = await supabase
+            .from('conversations')
+            .insert({
+              client_id: isCoach ? intent.coachId : user.id,
+              coach_id: isCoach ? user.id : intent.coachId,
+              is_active: true,
+              client_unread_count: 0,
+              coach_unread_count: 0
+            })
+            .select()
+            .single()
+
+          if (error) {
+            console.error('Error creando conversación:', error)
+            // toast error?
+          } else if (newConv) {
+            await loadConversations()
+            setSelectedConversationId(newConv.id)
+          }
+        }
+      } catch (e) {
+        console.error('Error procesando intención de chat:', e)
+      } finally {
+        setLoading(false)
+      }
+    }
+
+    checkChatIntent()
+  }, [user, isCoach, conversations, loadConversations, supabase])
+  /* eslint-enable react-hooks/rules-of-hooks */
+
+
+  useEffect(() => {
+    if (!user || isCoach === null || !hasLoadedConversationsRef.current) return
+
+    const checkChatIntent = async () => {
+      const intentRaw = localStorage.getItem('startChatWithCoach')
+      if (!intentRaw) return
+
+      try {
+        const intent = JSON.parse(intentRaw)
+        localStorage.removeItem('startChatWithCoach')
+
+        if (!intent.coachId) return
+
+        // 1. Buscar si ya existe conversación
+        const existingConv = conversations.find(c =>
+          (isCoach ? c.client_id : c.coach_id) === intent.coachId
+        )
+
+        if (existingConv) {
+          setSelectedConversationId(existingConv.id)
+          return
+        }
+
+        // 2. Si no existe, crear nueva
+        setLoading(true)
+
+        // Verificar si existe la conversación en BD aunque no esté en local
+        const { data: existingDbConv } = await supabase
+          .from('conversations')
+          .select('*')
+          .eq('client_id', isCoach ? intent.coachId : user.id)
+          .eq('coach_id', isCoach ? user.id : intent.coachId)
+          .maybeSingle()
+
+        if (existingDbConv) {
+          // Recargar conversaciones y seleccionar
+          await loadConversations()
+          setSelectedConversationId(existingDbConv.id)
+        } else {
+          // Crear nueva conversación
+          const { data: newConv, error } = await supabase
+            .from('conversations')
+            .insert({
+              client_id: isCoach ? intent.coachId : user.id,
+              coach_id: isCoach ? user.id : intent.coachId,
+              is_active: true,
+              client_unread_count: 0,
+              coach_unread_count: 0
+            })
+            .select()
+            .single()
+
+          if (error) {
+            console.error('Error creando conversación:', error)
+            // toast error?
+          } else if (newConv) {
+            await loadConversations()
+            setSelectedConversationId(newConv.id)
+          }
+        }
+      } catch (e) {
+        console.error('Error procesando intención de chat:', e)
+      } finally {
+        setLoading(false)
+      }
+    }
+
+    checkChatIntent()
+  }, [user, isCoach, conversations, loadConversations, supabase])
+
   if (loading || isCoach === null) {
     return (
       <div className="flex items-center justify-center h-full bg-[#121212]">
@@ -397,7 +624,7 @@ export function MessagesScreen() {
           >
             <ArrowLeft className="h-5 w-5" />
           </Button>
-          
+
           {contactAvatar && (
             <img
               src={contactAvatar}
@@ -405,7 +632,7 @@ export function MessagesScreen() {
               className="w-8 h-8 rounded-full"
             />
           )}
-          
+
           <h1 className="text-lg font-semibold text-white flex-1">
             {contactName || 'Usuario'}
           </h1>
@@ -421,11 +648,10 @@ export function MessagesScreen() {
                 className={`flex ${isOwnMessage ? 'justify-end' : 'justify-start'}`}
               >
                 <div
-                  className={`max-w-[75%] rounded-lg px-4 py-2 ${
-                    isOwnMessage
-                      ? 'bg-[#FF7939] text-white'
-                      : 'bg-[#2A2A2A] text-white'
-                  }`}
+                  className={`max-w-[75%] rounded-lg px-4 py-2 ${isOwnMessage
+                    ? 'bg-[#FF7939] text-white'
+                    : 'bg-[#2A2A2A] text-white'
+                    }`}
                 >
                   <p className="text-sm">{message.content}</p>
                   <p className={`text-xs mt-1 ${isOwnMessage ? 'text-white/70' : 'text-gray-400'}`}>
@@ -490,16 +716,16 @@ export function MessagesScreen() {
         ) : (
           <div className="divide-y divide-gray-800">
             {conversations.map((conversation) => {
-              const unreadCount = isCoach 
-                ? conversation.coach_unread_count 
+              const unreadCount = isCoach
+                ? conversation.coach_unread_count
                 : conversation.client_unread_count
-              
-              const contactName = isCoach 
-                ? conversation.client_name 
+
+              const contactName = isCoach
+                ? conversation.client_name
                 : conversation.coach_name
-              
-              const contactAvatar = isCoach 
-                ? conversation.client_avatar 
+
+              const contactAvatar = isCoach
+                ? conversation.client_avatar
                 : conversation.coach_avatar
 
               return (
@@ -521,7 +747,7 @@ export function MessagesScreen() {
                       </span>
                     </div>
                   )}
-                  
+
                   <div className="flex-1 text-left min-w-0">
                     <div className="flex items-center justify-between mb-1">
                       <h3 className="text-white font-medium truncate">{contactName || 'Usuario'}</h3>

@@ -1,0 +1,194 @@
+📋 Fetching Debug Logs...
+
+--- DEBUG LOGS ---
+[START] Starting Debug Audit
+[COLUMN] id (uuid, null=NO)
+[COLUMN] coach_id (uuid, null=NO)
+[COLUMN] activity_id (integer, null=YES)
+[COLUMN] title (text, null=NO)
+[COLUMN] start_time (timestamp with time zone, null=NO)
+[COLUMN] end_time (timestamp with time zone, null=NO)
+[COLUMN] event_type (text, null=YES)
+[COLUMN] status (text, null=YES)
+[COLUMN] timezone_offset (integer, null=YES)
+[COLUMN] timezone_name (text, null=YES)
+[COLUMN] created_at (timestamp with time zone, null=YES)
+[COLUMN] updated_at (timestamp with time zone, null=YES)
+[COLUMN] google_event_id (text, null=YES)
+[COLUMN] meet_link (text, null=YES)
+[COLUMN] meet_code (text, null=YES)
+[COLUMN] attendance_tracked (boolean, null=YES)
+[COLUMN] duration_tracked (boolean, null=YES)
+[COLUMN] meet_link_id (text, null=YES)
+[COLUMN] max_participants (integer, null=YES)
+[COLUMN] current_participants (integer, null=YES)
+[COLUMN] cancelled_by (text, null=YES)
+[COLUMN] cancelled_at (timestamp with time zone, null=YES)
+[COLUMN] rescheduled_by (text, null=YES)
+[COLUMN] rescheduled_at (timestamp with time zone, null=YES)
+[COLUMN] coach_joined_at (timestamp with time zone, null=YES)
+[COLUMN] client_joined_at (timestamp with time zone, null=YES)
+[COLUMN] meeting_started_at (timestamp with time zone, null=YES)
+[COLUMN] meeting_ended_at (timestamp with time zone, null=YES)
+[COLUMN] coach_attendance_status (text, null=YES)
+[COLUMN] actual_duration_minutes (integer, null=YES)
+[COLUMN] enrollment_id (integer, null=YES)
+[COLUMN] description (text, null=YES)
+[COLUMN] price (numeric, null=YES)
+[COLUMN] currency (text, null=YES)
+[COLUMN] is_free (boolean, null=NO)
+[COLUMN] client_id (uuid, null=YES)
+[TABLE_GRANT] Grantee: authenticated, Priv: INSERT
+[TABLE_GRANT] Grantee: authenticated, Priv: SELECT
+[TABLE_GRANT] Grantee: authenticated, Priv: UPDATE
+[TABLE_GRANT] Grantee: authenticated, Priv: DELETE
+[TABLE_GRANT] Grantee: authenticated, Priv: TRUNCATE
+[TABLE_GRANT] Grantee: authenticated, Priv: REFERENCES
+[TABLE_GRANT] Grantee: authenticated, Priv: TRIGGER
+[COLUMN_GRANT] Grantee: authenticated, Col: client_id, Priv: REFERENCES
+[COLUMN_GRANT] Grantee: authenticated, Col: rescheduled_by, Priv: REFERENCES
+[COLUMN_GRANT] Grantee: authenticated, Col: updated_at, Priv: SELECT
+[COLUMN_GRANT] Grantee: authenticated, Col: google_event_id, Priv: INSERT
+[COLUMN_GRANT] Grantee: authenticated, Col: meet_link, Priv: REFERENCES
+[COLUMN_GRANT] Grantee: authenticated, Col: meet_link_id, Priv: INSERT
+[COLUMN_GRANT] Grantee: authenticated, Col: start_time, Priv: UPDATE
+[COLUMN_GRANT] Grantee: authenticated, Col: max_participants, Priv: UPDATE
+[COLUMN_GRANT] Grantee: authenticated, Col: meet_code, Priv: INSERT
+[COLUMN_GRANT] Grantee: authenticated, Col: activity_id, Priv: REFERENCES
+[COLUMN_GRANT] Grantee: authenticated, Col: google_event_id, Priv: UPDATE
+[COLUMN_GRANT] Grantee: authenticated, Col: cancelled_by, Priv: UPDATE
+[COLUMN_GRANT] Grantee: authenticated, Col: timezone_offset, Priv: INSERT
+[COLUMN_GRANT] Grantee: authenticated, Col: enrollment_id, Priv: SELECT
+[COLUMN_GRANT] Grantee: authenticated, Col: attendance_tracked, Priv: INSERT
+[COLUMN_GRANT] Grantee: authenticated, Col: actual_duration_minutes, Priv: REFERENCES
+[COLUMN_GRANT] Grantee: authenticated, Col: price, Priv: REFERENCES
+[COLUMN_GRANT] Grantee: authenticated, Col: client_joined_at, Priv: REFERENCES
+[COLUMN_GRANT] Grantee: authenticated, Col: client_id, Priv: UPDATE
+[COLUMN_GRANT] Grantee: authenticated, Col: title, Priv: INSERT
+[COLUMN_GRANT] Grantee: authenticated, Col: meeting_started_at, Priv: UPDATE
+[COLUMN_GRANT] Grantee: authenticated, Col: rescheduled_at, Priv: REFERENCES
+[COLUMN_GRANT] Grantee: authenticated, Col: created_at, Priv: REFERENCES
+[COLUMN_GRANT] Grantee: authenticated, Col: description, Priv: SELECT
+[COLUMN_GRANT] Grantee: authenticated, Col: enrollment_id, Priv: REFERENCES
+[COLUMN_GRANT] Grantee: authenticated, Col: max_participants, Priv: REFERENCES
+[COLUMN_GRANT] Grantee: authenticated, Col: meet_link_id, Priv: UPDATE
+[COLUMN_GRANT] Grantee: authenticated, Col: created_at, Priv: SELECT
+[COLUMN_GRANT] Grantee: authenticated, Col: end_time, Priv: INSERT
+[COLUMN_GRANT] Grantee: authenticated, Col: cancelled_at, Priv: REFERENCES
+[COLUMN_GRANT] Grantee: authenticated, Col: title, Priv: REFERENCES
+[COLUMN_GRANT] Grantee: authenticated, Col: rescheduled_at, Priv: INSERT
+[COLUMN_GRANT] Grantee: authenticated, Col: meeting_ended_at, Priv: INSERT
+[COLUMN_GRANT] Grantee: authenticated, Col: timezone_offset, Priv: REFERENCES
+[COLUMN_GRANT] Grantee: authenticated, Col: id, Priv: UPDATE
+[COLUMN_GRANT] Grantee: authenticated, Col: coach_joined_at, Priv: SELECT
+[COLUMN_GRANT] Grantee: authenticated, Col: client_id, Priv: INSERT
+[COLUMN_GRANT] Grantee: authenticated, Col: attendance_tracked, Priv: REFERENCES
+[COLUMN_GRANT] Grantee: authenticated, Col: meeting_started_at, Priv: INSERT
+[COLUMN_GRANT] Grantee: authenticated, Col: cancelled_at, Priv: INSERT
+[COLUMN_GRANT] Grantee: authenticated, Col: meet_link, Priv: UPDATE
+[COLUMN_GRANT] Grantee: authenticated, Col: client_id, Priv: SELECT
+[COLUMN_GRANT] Grantee: authenticated, Col: id, Priv: REFERENCES
+[COLUMN_GRANT] Grantee: authenticated, Col: duration_tracked, Priv: UPDATE
+[COLUMN_GRANT] Grantee: authenticated, Col: start_time, Priv: INSERT
+[COLUMN_GRANT] Grantee: authenticated, Col: is_free, Priv: INSERT
+[COLUMN_GRANT] Grantee: authenticated, Col: is_free, Priv: SELECT
+[COLUMN_GRANT] Grantee: authenticated, Col: coach_attendance_status, Priv: SELECT
+[COLUMN_GRANT] Grantee: authenticated, Col: duration_tracked, Priv: REFERENCES
+[COLUMN_GRANT] Grantee: authenticated, Col: status, Priv: INSERT
+[COLUMN_GRANT] Grantee: authenticated, Col: description, Priv: INSERT
+[COLUMN_GRANT] Grantee: authenticated, Col: meet_code, Priv: REFERENCES
+[COLUMN_GRANT] Grantee: authenticated, Col: created_at, Priv: UPDATE
+[COLUMN_GRANT] Grantee: authenticated, Col: is_free, Priv: REFERENCES
+[COLUMN_GRANT] Grantee: authenticated, Col: end_time, Priv: UPDATE
+[COLUMN_GRANT] Grantee: authenticated, Col: currency, Priv: UPDATE
+[COLUMN_GRANT] Grantee: authenticated, Col: rescheduled_at, Priv: UPDATE
+[COLUMN_GRANT] Grantee: authenticated, Col: rescheduled_by, Priv: INSERT
+[COLUMN_GRANT] Grantee: authenticated, Col: currency, Priv: REFERENCES
+[COLUMN_GRANT] Grantee: authenticated, Col: meet_code, Priv: UPDATE
+[COLUMN_GRANT] Grantee: authenticated, Col: updated_at, Priv: UPDATE
+[COLUMN_GRANT] Grantee: authenticated, Col: actual_duration_minutes, Priv: SELECT
+[COLUMN_GRANT] Grantee: authenticated, Col: max_participants, Priv: SELECT
+[COLUMN_GRANT] Grantee: authenticated, Col: coach_attendance_status, Priv: REFERENCES
+[COLUMN_GRANT] Grantee: authenticated, Col: current_participants, Priv: UPDATE
+[COLUMN_GRANT] Grantee: authenticated, Col: timezone_offset, Priv: SELECT
+[COLUMN_GRANT] Grantee: authenticated, Col: title, Priv: SELECT
+[COLUMN_GRANT] Grantee: authenticated, Col: google_event_id, Priv: REFERENCES
+[COLUMN_GRANT] Grantee: authenticated, Col: cancelled_by, Priv: INSERT
+[COLUMN_GRANT] Grantee: authenticated, Col: description, Priv: UPDATE
+[COLUMN_GRANT] Grantee: authenticated, Col: timezone_name, Priv: SELECT
+[COLUMN_GRANT] Grantee: authenticated, Col: coach_joined_at, Priv: REFERENCES
+[COLUMN_GRANT] Grantee: authenticated, Col: coach_attendance_status, Priv: UPDATE
+[COLUMN_GRANT] Grantee: authenticated, Col: status, Priv: UPDATE
+[COLUMN_GRANT] Grantee: authenticated, Col: coach_id, Priv: REFERENCES
+[COLUMN_GRANT] Grantee: authenticated, Col: rescheduled_by, Priv: UPDATE
+[COLUMN_GRANT] Grantee: authenticated, Col: timezone_name, Priv: INSERT
+[COLUMN_GRANT] Grantee: authenticated, Col: actual_duration_minutes, Priv: UPDATE
+[COLUMN_GRANT] Grantee: authenticated, Col: is_free, Priv: UPDATE
+[COLUMN_GRANT] Grantee: authenticated, Col: price, Priv: SELECT
+[COLUMN_GRANT] Grantee: authenticated, Col: currency, Priv: INSERT
+[COLUMN_GRANT] Grantee: authenticated, Col: id, Priv: SELECT
+[COLUMN_GRANT] Grantee: authenticated, Col: coach_joined_at, Priv: UPDATE
+[COLUMN_GRANT] Grantee: authenticated, Col: start_time, Priv: REFERENCES
+[COLUMN_GRANT] Grantee: authenticated, Col: cancelled_at, Priv: UPDATE
+[COLUMN_GRANT] Grantee: authenticated, Col: event_type, Priv: SELECT
+[COLUMN_GRANT] Grantee: authenticated, Col: updated_at, Priv: REFERENCES
+[COLUMN_GRANT] Grantee: authenticated, Col: timezone_name, Priv: REFERENCES
+[COLUMN_GRANT] Grantee: authenticated, Col: event_type, Priv: INSERT
+[COLUMN_GRANT] Grantee: authenticated, Col: timezone_name, Priv: UPDATE
+[COLUMN_GRANT] Grantee: authenticated, Col: enrollment_id, Priv: UPDATE
+[COLUMN_GRANT] Grantee: authenticated, Col: meet_code, Priv: SELECT
+[COLUMN_GRANT] Grantee: authenticated, Col: coach_joined_at, Priv: INSERT
+[COLUMN_GRANT] Grantee: authenticated, Col: cancelled_at, Priv: SELECT
+[COLUMN_GRANT] Grantee: authenticated, Col: current_participants, Priv: SELECT
+[COLUMN_GRANT] Grantee: authenticated, Col: activity_id, Priv: UPDATE
+[COLUMN_GRANT] Grantee: authenticated, Col: max_participants, Priv: INSERT
+[COLUMN_GRANT] Grantee: authenticated, Col: updated_at, Priv: INSERT
+[COLUMN_GRANT] Grantee: authenticated, Col: meeting_started_at, Priv: REFERENCES
+[COLUMN_GRANT] Grantee: authenticated, Col: end_time, Priv: REFERENCES
+[COLUMN_GRANT] Grantee: authenticated, Col: cancelled_by, Priv: SELECT
+[COLUMN_GRANT] Grantee: authenticated, Col: status, Priv: REFERENCES
+[COLUMN_GRANT] Grantee: authenticated, Col: activity_id, Priv: SELECT
+[COLUMN_GRANT] Grantee: authenticated, Col: currency, Priv: SELECT
+[COLUMN_GRANT] Grantee: authenticated, Col: description, Priv: REFERENCES
+[COLUMN_GRANT] Grantee: authenticated, Col: coach_id, Priv: INSERT
+[COLUMN_GRANT] Grantee: authenticated, Col: actual_duration_minutes, Priv: INSERT
+[COLUMN_GRANT] Grantee: authenticated, Col: title, Priv: UPDATE
+[COLUMN_GRANT] Grantee: authenticated, Col: meeting_started_at, Priv: SELECT
+[COLUMN_GRANT] Grantee: authenticated, Col: duration_tracked, Priv: INSERT
+[COLUMN_GRANT] Grantee: authenticated, Col: coach_attendance_status, Priv: INSERT
+[COLUMN_GRANT] Grantee: authenticated, Col: current_participants, Priv: INSERT
+[COLUMN_GRANT] Grantee: authenticated, Col: meeting_ended_at, Priv: SELECT
+[COLUMN_GRANT] Grantee: authenticated, Col: meet_link, Priv: INSERT
+[COLUMN_GRANT] Grantee: authenticated, Col: enrollment_id, Priv: INSERT
+[COLUMN_GRANT] Grantee: authenticated, Col: meeting_ended_at, Priv: REFERENCES
+[COLUMN_GRANT] Grantee: authenticated, Col: event_type, Priv: REFERENCES
+[COLUMN_GRANT] Grantee: authenticated, Col: event_type, Priv: UPDATE
+[COLUMN_GRANT] Grantee: authenticated, Col: attendance_tracked, Priv: SELECT
+[COLUMN_GRANT] Grantee: authenticated, Col: meet_link_id, Priv: REFERENCES
+[COLUMN_GRANT] Grantee: authenticated, Col: created_at, Priv: INSERT
+[COLUMN_GRANT] Grantee: authenticated, Col: start_time, Priv: SELECT
+[COLUMN_GRANT] Grantee: authenticated, Col: meet_link, Priv: SELECT
+[COLUMN_GRANT] Grantee: authenticated, Col: price, Priv: INSERT
+[COLUMN_GRANT] Grantee: authenticated, Col: cancelled_by, Priv: REFERENCES
+[COLUMN_GRANT] Grantee: authenticated, Col: rescheduled_by, Priv: SELECT
+[COLUMN_GRANT] Grantee: authenticated, Col: activity_id, Priv: INSERT
+[COLUMN_GRANT] Grantee: authenticated, Col: coach_id, Priv: SELECT
+[COLUMN_GRANT] Grantee: authenticated, Col: coach_id, Priv: UPDATE
+[COLUMN_GRANT] Grantee: authenticated, Col: meet_link_id, Priv: SELECT
+[COLUMN_GRANT] Grantee: authenticated, Col: client_joined_at, Priv: UPDATE
+[COLUMN_GRANT] Grantee: authenticated, Col: meeting_ended_at, Priv: UPDATE
+[COLUMN_GRANT] Grantee: authenticated, Col: status, Priv: SELECT
+[COLUMN_GRANT] Grantee: authenticated, Col: timezone_offset, Priv: UPDATE
+[COLUMN_GRANT] Grantee: authenticated, Col: id, Priv: INSERT
+[COLUMN_GRANT] Grantee: authenticated, Col: price, Priv: UPDATE
+[COLUMN_GRANT] Grantee: authenticated, Col: end_time, Priv: SELECT
+[COLUMN_GRANT] Grantee: authenticated, Col: current_participants, Priv: REFERENCES
+[COLUMN_GRANT] Grantee: authenticated, Col: duration_tracked, Priv: SELECT
+[COLUMN_GRANT] Grantee: authenticated, Col: client_joined_at, Priv: INSERT
+[COLUMN_GRANT] Grantee: authenticated, Col: client_joined_at, Priv: SELECT
+[COLUMN_GRANT] Grantee: authenticated, Col: google_event_id, Priv: SELECT
+[COLUMN_GRANT] Grantee: authenticated, Col: rescheduled_at, Priv: SELECT
+[COLUMN_GRANT] Grantee: authenticated, Col: attendance_tracked, Priv: UPDATE
+[END] Finished Debug Audit
+------------------
+

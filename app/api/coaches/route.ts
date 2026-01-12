@@ -12,35 +12,35 @@ export async function GET() {
     }
 
     const supabaseAdmin = await getSupabaseAdmin()
-    
+
     // Get all coaches
     const { data: coaches, error } = await supabaseAdmin
       .from("coaches")
       .select("*") // Select all from coaches first
       .order("created_at", { ascending: false })
-    
+
     if (error) {
       console.error("Error fetching coaches:", error)
       throw error
     }
-    
+
     // Si no hay coaches, retornar array vacío
     if (!coaches || coaches.length === 0) {
       return NextResponse.json([])
     }
-    
+
     // Fetch user profiles separately and map them to coaches
     const coachIds = coaches.map((coach) => coach.id).filter(Boolean)
-    
+
     let userProfiles = []
     let userProfileMap = new Map()
-    
+
     if (coachIds.length > 0) {
       const { data: userProfilesData, error: userProfilesError } = await supabaseAdmin
         .from("user_profiles")
-        .select("id, full_name, avatar_url")
+        .select("id, full_name, avatar_url, location")
         .in("id", coachIds)
-      
+
       if (userProfilesError) {
         console.error("Error fetching user profiles for coaches:", userProfilesError)
       } else {
@@ -48,7 +48,7 @@ export async function GET() {
         userProfileMap = new Map(userProfiles.map((profile) => [profile.id, profile]))
       }
     }
-    
+
     // Get coach stats for all coaches
     let statsMap = new Map()
     if (coachIds.length > 0) {
@@ -57,7 +57,7 @@ export async function GET() {
           .from("coach_stats_view")
           .select("coach_id, avg_rating, total_reviews")
           .in("coach_id", coachIds)
-        
+
         if (statsError) {
           console.error("Error fetching coach stats (non-fatal):", statsError)
         } else if (coachStats) {
@@ -104,6 +104,9 @@ export async function GET() {
         certifications: coach.certifications || [],
         hourlyRate: coach.hourly_rate || 0,
         bio: coach.bio || null,
+        hourlyRate: coach.hourly_rate || 0,
+        bio: coach.bio || null,
+        location: userProfile?.location || null
       }
     })
     return NextResponse.json(formattedCoaches || [])
@@ -113,7 +116,7 @@ export async function GET() {
     const errorDetails = error instanceof Error ? error.stack : String(error)
     console.error("Error details:", errorDetails)
     return NextResponse.json(
-      { 
+      {
         error: "Failed to fetch coaches",
         message: errorMessage,
         details: process.env.NODE_ENV === 'development' ? errorDetails : undefined
@@ -210,11 +213,11 @@ export async function PUT(request: Request) {
     console.error("Error updating coach:", error)
     const errorMessage = error?.message || "Failed to update coach"
     return NextResponse.json(
-      { 
+      {
         error: "Failed to update coach",
         message: errorMessage,
         details: process.env.NODE_ENV === 'development' ? error.stack : undefined
-      }, 
+      },
       { status: 500 }
     )
   }

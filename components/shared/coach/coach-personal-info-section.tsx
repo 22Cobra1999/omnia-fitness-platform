@@ -21,6 +21,8 @@ interface CoachPersonalInfoSectionProps {
   onEditClick?: () => void
   showStreak?: boolean
   streakCount?: number
+  leftAction?: React.ReactNode
+  rightAction?: React.ReactNode
 }
 
 export function CoachPersonalInfoSection({
@@ -29,7 +31,9 @@ export function CoachPersonalInfoSection({
   showEditButton = false,
   onEditClick,
   showStreak = false,
-  streakCount = 0
+  streakCount = 0,
+  leftAction,
+  rightAction
 }: CoachPersonalInfoSectionProps) {
   const displayName = coach.full_name || coach.name || "Coach"
   const avatarUrl = coach.avatar_url
@@ -41,8 +45,8 @@ export function CoachPersonalInfoSection({
     : []
 
   // Contar certificaciones
-  const certificationsCount = 
-    coach.certifications_count ?? 
+  const certificationsCount =
+    coach.certifications_count ??
     (Array.isArray(coach.certifications) ? coach.certifications.length : 0)
 
   if (variant === 'modal') {
@@ -61,19 +65,31 @@ export function CoachPersonalInfoSection({
 
         {/* Contenido del header */}
         <div className="relative z-10 text-center">
-          {/* Avatar */}
-          <div className="flex justify-center mb-4">
-            <div className="w-24 h-24 bg-gradient-to-br from-[#FF6A00] to-[#FF8C42] rounded-full flex items-center justify-center overflow-hidden">
+          {/* Avatar con acciones laterales */}
+          <div className="flex justify-center items-center gap-6 mb-4">
+            {leftAction && (
+              <div className="shrink-0 flex items-center justify-center">
+                {leftAction}
+              </div>
+            )}
+
+            <div className="w-24 h-24 bg-gradient-to-br from-[#FF6A00] to-[#FF8C42] rounded-full flex items-center justify-center overflow-hidden shrink-0 ring-4 ring-black/20">
               {avatarUrl ? (
-                <img 
-                  src={avatarUrl} 
-                  alt="Foto de perfil" 
+                <img
+                  src={avatarUrl}
+                  alt="Foto de perfil"
                   className="w-full h-full object-cover"
                 />
               ) : (
                 <span className="text-3xl text-white font-bold">{displayName[0]}</span>
               )}
             </div>
+
+            {rightAction && (
+              <div className="shrink-0 flex items-center justify-center">
+                {rightAction}
+              </div>
+            )}
           </div>
 
           {/* Nombre */}
@@ -95,7 +111,7 @@ export function CoachPersonalInfoSection({
                 <span className="text-xs">Sin reseñas</span>
               </div>
             )}
-            
+
             {/* Ventas totales */}
             {coach.total_sales !== null && coach.total_sales !== undefined && (
               <div className="flex items-center text-gray-300">
@@ -104,7 +120,7 @@ export function CoachPersonalInfoSection({
                 </span>
               </div>
             )}
-            
+
             {/* Ubicación */}
             {coach.location && (
               <div className="flex items-center text-gray-300">
@@ -112,7 +128,7 @@ export function CoachPersonalInfoSection({
                 <span className="text-sm">{coach.location}</span>
               </div>
             )}
-            
+
             {/* Edad */}
             {coach.age_years && (
               <div className="flex items-center text-gray-300">
@@ -147,13 +163,7 @@ export function CoachPersonalInfoSection({
           )}
 
           {/* Certificaciones */}
-          {certificationsCount > 0 && (
-            <div className="text-center mb-4">
-              <span className="text-sm text-gray-300">
-                Certificaciones: {certificationsCount}
-              </span>
-            </div>
-          )}
+
         </div>
       </div>
     )
@@ -161,7 +171,7 @@ export function CoachPersonalInfoSection({
 
   // Variante para perfil (con fondo difuminado y botón de editar)
   return (
-    <div 
+    <div
       className="bg-[#1A1C1F] rounded-2xl p-4 relative overflow-hidden"
       style={{
         backgroundImage: avatarUrl
@@ -174,7 +184,7 @@ export function CoachPersonalInfoSection({
     >
       {/* Fondo difuminado adicional */}
       {avatarUrl && (
-        <div 
+        <div
           className="absolute inset-0 opacity-25"
           style={{
             backgroundImage: `url(${avatarUrl})`,
@@ -185,7 +195,7 @@ export function CoachPersonalInfoSection({
           }}
         />
       )}
-      
+
       {/* Contenido del perfil con z-index para estar encima del fondo */}
       <div className="relative z-10">
         {/* Racha en esquina superior izquierda */}
@@ -216,9 +226,9 @@ export function CoachPersonalInfoSection({
         <div className="flex justify-center mb-2 pt-2">
           <div className="w-20 h-20 bg-gradient-to-br from-[#FF6A00] to-[#FF8C42] rounded-full flex items-center justify-center overflow-hidden">
             {avatarUrl ? (
-              <img 
-                src={avatarUrl} 
-                alt="Foto de perfil" 
+              <img
+                src={avatarUrl}
+                alt="Foto de perfil"
                 className="w-full h-full object-cover"
               />
             ) : (

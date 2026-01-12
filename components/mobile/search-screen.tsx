@@ -104,7 +104,7 @@ export function SearchScreen({ onTabChange }: SearchScreenProps) {
         setExpandedSection(null)
         setPurchaseModalOpen(false)
         setIsPreviewModalOpen(false)
-        
+
         // Scroll al inicio
         setTimeout(() => {
           window.scrollTo({ top: 0, behavior: 'smooth' })
@@ -126,7 +126,7 @@ export function SearchScreen({ onTabChange }: SearchScreenProps) {
   const [displayedCoaches, setDisplayedCoaches] = useState<Coach[]>([])
   const [isLoading, setIsLoading] = useState(false)
   const [error, setError] = useState<Error | null>(null)
-  
+
   const { toast } = useToast()
   const router = useRouter()
   const [purchasedActivity, setPurchasedActivity] = useState<Activity | null>(null)
@@ -139,7 +139,7 @@ export function SearchScreen({ onTabChange }: SearchScreenProps) {
     fromCoachProfile?: boolean
     coachId?: string
   } | null>(null)
-  
+
   // Pila de navegación para manejar el flujo correcto
   const [navigationStack, setNavigationStack] = useState<Array<{
     type: 'activity' | 'coach'
@@ -160,7 +160,7 @@ export function SearchScreen({ onTabChange }: SearchScreenProps) {
       const mappedCoaches = coaches.map((coach: any) => ({
         ...coach,
         name: coach.full_name || coach.name,
-        specialization: coach.specialty || coach.specialization,
+        specialization: coach.specialization || coach.specialty,
         experience_years: coach.experienceYears || coach.experience_years,
         location: coach.location || "No especificada",
         bio: coach.bio || coach.description,
@@ -190,7 +190,7 @@ export function SearchScreen({ onTabChange }: SearchScreenProps) {
         return
       }
     }
-    
+
     try {
       setIsLoadingActivities(true)
       setActivitiesError(null)
@@ -198,13 +198,13 @@ export function SearchScreen({ onTabChange }: SearchScreenProps) {
       const response = await fetch('/api/activities/search')
       if (!response.ok) throw new Error('Failed to fetch activities')
       const activities = await response.json()
-      
+
       // Guardar en cache
       activitiesCacheRef.current = {
         data: activities,
         timestamp: Date.now()
       }
-      
+
       setAllActivities(activities)
       setActivities(activities)
     } catch (err) {
@@ -219,11 +219,11 @@ export function SearchScreen({ onTabChange }: SearchScreenProps) {
       setIsLoadingActivities(false)
     }
   }, [CACHE_DURATION])
-  
+
   // Hook para cache inteligente de coaches - reemplazado con funciones vacías
   const { preloadCoach, cacheCoach, getCacheStats } = {
-    preloadCoach: () => {},
-    cacheCoach: () => {},
+    preloadCoach: () => { },
+    cacheCoach: () => { },
     getCacheStats: () => ({})
   }
 
@@ -232,8 +232,8 @@ export function SearchScreen({ onTabChange }: SearchScreenProps) {
     loadCoaches()
     loadActivities(false) // false = usar cache si está disponible
   }, [loadActivities])
-  
-  
+
+
 
   // Efecto para manejar errores de carga
   useEffect(() => {
@@ -262,7 +262,7 @@ export function SearchScreen({ onTabChange }: SearchScreenProps) {
   // Efecto para pre-cargar coaches cuando se cargan actividades
   useEffect(() => {
     if (activities && activities.length > 0 && displayedCoaches && displayedCoaches.length > 0) {
-      
+
       // Pre-cargar cada coach con sus actividades filtradas
       displayedCoaches.forEach(coach => {
         const coachActivities = (activities || []).filter(activity => activity.coach_id === coach.id)
@@ -359,9 +359,9 @@ export function SearchScreen({ onTabChange }: SearchScreenProps) {
       // Filtro por categoría
       if (selectedCategory !== "all") {
         if (selectedCategory === "fitness") {
-          if (!coach.specialization?.toLowerCase().includes("fitness") && 
-              !coach.specialization?.toLowerCase().includes("gym") &&
-              !coach.specialization?.toLowerCase().includes("deporte")) {
+          if (!coach.specialization?.toLowerCase().includes("fitness") &&
+            !coach.specialization?.toLowerCase().includes("gym") &&
+            !coach.specialization?.toLowerCase().includes("deporte")) {
             return false
           }
         } else if (selectedCategory === "nutricion") {
@@ -431,7 +431,7 @@ export function SearchScreen({ onTabChange }: SearchScreenProps) {
         const title = activity.title?.toLowerCase() || ''
         const description = activity.description?.toLowerCase() || ''
         const fitnessLower = selectedFitnessType.toLowerCase()
-        
+
         // Buscar el tipo de fitness en el título o descripción
         if (!title.includes(fitnessLower) && !description.includes(fitnessLower)) {
           return false
@@ -469,7 +469,7 @@ export function SearchScreen({ onTabChange }: SearchScreenProps) {
 
   const handleActivityClick = (activity: Activity, fromCoachProfile = false, coachId?: string) => {
     // usage.onClick(activity.id, { fromCoachProfile, coachId }) // Removido - variable no definida
-    
+
     // Debug: Verificar qué datos tiene la actividad
     console.log('🔍 SearchScreen - handleActivityClick:', {
       id: activity.id,
@@ -478,18 +478,18 @@ export function SearchScreen({ onTabChange }: SearchScreenProps) {
       workshop_type: activity.workshop_type,
       categoria: activity.categoria
     })
-    
+
     // Agregar a la pila de navegación
     setNavigationStack(prev => {
       let newStack = [...prev]
-      
+
       // Si viene del perfil del coach, asegurar que el coach esté en la pila
       if (fromCoachProfile && coachId && selectedCoachForProfile) {
         // Verificar si el coach ya está en la pila
-        const coachAlreadyInStack = newStack.some(item => 
+        const coachAlreadyInStack = newStack.some(item =>
           item.type === 'coach' && item.data?.id === coachId
         )
-        
+
         if (!coachAlreadyInStack) {
           // Agregar el coach a la pila antes de la actividad
           newStack.push({
@@ -499,14 +499,14 @@ export function SearchScreen({ onTabChange }: SearchScreenProps) {
           })
         }
       }
-      
+
       // Agregar la actividad
       newStack.push({
         type: 'activity',
         data: activity,
         context: fromCoachProfile ? { fromCoachProfile: true, coachId } : null
       })
-      
+
       console.log('🔍 SearchScreen: Navegando a actividad', {
         activityId: activity.id,
         activityTitle: activity.title,
@@ -516,9 +516,9 @@ export function SearchScreen({ onTabChange }: SearchScreenProps) {
       })
       return newStack
     })
-    
+
     setSelectedActivity(activity)
-    
+
     // Configurar contexto de navegación
     if (fromCoachProfile && coachId) {
       setNavigationContext({
@@ -530,7 +530,7 @@ export function SearchScreen({ onTabChange }: SearchScreenProps) {
     } else {
       setNavigationContext(null)
     }
-    
+
     setIsPreviewModalOpen(true)
   }
 
@@ -539,7 +539,7 @@ export function SearchScreen({ onTabChange }: SearchScreenProps) {
     setIsPreviewModalOpen(false)
     setSelectedActivity(null)
     setNavigationContext(null)
-    
+
     // Reabrir el modal del perfil del coach
     if (selectedCoachForProfile) {
       setIsCoachProfileModalOpen(true)
@@ -559,18 +559,18 @@ export function SearchScreen({ onTabChange }: SearchScreenProps) {
       setNavigationStack([])
       return
     }
-    
+
     // Obtener el último elemento de la pila
     const lastItem = navigationStack[navigationStack.length - 1]
-    
+
     // Remover el último elemento de la pila
     const newStack = navigationStack.slice(0, -1)
     setNavigationStack(newStack)
-    
+
     if (lastItem.type === 'activity') {
       // Si cerramos una actividad, verificar si hay un coach anterior
       const previousItem = newStack.length > 0 ? newStack[newStack.length - 1] : null
-      
+
       if (previousItem && previousItem.type === 'coach') {
         // Volver al coach anterior
         setSelectedCoachForProfile(previousItem.data)
@@ -588,7 +588,7 @@ export function SearchScreen({ onTabChange }: SearchScreenProps) {
     } else if (lastItem.type === 'coach') {
       // Si cerramos un coach, verificar si hay una actividad anterior
       const previousItem = newStack.length > 0 ? newStack[newStack.length - 1] : null
-      
+
       if (previousItem && previousItem.type === 'activity') {
         // Volver a la actividad anterior
         setSelectedActivity(previousItem.data)
@@ -609,11 +609,11 @@ export function SearchScreen({ onTabChange }: SearchScreenProps) {
 
   // Función para manejar el click en el coach desde una actividad
   const handleCoachClickFromActivity = async (coachId: string) => {
-    
+
     try {
       // Buscar el coach en la lista de displayedCoaches
       const coach = displayedCoaches?.find(c => c.id === coachId)
-      
+
       if (coach) {
         // Agregar coach a la pila de navegación
         setNavigationStack(prev => {
@@ -622,7 +622,7 @@ export function SearchScreen({ onTabChange }: SearchScreenProps) {
             data: coach,
             context: { fromActivity: true, activityId: selectedActivity?.id }
           }]
-          
+
           console.log('👨‍💼 SearchScreen: Navegando a coach', {
             coachId: coach.id,
             coachName: coach.name || coach.full_name,
@@ -632,10 +632,10 @@ export function SearchScreen({ onTabChange }: SearchScreenProps) {
           })
           return newStack
         })
-        
+
         // Pre-cargar el coach para navegación futura
         preloadCoach(coach.id, coach)
-        
+
         // Establecer el coach seleccionado y abrir su modal
         setSelectedCoachForProfile(coach)
         setIsCoachProfileModalOpen(true)
@@ -654,7 +654,7 @@ export function SearchScreen({ onTabChange }: SearchScreenProps) {
                 data: foundCoach,
                 context: { fromActivity: true, activityId: selectedActivity?.id }
               }]
-              
+
               console.log('👨‍💼 SearchScreen: Navegando a coach encontrado', {
                 coachId: foundCoach.id,
                 coachName: foundCoach.name || foundCoach.full_name,
@@ -664,10 +664,10 @@ export function SearchScreen({ onTabChange }: SearchScreenProps) {
               })
               return newStack
             })
-            
+
             // Pre-cargar el coach para navegación futura
             preloadCoach(foundCoach.id, foundCoach)
-            
+
             setSelectedCoachForProfile(foundCoach)
             setIsCoachProfileModalOpen(true)
           } else {
@@ -745,8 +745,8 @@ export function SearchScreen({ onTabChange }: SearchScreenProps) {
           <h2 className="text-md font-medium flex items-center">
             <User className="h-5 w-5 mr-2 text-[#FF7939]" />
             Coaches
-            </h2>
-          <button 
+          </h2>
+          <button
             onClick={() => {
               const newExpanded = expandedSection === 'coaches' ? null : 'coaches'
               setExpandedSection(newExpanded)
@@ -762,9 +762,9 @@ export function SearchScreen({ onTabChange }: SearchScreenProps) {
             className="text-[#FF7939] flex items-center hover:text-[#FF6B00] transition-colors"
           >
             <span>{expandedSection === 'coaches' ? 'Ver menos' : 'Ver más'}</span>
-            <ChevronRight 
-              size={20} 
-              className={`ml-1 transition-transform ${expandedSection === 'coaches' ? 'rotate-90' : ''}`} 
+            <ChevronRight
+              size={20}
+              className={`ml-1 transition-transform ${expandedSection === 'coaches' ? 'rotate-90' : ''}`}
             />
           </button>
         </div>
@@ -811,11 +811,10 @@ export function SearchScreen({ onTabChange }: SearchScreenProps) {
                             setSelectedFitnessType("all")
                           }
                         }}
-                        className={`px-3 py-1 rounded-full text-sm transition-colors ${
-                          selectedCategory === option.value
-                            ? "bg-[#FF7939] text-white"
-                            : "bg-[#3A3A3A] text-gray-300 hover:bg-[#4A4A4A]"
-                        }`}
+                        className={`px-3 py-1 rounded-full text-sm transition-colors ${selectedCategory === option.value
+                          ? "bg-[#FF7939] text-white"
+                          : "bg-[#3A3A3A] text-gray-300 hover:bg-[#4A4A4A]"
+                          }`}
                       >
                         {option.label}
                       </button>
@@ -840,11 +839,10 @@ export function SearchScreen({ onTabChange }: SearchScreenProps) {
                         <button
                           key={option.value}
                           onClick={() => setSelectedFitnessType(option.value)}
-                          className={`px-3 py-1 rounded-full text-sm transition-colors ${
-                            selectedFitnessType === option.value
-                              ? "bg-[#FF7939] text-white"
-                              : "bg-[#3A3A3A] text-gray-300 hover:bg-[#4A4A4A]"
-                          }`}
+                          className={`px-3 py-1 rounded-full text-sm transition-colors ${selectedFitnessType === option.value
+                            ? "bg-[#FF7939] text-white"
+                            : "bg-[#3A3A3A] text-gray-300 hover:bg-[#4A4A4A]"
+                            }`}
                         >
                           {option.label}
                         </button>
@@ -907,7 +905,7 @@ export function SearchScreen({ onTabChange }: SearchScreenProps) {
         {!isLoading && error && (
           <div className="text-center py-10">
             <p className="text-red-400 mb-4">Error al cargar coaches</p>
-            <button 
+            <button
               onClick={handleRetry}
               className="bg-[#FF7939] hover:bg-[#FF6B00] text-white px-4 py-2 rounded-lg transition-colors"
             >
@@ -925,29 +923,34 @@ export function SearchScreen({ onTabChange }: SearchScreenProps) {
         {!isLoading && !error && filteredCoaches.length > 0 && (
           <div className={showAllCoaches ? "grid grid-cols-2 gap-4" : "overflow-x-auto"}>
             <div className={showAllCoaches ? "contents" : "flex gap-4"} style={!showAllCoaches ? { minWidth: "min-content" } : undefined}>
-                     {filteredCoaches.map((coach) => {
-                       return (
-                         <CoachProfileCard 
-                         key={coach.id}
-                           coach={coach} 
-                           size={showAllCoaches ? "medium" : "small"}
-                           onClick={() => {
-                             // Agregar coach a la pila de navegación (desde search)
-                             setNavigationStack(prev => [...prev, {
-                               type: 'coach',
-                               data: coach,
-                               context: { fromSearch: true }
-                             }])
-                             
-                             // Pre-cargar el coach para navegación futura
-                             preloadCoach(coach.id, coach)
-                             
-                             setSelectedCoachForProfile(coach)
-                             setIsCoachProfileModalOpen(true)
-                           }}
-                         />
-                       )
-                     })}
+              {filteredCoaches.map((coach) => {
+                return (
+                  <CoachProfileCard
+                    key={coach.id}
+                    coach={coach}
+                    size={showAllCoaches ? "medium" : "small"}
+                    onClick={() => {
+                      console.log("🖱️ [SearchScreen] Clicked coach card:", coach.id, {
+                        name: coach.name,
+                        avatar: coach.avatar_url,
+                        location: coach.location
+                      });
+                      // Agregar coach a la pila de navegación (desde search)
+                      setNavigationStack(prev => [...prev, {
+                        type: 'coach',
+                        data: coach,
+                        context: { fromSearch: true }
+                      }])
+
+                      // Pre-cargar el coach para navegación futura
+                      preloadCoach(coach.id, coach)
+
+                      setSelectedCoachForProfile(coach)
+                      setIsCoachProfileModalOpen(true)
+                    }}
+                  />
+                )
+              })}
             </div>
           </div>
         )}
@@ -961,7 +964,7 @@ export function SearchScreen({ onTabChange }: SearchScreenProps) {
               <ShoppingCart className="h-5 w-5 mr-2 text-[#FF7939]" />
               Actividades
             </h2>
-            <button 
+            <button
               onClick={() => {
                 const newExpanded = expandedSection === 'activities' ? null : 'activities'
                 setExpandedSection(newExpanded)
@@ -978,9 +981,9 @@ export function SearchScreen({ onTabChange }: SearchScreenProps) {
               className="text-[#FF7939] flex items-center hover:text-[#FF6B00] transition-colors"
             >
               <span>{expandedSection === 'activities' ? 'Ver menos' : 'Ver más'}</span>
-              <ChevronRight 
-                size={20} 
-                className={`ml-1 transition-transform ${expandedSection === 'activities' ? 'rotate-90' : ''}`} 
+              <ChevronRight
+                size={20}
+                className={`ml-1 transition-transform ${expandedSection === 'activities' ? 'rotate-90' : ''}`}
               />
             </button>
           </div>
@@ -1023,11 +1026,10 @@ export function SearchScreen({ onTabChange }: SearchScreenProps) {
                         <button
                           key={option.value}
                           onClick={() => setSelectedProgramType(option.value)}
-                          className={`px-3 py-1 rounded-full text-sm transition-colors ${
-                            selectedProgramType === option.value
-                              ? "bg-[#FF7939] text-white"
-                              : "bg-[#3A3A3A] text-gray-300 hover:bg-[#4A4A4A]"
-                          }`}
+                          className={`px-3 py-1 rounded-full text-sm transition-colors ${selectedProgramType === option.value
+                            ? "bg-[#FF7939] text-white"
+                            : "bg-[#3A3A3A] text-gray-300 hover:bg-[#4A4A4A]"
+                            }`}
                         >
                           {option.label}
                         </button>
@@ -1054,11 +1056,10 @@ export function SearchScreen({ onTabChange }: SearchScreenProps) {
                               setSelectedFitnessType("all")
                             }
                           }}
-                          className={`px-3 py-1 rounded-full text-sm transition-colors ${
-                            selectedCategory === option.value
-                              ? "bg-[#FF7939] text-white"
-                              : "bg-[#3A3A3A] text-gray-300 hover:bg-[#4A4A4A]"
-                          }`}
+                          className={`px-3 py-1 rounded-full text-sm transition-colors ${selectedCategory === option.value
+                            ? "bg-[#FF7939] text-white"
+                            : "bg-[#3A3A3A] text-gray-300 hover:bg-[#4A4A4A]"
+                            }`}
                         >
                           {option.label}
                         </button>
@@ -1083,11 +1084,10 @@ export function SearchScreen({ onTabChange }: SearchScreenProps) {
                           <button
                             key={option.value}
                             onClick={() => setSelectedFitnessType(option.value)}
-                            className={`px-3 py-1 rounded-full text-sm transition-colors ${
-                              selectedFitnessType === option.value
-                                ? "bg-[#FF7939] text-white"
-                                : "bg-[#3A3A3A] text-gray-300 hover:bg-[#4A4A4A]"
-                            }`}
+                            className={`px-3 py-1 rounded-full text-sm transition-colors ${selectedFitnessType === option.value
+                              ? "bg-[#FF7939] text-white"
+                              : "bg-[#3A3A3A] text-gray-300 hover:bg-[#4A4A4A]"
+                              }`}
                           >
                             {option.label}
                           </button>
@@ -1135,9 +1135,9 @@ export function SearchScreen({ onTabChange }: SearchScreenProps) {
             <div className={showAllActivities ? "grid grid-cols-2 gap-4" : "overflow-x-auto"}>
               <div className={showAllActivities ? "contents" : "flex gap-4"} style={{ minWidth: "min-content" }}>
                 {(activities || []).map((activity) => (
-                  <ActivityCard 
+                  <ActivityCard
                     key={activity.id}
-                    activity={activity} 
+                    activity={activity}
                     size={showAllActivities ? "medium" : "small"}
                     onClick={(selectedActivity) => {
                       handleActivityClick(selectedActivity)

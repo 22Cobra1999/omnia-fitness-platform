@@ -28,12 +28,12 @@ import {
 import Image from "next/image"
 import { Button } from "@/components/ui/button"
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog"
-// import CoachProfileModal from "@/components/CoachProfileModal"
+import CoachProfileModal from "@/components/coach/CoachProfileModal"
 import { Textarea } from "@/components/ui/textarea"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
- 
+
 import { Badge } from "@/components/ui/badge"
 import { formatDistanceToNow } from "date-fns"
 import { es } from "date-fns/locale"
@@ -46,6 +46,7 @@ import { getSupabaseClient } from '@/lib/supabase/supabase-client'
 import { PurchaseActivityModal } from '@/components/shared/activities/purchase-activity-modal'
 import { ActivitySurveyModal } from '@/components/shared/activities/activity-survey-modal'
 import { PurchasedActivityCard } from "@/components/activities/purchased-activity-card"
+import CoachProfileCard from "@/components/coach/clients/CoachProfileCard"
 import TodayScreen from '@/components/shared/misc/TodayScreen'
 import { WorkshopClientView } from "@/components/client/workshop-client-view"
 import type { Activity, Enrollment } from "@/types/activity" // Import updated types
@@ -69,7 +70,7 @@ interface Coach {
 export function ActivityScreen() {
   // Log de tiempo de inicio de carga del componente
   const componentStartTime = Date.now()
-  
+
   const [activeTab, setActiveTab] = useState("purchased")
   const [activeCategory, setActiveCategory] = useState("all")
   const [activityStatusTab, setActivityStatusTab] = useState<"en-curso" | "por-empezar" | "finalizadas">("en-curso")
@@ -96,6 +97,7 @@ export function ActivityScreen() {
   const [searchTerm, setSearchTerm] = useState("")
   const [selectedCoachForProfile, setSelectedCoachForProfile] = useState<Coach | null>(null)
   const [isCoachProfileModalOpen, setIsCoachProfileModalOpen] = useState(false)
+  const [meetCredits, setMeetCredits] = useState<Record<string, number>>({})
 
   // Función para manejar el click en una actividad
   const handleActivityClick = (activityId: string) => {
@@ -115,7 +117,7 @@ export function ActivityScreen() {
   useEffect(() => {
     const checkForPendingNavigation = () => {
       if (typeof window === 'undefined') return;
-      
+
       const selectedActivityFromCalendar = localStorage.getItem('selectedActivityFromCalendar');
       if (selectedActivityFromCalendar) {
         console.log('📅 [ActivityScreen] ActivityId detectado desde calendario:', selectedActivityFromCalendar);
@@ -126,7 +128,7 @@ export function ActivityScreen() {
         console.log('🧹 [ActivityScreen] localStorage limpiado');
         return;
       }
-      
+
       // Detectar actividad recién comprada
       const openActivityId = localStorage.getItem('openActivityId');
       if (openActivityId) {
@@ -138,15 +140,44 @@ export function ActivityScreen() {
         console.log('🧹 [ActivityScreen] localStorage limpiado (compra)');
       }
     };
-    
+
     // Verificar inmediatamente
     checkForPendingNavigation();
-    
+
     // También verificar cuando enrollments cambia (después de comprar)
     const timer = setTimeout(checkForPendingNavigation, 500);
-    
+
     return () => clearTimeout(timer);
   }, [enrollments.length]); // Re-ejecutar cuando cambie la cantidad de enrollments
+
+  // Fetch meet credits
+  useEffect(() => {
+    const fetchMeetCredits = async () => {
+      const supabase = getSupabaseClient()
+      const { data: { user } } = await supabase.auth.getUser()
+      if (!user) return
+
+      const { data, error } = await supabase
+        .from('client_meet_credits_ledger')
+        .select('coach_id, meet_credits_available')
+        .eq('client_id', user.id)
+
+      if (error) {
+        console.error('Error fetching meet credits:', error)
+        return
+      }
+
+      if (data) {
+        const creditsMap: Record<string, number> = {}
+        data.forEach((item: any) => {
+          creditsMap[item.coach_id] = item.meet_credits_available
+        })
+        setMeetCredits(creditsMap)
+      }
+    }
+
+    fetchMeetCredits()
+  }, [])
 
   // Función para manejar el click en un coach desde la tab de Activity
   const handleCoachClickFromActivity = (coachId: string) => {
@@ -161,11 +192,11 @@ export function ActivityScreen() {
 
   // Función para manejar el inicio de una actividad - memoizada
   const handleStartActivity = useCallback(async (activityId: string, startDate?: Date) => {
-    
+
     try {
       const supabase = getSupabaseClient();
       const { data: { user } } = await supabase.auth.getUser();
-      
+
       if (!user) {
         console.error('❌ Usuario no autenticado');
         return;
@@ -189,16 +220,16 @@ export function ActivityScreen() {
         return;
       }
 
-      
+
       // Recargar datos para actualizar la interfaz
       await fetchUserEnrollments();
-      
+
       // Si es hoy, abrir la actividad automáticamente
       const today = new Date().toISOString().split('T')[0];
       if (startDateString === today) {
         handleActivityClick(activityId);
       }
-      
+
     } catch (error) {
       console.error('❌ Error iniciando actividad:', error);
     }
@@ -215,7 +246,7 @@ export function ActivityScreen() {
     try {
       const activityId = enrollment.activity_id
       console.log(`🔍 [calculateRealProgress] Calculando progreso simple para actividad ${activityId}`)
-      
+
       // Obtener progreso del cliente para esta actividad usando la nueva tabla progreso_cliente
       const { data: progressRecords, error: progressError } = await supabase
         .from("progreso_cliente")
@@ -234,17 +265,17 @@ export function ActivityScreen() {
 
       progressRecords?.forEach(record => {
         try {
-          const completados = record.ejercicios_completados 
-            ? (typeof record.ejercicios_completados === 'string' 
-                ? JSON.parse(record.ejercicios_completados) 
-                : record.ejercicios_completados)
+          const completados = record.ejercicios_completados
+            ? (typeof record.ejercicios_completados === 'string'
+              ? JSON.parse(record.ejercicios_completados)
+              : record.ejercicios_completados)
             : {};
-          const pendientes = record.ejercicios_pendientes 
-            ? (typeof record.ejercicios_pendientes === 'string' 
-                ? JSON.parse(record.ejercicios_pendientes) 
-                : record.ejercicios_pendientes)
+          const pendientes = record.ejercicios_pendientes
+            ? (typeof record.ejercicios_pendientes === 'string'
+              ? JSON.parse(record.ejercicios_pendientes)
+              : record.ejercicios_pendientes)
             : {};
-          
+
           totalCompleted += Object.keys(completados).length
           totalPending += Object.keys(pendientes).length
         } catch (err) {
@@ -253,18 +284,18 @@ export function ActivityScreen() {
       })
 
       const total = totalCompleted + totalPending
-      
+
       console.log(`📈 [calculateRealProgress] CÁLCULO SIMPLE:`)
       console.log(`   - Ejercicios completados: ${totalCompleted}`)
       console.log(`   - Ejercicios pendientes: ${totalPending}`)
       console.log(`   - Total de ejercicios: ${total}`)
       console.log(`   - Progreso: ${totalCompleted}/${total} = ${total > 0 ? Math.round((totalCompleted / total) * 100) : 0}%`)
-      
+
       if (total === 0) return 0
       const progressPercentage = Math.round((totalCompleted / total) * 100)
       console.log(`✅ [calculateRealProgress] Progreso final: ${progressPercentage}%`)
       return progressPercentage
-      
+
     } catch (error) {
       console.error("❌ [calculateRealProgress] Error:", error)
       return 0
@@ -276,7 +307,7 @@ export function ActivityScreen() {
     try {
       const activityId = enrollment.activity_id
       const activityType = enrollment.activity.type.toLowerCase()
-      
+
       if (activityType.includes("fitness")) {
         // Usar el nuevo esquema modular: ejercicios_detalles
         const { data: nextExercise, error } = await supabase
@@ -317,14 +348,14 @@ export function ActivityScreen() {
           }
         }
       }
-      
+
       return null
     } catch (error) {
       console.error("Error getting next activity:", error)
       return null
     }
   }, [])
-  
+
   // Estados para el modal de encuesta
   const [showSurveyModal, setShowSurveyModal] = useState(false)
   const [selectedActivityForSurvey, setSelectedActivityForSurvey] = useState<Activity | null>(null)
@@ -336,15 +367,15 @@ export function ActivityScreen() {
   const [showFiltersModal, setShowFiltersModal] = useState(false)
   const [purchaseModalOpen, setPurchaseModalOpen] = useState(false)
   const [selectedPurchaseActivity, setSelectedPurchaseActivity] = useState<Activity | null>(null)
-  
+
   // Estados para filtros múltiples
   const [selectedCategories, setSelectedCategories] = useState<string[]>(["all"])
   const [selectedTypes, setSelectedTypes] = useState<string[]>(["purchased"])
-  
+
   // Estados para pull-to-refresh
 
   const activityTypes = ["all", "Fitness", "Yoga", "Gym", "Nutrición", "Consulta"]
-  
+
   // Funciones para manejar filtros múltiples - memoizadas
   const toggleCategory = useCallback((category: string) => {
     if (category === "all") {
@@ -361,7 +392,7 @@ export function ActivityScreen() {
       })
     }
   }, [])
-  
+
   const toggleType = useCallback((type: string) => {
     setSelectedTypes(prev => {
       if (prev.includes(type)) {
@@ -372,7 +403,7 @@ export function ActivityScreen() {
       }
     })
   }, [])
-  
+
 
   // Schedule form state
   const [scheduleTitle, setScheduleTitle] = useState("")
@@ -427,7 +458,7 @@ export function ActivityScreen() {
   // Cargar datos en caché al iniciar (solo una vez)
   useEffect(() => {
     const dataLoadStartTime = Date.now()
-    
+
     let hasCachedData = false
 
     // Cargar enrollments desde caché
@@ -507,7 +538,7 @@ export function ActivityScreen() {
 
   const fetchUserEnrollments = async (silentUpdate = false) => {
     const enrollmentsStartTime = Date.now()
-    
+
     if (silentUpdate) {
       setIsSilentlyUpdating(true)
     } else {
@@ -597,9 +628,9 @@ export function ActivityScreen() {
       }
 
       // Log optimizado - solo en desarrollo
-    if (process.env.NODE_ENV === 'development') {
-      // Raw enrollments from Supabase - log removido para optimización
-    }
+      if (process.env.NODE_ENV === 'development') {
+        // Raw enrollments from Supabase - log removido para optimización
+      }
 
       if (!data || data.length === 0) {
         setEnrollments([])
@@ -638,12 +669,12 @@ export function ActivityScreen() {
         .filter(Boolean) // Eliminar elementos nulos
 
       // Log optimizado - solo en desarrollo
-    if (process.env.NODE_ENV === 'development') {
-      // Formatted enrollments - log removido para optimización
-    }
+      if (process.env.NODE_ENV === 'development') {
+        // Formatted enrollments - log removido para optimización
+      }
 
       setEnrollments(formattedEnrollments)
-      
+
       // Obtener información completa de coaches desde user_profiles
       const coachIds = [...new Set(formattedEnrollments.map(e => e.activity.coach_id))]
       if (coachIds.length > 0) {
@@ -651,10 +682,10 @@ export function ActivityScreen() {
           .from("user_profiles")
           .select("id, full_name, avatar_url")
           .in("id", coachIds)
-        
+
         if (!profileError && coachProfiles) {
           const profileMap = new Map(coachProfiles.map(profile => [profile.id, profile]))
-          
+
           // Actualizar enrollments con información completa del coach
           const updatedEnrollments = formattedEnrollments.map(enrollment => ({
             ...enrollment,
@@ -664,25 +695,25 @@ export function ActivityScreen() {
               coach_avatar_url: profileMap.get(enrollment.activity.coach_id)?.avatar_url || null
             }
           }))
-          
+
           setEnrollments(updatedEnrollments)
         }
       }
-      
+
       // Calcular progresos reales para cada enrollment
       const progressPromises = formattedEnrollments.map(async (enrollment) => {
         const realProgress = await calculateRealProgress(enrollment)
         return { enrollmentId: enrollment.id, progress: realProgress }
       })
-      
+
       const progressResults = await Promise.all(progressPromises)
       const progressMap = progressResults.reduce((acc, { enrollmentId, progress }) => {
         acc[enrollmentId] = progress
         return acc
       }, {} as Record<number, number>)
-      
+
       setEnrollmentProgresses(progressMap)
-      
+
     } catch (error) {
       console.error("Error al cargar las inscripciones:", error)
       if (!silentUpdate) {
@@ -690,7 +721,7 @@ export function ActivityScreen() {
       }
     } finally {
       const totalEnrollmentsTime = Date.now() - enrollmentsStartTime
-      
+
       if (silentUpdate) {
         setIsSilentlyUpdating(false)
       } else {
@@ -702,7 +733,7 @@ export function ActivityScreen() {
   // Cargar coaches
   const loadCoaches = async () => {
     const coachesStartTime = Date.now()
-    
+
     setLoadingCoaches(true)
 
     // Intentar cargar desde caché primero
@@ -725,8 +756,8 @@ export function ActivityScreen() {
     }
 
     try {
-      // Fetch coaches from the API route that handles derivation
-      const response = await fetch("/api/coaches")
+      // Fetch coaches from the SAME API as search-screen for consistency
+      const response = await fetch("/api/search-coaches")
       if (!response.ok) {
         throw new Error(`Error fetching coaches: ${response.statusText}`)
       }
@@ -738,19 +769,24 @@ export function ActivityScreen() {
         return
       }
 
-      // The API route /api/coaches now returns derived specialty_detail and full_name, avatar_url from user_profiles
+      // Map identically to search-screen.tsx
       const formattedCoaches = coachesData.map((coach: any) => ({
-        id: coach.id,
-        full_name: coach.full_name, // Now directly available from API
-        specialization: coach.specialization,
-        specialty_detail: coach.specialty_detail, // Now directly available from API
-        experience_years: coach.experience_years,
-        rating: coach.rating,
-        total_reviews: coach.total_reviews,
+        ...coach,
+        name: coach.full_name || coach.name,
+        specialization: coach.specialization || coach.specialty,
+        experience_years: coach.experienceYears || coach.experience_years,
+        location: coach.location || "No especificada",
+        bio: coach.bio || coach.description,
+        rating: coach.rating || 0,
+        total_sessions: coach.totalReviews || coach.total_sessions || 0,
+        total_products: coach.activities || coach.total_products || 0,
+        certifications: coach.certifications || [],
         user_profile: {
-          avatar_url: coach.avatar_url, // Now directly available from API
-          bio: coach.description, // Now directly available from API
-        },
+          avatar_url: coach.avatar_url,
+          bio: coach.bio || coach.description,
+          location: coach.location,
+          certifications: coach.certifications
+        }
       }))
 
       setCoaches(formattedCoaches)
@@ -772,7 +808,7 @@ export function ActivityScreen() {
       setCoaches([])
     } finally {
       const totalCoachesTime = Date.now() - coachesStartTime
-      
+
       setLoadingCoaches(false)
     }
   }
@@ -782,7 +818,7 @@ export function ActivityScreen() {
 
     // Obtener el usuario actual
     const { data: userData, error: userError } = await supabase.auth.getUser()
-    
+
     if (userError || !userData.user) {
       console.error("Error al obtener usuario:", userError)
       setLoadingComplementary(false)
@@ -802,7 +838,7 @@ export function ActivityScreen() {
     }
 
     const purchasedActivityIds = purchasedActivities?.map(a => a.activity_id) || []
-    
+
     // Si hay actividades compradas, invalidar caché para asegurar datos actualizados
     if (purchasedActivityIds.length > 0) {
       localStorage.removeItem(COMPLEMENTARY_CACHE_KEY)
@@ -1301,10 +1337,10 @@ export function ActivityScreen() {
   const calculateEnrollmentStatus = (enrollment: Enrollment): 'expirada' | 'finalizada' | 'activa' | 'pendiente' => {
     const today = new Date()
     today.setHours(0, 0, 0, 0)
-    
+
     const hasStarted = enrollment.start_date !== null
     const dbStatus = enrollment.status?.toLowerCase() || ''
-    
+
     // 1. EXPIRADA: status explícito en BD o expiration_date pasó y no empezó
     if (dbStatus === 'expirada') {
       return 'expirada'
@@ -1316,7 +1352,7 @@ export function ActivityScreen() {
         return 'expirada'
       }
     }
-    
+
     // 2. FINALIZADA: status explícito en BD o program_end_date pasó
     if (dbStatus === 'finalizada' || dbStatus === 'completed') {
       return 'finalizada'
@@ -1328,12 +1364,12 @@ export function ActivityScreen() {
         return 'finalizada'
       }
     }
-    
+
     // 3. ACTIVA: status 'activa' y tiene start_date
     if (dbStatus === 'activa' && hasStarted) {
       return 'activa'
     }
-    
+
     // 4. PENDIENTE: por defecto
     return 'pendiente'
   }
@@ -1342,9 +1378,9 @@ export function ActivityScreen() {
   const filterEnrollmentsByStatus = (enrollments: Enrollment[]) => {
     return enrollments.filter((enrollment) => {
       const calculatedStatus = calculateEnrollmentStatus(enrollment)
-      
+
       // Debug log
-      if (process.env.NODE_ENV === 'development') {
+      /* if (process.env.NODE_ENV === 'development') {
         console.log(`🔍 [FILTER] Enrollment ${enrollment.id}:`, {
           dbStatus: enrollment.status,
           calculatedStatus,
@@ -1354,15 +1390,15 @@ export function ActivityScreen() {
           activityStatusTab,
           today: new Date().toISOString().split('T')[0]
         })
-      }
-      
+      } */
+
       switch (activityStatusTab) {
         case "en-curso":
           // En curso: status calculado es 'activa'
           const enCurso = calculatedStatus === 'activa'
-          if (process.env.NODE_ENV === 'development') {
-            console.log(`  → EN CURSO: ${enCurso}`)
-          }
+          // if (process.env.NODE_ENV === 'development') {
+          //   console.log(`  → EN CURSO: ${enCurso}`)
+          // }
           return enCurso
         case "por-empezar":
           // Por empezar: status calculado es 'pendiente'
@@ -1399,7 +1435,7 @@ export function ActivityScreen() {
         setActivityStatusTab('en-curso')
         setActiveCategory('all')
         setSearchTerm('')
-        
+
         // Scroll al inicio
         setTimeout(() => {
           window.scrollTo({ top: 0, behavior: 'smooth' })
@@ -1508,37 +1544,37 @@ export function ActivityScreen() {
     return <Badge className="bg-gray-500/80 text-white border-none text-xs font-semibold">{type}</Badge>
   }
 
-            // Si se está mostrando el TodayScreen, renderizarlo en pantalla completa
-            if (showTodayScreen && selectedActivityId) {
-              const activityType = getSelectedActivityType()
-              const selectedEnrollment = enrollments.find(e => e.activity_id.toString() === selectedActivityId)
-              const isWorkshop = activityType?.toLowerCase().includes('workshop')
-              
-              return (
-                <div className="fixed inset-0 z-50" style={{ backgroundColor: '#0F1012' }}>
-                  {isWorkshop ? (
-                    <div className="h-full overflow-y-auto">
-                      <div className="fixed top-4 left-4 z-20">
-                        <button 
-                          onClick={handleBackToActivities}
-                          className="bg-black/40 backdrop-blur-md px-4 py-2 rounded-lg text-white flex items-center gap-2 border border-white/10 hover:bg-black/60 transition-colors"
-                        >
-                          ← Volver
-                        </button>
-                      </div>
-                      <WorkshopClientView 
-                        activityId={parseInt(selectedActivityId)}
-                        activityTitle={selectedEnrollment?.activity?.title || "Taller"}
-                        activityDescription={selectedEnrollment?.activity?.description}
-                        activityImageUrl={selectedEnrollment?.activity?.media?.image_url || selectedEnrollment?.activity?.image_url}
-                      />
-                    </div>
-                  ) : (
-                    <TodayScreen activityId={selectedActivityId} onBack={handleBackToActivities} />
-                  )}
-                </div>
-              )
-            }
+  // Si se está mostrando el TodayScreen, renderizarlo en pantalla completa
+  if (showTodayScreen && selectedActivityId) {
+    const activityType = getSelectedActivityType()
+    const selectedEnrollment = enrollments.find(e => e.activity_id.toString() === selectedActivityId)
+    const isWorkshop = activityType?.toLowerCase().includes('workshop')
+
+    return (
+      <div className="fixed inset-0 z-50" style={{ backgroundColor: '#0F1012' }}>
+        {isWorkshop ? (
+          <div className="h-full overflow-y-auto">
+            <div className="fixed top-4 left-4 z-20">
+              <button
+                onClick={handleBackToActivities}
+                className="bg-black/40 backdrop-blur-md px-4 py-2 rounded-lg text-white flex items-center gap-2 border border-white/10 hover:bg-black/60 transition-colors"
+              >
+                ← Volver
+              </button>
+            </div>
+            <WorkshopClientView
+              activityId={parseInt(selectedActivityId)}
+              activityTitle={selectedEnrollment?.activity?.title || "Taller"}
+              activityDescription={selectedEnrollment?.activity?.description}
+              activityImageUrl={selectedEnrollment?.activity?.media?.image_url || selectedEnrollment?.activity?.image_url}
+            />
+          </div>
+        ) : (
+          <TodayScreen activityId={selectedActivityId} onBack={handleBackToActivities} />
+        )}
+      </div>
+    )
+  }
 
   return (
     <div
@@ -1557,190 +1593,179 @@ export function ActivityScreen() {
 
       {/* Contenido principal */}
       <div className="px-4 space-y-6">
-            {/* Sección "Mis coaches" - Movida arriba */}
-            {(() => {
-              const purchasedCoachIds = new Set(
-                enrollments.map((e) => e.activity.coach_id).filter(Boolean) as string[]
-              )
-              const myCoaches = coaches.filter((c) => purchasedCoachIds.has(c.id))
-              return (
-                <div className="mb-2">
-                  <div className="flex justify-between items-center mb-3 pt-2">
-                    <h2 className="text-lg font-bold text-white">Mis coaches</h2>
-                  </div>
+        {/* Sección "Mis coaches" - Movida arriba */}
+        {(() => {
+          const purchasedCoachIds = new Set(
+            enrollments.map((e) => e.activity.coach_id).filter(Boolean) as string[]
+          )
+          const myCoaches = coaches.filter((c) => purchasedCoachIds.has(c.id))
+          return (
+            <div className="mb-2">
+              <div className="flex justify-between items-center mb-3 pt-2">
+                <h2 className="text-lg font-bold text-white">Mis coaches</h2>
+              </div>
 
-                  {loadingCoaches ? (
-                    <CoachSkeletonLoader />
-                  ) : myCoaches.length === 0 ? (
-                    <div className="text-center py-4 bg-[#1E1E1E] rounded-xl">
-                      <p className="text-gray-400 text-sm">Aún no tienes coaches asociados a compras</p>
-                    </div>
-                  ) : (
-                    <div className="flex space-x-3 overflow-x-auto pb-2 scrollbar-hide">
-                      {myCoaches.map((coach) => {
-                        // Calcular estados del coach usando status calculado
-                        const coachEnrollments = enrollments.filter(e => e.activity.coach_id === coach.id)
-                        const enCurso = coachEnrollments.filter(e => {
-                          return calculateEnrollmentStatus(e) === 'activa'
-                        }).length
-                        const porEmpezar = coachEnrollments.filter(e => {
-                          return calculateEnrollmentStatus(e) === 'pendiente'
-                        }).length
-                        const finalizadas = coachEnrollments.filter(e => {
-                          const status = calculateEnrollmentStatus(e)
-                          return status === 'expirada' || status === 'finalizada'
-                        }).length
-                        
-                        return (
-                          <div
-                            key={coach.id}
-                            className="flex-shrink-0 w-32 text-center cursor-pointer hover:scale-105 transition-transform"
-                            onClick={() => handleCoachClickFromActivity(coach.id)}
-                          >
-                            <div className="relative h-32 w-32 rounded-xl overflow-hidden bg-gradient-to-br from-[#2A2A2A] to-[#1E1E1E] mb-2 group shadow-lg">
-                              <Image
-                                src={getCoachAvatarUrl(coach) || "/placeholder.svg"}
-                                alt={coach.full_name || "Coach"}
-                                width={128}
-                                height={128}
-                                className="h-full w-full object-cover group-hover:opacity-90 transition-opacity"
-                              />
-                              <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-black/40 to-transparent flex items-end justify-center p-2">
-                                <div className="text-center w-full">
-                                  <span className="text-white text-sm font-semibold truncate w-full block mb-1">
-                                    {coach.full_name}
-                                  </span>
-                                  <div className="flex items-center justify-center gap-1">
-                                    <Star className="h-3 w-3 text-yellow-400 fill-yellow-400" />
-                                    <span className="text-xs font-medium text-[#FF7939]">
-                                      {coach.rating?.toFixed(1) || "4.8"}
-                                    </span>
-                                    <span className="text-[10px] text-gray-400 ml-0.5">
-                                      ({coach.total_reviews || 0})
-                                    </span>
-                                  </div>
-                                </div>
-                              </div>
-                            </div>
-                          </div>
-                        )
-                      })}
-                    </div>
-                  )}
-                </div>
-              )
-            })()}
-
-            {/* Tabs de estado de actividades */}
-            <div className="flex gap-2 border-b border-gray-800 pb-2 -mt-2">
-              <button
-                onClick={() => setActivityStatusTab("en-curso")}
-                className={`px-4 py-2 text-sm font-medium transition-colors ${
-                  activityStatusTab === "en-curso"
-                    ? "text-[#FF7939] border-b-2 border-[#FF7939]"
-                    : "text-gray-400 hover:text-gray-300"
-                }`}
-              >
-                En curso
-              </button>
-              <button
-                onClick={() => setActivityStatusTab("por-empezar")}
-                className={`px-4 py-2 text-sm font-medium transition-colors ${
-                  activityStatusTab === "por-empezar"
-                    ? "text-[#FF7939] border-b-2 border-[#FF7939]"
-                    : "text-gray-400 hover:text-gray-300"
-                }`}
-              >
-                Por empezar
-              </button>
-              <button
-                onClick={() => setActivityStatusTab("finalizadas")}
-                className={`px-4 py-2 text-sm font-medium transition-colors ${
-                  activityStatusTab === "finalizadas"
-                    ? "text-[#FF7939] border-b-2 border-[#FF7939]"
-                    : "text-gray-400 hover:text-gray-300"
-                }`}
-              >
-                Finalizadas
-              </button>
-            </div>
-
-            {/* Mis actividades compradas */}
-            <div>
-
-              {isLoading ? (
-                <ActivitySkeletonLoader />
-              ) : error ? (
-                <div className="text-center py-10">
-                  <div className="inline-flex items-center justify-center w-16 h-16 rounded-full bg-[#1E1E1E] mb-4">
-                    <X className="h-8 w-8 text-red-500" />
-                  </div>
-                  <h3 className="text-lg font-medium mb-2">Error</h3>
-                  <p className="text-gray-400 mb-4">{error}</p>
-                  <Button className="bg-[#FF7939] hover:bg-[#E66829]" onClick={fetchUserEnrollments}>
-                    Intentar de nuevo
-                  </Button>
-                </div>
-              ) : searchFilteredEnrollments.length === 0 ? (
-                <div className="text-center py-10">
-                  {searchTerm ? (
-                    <div className="bg-[#1E1E1E] rounded-xl py-10">
-                      <div className="inline-flex items-center justify-center w-16 h-16 rounded-full bg-[#2A2A2A] mb-4">
-                        <Play className="h-8 w-8 text-gray-400" />
-                      </div>
-                      <h3 className="text-lg font-medium mb-2">No se encontraron resultados</h3>
-                      <p className="text-gray-400 mb-4">Intenta con otros términos de búsqueda</p>
-                      <Button className="bg-[#FF7939] hover:bg-[#E66829]" onClick={() => setSearchTerm("")}>
-                        Limpiar búsqueda
-                      </Button>
-                    </div>
-                  ) : activityStatusTab === "en-curso" ? (
-                    // Solo en "En curso" mostrar botón Explorar
-                    <div className="bg-[#1E1E1E] rounded-xl py-10">
-                      <div className="inline-flex items-center justify-center w-16 h-16 rounded-full bg-[#2A2A2A] mb-4">
-                        <Play className="h-8 w-8 text-gray-400" />
-                      </div>
-                      <h3 className="text-lg font-medium mb-2 text-white">No tienes actividades en curso</h3>
-                      <p className="text-gray-400 mb-4">Explora productos para comenzar tu entrenamiento</p>
-                      <Button 
-                        className="bg-[#FF7939] hover:bg-[#E66829]"
-                        onClick={() => {
-                          // Navegar a la tab de búsqueda
-                          window.dispatchEvent(new CustomEvent('navigateToTab', { detail: { tab: 'search' } }))
-                        }}
-                      >
-                        Explorar Productos
-                      </Button>
-                    </div>
-                  ) : activityStatusTab === "por-empezar" ? (
-                    // En "Por empezar" solo mensaje simple
-                    <div className="py-6">
-                      <p className="text-gray-400 text-sm">No tienes actividades por empezar</p>
-                    </div>
-                  ) : activityStatusTab === "finalizadas" ? (
-                    // En "Finalizadas" solo mensaje simple
-                    <div className="py-6">
-                      <p className="text-gray-400 text-sm">No tienes actividades finalizadas</p>
-                    </div>
-                  ) : (
-                    <div className="bg-[#1E1E1E] rounded-xl py-10">
-                      <div className="inline-flex items-center justify-center w-16 h-16 rounded-full bg-[#2A2A2A] mb-4">
-                        <Play className="h-8 w-8 text-gray-400" />
-                      </div>
-                      <h3 className="text-lg font-medium mb-2 text-white">
-                        {getCategoryFromType(activeCategory) === "all"
-                          ? "No tienes productos comprados"
-                          : `No tienes productos de ${getCategoryFromType(activeCategory) === "fitness" ? "fitness" : "nutrición"}`}
-                      </h3>
-                      <p className="text-gray-400 mb-4">Compra contenido de coaches para acceder aquí</p>
-                    </div>
-                  )}
+              {loadingCoaches ? (
+                <CoachSkeletonLoader />
+              ) : myCoaches.length === 0 ? (
+                <div className="text-center py-4 bg-[#1E1E1E] rounded-xl">
+                  <p className="text-gray-400 text-sm">Aún no tienes coaches asociados a compras</p>
                 </div>
               ) : (
-            <div className="space-y-3">
+                <div className="flex space-x-3 overflow-x-auto pb-2 scrollbar-hide">
+                  {myCoaches.map((coach) => {
+                    // Calcular estados del coach usando status calculado
+                    const coachEnrollments = enrollments.filter(e => e.activity.coach_id === coach.id)
+                    const enCurso = coachEnrollments.filter(e => {
+                      return calculateEnrollmentStatus(e) === 'activa'
+                    }).length
+                    const porEmpezar = coachEnrollments.filter(e => {
+                      return calculateEnrollmentStatus(e) === 'pendiente'
+                    }).length
+
+                    // Adaptar coach para CoachProfileCard
+                    const coachForCard = {
+                      ...coach,
+                      name: coach.full_name || 'Coach',
+                      avatar_url: coach.user_profile?.avatar_url, // Fix: Map avatar from user_profile
+                      specialization: coach.specialization || 'Fitness',
+                      total_products: 0,
+                      certifications: [],
+                      total_sessions: coach.total_reviews || 0, // Usar reviews como proxy si no hay sales
+                      available_meets: meetCredits[coach.id] || 0 // Use fetched meet credits
+                    }
+
+                    return (
+                      <div key={coach.id} className="flex-shrink-0">
+                        <CoachProfileCard
+                          coach={coachForCard}
+                          size="small"
+                          variant="meet"
+                          onClick={() => {
+                            console.log("🖱️ [ActivityScreen] Clicked coach card:", coach.id, {
+                              name: coachForCard.name,
+                              avatar: coachForCard.avatar_url,
+                              location: (coachForCard as any).location
+                            });
+                            handleCoachClickFromActivity(coach.id)
+                          }}
+                        />
+                      </div>
+                    )
+                  })}
+                </div>
+              )}
+            </div>
+          )
+        })()}
+
+        {/* Tabs de estado de actividades */}
+        <div className="flex gap-2 border-b border-gray-800 pb-2 -mt-2">
+          <button
+            onClick={() => setActivityStatusTab("en-curso")}
+            className={`px-4 py-2 text-sm font-medium transition-colors ${activityStatusTab === "en-curso"
+              ? "text-[#FF7939] border-b-2 border-[#FF7939]"
+              : "text-gray-400 hover:text-gray-300"
+              }`}
+          >
+            En curso
+          </button>
+          <button
+            onClick={() => setActivityStatusTab("por-empezar")}
+            className={`px-4 py-2 text-sm font-medium transition-colors ${activityStatusTab === "por-empezar"
+              ? "text-[#FF7939] border-b-2 border-[#FF7939]"
+              : "text-gray-400 hover:text-gray-300"
+              }`}
+          >
+            Por empezar
+          </button>
+          <button
+            onClick={() => setActivityStatusTab("finalizadas")}
+            className={`px-4 py-2 text-sm font-medium transition-colors ${activityStatusTab === "finalizadas"
+              ? "text-[#FF7939] border-b-2 border-[#FF7939]"
+              : "text-gray-400 hover:text-gray-300"
+              }`}
+          >
+            Finalizadas
+          </button>
+        </div>
+
+        {/* Mis actividades compradas */}
+        <div>
+
+          {isLoading ? (
+            <ActivitySkeletonLoader />
+          ) : error ? (
+            <div className="text-center py-10">
+              <div className="inline-flex items-center justify-center w-16 h-16 rounded-full bg-[#1E1E1E] mb-4">
+                <X className="h-8 w-8 text-red-500" />
+              </div>
+              <h3 className="text-lg font-medium mb-2">Error</h3>
+              <p className="text-gray-400 mb-4">{error}</p>
+              <Button className="bg-[#FF7939] hover:bg-[#E66829]" onClick={fetchUserEnrollments}>
+                Intentar de nuevo
+              </Button>
+            </div>
+          ) : searchFilteredEnrollments.length === 0 ? (
+            <div className="text-center py-10">
+              {searchTerm ? (
+                <div className="bg-[#1E1E1E] rounded-xl py-10">
+                  <div className="inline-flex items-center justify-center w-16 h-16 rounded-full bg-[#2A2A2A] mb-4">
+                    <Play className="h-8 w-8 text-gray-400" />
+                  </div>
+                  <h3 className="text-lg font-medium mb-2">No se encontraron resultados</h3>
+                  <p className="text-gray-400 mb-4">Intenta con otros términos de búsqueda</p>
+                  <Button className="bg-[#FF7939] hover:bg-[#E66829]" onClick={() => setSearchTerm("")}>
+                    Limpiar búsqueda
+                  </Button>
+                </div>
+              ) : activityStatusTab === "en-curso" ? (
+                // Solo en "En curso" mostrar botón Explorar
+                <div className="bg-[#1E1E1E] rounded-xl py-10">
+                  <div className="inline-flex items-center justify-center w-16 h-16 rounded-full bg-[#2A2A2A] mb-4">
+                    <Play className="h-8 w-8 text-gray-400" />
+                  </div>
+                  <h3 className="text-lg font-medium mb-2 text-white">No tienes actividades en curso</h3>
+                  <p className="text-gray-400 mb-4">Explora productos para comenzar tu entrenamiento</p>
+                  <Button
+                    className="bg-[#FF7939] hover:bg-[#E66829]"
+                    onClick={() => {
+                      // Navegar a la tab de búsqueda
+                      window.dispatchEvent(new CustomEvent('navigateToTab', { detail: { tab: 'search' } }))
+                    }}
+                  >
+                    Explorar Productos
+                  </Button>
+                </div>
+              ) : activityStatusTab === "por-empezar" ? (
+                // En "Por empezar" solo mensaje simple
+                <div className="py-6">
+                  <p className="text-gray-400 text-sm">No tienes actividades por empezar</p>
+                </div>
+              ) : activityStatusTab === "finalizadas" ? (
+                // En "Finalizadas" solo mensaje simple
+                <div className="py-6">
+                  <p className="text-gray-400 text-sm">No tienes actividades finalizadas</p>
+                </div>
+              ) : (
+                <div className="bg-[#1E1E1E] rounded-xl py-10">
+                  <div className="inline-flex items-center justify-center w-16 h-16 rounded-full bg-[#2A2A2A] mb-4">
+                    <Play className="h-8 w-8 text-gray-400" />
+                  </div>
+                  <h3 className="text-lg font-medium mb-2 text-white">
+                    {getCategoryFromType(activeCategory) === "all"
+                      ? "No tienes productos comprados"
+                      : `No tienes productos de ${getCategoryFromType(activeCategory) === "fitness" ? "fitness" : "nutrición"}`}
+                  </h3>
+                  <p className="text-gray-400 mb-4">Compra contenido de coaches para acceder aquí</p>
+                </div>
+              )}
+            </div>
+          ) : (
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
               {searchFilteredEnrollments.map((enrollment) => (
-                <PurchasedActivityCard 
-                  key={enrollment.id} 
+                <PurchasedActivityCard
+                  key={enrollment.id}
                   enrollment={enrollment}
                   nextActivity={null} // Por ahora null, se puede mejorar después
                   realProgress={enrollmentProgresses[enrollment.id]}
@@ -1749,10 +1774,10 @@ export function ActivityScreen() {
                 />
               ))}
             </div>
-              )}
+          )}
 
-              {/* Botón para crear nuevo producto (solo para coaches) */}
-            </div>
+          {/* Botón para crear nuevo producto (solo para coaches) */}
+        </div>
 
 
       </div>
@@ -1925,6 +1950,50 @@ export function ActivityScreen() {
         />
       )}
 
+      {/* Coach Profile Modal - Reusing the same component as SearchScreen */}
+      {selectedCoachForProfile && (
+        <CoachProfileModal
+          coach={{
+            id: selectedCoachForProfile.id,
+            name: selectedCoachForProfile.full_name || 'Coach',
+            // Ensure avatar_url is picked up from user_profile OR root if available (though interface says user_profile)
+            avatar_url: selectedCoachForProfile.user_profile?.avatar_url,
+            bio: selectedCoachForProfile.user_profile?.bio,
+            location: (selectedCoachForProfile.user_profile as any)?.location,
+            specialization: selectedCoachForProfile.specialization,
+            rating: selectedCoachForProfile.rating,
+            total_sales: (selectedCoachForProfile as any).total_sales || selectedCoachForProfile.total_reviews, // Map sales if available
+            certifications: (selectedCoachForProfile.user_profile as any)?.certifications
+          }}
+          isOpen={isCoachProfileModalOpen}
+          onClose={() => {
+            setIsCoachProfileModalOpen(false)
+            setSelectedCoachForProfile(null)
+          }}
+          // We do not pass preloadedActivities here. 
+          // This allows CoachProfileModal to trigger its internal loadCoachProducts() 
+          // which fetches fresh data from /api/activities/search, ensuring consistency.
+          onActivityClick={handleActivityClick}
+        />
+      )}
+
+      {/* Coach Profile Modal */}
+      {selectedCoachForProfile && (
+        <CoachProfileModal
+          coach={selectedCoachForProfile}
+          isOpen={isCoachProfileModalOpen}
+          onClose={() => {
+            setIsCoachProfileModalOpen(false)
+            setSelectedCoachForProfile(null)
+          }}
+          // Pasar enrollments como "preloadedActivities" podría ser engañoso si el modal espera productos para vender.
+          // Mejor dejar que el modal cargue sus propios productos si no pasamos nada, o pasar undefined.
+          // En search-screen se pasa allActivities. Aquí no tenemos "todos" los productos.
+          // Así que no pasamos preloadedActivities para que el modal haga su fetch.
+          onActivityClick={handleActivityClick}
+        />
+      )}
+
 
       {/* Modal de Filtros */}
       <Dialog open={showFiltersModal} onOpenChange={setShowFiltersModal}>
@@ -1932,7 +2001,7 @@ export function ActivityScreen() {
           <DialogHeader>
             <DialogTitle className="text-white">Filtros</DialogTitle>
           </DialogHeader>
-          
+
           <div className="space-y-6">
             {/* Categorías */}
             <div>
@@ -1946,11 +2015,10 @@ export function ActivityScreen() {
                   <button
                     key={category.id}
                     onClick={() => toggleCategory(category.id)}
-                    className={`w-full flex items-center space-x-3 p-3 rounded-lg transition-all ${
-                      selectedCategories.includes(category.id)
-                        ? "bg-[#FF7939] text-white"
-                        : "bg-[#2A2A2A] text-gray-300 hover:bg-[#3A3A3A]"
-                    }`}
+                    className={`w-full flex items-center space-x-3 p-3 rounded-lg transition-all ${selectedCategories.includes(category.id)
+                      ? "bg-[#FF7939] text-white"
+                      : "bg-[#2A2A2A] text-gray-300 hover:bg-[#3A3A3A]"
+                      }`}
                   >
                     <category.icon className="h-5 w-5" />
                     <span className="text-sm font-medium">{category.label}</span>
@@ -1974,11 +2042,10 @@ export function ActivityScreen() {
                   <button
                     key={type.id}
                     onClick={() => toggleType(type.id)}
-                    className={`w-full flex items-center space-x-3 p-3 rounded-lg transition-all ${
-                      selectedTypes.includes(type.id)
-                        ? "bg-[#FF7939] text-white"
-                        : "bg-[#2A2A2A] text-gray-300 hover:bg-[#3A3A3A]"
-                    }`}
+                    className={`w-full flex items-center space-x-3 p-3 rounded-lg transition-all ${selectedTypes.includes(type.id)
+                      ? "bg-[#FF7939] text-white"
+                      : "bg-[#2A2A2A] text-gray-300 hover:bg-[#3A3A3A]"
+                      }`}
                   >
                     <type.icon className="h-5 w-5" />
                     <span className="text-sm font-medium">{type.label}</span>

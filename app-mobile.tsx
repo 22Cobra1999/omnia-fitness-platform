@@ -40,10 +40,10 @@ function MobileAppContent() {
   const searchParams = useSearchParams()
 
   const urlTabs = ['community', 'search', 'calendar', 'activity', 'profile', 'messages', 'clients', 'products-management']
-  
+
   // Manejo de errores globales
   useErrorHandler()
-  
+
   // ✅ Inicialización automática de storage para coaches
   const { initialized: storageInitialized, loading: storageLoading } = useCoachStorageInitialization()
 
@@ -88,12 +88,12 @@ function MobileAppContent() {
     // Solo verificar si no estamos en una página de resultado de pago
     if (typeof window !== 'undefined' && !window.location.pathname.startsWith('/payment/')) {
       const pendingPayment = sessionStorage.getItem('pending_payment')
-      
+
       if (pendingPayment) {
         try {
           const paymentData = JSON.parse(pendingPayment)
           const timeElapsed = Date.now() - paymentData.timestamp
-          
+
           // Si pasaron más de 30 segundos y no estamos en una página de resultado, asumir cancelación
           if (timeElapsed > 30000) {
             // Verificar si realmente no se completó el pago
@@ -101,7 +101,7 @@ function MobileAppContent() {
               try {
                 const response = await fetch(`/api/payments/check-status?preference_id=${paymentData.preferenceId}`)
                 const result = await response.json()
-                
+
                 if (!result.completed) {
                   // El pago no se completó, mostrar mensaje y reiniciar
                   sessionStorage.removeItem('pending_payment')
@@ -119,7 +119,7 @@ function MobileAppContent() {
                 window.location.href = '/'
               }
             }
-            
+
             checkPaymentStatus()
           }
         } catch (error) {
@@ -144,7 +144,7 @@ function MobileAppContent() {
         role: userRole,
       })
 
-    if (process.env.NODE_ENV === 'development') {
+      if (process.env.NODE_ENV === 'development') {
         console.log('🧭 NAVIGATE', {
           path,
           tab: activeTab,
@@ -161,7 +161,7 @@ function MobileAppContent() {
   useEffect(() => {
     const logoutParam = searchParams.get('logout')
     const forceLogoutParam = searchParams.get('forceLogout')
-    
+
     if (logoutParam === 'success') {
       // console.log("Logout exitoso detectado en URL")
       // Limpiar la URL sin recargar la página
@@ -207,6 +207,7 @@ function MobileAppContent() {
   useEffect(() => {
     const handleNavigateToTab = (event: CustomEvent) => {
       const { tab, section } = event.detail
+      console.log('🧭 [MobileApp] Recibido evento navigateToTab:', tab)
       if (tab) {
         setActiveTab(tab)
         // Si hay una sección específica, disparar evento para que el componente la maneje
@@ -243,7 +244,7 @@ function MobileAppContent() {
         return <CommunityScreen />
       case "calendar":
         // Calendario diferente según el rol
-        return userRole === "coach" 
+        return userRole === "coach"
           ? <CoachCalendarScreen />
           : <CalendarScreen onTabChange={setActiveTab} />
       case "profile":
@@ -287,37 +288,37 @@ function MobileAppContent() {
     <ErrorBoundary>
       {/* Auto Usage Tracker - Solo en desarrollo */}
       {process.env.NODE_ENV === 'development' && <AutoUsageTracker />}
-      
+
       <div className="flex flex-col h-screen bg-black">
-      {/* Header fijo */}
-      <div className="fixed top-0 left-0 right-0 z-50 bg-black rounded-b-[32px] px-5 py-3 flex justify-between items-center">
-        {/* Settings Icon */}
-        <div className="flex items-center">
-          <SettingsIcon />
+        {/* Header fijo */}
+        <div className="fixed top-0 left-0 right-0 z-50 bg-black rounded-b-[32px] px-5 py-3 flex justify-between items-center">
+          {/* Settings Icon */}
+          <div className="flex items-center">
+            <SettingsIcon />
+          </div>
+
+          {/* OMNIA Logo */}
+          <div className="absolute left-1/2 transform -translate-x-1/2">
+            <OmniaLogoText size="text-3xl" />
+          </div>
+
+          {/* Messages Icon */}
+          <div className="flex items-center">
+            <MessagesIcon />
+          </div>
         </div>
 
-                {/* OMNIA Logo */}
-        <div className="absolute left-1/2 transform -translate-x-1/2">
-          <OmniaLogoText size="text-3xl" />
-        </div>
+        <div className="flex-1 overflow-auto pt-14 pb-16">{renderScreen()}</div>
+        <BottomNavigation activeTab={activeTab} setActiveTab={setActiveTab} />
 
-        {/* Messages Icon */}
-        <div className="flex items-center">
-          <MessagesIcon />
-        </div>
-      </div>
+        {/* Auth Popup */}
+        <SignInPopup isOpen={isAuthPopupOpen} onClose={hideAuthPopup} defaultTab={authPopupDefaultTab} />
 
-      <div className="flex-1 overflow-auto pt-14 pb-16">{renderScreen()}</div>
-      <BottomNavigation activeTab={activeTab} setActiveTab={setActiveTab} />
+        {/* Welcome Popup */}
+        <WelcomePopup isOpen={showWelcomeMessage} onClose={hideWelcomeMessage} />
 
-      {/* Auth Popup */}
-      <SignInPopup isOpen={isAuthPopupOpen} onClose={hideAuthPopup} defaultTab={authPopupDefaultTab} />
-
-      {/* Welcome Popup */}
-      <WelcomePopup isOpen={showWelcomeMessage} onClose={hideWelcomeMessage} />
-      
-      {/* Usage Report Button - Solo en desarrollo */}
-      {false && process.env.NODE_ENV === 'development' && <UsageReportButton />}
+        {/* Usage Report Button - Solo en desarrollo */}
+        {false && process.env.NODE_ENV === 'development' && <UsageReportButton />}
       </div>
     </ErrorBoundary>
   )
