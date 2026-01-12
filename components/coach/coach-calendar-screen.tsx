@@ -508,10 +508,10 @@ export default function CoachCalendarScreen() {
           // 2. Si tiene créditos suficientes -> 'credit_deduction' (se descontarán al insertar)
           // 3. Si no tiene suficientes -> 'unpaid' (debe pagar diferencia/total)
           let paymentStatus = 'unpaid'
-          if (newEventIsFree) {
-            paymentStatus = 'free'
-          } else if (availableCredits >= cost) {
+          if (availableCredits >= cost) {
             paymentStatus = 'credit_deduction'
+          } else if (newEventIsFree) {
+            paymentStatus = 'free'
           } else {
             paymentStatus = 'unpaid'
           }
@@ -546,7 +546,8 @@ export default function CoachCalendarScreen() {
       }
 
       // Si se insertó correctamente, verificar si hubo pagos parciales y aplicar deducción manual
-      if (!newEventIsFree) {
+      // AHORA: Siempre intentamos descontar créditos parciales, incluso si es 'Gratis' (el saldo restante será $0 o $Precio)
+      {
         for (const clientId of selectedClientIds) {
           const clientData = clientsForMeet.find(c => c.id === clientId)
           const availableCredits = clientData?.meet_credits_available || 0
@@ -2894,15 +2895,27 @@ export default function CoachCalendarScreen() {
                                 </div>
                               ) : (
                                 <div className="flex flex-col items-end">
-                                  <div className={`text-xs font-medium whitespace-nowrap ${credits >= cost ? 'text-[#FF7939]' : 'text-red-400'}`}>
-                                    {newEventIsFree ? 'Gratis' : (cost > 0 ? (
-                                      credits >= cost ? `Consumirá ${cost} créditos` : `Saldo insuficiente (${credits})`
-                                    ) : 'Calculando...')}
+                                  <div className={`text-xs font-medium whitespace-nowrap ${credits >= cost ? 'text-[#FF7939]' : (newEventIsFree && credits > 0 ? 'text-[#FF7939]' : 'text-red-400')}`}>
+                                    {/* 
+                                      Lógica de visualización:
+                                      1. Tiene créditos suficientes (>= cost): "Consumirá X créditos" (Orange)
+                                      2. Es Gratis:
+                                         - Si tiene parciales: "Gratis (+ usa X créditos)" 
+                                         - Si no tiene: "Gratis"
+                                      3. No es Gratis y no alcanza: "Saldo insuficiente" + Detalles cobro
+                                    */}
+                                    {credits >= cost
+                                      ? `Consumirá ${cost} créditos`
+                                      : (newEventIsFree
+                                        ? (credits > 0 ? `Gratis (+ usa ${credits} créd.)` : 'Gratis')
+                                        : (cost > 0 ? `Saldo insuficiente (${credits})` : 'Calculando...')
+                                      )
+                                    }
                                   </div>
                                   {!newEventIsFree && cost > credits && (
                                     <div className="flex flex-col items-end mt-0.5">
                                       <div className="text-[11px] text-red-300 font-semibold">
-                                        Cobrar ${formatArs(((Number(newEventPrice) || 0) / cost) * (cost - credits))}
+                                        Cobrar ${formatArs(((Number(newEventPrice) || 0) / (cost || 1)) * (cost - credits))}
                                       </div>
                                       <div className="text-[10px] text-orange-300/80">
                                         + usa {credits} créditos
