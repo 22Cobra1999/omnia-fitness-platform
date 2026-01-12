@@ -15,16 +15,20 @@ export interface GoogleCalendarEvent {
   summary: string;
   description?: string;
   start: {
-    dateTime: string;
-    timeZone: string;
+    dateTime?: string;
+    date?: string; // For all-day events
+    timeZone?: string;
   };
   end: {
-    dateTime: string;
-    timeZone: string;
+    dateTime?: string;
+    date?: string;
+    timeZone?: string;
   };
+  hangoutLink?: string;
   attendees?: Array<{
     email: string;
     displayName?: string;
+    responseStatus?: 'needsAction' | 'declined' | 'tentative' | 'accepted';
   }>;
   conferenceData?: {
     createRequest: {
@@ -50,7 +54,7 @@ export class GoogleOAuth {
       client_id: process.env.GOOGLE_CLIENT_ID || '',
       redirect_uri: redirectUri,
       response_type: 'code',
-      scope: 'https://www.googleapis.com/auth/calendar',
+      scope: 'https://www.googleapis.com/auth/calendar https://www.googleapis.com/auth/meetings.space.readonly https://www.googleapis.com/auth/meetings.space.created',
       access_type: 'offline',
       prompt: 'consent',
       state: 'google_meet_integration'
@@ -63,7 +67,7 @@ export class GoogleOAuth {
    * Exchange authorization code for tokens
    */
   static async exchangeCodeForTokens(
-    code: string, 
+    code: string,
     redirectUri: string
   ): Promise<GoogleTokenResponse> {
     const clientId = process.env.GOOGLE_CLIENT_ID?.trim() || '';
@@ -139,12 +143,12 @@ export class GoogleOAuth {
         statusText: response.statusText,
         error: errorText
       });
-      
+
       // Si el refresh token es inválido o revocado
       if (response.status === 400 || errorText.includes('invalid_grant')) {
         throw new Error('invalid_grant: El refresh token es inválido o ha sido revocado. Por favor, reconecta tu cuenta de Google.');
       }
-      
+
       throw new Error(`Token refresh failed: ${response.status} ${response.statusText} - ${errorText}`);
     }
 
@@ -287,7 +291,7 @@ export class GoogleOAuth {
    */
   static extractMeetLink(event: any): string | null {
     console.log('Extracting Meet link from event:', JSON.stringify(event, null, 2));
-    
+
     // Try different possible paths for the Meet link
     const possiblePaths = [
       event.conferenceData?.entryPoints?.[0]?.uri,
@@ -295,14 +299,14 @@ export class GoogleOAuth {
       event.hangoutLink,
       event.conferenceData?.conferenceSolution?.entryPoints?.[0]?.uri
     ];
-    
+
     for (const path of possiblePaths) {
       if (path && typeof path === 'string' && path.includes('meet.google.com')) {
         console.log('Found Meet link:', path);
         return path;
       }
     }
-    
+
     console.log('No Meet link found in any expected path');
     return null;
   }

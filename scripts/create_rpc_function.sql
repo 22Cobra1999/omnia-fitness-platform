@@ -1,6 +1,8 @@
 -- Create execute_sql RPC function
 -- This allows executing arbitrary SQL from the Supabase client (used by our CLI scripts).
 
+DROP FUNCTION IF EXISTS execute_sql_simple(text);
+
 CREATE OR REPLACE FUNCTION execute_sql_simple(sql_query text)
 RETURNS void
 LANGUAGE plpgsql

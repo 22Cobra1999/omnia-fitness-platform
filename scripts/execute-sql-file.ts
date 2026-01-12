@@ -49,14 +49,15 @@ async function main() {
         });
 
         if (error) {
-            // Check if the error text contains "RAISE NOTICE" output which often comes as error message in some clients but usually it is separate.
-            // Supabase RPC returns output in error message usually if it raises exception.
-            // Valid DO block output might be hidden unless we use exception.
             console.error(`❌ Error executing SQL:\n${error.message}`);
             if (error.details) console.error('Details:', error.details);
             if (error.hint) console.error('Hint:', error.hint);
         } else {
             console.log('✅ SQL executed successfully.');
+            if (data) {
+                console.log('📊 Result Data:');
+                console.log(JSON.stringify(data, null, 2));
+            }
         }
 
     } catch (e: any) {

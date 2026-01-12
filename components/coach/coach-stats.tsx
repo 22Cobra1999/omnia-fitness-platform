@@ -1,12 +1,12 @@
 'use client';
 
 import { useState, useEffect } from 'react';
-import { 
-  MessageCircle, 
-  Clock, 
-  XCircle, 
-  Calendar, 
-  CheckCircle, 
+import {
+  MessageCircle,
+  Clock,
+  XCircle,
+  Calendar,
+  CheckCircle,
   AlertTriangle,
   Loader2
 } from 'lucide-react';

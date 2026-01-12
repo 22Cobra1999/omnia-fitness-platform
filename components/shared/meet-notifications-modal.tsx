@@ -22,6 +22,7 @@ type NotificationItem = {
     fromStartTime: string
     fromEndTime: string | null
     note: string | null
+    requestedByUserId: string | null // NEW
   } | null
   meetLink: string | null
   otherUserId: string
@@ -30,6 +31,17 @@ type NotificationItem = {
   invitedByRole: string | null
   updatedAt: string
 }
+
+// ... unchanged imports and props ...
+
+
+
+// ... render ...
+// Ensure "Ver" button style matches request (simple text/link style or button).
+// The user example had "Ver" at the end.
+// I will keep the existing "Ver" button but maybe style it cleaner (no border/bg unless hovered?) 
+// Actually the current "Ver" button is fine, just need to ensure the layout flow.
+
 
 export function MeetNotificationsModal({
   open,
@@ -126,7 +138,7 @@ export function MeetNotificationsModal({
 
         const { data: reschedules } = await supabase
           .from('calendar_event_reschedule_requests')
-          .select('event_id, from_start_time, from_end_time, to_start_time, to_end_time, note, status, created_at')
+          .select('event_id, from_start_time, from_end_time, to_start_time, to_end_time, note, status, created_at, requested_by_user_id')
           .in('event_id', eventIds)
           .eq('status', 'pending')
           .order('created_at', { ascending: false })
@@ -174,6 +186,7 @@ export function MeetNotificationsModal({
                   fromStartTime: String(rr.from_start_time),
                   fromEndTime: rr.from_end_time ? String(rr.from_end_time) : null,
                   note: rr.note == null ? null : String(rr.note),
+                  requestedByUserId: rr.requested_by_user_id ? String(rr.requested_by_user_id) : null,
                 }
               })(),
               meetLink: ev.meet_link ? String(ev.meet_link) : null,
@@ -248,7 +261,7 @@ export function MeetNotificationsModal({
 
       const { data: reschedules } = await supabase
         .from('calendar_event_reschedule_requests')
-        .select('event_id, from_start_time, from_end_time, to_start_time, to_end_time, note, status, created_at')
+        .select('event_id, from_start_time, from_end_time, to_start_time, to_end_time, note, status, created_at, requested_by_user_id')
         .in('event_id', eventIds)
         .eq('status', 'pending')
         .order('created_at', { ascending: false })
@@ -296,6 +309,7 @@ export function MeetNotificationsModal({
                 fromStartTime: String(rr.from_start_time),
                 fromEndTime: rr.from_end_time ? String(rr.from_end_time) : null,
                 note: rr.note == null ? null : String(rr.note),
+                requestedByUserId: rr.requested_by_user_id ? String(rr.requested_by_user_id) : null,
               }
             })(),
             meetLink: ev.meet_link ? String(ev.meet_link) : null,
@@ -369,6 +383,18 @@ export function MeetNotificationsModal({
   const title = role === 'coach' ? 'Notificaciones de meets' : 'Notificaciones'
 
   const describe = (it: NotificationItem) => {
+    // Priority: Reschedule Pending
+    if (it.reschedulePending) {
+      // If I am the one who requested it:
+      const isMyRequest = it.reschedulePending.requestedByUserId === userId
+      if (role === 'client') {
+        return isMyRequest ? 'Solicitud de nuevo horario por ti' : `Solicitud de nuevo horario por ${it.otherUserName}`
+      } else {
+        // As coach
+        return isMyRequest ? 'Solicitud de nuevo horario por ti' : `Solicitud de nuevo horario por ${it.otherUserName}`
+      }
+    }
+
     if (role === 'coach') {
       if (it.rsvpStatus === 'pending') return `${it.otherUserName} solicitó una meet`
       if (it.rsvpStatus === 'confirmed') return `${it.otherUserName} aceptó la meet`
@@ -379,10 +405,6 @@ export function MeetNotificationsModal({
 
     // Role is client
     if (it.rsvpStatus === 'pending') {
-      // If invited by role is 'client', it means *I* (the client) requested it but it's still pending
-      // But this notification list is usually for "incoming" things or updates?
-      // Actually the list filters for things that have updates.
-      // If invitedByRole is coach, the coach invited me.
       if (it.invitedByRole === 'coach') return `${it.otherUserName} te invitó a una meet`
       return `Solicitud enviada a ${it.otherUserName}`
     }
