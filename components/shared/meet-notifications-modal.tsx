@@ -29,6 +29,7 @@ type NotificationItem = {
   otherUserName: string
   rsvpStatus: string
   invitedByRole: string | null
+  invitedByUserId: string | null // NEW
   updatedAt: string
 }
 
@@ -518,7 +519,7 @@ export function MeetNotificationsModal({
                           type="button"
                           disabled={isActing}
                           onClick={() => updateRsvp(it, 'declined')}
-                          className="px-3 py-1.5 rounded-full text-xs font-semibold border border-white/15 text-white/80 hover:bg-white/10 disabled:opacity-50"
+                          className={`px-3 py-1.5 rounded-full text-xs font-semibold border border-white/15 text-white/80 hover:bg-white/10 disabled:opacity-50 ${it.invitedByUserId === userId ? 'hidden' : ''}`}
                         >
                           Rechazar
                         </button>
@@ -526,7 +527,7 @@ export function MeetNotificationsModal({
                           type="button"
                           disabled={isActing}
                           onClick={() => updateRsvp(it, 'confirmed')}
-                          className="px-3 py-1.5 rounded-full text-xs font-semibold border border-[#FF7939]/60 text-[#FFB366] hover:bg-[#FF7939]/10 disabled:opacity-50"
+                          className={`px-3 py-1.5 rounded-full text-xs font-semibold border border-[#FF7939]/60 text-[#FFB366] hover:bg-[#FF7939]/10 disabled:opacity-50 ${it.invitedByUserId === userId ? 'hidden' : ''}`}
                         >
                           Aceptar
                         </button>

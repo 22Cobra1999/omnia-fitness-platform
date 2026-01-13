@@ -58,6 +58,7 @@ export default function CoachCalendarScreen() {
   const [showEventModal, setShowEventModal] = useState(false)
   const [viewMode, setViewMode] = useState<'month' | 'today'>('month') // ✅ Vista: mes o hoy
   const [syncing, setSyncing] = useState(false)
+  const [coachProfile, setCoachProfile] = useState<{ id: string, name: string, avatar_url: string | null } | null>(null)
   const [showMonthSelector, setShowMonthSelector] = useState(false)
   const [monthPickerYear, setMonthPickerYear] = useState<number>(() => new Date().getFullYear())
   const [cachedEvents, setCachedEvents] = useState<Map<string, CalendarEvent[]>>(new Map())
@@ -307,6 +308,31 @@ export default function CoachCalendarScreen() {
               }))
               .filter((p: any) => !!p.client_id)
           )
+
+          // Buscar nombres de clientes faltantes
+          const missingIds = parts.map((p: any) => p.client_id).filter((cid: string) => cid && !clientsForMeet.some(c => c.id === cid))
+          if (missingIds.length > 0) {
+            // Fetch missing profiles async and update state
+            supabase.from('user_profiles').select('id, full_name, avatar_url, credits').in('id', missingIds)
+              .then(({ data }) => {
+                if (data && data.length > 0) {
+                  setClientsForMeet(prev => {
+                    const newClients = data.map(d => ({
+                      id: d.id,
+                      name: d.full_name || 'Cliente',
+                      email: '',
+                      avatar_url: d.avatar_url,
+                      status: 'active', // assume active if found
+                      meet_credits_available: d.credits || 0 // Fetch credits? user_profiles has credits column
+                    }))
+                    // Merge avoiding duplicates
+                    const existingIds = new Set(prev.map(c => c.id))
+                    const uniqueNew = newClients.filter(c => !existingIds.has(c.id))
+                    return [...prev, ...uniqueNew]
+                  })
+                }
+              })
+          }
         } else {
           setSelectedClientIds([])
           setMeetParticipants([])
@@ -321,7 +347,7 @@ export default function CoachCalendarScreen() {
       setClientSearch('')
       setShowCreateEventModal(true)
 
-      if (clientsForMeet.length === 0) await ensureClientsLoaded()
+      if (clientsForMeet.length === 0) ensureClientsLoaded().catch(() => { })
       return
     }
 
@@ -346,7 +372,7 @@ export default function CoachCalendarScreen() {
     setClientSearch('')
     setShowCreateEventModal(true)
 
-    if (clientsForMeet.length === 0) await ensureClientsLoaded()
+    if (clientsForMeet.length === 0) ensureClientsLoaded().catch(() => { })
   }
 
   const closeCreateEventModal = () => {
@@ -670,6 +696,18 @@ export default function CoachCalendarScreen() {
       }
 
       setCoachId(user.id)
+
+      // Fetch profile if missing
+      if (!coachProfile) {
+        const { data: profile } = await supabase.from('user_profiles').select('id, full_name, avatar_url').eq('id', user.id).single()
+        if (profile) {
+          setCoachProfile({
+            id: profile.id,
+            name: profile.full_name || 'Coach',
+            avatar_url: profile.avatar_url
+          })
+        }
+      }
 
       // 2. Obtener eventos del calendario del coach para un rango amplio (3 meses)
       // Cargar mes anterior, actual y siguiente para tener cache
@@ -2825,84 +2863,114 @@ export default function CoachCalendarScreen() {
 
               <div className="pt-1">
                 <div className="text-white font-semibold mb-2">
-                  Clientes ({selectedClientIds.length})
+                  Participantes del evento
                 </div>
 
                 <div className={meetModalMode === 'edit' && !isMeetEditing ? "space-y-2" : "border border-white/10 rounded-xl overflow-hidden bg-black/20"}>
-                  {selectedClientIds.length > 0 && (
-                    <div className={meetModalMode === 'edit' && !isMeetEditing ? "" : "border-b border-white/10"}>
-                      {selectedClientIds
-                        .map((id) => clientsForMeet.find((c) => c.id === id) || ({ id, name: 'Cliente' } as any))
-                        .filter(Boolean)
-                        .map((c: any) => {
-                          const credits = Number(c.meet_credits_available ?? 0)
-                          const dotColor = c.status === 'active' ? 'bg-emerald-500' : 'bg-orange-500'
-                          const participant = meetParticipants.find((p) => p.client_id === c.id)
-                          const rsvp = String(participant?.rsvp_status || 'pending')
-                          const pay = String(participant?.payment_status || '')
-                          const badge =
-                            rsvp === 'confirmed'
-                              ? { text: 'Confirmado', cls: 'bg-emerald-900/40 text-emerald-200 border border-emerald-800/40' }
-                              : rsvp === 'declined' || rsvp === 'cancelled'
-                                ? { text: 'Cancelado', cls: 'bg-red-900/40 text-red-300 border border-red-800/40' }
-                                : { text: 'Pendiente', cls: 'bg-orange-900/40 text-orange-200 border border-orange-800/40' }
+                  <div className={meetModalMode === 'edit' && !isMeetEditing ? "" : "border-b border-white/10"}>
+                    {/* COACH ROW */}
+                    {coachProfile && (
+                      <div className={
+                        meetModalMode === 'edit' && !isMeetEditing
+                          ? 'px-3 py-3 flex items-center justify-between gap-3 bg-black/20 border border-white/10 rounded-xl mb-2'
+                          : 'px-3 py-3 flex items-center gap-3 border-b border-white/10'
+                      }>
+                        <div className="relative">
+                          {/* Avatar Coach (puede ser custom si tenemos avatar_url) */}
+                          {coachProfile.avatar_url ? (
+                            <img src={coachProfile.avatar_url} className="w-10 h-10 rounded-full object-cover bg-zinc-800" alt="Coach" />
+                          ) : (
+                            <div className="w-10 h-10 rounded-full bg-zinc-800 flex items-center justify-center text-xs font-bold text-white">
+                              {coachProfile.name.substring(0, 2).toUpperCase()}
+                            </div>
+                          )}
+                          <div className="absolute -bottom-0.5 -right-0.5 w-3 h-3 rounded-full bg-[#FF7939] border-2 border-zinc-950" />
+                        </div>
+                        <div className="flex-1 min-w-0">
+                          <div className="text-white text-sm font-medium leading-tight truncate">
+                            {coachProfile.name} (Tú)
+                          </div>
+                          <div className="text-xs text-[#FF7939]">Organizador</div>
+                        </div>
+                        {meetModalMode === 'edit' && !isMeetEditing && (
+                          <div className="text-xs font-semibold text-[#FF7939]">
+                            Host
+                          </div>
+                        )}
+                      </div>
+                    )}
+                    {selectedClientIds
+                      .map((id) => clientsForMeet.find((c) => c.id === id) || ({ id, name: 'Cliente' } as any))
+                      .filter(Boolean)
+                      .map((c: any) => {
+                        const credits = Number(c.meet_credits_available ?? 0)
+                        const dotColor = c.status === 'active' ? 'bg-emerald-500' : 'bg-orange-500'
+                        const participant = meetParticipants.find((p) => p.client_id === c.id)
+                        const rsvp = String(participant?.rsvp_status || 'pending')
+                        const pay = String(participant?.payment_status || '')
+                        const badge =
+                          rsvp === 'confirmed'
+                            ? { text: 'Confirmado', cls: 'text-emerald-400' } // Sin bg/border
+                            : rsvp === 'declined' || rsvp === 'cancelled'
+                              ? { text: 'Rechazado', cls: 'text-red-400' }
+                              : { text: 'Pendiente', cls: 'text-[#FF7939]' }
 
-                          // Calcular costo estimado en UI
-                          let cost = 0
-                          if (newEventStartTime && newEventEndTime) {
-                            const [sh, sm] = newEventStartTime.split(':').map(Number)
-                            const [eh, em] = newEventEndTime.split(':').map(Number)
-                            if (!isNaN(sh) && !isNaN(eh)) {
-                              const s = new Date(); s.setHours(sh, sm, 0, 0)
-                              const e = new Date(); e.setHours(eh, em, 0, 0)
-                              if (e < s) e.setDate(e.getDate() + 1) // asume crossing midnight
-                              const mins = differenceInMinutes(e, s)
-                              cost = Math.ceil(mins / 15)
-                            }
+                        // Calcular costo estimado en UI
+                        let cost = 0
+                        if (newEventStartTime && newEventEndTime) {
+                          const [sh, sm] = newEventStartTime.split(':').map(Number)
+                          const [eh, em] = newEventEndTime.split(':').map(Number)
+                          if (!isNaN(sh) && !isNaN(eh)) {
+                            const s = new Date(); s.setHours(sh, sm, 0, 0)
+                            const e = new Date(); e.setHours(eh, em, 0, 0)
+                            if (e < s) e.setDate(e.getDate() + 1) // asume crossing midnight
+                            const mins = differenceInMinutes(e, s)
+                            cost = Math.ceil(mins / 15)
                           }
+                        }
 
-                          const creditsLine = `${credits} créditos disponibles`
-                          return (
-                            <div
-                              key={c.id}
-                              className={
-                                meetModalMode === 'edit' && !isMeetEditing
-                                  ? 'px-3 py-3 flex items-center justify-between gap-3 bg-black/20 border border-white/10 rounded-xl'
-                                  : 'px-3 py-3 flex items-center gap-3 border-b border-white/10 last:border-b-0'
-                              }
-                            >
-                              <div className="relative">
-                                <div className="w-10 h-10 rounded-full bg-zinc-800 overflow-hidden" />
-                                <div
-                                  className={`absolute -bottom-0.5 -right-0.5 w-3 h-3 rounded-full ${dotColor} border-2 border-zinc-950`}
-                                />
+                        const creditsLine = `${credits} créditos disponibles`
+                        return (
+                          <div
+                            key={c.id}
+                            className={
+                              meetModalMode === 'edit' && !isMeetEditing
+                                ? 'px-3 py-3 flex items-center justify-between gap-3 bg-black/20 border border-white/10 rounded-xl'
+                                : 'px-3 py-3 flex items-center gap-3 border-b border-white/10 last:border-b-0'
+                            }
+                          >
+                            <div className="relative">
+                              <div className="w-10 h-10 rounded-full bg-zinc-800 overflow-hidden" />
+                              <div
+                                className={`absolute -bottom-0.5 -right-0.5 w-3 h-3 rounded-full ${dotColor} border-2 border-zinc-950`}
+                              />
+                            </div>
+
+                            <div className="flex-1 min-w-0">
+                              <div className="text-white text-sm font-medium leading-tight truncate">{c.name}</div>
+                              <div className="text-xs text-gray-400">{creditsLine}</div>
+                            </div>
+
+                            {meetModalMode === 'edit' && !isMeetEditing ? (
+                              <div className="flex flex-col items-end gap-1">
+                                <div className={`px-3 py-1 rounded-lg text-xs font-semibold ${badge.cls}`}>{badge.text}</div>
+
+                                {/* Mostrar estado de pago en modo lectura */}
+                                {pay === 'credit_deduction' && (
+                                  <div className="text-xs text-emerald-400 font-medium">Pagado con 1 crédito</div>
+                                )}
+                                {pay === 'free' && (
+                                  <div className="text-xs text-[#FF7939] font-medium">Gratis</div>
+                                )}
+                                {(pay === 'unpaid' || !pay) && (
+                                  <div className="text-xs text-red-400 font-medium">Pago Pendiente / Insuficiente</div>
+                                )}
                               </div>
-
-                              <div className="flex-1 min-w-0">
-                                <div className="text-white text-sm font-medium leading-tight truncate">{c.name}</div>
-                                <div className="text-xs text-gray-400">{creditsLine}</div>
-                              </div>
-
-                              {meetModalMode === 'edit' && !isMeetEditing ? (
-                                <div className="flex flex-col items-end gap-1">
-                                  <div className={`px-3 py-1 rounded-lg text-xs font-semibold ${badge.cls}`}>{badge.text}</div>
-
-                                  {/* Mostrar estado de pago en modo lectura */}
-                                  {pay === 'credit_deduction' && (
-                                    <div className="text-xs text-emerald-400 font-medium">Pagado con 1 crédito</div>
-                                  )}
-                                  {pay === 'free' && (
-                                    <div className="text-xs text-emerald-400 font-medium">Gratis</div>
-                                  )}
-                                  {(pay === 'unpaid' || !pay) && (
-                                    <div className="text-xs text-red-400 font-medium">Pago Pendiente / Insuficiente</div>
-                                  )}
-                                </div>
-                              ) : (
-                                <div className="flex flex-col items-end">
-                                  {/* Right Side: Consumption Logic */}
-                                  <div className={`text-xs font-medium whitespace-nowrap ${credits >= cost ? 'text-[#FF7939]' : (newEventIsFree && credits > 0 ? 'text-[#FF7939]' : 'text-red-400')}`}>
-                                    {/* 
+                            ) : (
+                              <div className="flex flex-col items-end">
+                                {/* Right Side: Consumption Logic */}
+                                <div className={`text-xs font-medium whitespace-nowrap ${credits >= cost ? 'text-[#FF7939]' : (newEventIsFree && credits > 0 ? 'text-[#FF7939]' : 'text-red-400')}`}>
+                                  {/* 
                                       Lógica de visualización:
                                       1. Tiene créditos suficientes (>= cost): "Consumirá X créditos" (Orange)
                                       2. Es Gratis:
@@ -2910,44 +2978,44 @@ export default function CoachCalendarScreen() {
                                          - Si no tiene: "Gratis"
                                       3. No es Gratis y no alcanza: "Saldo insuficiente" + Detalles cobro
                                     */}
-                                    {credits >= cost
-                                      ? `Consumirá ${cost} créditos`
-                                      : (newEventIsFree
-                                        ? (credits > 0 ? `Gratis (+ usa ${credits} créd.)` : 'Gratis')
-                                        : (cost > 0 ? `Saldo insuficiente (${credits})` : 'Calculando...')
-                                      )
-                                    }
-                                  </div>
-                                  {!newEventIsFree && cost > credits && (
-                                    <div className="flex flex-col items-end mt-0.5">
-                                      <div className="text-[11px] text-red-300 font-semibold">
-                                        Cobrar ${formatArs(((Number(newEventPrice) || 0) / (cost || 1)) * (cost - credits))}
-                                      </div>
-                                      <div className="text-[10px] text-orange-300/80">
-                                        + usa {credits} créditos
-                                      </div>
-                                    </div>
-                                  )}
-                                </div>
-                              )}
-
-                              {!(meetModalMode === 'edit' && !isMeetEditing) && (
-                                <button
-                                  type="button"
-                                  onClick={() =>
-                                    setSelectedClientIds((prev) => prev.filter((x) => x !== c.id))
+                                  {credits >= cost
+                                    ? `Consumirá ${cost} créditos`
+                                    : (newEventIsFree
+                                      ? (credits > 0 ? `Gratis (+ usa ${credits} créd.)` : 'Gratis')
+                                      : (cost > 0 ? `Saldo insuficiente (${credits})` : 'Calculando...')
+                                    )
                                   }
-                                  className="ml-2 w-7 h-7 rounded-md hover:bg-white/10 text-gray-300 flex items-center justify-center"
-                                  aria-label="Quitar cliente"
-                                >
-                                  ×
-                                </button>
-                              )}
-                            </div>
-                          )
-                        })}
-                    </div>
-                  )}
+                                </div>
+                                {!newEventIsFree && cost > credits && (
+                                  <div className="flex flex-col items-end mt-0.5">
+                                    <div className="text-[11px] text-red-300 font-semibold">
+                                      Cobrar ${formatArs(((Number(newEventPrice) || 0) / (cost || 1)) * (cost - credits))}
+                                    </div>
+                                    <div className="text-[10px] text-orange-300/80">
+                                      + usa {credits} créditos
+                                    </div>
+                                  </div>
+                                )}
+                              </div>
+                            )}
+
+                            {!(meetModalMode === 'edit' && !isMeetEditing) && (
+                              <button
+                                type="button"
+                                onClick={() =>
+                                  setSelectedClientIds((prev) => prev.filter((x) => x !== c.id))
+                                }
+                                className="ml-2 w-7 h-7 rounded-md hover:bg-white/10 text-gray-300 flex items-center justify-center"
+                                aria-label="Quitar cliente"
+                              >
+                                ×
+                              </button>
+                            )}
+                          </div>
+                        )
+                      })}
+                  </div>
+
 
                   {!(meetModalMode === 'edit' && !isMeetEditing) && (
                     <button
