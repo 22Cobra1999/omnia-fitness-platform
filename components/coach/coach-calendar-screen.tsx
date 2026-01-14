@@ -689,7 +689,10 @@ export default function CoachCalendarScreen() {
       // 1. Obtener usuario actual
       const { data: { user }, error: userError } = await supabase.auth.getUser()
       if (userError || !user) {
-        console.error('Error obteniendo usuario:', userError)
+        // Ignorar error de sesión faltante (esperado al desloguearse)
+        if (!userError?.message?.includes('Auth session missing')) {
+          console.error('Error obteniendo usuario:', userError)
+        }
         setLoading(false)
         setEvents([])
         return

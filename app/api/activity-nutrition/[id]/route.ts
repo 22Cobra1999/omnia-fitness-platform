@@ -315,7 +315,8 @@ export async function GET(
         activo: isActive,
         activity_map: activityMap,
         activity_id: primaryActivityId,
-        activity_assignments: activityMap
+        activity_assignments: activityMap,
+        ingredientes: plato.ingredientes || null
       }
     })
 

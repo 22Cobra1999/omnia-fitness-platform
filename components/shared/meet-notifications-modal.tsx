@@ -255,6 +255,19 @@ export function MeetNotificationsModal({
           clientIdToName[String(p.id)] = String(p.full_name || 'Cliente')
         })
 
+      // If I am a client, I also need the Coach's name to show "Sent to Coach X"
+      let coachName = 'Coach'
+      if (role === 'client' && coachId) {
+        const { data: cProfile } = await supabase
+          .from('user_profiles')
+          .select('full_name')
+          .eq('id', coachId)
+          .single()
+        if (cProfile) {
+          coachName = String(cProfile.full_name || 'Coach')
+        }
+      }
+
       const eventById: Record<string, any> = {}
         ; (events || []).forEach((e: any) => {
           eventById[String(e.id)] = e
@@ -314,10 +327,11 @@ export function MeetNotificationsModal({
               }
             })(),
             meetLink: ev.meet_link ? String(ev.meet_link) : null,
-            otherUserId: clientId,
-            otherUserName: clientName,
+            otherUserId: role === 'client' ? coachId : clientId,
+            otherUserName: role === 'client' ? coachName : clientName,
             rsvpStatus,
             invitedByRole,
+            invitedByUserId: String(p?.invited_by_user_id || ''),
             updatedAt: String(p?.updated_at || ev.start_time),
           }
         })
@@ -406,7 +420,15 @@ export function MeetNotificationsModal({
 
     // Role is client
     if (it.rsvpStatus === 'pending') {
-      if (it.invitedByRole === 'coach') return `${it.otherUserName} te invitó a una meet`
+      // If I was invited by someone else (coach or other), show "invited you"
+      // If invitedByUserId is me, default to "sent a request"
+      // If invitedByUserId is null (legacy data), check invitedByRole
+      if (it.invitedByUserId && it.invitedByUserId !== userId) {
+        return `${it.otherUserName} te invitó a una meet`
+      }
+      if (it.invitedByRole === 'coach' && (!it.invitedByUserId || it.invitedByUserId !== userId)) {
+        return `${it.otherUserName} te invitó a una meet`
+      }
       return `Solicitud enviada a ${it.otherUserName}`
     }
 
@@ -458,7 +480,8 @@ export function MeetNotificationsModal({
                   if (it.rsvpStatus === 'confirmed') return { icon: CheckCircle2, color: 'text-green-500', bg: 'bg-green-500/10', border: 'border-green-500/20' }
                   if (it.rsvpStatus === 'declined') return { icon: XCircle, color: 'text-red-500', bg: 'bg-red-500/10', border: 'border-red-500/20' }
                   if (it.rsvpStatus === 'cancelled') return { icon: Ban, color: 'text-red-400', bg: 'bg-red-500/10', border: 'border-red-500/20' }
-                  return { icon: Clock, color: 'text-[#FF7939]', bg: 'bg-white/5', border: 'border-white/10' }
+                  // Pending / Invitation
+                  return { icon: Clock, color: 'text-[#FF7939]', bg: 'bg-[#FF7939]/10', border: 'border-[#FF7939]/30' }
                 }
 
                 const visuals = getStatusVisuals()
@@ -520,6 +543,7 @@ export function MeetNotificationsModal({
                           disabled={isActing}
                           onClick={() => updateRsvp(it, 'declined')}
                           className={`px-3 py-1.5 rounded-full text-xs font-semibold border border-white/15 text-white/80 hover:bg-white/10 disabled:opacity-50 ${it.invitedByUserId === userId ? 'hidden' : ''}`}
+                          style={{ display: it.invitedByUserId === userId ? 'none' : undefined }}
                         >
                           Rechazar
                         </button>
@@ -528,6 +552,7 @@ export function MeetNotificationsModal({
                           disabled={isActing}
                           onClick={() => updateRsvp(it, 'confirmed')}
                           className={`px-3 py-1.5 rounded-full text-xs font-semibold border border-[#FF7939]/60 text-[#FFB366] hover:bg-[#FF7939]/10 disabled:opacity-50 ${it.invitedByUserId === userId ? 'hidden' : ''}`}
+                          style={{ display: it.invitedByUserId === userId ? 'none' : undefined }}
                         >
                           Aceptar
                         </button>

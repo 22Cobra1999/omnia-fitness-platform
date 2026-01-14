@@ -1,7 +1,7 @@
 "use client"
 
 import { useState, useEffect, useRef } from "react"
-import { ChevronLeft, ChevronRight, Calendar, Clock, Flame, Edit, RotateCcw, ChevronDown, Check, X, Trash2 } from "lucide-react"
+import { ChevronLeft, ChevronRight, Calendar, Clock, Flame, Edit, RotateCcw, ChevronDown, Check, X, Trash2, Save, List } from "lucide-react"
 import { Switch } from '@/components/ui/switch'
 import { createClient } from '@/lib/supabase/supabase-client'
 
@@ -43,6 +43,8 @@ interface ExerciseExecution {
   minutosJson?: any // Minutos JSON del registro para acceder a minutos por bloque
   caloriasJson?: any // Calorías JSON del registro para acceder a kcal por bloque
   original_ejercicio_id?: string // Para limpiar el ejercicio anterior al guardar si se cambió
+  receta_texto?: string // Texto de la receta (override o default)
+  ingredientes_detalle?: any // Objeto de ingredientes para este plato
 }
 
 interface DayData {
@@ -114,6 +116,26 @@ export function ClientCalendar({ clientId, onLastWorkoutUpdate, onDaySelected, e
   const [nutritionPlateOptionsByActivity, setNutritionPlateOptionsByActivity] = useState<Record<string, any[]>>({})
   const [confirmDeleteNutritionId, setConfirmDeleteNutritionId] = useState<string | null>(null)
 
+  const [showRecipeModal, setShowRecipeModal] = useState(false)
+  const [editingRecipeText, setEditingRecipeText] = useState('')
+
+  const [showIngredientsModal, setShowIngredientsModal] = useState(false)
+  const [editingIngredientsList, setEditingIngredientsList] = useState<any[]>([])
+  const [editingNutritionExercise, setEditingNutritionExercise] = useState<ExerciseExecution | null>(null)
+
+
+
+  // Cascade Modal State
+  const [cascadeModal, setCascadeModal] = useState<{
+    isOpen: boolean
+    type: 'fitness' | 'nutrition'
+    mode: 'swap' | 'update'
+    sourceDate: string
+    sourceDayName: string
+    itemName: string
+    payload: any
+  } | null>(null)
+
   const internalExercisesListRef = useRef<HTMLDivElement | null>(null)
   const dayDetailRef = exercisesListRef ?? internalExercisesListRef
 
@@ -123,20 +145,20 @@ export function ClientCalendar({ clientId, onLastWorkoutUpdate, onDaySelected, e
 
   useEffect(() => {
     let mounted = true
-    ;(async () => {
-      try {
-        const { data, error } = await supabase.auth.getUser()
-        if (!mounted) return
-        if (error) {
+      ; (async () => {
+        try {
+          const { data, error } = await supabase.auth.getUser()
+          if (!mounted) return
+          if (error) {
+            setCurrentCoachId(null)
+            return
+          }
+          setCurrentCoachId(data?.user?.id ?? null)
+        } catch {
+          if (!mounted) return
           setCurrentCoachId(null)
-          return
         }
-        setCurrentCoachId(data?.user?.id ?? null)
-      } catch {
-        if (!mounted) return
-        setCurrentCoachId(null)
-      }
-    })()
+      })()
     return () => {
       mounted = false
     }
@@ -231,6 +253,7 @@ export function ClientCalendar({ clientId, onLastWorkoutUpdate, onDaySelected, e
 
   const loadDayActivityDetails = async (dayStr: string, activityId: number) => {
     const cacheKey = `${dayStr}::${String(activityId)}`
+
     if (activityDetailsByKey[cacheKey]) return
 
     try {
@@ -367,7 +390,7 @@ export function ClientCalendar({ clientId, onLastWorkoutUpdate, onDaySelected, e
       // Nutrición
       const { data: nutriRecord } = await supabase
         .from('progreso_cliente_nutricion')
-        .select('id, fecha, actividad_id, ejercicios_completados, ejercicios_pendientes, macros, ingredientes')
+        .select('id, fecha, actividad_id, ejercicios_completados, ejercicios_pendientes, macros, ingredientes, recetas')
         .eq('cliente_id', clientId)
         .eq('fecha', dayStr)
         .eq('actividad_id', activityId)
@@ -389,13 +412,26 @@ export function ClientCalendar({ clientId, onLastWorkoutUpdate, onDaySelected, e
           ingredientesData = null
         }
 
+        let recetasData: any = null
+        try {
+          recetasData = typeof (nutriRecord as any).recetas === 'string'
+            ? JSON.parse((nutriRecord as any).recetas)
+            : (nutriRecord as any).recetas
+        } catch {
+          recetasData = null
+        }
+
         const keys = macrosData && typeof macrosData === 'object' ? Object.keys(macrosData) : []
+
         for (const key of keys) {
           const baseId = String(key).split('_')[0]
           if (baseId) idsToResolve.add(baseId)
           const nombre = ingredientesData?.[key]?.nombre
           const minutos = macrosData?.[key]?.minutos
           const kcal = macrosData?.[key]?.calorias
+
+          // Fallback to defaults or empty if null
+          const ingVal = ingredientesData?.[key]
 
           details.push({
             id: `nut-${String((nutriRecord as any).id)}-${key}`,
@@ -417,7 +453,8 @@ export function ClientCalendar({ clientId, onLastWorkoutUpdate, onDaySelected, e
               grasas: macrosData?.[key]?.grasas !== undefined ? Number(macrosData?.[key]?.grasas) : undefined,
               calorias: kcal !== undefined && kcal !== null ? Number(kcal) : undefined,
               minutos: minutos !== undefined && minutos !== null ? Number(minutos) : undefined
-            }
+            },
+            ingredientes_detalle: ingVal
           })
         }
       }
@@ -432,24 +469,36 @@ export function ClientCalendar({ clientId, onLastWorkoutUpdate, onDaySelected, e
           ? supabase.from('ejercicios_detalles').select('id, nombre_ejercicio').in('id', idsArray)
           : Promise.resolve({ data: [], error: null } as any),
         idsArray.length
-          ? supabase.from('nutrition_program_details').select('id, nombre').in('id', idsArray)
+          ? supabase.from('nutrition_program_details').select('id, nombre, ingredientes').in('id', idsArray)
           : Promise.resolve({ data: [], error: null } as any)
       ])
 
       const nameMap = new Map<string, string>()
-      ;(Array.isArray((ejRes as any)?.data) ? (ejRes as any).data : []).forEach((r: any) => {
-        if (r?.id) nameMap.set(String(r.id), String(r.nombre_ejercicio || ''))
-      })
-      ;(Array.isArray((plRes as any)?.data) ? (plRes as any).data : []).forEach((r: any) => {
-        if (r?.id) nameMap.set(String(r.id), String(r.nombre || ''))
-      })
+      const defaultIngredientsMap = new Map<string, any>()
 
-      const enriched = details.map((d) => {
+        ; (Array.isArray((ejRes as any)?.data) ? (ejRes as any).data : []).forEach((r: any) => {
+          if (r?.id) nameMap.set(String(r.id), String(r.nombre_ejercicio || ''))
+        })
+        ; (Array.isArray((plRes as any)?.data) ? (plRes as any).data : []).forEach((r: any) => {
+          if (r?.id) nameMap.set(String(r.id), String(r.nombre || ''))
+          if (r?.id && r?.ingredientes) {
+            defaultIngredientsMap.set(String(r.id), r.ingredientes)
+          }
+        })
+
+      const enriched = details.map((d: any) => {
         if (d.ejercicio_nombre) return d
         const nm = nameMap.get(String(d.ejercicio_id))
+        const defIngredients = defaultIngredientsMap.get(String(d.ejercicio_id))
+
+        if (d.is_nutricion && !d.ingredientes_detalle && !defIngredients) {
+          // console.warn(`DEBUG: No ingredients for ${d.nutrition_key} (ID: ${d.ejercicio_id}). Override: ${!!d.ingredientes_detalle}, Default: ${!!defIngredients}`)
+        }
+
         return {
           ...d,
-          ejercicio_nombre: nm || (d.is_nutricion ? `Plato ${d.ejercicio_id}` : `Ejercicio ${d.ejercicio_id}`)
+          ejercicio_nombre: nm || (d.is_nutricion ? `Plato ${d.ejercicio_id}` : `Ejercicio ${d.ejercicio_id}`),
+          ingredientes_detalle: d.ingredientes_detalle || defIngredients
         }
       })
 
@@ -579,7 +628,7 @@ export function ClientCalendar({ clientId, onLastWorkoutUpdate, onDaySelected, e
   // Función para calcular la última ejercitación (último día que completó al menos un ejercicio)
   const calculateLastWorkoutDate = (data: { [key: string]: DayData }): string | null => {
     const dates = Object.keys(data).sort((a, b) => new Date(b).getTime() - new Date(a).getTime())
-    
+
     for (const date of dates) {
       const dayData = data[date]
       if (dayData.completedCount > 0) {
@@ -643,6 +692,45 @@ export function ClientCalendar({ clientId, onLastWorkoutUpdate, onDaySelected, e
     }
   }
 
+  const handleOpenIngredients = (ex: ExerciseExecution) => {
+    setEditingNutritionExercise(ex)
+    const raw = ex.ingredientes_detalle
+    console.log('DEBUG: Opening Ingredients', { raw, type: typeof raw })
+
+    let list: any[] = []
+
+    if (typeof raw === 'string') {
+      // Parse legacy string format: "Item 1; Item 2"
+      list = raw.split(';').map((s: string, idx: number) => ({
+        _key: `legacy_${idx}`,
+        nombre: s.trim(),
+        cantidad: '',
+        unidad: ''
+      })).filter(x => x.nombre)
+    } else if (Array.isArray(raw)) {
+      list = raw.map((v: any, idx: number) => ({
+        _key: String(idx),
+        nombre: v.nombre || v || '',
+        cantidad: v.cantidad || '',
+        unidad: v.unidad || ''
+      }))
+    } else if (raw && typeof raw === 'object') {
+      list = Object.entries(raw).map(([k, v]: any) => ({
+        _key: k,
+        nombre: v.nombre || '',
+        cantidad: v.cantidad || '',
+        unidad: v.unidad || ''
+      }))
+    }
+
+    if (list.length === 0) {
+      list = [{ _key: `new_${Date.now()}`, nombre: '', cantidad: '', unidad: '' }]
+    }
+    setEditingIngredientsList(list)
+    setShowIngredientsModal(true)
+  }
+
+
   const handleCancelNutrition = () => {
     setEditingNutritionId(null)
     setEditingNutritionMacros(null)
@@ -661,6 +749,14 @@ export function ClientCalendar({ clientId, onLastWorkoutUpdate, onDaySelected, e
       const hasAnyCompleted = selectedDayExercises.some(e => e.is_nutricion && e.fecha_ejercicio === dateStr && e.completado)
       if (hasAnyCompleted) return false
     }
+    return true
+  }
+
+  const canEditFitnessForDay = (exercise: ExerciseExecution): boolean => {
+    const dateStr = exercise.fecha_ejercicio
+    const todayStr = new Date().toISOString().split('T')[0]
+    // No permitir editar días pasados
+    if (dateStr < todayStr) return false
     return true
   }
 
@@ -772,7 +868,7 @@ export function ClientCalendar({ clientId, onLastWorkoutUpdate, onDaySelected, e
     }
   }
 
-  const handleSaveNutrition = async (exercise: ExerciseExecution) => {
+  const handleSaveNutrition = async (exercise: ExerciseExecution, specificChanges: { receta?: string, ingredientes?: any } | null = null) => {
     if (!editingNutritionId || !editingNutritionMacros) return
     if (!exercise.nutrition_record_id || !exercise.nutrition_key) return
     if (!canEditNutritionForDay(exercise)) return
@@ -795,8 +891,12 @@ export function ClientCalendar({ clientId, onLastWorkoutUpdate, onDaySelected, e
       const currentCompletadosRaw = parseMaybeJson(currentRecord?.ejercicios_completados)
 
       const selectedPlateId = editingNutritionPlateId ? String(editingNutritionPlateId) : String(exercise.ejercicio_id)
-      // Mantener la key estable para conservar orden/bloque. Solo reemplazamos el ejercicio_id dentro del value.
-      const newKey = nutritionKey
+
+      // Compute New Key if ID changed
+      const oldKey = nutritionKey
+      const keyParts = oldKey.split('_')
+      const suffix = keyParts.length > 1 ? keyParts.slice(1).join('_') : ''
+      const newKey = suffix ? `${selectedPlateId}_${suffix}` : String(selectedPlateId)
 
       const activityId = exercise.actividad_id !== undefined && exercise.actividad_id !== null ? String(exercise.actividad_id) : null
       const platesList = activityId ? nutritionPlateOptionsByActivity[activityId] : undefined
@@ -807,15 +907,23 @@ export function ClientCalendar({ clientId, onLastWorkoutUpdate, onDaySelected, e
       const allMacros: any = { ...currentMacros }
       const allIngredientes: any = { ...currentIngredientes }
 
-      // Mantener key estable: no borramos por cambio de plato.
+      // Handle Key Swap in Macros/Ingredientes/Recetas
+      if (newKey !== oldKey) {
+        delete allMacros[oldKey]
+        delete allIngredientes[oldKey]
+      }
 
       // Setear ingredientes/macros según plato nuevo (si disponible)
-      if (payloadFromPlate) {
+      // PRIORITY: specificChanges > payloadFromPlate > existing
+      if (specificChanges?.ingredientes) {
+        allIngredientes[newKey] = specificChanges.ingredientes
+      } else if (payloadFromPlate) {
         allIngredientes[newKey] = payloadFromPlate.ingredientes
       }
 
+
       allMacros[newKey] = {
-        ...(allMacros[newKey] || {}),
+        ...(allMacros[newKey] || allMacros[oldKey] || {}), // Fallback to old data if just renaming
         proteinas: editingNutritionMacros.proteinas ? Number(editingNutritionMacros.proteinas) : (payloadFromPlate?.macros?.proteinas ?? 0),
         carbohidratos: editingNutritionMacros.carbohidratos ? Number(editingNutritionMacros.carbohidratos) : (payloadFromPlate?.macros?.carbohidratos ?? 0),
         grasas: editingNutritionMacros.grasas ? Number(editingNutritionMacros.grasas) : (payloadFromPlate?.macros?.grasas ?? 0),
@@ -826,19 +934,21 @@ export function ClientCalendar({ clientId, onLastWorkoutUpdate, onDaySelected, e
       const pendingObj = normalizeNutritionContainerToObject(currentPendientesRaw)
       const completedObj = normalizeNutritionContainerToObject(currentCompletadosRaw)
 
-      const wasPending = Object.prototype.hasOwnProperty.call(pendingObj, nutritionKey)
-      const wasCompleted = Object.prototype.hasOwnProperty.call(completedObj, nutritionKey)
+      const wasPending = Object.prototype.hasOwnProperty.call(pendingObj, oldKey)
+      const wasCompleted = Object.prototype.hasOwnProperty.call(completedObj, oldKey)
 
       if (wasPending) {
-        pendingObj[nutritionKey] = {
-          ...(pendingObj[nutritionKey] || inferMetaFromKey(nutritionKey)),
+        if (newKey !== oldKey) delete pendingObj[oldKey]
+        pendingObj[newKey] = {
+          ...(pendingObj[oldKey] || inferMetaFromKey(oldKey)),
           ejercicio_id: Number(selectedPlateId)
         }
       }
 
       if (wasCompleted) {
-        completedObj[nutritionKey] = {
-          ...(completedObj[nutritionKey] || inferMetaFromKey(nutritionKey)),
+        if (newKey !== oldKey) delete completedObj[oldKey]
+        completedObj[newKey] = {
+          ...(completedObj[oldKey] || inferMetaFromKey(oldKey)),
           ejercicio_id: Number(selectedPlateId)
         }
       }
@@ -862,20 +972,21 @@ export function ClientCalendar({ clientId, onLastWorkoutUpdate, onDaySelected, e
         prev.map(ex =>
           ex.id === exercise.id
             ? {
-                ...ex,
-                nutricion_macros: {
-                  proteinas: allMacros[newKey]?.proteinas,
-                  carbohidratos: allMacros[newKey]?.carbohidratos,
-                  grasas: allMacros[newKey]?.grasas,
-                  calorias: allMacros[newKey]?.calorias,
-                  minutos: allMacros[newKey]?.minutos
-                },
-                duracion: allMacros[newKey]?.minutos,
-                calorias_estimadas: allMacros[newKey]?.calorias,
-                ejercicio_id: String(selectedPlateId),
-                nutrition_key: String(newKey),
-                ejercicio_nombre: payloadFromPlate?.nombre || ex.ejercicio_nombre
-              }
+              ...ex,
+              nutricion_macros: {
+                proteinas: allMacros[newKey]?.proteinas,
+                carbohidratos: allMacros[newKey]?.carbohidratos,
+                grasas: allMacros[newKey]?.grasas,
+                calorias: allMacros[newKey]?.calorias,
+                minutos: allMacros[newKey]?.minutos
+              },
+              duracion: allMacros[newKey]?.minutos,
+              calorias_estimadas: allMacros[newKey]?.calorias,
+              ejercicio_id: String(selectedPlateId),
+              nutrition_key: String(newKey),
+              ejercicio_nombre: payloadFromPlate?.nombre || ex.ejercicio_nombre,
+              ingredientes_detalle: allIngredientes[newKey]
+            }
             : ex
         )
       )
@@ -887,26 +998,54 @@ export function ClientCalendar({ clientId, onLastWorkoutUpdate, onDaySelected, e
         const updated = day.exercises.map(ex =>
           ex.id === exercise.id
             ? {
-                ...ex,
-                nutricion_macros: {
-                  proteinas: allMacros[newKey]?.proteinas,
-                  carbohidratos: allMacros[newKey]?.carbohidratos,
-                  grasas: allMacros[newKey]?.grasas,
-                  calorias: allMacros[newKey]?.calorias,
-                  minutos: allMacros[newKey]?.minutos
-                },
-                duracion: allMacros[newKey]?.minutos,
-                calorias_estimadas: allMacros[newKey]?.calorias,
-                ejercicio_id: String(selectedPlateId),
-                nutrition_key: String(newKey),
-                ejercicio_nombre: payloadFromPlate?.nombre || ex.ejercicio_nombre
-              }
+              ...ex,
+              nutricion_macros: {
+                proteinas: allMacros[newKey]?.proteinas,
+                carbohidratos: allMacros[newKey]?.carbohidratos,
+                grasas: allMacros[newKey]?.grasas,
+                calorias: allMacros[newKey]?.calorias,
+                minutos: allMacros[newKey]?.minutos
+              },
+              duracion: allMacros[newKey]?.minutos,
+              calorias_estimadas: allMacros[newKey]?.calorias,
+              ejercicio_id: String(selectedPlateId),
+              nutrition_key: String(newKey),
+              ejercicio_nombre: payloadFromPlate?.nombre || ex.ejercicio_nombre,
+              ingredientes_detalle: allIngredientes[newKey]
+            }
             : ex
         )
         return { ...prev, [dateKey]: { ...day, exercises: updated } }
       })
 
-      handleCancelNutrition()
+      // Trigger Cascade Modal
+      const dayName = getDayName(new Date(exercise.fecha_ejercicio).getDay())
+      const isSwap = String(selectedPlateId) !== String(exercise.ejercicio_id)
+
+      console.log('Cascade Debug: Saving Nutrition', {
+        isSwap,
+        selectedPlateId,
+        oldId: String(exercise.ejercicio_id).split('_')[0],
+        newId: String(selectedPlateId).split('_')[0]
+      })
+
+      setCascadeModal({
+        isOpen: true,
+        type: 'nutrition',
+        mode: isSwap ? 'swap' : 'update',
+        sourceDate: exercise.fecha_ejercicio,
+        sourceDayName: dayName,
+        itemName: payloadFromPlate?.nombre || exercise.ejercicio_nombre || 'Plato',
+        payload: {
+          macros: allMacros[newKey],
+          ingredients: allIngredientes[newKey],
+          plateId: String(selectedPlateId),
+          nutritionKey: newKey,
+          oldId: String(exercise.ejercicio_id).split('_')[0],
+          newId: String(selectedPlateId).split('_')[0],
+          activityId: exercise.actividad_id
+        }
+      })
     } catch (e) {
       console.error('Error guardando macros:', e)
     }
@@ -976,11 +1115,11 @@ export function ClientCalendar({ clientId, onLastWorkoutUpdate, onDaySelected, e
   // Función para parsear el formato de detalle_series: "(peso-reps-series);(peso-reps-series)"
   const parseDetalleSeries = (detalleSeriesStr: string): any[] => {
     if (!detalleSeriesStr || typeof detalleSeriesStr !== 'string') return []
-    
+
     // Formato: "(peso-reps-series);(peso-reps-series)"
     const matches = detalleSeriesStr.match(/\(([^)]+)\)/g)
     if (!matches) return []
-    
+
     return matches.map(match => {
       const content = match.replace(/[()]/g, '') // Remover paréntesis
       const parts = content.split('-')
@@ -996,17 +1135,17 @@ export function ClientCalendar({ clientId, onLastWorkoutUpdate, onDaySelected, e
   }
 
   // Función para obtener bloques de series con minutos
-  const getSeriesBlocks = (detalleSeries: any, duracion?: number, ejercicioId?: string, minutosJson?: any): Array<{bloque: number, peso: number, reps: number, series: number, minutos?: number}> => {
-    const blocks: Array<{bloque: number, peso: number, reps: number, series: number, minutos?: number}> = []
-    
+  const getSeriesBlocks = (detalleSeries: any, duracion?: number, ejercicioId?: string, minutosJson?: any): Array<{ bloque: number, peso: number, reps: number, series: number, minutos?: number }> => {
+    const blocks: Array<{ bloque: number, peso: number, reps: number, series: number, minutos?: number }> = []
+
     if (!detalleSeries) {
       return blocks
     }
-    
+
     // Función para obtener minutos de un bloque específico
     const getMinutosForBlock = (blockKey: string): number | undefined => {
       if (!minutosJson || !ejercicioId) return undefined
-      
+
       // Parsear minutosJson si es string
       let minutosData: any = minutosJson
       if (typeof minutosJson === 'string') {
@@ -1016,12 +1155,12 @@ export function ClientCalendar({ clientId, onLastWorkoutUpdate, onDaySelected, e
           return undefined
         }
       }
-      
+
       if (!minutosData || typeof minutosData !== 'object') return undefined
-      
+
       // Buscar minutos por key exacta (ej: "1042_1")
       let minutos = minutosData[blockKey]
-      
+
       // Si no se encuentra, buscar por ID base con sufijos
       if (minutos === undefined && ejercicioId) {
         const baseId = ejercicioId.split('_')[0]
@@ -1034,10 +1173,10 @@ export function ClientCalendar({ clientId, onLastWorkoutUpdate, onDaySelected, e
           minutos = minutosData[matchingKey]
         }
       }
-      
+
       return minutos !== undefined && minutos !== null ? Number(minutos) : undefined
     }
-    
+
     // Si es un string con formato "(peso-reps-series);(peso-reps-series)"
     if (typeof detalleSeries === 'string' && detalleSeries.includes('(')) {
       const parsed = parseDetalleSeries(detalleSeries)
@@ -1058,7 +1197,7 @@ export function ClientCalendar({ clientId, onLastWorkoutUpdate, onDaySelected, e
         })
       }
     }
-    
+
     // Si es un objeto con los campos directamente
     if (typeof detalleSeries === 'object' && detalleSeries.series && detalleSeries.repeticiones) {
       const peso = detalleSeries.peso || detalleSeries.descanso || 0
@@ -1072,7 +1211,7 @@ export function ClientCalendar({ clientId, onLastWorkoutUpdate, onDaySelected, e
         minutos: minutos
       }]
     }
-    
+
     // Si es un array de series
     if (Array.isArray(detalleSeries) && detalleSeries.length > 0) {
       return detalleSeries.map((serie, index) => {
@@ -1147,7 +1286,7 @@ export function ClientCalendar({ clientId, onLastWorkoutUpdate, onDaySelected, e
     if (!detalleSeries) {
       return 'Sin series'
     }
-    
+
     // Si es un string con formato "(peso-reps-series);(peso-reps-series)"
     if (typeof detalleSeries === 'string' && detalleSeries.includes('(')) {
       const parsed = parseDetalleSeries(detalleSeries)
@@ -1160,13 +1299,13 @@ export function ClientCalendar({ clientId, onLastWorkoutUpdate, onDaySelected, e
           .join(' | ')
       }
     }
-    
+
     // Si es un objeto con los campos directamente (estructura actual)
     if (typeof detalleSeries === 'object' && detalleSeries.series && detalleSeries.repeticiones) {
       const peso = detalleSeries.peso || detalleSeries.descanso || 0
       return `${detalleSeries.series}s × ${detalleSeries.repeticiones}r × ${peso}kg`
     }
-    
+
     // Si es un array de series (nueva estructura para múltiples bloques)
     if (Array.isArray(detalleSeries) && detalleSeries.length > 0) {
       return detalleSeries
@@ -1200,27 +1339,27 @@ export function ClientCalendar({ clientId, onLastWorkoutUpdate, onDaySelected, e
   const handleEditSeries = async (exerciseId: string, currentSeries: any) => {
     // Cargar ejercicios disponibles del programa
     const currentExercise = selectedDayExercises.find(ex => ex.id === exerciseId)
-    
+
     // Verificar que la fecha del ejercicio sea futura (desde mañana)
     if (!currentExercise) return
-    
+
     const today = new Date()
     today.setHours(0, 0, 0, 0)
     const exerciseDate = new Date(currentExercise.fecha_ejercicio)
     exerciseDate.setHours(0, 0, 0, 0)
-    
+
     if (exerciseDate <= today) {
       console.log('No se pueden editar ejercicios de días pasados o de hoy')
       return
     }
-    
+
     setEditingExerciseId(exerciseId)
     setEditingOriginalExercise(currentExercise ? { ...currentExercise } : null)
-    
+
     if (currentExercise) {
       // Intentar obtener activity_id de diferentes formas
       let activityId = currentExercise.actividad_id
-      
+
       if (!activityId && currentExercise.actividad_titulo) {
         // Buscar por título como fallback
         const { data: activity, error } = await supabase
@@ -1228,12 +1367,12 @@ export function ClientCalendar({ clientId, onLastWorkoutUpdate, onDaySelected, e
           .select('id')
           .ilike('title', `%${currentExercise.actividad_titulo}%`)
           .single()
-        
+
         if (activity && !error) {
           activityId = activity.id
         }
       }
-      
+
       // Si aún no tenemos activity_id, buscar en ejercicios_detalles
       if (!activityId) {
         const { data: ejercicioDetalle, error: detalleError } = await supabase
@@ -1241,7 +1380,7 @@ export function ClientCalendar({ clientId, onLastWorkoutUpdate, onDaySelected, e
           .select('activity_id')
           .eq('id', currentExercise.ejercicio_id)
           .single()
-        
+
         if (ejercicioDetalle && !detalleError) {
           const rawActivity = ejercicioDetalle.activity_id
           if (typeof rawActivity === 'number') {
@@ -1257,22 +1396,22 @@ export function ClientCalendar({ clientId, onLastWorkoutUpdate, onDaySelected, e
           }
         }
       }
-      
+
       if (activityId) {
         console.log('🔍 Cargando ejercicios para actividad:', activityId)
         await loadAvailableExercises(activityId)
       } else {
         console.warn('⚠️ No se pudo encontrar activity_id para el ejercicio:', currentExercise)
       }
-      
+
       // Usar getSeriesBlocks para parsear correctamente todos los bloques
       const blocks = getSeriesBlocks(
-        currentSeries, 
-        currentExercise.duracion, 
-        currentExercise.ejercicio_id, 
+        currentSeries,
+        currentExercise.duracion,
+        currentExercise.ejercicio_id,
         currentExercise.minutosJson
       )
-      
+
       if (blocks.length > 0) {
         // Convertir bloques al formato del editor
         const seriesForEditor = blocks.map(block => ({
@@ -1314,7 +1453,7 @@ export function ClientCalendar({ clientId, onLastWorkoutUpdate, onDaySelected, e
   const loadAvailableExercises = async (activityId: number) => {
     try {
       console.log('🔍 Buscando ejercicios para activity_id:', activityId)
-      
+
       const { data: exercises, error } = await supabase
         .from('ejercicios_detalles')
         .select('id, nombre_ejercicio, descripcion, detalle_series, duracion_min, calorias')
@@ -1387,21 +1526,21 @@ export function ClientCalendar({ clientId, onLastWorkoutUpdate, onDaySelected, e
       }
 
       // Actualizar el ejercicio en el estado local (no persistir ni recargar acá)
-      const updatedExercises = selectedDayExercises.map(ex => 
-        ex.id === editingExerciseId 
-          ? { 
-              ...ex, 
-              original_ejercicio_id: ex.original_ejercicio_id || ex.ejercicio_id,
-              ejercicio_id: String(newExerciseId),
-              ejercicio_nombre: newExercise.nombre_ejercicio,
-              detalle_series: newExercise.detalle_series || null,
-              duracion: Number(newExercise.duracion_min) || undefined,
-              calorias_estimadas: Number(newExercise.calorias) || undefined,
-              // Se usan para mostrar min/kcal inmediatamente (sin tocar BD aún)
-              minutosJson: defaultMinutosJson,
-              caloriasJson: defaultCaloriasJson,
-              ejercicioKeys: Array.from({ length: blocksCount }).map((_, idx) => `${baseEjId}_${idx + 1}`)
-            }
+      const updatedExercises = selectedDayExercises.map(ex =>
+        ex.id === editingExerciseId
+          ? {
+            ...ex,
+            original_ejercicio_id: ex.original_ejercicio_id || ex.ejercicio_id,
+            ejercicio_id: String(newExerciseId),
+            ejercicio_nombre: newExercise.nombre_ejercicio,
+            detalle_series: newExercise.detalle_series || null,
+            duracion: Number(newExercise.duracion_min) || undefined,
+            calorias_estimadas: Number(newExercise.calorias) || undefined,
+            // Se usan para mostrar min/kcal inmediatamente (sin tocar BD aún)
+            minutosJson: defaultMinutosJson,
+            caloriasJson: defaultCaloriasJson,
+            ejercicioKeys: Array.from({ length: blocksCount }).map((_, idx) => `${baseEjId}_${idx + 1}`)
+          }
           : ex
       )
       setSelectedDayExercises(updatedExercises)
@@ -1434,13 +1573,13 @@ export function ClientCalendar({ clientId, onLastWorkoutUpdate, onDaySelected, e
       // Buscar el ejercicio en los datos actuales
       const exercise = selectedDayExercises.find(ex => ex.id === editingExerciseId)
       if (!exercise) return
-      
+
       // Verificar que la fecha del ejercicio sea futura (desde mañana)
       const today = new Date()
       today.setHours(0, 0, 0, 0)
       const exerciseDate = new Date(exercise.fecha_ejercicio)
       exerciseDate.setHours(0, 0, 0, 0)
-      
+
       if (exerciseDate <= today) {
         console.log('No se pueden guardar cambios en ejercicios de días pasados o de hoy')
         return
@@ -1503,15 +1642,15 @@ export function ClientCalendar({ clientId, onLastWorkoutUpdate, onDaySelected, e
 
       // Actualizar solo el ejercicio actual
       // Filtrar series válidas (que tengan series y repeticiones)
-      const validSeries = editingSeries.filter(serie => 
-        serie.series && serie.repeticiones && 
+      const validSeries = editingSeries.filter(serie =>
+        serie.series && serie.repeticiones &&
         parseInt(serie.series) > 0 && parseInt(serie.repeticiones) > 0
       )
 
       const detalleSeriesString = validSeries.length > 0
         ? validSeries
-            .map((serie) => `(${serie.peso || 0}-${serie.repeticiones}-${serie.series})`)
-            .join(';')
+          .map((serie) => `(${serie.peso || 0}-${serie.repeticiones}-${serie.series})`)
+          .join(';')
         : null
 
       // Buscar todas las keys relacionadas con este ejercicio en detalles_series
@@ -1548,7 +1687,7 @@ export function ClientCalendar({ clientId, onLastWorkoutUpdate, onDaySelected, e
             ejercicio_id: parseInt(baseEjId),
             detalle_series: `(${serie.peso || 0}-${serie.repeticiones}-${serie.series})`
           }
-          
+
           // Agregar minutos si existen
           if (serie.minutos && parseInt(serie.minutos) > 0) {
             allMinutos[detailKey] = parseInt(serie.minutos)
@@ -1568,7 +1707,7 @@ export function ClientCalendar({ clientId, onLastWorkoutUpdate, onDaySelected, e
               ejercicio_id: parseInt(baseEjId),
               detalle_series: `(${serie.peso || 0}-${serie.repeticiones}-${serie.series})`
             }
-            
+
             // Agregar minutos si existen
             if (serie.minutos && parseInt(serie.minutos) > 0) {
               allMinutos[detailKey] = parseInt(serie.minutos)
@@ -1597,7 +1736,7 @@ export function ClientCalendar({ clientId, onLastWorkoutUpdate, onDaySelected, e
       // Actualizar en la base de datos
       const { error } = await supabase
         .from('progreso_cliente')
-        .update({ 
+        .update({
           detalles_series: allDetalles,
           minutos_json: allMinutos,
           calorias_json: allCalorias
@@ -1611,30 +1750,40 @@ export function ClientCalendar({ clientId, onLastWorkoutUpdate, onDaySelected, e
       }
 
       // Actualizar el estado local
-      const updatedExercises = selectedDayExercises.map(ex => 
-        ex.id === editingExerciseId 
+      const updatedExercises = selectedDayExercises.map(ex =>
+        ex.id === editingExerciseId
           ? {
-              ...ex,
-              detalle_series: detalleSeriesString,
-              minutosJson: allMinutos,
-              caloriasJson: allCalorias,
-              ejercicioKeys: validSeries.length > 0
-                ? validSeries.map((_, idx) => `${baseEjId}_${idx + 1}`)
-                : [],
-              original_ejercicio_id: undefined
-            }
+            ...ex,
+            detalle_series: detalleSeriesString,
+            minutosJson: allMinutos,
+            caloriasJson: allCalorias,
+            ejercicioKeys: validSeries.length > 0
+              ? validSeries.map((_, idx) => `${baseEjId}_${idx + 1}`)
+              : [],
+            original_ejercicio_id: undefined
+          }
           : ex
       )
       setSelectedDayExercises(updatedExercises)
 
-      // Cerrar edición
-      handleCancelEditSeries()
+      // Trigger Cascade Modal
+      const dayName = getDayName(new Date(exercise.fecha_ejercicio).getDay())
 
-      // Al guardar, ya no necesitamos el snapshot
-      setEditingOriginalExercise(null)
+      setCascadeModal({
+        isOpen: true,
+        type: 'fitness',
+        mode: exercise.original_ejercicio_id ? 'swap' : 'update',
+        sourceDate: exercise.fecha_ejercicio,
+        sourceDayName: dayName,
+        itemName: exercise.ejercicio_nombre || 'Ejercicio',
+        payload: {
+          activityId: exercise.actividad_id,
+          originalId: exercise.original_ejercicio_id || exercise.ejercicio_id,
+          newId: exercise.ejercicio_id,
+          validSeries: validSeries
+        }
+      })
 
-      // NO refetch: evitamos “recarga” visual. Ya actualizamos el estado local.
-      
     } catch (error) {
       console.error('Error guardando series:', error)
     }
@@ -1644,7 +1793,7 @@ export function ClientCalendar({ clientId, onLastWorkoutUpdate, onDaySelected, e
   const handleEditDate = (date: Date) => {
     const today = new Date()
     today.setHours(0, 0, 0, 0)
-    
+
     // Solo permitir cambiar fechas futuras (desde mañana en adelante)
     if (date <= today) {
       console.log('No se puede cambiar la fecha de días pasados o hoy')
@@ -1695,7 +1844,7 @@ export function ClientCalendar({ clientId, onLastWorkoutUpdate, onDaySelected, e
     // Validar que la nueva fecha sea futura
     const today = new Date()
     today.setHours(0, 0, 0, 0)
-    
+
     if (newDate <= today) {
       console.log('No se puede cambiar a una fecha pasada o de hoy')
       return
@@ -1708,8 +1857,8 @@ export function ClientCalendar({ clientId, onLastWorkoutUpdate, onDaySelected, e
       const newDayOfWeek = newDate.getDay()
 
       console.log('📅 ClientCalendar: Moviendo ejercicio', {
-        oldDateStr, 
-        newDateStr, 
+        oldDateStr,
+        newDateStr,
         applyToAllSameDays,
         oldDayOfWeek,
         newDayOfWeek
@@ -1763,7 +1912,7 @@ export function ClientCalendar({ clientId, onLastWorkoutUpdate, onDaySelected, e
           console.error('❌ [EDIT DATE] Error actualizando progreso_cliente_nutricion (filtrado):', nutritionFiltered.error)
         }
       }
-      
+
       // Cerrar modales y recargar datos
       setShowConfirmModal(false)
       setIsSelectingNewDate(false)
@@ -1773,10 +1922,10 @@ export function ClientCalendar({ clientId, onLastWorkoutUpdate, onDaySelected, e
       setSelectedDayForEdit(null)
       setTargetDayForEdit(null)
       setSelectedActivityIdsForDateChange([])
-      
+
       // Recargar los datos del calendario
       await fetchClientCalendarSummary()
-      
+
     } catch (error) {
       console.error('❌ [EDIT DATE] Error general:', error)
     }
@@ -1785,646 +1934,583 @@ export function ClientCalendar({ clientId, onLastWorkoutUpdate, onDaySelected, e
 
   // Función para obtener datos de ejercicios del cliente
   const fetchClientExercises = async () => {
-      try {
-        setLoading(true)
+    try {
+      setLoading(true)
 
-        // ✅ Obtener enrollments del cliente para saber sus actividades y fechas de inicio
-        const { data: enrollments, error: enrollmentsError } = await supabase
-          .from('activity_enrollments')
-          .select('id, activity_id, start_date, status, created_at')
-          .eq('client_id', clientId)
-          .eq('status', 'activa')
+      // ✅ Obtener enrollments del cliente para saber sus actividades y fechas de inicio
+      const { data: enrollments, error: enrollmentsError } = await supabase
+        .from('activity_enrollments')
+        .select('id, activity_id, start_date, status, created_at')
+        .eq('client_id', clientId)
+        .eq('status', 'activa')
 
-        if (enrollmentsError) {
-          console.warn('⚠️ [CLIENT CALENDAR] Error obteniendo enrollments:', enrollmentsError)
+      if (enrollmentsError) {
+        console.warn('⚠️ [CLIENT CALENDAR] Error obteniendo enrollments:', enrollmentsError)
+      }
+
+      // ✅ Obtener progreso del cliente desde la nueva tabla
+      const { data: progressRecords, error } = await supabase
+        .from('progreso_cliente')
+        .select('id, fecha, actividad_id, ejercicios_completados, ejercicios_pendientes, detalles_series, minutos_json, calorias_json')
+        .eq('cliente_id', clientId)
+        .order('fecha', { ascending: false })
+
+      // ✅ Obtener progreso de nutrición también
+      const { data: nutritionRecords, error: nutritionError } = await supabase
+        .from('progreso_cliente_nutricion')
+        .select('id, fecha, actividad_id, ejercicios_completados, ejercicios_pendientes, macros, ingredientes')
+        .eq('cliente_id', clientId)
+        .order('fecha', { ascending: false })
+
+      // ✅ Obtener IDs de ejercicios y platos desde progreso_cliente
+      const ejercicioIds = new Set<string>()
+      const actividadIds = new Set<string>()
+      const fechasConRegistros = new Set<string>() // Para rastrear fechas con registros reales
+
+      // Procesar registros de progreso_cliente
+      progressRecords?.forEach((record: any) => {
+        fechasConRegistros.add(record.fecha)
+
+        let completados: any[] = []
+        let pendientes: any[] = []
+
+        try {
+          // Completados puede ser objeto {} o array
+          if (Array.isArray(record.ejercicios_completados)) {
+            completados = record.ejercicios_completados.map((id: string) => String(id))
+          } else if (typeof record.ejercicios_completados === 'object' && record.ejercicios_completados) {
+            completados = Object.keys(record.ejercicios_completados)
+          } else if (typeof record.ejercicios_completados === 'string') {
+            const parsed = JSON.parse(record.ejercicios_completados || '{}')
+            completados = Array.isArray(parsed) ? parsed : Object.keys(parsed)
+          }
+
+          // Pendientes puede ser objeto {} o array
+          if (Array.isArray(record.ejercicios_pendientes)) {
+            pendientes = record.ejercicios_pendientes.map((id: string) => String(id))
+          } else if (typeof record.ejercicios_pendientes === 'object' && record.ejercicios_pendientes) {
+            pendientes = Object.keys(record.ejercicios_pendientes)
+          } else if (typeof record.ejercicios_pendientes === 'string') {
+            const parsed = JSON.parse(record.ejercicios_pendientes || '{}')
+            pendientes = Array.isArray(parsed) ? parsed : Object.keys(parsed)
+          }
+        } catch (err) {
+          // Ignorar errores de parsing
         }
 
-        // ✅ Obtener progreso del cliente desde la nueva tabla
-        const { data: progressRecords, error } = await supabase
-          .from('progreso_cliente')
-          .select('id, fecha, actividad_id, ejercicios_completados, ejercicios_pendientes, detalles_series, minutos_json, calorias_json')
-          .eq('cliente_id', clientId)
-          .order('fecha', { ascending: false })
-
-        // ✅ Obtener progreso de nutrición también
-        const { data: nutritionRecords, error: nutritionError } = await supabase
-          .from('progreso_cliente_nutricion')
-          .select('id, fecha, actividad_id, ejercicios_completados, ejercicios_pendientes, macros, ingredientes')
-          .eq('cliente_id', clientId)
-          .order('fecha', { ascending: false })
-
-        // ✅ Obtener IDs de ejercicios y platos desde progreso_cliente
-        const ejercicioIds = new Set<string>()
-        const actividadIds = new Set<string>()
-        const fechasConRegistros = new Set<string>() // Para rastrear fechas con registros reales
-        
-        // Procesar registros de progreso_cliente
-        progressRecords?.forEach((record: any) => {
-          fechasConRegistros.add(record.fecha)
-          
-          let completados: any[] = []
-          let pendientes: any[] = []
-          
-          try {
-            // Completados puede ser objeto {} o array
-            if (Array.isArray(record.ejercicios_completados)) {
-              completados = record.ejercicios_completados.map((id: string) => String(id))
-            } else if (typeof record.ejercicios_completados === 'object' && record.ejercicios_completados) {
-              completados = Object.keys(record.ejercicios_completados)
-            } else if (typeof record.ejercicios_completados === 'string') {
-              const parsed = JSON.parse(record.ejercicios_completados || '{}')
-              completados = Array.isArray(parsed) ? parsed : Object.keys(parsed)
-            }
-            
-            // Pendientes puede ser objeto {} o array
-            if (Array.isArray(record.ejercicios_pendientes)) {
-              pendientes = record.ejercicios_pendientes.map((id: string) => String(id))
-            } else if (typeof record.ejercicios_pendientes === 'object' && record.ejercicios_pendientes) {
-              pendientes = Object.keys(record.ejercicios_pendientes)
-            } else if (typeof record.ejercicios_pendientes === 'string') {
-              const parsed = JSON.parse(record.ejercicios_pendientes || '{}')
-              pendientes = Array.isArray(parsed) ? parsed : Object.keys(parsed)
-            }
-          } catch (err) {
-            // Ignorar errores de parsing
-          }
-          
-          [...completados, ...pendientes].forEach((id: string) => {
-            ejercicioIds.add(String(id))
-          })
-          
-          // ✅ Guardar actividad_id para determinar el tipo
-          if (record.actividad_id !== undefined && record.actividad_id !== null) {
-            actividadIds.add(String(record.actividad_id))
-          }
+        [...completados, ...pendientes].forEach((id: string) => {
+          ejercicioIds.add(String(id))
         })
 
-        // Procesar registros de progreso_cliente_nutricion
-        nutritionRecords?.forEach((record: any) => {
-          fechasConRegistros.add(record.fecha)
-          
-          let completados: any[] = []
-          let pendientes: any[] = []
-          
-          try {
-            if (Array.isArray(record.ejercicios_completados)) {
-              completados = record.ejercicios_completados.map((id: string) => String(id))
-            } else if (typeof record.ejercicios_completados === 'object' && record.ejercicios_completados) {
-              completados = Object.keys(record.ejercicios_completados)
-            } else if (typeof record.ejercicios_completados === 'string') {
-              const parsed = JSON.parse(record.ejercicios_completados || '{}')
-              completados = Array.isArray(parsed) ? parsed : Object.keys(parsed)
-            }
-            
-            if (Array.isArray(record.ejercicios_pendientes)) {
-              pendientes = record.ejercicios_pendientes.map((id: string) => String(id))
-            } else if (typeof record.ejercicios_pendientes === 'object' && record.ejercicios_pendientes) {
-              pendientes = Object.keys(record.ejercicios_pendientes)
-            } else if (typeof record.ejercicios_pendientes === 'string') {
-              const parsed = JSON.parse(record.ejercicios_pendientes || '{}')
-              pendientes = Array.isArray(parsed) ? parsed : Object.keys(parsed)
-            }
-          } catch (err) {
-            // Ignorar errores de parsing
+        // ✅ Guardar actividad_id para determinar el tipo
+        if (record.actividad_id !== undefined && record.actividad_id !== null) {
+          actividadIds.add(String(record.actividad_id))
+        }
+      })
+
+      // Procesar registros de progreso_cliente_nutricion
+      nutritionRecords?.forEach((record: any) => {
+        fechasConRegistros.add(record.fecha)
+
+        let completados: any[] = []
+        let pendientes: any[] = []
+
+        try {
+          if (Array.isArray(record.ejercicios_completados)) {
+            completados = record.ejercicios_completados.map((id: string) => String(id))
+          } else if (typeof record.ejercicios_completados === 'object' && record.ejercicios_completados) {
+            completados = Object.keys(record.ejercicios_completados)
+          } else if (typeof record.ejercicios_completados === 'string') {
+            const parsed = JSON.parse(record.ejercicios_completados || '{}')
+            completados = Array.isArray(parsed) ? parsed : Object.keys(parsed)
           }
-          
-          [...completados, ...pendientes].forEach((id: string) => {
-            ejercicioIds.add(String(id))
-          })
-          
-          if (record.actividad_id !== undefined && record.actividad_id !== null) {
-            actividadIds.add(String(record.actividad_id))
+
+          if (Array.isArray(record.ejercicios_pendientes)) {
+            pendientes = record.ejercicios_pendientes.map((id: string) => String(id))
+          } else if (typeof record.ejercicios_pendientes === 'object' && record.ejercicios_pendientes) {
+            pendientes = Object.keys(record.ejercicios_pendientes)
+          } else if (typeof record.ejercicios_pendientes === 'string') {
+            const parsed = JSON.parse(record.ejercicios_pendientes || '{}')
+            pendientes = Array.isArray(parsed) ? parsed : Object.keys(parsed)
           }
+        } catch (err) {
+          // Ignorar errores de parsing
+        }
+
+        [...completados, ...pendientes].forEach((id: string) => {
+          ejercicioIds.add(String(id))
         })
 
-        // ✅ Obtener enrollments para calcular versiones
-        const { data: allEnrollments } = await supabase
-          .from('activity_enrollments')
-          .select('id, activity_id, created_at, start_date')
-          .eq('client_id', clientId)
-          .eq('status', 'activa')
-          .order('created_at', { ascending: true })
+        if (record.actividad_id !== undefined && record.actividad_id !== null) {
+          actividadIds.add(String(record.actividad_id))
+        }
+      })
 
-        // ✅ Obtener información de actividades para determinar tipo y nombre
-        // Incluir también las actividades de enrollments aunque todavía no haya progreso (evita "Actividad <id>")
-        const enrollmentActivityIds = (allEnrollments || [])
-          .map((e: any) => parseInt(String(e.activity_id), 10))
-          .filter((id: number) => !Number.isNaN(id))
+      // ✅ Obtener enrollments para calcular versiones
+      const { data: allEnrollments } = await supabase
+        .from('activity_enrollments')
+        .select('id, activity_id, created_at, start_date')
+        .eq('client_id', clientId)
+        .eq('status', 'activa')
+        .order('created_at', { ascending: true })
 
-        const actividadIdsNumeric = Array.from(
-          new Set(
-            Array.from(actividadIds)
-              .map((id) => parseInt(id, 10))
-              .filter((id) => !Number.isNaN(id))
-              .concat(enrollmentActivityIds)
-          )
+      // ✅ Obtener información de actividades para determinar tipo y nombre
+      // Incluir también las actividades de enrollments aunque todavía no haya progreso (evita "Actividad <id>")
+      const enrollmentActivityIds = (allEnrollments || [])
+        .map((e: any) => parseInt(String(e.activity_id), 10))
+        .filter((id: number) => !Number.isNaN(id))
+
+      const actividadIdsNumeric = Array.from(
+        new Set(
+          Array.from(actividadIds)
+            .map((id) => parseInt(id, 10))
+            .filter((id) => !Number.isNaN(id))
+            .concat(enrollmentActivityIds)
         )
-        const { data: actividadesData } = await supabase
-          .from('activities')
-          .select('id, type, title')
-          .in('id', actividadIdsNumeric)
+      )
+      const { data: actividadesData } = await supabase
+        .from('activities')
+        .select('id, type, title')
+        .in('id', actividadIdsNumeric)
 
-        const actividadTypes = new Map<string, string>()
-        const actividadTitulos = new Map<string, string>()
-        actividadesData?.forEach((act: any) => {
-          actividadTypes.set(String(act.id), act.type)
-          actividadTitulos.set(String(act.id), act.title)
+      const actividadTypes = new Map<string, string>()
+      const actividadTitulos = new Map<string, string>()
+      actividadesData?.forEach((act: any) => {
+        actividadTypes.set(String(act.id), act.type)
+        actividadTitulos.set(String(act.id), act.title)
+      })
+
+      // ✅ Calcular versión para cada enrollment (basado en orden de compra del mismo producto)
+      const enrollmentVersions = new Map<number, number>()
+      const enrollmentsByActivity = new Map<number, any[]>()
+
+      allEnrollments?.forEach((enrollment: any) => {
+        const activityId = enrollment.activity_id
+        if (!enrollmentsByActivity.has(activityId)) {
+          enrollmentsByActivity.set(activityId, [])
+        }
+        enrollmentsByActivity.get(activityId)!.push(enrollment)
+      })
+
+      // ✅ Asignar versión a cada enrollment (1, 2, 3... según orden de compra)
+      enrollmentsByActivity.forEach((enrollments, activityId) => {
+        enrollments.forEach((enrollment, index) => {
+          enrollmentVersions.set(enrollment.id, index + 1)
         })
+      })
 
-        // ✅ Calcular versión para cada enrollment (basado en orden de compra del mismo producto)
-        const enrollmentVersions = new Map<number, number>()
-        const enrollmentsByActivity = new Map<number, any[]>()
-        
-        allEnrollments?.forEach((enrollment: any) => {
-          const activityId = enrollment.activity_id
-          if (!enrollmentsByActivity.has(activityId)) {
-            enrollmentsByActivity.set(activityId, [])
-          }
-          enrollmentsByActivity.get(activityId)!.push(enrollment)
+      const filterOpts: ActivityFilterOption[] = []
+      allEnrollments?.forEach((e: any) => {
+        const title = actividadTitulos.get(String(e.activity_id)) || `Actividad ${e.activity_id}`
+        filterOpts.push({
+          enrollment_id: e.id,
+          activity_id: e.activity_id,
+          title,
+          version: enrollmentVersions.get(e.id) || 1,
+          type: actividadTypes.get(String(e.activity_id))
         })
+      })
+      setActivityFilterOptions(filterOpts)
 
-        // ✅ Asignar versión a cada enrollment (1, 2, 3... según orden de compra)
-        enrollmentsByActivity.forEach((enrollments, activityId) => {
-          enrollments.forEach((enrollment, index) => {
-            enrollmentVersions.set(enrollment.id, index + 1)
-          })
-        })
+      // ✅ Recopilar IDs de planificación ANTES de cargar nombres
+      const planificacionIds = new Set<string>()
 
-        const filterOpts: ActivityFilterOption[] = []
-        allEnrollments?.forEach((e: any) => {
-          const title = actividadTitulos.get(String(e.activity_id)) || `Actividad ${e.activity_id}`
-          filterOpts.push({
-            enrollment_id: e.id,
-            activity_id: e.activity_id,
-            title,
-            version: enrollmentVersions.get(e.id) || 1,
-            type: actividadTypes.get(String(e.activity_id))
-          })
-        })
-        setActivityFilterOptions(filterOpts)
+      if (enrollments && enrollments.length > 0) {
+        for (const enrollment of enrollments) {
+          if (!enrollment.activity_id) continue
+          const actividadId = enrollment.activity_id
 
-        // ✅ Recopilar IDs de planificación ANTES de cargar nombres
-        const planificacionIds = new Set<string>()
-        
-        if (enrollments && enrollments.length > 0) {
-          for (const enrollment of enrollments) {
-            if (!enrollment.activity_id) continue
-            const actividadId = enrollment.activity_id
+          // ✅ Obtener planificación semanal para esta actividad
+          const { data: planificacion, error: planError } = await supabase
+            .from('planificacion_ejercicios')
+            .select('*')
+            .eq('actividad_id', actividadId)
+            .order('numero_semana', { ascending: true })
 
-            // ✅ Obtener planificación semanal para esta actividad
-            const { data: planificacion, error: planError } = await supabase
-              .from('planificacion_ejercicios')
-              .select('*')
-              .eq('actividad_id', actividadId)
-              .order('numero_semana', { ascending: true })
+          if (planError || !planificacion || planificacion.length === 0) continue
 
-            if (planError || !planificacion || planificacion.length === 0) continue
+          // ✅ Recopilar IDs de la planificación
+          planificacion.forEach((semana: any) => {
+            const diasSemana = ['lunes', 'martes', 'miercoles', 'jueves', 'viernes', 'sabado', 'domingo']
+            diasSemana.forEach((dia: string) => {
+              const diaData = semana[dia]
+              if (!diaData) return
 
-            // ✅ Recopilar IDs de la planificación
-            planificacion.forEach((semana: any) => {
-              const diasSemana = ['lunes', 'martes', 'miercoles', 'jueves', 'viernes', 'sabado', 'domingo']
-              diasSemana.forEach((dia: string) => {
-                const diaData = semana[dia]
-                if (!diaData) return
-
-                let ejerciciosDelDia: any[] = []
-                try {
-                  if (typeof diaData === 'string') {
-                    ejerciciosDelDia = JSON.parse(diaData)
-                  } else if (Array.isArray(diaData)) {
-                    ejerciciosDelDia = diaData
-                  } else if (diaData && typeof diaData === 'object') {
-                    ejerciciosDelDia = (diaData as any).ejercicios || (diaData as any).exercises || []
-                  }
-                } catch (err) {
-                  // Ignorar errores de parsing
+              let ejerciciosDelDia: any[] = []
+              try {
+                if (typeof diaData === 'string') {
+                  ejerciciosDelDia = JSON.parse(diaData)
+                } else if (Array.isArray(diaData)) {
+                  ejerciciosDelDia = diaData
+                } else if (diaData && typeof diaData === 'object') {
+                  ejerciciosDelDia = (diaData as any).ejercicios || (diaData as any).exercises || []
                 }
+              } catch (err) {
+                // Ignorar errores de parsing
+              }
 
-                ejerciciosDelDia.forEach((ej: any) => {
-                  const ejId = String(ej.id || ej.ejercicioId || ej.ejercicio_id)
-                  if (ejId) planificacionIds.add(ejId)
-                })
+              ejerciciosDelDia.forEach((ej: any) => {
+                const ejId = String(ej.id || ej.ejercicioId || ej.ejercicio_id)
+                if (ejId) planificacionIds.add(ejId)
               })
             })
+          })
+        }
+      }
+
+      // ✅ Combinar IDs de progreso_cliente y planificación
+      const allEjercicioIds = new Set([...ejercicioIds, ...planificacionIds])
+
+      // ✅ Separar IDs en ejercicios y platos (todos los IDs pueden ser de cualquier tipo)
+      const ejercicioIdsArray = Array.from(allEjercicioIds).map(id => parseInt(id, 10)).filter(id => !isNaN(id))
+      const platoIdsArray = Array.from(allEjercicioIds).map(id => parseInt(id, 10)).filter(id => !isNaN(id))
+
+      // ✅ Obtener nombres de ejercicios desde ejercicios_detalles
+      const { data: ejerciciosData, error: ejerciciosError } = await supabase
+        .from('ejercicios_detalles')
+        .select('id, nombre_ejercicio')
+        .in('id', ejercicioIdsArray)
+
+      // ✅ Obtener nombres de platos desde nutrition_program_details
+      const { data: platosData, error: platosError } = await supabase
+        .from('nutrition_program_details')
+        .select('id, nombre')
+        .in('id', platoIdsArray)
+
+      if (ejerciciosError) {
+        console.warn('⚠️ [CLIENT CALENDAR] Error obteniendo nombres de ejercicios:', ejerciciosError)
+      }
+
+      if (platosError) {
+        console.warn('⚠️ [CLIENT CALENDAR] Error obteniendo nombres de platos:', platosError)
+      }
+
+      // ✅ Crear un mapa combinado de nombres
+      const nombresMap = new Map<string, string>()
+      ejerciciosData?.forEach((ej: any) => {
+        nombresMap.set(String(ej.id), ej.nombre_ejercicio)
+      })
+      platosData?.forEach((plato: any) => {
+        nombresMap.set(String(plato.id), plato.nombre)
+      })
+
+      if (error) {
+        console.error('❌ [CLIENT CALENDAR] Error obteniendo ejecuciones:', error)
+        // Si hay error, mostrar mensaje informativo
+        setDayData({})
+        return
+      }
+
+
+      // Procesar datos por día desde progreso_cliente
+      const processedData: { [key: string]: DayData } = {}
+
+      progressRecords?.forEach((record: any) => {
+        const fecha = record.fecha
+
+        // Manejar tanto arrays nativos de PostgreSQL como strings JSON u objetos
+        let completados: any[] = []
+        let pendientes: any[] = []
+
+        try {
+          // Parsear ejercicios_completados
+          let completadosParsed: any = record.ejercicios_completados
+          if (typeof record.ejercicios_completados === 'string') {
+            completadosParsed = JSON.parse(record.ejercicios_completados || '{}')
+          }
+
+          if (Array.isArray(completadosParsed)) {
+            completados = completadosParsed.map((id: any) => String(id))
+          } else if (completadosParsed && typeof completadosParsed === 'object') {
+            // Si es un objeto, obtener las keys
+            completados = Object.keys(completadosParsed).map(key => {
+              // Extraer el ID base del ejercicio (ej: "1042_1" -> "1042")
+              const baseId = key.split('_')[0]
+              return baseId
+            })
+            // Remover duplicados
+            completados = [...new Set(completados)]
+          }
+
+          // Parsear ejercicios_pendientes
+          let pendientesParsed: any = record.ejercicios_pendientes
+          if (typeof record.ejercicios_pendientes === 'string') {
+            pendientesParsed = JSON.parse(record.ejercicios_pendientes || '{}')
+          }
+
+          if (Array.isArray(pendientesParsed)) {
+            pendientes = pendientesParsed.map((id: any) => String(id))
+          } else if (pendientesParsed && typeof pendientesParsed === 'object') {
+            // Si es un objeto, obtener las keys
+            pendientes = Object.keys(pendientesParsed).map(key => {
+              // Extraer el ID base del ejercicio
+              const baseId = key.split('_')[0]
+              return baseId
+            })
+            // Remover duplicados
+            pendientes = [...new Set(pendientes)]
+          }
+        } catch (err) {
+          console.warn('Error parseando ejercicios:', err, record)
+          completados = []
+          pendientes = []
+        }
+
+        const allEjercicios = [...completados, ...pendientes]
+        // Remover duplicados de allEjercicios
+        const allEjerciciosUnique = [...new Set(allEjercicios)]
+
+        if (!processedData[fecha]) {
+          processedData[fecha] = {
+            date: fecha,
+            exerciseCount: 0,
+            completedCount: 0,
+            totalMinutes: 0,
+            exercises: [],
+            activities: []
           }
         }
 
-        // ✅ Combinar IDs de progreso_cliente y planificación
-        const allEjercicioIds = new Set([...ejercicioIds, ...planificacionIds])
-        
-        // ✅ Separar IDs en ejercicios y platos (todos los IDs pueden ser de cualquier tipo)
-        const ejercicioIdsArray = Array.from(allEjercicioIds).map(id => parseInt(id, 10)).filter(id => !isNaN(id))
-        const platoIdsArray = Array.from(allEjercicioIds).map(id => parseInt(id, 10)).filter(id => !isNaN(id))
+        allEjerciciosUnique.forEach((ejId: string) => {
+          const isCompleted = completados.includes(ejId)
 
-        // ✅ Obtener nombres de ejercicios desde ejercicios_detalles
-        const { data: ejerciciosData, error: ejerciciosError } = await supabase
-          .from('ejercicios_detalles')
-          .select('id, nombre_ejercicio')
-          .in('id', ejercicioIdsArray)
+          // ✅ Buscar el nombre del ejercicio o plato desde el mapa combinado
+          const nombre = nombresMap.get(String(ejId))
+          const actividadType = record.actividad_id ? actividadTypes.get(String(record.actividad_id)) : null
+          const defaultNombre = actividadType === 'nutricion' || actividadType === 'nutrition_program'
+            ? `Plato ${ejId}`
+            : `Ejercicio ${ejId}`
 
-        // ✅ Obtener nombres de platos desde nutrition_program_details
-        const { data: platosData, error: platosError } = await supabase
-          .from('nutrition_program_details')
-          .select('id, nombre')
-          .in('id', platoIdsArray)
+          // ✅ Obtener enrollment_id desde activity_enrollments basándome en actividad_id y cliente_id
+          // Buscar el enrollment más reciente para esta actividad y cliente
+          const enrollmentForActivity = pickEnrollmentForDate(allEnrollments, record.actividad_id, fecha)
+          const enrollmentId = enrollmentForActivity?.id
+          const version = enrollmentId ? enrollmentVersions.get(enrollmentId) : undefined
+          const actividadTitulo = record.actividad_id ? actividadTitulos.get(String(record.actividad_id)) : undefined
 
-        if (ejerciciosError) {
-          console.warn('⚠️ [CLIENT CALENDAR] Error obteniendo nombres de ejercicios:', ejerciciosError)
-        }
-        
-        if (platosError) {
-          console.warn('⚠️ [CLIENT CALENDAR] Error obteniendo nombres de platos:', platosError)
-        }
-
-        // ✅ Crear un mapa combinado de nombres
-        const nombresMap = new Map<string, string>()
-        ejerciciosData?.forEach((ej: any) => {
-          nombresMap.set(String(ej.id), ej.nombre_ejercicio)
-        })
-        platosData?.forEach((plato: any) => {
-          nombresMap.set(String(plato.id), plato.nombre)
-        })
-
-        if (error) {
-          console.error('❌ [CLIENT CALENDAR] Error obteniendo ejecuciones:', error)
-          // Si hay error, mostrar mensaje informativo
-          setDayData({})
-          return
-        }
-
-
-        // Procesar datos por día desde progreso_cliente
-        const processedData: { [key: string]: DayData } = {}
-
-        progressRecords?.forEach((record: any) => {
-          const fecha = record.fecha
-          
-          // Manejar tanto arrays nativos de PostgreSQL como strings JSON u objetos
-          let completados: any[] = []
-          let pendientes: any[] = []
-          
+          // Buscar todas las keys relacionadas con este ejercicio en detalles_series
+          const ejercicioKeys: string[] = []
           try {
-            // Parsear ejercicios_completados
-            let completadosParsed: any = record.ejercicios_completados
-            if (typeof record.ejercicios_completados === 'string') {
-              completadosParsed = JSON.parse(record.ejercicios_completados || '{}')
+            let detalles: any = null
+            if (typeof record.detalles_series === 'string') {
+              detalles = JSON.parse(record.detalles_series)
+            } else if (typeof record.detalles_series === 'object') {
+              detalles = record.detalles_series
             }
-            
-            if (Array.isArray(completadosParsed)) {
-              completados = completadosParsed.map((id: any) => String(id))
-            } else if (completadosParsed && typeof completadosParsed === 'object') {
-              // Si es un objeto, obtener las keys
-              completados = Object.keys(completadosParsed).map(key => {
-                // Extraer el ID base del ejercicio (ej: "1042_1" -> "1042")
+
+            if (detalles && typeof detalles === 'object') {
+              const ejIdStr = String(ejId)
+              // Buscar keys que empiecen con este ID (ej: "1042", "1042_1", "1042_2")
+              ejercicioKeys.push(...Object.keys(detalles).filter(key => {
                 const baseId = key.split('_')[0]
-                return baseId
-              })
-              // Remover duplicados
-              completados = [...new Set(completados)]
-            }
-            
-            // Parsear ejercicios_pendientes
-            let pendientesParsed: any = record.ejercicios_pendientes
-            if (typeof record.ejercicios_pendientes === 'string') {
-              pendientesParsed = JSON.parse(record.ejercicios_pendientes || '{}')
-            }
-            
-            if (Array.isArray(pendientesParsed)) {
-              pendientes = pendientesParsed.map((id: any) => String(id))
-            } else if (pendientesParsed && typeof pendientesParsed === 'object') {
-              // Si es un objeto, obtener las keys
-              pendientes = Object.keys(pendientesParsed).map(key => {
-                // Extraer el ID base del ejercicio
-                const baseId = key.split('_')[0]
-                return baseId
-              })
-              // Remover duplicados
-              pendientes = [...new Set(pendientes)]
+                return baseId === ejIdStr
+              }))
             }
           } catch (err) {
-            console.warn('Error parseando ejercicios:', err, record)
-            completados = []
-            pendientes = []
-          }
-          
-          const allEjercicios = [...completados, ...pendientes]
-          // Remover duplicados de allEjercicios
-          const allEjerciciosUnique = [...new Set(allEjercicios)]
-
-          if (!processedData[fecha]) {
-            processedData[fecha] = {
-              date: fecha,
-              exerciseCount: 0,
-              completedCount: 0,
-              totalMinutes: 0,
-              exercises: [],
-              activities: []
-            }
+            // Ignorar errores de parsing
           }
 
-          allEjerciciosUnique.forEach((ejId: string) => {
-            const isCompleted = completados.includes(ejId)
-            
-            // ✅ Buscar el nombre del ejercicio o plato desde el mapa combinado
-            const nombre = nombresMap.get(String(ejId))
-            const actividadType = record.actividad_id ? actividadTypes.get(String(record.actividad_id)) : null
-            const defaultNombre = actividadType === 'nutricion' || actividadType === 'nutrition_program'
-              ? `Plato ${ejId}`
-              : `Ejercicio ${ejId}`
-            
-            // ✅ Obtener enrollment_id desde activity_enrollments basándome en actividad_id y cliente_id
-            // Buscar el enrollment más reciente para esta actividad y cliente
-            const enrollmentForActivity = pickEnrollmentForDate(allEnrollments, record.actividad_id, fecha)
-            const enrollmentId = enrollmentForActivity?.id
-            const version = enrollmentId ? enrollmentVersions.get(enrollmentId) : undefined
-            const actividadTitulo = record.actividad_id ? actividadTitulos.get(String(record.actividad_id)) : undefined
-
-            // Buscar todas las keys relacionadas con este ejercicio en detalles_series
-            const ejercicioKeys: string[] = []
+          const detalleSeriesValue = (() => {
             try {
+              if (!record.detalles_series) return null
+
               let detalles: any = null
               if (typeof record.detalles_series === 'string') {
                 detalles = JSON.parse(record.detalles_series)
               } else if (typeof record.detalles_series === 'object') {
                 detalles = record.detalles_series
               }
-              
-              if (detalles && typeof detalles === 'object') {
-                const ejIdStr = String(ejId)
-                // Buscar keys que empiecen con este ID (ej: "1042", "1042_1", "1042_2")
-                ejercicioKeys.push(...Object.keys(detalles).filter(key => {
-                  const baseId = key.split('_')[0]
-                  return baseId === ejIdStr
-                }))
-              }
-            } catch (err) {
-              // Ignorar errores de parsing
-            }
 
-            const detalleSeriesValue = (() => {
-              try {
-                if (!record.detalles_series) return null
-
-                let detalles: any = null
-                if (typeof record.detalles_series === 'string') {
-                  detalles = JSON.parse(record.detalles_series)
-                } else if (typeof record.detalles_series === 'object') {
-                  detalles = record.detalles_series
-                }
-
-                if (!detalles || typeof detalles !== 'object' || Array.isArray(detalles)) {
-                  return null
-                }
-
-                const ejIdStr = String(ejId)
-                const matchingKey = Object.keys(detalles).find(key => key.split('_')[0] === ejIdStr)
-                const detalle = matchingKey ? detalles[matchingKey] : detalles[ejIdStr]
-
-                if (detalle && typeof detalle === 'object' && detalle.detalle_series) {
-                  return detalle.detalle_series
-                }
-                return detalle || null
-              } catch (err) {
-                console.warn('Error parseando detalles_series:', err)
+              if (!detalles || typeof detalles !== 'object' || Array.isArray(detalles)) {
                 return null
               }
-            })()
 
-            const duracion = (() => {
-              try {
-                if (!record.minutos_json) return undefined
-                let minutos: any = null
-                if (typeof record.minutos_json === 'string') {
-                  minutos = JSON.parse(record.minutos_json)
-                } else if (typeof record.minutos_json === 'object') {
-                  minutos = record.minutos_json
-                }
-                if (!minutos || typeof minutos !== 'object') return undefined
+              const ejIdStr = String(ejId)
+              const matchingKey = Object.keys(detalles).find(key => key.split('_')[0] === ejIdStr)
+              const detalle = matchingKey ? detalles[matchingKey] : detalles[ejIdStr]
 
-                const ejIdStr = String(ejId)
-                const matchingKey = Object.keys(minutos).find(key => key.split('_')[0] === ejIdStr)
-                const value = matchingKey ? minutos[matchingKey] : minutos[ejIdStr]
-                return value ? Number(value) : undefined
-              } catch {
-                return undefined
+              if (detalle && typeof detalle === 'object' && detalle.detalle_series) {
+                return detalle.detalle_series
               }
-            })()
-
-            const calorias_estimadas = (() => {
-              try {
-                if (!record.calorias_json) return undefined
-                let calorias: any = null
-                if (typeof record.calorias_json === 'string') {
-                  calorias = JSON.parse(record.calorias_json)
-                } else if (typeof record.calorias_json === 'object') {
-                  calorias = record.calorias_json
-                }
-                if (!calorias || typeof calorias !== 'object') return undefined
-
-                const ejIdStr = String(ejId)
-                const matchingKey = Object.keys(calorias).find(key => key.split('_')[0] === ejIdStr)
-                const value = matchingKey ? calorias[matchingKey] : calorias[ejIdStr]
-                return value ? Number(value) : undefined
-              } catch {
-                return undefined
-              }
-            })()
-
-            const exerciseData: ExerciseExecution = {
-              id: `${record.id}-${ejId}`,
-              ejercicio_id: ejId,
-              completado: isCompleted,
-              fecha_ejercicio: fecha,
-              nota_cliente: undefined,
-              ejercicio_nombre: nombre || defaultNombre,
-              actividad_titulo: actividadTitulo,
-              actividad_id: record.actividad_id,
-              enrollment_id: enrollmentId,
-              version: version,
-              ejercicioKeys: ejercicioKeys,
-              minutosJson: record.minutos_json,
-              caloriasJson: record.calorias_json,
-              detalle_series: detalleSeriesValue,
-              duracion,
-              calorias_estimadas
+              return detalle || null
+            } catch (err) {
+              console.warn('Error parseando detalles_series:', err)
+              return null
             }
-
-            processedData[fecha].exercises.push(exerciseData)
-            processedData[fecha].exerciseCount += 1
-            if (isCompleted) {
-              processedData[fecha].completedCount += 1
-            }
-
-            const mins = Number(duracion ?? 0) || 0
-            if (mins > 0) {
-              processedData[fecha].totalMinutes += mins
-            }
-          })
-        })
-
-        // Procesar datos por día desde progreso_cliente_nutricion (platos)
-        nutritionRecords?.forEach((record: any) => {
-          const fecha = record.fecha
-
-          if (!processedData[fecha]) {
-            processedData[fecha] = {
-              date: fecha,
-              exerciseCount: 0,
-              completedCount: 0,
-              totalMinutes: 0,
-              exercises: [],
-              activities: []
-            }
-          }
-
-          // Parsear pendientes/completados preservando ocurrencia (orden/bloque)
-          let completadosKeys: string[] = []
-          let pendientesKeys: string[] = []
-          let pendientesItems: Array<{ id: number; orden: number; bloque: number }> = []
-          let completadosItems: Array<{ id: number; orden: number; bloque: number }> = []
-          try {
-            const rawCompleted = typeof record.ejercicios_completados === 'string'
-              ? JSON.parse(record.ejercicios_completados || '{}')
-              : record.ejercicios_completados
-            const rawPending = typeof record.ejercicios_pendientes === 'string'
-              ? JSON.parse(record.ejercicios_pendientes || '{}')
-              : record.ejercicios_pendientes
-
-            const isNewSchema = (v: any) => v && typeof v === 'object' && !Array.isArray(v) && Array.isArray(v.ejercicios)
-
-            if (isNewSchema(rawPending)) {
-              pendientesItems = (rawPending.ejercicios || []).map((x: any) => ({
-                id: Number(x?.id),
-                orden: Number(x?.orden),
-                bloque: Number(x?.bloque)
-              })).filter((x: any) => Number.isFinite(x.id) && Number.isFinite(x.orden) && Number.isFinite(x.bloque))
-            }
-
-            if (isNewSchema(rawCompleted)) {
-              completadosItems = (rawCompleted.ejercicios || []).map((x: any) => ({
-                id: Number(x?.id),
-                orden: Number(x?.orden),
-                bloque: Number(x?.bloque)
-              })).filter((x: any) => Number.isFinite(x.id) && Number.isFinite(x.orden) && Number.isFinite(x.bloque))
-            }
-
-            if (Array.isArray(rawCompleted)) {
-              completadosKeys = rawCompleted.map((k: any) => String(k))
-            } else if (rawCompleted && typeof rawCompleted === 'object') {
-              completadosKeys = Object.keys(rawCompleted)
-            }
-
-            if (Array.isArray(rawPending)) {
-              pendientesKeys = rawPending.map((k: any) => String(k))
-            } else if (rawPending && typeof rawPending === 'object') {
-              pendientesKeys = Object.keys(rawPending)
-            }
-          } catch {
-            completadosKeys = []
-            pendientesKeys = []
-            pendientesItems = []
-            completadosItems = []
-          }
-
-          // Parsear receta/macros (contienen nombre/minutos/calorias por key)
-          let recetaData: any = null
-          let macrosData: any = null
-          try {
-            recetaData = typeof record.receta === 'string' ? JSON.parse(record.receta) : record.receta
-          } catch {
-            recetaData = null
-          }
-          try {
-            macrosData = typeof record.macros === 'string' ? JSON.parse(record.macros) : record.macros
-          } catch {
-            macrosData = null
-          }
-
-          const completionKeySet = new Set(
-            completadosItems.map(i => `${i.id}_${i.orden}_${i.bloque}`)
-          )
-
-          const itemsUnique: Array<{ id: number; orden: number; bloque: number }> = (() => {
-            if (pendientesItems.length > 0 || completadosItems.length > 0) {
-              const all = [...pendientesItems, ...completadosItems]
-              const seen = new Set<string>()
-              return all.filter((i) => {
-                const k = `${i.id}_${i.orden}_${i.bloque}`
-                if (seen.has(k)) return false
-                seen.add(k)
-                return true
-              })
-            }
-            return []
           })()
 
-          if (itemsUnique.length > 0) {
-            itemsUnique
-              .sort((a, b) => (a.bloque - b.bloque) || (a.orden - b.orden))
-              .forEach((item) => {
-                const key = `${item.id}_${item.orden}`
-                const completionKey = `${item.id}_${item.orden}_${item.bloque}`
-                const isCompleted = completionKeySet.has(completionKey)
+          const duracion = (() => {
+            try {
+              if (!record.minutos_json) return undefined
+              let minutos: any = null
+              if (typeof record.minutos_json === 'string') {
+                minutos = JSON.parse(record.minutos_json)
+              } else if (typeof record.minutos_json === 'object') {
+                minutos = record.minutos_json
+              }
+              if (!minutos || typeof minutos !== 'object') return undefined
 
-                const nombreFromReceta = recetaData?.[key]?.nombre
-                const nombreFromMap = nombresMap.get(String(item.id))
-                const nombre = nombreFromReceta || nombreFromMap || `Plato ${item.id}`
+              const ejIdStr = String(ejId)
+              const matchingKey = Object.keys(minutos).find(key => key.split('_')[0] === ejIdStr)
+              const value = matchingKey ? minutos[matchingKey] : minutos[ejIdStr]
+              return value ? Number(value) : undefined
+            } catch {
+              return undefined
+            }
+          })()
 
-                const minutos = macrosData?.[key]?.minutos
-                const kcal = macrosData?.[key]?.calorias
+          const calorias_estimadas = (() => {
+            try {
+              if (!record.calorias_json) return undefined
+              let calorias: any = null
+              if (typeof record.calorias_json === 'string') {
+                calorias = JSON.parse(record.calorias_json)
+              } else if (typeof record.calorias_json === 'object') {
+                calorias = record.calorias_json
+              }
+              if (!calorias || typeof calorias !== 'object') return undefined
 
-                const enrollmentForActivity = pickEnrollmentForDate(allEnrollments, record.actividad_id, fecha)
-                const enrollmentId = enrollmentForActivity?.id
-                const version = enrollmentId ? enrollmentVersions.get(enrollmentId) : undefined
-                const actividadTitulo = record.actividad_id ? actividadTitulos.get(String(record.actividad_id)) : undefined
+              const ejIdStr = String(ejId)
+              const matchingKey = Object.keys(calorias).find(key => key.split('_')[0] === ejIdStr)
+              const value = matchingKey ? calorias[matchingKey] : calorias[ejIdStr]
+              return value ? Number(value) : undefined
+            } catch {
+              return undefined
+            }
+          })()
 
-                const exerciseData: ExerciseExecution = {
-                  id: `nut-${record.id}-${key}-${item.bloque}`,
-                  ejercicio_id: String(item.id),
-                  completado: isCompleted,
-                  fecha_ejercicio: fecha,
-                  ejercicio_nombre: nombre,
-                  actividad_titulo: actividadTitulo,
-                  actividad_id: record.actividad_id,
-                  enrollment_id: enrollmentId,
-                  version,
-                  nutrition_record_id: String(record.id),
-                  nutrition_key: String(key),
-                  nutrition_bloque: item.bloque,
-                  nutrition_orden: item.orden,
-                  is_nutricion: true,
-                  nutricion_macros: {
-                    proteinas: macrosData?.[key]?.proteinas !== undefined ? Number(macrosData?.[key]?.proteinas) : undefined,
-                    carbohidratos: macrosData?.[key]?.carbohidratos !== undefined ? Number(macrosData?.[key]?.carbohidratos) : undefined,
-                    grasas: macrosData?.[key]?.grasas !== undefined ? Number(macrosData?.[key]?.grasas) : undefined,
-                    calorias: kcal !== undefined && kcal !== null ? Number(kcal) : undefined,
-                    minutos: minutos !== undefined && minutos !== null ? Number(minutos) : undefined
-                  },
-                  duracion: minutos !== undefined && minutos !== null ? Number(minutos) : undefined,
-                  calorias_estimadas: kcal !== undefined && kcal !== null ? Number(kcal) : undefined,
-                  detalle_series: null
-                }
+          const exerciseData: ExerciseExecution = {
+            id: `${record.id}-${ejId}`,
+            ejercicio_id: ejId,
+            completado: isCompleted,
+            fecha_ejercicio: fecha,
+            nota_cliente: undefined,
+            ejercicio_nombre: nombre || defaultNombre,
+            actividad_titulo: actividadTitulo,
+            actividad_id: record.actividad_id,
+            enrollment_id: enrollmentId,
+            version: version,
+            ejercicioKeys: ejercicioKeys,
+            minutosJson: record.minutos_json,
+            caloriasJson: record.calorias_json,
+            detalle_series: detalleSeriesValue,
+            duracion,
+            calorias_estimadas
+          }
 
-                processedData[fecha].exercises.push(exerciseData)
-                processedData[fecha].exerciseCount += 1
-                if (isCompleted) {
-                  processedData[fecha].completedCount += 1
-                }
+          processedData[fecha].exercises.push(exerciseData)
+          processedData[fecha].exerciseCount += 1
+          if (isCompleted) {
+            processedData[fecha].completedCount += 1
+          }
 
-                const mins = Number(minutos ?? 0) || 0
-                if (mins > 0) {
-                  processedData[fecha].totalMinutes += mins
-                }
-              })
-          } else {
-            const keysUnique = Array.from(new Set([...completadosKeys, ...pendientesKeys]))
-            keysUnique.forEach((key: string) => {
-              const baseId = key.split('_')[0]
-              const isCompleted = completadosKeys.includes(key)
+          const mins = Number(duracion ?? 0) || 0
+          if (mins > 0) {
+            processedData[fecha].totalMinutes += mins
+          }
+        })
+      })
 
-              const nombreFromReceta = recetaData?.[key]?.nombre
-              const nombreFromMap = nombresMap.get(String(baseId))
-              const nombre = nombreFromReceta || nombreFromMap || `Plato ${baseId}`
+      // Procesar datos por día desde progreso_cliente_nutricion (platos)
+      nutritionRecords?.forEach((record: any) => {
+        const fecha = record.fecha
+
+        if (!processedData[fecha]) {
+          processedData[fecha] = {
+            date: fecha,
+            exerciseCount: 0,
+            completedCount: 0,
+            totalMinutes: 0,
+            exercises: [],
+            activities: []
+          }
+        }
+
+        // Parsear pendientes/completados preservando ocurrencia (orden/bloque)
+        let completadosKeys: string[] = []
+        let pendientesKeys: string[] = []
+        let pendientesItems: Array<{ id: number; orden: number; bloque: number }> = []
+        let completadosItems: Array<{ id: number; orden: number; bloque: number }> = []
+        try {
+          const rawCompleted = typeof record.ejercicios_completados === 'string'
+            ? JSON.parse(record.ejercicios_completados || '{}')
+            : record.ejercicios_completados
+          const rawPending = typeof record.ejercicios_pendientes === 'string'
+            ? JSON.parse(record.ejercicios_pendientes || '{}')
+            : record.ejercicios_pendientes
+
+          const isNewSchema = (v: any) => v && typeof v === 'object' && !Array.isArray(v) && Array.isArray(v.ejercicios)
+
+          if (isNewSchema(rawPending)) {
+            pendientesItems = (rawPending.ejercicios || []).map((x: any) => ({
+              id: Number(x?.id),
+              orden: Number(x?.orden),
+              bloque: Number(x?.bloque)
+            })).filter((x: any) => Number.isFinite(x.id) && Number.isFinite(x.orden) && Number.isFinite(x.bloque))
+          }
+
+          if (isNewSchema(rawCompleted)) {
+            completadosItems = (rawCompleted.ejercicios || []).map((x: any) => ({
+              id: Number(x?.id),
+              orden: Number(x?.orden),
+              bloque: Number(x?.bloque)
+            })).filter((x: any) => Number.isFinite(x.id) && Number.isFinite(x.orden) && Number.isFinite(x.bloque))
+          }
+
+          if (Array.isArray(rawCompleted)) {
+            completadosKeys = rawCompleted.map((k: any) => String(k))
+          } else if (rawCompleted && typeof rawCompleted === 'object') {
+            completadosKeys = Object.keys(rawCompleted)
+          }
+
+          if (Array.isArray(rawPending)) {
+            pendientesKeys = rawPending.map((k: any) => String(k))
+          } else if (rawPending && typeof rawPending === 'object') {
+            pendientesKeys = Object.keys(rawPending)
+          }
+        } catch {
+          completadosKeys = []
+          pendientesKeys = []
+          pendientesItems = []
+          completadosItems = []
+        }
+
+        // Parsear receta/macros (contienen nombre/minutos/calorias por key)
+        let macrosData: any = null
+        try {
+          macrosData = typeof record.macros === 'string' ? JSON.parse(record.macros) : record.macros
+        } catch {
+          macrosData = null
+        }
+
+        const completionKeySet = new Set(
+          completadosItems.map(i => `${i.id}_${i.orden}_${i.bloque}`)
+        )
+
+        const itemsUnique: Array<{ id: number; orden: number; bloque: number }> = (() => {
+          if (pendientesItems.length > 0 || completadosItems.length > 0) {
+            const all = [...pendientesItems, ...completadosItems]
+            const seen = new Set<string>()
+            return all.filter((i) => {
+              const k = `${i.id}_${i.orden}_${i.bloque}`
+              if (seen.has(k)) return false
+              seen.add(k)
+              return true
+            })
+          }
+          return []
+        })()
+
+        if (itemsUnique.length > 0) {
+          itemsUnique
+            .sort((a, b) => (a.bloque - b.bloque) || (a.orden - b.orden))
+            .forEach((item) => {
+              const key = `${item.id}_${item.orden}`
+              const completionKey = `${item.id}_${item.orden}_${item.bloque}`
+              const isCompleted = completionKeySet.has(completionKey)
+
+              const nombreFromMap = nombresMap.get(String(item.id))
+              const nombre = nombreFromMap || `Plato ${item.id}`
 
               const minutos = macrosData?.[key]?.minutos
               const kcal = macrosData?.[key]?.calorias
@@ -2435,8 +2521,8 @@ export function ClientCalendar({ clientId, onLastWorkoutUpdate, onDaySelected, e
               const actividadTitulo = record.actividad_id ? actividadTitulos.get(String(record.actividad_id)) : undefined
 
               const exerciseData: ExerciseExecution = {
-                id: `nut-${record.id}-${key}`,
-                ejercicio_id: String(baseId),
+                id: `nut-${record.id}-${key}-${item.bloque}`,
+                ejercicio_id: String(item.id),
                 completado: isCompleted,
                 fecha_ejercicio: fecha,
                 ejercicio_nombre: nombre,
@@ -2446,6 +2532,8 @@ export function ClientCalendar({ clientId, onLastWorkoutUpdate, onDaySelected, e
                 version,
                 nutrition_record_id: String(record.id),
                 nutrition_key: String(key),
+                nutrition_bloque: item.bloque,
+                nutrition_orden: item.orden,
                 is_nutricion: true,
                 nutricion_macros: {
                   proteinas: macrosData?.[key]?.proteinas !== undefined ? Number(macrosData?.[key]?.proteinas) : undefined,
@@ -2470,303 +2558,356 @@ export function ClientCalendar({ clientId, onLastWorkoutUpdate, onDaySelected, e
                 processedData[fecha].totalMinutes += mins
               }
             })
-          }
-        })
+        } else {
+          const keysUnique = Array.from(new Set([...completadosKeys, ...pendientesKeys]))
+          keysUnique.forEach((key: string) => {
+            const baseId = key.split('_')[0]
+            const isCompleted = completadosKeys.includes(key)
 
-        // ✅ Calendar events del cliente (otras ocupaciones) - sumar al total del día
-        const eventsMinutesByDate: Record<string, number> = {}
-        try {
-          const monthStart = new Date(currentDate.getFullYear(), currentDate.getMonth(), 1)
-          const monthEndExclusive = new Date(currentDate.getFullYear(), currentDate.getMonth() + 1, 1)
+            const nombreFromMap = nombresMap.get(String(baseId))
+            const nombre = nombreFromMap || `Plato ${baseId}`
 
-          const { data: parts, error: partsErr } = await supabase
-            .from('calendar_event_participants')
-            .select('event_id')
-            .eq('client_id', clientId)
+            const minutos = macrosData?.[key]?.minutos
+            const kcal = macrosData?.[key]?.calorias
 
-          if (partsErr) {
-            console.warn('⚠️ [CLIENT CALENDAR] Error obteniendo calendar_event_participants:', partsErr)
-          }
+            const enrollmentForActivity = pickEnrollmentForDate(allEnrollments, record.actividad_id, fecha)
+            const enrollmentId = enrollmentForActivity?.id
+            const version = enrollmentId ? enrollmentVersions.get(enrollmentId) : undefined
+            const actividadTitulo = record.actividad_id ? actividadTitulos.get(String(record.actividad_id)) : undefined
 
-          const eventIds = Array.from(
-            new Set(
-              (parts || [])
-                .map((p: any) => String(p?.event_id || ''))
-                .filter((id: string) => !!id)
-            )
+            const exerciseData: ExerciseExecution = {
+              id: `nut-${record.id}-${key}`,
+              ejercicio_id: String(baseId),
+              completado: isCompleted,
+              fecha_ejercicio: fecha,
+              ejercicio_nombre: nombre,
+              actividad_titulo: actividadTitulo,
+              actividad_id: record.actividad_id,
+              enrollment_id: enrollmentId,
+              version,
+              nutrition_record_id: String(record.id),
+              nutrition_key: String(key),
+              is_nutricion: true,
+              nutricion_macros: {
+                proteinas: macrosData?.[key]?.proteinas !== undefined ? Number(macrosData?.[key]?.proteinas) : undefined,
+                carbohidratos: macrosData?.[key]?.carbohidratos !== undefined ? Number(macrosData?.[key]?.carbohidratos) : undefined,
+                grasas: macrosData?.[key]?.grasas !== undefined ? Number(macrosData?.[key]?.grasas) : undefined,
+                calorias: kcal !== undefined && kcal !== null ? Number(kcal) : undefined,
+                minutos: minutos !== undefined && minutos !== null ? Number(minutos) : undefined
+              },
+              duracion: minutos !== undefined && minutos !== null ? Number(minutos) : undefined,
+              calorias_estimadas: kcal !== undefined && kcal !== null ? Number(kcal) : undefined,
+              detalle_series: null
+            }
+
+            processedData[fecha].exercises.push(exerciseData)
+            processedData[fecha].exerciseCount += 1
+            if (isCompleted) {
+              processedData[fecha].completedCount += 1
+            }
+
+            const mins = Number(minutos ?? 0) || 0
+            if (mins > 0) {
+              processedData[fecha].totalMinutes += mins
+            }
+          })
+        }
+      })
+
+      // ✅ Calendar events del cliente (otras ocupaciones) - sumar al total del día
+      const eventsMinutesByDate: Record<string, number> = {}
+      try {
+        const monthStart = new Date(currentDate.getFullYear(), currentDate.getMonth(), 1)
+        const monthEndExclusive = new Date(currentDate.getFullYear(), currentDate.getMonth() + 1, 1)
+
+        const { data: parts, error: partsErr } = await supabase
+          .from('calendar_event_participants')
+          .select('event_id')
+          .eq('client_id', clientId)
+
+        if (partsErr) {
+          console.warn('⚠️ [CLIENT CALENDAR] Error obteniendo calendar_event_participants:', partsErr)
+        }
+
+        const eventIds = Array.from(
+          new Set(
+            (parts || [])
+              .map((p: any) => String(p?.event_id || ''))
+              .filter((id: string) => !!id)
           )
+        )
 
-          const eventsRes = eventIds.length
-            ? await supabase
-                .from('calendar_events')
-                .select('id, start_time, end_time')
-                .in('id', eventIds)
-                .gte('start_time', monthStart.toISOString())
-                .lt('start_time', monthEndExclusive.toISOString())
-            : { data: [], error: null }
+        const eventsRes = eventIds.length
+          ? await supabase
+            .from('calendar_events')
+            .select('id, start_time, end_time')
+            .in('id', eventIds)
+            .gte('start_time', monthStart.toISOString())
+            .lt('start_time', monthEndExclusive.toISOString())
+          : { data: [], error: null }
 
-          if ((eventsRes as any)?.error) {
-            console.warn('⚠️ [CLIENT CALENDAR] Error obteniendo calendar_events:', (eventsRes as any).error)
-          }
-
-          const events = Array.isArray((eventsRes as any)?.data) ? (eventsRes as any).data : []
-          events.forEach((ev: any) => {
-            if (!ev?.start_time) return
-            const start = new Date(String(ev.start_time))
-            if (Number.isNaN(start.getTime())) return
-            const end = ev.end_time ? new Date(String(ev.end_time)) : null
-            const mins = (() => {
-              if (end && !Number.isNaN(end.getTime())) {
-                const diff = (end.getTime() - start.getTime()) / 60000
-                return diff > 0 ? diff : 0
-              }
-              return 30
-            })()
-            const dayKey = start.toISOString().split('T')[0]
-            if (!dayKey) return
-            const add = Math.round(mins)
-            if (!eventsMinutesByDate[dayKey]) eventsMinutesByDate[dayKey] = 0
-            eventsMinutesByDate[dayKey] += add
-          })
-
-          Object.keys(eventsMinutesByDate).forEach((dayKey) => {
-            const mins = Number(eventsMinutesByDate[dayKey] || 0) || 0
-            if (mins <= 0) return
-
-            // Consideramos estos minutos como "otras actividades"
-            fechasConRegistros.add(dayKey)
-            if (!processedData[dayKey]) {
-              processedData[dayKey] = {
-                date: dayKey,
-                exerciseCount: 0,
-                completedCount: 0,
-                totalMinutes: 0,
-                exercises: [],
-                activities: []
-              }
-            }
-            processedData[dayKey].totalMinutes += mins
-          })
-        } catch (e) {
-          console.warn('⚠️ [CLIENT CALENDAR] Error cargando calendar events:', e)
+        if ((eventsRes as any)?.error) {
+          console.warn('⚠️ [CLIENT CALENDAR] Error obteniendo calendar_events:', (eventsRes as any).error)
         }
 
-        // ✅ Solo mostrar días con registros reales, NO agregar planificación futura
-        // Filtrar processedData para incluir solo días con registros reales
-        const processedDataFiltered: { [key: string]: DayData } = {}
-        Object.keys(processedData).forEach(fecha => {
-          if (fechasConRegistros.has(fecha)) {
-            processedDataFiltered[fecha] = processedData[fecha]
-          }
+        const events = Array.isArray((eventsRes as any)?.data) ? (eventsRes as any).data : []
+        events.forEach((ev: any) => {
+          if (!ev?.start_time) return
+          const start = new Date(String(ev.start_time))
+          if (Number.isNaN(start.getTime())) return
+          const end = ev.end_time ? new Date(String(ev.end_time)) : null
+          const mins = (() => {
+            if (end && !Number.isNaN(end.getTime())) {
+              const diff = (end.getTime() - start.getTime()) / 60000
+              return diff > 0 ? diff : 0
+            }
+            return 30
+          })()
+          const dayKey = start.toISOString().split('T')[0]
+          if (!dayKey) return
+          const add = Math.round(mins)
+          if (!eventsMinutesByDate[dayKey]) eventsMinutesByDate[dayKey] = 0
+          eventsMinutesByDate[dayKey] += add
         })
 
-        setDayData(processedDataFiltered)
-        setOtherMinutesByDate(eventsMinutesByDate)
+        Object.keys(eventsMinutesByDate).forEach((dayKey) => {
+          const mins = Number(eventsMinutesByDate[dayKey] || 0) || 0
+          if (mins <= 0) return
 
-        // Calcular la última ejercitación (último día que completó al menos un ejercicio)
-        const lastWorkoutDate = calculateLastWorkoutDate(processedDataFiltered)
-        if (onLastWorkoutUpdate) {
-          onLastWorkoutUpdate(lastWorkoutDate)
-        }
-      } catch (error) {
-        console.error('❌ [CLIENT CALENDAR] Error general:', error)
-      } finally {
-        setLoading(false)
+          // Consideramos estos minutos como "otras actividades"
+          fechasConRegistros.add(dayKey)
+          if (!processedData[dayKey]) {
+            processedData[dayKey] = {
+              date: dayKey,
+              exerciseCount: 0,
+              completedCount: 0,
+              totalMinutes: 0,
+              exercises: [],
+              activities: []
+            }
+          }
+          processedData[dayKey].totalMinutes += mins
+        })
+      } catch (e) {
+        console.warn('⚠️ [CLIENT CALENDAR] Error cargando calendar events:', e)
       }
+
+      // ✅ Solo mostrar días con registros reales, NO agregar planificación futura
+      // Filtrar processedData para incluir solo días con registros reales
+      const processedDataFiltered: { [key: string]: DayData } = {}
+      Object.keys(processedData).forEach(fecha => {
+        if (fechasConRegistros.has(fecha)) {
+          processedDataFiltered[fecha] = processedData[fecha]
+        }
+      })
+
+      setDayData(processedDataFiltered)
+      setOtherMinutesByDate(eventsMinutesByDate)
+
+      // Calcular la última ejercitación (último día que completó al menos un ejercicio)
+      const lastWorkoutDate = calculateLastWorkoutDate(processedDataFiltered)
+      if (onLastWorkoutUpdate) {
+        onLastWorkoutUpdate(lastWorkoutDate)
+      }
+    } catch (error) {
+      console.error('❌ [CLIENT CALENDAR] Error general:', error)
+    } finally {
+      setLoading(false)
     }
+  }
 
-    // CÓDIGO COMENTADO: Ya no agregamos planificación futura automáticamente
-    // Solo mostramos días con registros reales en progreso_cliente o progreso_cliente_nutricion
-    /*
-        // ✅ Cargar planificación semanal desde planificacion_ejercicios para cada actividad
-        if (enrollments && enrollments.length > 0) {
-          const currentMonth = currentDate.getMonth()
-          const currentYear = currentDate.getFullYear()
-          const monthStart = new Date(currentYear, currentMonth, 1)
-          const monthEnd = new Date(currentYear, currentMonth + 1, 0)
+  // CÓDIGO COMENTADO: Ya no agregamos planificación futura automáticamente
+  // Solo mostramos días con registros reales en progreso_cliente o progreso_cliente_nutricion
+  /*
+      // ✅ Cargar planificación semanal desde planificacion_ejercicios para cada actividad
+      if (enrollments && enrollments.length > 0) {
+        const currentMonth = currentDate.getMonth()
+        const currentYear = currentDate.getFullYear()
+        const monthStart = new Date(currentYear, currentMonth, 1)
+        const monthEnd = new Date(currentYear, currentMonth + 1, 0)
 
-          for (const enrollment of enrollments) {
-            if (!enrollment.start_date || !enrollment.activity_id) continue
+        for (const enrollment of enrollments) {
+          if (!enrollment.start_date || !enrollment.activity_id) continue
 
-            const startDate = new Date(enrollment.start_date)
-            const actividadId = enrollment.activity_id
+          const startDate = new Date(enrollment.start_date)
+          const actividadId = enrollment.activity_id
 
-            // ✅ Obtener planificación semanal para esta actividad
-            const { data: planificacion, error: planError } = await supabase
-              .from('planificacion_ejercicios')
-              .select('*')
-              .eq('actividad_id', actividadId)
-              .order('numero_semana', { ascending: true })
+          // ✅ Obtener planificación semanal para esta actividad
+          const { data: planificacion, error: planError } = await supabase
+            .from('planificacion_ejercicios')
+            .select('*')
+            .eq('actividad_id', actividadId)
+            .order('numero_semana', { ascending: true })
 
-            if (planError) {
-              console.warn(`⚠️ [CLIENT CALENDAR] Error obteniendo planificación para actividad ${actividadId}:`, planError)
-              continue
-            }
+          if (planError) {
+            console.warn(`⚠️ [CLIENT CALENDAR] Error obteniendo planificación para actividad ${actividadId}:`, planError)
+            continue
+          }
 
-            if (!planificacion || planificacion.length === 0) {
-              console.log(`ℹ️ [CLIENT CALENDAR] No hay planificación para actividad ${actividadId}`)
-              continue
-            }
+          if (!planificacion || planificacion.length === 0) {
+            console.log(`ℹ️ [CLIENT CALENDAR] No hay planificación para actividad ${actividadId}`)
+            continue
+          }
 
-            // ✅ Recopilar IDs de la planificación
-            planificacion.forEach((semana: any) => {
-              const diasSemana = ['lunes', 'martes', 'miercoles', 'jueves', 'viernes', 'sabado', 'domingo']
-              diasSemana.forEach((dia: string) => {
-                const diaData = semana[dia]
-                if (!diaData) return
-
-                let ejerciciosDelDia: any[] = []
-                try {
-                  if (typeof diaData === 'string') {
-                    ejerciciosDelDia = JSON.parse(diaData)
-                  } else if (Array.isArray(diaData)) {
-                    ejerciciosDelDia = diaData
-                  } else if (diaData && typeof diaData === 'object') {
-                    ejerciciosDelDia = (diaData as any).ejercicios || (diaData as any).exercises || []
-                  }
-                } catch (err) {
-                  // Ignorar errores de parsing
-                }
-
-                ejerciciosDelDia.forEach((ej: any) => {
-                  const ejId = String(ej.id || ej.ejercicioId || ej.ejercicio_id)
-                  if (ejId) planificacionIds.add(ejId)
-                })
-              })
-            })
-
-            // ✅ Obtener períodos para calcular semanas totales
-            const { data: periodosData } = await supabase
-              .from('periodos')
-              .select('cantidad_periodos')
-              .eq('actividad_id', actividadId)
-              .single()
-
-            const cantidadPeriodos = periodosData?.cantidad_periodos || 1
-            const maxSemanasPlanificacion = Math.max(...planificacion.map((p: any) => p.numero_semana))
-
-            // ✅ Obtener tipo de actividad
-            const actividadType = actividadTypes.get(actividadId)
-            
-            // ✅ Si no tenemos el tipo, obtenerlo
-            if (!actividadType && actividadId) {
-              const { data: actData } = await supabase
-                .from('activities')
-                .select('type')
-                .eq('id', actividadId)
-                .single()
-              
-              if (actData) {
-                actividadTypes.set(actividadId, actData.type)
-              }
-            }
-
-            // ✅ Procesar cada día del mes actual
-            for (let day = 1; day <= monthEnd.getDate(); day++) {
-              const fecha = new Date(currentYear, currentMonth, day)
-              const fechaStr = fecha.toISOString().split('T')[0]
-
-              // Solo procesar fechas futuras o iguales a start_date
-              if (fecha < startDate) continue
-
-              // Calcular semana del ciclo
-              const diffDays = Math.floor((fecha.getTime() - startDate.getTime()) / (1000 * 60 * 60 * 24))
-              const totalWeekNumber = Math.floor(diffDays / 7) + 1
-              const weekInCycle = ((totalWeekNumber - 1) % maxSemanasPlanificacion) + 1
-
-              // Obtener día de la semana (0 = domingo, 1 = lunes, ..., 6 = sábado)
-              const dayOfWeek = fecha.getDay()
-              const diasMap: Record<number, string> = {
-                0: 'domingo',
-                1: 'lunes',
-                2: 'martes',
-                3: 'miercoles',
-                4: 'jueves',
-                5: 'viernes',
-                6: 'sabado'
-              }
-              const diaColumna = diasMap[dayOfWeek]
-
-              // ✅ Obtener planificación para esta semana y día
-              const semanaPlanificacion = planificacion.find(p => p.numero_semana === weekInCycle)
-              if (!semanaPlanificacion || !semanaPlanificacion[diaColumna]) continue
+          // ✅ Recopilar IDs de la planificación
+          planificacion.forEach((semana: any) => {
+            const diasSemana = ['lunes', 'martes', 'miercoles', 'jueves', 'viernes', 'sabado', 'domingo']
+            diasSemana.forEach((dia: string) => {
+              const diaData = semana[dia]
+              if (!diaData) return
 
               let ejerciciosDelDia: any[] = []
               try {
-                const diaData = semanaPlanificacion[diaColumna]
                 if (typeof diaData === 'string') {
                   ejerciciosDelDia = JSON.parse(diaData)
                 } else if (Array.isArray(diaData)) {
                   ejerciciosDelDia = diaData
                 } else if (diaData && typeof diaData === 'object') {
-                  // Si es un objeto con estructura { ejercicios: [...] }
                   ejerciciosDelDia = (diaData as any).ejercicios || (diaData as any).exercises || []
                 }
               } catch (err) {
-                console.warn(`⚠️ Error parseando planificación para ${fechaStr}:`, err)
-                continue
+                // Ignorar errores de parsing
               }
 
-              if (!Array.isArray(ejerciciosDelDia) || ejerciciosDelDia.length === 0) continue
-
-              // ✅ Inicializar día si no existe
-              if (!processedData[fechaStr]) {
-                processedData[fechaStr] = {
-                  date: fechaStr,
-                  exerciseCount: 0,
-                  completedCount: 0,
-                  exercises: [],
-                  activities: []
-                }
-              }
-
-              // ✅ Agregar ejercicios/platos planificados
               ejerciciosDelDia.forEach((ej: any) => {
                 const ejId = String(ej.id || ej.ejercicioId || ej.ejercicio_id)
-                if (!ejId) return
-
-                // Verificar si ya existe en processedData (desde progreso_cliente)
-                const existe = processedData[fechaStr].exercises.some(
-                  ex => String(ex.ejercicio_id) === ejId
-                )
-
-                if (!existe) {
-                  const nombre = nombresMap.get(ejId)
-                  const defaultNombre = actividadType === 'nutricion' || actividadType === 'nutrition_program'
-                    ? `Plato ${ejId}`
-                    : `Ejercicio ${ejId}`
-
-                  // ✅ Obtener enrollment_id y versión para esta actividad
-                  const enrollmentForActivity = enrollments.find(e => e.activity_id === actividadId)
-                  const enrollmentId = enrollmentForActivity?.id
-                  const version = enrollmentId ? enrollmentVersions.get(enrollmentId) : undefined
-                  const actividadTitulo = actividadTitulos.get(actividadId)
-
-                  const exerciseData: ExerciseExecution = {
-                    id: `plan-${actividadId}-${fechaStr}-${ejId}`,
-                    ejercicio_id: ejId,
-                    completado: false, // No completado aún (solo planificado)
-                    fecha_ejercicio: fechaStr,
-                    duracion: undefined,
-                    calorias_estimadas: undefined,
-                    nota_cliente: undefined,
-                    ejercicio_nombre: nombre || defaultNombre,
-                    actividad_titulo: actividadTitulo,
-                    actividad_id: actividadId,
-                    enrollment_id: enrollmentId,
-                    version: version,
-                    detalle_series: null
-                  }
-
-                  processedData[fechaStr].exercises.push(exerciseData)
-                  processedData[fechaStr].exerciseCount += 1
-                }
+                if (ejId) planificacionIds.add(ejId)
               })
+            })
+          })
+
+          // ✅ Obtener períodos para calcular semanas totales
+          const { data: periodosData } = await supabase
+            .from('periodos')
+            .select('cantidad_periodos')
+            .eq('actividad_id', actividadId)
+            .single()
+
+          const cantidadPeriodos = periodosData?.cantidad_periodos || 1
+          const maxSemanasPlanificacion = Math.max(...planificacion.map((p: any) => p.numero_semana))
+
+          // ✅ Obtener tipo de actividad
+          const actividadType = actividadTypes.get(actividadId)
+          
+          // ✅ Si no tenemos el tipo, obtenerlo
+          if (!actividadType && actividadId) {
+            const { data: actData } = await supabase
+              .from('activities')
+              .select('type')
+              .eq('id', actividadId)
+              .single()
+            
+            if (actData) {
+              actividadTypes.set(actividadId, actData.type)
             }
           }
-        }
 
-        */
+          // ✅ Procesar cada día del mes actual
+          for (let day = 1; day <= monthEnd.getDate(); day++) {
+            const fecha = new Date(currentYear, currentMonth, day)
+            const fechaStr = fecha.toISOString().split('T')[0]
+
+            // Solo procesar fechas futuras o iguales a start_date
+            if (fecha < startDate) continue
+
+            // Calcular semana del ciclo
+            const diffDays = Math.floor((fecha.getTime() - startDate.getTime()) / (1000 * 60 * 60 * 24))
+            const totalWeekNumber = Math.floor(diffDays / 7) + 1
+            const weekInCycle = ((totalWeekNumber - 1) % maxSemanasPlanificacion) + 1
+
+            // Obtener día de la semana (0 = domingo, 1 = lunes, ..., 6 = sábado)
+            const dayOfWeek = fecha.getDay()
+            const diasMap: Record<number, string> = {
+              0: 'domingo',
+              1: 'lunes',
+              2: 'martes',
+              3: 'miercoles',
+              4: 'jueves',
+              5: 'viernes',
+              6: 'sabado'
+            }
+            const diaColumna = diasMap[dayOfWeek]
+
+            // ✅ Obtener planificación para esta semana y día
+            const semanaPlanificacion = planificacion.find(p => p.numero_semana === weekInCycle)
+            if (!semanaPlanificacion || !semanaPlanificacion[diaColumna]) continue
+
+            let ejerciciosDelDia: any[] = []
+            try {
+              const diaData = semanaPlanificacion[diaColumna]
+              if (typeof diaData === 'string') {
+                ejerciciosDelDia = JSON.parse(diaData)
+              } else if (Array.isArray(diaData)) {
+                ejerciciosDelDia = diaData
+              } else if (diaData && typeof diaData === 'object') {
+                // Si es un objeto con estructura { ejercicios: [...] }
+                ejerciciosDelDia = (diaData as any).ejercicios || (diaData as any).exercises || []
+              }
+            } catch (err) {
+              console.warn(`⚠️ Error parseando planificación para ${fechaStr}:`, err)
+              continue
+            }
+
+            if (!Array.isArray(ejerciciosDelDia) || ejerciciosDelDia.length === 0) continue
+
+            // ✅ Inicializar día si no existe
+            if (!processedData[fechaStr]) {
+              processedData[fechaStr] = {
+                date: fechaStr,
+                exerciseCount: 0,
+                completedCount: 0,
+                exercises: [],
+                activities: []
+              }
+            }
+
+            // ✅ Agregar ejercicios/platos planificados
+            ejerciciosDelDia.forEach((ej: any) => {
+              const ejId = String(ej.id || ej.ejercicioId || ej.ejercicio_id)
+              if (!ejId) return
+
+              // Verificar si ya existe en processedData (desde progreso_cliente)
+              const existe = processedData[fechaStr].exercises.some(
+                ex => String(ex.ejercicio_id) === ejId
+              )
+
+              if (!existe) {
+                const nombre = nombresMap.get(ejId)
+                const defaultNombre = actividadType === 'nutricion' || actividadType === 'nutrition_program'
+                  ? `Plato ${ejId}`
+                  : `Ejercicio ${ejId}`
+
+                // ✅ Obtener enrollment_id y versión para esta actividad
+                const enrollmentForActivity = enrollments.find(e => e.activity_id === actividadId)
+                const enrollmentId = enrollmentForActivity?.id
+                const version = enrollmentId ? enrollmentVersions.get(enrollmentId) : undefined
+                const actividadTitulo = actividadTitulos.get(actividadId)
+
+                const exerciseData: ExerciseExecution = {
+                  id: `plan-${actividadId}-${fechaStr}-${ejId}`,
+                  ejercicio_id: ejId,
+                  completado: false, // No completado aún (solo planificado)
+                  fecha_ejercicio: fechaStr,
+                  duracion: undefined,
+                  calorias_estimadas: undefined,
+                  nota_cliente: undefined,
+                  ejercicio_nombre: nombre || defaultNombre,
+                  actividad_titulo: actividadTitulo,
+                  actividad_id: actividadId,
+                  enrollment_id: enrollmentId,
+                  version: version,
+                  detalle_series: null
+                }
+
+                processedData[fechaStr].exercises.push(exerciseData)
+                processedData[fechaStr].exerciseCount += 1
+              }
+            })
+          }
+        }
+      }
+
+      */
 
   // Obtener datos de ejercicios del cliente
   useEffect(() => {
@@ -2827,7 +2968,7 @@ export function ClientCalendar({ clientId, onLastWorkoutUpdate, onDaySelected, e
       days.push(new Date(currentDay))
       currentDay.setDate(currentDay.getDate() + 1)
     }
-    
+
     return days
   }
 
@@ -2904,6 +3045,328 @@ export function ClientCalendar({ clientId, onLastWorkoutUpdate, onDaySelected, e
 
   const dayNames = ['Dom', 'Lun', 'Mar', 'Mié', 'Jue', 'Vie', 'Sáb']
 
+  // Función para aplicar cambios en cascada (futuro)
+  const handleApplyCascade = async (scope: 'same_day' | 'future_all') => {
+    if (!cascadeModal) return
+    setLoading(true)
+
+    try {
+      const { type, mode, sourceDate, payload } = cascadeModal
+      const nextDay = new Date(sourceDate)
+      nextDay.setDate(nextDay.getDate() + 1)
+      const startDateStr = nextDay.toISOString().split('T')[0]
+      const sourceDayIndex = new Date(sourceDate + 'T00:00:00').getDay()
+
+      const updates: any[] = []
+
+      if (type === 'fitness') {
+        console.log(`Cascade Fitness: Fetching rows >= ${startDateStr}`)
+        // Fetch all future progress
+        const { data: rows, error } = await supabase
+          .from('progreso_cliente')
+          .select('*')
+          .eq('cliente_id', clientId)
+          .gte('fecha', startDateStr)
+
+        if (error) {
+          console.error('Cascade Fetch Error:', error)
+          throw error
+        }
+        if (!rows) return
+
+        for (const row of rows) {
+          const rowDate = new Date(row.fecha + 'T00:00:00')
+          const rowDayIndex = rowDate.getDay()
+
+          // Filter by Day of Week
+          if (scope === 'same_day' && rowDayIndex !== sourceDayIndex) continue
+
+          // Parse JSONs
+          const detalles = typeof row.detalles_series === 'string' ? JSON.parse(row.detalles_series) : (row.detalles_series || {})
+          const minutos = typeof row.minutos_json === 'string' ? JSON.parse(row.minutos_json) : (row.minutos_json || {})
+          const calorias = typeof row.calorias_json === 'string' ? JSON.parse(row.calorias_json) : (row.calorias_json || {})
+
+          let modified = false
+
+          // Swap Logic
+          if (mode === 'swap') {
+            // payload: { originalId, newId, validSeries }
+            // originalId might be '1042_1' or '1042'
+            const oldBase = payload.originalId ? String(payload.originalId).split('_')[0] : null
+            const newBase = String(payload.newId).split('_')[0]
+
+            if (oldBase && newBase) {
+              // Find keys starting with oldBase
+              const detailKeys = Object.keys(detalles).filter(k => k.split('_')[0] === oldBase)
+
+              if (detailKeys.length > 0) {
+                modified = true
+                // Remove old keys and add new keys
+                detailKeys.forEach(k => {
+                  delete detalles[k]
+                  delete minutos[k]
+                  delete calorias[k]
+                })
+
+                // Add new keys based on payload.validSeries (if provided) or just mapping?
+                // The user wants to APPLY the change. So we copy the new configuration.
+                if (payload.validSeries && Array.isArray(payload.validSeries)) {
+                  payload.validSeries.forEach((serie: any, idx: number) => {
+                    const newKey = `${newBase}_${idx + 1}`
+                    detalles[newKey] = {
+                      orden: idx + 1,
+                      bloque: idx + 1,
+                      ejercicio_id: parseInt(newBase),
+                      detalle_series: `(${serie.peso || 0}-${serie.repeticiones}-${serie.series})`
+                    }
+                    if (serie.minutos) minutos[newKey] = parseInt(serie.minutos)
+                    if (serie.calorias) calorias[newKey] = parseInt(serie.calorias)
+                  })
+                }
+              }
+            }
+          }
+          // Update Logic
+          else if (mode === 'update') {
+            // payload: { newId, validSeries }
+            const targetBase = String(payload.newId).split('_')[0]
+
+            // Check if this day HAS this exercise
+            const detailKeys = Object.keys(detalles).filter(k => k.split('_')[0] === targetBase)
+
+            // If scope is 'future_all', we only update rows that HAVE the exercise.
+            // If scope is 'same_day' and it doesn't have it, we skip? Yes.
+            if (detailKeys.length > 0) {
+              modified = true
+              // Update the existing keys with new data
+              // Cleaning old keys for this base first to handle block count change
+              detailKeys.forEach(k => {
+                delete detalles[k]
+                delete minutos[k]
+                delete calorias[k]
+              })
+
+              if (payload.validSeries && Array.isArray(payload.validSeries)) {
+                payload.validSeries.forEach((serie: any, idx: number) => {
+                  const newKey = `${targetBase}_${idx + 1}`
+                  detalles[newKey] = {
+                    orden: idx + 1,
+                    bloque: idx + 1,
+                    ejercicio_id: parseInt(targetBase),
+                    detalle_series: `(${serie.peso || 0}-${serie.repeticiones}-${serie.series})`
+                  }
+                  if (serie.minutos) minutos[newKey] = parseInt(serie.minutos)
+                  if (serie.calorias) calorias[newKey] = parseInt(serie.calorias)
+                })
+              }
+            }
+          }
+
+          if (modified) {
+            updates.push({
+              ...row,
+              detalles_series: detalles,
+              minutos_json: minutos,
+              calorias_json: calorias
+            })
+          }
+        }
+
+        if (updates.length > 0) {
+          const { error: upsertError } = await supabase.from('progreso_cliente').upsert(updates)
+          if (upsertError) throw upsertError
+        }
+
+      } else if (type === 'nutrition') {
+        console.log(`Cascade Nutrition: Fetching rows >= ${startDateStr}`)
+        const { data: rows, error } = await supabase
+          .from('progreso_cliente_nutricion')
+          .select('*')
+          .eq('cliente_id', clientId)
+          .gte('fecha', startDateStr)
+
+        if (error) throw error
+        if (!rows) return
+
+        for (const row of rows) {
+          const rowDate = new Date(row.fecha + 'T00:00:00')
+          const rowDayIndex = rowDate.getDay()
+
+          if (scope === 'same_day' && rowDayIndex !== sourceDayIndex) continue
+
+          // Helper to find the container and key for a specific Plate ID
+          const macros = typeof row.macros === 'string' ? JSON.parse(row.macros) : (row.macros || {})
+          const ingredientes = typeof row.ingredientes === 'string' ? JSON.parse(row.ingredientes) : (row.ingredientes || {})
+          const pendientes = typeof row.ejercicios_pendientes === 'string' ? JSON.parse(row.ejercicios_pendientes) : (row.ejercicios_pendientes || {})
+          const completados = typeof row.ejercicios_completados === 'string' ? JSON.parse(row.ejercicios_completados) : (row.ejercicios_completados || {})
+
+          let modified = false
+
+          // The structure can be:
+          // 1. { "0": { id: 753, ... }, "1": ... } (Direct object map)
+          // 2. { ejercicios: { "0": { id: 753 } ... } } (Wrapped object)
+          // 3. { ejercicios: [ { id: 753 } ... ] } (Wrapped array)
+
+          let targetKey: string | null = null
+          let containerType: 'pendientes' | 'completados' | null = null
+          let innerKey: string | null = null // Key inside 'ejercicios' or top level
+          let foundItem: any = null
+
+          const searchId = mode === 'swap' ? payload.oldId : payload.newId
+          const searchIdStr = String(searchId)
+
+          // Recursive finder function returns { containerObj, key, item }
+          const findInContainer = (container: any): { subContainer: any, key: string, item: any } | null => {
+            if (!container) return null
+
+            // Direct check (Flat structure or "0", "1" keys)
+            for (const k of Object.keys(container)) {
+              const val = container[k]
+              if (val && typeof val === 'object') {
+                const valId = val.id !== undefined ? val.id : val.ejercicio_id
+                console.log(`Cascade Check: ${k} -> ID: ${valId} vs Target: ${searchIdStr}`)
+                if (String(valId) === searchIdStr) {
+                  return { subContainer: container, key: k, item: val }
+                }
+              }
+            }
+
+            // Check "ejercicios" wrapper
+            if (container.ejercicios) {
+              console.log('Cascade: Checking "ejercicios" wrapper in', containerType)
+              if (Array.isArray(container.ejercicios)) {
+                for (let idx = 0; idx < container.ejercicios.length; idx++) {
+                  const x = container.ejercicios[idx]
+                  const valId = x.id || x.ejercicio_id
+                  console.log(`Cascade Array Check [${idx}] -> ID: ${valId}`)
+                  if (String(valId) === searchIdStr) return { subContainer: container.ejercicios, key: String(idx), item: x }
+                }
+              } else if (typeof container.ejercicios === 'object') {
+                for (const k of Object.keys(container.ejercicios)) {
+                  const val = container.ejercicios[k]
+                  const valId = val.id !== undefined ? val.id : val.ejercicio_id
+                  console.log(`Cascade Object Check [${k}] -> ID: ${valId}`)
+                  if (String(valId) === searchIdStr) {
+                    return { subContainer: container.ejercicios, key: k, item: val }
+                  }
+                }
+              }
+            }
+            return null
+          }
+
+          const foundPending = findInContainer(pendientes)
+          if (foundPending) console.log('Cascade: Found in Pending')
+
+          if (foundPending) {
+            containerType = 'pendientes'
+            foundItem = foundPending.item
+            innerKey = foundPending.key
+            // The macro key usually combines ID + Block/Index. e.g. "753_3".
+            // We need to deduce the macro key associated with this item.
+            // We can check the `macros` object for a key starting with `ID_`.
+          } else {
+            const foundCompleted = findInContainer(completados)
+            if (foundCompleted) {
+              containerType = 'completados'
+              foundItem = foundCompleted.item
+              innerKey = foundCompleted.key
+            }
+          }
+
+          if (containerType && foundItem) {
+            console.log(`Cascade: Match Confirmed in ${row.fecha}! Key: ${innerKey}`)
+            modified = true
+
+            // Deduce Macro Key: Look for key in macros that matches `ID_Block` or just `ID_`
+            // The item might have 'bloque' property.
+            // User data: "753_3": {...}. Item has { "id": 753, "bloque": 1, "orden": 3 }. 
+            // Wait, the key is `753_3`. Is 3 the 'orden'?
+            // "orden": 3. Yes.
+            // So key pattern is likely `${id}_${orden}`.
+            const currentMacroKey = `${searchId}_${foundItem.orden}`
+            // Just in case, try to find strictly in macros if not found standard way
+            const existingMacroKey = Object.keys(macros).find(k => k === currentMacroKey) || Object.keys(macros).find(k => k.startsWith(`${searchId}_`))
+
+            if (mode === 'swap') {
+              // Update ID in the item
+              foundItem.id = Number(payload.newId) // Update 'id'
+              if (foundItem.ejercicio_id !== undefined) foundItem.ejercicio_id = Number(payload.newId) // Update 'ejercicio_id' if exists
+
+              // Determine NEW Macro Key
+              // If we keep the same 'orden', the new key is `NEWID_ORDEN`.
+              const newMacroKey = `${payload.newId}_${foundItem.orden}`
+
+              // Swap Macros
+              if (existingMacroKey) {
+                delete macros[existingMacroKey]
+                macros[newMacroKey] = payload.macros
+              } else {
+                // If old macro key not found, just add new one
+                macros[newMacroKey] = payload.macros
+              }
+
+              // Swap Ingredients
+              if (existingMacroKey && ingredientes[existingMacroKey]) {
+                delete ingredientes[existingMacroKey]
+              }
+              if (payload.ingredients) ingredientes[newMacroKey] = payload.ingredients
+
+            } else {
+              // Update Mode
+              // Update Macros for existing key
+              if (existingMacroKey) {
+                macros[existingMacroKey] = { ...macros[existingMacroKey], ...payload.macros }
+                if (payload.ingredients) ingredientes[existingMacroKey] = payload.ingredients
+              }
+            }
+          }
+
+          if (modified) {
+            updates.push({
+              ...row,
+              macros,
+              ingredientes,
+              ejercicios_pendientes: pendientes,
+              ejercicios_completados: completados
+            })
+          }
+        }
+
+        if (updates.length > 0) {
+          console.log(`Cascade: Updating ${updates.length} rows.`)
+          const { error: upsertError } = await supabase.from('progreso_cliente_nutricion').upsert(updates)
+          if (upsertError) throw upsertError
+        }
+      }
+
+    } catch (e) {
+      console.error('Error applying cascade:', e)
+    } finally {
+      // Invalidate Cache and Refresh
+      setActivityDetailsByKey({})
+      await fetchClientCalendarSummary()
+
+      // Force reload of current day details if open
+      if (selectedDate) {
+        const dateStr = selectedDate.toISOString().split('T')[0]
+        const uniqueActs = new Set(selectedDayExercises.map(e => e.actividad_id).filter(id => id !== undefined && id !== null))
+        for (const actId of Array.from(uniqueActs)) {
+          await loadDayActivityDetails(dateStr, Number(actId))
+        }
+      }
+
+      setLoading(false)
+      // Cleanup
+      if (cascadeModal?.type === 'fitness') {
+        handleCancelEditSeries()
+      } else {
+        handleCancelNutrition()
+      }
+      setCascadeModal(null)
+    }
+  }
+
   if (loading) {
     return (
       <div className="flex items-center justify-center py-8">
@@ -2915,10 +3378,10 @@ export function ClientCalendar({ clientId, onLastWorkoutUpdate, onDaySelected, e
 
   return (
     <div className="w-full space-y-6">
-        {/* Navegación del mes y resumen lado a lado */}
-        <div className="flex items-center gap-4">
-          {/* Navegación del mes - 50% */}
-          <div className="flex-1 flex items-center justify-center gap-2">
+      {/* Navegación del mes y resumen lado a lado */}
+      <div className="flex items-center gap-4">
+        {/* Navegación del mes - 50% */}
+        <div className="flex-1 flex items-center justify-center gap-2">
           <button
             onClick={showMonthPicker ? () => setMonthPickerYear((y) => y - 1) : goToPreviousMonth}
             className="p-1.5 hover:bg-[#FF7939]/20 rounded-lg transition-all duration-200 group"
@@ -2986,9 +3449,8 @@ export function ClientCalendar({ clientId, onLastWorkoutUpdate, onDaySelected, e
                     key={m}
                     type="button"
                     onClick={() => handleSelectMonth(idx)}
-                    className={`shrink-0 px-3 py-1 rounded-full text-xs font-semibold transition-colors ${
-                      isCurrent ? 'bg-[#FF7939] text-white' : 'bg-zinc-800/60 text-gray-300 hover:bg-zinc-700/60'
-                    }`}
+                    className={`shrink-0 px-3 py-1 rounded-full text-xs font-semibold transition-colors ${isCurrent ? 'bg-[#FF7939] text-white' : 'bg-zinc-800/60 text-gray-300 hover:bg-zinc-700/60'
+                      }`}
                   >
                     {m}
                   </button>
@@ -2999,19 +3461,19 @@ export function ClientCalendar({ clientId, onLastWorkoutUpdate, onDaySelected, e
         </div>
       )}
 
-        {/* Calendario sin frame */}
-        <div className="w-full">
+      {/* Calendario sin frame */}
+      <div className="w-full">
         {/* Días de la semana sin fondo */}
-      <div className="grid grid-cols-7 gap-1 mb-2">
+        <div className="grid grid-cols-7 gap-1 mb-2">
           {dayNames.map(day => (
             <div key={day} className="text-center text-xs font-semibold text-gray-400 py-2">
-            {day}
-          </div>
-        ))}
-      </div>
+              {day}
+            </div>
+          ))}
+        </div>
 
         {/* Días del mes compactos */}
-      <div className="grid grid-cols-7 gap-1">
+        <div className="grid grid-cols-7 gap-1">
           {generateCalendarDays().map((date, index) => {
             const isCurrentMonth = date.getMonth() === currentDate.getMonth()
             const isToday = date.toDateString() === new Date().toDateString()
@@ -3019,17 +3481,17 @@ export function ClientCalendar({ clientId, onLastWorkoutUpdate, onDaySelected, e
             const dayData = getDayData(date)
             const hasExercises = dayData && dayData.exerciseCount > 0
             const isCompleted = dayData && dayData.completedCount === dayData.exerciseCount
-            
+
             // Estados de selección para edición de fechas
             const isSelectedForEdit = selectedDayForEdit && date.toDateString() === selectedDayForEdit.toDateString()
             const isTargetForEdit = targetDayForEdit && date.toDateString() === targetDayForEdit.toDateString()
             const isTargetHasExercises = targetDayForEdit && getDayData(targetDayForEdit) && getDayData(targetDayForEdit)!.exerciseCount > 0
 
-          return (
+            return (
               <button
-              key={index}
+                key={index}
                 onClick={() => handleDayClick(date)}
-              className={`
+                className={`
                   relative p-2 text-sm rounded-lg transition-all duration-300 min-h-[50px] flex flex-col items-center justify-start group
                   ${!isCurrentMonth ? 'text-gray-600 bg-transparent' : 'text-white'}
                   ${isSelected && !isSelectedForEdit && !isTargetForEdit ? 'bg-[#FF7939] text-white shadow-lg shadow-[#FF7939]/25' : ''}
@@ -3047,25 +3509,24 @@ export function ClientCalendar({ clientId, onLastWorkoutUpdate, onDaySelected, e
                 )}
 
                 {/* Número del día siempre en la misma posición */}
-                <div className={`text-center font-semibold text-sm leading-none pt-1 ${
-                  isSelected ? 'text-white' :
+                <div className={`text-center font-semibold text-sm leading-none pt-1 ${isSelected ? 'text-white' :
                   isTargetForEdit ? 'text-black' :
-                  isSelectedForEdit ? 'text-white' :
-                  isCurrentMonth ? 'text-white' : 'text-gray-600'
-                }`}>
+                    isSelectedForEdit ? 'text-white' :
+                      isCurrentMonth ? 'text-white' : 'text-gray-600'
+                  }`}>
                   {date.getDate()}
                 </div>
-                
+
                 {/* Tiempo total siempre en la misma posición */}
                 <div className="mt-1 h-5 flex items-center justify-center">
                   {hasExercises ? (
                     <div className={`
                       text-xs font-bold px-1.5 py-0.5 rounded-full transition-all duration-200 leading-none
-                      ${isTargetForEdit 
-                        ? 'bg-black text-white shadow-sm' 
-                        : isCompleted 
-                        ? 'bg-[#FF7939] text-white shadow-sm' 
-                        : 'bg-zinc-700 text-gray-300 group-hover:bg-zinc-600'
+                      ${isTargetForEdit
+                        ? 'bg-black text-white shadow-sm'
+                        : isCompleted
+                          ? 'bg-[#FF7939] text-white shadow-sm'
+                          : 'bg-zinc-700 text-gray-300 group-hover:bg-zinc-600'
                       }
                     `}>
                       {formatMinutesCompact(dayData.totalMinutes) || dayData.exerciseCount}
@@ -3074,79 +3535,76 @@ export function ClientCalendar({ clientId, onLastWorkoutUpdate, onDaySelected, e
                     <div className="h-4"></div>
                   )}
                 </div>
-                
+
                 {/* Indicador de hover */}
                 {hasExercises && (
                   <div className="absolute inset-0 rounded-lg border-2 border-transparent group-hover:border-[#FF7939]/30 transition-all duration-200 pointer-events-none"></div>
                 )}
               </button>
-          )
-        })}
+            )
+          })}
+        </div>
       </div>
-        </div>
 
-        {activityFilterOptions.length > 0 && (
-          <div className="w-full overflow-x-auto">
-            <div className="flex gap-2 whitespace-nowrap pb-1">
+      {activityFilterOptions.length > 0 && (
+        <div className="w-full overflow-x-auto">
+          <div className="flex gap-2 whitespace-nowrap pb-1">
+            <button
+              type="button"
+              onClick={() => setActiveEnrollmentFilterId(null)}
+              className={`shrink-0 px-3 py-1 rounded-full text-xs font-semibold transition-colors ${!activeEnrollmentFilterId
+                ? 'bg-[#FF7939] text-white'
+                : 'bg-zinc-800/60 text-gray-300 hover:bg-zinc-700/60'
+                }`}
+            >
+              Todas
+            </button>
+            {activityFilterOptions.map(opt => (
               <button
+                key={opt.enrollment_id}
                 type="button"
-                onClick={() => setActiveEnrollmentFilterId(null)}
-                className={`shrink-0 px-3 py-1 rounded-full text-xs font-semibold transition-colors ${
-                  !activeEnrollmentFilterId
-                    ? 'bg-[#FF7939] text-white'
-                    : 'bg-zinc-800/60 text-gray-300 hover:bg-zinc-700/60'
-                }`}
-              >
-                Todas
-              </button>
-              {activityFilterOptions.map(opt => (
-                <button
-                  key={opt.enrollment_id}
-                  type="button"
-                  onClick={() => setActiveEnrollmentFilterId(opt.enrollment_id)}
-                  className={`shrink-0 px-3 py-1 rounded-full text-xs font-semibold transition-colors ${
-                    activeEnrollmentFilterId === opt.enrollment_id
-                      ? 'bg-[#FF7939] text-white'
-                      : 'bg-zinc-800/60 text-gray-300 hover:bg-zinc-700/60'
+                onClick={() => setActiveEnrollmentFilterId(opt.enrollment_id)}
+                className={`shrink-0 px-3 py-1 rounded-full text-xs font-semibold transition-colors ${activeEnrollmentFilterId === opt.enrollment_id
+                  ? 'bg-[#FF7939] text-white'
+                  : 'bg-zinc-800/60 text-gray-300 hover:bg-zinc-700/60'
                   }`}
-                >
-                  {opt.title} v{opt.version}
-                </button>
-              ))}
-            </div>
-          </div>
-        )}
-
-        {/* Indicador de modo de selección */}
-        {isSelectingNewDate && (
-          <div className="text-center">
-            <div className="text-xs text-[#FF7939] font-medium">
-              Selecciona nueva fecha
-            </div>
-          </div>
-        )}
-
-        {/* Detalle del día seleccionado */}
-        {selectedDate && (
-          <div className="w-full" ref={dayDetailRef}>
-            <div className="flex items-center justify-between mb-4">
-              <div className="flex items-center gap-2">
-                <Clock className="h-4 w-4 text-[#FF7939]" />
-                <h4 className="font-semibold text-sm text-white">{formatDate(selectedDate)}</h4>
-        </div>
-              <button
-                onClick={() => handleEditDate(selectedDate)}
-                className={`flex items-center gap-1 px-2 py-1 text-sm font-medium rounded-lg transition-colors ${
-                  isSelectingNewDate 
-                    ? 'bg-[#FF7939] text-white' 
-                    : 'text-[#FF7939] hover:bg-[#FF7939]/10'
-                }`}
               >
-                <RotateCcw className="h-4 w-4" />
-                {isSelectingNewDate ? 'Cancelar' : 'Fecha'}
+                {opt.title} v{opt.version}
               </button>
+            ))}
           </div>
-          
+        </div>
+      )}
+
+      {/* Indicador de modo de selección */}
+      {isSelectingNewDate && (
+        <div className="text-center">
+          <div className="text-xs text-[#FF7939] font-medium">
+            Selecciona nueva fecha
+          </div>
+        </div>
+      )}
+
+      {/* Detalle del día seleccionado */}
+      {selectedDate && (
+        <div className="w-full" ref={dayDetailRef}>
+          <div className="flex items-center justify-between mb-4">
+            <div className="flex items-center gap-2">
+              <Clock className="h-4 w-4 text-[#FF7939]" />
+              <h4 className="font-semibold text-sm text-white">{formatDate(selectedDate)}</h4>
+            </div>
+            <button
+              onClick={() => handleEditDate(selectedDate)}
+              className={`flex items-center gap-1 px-2 py-1 text-sm font-medium rounded-lg transition-colors ${isSelectingNewDate
+                ? 'bg-[#FF7939] text-white'
+                : 'text-[#FF7939] hover:bg-[#FF7939]/10'
+                }`}
+            >
+              <RotateCcw className="h-4 w-4" />
+              {isSelectingNewDate ? 'Cancelar' : 'Fecha'}
+            </button>
+          </div>
+
           {(() => {
             const dayStr = selectedDate.toISOString().split('T')[0]
             const rows = summaryRowsByDate?.[dayStr] || []
@@ -3202,10 +3660,20 @@ export function ClientCalendar({ clientId, onLastWorkoutUpdate, onDaySelected, e
                         await loadDayActivityDetails(dayStr, activityId)
                       }
                     }}
-                    className={`w-full flex items-center justify-between ${allowExpand && activityId ? 'cursor-pointer' : 'cursor-default'}`}
+                    className={`w-full flex items-center justify-between group ${allowExpand && activityId ? 'cursor-pointer' : 'cursor-default'}`}
                   >
-                    <div className="text-sm font-semibold text-gray-200 text-left">
-                      {title}
+                    <div className="flex items-center gap-3">
+                      {/* Línea vertical naranja */}
+                      <div className={`w-1 h-8 rounded-full transition-colors ${expanded ? 'bg-[#FF7939]' : 'bg-zinc-700 group-hover:bg-[#FF7939]/50'}`}></div>
+
+                      <div className="text-sm font-semibold text-gray-200 text-left">
+                        {title}
+                      </div>
+
+                      {/* Flecha naranja simple */}
+                      {allowExpand && activityId && (
+                        <ChevronRight className={`h-4 w-4 text-[#FF7939] transition-transform duration-200 ${expanded ? 'rotate-90' : ''}`} />
+                      )}
                     </div>
                     <div className="text-xs text-gray-400">{formatMinutesCompact(minutes) || '0m'}</div>
                   </button>
@@ -3234,7 +3702,7 @@ export function ClientCalendar({ clientId, onLastWorkoutUpdate, onDaySelected, e
                               return (
                                 <div
                                   key={exercise.id}
-                                  className="w-full flex items-start gap-3 py-3 border-b border-zinc-700/30 last:border-b-0"
+                                  className="w-full flex items-start gap-3 py-3 border-b border-zinc-700/30 last:border-b-0 group"
                                 >
                                   <div className="flex items-center justify-center w-10 pt-1 shrink-0">
                                     <Flame className={`h-5 w-5 ${isCompleted ? 'text-[#FF7939]' : 'text-gray-600'}`} />
@@ -3268,11 +3736,10 @@ export function ClientCalendar({ clientId, onLastWorkoutUpdate, onDaySelected, e
                                                     e.preventDefault()
                                                     handleChangeExercise(String(ex.id))
                                                   }}
-                                                  className={`w-full px-3 py-2 text-left text-sm hover:bg-[#3A3A3A] transition-colors ${
-                                                    String(ex.id) === String(exercise.ejercicio_id)
-                                                      ? 'bg-[#FF7939]/20 text-[#FF7939]'
-                                                      : 'text-white'
-                                                  }`}
+                                                  className={`w-full px-3 py-2 text-left text-sm hover:bg-[#3A3A3A] transition-colors ${String(ex.id) === String(exercise.ejercicio_id)
+                                                    ? 'bg-[#FF7939]/20 text-[#FF7939]'
+                                                    : 'text-white'
+                                                    }`}
                                                 >
                                                   {ex.nombre_ejercicio}
                                                 </button>
@@ -3284,14 +3751,53 @@ export function ClientCalendar({ clientId, onLastWorkoutUpdate, onDaySelected, e
                                         )}
                                       </div>
                                     ) : (
-                                      <div className="text-sm font-semibold text-gray-300 truncate">{exercise.ejercicio_nombre}</div>
+                                      <div className="flex items-center justify-between gap-2">
+                                        <div className="text-sm font-semibold text-gray-300 truncate">{exercise.ejercicio_nombre}</div>
+                                        {(() => {
+                                          const canEdit = exercise.is_nutricion
+                                            ? canEditNutritionForDay(exercise)
+                                            : canEditFitnessForDay(exercise)
+
+                                          if (!canEdit) return null
+
+                                          return (
+                                            <button
+                                              type="button"
+                                              onClick={() => {
+                                                if (exercise.is_nutricion) {
+                                                  handleEditNutrition(exercise)
+                                                } else {
+                                                  setEditingExerciseId(exercise.id)
+                                                  setEditingOriginalExercise({ ...exercise })
+                                                  if (exercise.actividad_id) {
+                                                    loadAvailableExercises(Number(exercise.actividad_id))
+                                                  }
+                                                }
+                                              }}
+                                              className="p-1 text-zinc-600 hover:text-[#FF7939] hover:bg-[#FF7939]/10 rounded transition-colors"
+                                              title="Editar"
+                                            >
+                                              <Edit className="h-3.5 w-3.5" />
+                                            </button>
+                                          )
+                                        })()}
+                                      </div>
                                     )}
 
-                                    <div className="flex flex-wrap items-center gap-2 mt-1">
+                                    <div className="flex flex-wrap items-center gap-3 mt-1">
                                       {exercise.duracion ? <span className="text-xs text-gray-500">{exercise.duracion} min</span> : null}
                                       {exercise.calorias_estimadas ? (
                                         <span className="text-xs text-gray-500">{exercise.calorias_estimadas} kcal</span>
                                       ) : null}
+
+                                      {/* Macros - Only for Nutrition */}
+                                      {exercise.is_nutricion && exercise.nutricion_macros && (
+                                        <div className="flex items-center gap-2 text-xs text-[#FF7939]">
+                                          {exercise.nutricion_macros.proteinas !== undefined && <span>P {exercise.nutricion_macros.proteinas}g</span>}
+                                          {exercise.nutricion_macros.grasas !== undefined && <span>G {exercise.nutricion_macros.grasas}g</span>}
+                                          {exercise.nutricion_macros.carbohidratos !== undefined && <span>C {exercise.nutricion_macros.carbohidratos}g</span>}
+                                        </div>
+                                      )}
                                     </div>
 
                                     {exercise.detalle_series ? (
@@ -3335,10 +3841,10 @@ export function ClientCalendar({ clientId, onLastWorkoutUpdate, onDaySelected, e
                                                         selectedPlate?.calorias !== undefined && selectedPlate?.calorias !== null
                                                           ? String(selectedPlate.calorias)
                                                           : (
-                                                              selectedPlate?.calorías !== undefined && selectedPlate?.calorías !== null
-                                                                ? String(selectedPlate.calorías)
-                                                                : ''
-                                                            ),
+                                                            selectedPlate?.calorías !== undefined && selectedPlate?.calorías !== null
+                                                              ? String(selectedPlate.calorías)
+                                                              : ''
+                                                          ),
                                                       minutos:
                                                         selectedPlate?.minutos !== undefined && selectedPlate?.minutos !== null
                                                           ? String(selectedPlate.minutos)
@@ -3420,17 +3926,26 @@ export function ClientCalendar({ clientId, onLastWorkoutUpdate, onDaySelected, e
                                                 className="w-16 px-2 py-1 text-xs bg-[#2A2A2A] border border-[#3A3A3A] rounded text-white"
                                               />
                                             </div>
+                                            <div className="flex items-center gap-1 mt-auto pb-1">
+                                              <button
+                                                onClick={() => handleOpenIngredients(exercise)}
+                                                className="px-3 py-1.5 bg-[#2A2A2A] border border-[#3A3A3A] text-gray-300 hover:text-white hover:border-[#FF7939] hover:bg-[#FF7939]/10 rounded-md text-xs font-medium transition-all flex items-center gap-2"
+                                              >
+                                                <List className="w-3 h-3" />
+                                                Ingredientes
+                                              </button>
+                                            </div>
+
                                             <div className="flex items-center gap-2 ml-auto">
                                               <button
                                                 type="button"
                                                 onClick={() => handleSaveNutrition(exercise)}
                                                 disabled={!canEditNutrition}
-                                                className={`p-1 rounded transition-colors ${
-                                                  canEditNutrition ? 'text-[#FF7939] hover:bg-[#FF7939]/10' : 'text-gray-600 cursor-not-allowed'
-                                                }`}
+                                                className={`p-1 rounded transition-colors ${canEditNutrition ? 'text-[#FF7939] hover:bg-[#FF7939]/10' : 'text-gray-600 cursor-not-allowed'
+                                                  }`}
                                                 title="Guardar"
                                               >
-                                                <Check className="h-4 w-4" />
+                                                <Save className="h-4 w-4" />
                                               </button>
                                               <button
                                                 type="button"
@@ -3447,9 +3962,8 @@ export function ClientCalendar({ clientId, onLastWorkoutUpdate, onDaySelected, e
                                                   setConfirmDeleteNutritionId(exercise.id)
                                                 }}
                                                 disabled={!canEditNutrition}
-                                                className={`p-1 rounded transition-colors ${
-                                                  canEditNutrition ? 'text-red-500 hover:bg-red-500/10' : 'text-gray-600 cursor-not-allowed'
-                                                }`}
+                                                className={`p-1 rounded transition-colors ${canEditNutrition ? 'text-red-500 hover:bg-red-500/10' : 'text-gray-600 cursor-not-allowed'
+                                                  }`}
                                                 title="Eliminar"
                                               >
                                                 <Trash2 className="h-4 w-4" />
@@ -3502,8 +4016,8 @@ export function ClientCalendar({ clientId, onLastWorkoutUpdate, onDaySelected, e
               </div>
             )
           })()}
-          </div>
-        )}
+        </div>
+      )}
 
       {/* Modal de confirmación */}
       {showConfirmModal && (
@@ -3513,12 +4027,12 @@ export function ClientCalendar({ clientId, onLastWorkoutUpdate, onDaySelected, e
               <RotateCcw className="h-5 w-5 text-[#FF7939]" />
               <h3 className="font-semibold text-lg text-white">Confirmar Cambio</h3>
             </div>
-            
+
             <div className="space-y-4">
               <div className="text-sm text-gray-300">
                 ¿Estás seguro de que quieres cambiar la fecha de los ejercicios?
               </div>
-              
+
               <div className="bg-zinc-800/50 rounded-lg p-3 space-y-2">
                 <div className="flex justify-between text-sm">
                   <span className="text-gray-400">Fecha actual:</span>
@@ -3625,7 +4139,7 @@ export function ClientCalendar({ clientId, onLastWorkoutUpdate, onDaySelected, e
                   </div>
                 </div>
               )}
-              
+
               <div className="flex gap-3 pt-2">
                 <button
                   onClick={() => {
@@ -3648,9 +4162,159 @@ export function ClientCalendar({ clientId, onLastWorkoutUpdate, onDaySelected, e
         </div>
       )}
 
+      {/* Modal de Cascada (Aplicar cambios a futuro) */}
+      {cascadeModal && (
+        <div className="fixed inset-0 bg-black/80 flex items-center justify-center z-[60] p-4 animate-in fade-in duration-200">
+          <div className="bg-[#1E1E1E] rounded-2xl p-6 w-full max-w-sm border border-[#3A3A3A] shadow-2xl">
+            <div className="flex items-center gap-3 mb-4">
+              <div className="w-10 h-10 rounded-full bg-[#FF7939]/20 flex items-center justify-center">
+                <Save className="h-5 w-5 text-[#FF7939]" />
+              </div>
+              <h3 className="font-semibold text-lg text-white">Cambio Guardado</h3>
+            </div>
+
+            <div className="space-y-4">
+              <div className="text-sm text-gray-300 leading-relaxed">
+                Has modificado <span className="text-white font-medium">{cascadeModal.itemName}</span>.
+                <br />
+                ¿Te gustaría aplicar este cambio a otros días?
+              </div>
+
+              <div className="flex flex-col gap-2 pt-2">
+                <button
+                  onClick={() => {
+                    setCascadeModal(null)
+                    if (cascadeModal.type === 'fitness') handleCancelEditSeries()
+                    else handleCancelNutrition()
+                  }}
+                  className="w-full py-3 px-4 bg-[#2A2A2A] text-gray-300 rounded-xl hover:bg-[#3A3A3A] hover:text-white transition-colors text-sm font-medium text-left flex items-center justify-between group"
+                >
+                  <span>Solo este día</span>
+                  <ChevronRight className="h-4 w-4 text-gray-500 group-hover:text-white transition-colors" />
+                </button>
+
+                <button
+                  onClick={() => handleApplyCascade('same_day')}
+                  className="w-full py-3 px-4 bg-[#2A2A2A] text-[#FF7939] rounded-xl hover:bg-[#FF7939] hover:text-white transition-all duration-300 text-sm font-medium text-left flex items-center justify-between group"
+                >
+                  <div className="flex flex-col">
+                    <span>Todos los {getDayNamePlural(new Date(cascadeModal.sourceDate + 'T00:00:00').getDay())}</span>
+                    <span className="text-[10px] opacity-70 font-normal">Aplicar a futuros {cascadeModal.sourceDayName}s</span>
+                  </div>
+                  <Save className="h-4 w-4 opacity-50 group-hover:opacity-100 transition-opacity" />
+                </button>
+
+                <button
+                  onClick={() => handleApplyCascade('future_all')}
+                  className="w-full py-3 px-4 bg-[#2A2A2A] text-gray-300 rounded-xl hover:bg-[#3A3A3A] hover:text-white transition-colors text-sm font-medium text-left flex items-center justify-between group"
+                >
+                  <div className="flex flex-col">
+                    <span>Todos los días futuros</span>
+                    <span className="text-[10px] text-gray-500 group-hover:text-gray-400 font-normal">Donde aparezca este ejercicio/plato</span>
+                  </div>
+                  <ChevronRight className="h-4 w-4 text-gray-500 group-hover:text-white transition-colors" />
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Ingredients Modal */}
+      {showIngredientsModal && editingNutritionExercise && (
+        <div className="fixed inset-0 z-[60] flex items-center justify-center p-4 bg-black/80 backdrop-blur-sm">
+          <div className="bg-[#1E1E1E] w-full max-w-lg rounded-2xl border border-[#3A3A3A] shadow-2xl overflow-hidden flex flex-col max-h-[80vh]">
+            <div className="p-4 border-b border-[#3A3A3A] flex items-center justify-between">
+              <h3 className="text-lg font-bold text-white">Editar Ingredientes</h3>
+              <button onClick={() => setShowIngredientsModal(false)} className="text-gray-400 hover:text-white">✕</button>
+            </div>
+
+            <div className="p-4 overflow-y-auto flex-1 space-y-2">
+              {editingIngredientsList.map((ing, idx) => (
+                <div key={ing._key || idx} className="flex gap-2 items-center">
+                  <input
+                    placeholder="Cant."
+                    value={ing.cantidad}
+                    onChange={(e) => {
+                      const next = [...editingIngredientsList]
+                      next[idx].cantidad = e.target.value
+                      setEditingIngredientsList(next)
+                    }}
+                    className="w-16 bg-[#2A2A2A] border border-[#3A3A3A] rounded px-2 py-1 text-sm text-white"
+                  />
+                  <input
+                    placeholder="Unidad"
+                    value={ing.unidad}
+                    onChange={(e) => {
+                      const next = [...editingIngredientsList]
+                      next[idx].unidad = e.target.value
+                      setEditingIngredientsList(next)
+                    }}
+                    className="w-16 bg-[#2A2A2A] border border-[#3A3A3A] rounded px-2 py-1 text-sm text-white"
+                  />
+                  <input
+                    placeholder="Nombre"
+                    value={ing.nombre}
+                    onChange={(e) => {
+                      const next = [...editingIngredientsList]
+                      next[idx].nombre = e.target.value
+                      setEditingIngredientsList(next)
+                    }}
+                    className="flex-1 bg-[#2A2A2A] border border-[#3A3A3A] rounded px-2 py-1 text-sm text-white"
+                  />
+                  <button
+                    onClick={() => {
+                      setEditingIngredientsList(prev => prev.filter((_, i) => i !== idx))
+                    }}
+                    className="p-1 text-red-400 hover:text-red-300"
+                  >
+                    ✕
+                  </button>
+                </div>
+              ))}
+              <div className="pt-2">
+                <button
+                  type="button"
+                  onClick={() => {
+                    const newKey = `new_${Date.now()}_${Math.random().toString(36).substr(2, 5)}`
+                    setEditingIngredientsList(prev => [...prev, { _key: newKey, nombre: '', cantidad: '', unidad: '' }])
+                  }}
+                  className="text-xs text-[#FF7939] hover:underline"
+                >
+                  + Agregar Ingrediente
+                </button>
+              </div>
+            </div>
+
+            <div className="p-4 border-t border-[#3A3A3A] flex justify-end gap-2">
+              <button
+                onClick={() => setShowIngredientsModal(false)}
+                className="px-4 py-2 rounded-lg text-gray-400 hover:text-white hover:bg-white/5 transition-colors"
+              >
+                Cancelar
+              </button>
+              <button
+                onClick={async () => {
+                  if (!editingNutritionExercise) return
+                  // Convert list back to object
+                  const ingObj: any = {}
+                  editingIngredientsList.forEach((ing, i) => {
+                    const key = ing._key && !ing._key.startsWith('new_') ? ing._key : String(i)
+                    ingObj[key] = { nombre: ing.nombre, cantidad: ing.cantidad, unidad: ing.unidad }
+                  })
+
+                  await handleSaveNutrition(editingNutritionExercise, { ingredientes: ingObj })
+                  setShowIngredientsModal(false)
+                }}
+                className="px-4 py-2 rounded-lg bg-[#FF7939] text-white font-medium hover:bg-[#ff8a50] transition-colors shadow-lg shadow-[#FF7939]/20"
+              >
+                Guardar Ingredientes
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
     </div>
   )
 }
-
-
-

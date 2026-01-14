@@ -14,16 +14,16 @@ export function CalendarScreen({ onTabChange }: CalendarScreenProps) {
   const [loading, setLoading] = useState(true)
   const [scheduleMeetContext, setScheduleMeetContext] = useState<
     | {
-        coachId: string
-        activityId?: string
-        source?: string
-        purchase?: {
-          kind: 'consultation'
-          durationMinutes: number
-          price: number
-          label: string
-        }
+      coachId: string
+      activityId?: string
+      source?: string
+      purchase?: {
+        kind: 'consultation'
+        durationMinutes: number
+        price: number
+        label: string
       }
+    }
     | null
   >(null)
   const supabase = useMemo(() => createClient(), [])
@@ -41,11 +41,11 @@ export function CalendarScreen({ onTabChange }: CalendarScreenProps) {
       const purchaseRaw = parsed?.purchase
       const purchase = purchaseRaw && typeof purchaseRaw === 'object'
         ? {
-            kind: 'consultation' as const,
-            durationMinutes: Number((purchaseRaw as any).durationMinutes ?? 0) || 0,
-            price: Number((purchaseRaw as any).price ?? 0) || 0,
-            label: String((purchaseRaw as any).label || 'Meet')
-          }
+          kind: 'consultation' as const,
+          durationMinutes: Number((purchaseRaw as any).durationMinutes ?? 0) || 0,
+          price: Number((purchaseRaw as any).price ?? 0) || 0,
+          label: String((purchaseRaw as any).label || 'Meet')
+        }
         : undefined
 
       return { coachId, activityId, source: parsed?.source, purchase }
@@ -64,7 +64,7 @@ export function CalendarScreen({ onTabChange }: CalendarScreenProps) {
           localStorage.removeItem('selectedActivityFromCalendar')
           localStorage.removeItem('scheduleMeetContext')
         }
-        
+
         // Scroll al inicio
         setTimeout(() => {
           window.scrollTo({ top: 0, behavior: 'smooth' })
@@ -119,13 +119,13 @@ export function CalendarScreen({ onTabChange }: CalendarScreenProps) {
   // Función para manejar el clic en una actividad
   const handleActivityClick = (activityId: string) => {
     console.log('🎯 [CalendarScreen] Navegando a actividad:', activityId);
-    
+
     // Guardar el activityId en localStorage para que ActivityScreen lo lea
     if (typeof window !== 'undefined') {
       localStorage.setItem('selectedActivityFromCalendar', activityId);
       console.log('💾 [CalendarScreen] ActivityId guardado en localStorage:', activityId);
     }
-    
+
     if (onTabChange) {
       onTabChange('activity');
     } else {
@@ -137,21 +137,24 @@ export function CalendarScreen({ onTabChange }: CalendarScreenProps) {
   const getUserAndActivities = useCallback(async () => {
     try {
       setLoading(true)
-      
+
       // 1. Obtener usuario autenticado
       const { data: { user }, error: userError } = await supabase.auth.getUser()
       if (userError) {
-        console.error("Error getting user:", userError)
+        // Ignorar error de sesión faltante (esperado al desloguearse)
+        if (!userError?.message?.includes('Auth session missing')) {
+          console.error("Error getting user:", userError)
+        }
         return
       }
-      
+
       if (!user) {
         setLoading(false)
         return
       }
-      
+
       setClientId(user.id)
-      
+
       // 2. Obtener TODOS los enrollments activos del usuario
       const { data: enrollments, error: enrollmentsError } = await supabase
         .from('activity_enrollments')
@@ -159,7 +162,7 @@ export function CalendarScreen({ onTabChange }: CalendarScreenProps) {
         .eq('client_id', user.id)
         .eq('status', 'activa')
         .order('created_at', { ascending: false })
-      
+
       if (enrollmentsError) {
         console.error("Error getting enrollments:", enrollmentsError)
         setActivityIds([])
@@ -171,7 +174,7 @@ export function CalendarScreen({ onTabChange }: CalendarScreenProps) {
         console.log('⚠️ [CalendarScreen] No se encontraron actividades activas')
         setActivityIds([])
       }
-      
+
     } catch (err) {
       console.error("Error in getUserAndActivities:", err)
       setActivityIds([])
@@ -214,8 +217,8 @@ export function CalendarScreen({ onTabChange }: CalendarScreenProps) {
 
   return (
     <div className="h-screen bg-[#121212] overflow-y-auto">
-      <CalendarView 
-        activityIds={activityIds} 
+      <CalendarView
+        activityIds={activityIds}
         onActivityClick={handleActivityClick}
         scheduleMeetContext={scheduleMeetContext}
         onSetScheduleMeetContext={setScheduleMeetContext}
