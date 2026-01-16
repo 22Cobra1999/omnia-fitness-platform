@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { createRouteHandlerClient } from '@/lib/supabase/supabase-server'
+import { createRouteHandlerClient, createServiceRoleClient } from '@/lib/supabase/supabase-server'
 
 // Hacer la ruta dinámica para evitar evaluación durante el build
 export const dynamic = 'force-dynamic'
@@ -11,6 +11,9 @@ export async function GET(
 ) {
   try {
     const supabase = await createRouteHandlerClient()
+    // Usar cliente con privilegios para saltar RLS si es necesario (para ver datos del usuario siendo coach)
+    const adminSupabase = createServiceRoleClient() || supabase
+
     let user = null as any
     const { data: userData, error: userError } = await supabase.auth.getUser()
     if (!userError && userData?.user) {
@@ -28,22 +31,17 @@ export async function GET(
     const { id: clientId } = await params
 
 
-    // 1. PERFIL DEL CLIENTE
+    // 1. PERFIL DEL CLIENTE (Datos unificados)
     const { data: profile, error: profileError } = await supabase
       .from('clients')
-      .select('id, full_name, email, phone, birth_date, weight, Height, fitness_goals, activity_level, injuries, equipment, notes, Genre, meet_credits')
+      .select('id, full_name, phone, birth_date, weight, Height, fitness_goals, nivel_actividad, Genre, location, emergency_contact, health_conditions, description')
       .eq('id', clientId)
       .single()
 
-    // 1.1. DATOS FÍSICOS DEL CLIENTE
-    const { data: clientData, error: clientDataError } = await supabase
-      .from('clients')
-      .select('id, Height, weight, birth_date, fitness_goals, health_conditions, Genre, description, full_name, nivel_actividad, phone, location, emergency_contact, meet_credits')
-      .eq('id', clientId)
-      .single()
+    // 1.1. (REMOVED: Redundant clientData query)
 
-    // 2. LESIONES DEL CLIENTE
-    const { data: injuries, error: injuriesError } = await supabase
+    // 2. LESIONES DEL CLIENTE (Usando adminSupabase por si hay RLS restrictivo)
+    const { data: injuries, error: injuriesError } = await adminSupabase
       .from('user_injuries')
       .select('id, name, description, severity, restrictions, created_at, updated_at')
       .eq('user_id', clientId)
@@ -52,21 +50,22 @@ export async function GET(
     if (injuriesError) {
       console.error('[client-details] Error obteniendo lesiones:', injuriesError)
     }
-    if (injuries && injuries.length > 0) {
+
+    if (profileError) {
+      console.error('[client-details] Error obteniendo perfil:', profileError)
     }
 
     // 3. BIOMÉTRICAS DEL CLIENTE
-    const { data: biometrics, error: biometricsError } = await supabase
+    const { data: biometrics, error: biometricsError } = await adminSupabase
       .from('user_biometrics')
       .select('id, name, value, unit, notes, created_at, updated_at')
       .eq('user_id', clientId)
       .order('created_at', { ascending: false })
 
     // 4. OBJETIVOS DE EJERCICIO DEL CLIENTE
-    const { data: objectives, error: objectivesError } = await supabase
+    const { data: objectives, error: objectivesError } = await adminSupabase
       .from('user_exercise_objectives')
       .select('id, exercise_title, unit, current_value, objective, created_at, updated_at')
-      .eq('user_id', clientId)
       .eq('user_id', clientId)
       .order('created_at', { ascending: false })
 
@@ -258,7 +257,7 @@ export async function GET(
 
     const client = {
       id: profile?.id || clientId,
-      name: profile?.full_name || clientData?.full_name || 'Cliente',
+      name: profile?.full_name || 'Cliente',
       email: profile?.email || '',
       avatar_url: profile?.avatar_url,
       progress: (() => {
@@ -280,18 +279,18 @@ export async function GET(
       objectives: objectivesWithProgress,
       // Datos físicos del cliente
       physicalData: {
-        height: clientData?.Height || null,
-        weight: clientData?.weight || null,
-        age: calculateAge(clientData?.birth_date),
-        bmi: clientData?.Height && clientData?.weight ? calculateBMI(clientData.weight, clientData.Height) : null,
-        gender: clientData?.Genre || null,
-        fitnessGoals: clientData?.fitness_goals || [],
-        healthConditions: clientData?.health_conditions || [],
-        activityLevel: clientData?.nivel_actividad || null,
-        phone: clientData?.phone || null,
-        location: clientData?.location || null,
-        emergencyContact: clientData?.emergency_contact || null,
-        description: clientData?.description || null,
+        height: profile?.Height || null,
+        weight: profile?.weight || null,
+        age: calculateAge(profile?.birth_date),
+        bmi: profile?.Height && profile?.weight ? calculateBMI(profile.weight, profile.Height) : null,
+        gender: profile?.Genre || null,
+        fitnessGoals: profile?.fitness_goals || [],
+        healthConditions: profile?.health_conditions || [],
+        activityLevel: profile?.activity_level || profile?.nivel_actividad || null,
+        phone: profile?.phone || null,
+        location: profile?.location || null,
+        emergencyContact: profile?.emergency_contact || null,
+        description: profile?.description || profile?.notes || null,
         meet_credits: meetCredits?.meet_credits_available || 0
       }
     }
@@ -306,7 +305,7 @@ export async function GET(
         activities_count: enrollments?.length || 0,
         errors: {
           profile: profileError?.message,
-          clientData: clientDataError?.message,
+          clientData: null,
           injuries: injuriesError?.message,
           biometrics: biometricsError?.message,
           objectives: objectivesError?.message,

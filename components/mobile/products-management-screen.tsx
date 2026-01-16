@@ -44,10 +44,10 @@ type SortField = 'title' | 'type' | 'price' | 'created_at'
 type SortDirection = 'asc' | 'desc'
 
 // Componente memoizado para las cards de productos
-const ProductCard = memo(({ 
-  product, 
-  onPreview, 
-  convertProductToActivity 
+const ProductCard = memo(({
+  product,
+  onPreview,
+  convertProductToActivity
 }: {
   product: Product
   onPreview: (product: Product) => void
@@ -83,10 +83,10 @@ export default function ProductsManagementScreen({ onTabChange }: ProductsManage
   const [sortField, setSortField] = useState<SortField>('title')
   const [sortDirection, setSortDirection] = useState<SortDirection>('asc')
   const [showTypeDropdown, setShowTypeDropdown] = useState(false)
-  
+
   // Estado para tabs principales
   const [activeMainTab, setActiveMainTab] = useState<'products' | 'exercises' | 'storage'>('products')
-  
+
   // Estado para las 3 consultas
   const [consultations, setConsultations] = useState({
     express: { active: false, price: 0, time: 15, name: 'Express', icon: 1 },
@@ -129,7 +129,7 @@ export default function ProductsManagementScreen({ onTabChange }: ProductsManage
   const [shouldShowDateChangeNoticeAfterStep5, setShouldShowDateChangeNoticeAfterStep5] = useState(false)
   // Talleres para los que el coach ya completó la encuesta en esta sesión (clave: activity_id)
   const [completedCoachSurveys, setCompletedCoachSurveys] = useState<Record<number, boolean>>({})
-  
+
   // Estados para modal de encuesta en el detalle
   const [showSurveyModalInDetail, setShowSurveyModalInDetail] = useState(false)
   const [surveyModalProduct, setSurveyModalProduct] = useState<Product | null>(null)
@@ -138,18 +138,18 @@ export default function ProductsManagementScreen({ onTabChange }: ProductsManage
   const [workshopFeedback, setWorkshopFeedback] = useState('')
   const [isSubmittingSurvey, setIsSubmittingSurvey] = useState(false)
   const [surveySubmitted, setSurveySubmitted] = useState(false)
-  
+
   // Estado para modal de confirmación de eliminación
   const [deleteConfirmationOpen, setDeleteConfirmationOpen] = useState(false)
   const [productToDelete, setProductToDelete] = useState<Product | null>(null)
-  
+
   // Estado para modal de eliminación exitosa
   const [deleteSuccessOpen, setDeleteSuccessOpen] = useState(false)
   const [deletedProductName, setDeletedProductName] = useState<string>('')
-  
+
   // Estado para evitar doble ejecución
   const [isDeleting, setIsDeleting] = useState(false)
-  
+
   // Estado para guardar si el modal de detalle estaba abierto antes de editar
   const [wasPreviewOpenBeforeEdit, setWasPreviewOpenBeforeEdit] = useState(false)
 
@@ -167,10 +167,10 @@ export default function ProductsManagementScreen({ onTabChange }: ProductsManage
   const fetchProducts = useCallback(async () => {
     try {
       setLoading(true)
-      
+
       const controller = new AbortController()
       const timeoutId = setTimeout(() => controller.abort(), 60000) // 60 segundos timeout (aumentado para APIs lentas)
-      
+
       const response = await fetch(API_ENDPOINTS.PRODUCTS, {
         signal: controller.signal,
         credentials: 'include', // ✅ Incluir cookies en la petición
@@ -178,18 +178,18 @@ export default function ProductsManagementScreen({ onTabChange }: ProductsManage
           'Content-Type': 'application/json',
         }
       })
-      
+
       clearTimeout(timeoutId)
-      
+
       if (!response.ok) {
         throw new Error(`Error HTTP: ${response.status} ${response.statusText}`)
       }
-      
+
       const result = await response.json()
-      
+
       if (result.success) {
         setProducts(result.products || [])
-        
+
         // Actualizar el producto seleccionado si existe (usando el estado actual)
         setSelectedProduct(prev => {
           if (prev) {
@@ -326,14 +326,14 @@ export default function ProductsManagementScreen({ onTabChange }: ProductsManage
   const fetchProductsRef = useRef(fetchProducts)
   const fetchCafeConsultationRef = useRef(fetchCafeConsultation)
   const fetchStatsRef = useRef(fetchStats)
-  
+
   // Actualizar refs cuando las funciones cambian
   useEffect(() => {
     fetchProductsRef.current = fetchProducts
     fetchCafeConsultationRef.current = fetchCafeConsultation
     fetchStatsRef.current = fetchStats
   }, [fetchProducts, fetchCafeConsultation, fetchStats])
-  
+
   useEffect(() => {
     // Cargar datos de forma secuencial para evitar sobrecarga
     const loadData = async () => {
@@ -347,15 +347,15 @@ export default function ProductsManagementScreen({ onTabChange }: ProductsManage
         console.error('Error cargando datos iniciales:', error)
       }
     }
-    
+
     loadData()
-    
+
     // Escuchar eventos de producto creado
     const handleProductCreated = (event: CustomEvent) => {
       console.log('📦 Evento productCreated recibido')
       fetchProductsRef.current() // Recargar productos
     }
-    
+
     // Escuchar eventos de producto actualizado (solo cuando realmente se necesita)
     const handleProductUpdated = (event: CustomEvent) => {
       const { productId } = event.detail
@@ -363,19 +363,19 @@ export default function ProductsManagementScreen({ onTabChange }: ProductsManage
       // Solo recargar si no es un cambio de pausa (eso se maneja con productPauseChanged)
       // No recargamos aquí para evitar loops, solo actualizamos estadísticas
     }
-    
+
     // Escuchar eventos de cambio de pausa (más rápido, solo actualiza el estado)
     const handleProductPauseChanged = (event: CustomEvent) => {
       const { productId, is_paused } = event.detail
       console.log('🔄 Actualizando estado de pausa del producto:', { productId, is_paused })
-      
+
       // Actualizar el producto en la lista sin recargar todo
-      setProducts(prevProducts => 
-        prevProducts.map(p => 
+      setProducts(prevProducts =>
+        prevProducts.map(p =>
           p.id === productId ? { ...p, is_paused } : p
         )
       )
-      
+
       // Actualizar el producto seleccionado si es el mismo (usando función de actualización)
       setSelectedProduct(prev => {
         if (prev && prev.id === productId) {
@@ -384,11 +384,11 @@ export default function ProductsManagementScreen({ onTabChange }: ProductsManage
         return prev
       })
     }
-    
+
     window.addEventListener('productCreated', handleProductCreated as EventListener)
     window.addEventListener('productUpdated', handleProductUpdated as EventListener)
     window.addEventListener('productPauseChanged', handleProductPauseChanged as EventListener)
-    
+
     return () => {
       window.removeEventListener('productCreated', handleProductCreated as EventListener)
       window.removeEventListener('productUpdated', handleProductUpdated as EventListener)
@@ -404,10 +404,10 @@ export default function ProductsManagementScreen({ onTabChange }: ProductsManage
   // Funciones para manejar las 3 consultas
   const toggleConsultation = async (type: 'express' | 'puntual' | 'profunda') => {
     if (isTogglingConsultation) return
-    
+
     setIsTogglingConsultation(type)
     setConsultationError(null)
-    
+
     const currentState = consultations[type].active
     const newState = !currentState
 
@@ -496,9 +496,9 @@ export default function ProductsManagementScreen({ onTabChange }: ProductsManage
   // Mantener función anterior para compatibilidad
   const toggleCafeConsultation = async () => {
     if (isTogglingCafe) return // Evitar múltiples clics
-    
+
     console.log('🔄 toggleCafeConsultation llamado', { userId: user?.id, currentState: cafeConsultation.active })
-    
+
     if (!user?.id) {
       console.error('❌ No hay usuario autenticado')
       alert('No estás autenticado. Por favor, inicia sesión.')
@@ -508,7 +508,7 @@ export default function ProductsManagementScreen({ onTabChange }: ProductsManage
     setIsTogglingCafe(true)
     const newActiveState = !cafeConsultation.active
     console.log('🔄 Nuevo estado:', newActiveState)
-    
+
     // Optimistic update
     setCafeConsultation(prev => ({
       ...prev,
@@ -569,7 +569,7 @@ export default function ProductsManagementScreen({ onTabChange }: ProductsManage
     // Optimistic update
     setCafeConsultation(prev => ({
       ...prev,
-        price: price
+      price: price
     }))
 
     try {
@@ -629,7 +629,7 @@ export default function ProductsManagementScreen({ onTabChange }: ProductsManage
               <p className="text-gray-400 text-xs">{consultation.time} min</p>
             </div>
           </div>
-          
+
           {/* Toggle de activación */}
           <button
             onClick={(e) => {
@@ -641,14 +641,12 @@ export default function ProductsManagementScreen({ onTabChange }: ProductsManage
             role="switch"
             aria-checked={consultation.active}
             disabled={isToggling}
-            className={`relative inline-flex h-5 w-9 items-center rounded-full transition-colors duration-300 flex-shrink-0 ${
-              consultation.active ? 'bg-[#FF7939]' : 'bg-gray-600'
-            } ${isToggling ? 'opacity-50 cursor-not-allowed' : 'cursor-pointer'}`}
+            className={`relative inline-flex h-5 w-9 items-center rounded-full transition-colors duration-300 flex-shrink-0 ${consultation.active ? 'bg-[#FF7939]' : 'bg-gray-600'
+              } ${isToggling ? 'opacity-50 cursor-not-allowed' : 'cursor-pointer'}`}
           >
             <span
-              className={`inline-block h-4 w-4 transform rounded-full bg-white transition-transform duration-300 ease-in-out ${
-                consultation.active ? 'translate-x-4' : 'translate-x-0.5'
-              }`}
+              className={`inline-block h-4 w-4 transform rounded-full bg-white transition-transform duration-300 ease-in-out ${consultation.active ? 'translate-x-4' : 'translate-x-0.5'
+                }`}
             />
           </button>
         </div>
@@ -799,7 +797,7 @@ export default function ProductsManagementScreen({ onTabChange }: ProductsManage
   useEffect(() => {
     const loadCafeData = async () => {
       if (!user?.id || !isCafeModalOpen) return
-      
+
       try {
         // Cargar teléfono del coach desde el endpoint combinado
         const coachResponse = await fetch(`/api/profile/combined`)
@@ -874,24 +872,24 @@ export default function ProductsManagementScreen({ onTabChange }: ProductsManage
   const handleCloseModal = useCallback(async (saved: boolean = false) => {
     const editingProductId = editingProduct?.id
     const wasEditingWorkshop = editingProduct?.type === 'workshop'
-    
+
     setIsModalOpen(false)
-    
+
     // Solo recargar productos si se guardaron cambios
     if (saved) {
       await fetchProducts()
     }
-    
+
     setEditingProduct(null)
     setShouldOpenWorkshopSchedule(false)
     setShouldShowDateChangeNoticeAfterStep5(false)
     setShowDateChangeNotice(false)
-    
+
     // Si el modal de detalle estaba abierto antes de editar, reabrirlo
     if (wasPreviewOpenBeforeEdit && selectedProduct) {
       setIsProductModalOpen(true)
       setWasPreviewOpenBeforeEdit(false)
-      
+
       // Si se guardaron cambios, actualizar el producto seleccionado
       if (saved) {
         setTimeout(() => {
@@ -903,18 +901,18 @@ export default function ProductsManagementScreen({ onTabChange }: ProductsManage
       }
       return // No continuar con el resto de la lógica si volvemos al detalle
     }
-    
+
     // IMPORTANTE: Si cerró sin guardar cambios, la encuesta ya completada NO debe aparecer de nuevo
     // El estado de completedCoachSurveys se mantiene para evitar que aparezca la encuesta en la misma sesión
     // La verificación en el backend también previene que aparezca (encuesta guardada con workshop_version)
-    
+
     // Disparar evento de actualización después de un pequeño delay para que los productos se hayan recargado
     if (editingProductId && saved) {
       setTimeout(() => {
-        window.dispatchEvent(new CustomEvent('productUpdated', { 
-          detail: { productId: editingProductId } 
+        window.dispatchEvent(new CustomEvent('productUpdated', {
+          detail: { productId: editingProductId }
         }))
-        
+
         // Actualizar el producto seleccionado si coincide con el editado
         if (selectedProduct && selectedProduct.id === editingProductId) {
           // Buscar el producto actualizado en la lista (products ya debería estar actualizado)
@@ -944,9 +942,9 @@ export default function ProductsManagementScreen({ onTabChange }: ProductsManage
 
   const handlePreviewProduct = useCallback(async (product: Product) => {
     // Verificar si es un taller finalizado
-    const isWorkshopFinished = product.type === 'workshop' && 
+    const isWorkshopFinished = product.type === 'workshop' &&
       ((product as any).is_finished === true || (product as any).taller_activo === false)
-    
+
     console.log('🔍 handlePreviewProduct:', {
       productId: product.id,
       isWorkshopFinished,
@@ -954,7 +952,7 @@ export default function ProductsManagementScreen({ onTabChange }: ProductsManage
       taller_activo: (product as any).taller_activo,
       hasCachedSurvey: completedCoachSurveys[product.id]
     })
-    
+
     if (isWorkshopFinished) {
       // Si ya sabemos que la encuesta fue completada en esta sesión, no volver a mostrarla
       if (completedCoachSurveys[product.id]) {
@@ -972,9 +970,9 @@ export default function ProductsManagementScreen({ onTabChange }: ProductsManage
         console.log('🔍 Verificando encuesta en backend para producto:', product.id)
         const response = await fetch(`/api/activities/${product.id}/check-coach-survey`)
         const result = await response.json()
-        
+
         console.log('📥 Respuesta de check-coach-survey:', result)
-        
+
         if (!result.success) {
           console.error('❌ Error en respuesta de check-coach-survey:', result.error)
           // En caso de error, mostrar el detalle sin encuesta
@@ -984,7 +982,7 @@ export default function ProductsManagementScreen({ onTabChange }: ProductsManage
           setSurveyModalProduct(null)
           return
         }
-        
+
         if (!result.hasSurvey) {
           console.log('⚠️ No tiene encuesta, mostrando encuesta cerrable')
           // No tiene encuesta, mostrar el detalle PERO con el modal de encuesta (cerrable)
@@ -1017,7 +1015,7 @@ export default function ProductsManagementScreen({ onTabChange }: ProductsManage
         setSurveyModalProduct(null)
       }
     }
-    
+
     // Preview normal o taller con encuesta ya completada
     console.log('📖 Abriendo detalle del producto (preview normal)')
     setSelectedProduct(product)
@@ -1031,18 +1029,18 @@ export default function ProductsManagementScreen({ onTabChange }: ProductsManage
 
   // Función para convertir Product a Activity para ActivityCard - Memoizada
   const convertProductToActivity = useCallback((product: Product) => {
-    
+
     // Usar la misma lógica de imágenes que ActivityCard
     const getValidImageUrl = () => {
       // Intentar diferentes fuentes de imagen como en ActivityCard
-      const imageUrl = product.image_url || 
-                      product.media?.image_url || 
-                      product.activity_media?.[0]?.image_url
-      
+      const imageUrl = product.image_url ||
+        product.media?.image_url ||
+        product.activity_media?.[0]?.image_url
+
       if (imageUrl && !imageUrl.includes('via.placeholder.com') && !imageUrl.includes('placeholder.svg') && imageUrl.trim() !== '') {
         return imageUrl
       }
-      
+
       // Si no hay imagen real, devolver null para mostrar logo de Omnia
       return null
     }
@@ -1064,10 +1062,10 @@ export default function ProductsManagementScreen({ onTabChange }: ProductsManage
       activity_media: [{
         image_url: getValidImageUrl(),
         video_url: (() => {
-          const videoUrl = product.activity_media?.[0]?.video_url || 
-                          product.media?.video_url || 
-                          product.video_url || 
-                          null
+          const videoUrl = product.activity_media?.[0]?.video_url ||
+            product.media?.video_url ||
+            product.video_url ||
+            null
           return videoUrl
         })()
       }],
@@ -1131,12 +1129,12 @@ export default function ProductsManagementScreen({ onTabChange }: ProductsManage
     } else {
       setWasPreviewOpenBeforeEdit(false)
     }
-    
+
     // Verificar si es un taller finalizado
     // Puede estar finalizado si: is_finished === true O taller_activo === false
-    const isWorkshopFinished = product.type === 'workshop' && 
+    const isWorkshopFinished = product.type === 'workshop' &&
       ((product as any).is_finished === true || (product as any).taller_activo === false)
-    
+
     if (isWorkshopFinished) {
       // Si ya sabemos que la encuesta fue completada en esta sesión, permitir editar directamente
       if (completedCoachSurveys[product.id]) {
@@ -1152,7 +1150,7 @@ export default function ProductsManagementScreen({ onTabChange }: ProductsManage
       try {
         const response = await fetch(`/api/activities/${product.id}/check-coach-survey`)
         const result = await response.json()
-        
+
         if (result.hasSurvey) {
           // Ya tiene encuesta para esta versión, permitir editar directamente
           // Guardar en caché local para no depender solo del backend
@@ -1201,7 +1199,7 @@ export default function ProductsManagementScreen({ onTabChange }: ProductsManage
     console.log('🗑️ CONFIRM DELETE: Iniciando eliminación...')
     console.log('🗑️ CONFIRM DELETE: productToDelete:', productToDelete)
     console.log('🗑️ CONFIRM DELETE: isDeleting:', isDeleting)
-    
+
     if (!productToDelete) {
       console.log('❌ CONFIRM DELETE: No hay producto para eliminar')
       return
@@ -1217,18 +1215,18 @@ export default function ProductsManagementScreen({ onTabChange }: ProductsManage
     setDeleteConfirmationOpen(false)
     setProductToDelete(null)
     setIsDeleting(true)
-    
+
     // Guardar datos del producto antes de eliminarlo
     const productToDeleteData = { ...productToDelete }
-    
+
     // Eliminar del estado INMEDIATAMENTE para que desaparezca de la UI
     setProducts(prevProducts => {
       console.log('📝 CONFIRM DELETE: Eliminando producto inmediatamente del estado')
       console.log('📝 CONFIRM DELETE: Productos antes del filtro:', prevProducts.length)
       console.log('📝 CONFIRM DELETE: ID a eliminar:', productToDeleteData.id)
-      
+
       const newProducts = prevProducts.filter(p => String(p.id) !== String(productToDeleteData.id))
-      
+
       console.log('📝 CONFIRM DELETE: Productos después del filtro:', newProducts.length)
       return newProducts
     })
@@ -1249,36 +1247,36 @@ export default function ProductsManagementScreen({ onTabChange }: ProductsManage
 
         if (response.ok) {
           console.log('✅ CONFIRM DELETE: Eliminación exitosa en backend')
-          
+
           // Guardar nombre del producto eliminado para el modal de éxito
           setDeletedProductName(productToDeleteData.title)
-          
+
           // Mostrar modal de éxito
           setDeleteSuccessOpen(true)
-          
+
           console.log('🎉 CONFIRM DELETE: Modal de éxito mostrado')
         } else {
           const result = await response.json()
           console.log('❌ CONFIRM DELETE: Error en respuesta:', result)
-          
+
           // Si hay error, revertir la eliminación del estado
           setProducts(prevProducts => {
             console.log('🔄 CONFIRM DELETE: Revirtiendo eliminación del estado')
             return [...prevProducts, productToDeleteData]
           })
-          
+
           // TODO: Mostrar toast de error
           // toast({ title: `Error al eliminar: ${result.error}`, variant: "destructive" })
         }
       } catch (error) {
         console.error('❌ CONFIRM DELETE: Error eliminando producto:', error)
-        
+
         // Si hay error, revertir la eliminación del estado
         setProducts(prevProducts => {
           console.log('🔄 CONFIRM DELETE: Revirtiendo eliminación del estado por error')
           return [...prevProducts, productToDeleteData]
         })
-        
+
         // TODO: Mostrar toast de error
         // toast({ title: "Error al eliminar el producto", variant: "destructive" })
       } finally {
@@ -1332,17 +1330,17 @@ export default function ProductsManagementScreen({ onTabChange }: ProductsManage
     return [...filteredProducts].sort((a, b) => {
       const aValue = a[sortField]
       const bValue = b[sortField]
-      
+
       if (typeof aValue === 'string' && typeof bValue === 'string') {
-        return sortDirection === 'asc' 
+        return sortDirection === 'asc'
           ? aValue.localeCompare(bValue)
           : bValue.localeCompare(aValue)
       }
-      
+
       if (typeof aValue === 'number' && typeof bValue === 'number') {
         return sortDirection === 'asc' ? aValue - bValue : bValue - aValue
       }
-      
+
       return 0
     })
   }, [filteredProducts, sortField, sortDirection])
@@ -1356,26 +1354,26 @@ export default function ProductsManagementScreen({ onTabChange }: ProductsManage
   const typeStats = {
     fitness: {
       count: products.filter(p => p.type === 'fitness').length,
-      avgPrice: products.filter(p => p.type === 'fitness').length > 0 
-        ? products.filter(p => p.type === 'fitness').reduce((sum, p) => sum + p.price, 0) / products.filter(p => p.type === 'fitness').length 
+      avgPrice: products.filter(p => p.type === 'fitness').length > 0
+        ? products.filter(p => p.type === 'fitness').reduce((sum, p) => sum + p.price, 0) / products.filter(p => p.type === 'fitness').length
         : 0
     },
     nutrition: {
       count: products.filter(p => p.type === 'nutrition').length,
-      avgPrice: products.filter(p => p.type === 'nutrition').length > 0 
-        ? products.filter(p => p.type === 'nutrition').reduce((sum, p) => sum + p.price, 0) / products.filter(p => p.type === 'nutrition').length 
+      avgPrice: products.filter(p => p.type === 'nutrition').length > 0
+        ? products.filter(p => p.type === 'nutrition').reduce((sum, p) => sum + p.price, 0) / products.filter(p => p.type === 'nutrition').length
         : 0
     },
     workshop: {
       count: products.filter(p => p.type === 'workshop').length,
-      avgPrice: products.filter(p => p.type === 'workshop').length > 0 
-        ? products.filter(p => p.type === 'workshop').reduce((sum, p) => sum + p.price, 0) / products.filter(p => p.type === 'workshop').length 
+      avgPrice: products.filter(p => p.type === 'workshop').length > 0
+        ? products.filter(p => p.type === 'workshop').reduce((sum, p) => sum + p.price, 0) / products.filter(p => p.type === 'workshop').length
         : 0
     },
     document: {
       count: products.filter(p => p.type === 'document').length,
-      avgPrice: products.filter(p => p.type === 'document').length > 0 
-        ? products.filter(p => p.type === 'document').reduce((sum, p) => sum + p.price, 0) / products.filter(p => p.type === 'document').length 
+      avgPrice: products.filter(p => p.type === 'document').length > 0
+        ? products.filter(p => p.type === 'document').reduce((sum, p) => sum + p.price, 0) / products.filter(p => p.type === 'document').length
         : 0
     }
   }
@@ -1426,48 +1424,45 @@ export default function ProductsManagementScreen({ onTabChange }: ProductsManage
     }
   }
 
-    return (
-      <div className="min-h-screen bg-[#0A0A0A] p-4">
+  return (
+    <div className="min-h-screen bg-[#0A0A0A] p-4">
 
       {/* Contenido principal */}
       <div>
         {/* Header con tabs */}
-          <div className="mt-8 mb-10">
-            {/* Tabs principales - Estilo sutil, menú centrado y botón Crear a la derecha */}
-            <div className="flex items-center justify-between mb-4 relative">
-              {/* Menú centrado absolutamente */}
-              <div className="absolute left-1/2 transform -translate-x-1/2 flex items-center gap-6">
-            <button
-              onClick={() => setActiveMainTab('products')}
-                  className={`text-sm transition-all ${
-                activeMainTab === 'products'
-                      ? 'text-[#FF7939] font-medium'
-                      : 'text-gray-500 hover:text-gray-400'
-              }`}
-            >
-                  Productos
-            </button>
-            <button
-              onClick={() => setActiveMainTab('exercises')}
-                  className={`text-sm transition-all ${
-                activeMainTab === 'exercises'
-                      ? 'text-[#FF7939] font-medium'
-                      : 'text-gray-500 hover:text-gray-400'
-              }`}
-            >
-                  Ejercicios/Platos
-            </button>
-            <button
-              onClick={() => setActiveMainTab('storage')}
-                  className={`text-sm transition-all ${
-                activeMainTab === 'storage'
-                      ? 'text-[#FF7939] font-medium'
-                      : 'text-gray-500 hover:text-gray-400'
-              }`}
-            >
-              Almacenamiento
-            </button>
-              </div>
+        <div className="mt-8 mb-10">
+          {/* Tabs principales - Estilo sutil, menú centrado y botón Crear a la derecha */}
+          <div className="flex items-center justify-between mb-4 relative">
+            {/* Menú centrado absolutamente */}
+            <div className="absolute left-1/2 transform -translate-x-1/2 flex items-center gap-6">
+              <button
+                onClick={() => setActiveMainTab('products')}
+                className={`text-sm transition-all ${activeMainTab === 'products'
+                    ? 'text-[#FF7939] font-medium'
+                    : 'text-gray-500 hover:text-gray-400'
+                  }`}
+              >
+                Productos
+              </button>
+              <button
+                onClick={() => setActiveMainTab('exercises')}
+                className={`text-sm transition-all ${activeMainTab === 'exercises'
+                    ? 'text-[#FF7939] font-medium'
+                    : 'text-gray-500 hover:text-gray-400'
+                  }`}
+              >
+                Ejercicios/Platos
+              </button>
+              <button
+                onClick={() => setActiveMainTab('storage')}
+                className={`text-sm transition-all ${activeMainTab === 'storage'
+                    ? 'text-[#FF7939] font-medium'
+                    : 'text-gray-500 hover:text-gray-400'
+                  }`}
+              >
+                Almacenamiento
+              </button>
+            </div>
           </div>
         </div>
 
@@ -1489,7 +1484,7 @@ export default function ProductsManagementScreen({ onTabChange }: ProductsManage
                       {typeFilter === 'todos' ? 'Todos' : typeFilter}
                       <ChevronDown className="h-3 w-3 ml-1" />
                     </Button>
-                    
+
                     {showTypeDropdown && (
                       <div className="absolute left-0 top-full mt-2 bg-[#0F0F0F] border border-[#1A1A1A] rounded-xl shadow-lg z-10 min-w-[150px]">
                         <div className="p-2">
@@ -1521,7 +1516,7 @@ export default function ProductsManagementScreen({ onTabChange }: ProductsManage
                       </div>
                     )}
                   </div>
-                  
+
                   {/* Icono de Café centrado y Botón Crear */}
                   <div className="absolute left-1/2 transform -translate-x-1/2">
                     <button
@@ -1530,8 +1525,8 @@ export default function ProductsManagementScreen({ onTabChange }: ProductsManage
                       style={{
                         borderColor:
                           consultations.express.active ||
-                          consultations.puntual.active ||
-                          consultations.profunda.active
+                            consultations.puntual.active ||
+                            consultations.profunda.active
                             ? '#FF7939'
                             : '#4B5563',
                       }}
@@ -1541,8 +1536,8 @@ export default function ProductsManagementScreen({ onTabChange }: ProductsManage
                         style={{
                           color:
                             consultations.express.active ||
-                            consultations.puntual.active ||
-                            consultations.profunda.active
+                              consultations.puntual.active ||
+                              consultations.profunda.active
                               ? '#FF7939'
                               : '#9CA3AF',
                         }}
@@ -1550,20 +1545,20 @@ export default function ProductsManagementScreen({ onTabChange }: ProductsManage
                       {(consultationSales.express.length +
                         consultationSales.puntual.length +
                         consultationSales.profunda.length) > 0 && (
-                        <span className="absolute -top-1 -right-1 bg-[#FF7939] text-white text-xs font-bold rounded-full w-5 h-5 flex items-center justify-center">
-                          {consultationSales.express.length +
-                            consultationSales.puntual.length +
-                            consultationSales.profunda.length >
-                          9
-                            ? '9+'
-                            : consultationSales.express.length +
+                          <span className="absolute -top-1 -right-1 bg-[#FF7939] text-white text-xs font-bold rounded-full w-5 h-5 flex items-center justify-center">
+                            {consultationSales.express.length +
+                              consultationSales.puntual.length +
+                              consultationSales.profunda.length >
+                              9
+                              ? '9+'
+                              : consultationSales.express.length +
                               consultationSales.puntual.length +
                               consultationSales.profunda.length}
-                        </span>
-                      )}
+                          </span>
+                        )}
                     </button>
                   </div>
-                  
+
                   {/* Botón Crear a la derecha */}
                   <div className="ml-auto">
                     <Button
@@ -1659,7 +1654,7 @@ export default function ProductsManagementScreen({ onTabChange }: ProductsManage
                 )}
               </div>
             </div>
-            
+
             {/* Lista de productos */}
             <div className="space-y-2">
               {/* Productos - Formato de cards horizontales */}
@@ -1696,26 +1691,25 @@ export default function ProductsManagementScreen({ onTabChange }: ProductsManage
             <div className="flex items-center justify-center gap-8 mb-6">
               <button
                 onClick={() => setActiveSubTab('fitness')}
-                className={`text-base transition-all px-4 py-2 ${
-                  activeSubTab === 'fitness'
+                className={`text-base transition-all px-4 py-2 ${activeSubTab === 'fitness'
                     ? 'text-[#FF7939] font-medium'
                     : 'text-gray-500 hover:text-gray-400'
-                }`}
+                  }`}
               >
                 Fitness
               </button>
               <button
                 onClick={() => setActiveSubTab('nutrition')}
-                className={`text-base transition-all px-4 py-2 ${
-                  activeSubTab === 'nutrition'
+                className={`text-base transition-all px-4 py-2 ${activeSubTab === 'nutrition'
                     ? 'text-[#FF7939] font-medium'
                     : 'text-gray-500 hover:text-gray-400'
-                }`}
+                  }`}
               >
                 Nutrición
               </button>
             </div>
             <div key={activeSubTab}>
+              {console.log('🔍 [ProductsScreen] Render CSVManager. User:', user?.id)}
               <CSVManagerEnhanced
                 activityId={0}
                 coachId={user?.id || ""}
@@ -1897,7 +1891,7 @@ export default function ProductsManagementScreen({ onTabChange }: ProductsManage
 
       {/* Modal de encuesta del taller finalizado - Puede ser cerrable (al abrir detalle) o bloqueante (al editar) */}
       {showSurveyModalInDetail && surveyModalProduct && (
-        <div 
+        <div
           className="fixed inset-0 bg-black/60 z-[100] flex items-center justify-center p-4"
           onClick={() => {
             // Solo permitir cerrar si NO es bloqueante
@@ -1907,7 +1901,7 @@ export default function ProductsManagementScreen({ onTabChange }: ProductsManage
             }
           }}
         >
-          <div 
+          <div
             className="bg-[#0A0A0A] rounded-2xl p-6 max-w-lg w-full border border-[#1A1A1A] shadow-2xl max-h-[90vh] overflow-y-auto"
             onClick={(e) => e.stopPropagation()}
           >
@@ -1927,15 +1921,15 @@ export default function ProductsManagementScreen({ onTabChange }: ProductsManage
                   </button>
                 )}
               </div>
-              
+
               {!surveySubmitted ? (
                 <>
                   <p className="text-gray-400 text-sm mb-4">
-                    {surveyModalBlocking 
+                    {surveyModalBlocking
                       ? "Para poder editar este taller, primero debes completar la encuesta."
                       : "Este taller ha finalizado. Te recomendamos completar la encuesta para poder editarlo."}
                   </p>
-                  
+
                   {/* Encuesta del coach */}
                   <div className="space-y-4 pt-4 border-t border-gray-800">
                     <div>
@@ -1948,11 +1942,10 @@ export default function ProductsManagementScreen({ onTabChange }: ProductsManage
                             key={star}
                             type="button"
                             onClick={() => setWorkshopRating(star)}
-                            className={`w-10 h-10 rounded-lg transition-all ${
-                              star <= workshopRating
+                            className={`w-10 h-10 rounded-lg transition-all ${star <= workshopRating
                                 ? 'bg-[#FF7939] text-white'
                                 : 'bg-gray-800 text-gray-400 hover:bg-gray-700'
-                            }`}
+                              }`}
                           >
                             {star}
                           </button>
@@ -1968,7 +1961,7 @@ export default function ProductsManagementScreen({ onTabChange }: ProductsManage
                         </p>
                       )}
                     </div>
-                    
+
                     <div>
                       <label className="text-white text-sm font-medium mb-2 block">
                         Comentarios sobre el taller
@@ -1982,12 +1975,12 @@ export default function ProductsManagementScreen({ onTabChange }: ProductsManage
                       />
                     </div>
                   </div>
-                  
+
                   <div className="flex gap-3 pt-2">
                     <Button
                       onClick={async () => {
                         if (!surveyModalProduct?.id) return
-                        
+
                         setIsSubmittingSurvey(true)
                         try {
                           const response = await fetch(`/api/activities/${surveyModalProduct.id}/finish-workshop`, {
@@ -1999,11 +1992,11 @@ export default function ProductsManagementScreen({ onTabChange }: ProductsManage
                               coach_feedback: workshopFeedback.trim() || null
                             })
                           })
-                          
+
                           const result = await response.json()
-                          
+
                           console.log('📤 Respuesta de finish-workshop:', result)
-                          
+
                           if (result.success) {
                             console.log('✅ Encuesta guardada exitosamente, versión:', result.version)
                             toast.success('Encuesta enviada exitosamente')
@@ -2081,9 +2074,9 @@ export default function ProductsManagementScreen({ onTabChange }: ProductsManage
                       onClick={async () => {
                         const product = surveyModalProduct
                         console.log('🔄 Clic en "Agregar nuevas fechas" para producto:', product?.id)
-                        
+
                         if (!product) return
-                        
+
                         // Cerrar primero el modal de encuesta completamente
                         console.log('🔒 Cerrando modal de encuesta antes de abrir modal de edición')
                         setShowSurveyModalInDetail(false)
@@ -2091,11 +2084,11 @@ export default function ProductsManagementScreen({ onTabChange }: ProductsManage
                         setSurveySubmitted(false)
                         setWorkshopRating(0)
                         setWorkshopFeedback('')
-                        
+
                         // Usar un pequeño delay para asegurar que el modal de encuesta se cierre primero
                         await new Promise(resolve => setTimeout(resolve, 150))
                         console.log('✅ Modal de encuesta cerrado, procediendo a abrir modal de edición')
-                        
+
                         // Abrir modal de edición en paso 5
                         // Primero refrescar el producto para asegurar que tiene la encuesta actualizada
                         try {
@@ -2157,21 +2150,21 @@ export default function ProductsManagementScreen({ onTabChange }: ProductsManage
               <div className="w-16 h-16 bg-red-500 rounded-full flex items-center justify-center mb-6">
                 <Trash2 className="w-8 h-8 text-white" />
               </div>
-              
+
               {/* Título */}
               <h3 className="text-2xl font-bold text-white mb-2">
                 ¿Eliminar actividad?
               </h3>
-              
+
               {/* Mensaje */}
               <p className="text-gray-300 mb-6 text-lg">
                 Estás a punto de eliminar <span className="text-orange-500 font-semibold">"{productToDelete.title}"</span>
               </p>
-              
+
               <p className="text-gray-400 mb-8 text-sm">
                 Esta acción no se puede deshacer. Se eliminarán todos los datos relacionados.
               </p>
-              
+
               {/* Botones */}
               <div className="flex gap-4 w-full">
                 <Button
@@ -2203,17 +2196,17 @@ export default function ProductsManagementScreen({ onTabChange }: ProductsManage
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
                 </svg>
               </div>
-              
+
               {/* Título */}
               <h3 className="text-2xl font-bold text-white mb-2">
                 ¡Eliminado exitosamente!
               </h3>
-              
+
               {/* Mensaje */}
               <p className="text-gray-300 mb-8 text-lg">
                 La actividad <span className="text-orange-500 font-semibold">"{deletedProductName}"</span> ha sido eliminada correctamente.
               </p>
-              
+
               {/* Botón de cerrar */}
               <Button
                 onClick={closeDeleteSuccess}
@@ -2250,7 +2243,7 @@ export default function ProductsManagementScreen({ onTabChange }: ProductsManage
                   <input
                     type="date"
                     value={meetSchedule.date}
-                    onChange={(e) => setMeetSchedule({...meetSchedule, date: e.target.value})}
+                    onChange={(e) => setMeetSchedule({ ...meetSchedule, date: e.target.value })}
                     min={new Date().toISOString().split('T')[0]}
                     className="w-full bg-[#1A1A1A] border border-[#1A1A1A] rounded-lg px-3 py-2 text-white text-sm focus:outline-none focus:border-[#FF7939]"
                   />
@@ -2262,7 +2255,7 @@ export default function ProductsManagementScreen({ onTabChange }: ProductsManage
                   <input
                     type="time"
                     value={meetSchedule.time1}
-                    onChange={(e) => setMeetSchedule({...meetSchedule, time1: e.target.value})}
+                    onChange={(e) => setMeetSchedule({ ...meetSchedule, time1: e.target.value })}
                     className="w-full bg-[#1A1A1A] border border-[#1A1A1A] rounded-lg px-3 py-2 text-white text-sm focus:outline-none focus:border-[#FF7939]"
                   />
                 </div>
@@ -2273,7 +2266,7 @@ export default function ProductsManagementScreen({ onTabChange }: ProductsManage
                   <input
                     type="time"
                     value={meetSchedule.time2}
-                    onChange={(e) => setMeetSchedule({...meetSchedule, time2: e.target.value})}
+                    onChange={(e) => setMeetSchedule({ ...meetSchedule, time2: e.target.value })}
                     className="w-full bg-[#1A1A1A] border border-[#1A1A1A] rounded-lg px-3 py-2 text-white text-sm focus:outline-none focus:border-[#FF7939]"
                   />
                 </div>
@@ -2284,7 +2277,7 @@ export default function ProductsManagementScreen({ onTabChange }: ProductsManage
                   <input
                     type="text"
                     value={meetSchedule.meetingName}
-                    onChange={(e) => setMeetSchedule({...meetSchedule, meetingName: e.target.value})}
+                    onChange={(e) => setMeetSchedule({ ...meetSchedule, meetingName: e.target.value })}
                     placeholder="Ej: Consulta de Café con [Nombre]"
                     className="w-full bg-[#1A1A1A] border border-[#1A1A1A] rounded-lg px-3 py-2 text-white text-sm focus:outline-none focus:border-[#FF7939]"
                   />

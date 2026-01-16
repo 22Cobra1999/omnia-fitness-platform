@@ -9,7 +9,7 @@ export async function GET(
   try {
     const resolvedParams = await params
     const activityId = parseInt(resolvedParams.id)
-    
+
     if (!activityId || isNaN(activityId)) {
       return NextResponse.json(
         { success: false, error: "ID de actividad inválido" },
@@ -35,7 +35,7 @@ export async function GET(
     // Buscar todas las compras del cliente para esta actividad
     const { data: enrollments, error: enrollmentsError } = await supabase
       .from('activity_enrollments')
-      .select('id, start_date, status, created_at, updated_at')
+      .select('id, start_date, status, created_at, updated_at, expiration_date')
       .eq('activity_id', activityId)
       .eq('client_id', user.id)
       .order('created_at', { ascending: false })
@@ -69,7 +69,7 @@ export async function GET(
       purchaseStatus.lastPurchase = enrollments[0]
 
       // Verificar si tiene alguna compra activa
-      const activeEnrollment = enrollments.find(e => 
+      const activeEnrollment = enrollments.find(e =>
         e.status === 'activa' || e.status === 'active' || e.status === 'enrolled' || e.status === 'pending'
       )
 

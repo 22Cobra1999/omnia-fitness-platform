@@ -9,10 +9,8 @@ import { Button } from "@/components/ui/button"
 import { Textarea } from "@/components/ui/textarea"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group"
-import { useLocalStorage } from '@/hooks/shared/use-local-storage'
-import { User, Edit2, Save } from "lucide-react"
-import { format } from "date-fns"
-import { X } from "lucide-react"
+import { createClient } from '@/lib/supabase/supabase-client'
+import { User, Edit2, Save, X, Check } from "lucide-react"
 
 type Restriction = {
   category: string
@@ -33,9 +31,11 @@ type ProfileInfo = {
 }
 
 export function PersonalInfo() {
-  const [personalInfo, setPersonalInfo] = useLocalStorage("personalInfo", {
+  const supabase = createClient()
+  const [loading, setLoading] = useState(true)
+  const [personalInfo, setPersonalInfo] = useState({
     basic: {
-      age: "",
+      birthDate: "",
       weight: "",
       height: "",
       gender: "",
@@ -46,9 +46,56 @@ export function PersonalInfo() {
       fatPercentage: "",
       musclePercentage: "",
     },
+    sports: [] as string[],
     restrictions: [] as Restriction[],
     profile: {} as ProfileInfo,
   })
+
+  // Fetch Profile Data
+  useEffect(() => {
+    const fetchProfile = async () => {
+      try {
+        const { data: { user } } = await supabase.auth.getSession().then(({ data }) => ({ data: { user: data.session?.user } }))
+        if (!user) return
+
+        const { data: client, error } = await supabase
+          .from('clients')
+          .select('*')
+          .eq('id', user.id)
+          .single()
+
+        if (client) {
+          setPersonalInfo({
+            basic: {
+              birthDate: client.birth_date ? client.birth_date.split('T')[0] : "",
+              weight: client.weight ? client.weight.toString() : "",
+              height: client.Height ? client.Height.toString() : "",
+              gender: client.Genre || "",
+            },
+            goals: {
+              objectives: (client.fitness_goals || []).join(', '),
+              estimatedTime: "", // Not persisted in clients table
+              fatPercentage: "",
+              musclePercentage: "",
+            },
+            sports: client.sports || [],
+            restrictions: [], // Not persisted yet
+            profile: {
+              bio: client.description || "",
+              location: client.location || "",
+              profession: "",
+              interests: "",
+            }
+          })
+        }
+      } catch (error) {
+        console.error("Error fetching profile:", error)
+      } finally {
+        setLoading(false)
+      }
+    }
+    fetchProfile()
+  }, [])
 
   const [isEditing, setIsEditing] = useState(false)
   const [activeTab, setActiveTab] = useState("basic")
@@ -58,6 +105,51 @@ export function PersonalInfo() {
     specification: "",
   })
   const [restrictionStep, setRestrictionStep] = useState(0)
+
+  const FITNESS_GOALS_OPTIONS = [
+    "Subir de peso",
+    "Bajar de peso",
+    "Quemar grasas",
+    "Ganar masa muscular",
+    "Mejorar condición física",
+    "Tonificar",
+    "Mejorar flexibilidad",
+    "Reducir estrés",
+    "Controlar respiración",
+    "Corregir postura",
+    "Meditación y Mindfulness",
+    "Equilibrio corporal",
+    "Aumentar resistencia",
+    "Salud articular"
+  ]
+  const SPORTS_OPTIONS = [
+    "Fútbol",
+    "Tenis",
+    "Padel",
+    "Natación",
+    "Running",
+    "Crossfit",
+    "Yoga",
+    "Pilates",
+    "Ciclismo",
+    "Boxeo",
+    "Artes Marciales",
+    "Gimnasio",
+    "Básquet",
+    "Vóley",
+    "Patinaje",
+    "Golf",
+    "Escalada",
+    "Surf",
+    "Otro"
+  ]
+
+  const CONTRADICTORY_GOALS: Record<string, string[]> = {
+    "Subir de peso": ["Bajar de peso", "Quemar grasas"],
+    "Bajar de peso": ["Subir de peso", "Ganar masa muscular"],
+    "Quemar grasas": ["Subir de peso"],
+    "Ganar masa muscular": ["Bajar de peso"]
+  }
 
   const [nutritionJourney, setNutritionJourney] = useLocalStorage<Record<string, NutritionJourneyItem[]>>(
     "nutritionJourney",
@@ -78,6 +170,16 @@ export function PersonalInfo() {
     setCurrentRestriction({ ...currentRestriction, [field]: value })
   }
 
+  const handleSportsChange = (sport: string) => {
+    let newSports = [...(personalInfo.sports || [])]
+    if (newSports.includes(sport)) {
+      newSports = newSports.filter(s => s !== sport)
+    } else {
+      newSports.push(sport)
+    }
+    setPersonalInfo({ ...personalInfo, sports: newSports })
+  }
+
   const handleAddRestriction = () => {
     setPersonalInfo({
       ...personalInfo,
@@ -93,14 +195,31 @@ export function PersonalInfo() {
     setPersonalInfo({ ...personalInfo, restrictions: newRestrictions })
   }
 
-  const handleSave = () => {
+  const handleSave = async () => {
     setIsEditing(false)
-    // You can add a toast notification here if you have a toast system
-    // toast({
-    //   title: "Profile updated",
-    //   description: "Your personal information has been saved successfully.",
-    //   variant: "success",
-    // });
+    try {
+      const { data: { user } } = await supabase.auth.getSession().then(({ data }) => ({ data: { user: data.session?.user } }))
+      if (!user) return
+
+      const updates = {
+        birth_date: personalInfo.basic.birthDate || null,
+        weight: personalInfo.basic.weight ? parseFloat(personalInfo.basic.weight) : null,
+        Height: personalInfo.basic.height ? parseFloat(personalInfo.basic.height) : null,
+        Genre: personalInfo.basic.gender,
+        fitness_goals: personalInfo.goals.objectives.split(', ').filter(Boolean),
+        sports: personalInfo.sports,
+        description: personalInfo.profile.bio,
+        location: personalInfo.profile.location,
+        updated_at: new Date().toISOString(),
+      }
+
+      const { error } = await supabase.from('clients').update(updates).eq('id', user.id)
+
+      if (error) throw error
+      console.log("Profile updated successfully")
+    } catch (error) {
+      console.error("Error saving profile:", error)
+    }
   }
 
   const renderRestrictionForm = () => {
@@ -302,12 +421,12 @@ export function PersonalInfo() {
       </CardHeader>
       <CardContent>
         <Tabs value={activeTab} onValueChange={(value) => {
-  setActiveTab(value)
-  // Scroll hacia arriba cuando se cambia de tab
-  setTimeout(() => {
-    window.scrollTo({ top: 0, behavior: 'smooth' })
-  }, 100)
-}}>
+          setActiveTab(value)
+          // Scroll hacia arriba cuando se cambia de tab
+          setTimeout(() => {
+            window.scrollTo({ top: 0, behavior: 'smooth' })
+          }, 100)
+        }}>
           <TabsList className="grid w-full grid-cols-4 bg-[#2D2D2D] p-1">
             <TabsTrigger value="basic" className="data-[state=active]:bg-[#FF7939] data-[state=active]:text-white">
               Basic
@@ -331,14 +450,15 @@ export function PersonalInfo() {
                 <>
                   <div className="grid grid-cols-2 gap-4">
                     <div>
-                      <Label htmlFor="age" className="text-gray-300">
-                        Age
+                      <Label htmlFor="birthDate" className="text-gray-300">
+                        Date of Birth
                       </Label>
                       <Input
-                        id="age"
-                        value={personalInfo.basic.age}
-                        onChange={(e) => handleBasicChange("age", e.target.value)}
-                        className="bg-[#2D2D2D] border-[#3D3D3D] focus:border-[#FF7939]"
+                        id="birthDate"
+                        type="date"
+                        value={personalInfo.basic.birthDate}
+                        onChange={(e) => handleBasicChange("birthDate", e.target.value)}
+                        className="bg-[#2D2D2D] border-[#3D3D3D] focus:border-[#FF7939] color-scheme-dark"
                       />
                     </div>
                     <div>
@@ -389,8 +509,19 @@ export function PersonalInfo() {
                 <div className="grid grid-cols-2 gap-6">
                   <div className="bg-[#2D2D2D]/50 p-4 rounded-lg flex flex-col items-center justify-center">
                     <div className="text-gray-400 mb-1 text-sm">Age</div>
-                    {personalInfo.basic.age ? (
-                      <div className="text-2xl font-bold text-white">{personalInfo.basic.age}</div>
+                    {personalInfo.basic.birthDate ? (
+                      <div className="text-2xl font-bold text-white">
+                        {(() => {
+                          const today = new Date();
+                          const birthDate = new Date(personalInfo.basic.birthDate);
+                          let age = today.getFullYear() - birthDate.getFullYear();
+                          const m = today.getMonth() - birthDate.getMonth();
+                          if (m < 0 || (m === 0 && today.getDate() < birthDate.getDate())) {
+                            age--;
+                          }
+                          return age;
+                        })()}
+                      </div>
                     ) : (
                       <div className="text-lg text-gray-500 italic">Not set</div>
                     )}
@@ -426,7 +557,7 @@ export function PersonalInfo() {
                 </div>
               )}
               {!isEditing &&
-                !personalInfo.basic.age &&
+                !personalInfo.basic.birthDate &&
                 !personalInfo.basic.weight &&
                 !personalInfo.basic.height &&
                 !personalInfo.basic.gender && (
@@ -446,16 +577,47 @@ export function PersonalInfo() {
             <div className="space-y-4 p-2">
               {isEditing ? (
                 <>
-                  <div>
-                    <Label htmlFor="objectives" className="text-gray-300">
-                      Objectives
-                    </Label>
-                    <Textarea
-                      id="objectives"
-                      value={personalInfo.goals.objectives}
-                      onChange={(e) => handleGoalsChange("objectives", e.target.value)}
-                      className="bg-[#2D2D2D] border-[#3D3D3D] focus:border-[#FF7939] min-h-[100px]"
-                    />
+                  <div className="space-y-3">
+                    <Label className="text-gray-300">Objectives</Label>
+                    <div className="max-h-[220px] overflow-y-auto pr-2 thin-scrollbar bg-black/20 rounded-xl p-2 border border-white/5">
+                      <div className="grid grid-cols-2 gap-2">
+                        {FITNESS_GOALS_OPTIONS.map((goal) => {
+                          const currentGoals = personalInfo.goals.objectives?.split(', ').filter(Boolean) || []
+                          const isSelected = currentGoals.includes(goal)
+                          const isContradictory = currentGoals.some(g => CONTRADICTORY_GOALS[goal]?.includes(g))
+
+                          return (
+                            <button
+                              key={goal}
+                              type="button"
+                              disabled={isContradictory && !isSelected}
+                              onClick={() => {
+                                let nextGoals: string[]
+                                if (isSelected) {
+                                  nextGoals = currentGoals.filter(g => g !== goal)
+                                } else {
+                                  // Double check contradiction before adding
+                                  if (isContradictory) return
+                                  nextGoals = [...currentGoals, goal]
+                                }
+                                handleGoalsChange("objectives", nextGoals.join(', '))
+                              }}
+                              className={`py-2 px-3 text-[11px] rounded-lg border text-left transition-all duration-300 flex items-center gap-2 ${isSelected
+                                ? 'border-[#FF7939] bg-[#FF7939]/10 text-white shadow-[0_0_15px_rgba(255,121,57,0.1)]'
+                                : isContradictory
+                                  ? 'border-white/5 bg-black/10 text-gray-700 cursor-not-allowed opacity-40'
+                                  : 'border-white/5 bg-black/20 text-gray-400 hover:border-white/20'
+                                }`}
+                            >
+                              <div className={`w-3.5 h-3.5 rounded-full border flex items-center justify-center flex-shrink-0 ${isSelected ? 'border-[#FF7939] bg-[#FF7939]' : 'border-gray-600'}`}>
+                                {isSelected && <Check className="h-2.5 w-2.5 text-white" />}
+                              </div>
+                              <span className="truncate">{goal}</span>
+                            </button>
+                          )
+                        })}
+                      </div>
+                    </div>
                   </div>
                   <div className="grid grid-cols-3 gap-4">
                     <div>
@@ -495,12 +657,18 @@ export function PersonalInfo() {
                 </>
               ) : (
                 <>
-                  <div className="bg-[#2D2D2D]/50 p-4 rounded-lg mb-4">
-                    <div className="text-gray-400 mb-2 text-sm">Objectives</div>
+                  <div className="bg-[#2D2D2D]/50 p-5 rounded-2xl mb-4 border border-white/5">
+                    <div className="text-gray-400 mb-3 text-[10px] uppercase font-bold tracking-wider">Objectives</div>
                     {personalInfo.goals.objectives ? (
-                      <div className="text-white">{personalInfo.goals.objectives}</div>
+                      <div className="flex flex-wrap gap-2">
+                        {personalInfo.goals.objectives.split(', ').map(goal => (
+                          <span key={goal} className="px-3 py-1 rounded-full bg-[#FF7939]/10 border border-[#FF7939]/30 text-[#FF7939] text-xs font-medium">
+                            {goal}
+                          </span>
+                        ))}
+                      </div>
                     ) : (
-                      <div className="text-gray-500 italic">Not set</div>
+                      <div className="text-gray-500 italic text-sm">Not set</div>
                     )}
                   </div>
 
@@ -629,142 +797,187 @@ export function PersonalInfo() {
               </div>
 
               {isEditing ? (
-                <div className="space-y-4">
-                  <div>
-                    <Label htmlFor="bio" className="text-gray-300">
-                      Bio
-                    </Label>
-                    <Textarea
-                      id="bio"
-                      value={personalInfo.profile?.bio || ""}
-                      onChange={(e) =>
-                        setPersonalInfo({
-                          ...personalInfo,
-                          profile: { ...personalInfo.profile, bio: e.target.value },
-                        })
-                      }
-                      placeholder="Write a short bio about yourself..."
-                      className="bg-[#2D2D2D] border-[#3D3D3D] focus:border-[#FF7939] min-h-[100px]"
-                    />
-                  </div>
-
-                  <div className="grid grid-cols-2 gap-4">
+                <>
+                  <div className="space-y-4">
                     <div>
-                      <Label htmlFor="location" className="text-gray-300">
-                        Location
+                      <Label htmlFor="bio" className="text-gray-300">
+                        Bio
                       </Label>
-                      <Input
-                        id="location"
-                        value={personalInfo.profile?.location || ""}
+                      <Textarea
+                        id="bio"
+                        value={personalInfo.profile?.bio || ""}
                         onChange={(e) =>
                           setPersonalInfo({
                             ...personalInfo,
-                            profile: { ...personalInfo.profile, location: e.target.value },
+                            profile: { ...personalInfo.profile, bio: e.target.value },
                           })
                         }
-                        placeholder="City, Country"
-                        className="bg-[#2D2D2D] border-[#3D3D3D] focus:border-[#FF7939]"
+                        placeholder="Write a short bio about yourself..."
+                        className="bg-[#2D2D2D] border-[#3D3D3D] focus:border-[#FF7939] min-h-[100px]"
                       />
                     </div>
+
+                    <div className="grid grid-cols-2 gap-4">
+                      <div>
+                        <Label htmlFor="location" className="text-gray-300">
+                          Location
+                        </Label>
+                        <Input
+                          id="location"
+                          value={personalInfo.profile?.location || ""}
+                          onChange={(e) =>
+                            setPersonalInfo({
+                              ...personalInfo,
+                              profile: { ...personalInfo.profile, location: e.target.value },
+                            })
+                          }
+                          placeholder="City, Country"
+                          className="bg-[#2D2D2D] border-[#3D3D3D] focus:border-[#FF7939]"
+                        />
+                      </div>
+                      <div>
+                        <Label htmlFor="profession" className="text-gray-300">
+                          Profession
+                        </Label>
+                        <Input
+                          id="profession"
+                          value={personalInfo.profile?.profession || ""}
+                          onChange={(e) =>
+                            setPersonalInfo({
+                              ...personalInfo,
+                              profile: { ...personalInfo.profile, profession: e.target.value },
+                            })
+                          }
+                          placeholder="Your profession"
+                          className="bg-[#2D2D2D] border-[#3D3D3D] focus:border-[#FF7939]"
+                        />
+                      </div>
+                    </div>
+
                     <div>
-                      <Label htmlFor="profession" className="text-gray-300">
-                        Profession
+                      <Label htmlFor="interests" className="text-gray-300">
+                        Fitness Interests
                       </Label>
                       <Input
-                        id="profession"
-                        value={personalInfo.profile?.profession || ""}
+                        id="interests"
+                        value={personalInfo.profile?.interests || ""}
                         onChange={(e) =>
                           setPersonalInfo({
                             ...personalInfo,
-                            profile: { ...personalInfo.profile, profession: e.target.value },
+                            profile: { ...personalInfo.profile, interests: e.target.value },
                           })
                         }
-                        placeholder="Your profession"
+                        placeholder="Running, Yoga, Weightlifting, etc."
                         className="bg-[#2D2D2D] border-[#3D3D3D] focus:border-[#FF7939]"
                       />
                     </div>
                   </div>
 
-                  <div>
-                    <Label htmlFor="interests" className="text-gray-300">
-                      Fitness Interests
-                    </Label>
-                    <Input
-                      id="interests"
-                      value={personalInfo.profile?.interests || ""}
-                      onChange={(e) =>
-                        setPersonalInfo({
-                          ...personalInfo,
-                          profile: { ...personalInfo.profile, interests: e.target.value },
-                        })
-                      }
-                      placeholder="Running, Yoga, Weightlifting, etc."
-                      className="bg-[#2D2D2D] border-[#3D3D3D] focus:border-[#FF7939]"
-                    />
+                  <div className="space-y-3">
+                    <Label className="text-gray-300">Sports</Label>
+                    <div className="max-h-[220px] overflow-y-auto pr-2 thin-scrollbar bg-black/20 rounded-xl p-2 border border-white/5">
+                      <div className="grid grid-cols-2 gap-2">
+                        {SPORTS_OPTIONS.map((sport) => {
+                          const currentSports = personalInfo.sports || []
+                          const isSelected = currentSports.includes(sport)
+
+                          return (
+                            <button
+                              key={sport}
+                              type="button"
+                              onClick={() => handleSportsChange(sport)}
+                              className={`py-2 px-3 text-[11px] rounded-lg border text-left transition-all duration-300 flex items-center gap-2 ${isSelected
+                                ? 'border-[#FF7939] bg-[#FF7939]/10 text-white shadow-[0_0_15px_rgba(255,121,57,0.1)]'
+                                : 'border-white/5 bg-black/20 text-gray-400 hover:border-white/20'
+                                }`}
+                            >
+                              <div className={`w-3.5 h-3.5 rounded-full border flex items-center justify-center flex-shrink-0 ${isSelected ? 'border-[#FF7939] bg-[#FF7939]' : 'border-gray-600'}`}>
+                                {isSelected && <Check className="h-2.5 w-2.5 text-white" />}
+                              </div>
+                              <span className="truncate">{sport}</span>
+                            </button>
+                          )
+                        })}
+                      </div>
+                    </div>
                   </div>
                 </div>
-              ) : (
-                <>
-                  {personalInfo.profile?.bio ||
-                  personalInfo.profile?.location ||
-                  personalInfo.profile?.profession ||
-                  personalInfo.profile?.interests ? (
-                    <div className="space-y-4">
-                      {personalInfo.profile?.bio && (
-                        <div className="bg-[#2D2D2D]/50 p-4 rounded-lg">
-                          <p className="text-white leading-relaxed">{personalInfo.profile.bio}</p>
-                        </div>
-                      )}
-
-                      <div className="grid grid-cols-2 gap-4">
-                        {personalInfo.profile?.location && (
-                          <div className="bg-[#2D2D2D]/50 p-4 rounded-lg">
-                            <div className="text-gray-400 mb-1 text-sm">Location</div>
-                            <div className="text-white font-medium">{personalInfo.profile.location}</div>
-                          </div>
-                        )}
-
-                        {personalInfo.profile?.profession && (
-                          <div className="bg-[#2D2D2D]/50 p-4 rounded-lg">
-                            <div className="text-gray-400 mb-1 text-sm">Profession</div>
-                            <div className="text-white font-medium">{personalInfo.profile.profession}</div>
-                          </div>
-                        )}
-                      </div>
-
-                      {personalInfo.profile?.interests && (
-                        <div className="bg-[#2D2D2D]/50 p-4 rounded-lg">
-                          <div className="text-gray-400 mb-1 text-sm">Fitness Interests</div>
-                          <div className="flex flex-wrap gap-2 mt-1">
-                            {personalInfo.profile.interests.split(",").map((interest, index) => (
-                              <span key={index} className="bg-[#FF7939]/20 text-[#FF7939] px-2 py-1 rounded-md text-sm">
-                                {interest.trim()}
-                              </span>
-                            ))}
-                          </div>
-                        </div>
-                      )}
-                    </div>
-                  ) : (
-                    <div className="p-6 border border-dashed border-[#FF7939]/30 rounded-lg bg-[#FF7939]/5 text-center">
-                      <p className="text-gray-300 mb-2">Your profile is empty</p>
-                      <p className="text-gray-400 text-sm mb-4">
-                        Add information about yourself to complete your profile
-                      </p>
-                      <Button
-                        onClick={() => setIsEditing(true)}
-                        className="bg-gradient-to-r from-[#FF7939] to-[#FF5C00] hover:from-[#FF5C00] hover:to-[#FF7939] text-white"
-                      >
-                        Complete Profile
-                      </Button>
+            </>
+            ) : (
+            <>
+              {personalInfo.profile?.bio ||
+                personalInfo.profile?.location ||
+                personalInfo.profile?.profession ||
+                personalInfo.profile?.interests ? (
+                <div className="space-y-4">
+                  {personalInfo.profile?.bio && (
+                    <div className="bg-[#2D2D2D]/50 p-4 rounded-lg">
+                      <p className="text-white leading-relaxed">{personalInfo.profile.bio}</p>
                     </div>
                   )}
-                </>
+
+                  <div className="grid grid-cols-2 gap-4">
+                    {personalInfo.profile?.location && (
+                      <div className="bg-[#2D2D2D]/50 p-4 rounded-lg">
+                        <div className="text-gray-400 mb-1 text-sm">Location</div>
+                        <div className="text-white font-medium">{personalInfo.profile.location}</div>
+                      </div>
+                    )}
+
+                    {personalInfo.profile?.profession && (
+                      <div className="bg-[#2D2D2D]/50 p-4 rounded-lg">
+                        <div className="text-gray-400 mb-1 text-sm">Profession</div>
+                        <div className="text-white font-medium">{personalInfo.profile.profession}</div>
+                      </div>
+                    )}
+                  </div>
+
+                  {personalInfo.profile?.interests && (
+                    <div className="bg-[#2D2D2D]/50 p-4 rounded-lg">
+                      <div className="text-gray-400 mb-1 text-sm">Fitness Interests</div>
+                      <div className="flex flex-wrap gap-2 mt-1">
+                        {personalInfo.profile.interests.split(",").map((interest, index) => (
+                          <span key={index} className="bg-[#FF7939]/20 text-[#FF7939] px-2 py-1 rounded-md text-sm">
+                            {interest.trim()}
+                          </span>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+
+                  {personalInfo.sports && personalInfo.sports.length > 0 && (
+                    <div className="bg-[#2D2D2D]/50 p-4 rounded-lg">
+                      <div className="text-gray-400 mb-1 text-sm">Sports</div>
+                      <div className="flex flex-wrap gap-2 mt-1">
+                        {personalInfo.sports.map((sport, index) => (
+                          <span key={index} className="bg-[#FF7939]/20 text-[#FF7939] px-2 py-1 rounded-md text-sm">
+                            {sport}
+                          </span>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+                </div>
+              ) : (
+                <div className="p-6 border border-dashed border-[#FF7939]/30 rounded-lg bg-[#FF7939]/5 text-center">
+                  <p className="text-gray-300 mb-2">Your profile is empty</p>
+                  <p className="text-gray-400 text-sm mb-4">
+                    Add information about yourself to complete your profile
+                  </p>
+                  <Button
+                    onClick={() => setIsEditing(true)}
+                    className="bg-gradient-to-r from-[#FF7939] to-[#FF5C00] hover:from-[#FF5C00] hover:to-[#FF7939] text-white"
+                  >
+                    Complete Profile
+                  </Button>
+                </div>
               )}
-            </div>
-          </TabsContent>
-        </Tabs>
-      </CardContent>
-    </Card>
+            </>
+              )}
+          </div>
+        </TabsContent>
+      </Tabs>
+    </CardContent>
+    </Card >
   )
 }

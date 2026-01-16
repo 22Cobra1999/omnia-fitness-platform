@@ -4,10 +4,11 @@ import React, { useState, useRef, useEffect, useCallback, useMemo } from 'react'
 import Papa from 'papaparse'
 import { validateSimpleCSVHeaders, SimpleExerciseData } from '@/lib/data/csv-parser'
 import { Button } from '@/components/ui/button'
-import { Upload, Download, Trash2, CheckCircle, AlertCircle, Plus, Eye, X, Clock, Flame, Video, PowerOff, Power, ChevronLeft, ChevronRight } from 'lucide-react'
+import { Upload, Download, Trash2, CheckCircle, AlertCircle, Plus, Eye, X, Clock, Flame, Video, PowerOff, Power, ChevronLeft, ChevronRight, Settings2 } from 'lucide-react'
 import { MediaSelectionModal } from '@/components/shared/ui/media-selection-modal'
 import { normalizeActivityMap } from '@/lib/utils/exercise-activity-map'
 import { UniversalVideoPlayer } from '@/components/shared/video/universal-video-player'
+import { ConditionalRulesPanel, ConditionalRule } from '@/components/shared/products/conditional-rules-panel'
 
 const normalizeCatalogText = (value: string) => (
   value
@@ -61,10 +62,10 @@ interface ExerciseData extends SimpleExerciseData {
   is_active?: boolean
 }
 
-export function CSVManagerEnhanced({ 
-  activityId, 
-  coachId, 
-  onSuccess, 
+export function CSVManagerEnhanced({
+  activityId,
+  coachId,
+  onSuccess,
   onRemoveCSV,
   onDownloadCSV,
   csvFileName,
@@ -101,6 +102,10 @@ export function CSVManagerEnhanced({
   const [activityNamesMap, setActivityNamesMap] = useState<Record<number, string>>({})
   // Mapa de imágenes de portada de actividades (id -> image_url)
   const [activityImagesMap, setActivityImagesMap] = useState<Record<number, string | null>>({})
+
+  // Estado para Reglas Condicionales
+  const [showRulesPanel, setShowRulesPanel] = useState(false)
+  const [rulesCount, setRulesCount] = useState(0)
   const updateErrorState = useCallback((message: string | null, rows: string[] = []) => {
     setError(message)
     setInvalidRows(rows)
@@ -170,7 +175,7 @@ export function CSVManagerEnhanced({
   const [seriePeso, setSeriePeso] = useState('')
   const [serieReps, setSerieReps] = useState('')
   const [serieSeries, setSerieSeries] = useState('')
-  const [seriesList, setSeriesList] = useState<Array<{peso:number, repeticiones:number, series:number}>>([])
+  const [seriesList, setSeriesList] = useState<Array<{ peso: number, repeticiones: number, series: number }>>([])
   const [equipoList, setEquipoList] = useState<string[]>([])
   const [equipoInput, setEquipoInput] = useState('')
   // Estado para pasos de receta (nutrición)
@@ -189,7 +194,7 @@ export function CSVManagerEnhanced({
     { value: 'funcional', label: 'Funcional' }
   ]
   const allowedExerciseTypes = exerciseTypeOptions.map(option => option.value)
-  const intensityLevels = ['Bajo','Medio','Alto']
+  const intensityLevels = ['Bajo', 'Medio', 'Alto']
   const bodyPartsOptions = [
     'Pecho',
     'Espalda',
@@ -220,12 +225,12 @@ export function CSVManagerEnhanced({
     Caderas: ['cadera', 'caderas', 'hip', 'hips'],
     'Cuerpo Completo': ['cuerpo completo', 'full body', 'total body', 'todo el cuerpo']
   }), [])
-  const equipmentOptions = ['Barra','Mancuernas','Banco','Rack','Bandas','Kettlebell','Máquinas','Mat de yoga','Chaleco','Escalera de agilidad']
+  const equipmentOptions = ['Barra', 'Mancuernas', 'Banco', 'Rack', 'Bandas', 'Kettlebell', 'Máquinas', 'Mat de yoga', 'Chaleco', 'Escalera de agilidad']
   const NONE_VALUES = useMemo(() => new Set([
-    'ninguno','ninguna','ningun','ninguno/a','ninguna/o','ningun@','ningunx',
-    'none','sin','sin equipo','sin equipamiento','n/a','na','no aplica','ning'
+    'ninguno', 'ninguna', 'ningun', 'ninguno/a', 'ninguna/o', 'ningun@', 'ningunx',
+    'none', 'sin', 'sin equipo', 'sin equipamiento', 'n/a', 'na', 'no aplica', 'ning'
   ].map(normalizeCatalogText)), [])
-  
+
   const bodyPartsLookup = useMemo(() => {
     const map = new Map<string, string>()
 
@@ -241,7 +246,7 @@ export function CSVManagerEnhanced({
       addEntry(part, part)
 
       const normalized = normalizeCatalogText(part)
-      const singular = normalized.replace(/(es|s)$/,'')
+      const singular = normalized.replace(/(es|s)$/, '')
       if (singular && singular !== normalized) {
         addEntry(singular, part)
       }
@@ -250,7 +255,7 @@ export function CSVManagerEnhanced({
       synonyms.forEach(syn => {
         addEntry(syn, part)
         const synNormalized = normalizeCatalogText(syn)
-        const synSingular = synNormalized.replace(/(es|s)$/,'')
+        const synSingular = synNormalized.replace(/(es|s)$/, '')
         if (synSingular && synSingular !== synNormalized) {
           addEntry(synSingular, part)
         }
@@ -288,9 +293,9 @@ export function CSVManagerEnhanced({
       return { value: '', issue: null }
     }
 
-    const altoValues = ['alto','alta','high','intenso','intensa','intensidad alta']
-    const medioValues = ['medio','media','moderado','moderada','medium','intermedio','intermedia']
-    const bajoValues = ['bajo','baja','low','suave','leve']
+    const altoValues = ['alto', 'alta', 'high', 'intenso', 'intensa', 'intensidad alta']
+    const medioValues = ['medio', 'media', 'moderado', 'moderada', 'medium', 'intermedio', 'intermedia']
+    const bajoValues = ['bajo', 'baja', 'low', 'suave', 'leve']
 
     if (altoValues.includes(normalized)) return { value: 'Alto', issue: null }
     if (medioValues.includes(normalized)) return { value: 'Medio', issue: null }
@@ -311,7 +316,7 @@ export function CSVManagerEnhanced({
       }
       let match = bodyPartsLookup.get(normalized)
       if (!match) {
-        const singularCandidate = normalized.replace(/(es|s)$/,'')
+        const singularCandidate = normalized.replace(/(es|s)$/, '')
         if (singularCandidate && singularCandidate !== normalized) {
           match = bodyPartsLookup.get(singularCandidate)
         }
@@ -383,7 +388,7 @@ export function CSVManagerEnhanced({
       // Forzar recarga usando la función loadExistingData existente
       // La llamaremos directamente aquí
       setLoadingExisting(true)
-      
+
       // Primero cargar las actividades del coach para tener el mapa de nombres
       fetch(`/api/coach/activities?coachId=${coachId}`, {
         credentials: 'include'
@@ -423,7 +428,7 @@ export function CSVManagerEnhanced({
                 // La API formatea la respuesta y agrega: media: activity.activity_media?.[0] || null
                 // La imagen de portada está específicamente en activity.media?.image_url
                 let imageUrl: string | null = null
-                
+
                 // Prioridad 1: media?.image_url (formateado por la API)
                 if (activity.media?.image_url) {
                   imageUrl = activity.media.image_url
@@ -432,7 +437,7 @@ export function CSVManagerEnhanced({
                 else if (activity.activity_media && Array.isArray(activity.activity_media) && activity.activity_media.length > 0) {
                   imageUrl = activity.activity_media[0]?.image_url || null
                 }
-                
+
                 imagesMap[activity.id] = imageUrl
               }
             })
@@ -444,7 +449,7 @@ export function CSVManagerEnhanced({
         .catch((err) => {
           console.warn('⚠️ Error cargando actividades del coach:', err)
         })
-      
+
       const category = productCategory === 'nutricion' ? 'nutricion' : 'fitness'
       // Para nutrición en modo genérico, no filtrar por active para mostrar todos los platos
       const activeParam = productCategory === 'nutricion' ? '' : '&active=true'
@@ -459,84 +464,84 @@ export function CSVManagerEnhanced({
           if (catalogJson && catalogJson.success && Array.isArray(catalogJson.data)) {
             const items = catalogJson.data
             console.log(`✅ ${category === 'nutricion' ? 'Platos' : 'Ejercicios'} de catálogo cargados:`, items.length)
-            
+
             // Transformar datos para nutrición específicamente
-            const transformed = productCategory === 'nutricion' 
+            const transformed = productCategory === 'nutricion'
               ? items.map((item: any) => {
-                  // Manejar ingredientes
-                  let ingredientesValue = ''
-                  if (item.ingredientes !== undefined && item.ingredientes !== null && item.ingredientes !== '') {
-                    if (Array.isArray(item.ingredientes)) {
-                      ingredientesValue = item.ingredientes.join('; ')
-                    } else if (typeof item.ingredientes === 'string' && item.ingredientes.startsWith('[')) {
-                      try {
-                        const parsed = JSON.parse(item.ingredientes)
-                        if (Array.isArray(parsed)) {
-                          ingredientesValue = parsed.map((ing: any) => String(ing)).join('; ')
-                        } else {
-                          ingredientesValue = item.ingredientes
-                        }
-                      } catch {
+                // Manejar ingredientes
+                let ingredientesValue = ''
+                if (item.ingredientes !== undefined && item.ingredientes !== null && item.ingredientes !== '') {
+                  if (Array.isArray(item.ingredientes)) {
+                    ingredientesValue = item.ingredientes.join('; ')
+                  } else if (typeof item.ingredientes === 'string' && item.ingredientes.startsWith('[')) {
+                    try {
+                      const parsed = JSON.parse(item.ingredientes)
+                      if (Array.isArray(parsed)) {
+                        ingredientesValue = parsed.map((ing: any) => String(ing)).join('; ')
+                      } else {
                         ingredientesValue = item.ingredientes
                       }
-                    } else {
-                      ingredientesValue = String(item.ingredientes)
+                    } catch {
+                      ingredientesValue = item.ingredientes
                     }
+                  } else {
+                    ingredientesValue = String(item.ingredientes)
                   }
-                  
-                  return {
-                    ...item,
-                    'Nombre': item.nombre || item.nombre_plato || '',
-                    'Receta': item.receta || item.descripcion || '',
-                    'Calorías': item.calorias !== undefined && item.calorias !== null ? Number(item.calorias) : 0,
-                    'Proteínas (g)': item.proteinas !== undefined && item.proteinas !== null ? Number(item.proteinas) : 0,
-                    'Carbohidratos (g)': item.carbohidratos !== undefined && item.carbohidratos !== null ? Number(item.carbohidratos) : 0,
-                    'Grasas (g)': item.grasas !== undefined && item.grasas !== null ? Number(item.grasas) : 0,
-                    'Ingredientes': ingredientesValue,
-                    'Porciones': item.porciones !== undefined && item.porciones !== null && item.porciones !== '' ? item.porciones : '',
-                    'Minutos': item.minutos !== undefined && item.minutos !== null && item.minutos !== '' ? item.minutos : '',
-                    isExisting: true,
-                    is_active: item.is_active !== false,
-                    activo: item.is_active !== false,
-                    activity_id_new: item.activity_id_new || item.activity_id || null,
-                    activity_id: item.activity_id || null,
-                    nombre: item.nombre || item.nombre_plato || '',
-                    receta: item.receta || item.descripcion || '',
-                    calorias: item.calorias !== undefined && item.calorias !== null ? Number(item.calorias) : 0,
-                    proteinas: item.proteinas !== undefined && item.proteinas !== null ? Number(item.proteinas) : 0,
-                    carbohidratos: item.carbohidratos !== undefined && item.carbohidratos !== null ? Number(item.carbohidratos) : 0,
-                    grasas: item.grasas !== undefined && item.grasas !== null ? Number(item.grasas) : 0,
-                    ingredientes: ingredientesValue,
-                    porciones: item.porciones || '',
-                    minutos: item.minutos || ''
-                  }
-                })
-              : items.map((item: any) => ({
+                }
+
+                return {
                   ...item,
-                  'Nombre de la Actividad': item.nombre_ejercicio || item.nombre || '',
+                  'Nombre': item.nombre || item.nombre_plato || '',
+                  'Receta': item.receta || item.descripcion || '',
+                  'Calorías': item.calorias !== undefined && item.calorias !== null ? Number(item.calorias) : 0,
+                  'Proteínas (g)': item.proteinas !== undefined && item.proteinas !== null ? Number(item.proteinas) : 0,
+                  'Carbohidratos (g)': item.carbohidratos !== undefined && item.carbohidratos !== null ? Number(item.carbohidratos) : 0,
+                  'Grasas (g)': item.grasas !== undefined && item.grasas !== null ? Number(item.grasas) : 0,
+                  'Ingredientes': ingredientesValue,
+                  'Porciones': item.porciones !== undefined && item.porciones !== null && item.porciones !== '' ? item.porciones : '',
+                  'Minutos': item.minutos !== undefined && item.minutos !== null && item.minutos !== '' ? item.minutos : '',
                   isExisting: true,
                   is_active: item.is_active !== false,
-                  activo: item.is_active !== false
-                }))
-            
+                  activo: item.is_active !== false,
+                  activity_id_new: item.activity_id_new || item.activity_id || null,
+                  activity_id: item.activity_id || null,
+                  nombre: item.nombre || item.nombre_plato || '',
+                  receta: item.receta || item.descripcion || '',
+                  calorias: item.calorias !== undefined && item.calorias !== null ? Number(item.calorias) : 0,
+                  proteinas: item.proteinas !== undefined && item.proteinas !== null ? Number(item.proteinas) : 0,
+                  carbohidratos: item.carbohidratos !== undefined && item.carbohidratos !== null ? Number(item.carbohidratos) : 0,
+                  grasas: item.grasas !== undefined && item.grasas !== null ? Number(item.grasas) : 0,
+                  ingredientes: ingredientesValue,
+                  porciones: item.porciones || '',
+                  minutos: item.minutos || ''
+                }
+              })
+              : items.map((item: any) => ({
+                ...item,
+                'Nombre de la Actividad': item.nombre_ejercicio || item.nombre || '',
+                isExisting: true,
+                is_active: item.is_active !== false,
+                activo: item.is_active !== false
+              }))
+
             console.log(`✅ ${category === 'nutricion' ? 'Platos' : 'Ejercicios'} transformados para tabla:`, transformed.length)
             setExistingData(transformed)
             setCsvData(transformed)
             if (parentSetCsvData) {
               parentSetCsvData(transformed)
             }
-            
+
             // Cargar uso de cada ejercicio/plato en background (no bloquea la visualización)
             if (transformed.length > 0) {
               setTimeout(() => {
                 const itemsWithIds = transformed.filter((item: any) => item.id && typeof item.id === 'number')
                 // Limitar a los primeros 50 para evitar demasiadas requests
                 const itemsToLoad = itemsWithIds.slice(0, 50)
-                
+
                 if (itemsToLoad.length === 0) return
-                
+
                 console.log(`🔄 Cargando uso en background para ${itemsToLoad.length} ${category === 'nutricion' ? 'platos' : 'ejercicios'}...`)
-                
+
                 // Cargar en batches de 10 para no saturar el servidor
                 const batchSize = 10
                 const loadBatch = async (batch: Array<any>) => {
@@ -554,7 +559,7 @@ export function CSVManagerEnhanced({
                     }
                     return null
                   })
-                  
+
                   const results = await Promise.all(batchPromises)
                   const usageMap: Record<number, { activities: Array<{ id: number; name: string }> }> = {}
                   results.forEach((result) => {
@@ -564,15 +569,15 @@ export function CSVManagerEnhanced({
                       }
                     }
                   })
-                  
+
                   // Actualizar el estado acumulativo
                   setExerciseUsage(prev => ({ ...prev, ...usageMap }))
                 }
-                
+
                 // Procesar en batches
                 for (let i = 0; i < itemsToLoad.length; i += batchSize) {
                   const batch = itemsToLoad.slice(i, i + batchSize)
-                  loadBatch(batch).catch(() => {}) // Ignorar errores
+                  loadBatch(batch).catch(() => { }) // Ignorar errores
                 }
               }, 500) // Esperar 500ms después de mostrar los datos
             }
@@ -603,7 +608,7 @@ export function CSVManagerEnhanced({
     if (activityId === 0) {
       return
     }
-    
+
     // Si acabamos de eliminar, no recargar los datos
     if (justDeletedRef.current) {
       console.log('🚫 Saltando recarga - acabamos de eliminar filas')
@@ -611,7 +616,7 @@ export function CSVManagerEnhanced({
       hasUserInteractedRef.current = true // Marcar que el usuario interactuó
       return
     }
-    
+
     // ✅ PRIORIDAD 1: Si parentCsvData es undefined, SIEMPRE cargar desde backend
     // Esto ocurre cuando se abre un producto para edición y se limpia el estado
     if (parentCsvData === undefined) {
@@ -641,11 +646,11 @@ export function CSVManagerEnhanced({
       }
       return
     }
-    
+
     // Verificar si el usuario ya interactuó con este paso (incluso si eliminó todo)
     // En modo genérico (activityId === 0) no usar sessionStorage
     const hasInteracted = activityId !== 0 ? sessionStorage.getItem(`activities_draft_${activityId}_interacted`) === 'true' : false
-    
+
     // ✅ PRIORIDAD 2: Si hay datos persistentes del padre Y tiene contenido, NO recargar desde el servidor
     if (parentCsvData && parentCsvData.length > 0) {
       console.log('📦 Usando datos persistentes del padre, NO recargando desde servidor', {
@@ -656,7 +661,7 @@ export function CSVManagerEnhanced({
       setExistingData([])
       return
     }
-    
+
     // ✅ PRIORIDAD 3: Si parentCsvData está definido pero vacío Y el usuario ya interactuó, NO recargar
     // Esto significa que el usuario eliminó todas las filas intencionalmente
     if (parentCsvData.length === 0) {
@@ -710,7 +715,7 @@ export function CSVManagerEnhanced({
       if (parentCsvData.length === 0 && !hasInteracted && !hasUserInteractedRef.current && !isLoadingDataRef.current) {
         console.log('🔄 parentCsvData vacío y primera vez - cargando desde servidor')
         loadExistingData()
-      } 
+      }
       // Si hay datos pero no hay interacción, también cargar para asegurar que estén actualizados
       else if (parentCsvData.length > 0 && !hasInteracted && !hasUserInteractedRef.current && !isLoadingDataRef.current) {
         console.log('🔄 Hay datos pero es primera vez - verificando si hay más en servidor')
@@ -771,7 +776,7 @@ export function CSVManagerEnhanced({
       console.log('🚫 Saltando sincronización con parentCsvData - acabamos de eliminar')
       return
     }
-    
+
     // Verificar si hay datos en sessionStorage que tienen prioridad
     try {
       const saved = sessionStorage.getItem(`activities_draft_${activityId}`)
@@ -782,7 +787,7 @@ export function CSVManagerEnhanced({
           // Esto asegura que las eliminaciones persistan
           const currentLocalData = csvData
           const savedData = parsed
-          
+
           // Solo sincronizar si los datos guardados son diferentes a los locales
           // Esto evita loops infinitos
           if (JSON.stringify(currentLocalData) !== JSON.stringify(savedData)) {
@@ -798,7 +803,7 @@ export function CSVManagerEnhanced({
     } catch (error) {
       console.error('❌ Error verificando sessionStorage en sincronización:', error)
     }
-    
+
     // Si parentCsvData es undefined, no hacer nada (esperar a que se carguen los datos)
     // PERO no limpiar existingData ni csvData si ya tienen datos cargados
     if (parentCsvData === undefined) {
@@ -812,7 +817,7 @@ export function CSVManagerEnhanced({
       }
       return
     }
-    
+
     // Si parentCsvData está definido pero vacío, solo limpiar si no hay datos locales
     if (parentCsvData && parentCsvData.length === 0) {
       // Solo limpiar si realmente no hay datos (no si están cargando o si hay datos locales)
@@ -821,7 +826,7 @@ export function CSVManagerEnhanced({
         setExistingData([])
         console.log('🔄 CSVManagerEnhanced - Estado sincronizado desde padre (csvData vaciado)')
         if (typeof window !== 'undefined') {
-          ;(window as any).__CSV_MANAGER_PARENT__ = []
+          ; (window as any).__CSV_MANAGER_PARENT__ = []
         }
       } else {
         console.log('📦 parentCsvData vacío pero hay datos locales - manteniendo datos locales')
@@ -833,7 +838,7 @@ export function CSVManagerEnhanced({
     // Estos datos ya contienen todos los cambios del usuario (eliminaciones, agregados, etc.)
     setCsvData(parentCsvData as any)
     if (typeof window !== 'undefined') {
-      ;(window as any).__CSV_MANAGER_PARENT__ = parentCsvData
+      ; (window as any).__CSV_MANAGER_PARENT__ = parentCsvData
     }
 
     console.log(
@@ -874,12 +879,12 @@ export function CSVManagerEnhanced({
           return existingItems
         }
       }
-      
+
       // Si no hay IDs en parent, solo limpiar si realmente no hay datos
       if (idsInParent.size === 0 && parentCsvData.length === 0) {
         return []
       }
-      
+
       // Si parentCsvData tiene menos items que existingData, filtrar
       // Esto indica que se eliminaron items
       if (idsInParent.size < prev.length) {
@@ -895,7 +900,7 @@ export function CSVManagerEnhanced({
           return idsInParent.has(String(id))
         })
       }
-      
+
       // Si parentCsvData tiene los mismos o más items, mantener existingData
       // Esto evita limpiar datos que ya están cargados
       return prev
@@ -941,7 +946,7 @@ export function CSVManagerEnhanced({
                   // La API formatea la respuesta y agrega: media: activity.activity_media?.[0] || null
                   // La imagen de portada está específicamente en activity.media?.image_url
                   let imageUrl: string | null = null
-                  
+
                   // Prioridad 1: media?.image_url (formateado por la API)
                   if (activity.media?.image_url) {
                     imageUrl = activity.media.image_url
@@ -950,7 +955,7 @@ export function CSVManagerEnhanced({
                   else if (activity.activity_media && Array.isArray(activity.activity_media) && activity.activity_media.length > 0) {
                     imageUrl = activity.activity_media[0]?.image_url || null
                   }
-                  
+
                   imagesMap[activity.id] = imageUrl
                 }
               })
@@ -962,7 +967,7 @@ export function CSVManagerEnhanced({
         } catch (err) {
           console.warn('⚠️ Error cargando actividades del coach:', err)
         }
-        
+
         const category = productCategory === 'nutricion' ? 'nutricion' : 'fitness'
         // Para nutrición en modo genérico, no filtrar por active para mostrar todos los platos
         // Para fitness, mantener el filtro de active=true
@@ -998,104 +1003,104 @@ export function CSVManagerEnhanced({
           // Transformar datos según la categoría
           const transformed = category === 'nutricion'
             ? items.map((item: any) => {
-                // Manejar ingredientes: puede ser JSONB (array), string separado por ;, o string simple
-                let ingredientesValue = ''
-                if (item.ingredientes !== undefined && item.ingredientes !== null && item.ingredientes !== '') {
-                  if (Array.isArray(item.ingredientes)) {
-                    ingredientesValue = item.ingredientes.join('; ')
-                  } else if (typeof item.ingredientes === 'string' && item.ingredientes.trim().startsWith('[')) {
-                    try {
-                      const parsed = JSON.parse(item.ingredientes)
-                      if (Array.isArray(parsed)) {
-                        ingredientesValue = parsed.map((ing: any) => String(ing)).join('; ')
-                      } else {
-                        ingredientesValue = item.ingredientes
-                      }
-                    } catch {
+              // Manejar ingredientes: puede ser JSONB (array), string separado por ;, o string simple
+              let ingredientesValue = ''
+              if (item.ingredientes !== undefined && item.ingredientes !== null && item.ingredientes !== '') {
+                if (Array.isArray(item.ingredientes)) {
+                  ingredientesValue = item.ingredientes.join('; ')
+                } else if (typeof item.ingredientes === 'string' && item.ingredientes.trim().startsWith('[')) {
+                  try {
+                    const parsed = JSON.parse(item.ingredientes)
+                    if (Array.isArray(parsed)) {
+                      ingredientesValue = parsed.map((ing: any) => String(ing)).join('; ')
+                    } else {
                       ingredientesValue = item.ingredientes
                     }
-                  } else {
-                    ingredientesValue = String(item.ingredientes)
+                  } catch {
+                    ingredientesValue = item.ingredientes
                   }
+                } else {
+                  ingredientesValue = String(item.ingredientes)
                 }
-                
-                // Función auxiliar para obtener número o 0
-                const getNumberValue = (value: any) => {
-                  if (value !== undefined && value !== null && value !== '' && value !== 'null') {
-                    const num = Number(value)
-                    return isNaN(num) ? 0 : num
-                  }
-                  return 0
+              }
+
+              // Función auxiliar para obtener número o 0
+              const getNumberValue = (value: any) => {
+                if (value !== undefined && value !== null && value !== '' && value !== 'null') {
+                  const num = Number(value)
+                  return isNaN(num) ? 0 : num
                 }
-                
-                // Función auxiliar para obtener string o ''
-                const getStringValue = (value: any) => {
-                  if (value !== undefined && value !== null && value !== '' && value !== 'null') {
-                    return String(value)
-                  }
-                  return ''
+                return 0
+              }
+
+              // Función auxiliar para obtener string o ''
+              const getStringValue = (value: any) => {
+                if (value !== undefined && value !== null && value !== '' && value !== 'null') {
+                  return String(value)
                 }
-                
-                return {
-                  ...item,
-                  'Nombre': item.nombre || item.nombre_plato || '',
-                  'Nombre de la Actividad': item.nombre || item.nombre_plato || '',
-                  tipo: item.tipo || '',
-                  'Receta': getStringValue(item.receta || item.descripcion),
-                  'Calorías': getNumberValue(item.calorias),
-                  'Proteínas (g)': getNumberValue(item.proteinas),
-                  'Carbohidratos (g)': getNumberValue(item.carbohidratos),
-                  'Grasas (g)': getNumberValue(item.grasas),
-                  'Ingredientes': ingredientesValue,
-                  'Porciones': getStringValue(item.porciones),
-                  'Minutos': getStringValue(item.minutos),
-                  'Descripción': getStringValue(item.descripcion || item.receta),
-                  isExisting: true,
-                  is_active: item.is_active !== false,
-                  activo: item.is_active !== false,
-                  activity_id_new: item.activity_id_new || item.activity_id || null,
-                  activity_id: item.activity_id || null,
-                  // Mantener campos en minúsculas para compatibilidad
-                  nombre: item.nombre || item.nombre_plato || '',
-                  receta: getStringValue(item.receta || item.descripcion),
-                  calorias: getNumberValue(item.calorias),
-                  proteinas: getNumberValue(item.proteinas),
-                  carbohidratos: getNumberValue(item.carbohidratos),
-                  grasas: getNumberValue(item.grasas),
-                  ingredientes: ingredientesValue,
-                  porciones: getStringValue(item.porciones),
-                  minutos: getStringValue(item.minutos)
-                }
-              })
-            : items.map((item: any) => ({
+                return ''
+              }
+
+              return {
                 ...item,
-                // Agregar campos para compatibilidad con CSV
-                'Nombre': item.nombre || item.nombre_ejercicio || item.nombre_plato || '',
-                'Nombre de la Actividad': item.nombre || item.nombre_ejercicio || item.nombre_plato || '',
+                'Nombre': item.nombre || item.nombre_plato || '',
+                'Nombre de la Actividad': item.nombre || item.nombre_plato || '',
                 tipo: item.tipo || '',
-                'Receta': item.receta || item.descripcion || '',
-                'Calorías': item.calorias || 0,
-                'Proteínas (g)': item.proteinas || 0,
-                'Carbohidratos (g)': item.carbohidratos || 0,
-                'Grasas (g)': item.grasas || 0,
-                'Ingredientes': item.ingredientes || '',
-                'Porciones': item.porciones || '',
-                'Minutos': item.minutos || 0,
-                'Descripción': item.descripcion || item.receta || '',
-                // Campos de fitness
-                'Duración (min)': item.duracion_min || 0,
-                'Tipo de Ejercicio': item.tipo || '',
-                'Equipo Necesario': item.equipo || '',
-                'Detalle de Series (peso-repeticiones-series)': item.detalle_series || '',
-                'Partes del Cuerpo': item.body_parts || '',
-                'Nivel de Intensidad': item.intensidad || '',
+                'Receta': getStringValue(item.receta || item.descripcion),
+                'Calorías': getNumberValue(item.calorias),
+                'Proteínas (g)': getNumberValue(item.proteinas),
+                'Carbohidratos (g)': getNumberValue(item.carbohidratos),
+                'Grasas (g)': getNumberValue(item.grasas),
+                'Ingredientes': ingredientesValue,
+                'Porciones': getStringValue(item.porciones),
+                'Minutos': getStringValue(item.minutos),
+                'Descripción': getStringValue(item.descripcion || item.receta),
                 isExisting: true,
                 is_active: item.is_active !== false,
                 activo: item.is_active !== false,
-                // Preservar activity_id_new para la columna Estado
                 activity_id_new: item.activity_id_new || item.activity_id || null,
-                activity_id: item.activity_id || null
-              }))
+                activity_id: item.activity_id || null,
+                // Mantener campos en minúsculas para compatibilidad
+                nombre: item.nombre || item.nombre_plato || '',
+                receta: getStringValue(item.receta || item.descripcion),
+                calorias: getNumberValue(item.calorias),
+                proteinas: getNumberValue(item.proteinas),
+                carbohidratos: getNumberValue(item.carbohidratos),
+                grasas: getNumberValue(item.grasas),
+                ingredientes: ingredientesValue,
+                porciones: getStringValue(item.porciones),
+                minutos: getStringValue(item.minutos)
+              }
+            })
+            : items.map((item: any) => ({
+              ...item,
+              // Agregar campos para compatibilidad con CSV
+              'Nombre': item.nombre || item.nombre_ejercicio || item.nombre_plato || '',
+              'Nombre de la Actividad': item.nombre || item.nombre_ejercicio || item.nombre_plato || '',
+              tipo: item.tipo || '',
+              'Receta': item.receta || item.descripcion || '',
+              'Calorías': item.calorias || 0,
+              'Proteínas (g)': item.proteinas || 0,
+              'Carbohidratos (g)': item.carbohidratos || 0,
+              'Grasas (g)': item.grasas || 0,
+              'Ingredientes': item.ingredientes || '',
+              'Porciones': item.porciones || '',
+              'Minutos': item.minutos || 0,
+              'Descripción': item.descripcion || item.receta || '',
+              // Campos de fitness
+              'Duración (min)': item.duracion_min || 0,
+              'Tipo de Ejercicio': item.tipo || '',
+              'Equipo Necesario': item.equipo || '',
+              'Detalle de Series (peso-repeticiones-series)': item.detalle_series || '',
+              'Partes del Cuerpo': item.body_parts || '',
+              'Nivel de Intensidad': item.intensidad || '',
+              isExisting: true,
+              is_active: item.is_active !== false,
+              activo: item.is_active !== false,
+              // Preservar activity_id_new para la columna Estado
+              activity_id_new: item.activity_id_new || item.activity_id || null,
+              activity_id: item.activity_id || null
+            }))
 
           console.log(`✅ ${category === 'nutricion' ? 'Platos' : 'Ejercicios'} de catálogo transformados para tabla:`, transformed.length)
           setExistingData(transformed)
@@ -1111,11 +1116,11 @@ export function CSVManagerEnhanced({
             const itemsWithIds = transformed.filter((item: any) => item.id && typeof item.id === 'number')
             // Limitar a los primeros 50 para evitar demasiadas requests
             const itemsToLoad = itemsWithIds.slice(0, 50)
-            
+
             if (itemsToLoad.length === 0) return
-            
+
             console.log(`🔄 Cargando uso en background para ${itemsToLoad.length} ${category === 'nutricion' ? 'platos' : 'ejercicios'}...`)
-            
+
             // Cargar en batches de 10 para no saturar el servidor
             const batchSize = 10
             const loadBatch = async (batch: Array<any>) => {
@@ -1133,7 +1138,7 @@ export function CSVManagerEnhanced({
                 }
                 return null
               })
-              
+
               const results = await Promise.all(batchPromises)
               const usageMap: Record<number, { activities: Array<{ id: number; name: string }> }> = {}
               results.forEach((result) => {
@@ -1143,15 +1148,15 @@ export function CSVManagerEnhanced({
                   }
                 }
               })
-              
+
               // Actualizar el estado acumulativo
               setExerciseUsage(prev => ({ ...prev, ...usageMap }))
             }
-            
+
             // Procesar en batches
             for (let i = 0; i < itemsToLoad.length; i += batchSize) {
               const batch = itemsToLoad.slice(i, i + batchSize)
-              loadBatch(batch).catch(() => {}) // Ignorar errores
+              loadBatch(batch).catch(() => { }) // Ignorar errores
             }
           }, 500) // Esperar 500ms después de mostrar los datos
         } else {
@@ -1180,18 +1185,18 @@ export function CSVManagerEnhanced({
       })
       return
     }
-    
+
     // NO cargar si ya tenemos datos persistentes del padre
     // Esto previene sobrescribir cambios del usuario cuando navega entre pasos
     if (parentCsvData && parentCsvData.length > 0) {
       console.log('📦 Saltando carga desde servidor - usando datos persistentes del padre (', parentCsvData.length, 'filas)')
       return
     }
-    
+
     console.log('🔄 Cargando datos existentes para activityId:', activityId, 'productCategory:', productCategory)
     setLoadingExisting(true)
     try {
-      const endpoint = productCategory === 'nutricion' 
+      const endpoint = productCategory === 'nutricion'
         ? `/api/activity-nutrition/${activityId}`
         : `/api/activity-exercises/${activityId}`
       const response = await fetch(endpoint)
@@ -1203,11 +1208,23 @@ export function CSVManagerEnhanced({
         console.error('❌ Error parseando JSON de existentes:', err)
         return null
       })
-      
+
       if (response.ok && result && result.success) {
         console.log('✅ Datos existentes cargados:', result.data.length, 'ejercicios')
+        // Cargar reglas condicionales desde sessionStorage si existen
+        if (activityId > 0) {
+          try {
+            const savedRules = sessionStorage.getItem(`conditional_rules_${activityId}`)
+            if (savedRules) {
+              const parsed = JSON.parse(savedRules)
+              setRulesCount(parsed.length)
+            }
+          } catch (err) {
+            console.error('Error loading rules from session:', err)
+          }
+        }
         // Datos cargados correctamente
-        
+
         // Transformar datos existentes al formato esperado por la tabla
         let transformedExistingData = result.data.map((item: any) => {
           // ✅ Normalizar activity map desde múltiples fuentes posibles
@@ -1215,7 +1232,7 @@ export function CSVManagerEnhanced({
           const activityAssignments = normalizeActivityMap(
             item.activity_assignments ?? item.activity_map ?? item.activity_id_new ?? item.activity_id
           )
-          
+
           if (productCategory === 'nutricion') {
             // Transformación para platos de nutrición
             // Asegurar que todos los campos estén presentes
@@ -1249,7 +1266,7 @@ export function CSVManagerEnhanced({
                 }
               }
             }
-            
+
             // Función auxiliar para obtener valor o default
             const getValue = (value: any, defaultValue: any = '') => {
               if (value !== undefined && value !== null && value !== '') {
@@ -1257,7 +1274,7 @@ export function CSVManagerEnhanced({
               }
               return defaultValue
             }
-            
+
             // Función auxiliar para obtener número o 0
             const getNumberValue = (value: any) => {
               if (value !== undefined && value !== null && value !== '' && value !== 'null') {
@@ -1266,7 +1283,7 @@ export function CSVManagerEnhanced({
               }
               return 0
             }
-            
+
             const transformed = {
               ...item,
               'Nombre': item.nombre_plato || item['Nombre'] || item.nombre || '',
@@ -1301,7 +1318,7 @@ export function CSVManagerEnhanced({
               porciones: getValue(item.porciones, ''),
               minutos: getValue(item.minutos, '')
             }
-            
+
             console.log('🍽️ Plato transformado:', {
               id: transformed.id,
               nombre: transformed['Nombre'],
@@ -1309,7 +1326,7 @@ export function CSVManagerEnhanced({
               is_active: transformed.is_active,
               activo: transformed.activo
             })
-            
+
             return transformed
           } else {
             // Transformación para ejercicios de fitness
@@ -1334,10 +1351,10 @@ export function CSVManagerEnhanced({
             }
           }
         })
-        
+
         console.log('🔄 Datos existentes transformados:', transformedExistingData.length, 'ejercicios')
         console.log('📝 Primer ejercicio transformado:', transformedExistingData[0])
-        
+
         const planningActiveMap = new Map<number, boolean>()
         if (activityId > 0) {
           const activityKey = String(activityId)
@@ -1348,17 +1365,17 @@ export function CSVManagerEnhanced({
             const assignments = item?.activity_assignments || {}
             const activityIdNew = item?.activity_id_new || {}
             const activityId = item?.activity_id
-            
+
             // Verificar en activity_assignments (ya normalizado)
             if (assignments && typeof assignments === 'object' && activityKey in assignments) {
               return true
             }
-            
+
             // Verificar en activity_id_new (JSONB)
             if (activityIdNew && typeof activityIdNew === 'object' && activityKey in activityIdNew) {
               return true
             }
-            
+
             // Verificar en activity_id (integer o JSONB)
             if (activityId) {
               if (typeof activityId === 'number' && activityId === Number(activityKey)) {
@@ -1368,10 +1385,10 @@ export function CSVManagerEnhanced({
                 return true
               }
             }
-            
+
             return false
           })
-          
+
           console.log('📋 Platos filtrados por actividad:', {
             total: transformedExistingData.length,
             activos: transformedExistingData.filter((item: any) => item.is_active !== false).length,
@@ -1394,32 +1411,32 @@ export function CSVManagerEnhanced({
             return item
           })
         }
-        
+
         console.log('✅ Datos transformados listos para mostrar:', transformedExistingData.length, 'platos')
         console.log('📋 Primeros 3 platos:', transformedExistingData.slice(0, 3).map((item: any) => ({
           id: item.id,
           nombre: item['Nombre'] || item.nombre,
           tipo: item['Tipo'] || item.tipo
         })))
-        
+
         setExistingData(transformedExistingData)
-        
+
         // IMPORTANTE: Siempre actualizar csvData local con los datos existentes para que se muestren
         setCsvData(transformedExistingData)
         console.log('💾 csvData actualizado con', transformedExistingData.length, 'platos')
-        
+
         // Notificar al padre que se cargaron datos existentes
         // Solo sobrescribir si no hay datos persistentes con videos O datos del CSV
         if (parentSetCsvData) {
           console.log('📤 Notificando al padre sobre datos existentes:', transformedExistingData.length, 'ejercicios')
-          
+
           // Verificar si hay datos persistentes con videos
           const hasPersistentVideos = parentCsvData && parentCsvData.some((row: any) => row.video_url)
-          
+
           // Verificar si hay datos del CSV cargados (más de 1 fila indica CSV cargado)
           const hasCsvData = parentCsvData && parentCsvData.length > 1
-          
-          
+
+
           if (hasPersistentVideos || hasCsvData) {
             console.log('🎥 Manteniendo datos persistentes (videos o CSV), no sobrescribiendo')
             // No sobrescribir, mantener los datos persistentes
@@ -1430,17 +1447,17 @@ export function CSVManagerEnhanced({
             const updatedParent = (parentCsvData || []).map((item: any) => {
               const key = item && item.id !== undefined ? String(item.id) : null
               if (item && item.isExisting && key && latestExistingMap.has(key)) {
-                  const latest = latestExistingMap.get(key) as any
-                  return {
-                    ...item,
-                    is_active: latest.is_active,
-                    activo: latest.activo,
-                    video_url: latest.video_url ?? item.video_url ?? '',
-                    bunny_video_id: latest.bunny_video_id ?? item.bunny_video_id ?? '',
-                    bunny_library_id: latest.bunny_library_id ?? item.bunny_library_id ?? '',
-                    video_thumbnail_url: latest.video_thumbnail_url ?? item.video_thumbnail_url ?? '',
-                    video_file_name: latest.video_file_name ?? item.video_file_name ?? ''
-                  }
+                const latest = latestExistingMap.get(key) as any
+                return {
+                  ...item,
+                  is_active: latest.is_active,
+                  activo: latest.activo,
+                  video_url: latest.video_url ?? item.video_url ?? '',
+                  bunny_video_id: latest.bunny_video_id ?? item.bunny_video_id ?? '',
+                  bunny_library_id: latest.bunny_library_id ?? item.bunny_library_id ?? '',
+                  video_thumbnail_url: latest.video_thumbnail_url ?? item.video_thumbnail_url ?? '',
+                  video_file_name: latest.video_file_name ?? item.video_file_name ?? ''
+                }
               }
               return item
             })
@@ -1455,7 +1472,7 @@ export function CSVManagerEnhanced({
               const combinedData = [...updatedParent, ...newExistingData]
               parentSetCsvData(combinedData)
               console.log('➕ Agregados', newExistingData.length, 'ejercicios existentes nuevos al padre')
-          } else {
+            } else {
               parentSetCsvData(updatedParent)
             }
           } else {
@@ -1753,12 +1770,12 @@ export function CSVManagerEnhanced({
     setProcessing(true)
     updateErrorState(null)
 
-        try {
-          // console.log('🚀 Enviando datos al servidor:', {
-          //   csvData: csvData,
-          //   activityId: activityId,
-          //   coachId: coachId
-          // })
+    try {
+      // console.log('🚀 Enviando datos al servidor:', {
+      //   csvData: csvData,
+      //   activityId: activityId,
+      //   coachId: coachId
+      // })
 
       const response = await fetch('/api/process-csv-simple', {
         method: 'POST',
@@ -1780,10 +1797,10 @@ export function CSVManagerEnhanced({
 
       setResult(result)
       // console.log('✅ CSV procesado exitosamente:', result)
-      
+
       // Recargar datos existentes
       await loadExistingData()
-      
+
       if (onSuccess) {
         onSuccess()
       }
@@ -1801,34 +1818,34 @@ export function CSVManagerEnhanced({
       parentCsvDataLength: parentCsvData?.length || 0,
       existingDataLength: existingData.length
     })
-    
+
     // Marcar que estamos eliminando para evitar recargas automáticas
     justDeletedRef.current = true
-    
+
     // Obtener todas las filas que NO son existentes (vienen de CSV)
     const allCurrentData = [...csvData, ...(parentCsvData || [])]
     const csvOnlyData = allCurrentData.filter(item => !item.isExisting)
     const csvOnlyDataWithIds = csvOnlyData.filter(item => item.id)
     const idsToDelete = csvOnlyDataWithIds.map(item => item.id).filter((id): id is number => id !== undefined)
-    
+
     console.log('🗑️ Filas a eliminar:', {
       totalCsvRows: csvOnlyData.length,
       csvRowsWithIds: csvOnlyDataWithIds.length,
       idsToDelete: idsToDelete
     })
-    
+
     // Eliminar de la BD solo las que tienen ID
     // En modo genérico (activityId === 0) también permitimos eliminar
     if (idsToDelete.length > 0 && (activityId > 0 || activityId === 0)) {
       console.log('🗑️ Eliminando filas del CSV de la base de datos:', idsToDelete.length, 'filas')
       try {
         // Usar el endpoint correcto según la categoría del producto
-        const endpoint = productCategory === 'nutricion' 
+        const endpoint = productCategory === 'nutricion'
           ? '/api/delete-nutrition-items'
           : '/api/delete-exercise-items'
-        
+
         console.log('🗑️ Eliminando filas usando endpoint:', endpoint, 'para categoría:', productCategory)
-        
+
         const response = await fetch(endpoint, {
           method: 'DELETE',
           headers: { 'Content-Type': 'application/json' },
@@ -1837,7 +1854,7 @@ export function CSVManagerEnhanced({
             activityId: activityId
           })
         })
-        
+
         if (!response.ok) {
           const errorData = await response.json()
           console.error('❌ Error eliminando filas de la BD:', errorData.error)
@@ -1852,7 +1869,7 @@ export function CSVManagerEnhanced({
         justDeletedRef.current = false // Reset flag si hay error
       }
     }
-    
+
     // Limpiar archivo y archivos subidos
     setFile(null)
     setUploadedFiles([])
@@ -1862,18 +1879,18 @@ export function CSVManagerEnhanced({
     if (fileInputRef.current) {
       fileInputRef.current.value = ''
     }
-    
+
     // IMPORTANTE: Mantener solo las filas existentes, eliminar todas las del CSV
     const onlyExistingData = existingData.filter(item => item.isExisting)
     setCsvData(onlyExistingData)
     console.log('🗑️ Estado local limpiado, manteniendo solo existentes:', onlyExistingData.length, 'filas')
-    
+
     // Limpiar datos del padre, manteniendo solo existentes
     if (parentSetCsvData) {
       const parentOnlyExisting = (parentCsvData || []).filter((item: any) => item.isExisting)
       parentSetCsvData(parentOnlyExisting)
       console.log('🗑️ Datos del padre limpiados, manteniendo solo existentes:', parentOnlyExisting.length, 'filas')
-      
+
       // Actualizar también sessionStorage para persistir las eliminaciones
       try {
         // Solo guardar en sessionStorage si no es modo genérico (activityId !== 0)
@@ -1887,18 +1904,18 @@ export function CSVManagerEnhanced({
         console.error('❌ Error guardando eliminaciones en sessionStorage:', error)
       }
     }
-    
+
     // Limpiar selección en el padre
     if (parentSetSelectedRows) {
       parentSetSelectedRows(new Set())
     }
-    
+
     // Llamar callback del padre si existe
     if (onRemoveCSV) {
       onRemoveCSV()
     }
     setLimitWarning(null)
-    
+
     // NO resetear el flag inmediatamente - mantenerlo para evitar recargas al navegar
     justDeletedRef.current = true
     console.log('🔄 Flag de eliminación activado para prevenir recarga al navegar desde handleReset')
@@ -2131,12 +2148,12 @@ Batido de Proteína,Desayuno,Batido con proteína en polvo plátano y leche,320,
     } else {
       newSelected.add(index)
     }
-    
+
     console.log('🔄 Selección actualizada:', newSelected.size, 'filas seleccionadas')
-    
+
     // Actualizar estado local
     setSelectedRows(newSelected)
-    
+
     // Sincronizar con el padre si está disponible
     if (parentSetSelectedRows) {
       parentSetSelectedRows(newSelected)
@@ -2147,14 +2164,14 @@ Batido de Proteína,Desayuno,Batido con proteína en polvo plátano y leche,320,
   // Función para editar ejercicio individual
   const handleEditExercise = (exercise: ExerciseData, index: number) => {
     console.log('✏️ Editando ejercicio:', exercise, 'índice:', index)
-    
+
     // Cambiar al modo manual para editar
     setMode('manual')
-    
+
     // Cargar datos del ejercicio en el formulario manual
     const exerciseData: any = {
       nombre: exercise['Nombre de la Actividad'] || exercise.nombre_ejercicio || exercise.nombre || exercise['Nombre'] || '',
-      descripcion: productCategory === 'nutricion' 
+      descripcion: productCategory === 'nutricion'
         ? (exercise['Receta'] || exercise.receta || exercise['Descripción'] || exercise.descripcion || exercise.Descripción || '')
         : (exercise['Descripción'] || exercise.descripcion || exercise.Descripción || ''),
       duracion_min: exercise['Duración (min)'] || exercise.duracion_min || exercise.Duración || '',
@@ -2171,7 +2188,7 @@ Batido de Proteína,Desayuno,Batido con proteína en polvo plátano y leche,320,
       bunny_library_id: exercise.bunny_library_id || '',
       video_thumbnail_url: exercise.video_thumbnail_url || ''
     }
-    
+
     // Agregar campos específicos de nutrición
     if (productCategory === 'nutricion') {
       exerciseData.proteinas = exercise['Proteínas (g)'] || exercise['Proteínas'] || exercise.proteinas || ''
@@ -2182,10 +2199,10 @@ Batido de Proteína,Desayuno,Batido con proteína en polvo plátano y leche,320,
       exerciseData.ingredientes = exercise['Ingredientes'] || exercise.ingredientes || ''
       exerciseData.dificultad = exercise['Dificultad'] || exercise.dificultad || 'Principiante'
     }
-    
+
     // Actualizar el formulario manual con los datos del ejercicio
     setManualForm(prev => ({ ...prev, ...exerciseData }))
-    
+
     // Para nutrición: parsear pasos de receta desde la descripción
     if (productCategory === 'nutricion' && exerciseData.descripcion) {
       const descripcion = exerciseData.descripcion
@@ -2213,7 +2230,7 @@ Batido de Proteína,Desayuno,Batido con proteína en polvo plátano y leche,320,
     } else {
       setRecipeSteps([])
     }
-    
+
     // Parsear partes del cuerpo si están en formato string
     if (exerciseData.partes_cuerpo) {
       const bodyPartsArray = exerciseData.partes_cuerpo
@@ -2223,7 +2240,7 @@ Batido de Proteína,Desayuno,Batido con proteína en polvo plátano y leche,320,
         .map((p: string) => p.trim())
       setBodyParts(bodyPartsArray)
     }
-    
+
     // Parsear equipo necesario si están en formato string
     if (exerciseData.equipo_necesario) {
       const equipoArray = exerciseData.equipo_necesario
@@ -2233,7 +2250,7 @@ Batido de Proteína,Desayuno,Batido con proteína en polvo plátano y leche,320,
         .map((e: string) => e.trim())
       setEquipoList(equipoArray)
     }
-    
+
     // Parsear series si están en formato string
     if (exerciseData.detalle_series) {
       try {
@@ -2255,10 +2272,10 @@ Batido de Proteína,Desayuno,Batido con proteína en polvo plátano y leche,320,
         console.error('Error parseando series:', error)
       }
     }
-    
+
     // Guardar el índice del ejercicio que se está editando
     setEditingExerciseIndex(index)
-    
+
     console.log('✅ Datos cargados en formulario manual:', exerciseData)
   }
 
@@ -2268,11 +2285,11 @@ Batido de Proteína,Desayuno,Batido con proteína en polvo plátano y leche,320,
     setEditingExerciseIndex(null)
     setMode('manual')
     setShowAssignedVideoPreview(false)
-    
+
     // Limpiar pasos de receta
     setRecipeSteps([])
     setRecipeStepInput('')
-    
+
     // Limpiar formulario
     setManualForm({
       nombre: '',
@@ -2378,12 +2395,12 @@ Batido de Proteína,Desayuno,Batido con proteína en polvo plátano y leche,320,
 
   const handleDeleteSelected = () => {
     if (selectedRows.size === 0) return
-    
+
     console.log('🔌 Desactivando filas seleccionadas (marcar is_active=false):', selectedRows.size, 'filas')
-    
+
     // Trabajar sobre la fuente de verdad actual
     const currentData = allData
-    
+
     const selectedIndices = Array.from(selectedRows)
     const selectedKeys = new Set<string>()
     selectedIndices.forEach(index => {
@@ -2391,31 +2408,31 @@ Batido de Proteína,Desayuno,Batido con proteína en polvo plátano y leche,320,
       const key = getRowIdentifier(row, index)
       if (key) selectedKeys.add(key)
     })
-    
+
     const markInactive = (row: any, index?: number) => {
       const key = getRowIdentifier(row, index)
       if (!key || !selectedKeys.has(key)) return row
       return { ...row, is_active: false, activo: false }
     }
-    
+
     // Filas afectadas para notificar al padre (si tienen id, luego se persistirá)
     const rowsToDisable = Array.from(selectedRows).map(index => currentData[index])
     const idsToDisable = rowsToDisable
       .filter(item => (item as any).id && (item as any).isExisting)
       .map(item => (item as any).id)
-    
+
     console.log('📝 IDs marcados para desactivación (se persistirá al guardar):', idsToDisable)
-    
+
     // Actualizar estado local diferenciando existentes vs nuevos
     setCsvData(prev => prev.map((row, idx) => markInactive(row, idx)) as any)
     setExistingData(prev => prev.map((row, idx) => markInactive(row, idx)) as any)
-    
+
     // Notificar al padre para registrar elementos desactivados
     if (onItemsStatusChange && rowsToDisable.length > 0) {
       onItemsStatusChange(rowsToDisable as any[], 'disable')
       console.log('📤 Notificando al padre sobre elementos desactivados:', rowsToDisable.length, 'elementos')
     }
-    
+
     // Sincronizar con el padre si provee setter
     if (parentSetCsvData) {
       const currentParent = parentCsvData || []
@@ -2423,13 +2440,13 @@ Batido de Proteína,Desayuno,Batido con proteína en polvo plátano y leche,320,
       parentSetCsvData(updatedParent)
       console.log('🔌 Estado del padre actualizado con is_active=false')
     }
-    
+
     // Limpiar selección local y en el padre
     setSelectedRows(new Set())
     if (parentSetSelectedRows) {
       parentSetSelectedRows(new Set())
     }
-    
+
     console.log('✅ Desactivación local completada (A → D en UI; persistirá al guardar)')
   }
 
@@ -2438,15 +2455,15 @@ Batido de Proteína,Desayuno,Batido con proteína en polvo plátano y leche,320,
       updateErrorState('Selecciona al menos una fila para eliminar')
       return
     }
-    
+
     console.log('🗑️ Eliminando filas seleccionadas:', selectedRows.size, 'filas')
-    
+
     // Obtener los índices y filas seleccionadas de allData
     const selectedIndices = Array.from(selectedRows)
     const selectedItems = selectedIndices.map(index => allData[index])
     const rowsWithIds = selectedItems.filter(item => item.id)
     const idsToDelete = rowsWithIds.map(item => item.id).filter((id): id is number => id !== undefined)
-    
+
     // Crear un Set de identificadores únicos para las filas a eliminar
     const itemsToRemove = new Set<string>()
     selectedIndices.forEach((index, arrayIdx) => {
@@ -2457,18 +2474,18 @@ Batido de Proteína,Desayuno,Batido con proteína en polvo plátano y leche,320,
         itemsToRemove.add(identifier)
       }
     })
-    
+
     // Eliminar de la BD si tienen ID
     // En modo genérico (activityId === 0) también permitimos eliminar
     if (idsToDelete.length > 0 && (activityId > 0 || activityId === 0)) {
       try {
         // Usar el endpoint correcto según la categoría del producto
-        const endpoint = productCategory === 'nutricion' 
+        const endpoint = productCategory === 'nutricion'
           ? '/api/delete-nutrition-items'
           : '/api/delete-exercise-items'
-        
+
         console.log('🗑️ Eliminando filas usando endpoint:', endpoint, 'para categoría:', productCategory)
-        
+
         const response = await fetch(endpoint, {
           method: 'DELETE',
           headers: { 'Content-Type': 'application/json' },
@@ -2477,7 +2494,7 @@ Batido de Proteína,Desayuno,Batido con proteína en polvo plátano y leche,320,
             activityId: activityId
           })
         })
-        
+
         if (!response.ok) {
           const errorData = await response.json()
           console.error('❌ Error eliminando filas de la BD:', errorData.error)
@@ -2494,25 +2511,25 @@ Batido de Proteína,Desayuno,Batido con proteína en polvo plátano y leche,320,
         return
       }
     }
-    
+
     // Función helper para verificar si un item debe ser eliminado
     const shouldRemoveItem = (item: any, index?: number): boolean => {
       const identifier = getRowIdentifier(item, index)
       if (!identifier) return false
       return itemsToRemove.has(identifier)
     }
-    
+
     // Eliminar filas del estado local
     setCsvData(prev => prev.filter((item, idx) => !shouldRemoveItem(item, idx)))
     setExistingData(prev => prev.filter((item, idx) => !shouldRemoveItem(item, idx)))
-    
+
     // Eliminar filas del estado del padre
     if (parentSetCsvData) {
       const currentParentData = parentCsvData || []
       const filteredParent = currentParentData.filter((item: any, idx: number) => !shouldRemoveItem(item, idx))
       parentSetCsvData(filteredParent)
       console.log('🗑️ Filas eliminadas del padre:', currentParentData.length - filteredParent.length, 'de', currentParentData.length)
-      
+
       // Actualizar también sessionStorage para persistir las eliminaciones
       try {
         // Solo guardar en sessionStorage si no es modo genérico (activityId !== 0)
@@ -2526,19 +2543,19 @@ Batido de Proteína,Desayuno,Batido con proteína en polvo plátano y leche,320,
         console.error('❌ Error guardando eliminaciones en sessionStorage:', error)
       }
     }
-    
+
     // Actualizar también el estado local
     setCsvData(prev => prev.filter((item, idx) => !shouldRemoveItem(item, idx)))
-    
+
     // Limpiar selección
     setSelectedRows(new Set())
     if (parentSetSelectedRows) {
       parentSetSelectedRows(new Set())
     }
-    
+
     console.log('✅ Eliminación completada')
     setLimitWarning(null)
-    
+
     // NO resetear el flag inmediatamente - mantenerlo para evitar recargas al navegar
     // El flag se reseteará solo cuando se monte el componente de nuevo después de navegar
     justDeletedRef.current = true
@@ -2547,12 +2564,12 @@ Batido de Proteína,Desayuno,Batido con proteína en polvo plátano y leche,320,
 
   const handleReactivateSelected = () => {
     if (selectedRows.size === 0) return
-    
+
     console.log('✅ Reactivando filas seleccionadas (marcar is_active=true):', selectedRows.size, 'filas')
-    
+
     // Trabajar sobre la fuente de verdad actual
     const currentData = allData
-    
+
     const selectedIndices = Array.from(selectedRows)
     const selectedKeys = new Set<string>()
     selectedIndices.forEach(index => {
@@ -2560,16 +2577,16 @@ Batido de Proteína,Desayuno,Batido con proteína en polvo plátano y leche,320,
       const key = getRowIdentifier(row, index)
       if (key) selectedKeys.add(key)
     })
-    
+
     const markActive = (row: any, index?: number) => {
       const key = getRowIdentifier(row, index)
       if (!key || !selectedKeys.has(key)) return row
       return { ...row, is_active: true, activo: true }
     }
-    
+
     // Filas afectadas para notificar al padre (si tienen id, luego se persistirá)
     const rowsToReactivateRaw = Array.from(selectedRows).map(index => currentData[index])
-    
+
     let detachedCount = 0
     const ignoredKeys = new Set<string>()
     const rowsToReactivate = rowsToReactivateRaw.filter((item: any, idx: number) => {
@@ -2594,7 +2611,7 @@ Batido de Proteína,Desayuno,Batido con proteína en polvo plátano y leche,320,
 
       return true
     })
-    
+
     if (detachedCount > 0) {
       updateErrorState(`Se ignoraron ${detachedCount} ejercicio(s) porque ya no pertenecen a esta actividad.`)
       console.warn('⚠️ handleReactivateSelected - Ejercicios ignorados por no pertenecer a la actividad actual:', {
@@ -2609,7 +2626,7 @@ Batido de Proteína,Desayuno,Batido con proteína en polvo plátano y leche,320,
         }).map((item: any) => item?.id)
       })
     }
-    
+
     if (rowsToReactivate.length === 0) {
       setSelectedRows(new Set())
       if (parentSetSelectedRows) {
@@ -2617,23 +2634,23 @@ Batido de Proteína,Desayuno,Batido con proteína en polvo plátano y leche,320,
       }
       return
     }
-    
+
     const idsToReactivate = rowsToReactivate
       .filter(item => (item as any).id && (item as any).isExisting)
       .map(item => (item as any).id)
-    
+
     console.log('📝 IDs marcados para reactivación (se persistirá al guardar):', idsToReactivate)
-    
+
     // Actualizar estado local
     setCsvData(prev => prev.map((row, idx) => markActive(row, idx)) as any)
     setExistingData(prev => prev.map((row, idx) => markActive(row, idx)) as any)
-    
+
     // Notificar al padre para registrar elementos reactivados
     if (onItemsStatusChange && rowsToReactivate.length > 0) {
       onItemsStatusChange(rowsToReactivate as any[], 'reactivate')
       console.log('📤 Notificando al padre sobre elementos reactivados:', rowsToReactivate.length, 'elementos')
     }
-    
+
     // Sincronizar con el padre si provee setter
     if (parentSetCsvData) {
       const currentParent = parentCsvData || []
@@ -2641,13 +2658,13 @@ Batido de Proteína,Desayuno,Batido con proteína en polvo plátano y leche,320,
       parentSetCsvData(updatedParent)
       console.log('✅ Estado del padre actualizado con is_active=true')
     }
-    
+
     // Limpiar selección local y en el padre
     setSelectedRows(new Set())
     if (parentSetSelectedRows) {
       parentSetSelectedRows(new Set())
     }
-    
+
     console.log('✅ Reactivación local completada (D → A en UI; persistirá al guardar)')
   }
 
@@ -2666,9 +2683,9 @@ Batido de Proteína,Desayuno,Batido con proteína en polvo plátano y leche,320,
       return
     }
     updateErrorState(null)
-    
+
     let item: any
-    
+
     if (productCategory === 'nutricion') {
       // Campos específicos para nutrición
       item = {
@@ -2705,7 +2722,7 @@ Batido de Proteína,Desayuno,Batido con proteína en polvo plátano y leche,320,
       const equipoNecesarioStr = equipoList.length
         ? equipoList.join(', ')
         : manualForm.equipo_necesario
-      
+
       item = {
         'Nombre de la Actividad': manualForm.nombre,
         'Descripción': manualForm.descripcion,
@@ -2736,7 +2753,7 @@ Batido de Proteína,Desayuno,Batido con proteína en polvo plátano y leche,320,
       tempRowId: existingTempId || item.tempRowId || generatedTempId,
       csvRowId: existingCsvRowId || item.csvRowId
     }
-    
+
     if (editingExerciseIndex !== null) {
       // Modo edición: actualizar ejercicio existente
       console.log('✏️ Actualizando ejercicio manual en índice:', editingExerciseIndex)
@@ -2747,26 +2764,26 @@ Batido de Proteína,Desayuno,Batido con proteína en polvo plátano y leche,320,
       cancelEdit()
       return
     }
-    
+
     const { allowed } = evaluateAvailableSlots(1)
     if (allowed === 0) {
       setLimitWarning(`Límite de ejercicios (${planLimits?.activitiesLimit}) alcanzado. No puedes agregar más ejercicios manualmente.`)
       return
     }
     clearLimitWarningIfNeeded()
-    
-      setCsvData(prev => {
-        const newData = [...prev, item]
+
+    setCsvData(prev => {
+      const newData = [...prev, item]
       console.log('➕ Ejercicio manual agregado:', newData.length, 'filas totales')
-        return newData
-      })
-      
-      // Actualizar estado del padre si está disponible
-      if (parentSetCsvData) {
-        const newParentData = [...(parentCsvData || []), item]
-        console.log('📤 Actualizando estado del padre con fila manual:', newParentData.length, 'filas')
-        parentSetCsvData(newParentData)
-      }
+      return newData
+    })
+
+    // Actualizar estado del padre si está disponible
+    if (parentSetCsvData) {
+      const newParentData = [...(parentCsvData || []), item]
+      console.log('📤 Actualizando estado del padre con fila manual:', newParentData.length, 'filas')
+      parentSetCsvData(newParentData)
+    }
   }
 
   // Función para normalizar nombres (quitar tildes, mayúsculas, espacios extra)
@@ -2914,7 +2931,7 @@ Batido de Proteína,Desayuno,Batido con proteína en polvo plátano y leche,320,
     const calories = (item['Calorías'] || item.calorias || '').toString().trim().toLowerCase()
     return `row_${name}_${desc}_${duration}_${calories}`
   }
-  
+
   // Función para obtener color según tipo de ejercicio - Misma paleta que en paso 5
   const getExerciseTypeColor = (type: string): string => {
     const normalized = normalizeExerciseType(type)
@@ -3010,8 +3027,8 @@ Batido de Proteína,Desayuno,Batido con proteína en polvo plátano y leche,320,
                   const seriesArray = Array.isArray((raw as any).series) ? (raw as any).series : Object.values(raw as any)
                   return Array.isArray(seriesArray)
                     ? seriesArray
-                        .map((serie: any) => `(${serie?.peso ?? ''}-${serie?.repeticiones ?? ''}-${serie?.series ?? ''})`)
-                        .join(';')
+                      .map((serie: any) => `(${serie?.peso ?? ''}-${serie?.repeticiones ?? ''}-${serie?.series ?? ''})`)
+                      .join(';')
                     : ''
                 } catch {
                   return ''
@@ -3055,7 +3072,7 @@ Batido de Proteína,Desayuno,Batido con proteína en polvo plátano y leche,320,
     const existing = existingData || []
     const csv = csvData || []
     const parent = parentCsvData || []
-    
+
     // Debug: Log de los datos disponibles
     if (existing.length > 0 || csv.length > 0 || (parent && parent.length > 0)) {
       console.log('📊 allData - Datos disponibles:', {
@@ -3095,10 +3112,10 @@ Batido de Proteína,Desayuno,Batido con proteína en polvo plátano y leche,320,
         const nextActive = normalizedItem?.is_active !== false && normalizedItem?.activo !== false
         const currentIsExisting = currentItem?.isExisting ?? false
         const nextIsExisting = normalizedItem?.isExisting ?? false
-      const currentHasFileName =
-        typeof currentItem?.video_file_name === 'string' && currentItem.video_file_name.trim() !== ''
-      const nextHasFileName =
-        typeof normalizedItem?.video_file_name === 'string' && normalizedItem.video_file_name.trim() !== ''
+        const currentHasFileName =
+          typeof currentItem?.video_file_name === 'string' && currentItem.video_file_name.trim() !== ''
+        const nextHasFileName =
+          typeof normalizedItem?.video_file_name === 'string' && normalizedItem.video_file_name.trim() !== ''
 
         if (!currentActive && nextActive) {
           combined[existingIndex] = normalizedItem
@@ -3185,7 +3202,7 @@ Batido de Proteína,Desayuno,Batido con proteína en polvo plátano y leche,320,
 
     return normalizedCombined
   })()
-  
+
   // Detectar duplicados por nombre normalizado
   const currentCatalogNames = (() => {
     const names = new Set<string>()
@@ -3217,11 +3234,11 @@ Batido de Proteína,Desayuno,Batido con proteína en polvo plátano y leche,320,
 
   const duplicateNames = (() => {
     const nameMap = new Map<string, { original: string, indices: number[] }>()
-    
+
     allData.forEach((item, index) => {
       const name = getExerciseName(item)
       const normalized = normalizeName(name)
-      
+
       if (normalized) {
         if (!nameMap.has(normalized)) {
           nameMap.set(normalized, { original: name, indices: [] })
@@ -3229,7 +3246,7 @@ Batido de Proteína,Desayuno,Batido con proteína en polvo plátano y leche,320,
         nameMap.get(normalized)!.indices.push(index)
       }
     })
-    
+
     // Filtrar solo los que tienen más de una ocurrencia
     const duplicates: string[] = []
     nameMap.forEach((value, normalized) => {
@@ -3237,23 +3254,23 @@ Batido de Proteína,Desayuno,Batido con proteína en polvo plátano y leche,320,
         duplicates.push(value.original)
       }
     })
-    
+
     return duplicates
   })()
-  
+
   // Paginación
   const totalPages = Math.ceil(allData.length / itemsPerPage)
   const startIndex = (currentPage - 1) * itemsPerPage
   const endIndex = startIndex + itemsPerPage
   const paginatedData = allData.slice(startIndex, endIndex)
-  
+
   // Resetear página cuando cambian los datos
   useEffect(() => {
     if (currentPage > totalPages && totalPages > 0) {
       setCurrentPage(totalPages)
     }
   }, [allData.length, totalPages])
-  
+
   // Debug: Log de datos actuales
   console.log('🔍 CSVManagerEnhanced - Estado actual:', {
     csvDataLength: csvData.length,
@@ -3282,11 +3299,10 @@ Batido de Proteína,Desayuno,Batido con proteína en polvo plátano y leche,320,
             <button
               key={tab.key}
               onClick={() => setMode(tab.key)}
-              className={`px-6 py-2.5 text-sm rounded-lg transition-all ${
-                mode === tab.key
-                  ? 'bg-gradient-to-r from-orange-600 to-orange-500 text-white shadow-md'
-                  : 'text-zinc-300 hover:text-white hover:bg-zinc-800'
-              }`}
+              className={`px-6 py-2.5 text-sm rounded-lg transition-all ${mode === tab.key
+                ? 'bg-gradient-to-r from-orange-600 to-orange-500 text-white shadow-md'
+                : 'text-zinc-300 hover:text-white hover:bg-zinc-800'
+                }`}
             >
               {tab.label}
             </button>
@@ -3306,7 +3322,7 @@ Batido de Proteína,Desayuno,Batido con proteína en polvo plátano y leche,320,
               <Download className="h-4 w-4 text-[#FF7939]" />
               <span className="text-[#FF7939] text-xs font-medium">Descargar Plantilla</span>
             </button>
-            
+
             {/* Botón Subir Archivo */}
             <button
               onClick={() => fileInputRef.current?.click()}
@@ -3315,7 +3331,7 @@ Batido de Proteína,Desayuno,Batido con proteína en polvo plátano y leche,320,
               <Upload className="h-4 w-4 text-[#FF7939]" />
               <span className="text-[#FF7939] text-xs font-medium">Subir Archivo</span>
             </button>
-            
+
             <input
               ref={fileInputRef}
               type="file"
@@ -3327,304 +3343,304 @@ Batido de Proteína,Desayuno,Batido con proteína en polvo plátano y leche,320,
         </div>
       )}
 
-    {/* Modal selección/subida de video del coach (mismo que portada) */}
-    <MediaSelectionModal
-      isOpen={showVideoModal}
-      onClose={() => setShowVideoModal(false)}
-      mediaType="video"
-      onMediaSelected={async (mediaUrl, _mediaType, mediaFile) => {
-        const videoUrl = mediaUrl
-        const videoFile = mediaFile || null
-        const derivedBunnyId = extractBunnyVideoIdFromUrl(videoUrl)
-        const bunnyVideoId = derivedBunnyId
-        const bunnyLibraryId = null
-        const thumbnailUrl = derivedBunnyId ? `${String(videoUrl).split(derivedBunnyId)[0]}${derivedBunnyId}/thumbnail.jpg` : null
-        const fileName = null
+      {/* Modal selección/subida de video del coach (mismo que portada) */}
+      <MediaSelectionModal
+        isOpen={showVideoModal}
+        onClose={() => setShowVideoModal(false)}
+        mediaType="video"
+        onMediaSelected={async (mediaUrl, _mediaType, mediaFile) => {
+          const videoUrl = mediaUrl
+          const videoFile = mediaFile || null
+          const derivedBunnyId = extractBunnyVideoIdFromUrl(videoUrl)
+          const bunnyVideoId = derivedBunnyId
+          const bunnyLibraryId = null
+          const thumbnailUrl = derivedBunnyId ? `${String(videoUrl).split(derivedBunnyId)[0]}${derivedBunnyId}/thumbnail.jpg` : null
+          const fileName = null
 
-        const resolvedName = (videoFile?.name ?? '').trim() || (derivedBunnyId ? `video_${derivedBunnyId.slice(0, 12)}.mp4` : '')
+          const resolvedName = (videoFile?.name ?? '').trim() || (derivedBunnyId ? `video_${derivedBunnyId.slice(0, 12)}.mp4` : '')
 
-        console.log('🎥 Video seleccionado:', {
-          videoUrl,
-          resolvedName,
-          selectedRowsCount: selectedRows.size,
-          selectedRows: Array.from(selectedRows),
-          hasParentData: !!parentCsvData,
-          hasParentSetter: !!parentSetCsvData,
-          videoFileName: videoFile?.name,
-          hasVideoFile: !!videoFile,
-          bunnyVideoId
-        })
-        
-        // Si hay un archivo de video, guardarlo inmediatamente
-        if (videoFile) {
-          const selectedIndices = Array.from(selectedRows)
-          const currentData = csvData.length > 0 ? csvData : (parentCsvData || [])
-          
-          selectedIndices.forEach((idx) => {
-            const exercise = currentData[idx]
-            if (exercise && onVideoFileSelected) {
-              onVideoFileSelected(exercise, idx, videoFile)
-              console.log(`💾 Guardando archivo de video inmediatamente para ejercicio ${idx}:`, videoFile.name)
-            }
-          })
-        }
-        
-        const selectedItems = Array.from(selectedRows)
-          .map((idx) => allData[idx])
-          .filter(Boolean)
-
-        const selectedExistingIds = selectedItems
-          .map((item: any) => item?.id)
-          .filter((id: any) => typeof id === 'number' || typeof id === 'string')
-          .map((id: any) => (typeof id === 'number' ? id : Number(id)))
-          .filter((id: number) => Number.isFinite(id) && id > 0)
-
-        const applyUpdateById = (rows: any[]) =>
-          rows.map((row) => {
-            if (!row) return row
-            const idRaw = (row as any)?.id
-            const rowId = typeof idRaw === 'number' ? idRaw : Number(idRaw)
-            if (!Number.isFinite(rowId) || !selectedExistingIds.includes(rowId)) return row
-            return {
-              ...row,
-              video_url: videoUrl,
-              video_file_name: resolvedName || (row as any).video_file_name || '',
-              bunny_video_id: bunnyVideoId ?? (row as any).bunny_video_id ?? null,
-              bunny_library_id: bunnyLibraryId ?? (row as any).bunny_library_id ?? null,
-              video_thumbnail_url: thumbnailUrl ?? (row as any).video_thumbnail_url ?? null
-            }
+          console.log('🎥 Video seleccionado:', {
+            videoUrl,
+            resolvedName,
+            selectedRowsCount: selectedRows.size,
+            selectedRows: Array.from(selectedRows),
+            hasParentData: !!parentCsvData,
+            hasParentSetter: !!parentSetCsvData,
+            videoFileName: videoFile?.name,
+            hasVideoFile: !!videoFile,
+            bunnyVideoId
           })
 
-        // 1) Actualizar estado local (incluyendo existingData, que es la fuente real del catálogo)
-        setExistingData((prev) => applyUpdateById(prev))
-        setCsvData((prev) => applyUpdateById(prev))
+          // Si hay un archivo de video, guardarlo inmediatamente
+          if (videoFile) {
+            const selectedIndices = Array.from(selectedRows)
+            const currentData = csvData.length > 0 ? csvData : (parentCsvData || [])
 
-        // 2) Si el padre está usando estado persistente, mantenerlo sincronizado
-        if (parentCsvData && parentSetCsvData) {
-          parentSetCsvData(applyUpdateById(parentCsvData))
-        }
-
-        const persistVideoToDb = async (payloadBase: any, ids: number[]) => {
-          const results = await Promise.all(
-            ids.map(async (id) => {
-              try {
-                const resp = await fetch('/api/coach/exercises', {
-                  method: 'PATCH',
-                  credentials: 'include',
-                  headers: { 'Content-Type': 'application/json' },
-                  body: JSON.stringify({ ...payloadBase, id })
-                })
-
-                if (!resp.ok) {
-                  let body: any = null
-                  try {
-                    body = await resp.json()
-                  } catch {
-                    try {
-                      body = await resp.text()
-                    } catch {
-                      body = null
-                    }
-                  }
-                  console.warn('⚠️ Error persistiendo video (PATCH /api/coach/exercises):', {
-                    id,
-                    status: resp.status,
-                    statusText: resp.statusText,
-                    body
-                  })
-                  return
-                }
-
-                const result = await resp.json()
-                if (!result?.success) {
-                  console.warn('⚠️ PATCH /api/coach/exercises success=false:', { id, result })
-                }
-                return { id, ok: true }
-              } catch (e) {
-                console.warn('⚠️ Error de red persistiendo video (PATCH /api/coach/exercises):', { id, error: String(e) })
-                return { id, ok: false }
+            selectedIndices.forEach((idx) => {
+              const exercise = currentData[idx]
+              if (exercise && onVideoFileSelected) {
+                onVideoFileSelected(exercise, idx, videoFile)
+                console.log(`💾 Guardando archivo de video inmediatamente para ejercicio ${idx}:`, videoFile.name)
               }
             })
-          )
-
-          console.log('✅ Video persistido en BD (PATCH /api/coach/exercises):', {
-            count: results.length,
-            okCount: results.filter((r): r is { id: number; ok: true } => !!r && r.ok === true).length,
-            ids
-          })
-        }
-
-        const uploadVideoToBunnyStream = async (file: File, title?: string) => {
-          const formData = new FormData()
-          formData.append('file', file)
-          formData.append('title', title || file.name)
-
-          const resp = await fetch('/api/bunny/upload-video', {
-            method: 'POST',
-            credentials: 'include',
-            body: formData
-          })
-
-          const json = await resp.json().catch(() => null)
-
-          if (!resp.ok || !json?.success || !json?.streamUrl || !json?.videoId) {
-            const errMsg = json?.error || json?.message || resp.statusText
-            throw new Error(errMsg || 'Error subiendo video a Bunny')
           }
 
-          return {
-            url: json.streamUrl as string,
-            fileName: (json.fileName as string) || file.name,
-            bunnyVideoId: json.videoId as string,
-            bunnyLibraryId: (json.libraryId as number) || null,
-            thumbnailUrl: (json.thumbnailUrl as string) || null
-          }
-        }
+          const selectedItems = Array.from(selectedRows)
+            .map((idx) => allData[idx])
+            .filter(Boolean)
 
-        const uploadVideoToSupabaseStorage = async (file: File) => {
-          const formData = new FormData()
-          formData.append('file', file, file.name)
-          formData.append('mediaType', 'video')
-          formData.append('category', productCategory === 'nutricion' ? 'nutrition' : 'fitness')
+          const selectedExistingIds = selectedItems
+            .map((item: any) => item?.id)
+            .filter((id: any) => typeof id === 'number' || typeof id === 'string')
+            .map((id: any) => (typeof id === 'number' ? id : Number(id)))
+            .filter((id: number) => Number.isFinite(id) && id > 0)
 
-          const resp = await fetch('/api/upload-organized', {
-            method: 'POST',
-            credentials: 'include',
-            body: formData
-          })
-
-          const json = await resp.json().catch(() => null)
-
-          if (!resp.ok || !json?.success || !json?.url) {
-            const errMsg = json?.error || resp.statusText
-            const details = json?.details
-            throw new Error(details ? `${errMsg} (${details})` : errMsg)
-          }
-
-          return {
-            url: json.url as string,
-            fileName: (json.fileName as string) || file.name
-          }
-        }
-
-        // 3) Si es un archivo nuevo (blob), subirlo y persistirlo.
-        if (videoFile && videoUrl && videoUrl.startsWith('blob:') && selectedExistingIds.length > 0) {
-          try {
-            console.log('⬆️ Subiendo video nuevo para persistir...', {
-              selectedExistingIds,
-              productCategory,
-              fileName: videoFile.name,
-              fileSize: videoFile.size
+          const applyUpdateById = (rows: any[]) =>
+            rows.map((row) => {
+              if (!row) return row
+              const idRaw = (row as any)?.id
+              const rowId = typeof idRaw === 'number' ? idRaw : Number(idRaw)
+              if (!Number.isFinite(rowId) || !selectedExistingIds.includes(rowId)) return row
+              return {
+                ...row,
+                video_url: videoUrl,
+                video_file_name: resolvedName || (row as any).video_file_name || '',
+                bunny_video_id: bunnyVideoId ?? (row as any).bunny_video_id ?? null,
+                bunny_library_id: bunnyLibraryId ?? (row as any).bunny_library_id ?? null,
+                video_thumbnail_url: thumbnailUrl ?? (row as any).video_thumbnail_url ?? null
+              }
             })
 
-            const desiredTitle = resolvedName || videoFile.name
+          // 1) Actualizar estado local (incluyendo existingData, que es la fuente real del catálogo)
+          setExistingData((prev) => applyUpdateById(prev))
+          setCsvData((prev) => applyUpdateById(prev))
 
-            let uploaded:
-              | {
+          // 2) Si el padre está usando estado persistente, mantenerlo sincronizado
+          if (parentCsvData && parentSetCsvData) {
+            parentSetCsvData(applyUpdateById(parentCsvData))
+          }
+
+          const persistVideoToDb = async (payloadBase: any, ids: number[]) => {
+            const results = await Promise.all(
+              ids.map(async (id) => {
+                try {
+                  const resp = await fetch('/api/coach/exercises', {
+                    method: 'PATCH',
+                    credentials: 'include',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ ...payloadBase, id })
+                  })
+
+                  if (!resp.ok) {
+                    let body: any = null
+                    try {
+                      body = await resp.json()
+                    } catch {
+                      try {
+                        body = await resp.text()
+                      } catch {
+                        body = null
+                      }
+                    }
+                    console.warn('⚠️ Error persistiendo video (PATCH /api/coach/exercises):', {
+                      id,
+                      status: resp.status,
+                      statusText: resp.statusText,
+                      body
+                    })
+                    return
+                  }
+
+                  const result = await resp.json()
+                  if (!result?.success) {
+                    console.warn('⚠️ PATCH /api/coach/exercises success=false:', { id, result })
+                  }
+                  return { id, ok: true }
+                } catch (e) {
+                  console.warn('⚠️ Error de red persistiendo video (PATCH /api/coach/exercises):', { id, error: String(e) })
+                  return { id, ok: false }
+                }
+              })
+            )
+
+            console.log('✅ Video persistido en BD (PATCH /api/coach/exercises):', {
+              count: results.length,
+              okCount: results.filter((r): r is { id: number; ok: true } => !!r && r.ok === true).length,
+              ids
+            })
+          }
+
+          const uploadVideoToBunnyStream = async (file: File, title?: string) => {
+            const formData = new FormData()
+            formData.append('file', file)
+            formData.append('title', title || file.name)
+
+            const resp = await fetch('/api/bunny/upload-video', {
+              method: 'POST',
+              credentials: 'include',
+              body: formData
+            })
+
+            const json = await resp.json().catch(() => null)
+
+            if (!resp.ok || !json?.success || !json?.streamUrl || !json?.videoId) {
+              const errMsg = json?.error || json?.message || resp.statusText
+              throw new Error(errMsg || 'Error subiendo video a Bunny')
+            }
+
+            return {
+              url: json.streamUrl as string,
+              fileName: (json.fileName as string) || file.name,
+              bunnyVideoId: json.videoId as string,
+              bunnyLibraryId: (json.libraryId as number) || null,
+              thumbnailUrl: (json.thumbnailUrl as string) || null
+            }
+          }
+
+          const uploadVideoToSupabaseStorage = async (file: File) => {
+            const formData = new FormData()
+            formData.append('file', file, file.name)
+            formData.append('mediaType', 'video')
+            formData.append('category', productCategory === 'nutricion' ? 'nutrition' : 'fitness')
+
+            const resp = await fetch('/api/upload-organized', {
+              method: 'POST',
+              credentials: 'include',
+              body: formData
+            })
+
+            const json = await resp.json().catch(() => null)
+
+            if (!resp.ok || !json?.success || !json?.url) {
+              const errMsg = json?.error || resp.statusText
+              const details = json?.details
+              throw new Error(details ? `${errMsg} (${details})` : errMsg)
+            }
+
+            return {
+              url: json.url as string,
+              fileName: (json.fileName as string) || file.name
+            }
+          }
+
+          // 3) Si es un archivo nuevo (blob), subirlo y persistirlo.
+          if (videoFile && videoUrl && videoUrl.startsWith('blob:') && selectedExistingIds.length > 0) {
+            try {
+              console.log('⬆️ Subiendo video nuevo para persistir...', {
+                selectedExistingIds,
+                productCategory,
+                fileName: videoFile.name,
+                fileSize: videoFile.size
+              })
+
+              const desiredTitle = resolvedName || videoFile.name
+
+              let uploaded:
+                | {
                   url: string
                   fileName: string
                   bunnyVideoId: string
                   bunnyLibraryId: number | null
                   thumbnailUrl: string | null
                 }
-              | {
+                | {
                   url: string
                   fileName: string
                 }
 
-            try {
-              uploaded = await uploadVideoToBunnyStream(videoFile, desiredTitle)
-            } catch (e) {
-              console.warn('⚠️ Error subiendo video a Bunny, fallback a Supabase Storage:', {
-                error: String(e)
+              try {
+                uploaded = await uploadVideoToBunnyStream(videoFile, desiredTitle)
+              } catch (e) {
+                console.warn('⚠️ Error subiendo video a Bunny, fallback a Supabase Storage:', {
+                  error: String(e)
+                })
+                uploaded = await uploadVideoToSupabaseStorage(videoFile)
+              }
+
+              console.log('✅ Video subido:', {
+                url: uploaded.url,
+                fileName: uploaded.fileName,
+                selectedExistingIds
               })
-              uploaded = await uploadVideoToSupabaseStorage(videoFile)
+
+              const payloadBase = {
+                category: productCategory === 'nutricion' ? 'nutricion' : 'fitness',
+                video_url: uploaded.url,
+                video_file_name: desiredTitle || uploaded.fileName,
+                bunny_video_id: (uploaded as any).bunnyVideoId ?? null,
+                bunny_library_id: (uploaded as any).bunnyLibraryId ?? null,
+                video_thumbnail_url: (uploaded as any).thumbnailUrl ?? null
+              }
+
+              // Actualizar estado local al URL final (reemplaza blob)
+              const applyFinalUrlById = (rows: any[]) =>
+                rows.map((row) => {
+                  if (!row) return row
+                  const idRaw = (row as any)?.id
+                  const rowId = typeof idRaw === 'number' ? idRaw : Number(idRaw)
+                  if (!Number.isFinite(rowId) || !selectedExistingIds.includes(rowId)) return row
+                  return {
+                    ...row,
+                    video_url: uploaded.url,
+                    video_file_name: desiredTitle || uploaded.fileName || (row as any).video_file_name || '',
+                    bunny_video_id: (uploaded as any).bunnyVideoId ?? null,
+                    bunny_library_id: (uploaded as any).bunnyLibraryId ?? null,
+                    video_thumbnail_url: (uploaded as any).thumbnailUrl ?? null
+                  }
+                })
+
+              setExistingData((prev) => applyFinalUrlById(prev))
+              setCsvData((prev) => applyFinalUrlById(prev))
+              if (parentCsvData && parentSetCsvData) {
+                parentSetCsvData(applyFinalUrlById(parentCsvData))
+              }
+
+              await persistVideoToDb(payloadBase, selectedExistingIds)
+            } catch (e) {
+              console.warn('⚠️ Error subiendo/persistiendo video nuevo:', {
+                error: String(e),
+                productCategory,
+                selectedExistingIds
+              })
+            } finally {
+              setShowVideoModal(false)
             }
+            return
+          }
 
-            console.log('✅ Video subido:', {
-              url: uploaded.url,
-              fileName: uploaded.fileName,
-              selectedExistingIds
-            })
-
+          // 3) Persistir a DB para filas existentes (solo cuando es un video existente, no blob)
+          if (!videoFile && videoUrl && !videoUrl.startsWith('blob:') && selectedExistingIds.length > 0) {
             const payloadBase = {
               category: productCategory === 'nutricion' ? 'nutricion' : 'fitness',
-              video_url: uploaded.url,
-              video_file_name: desiredTitle || uploaded.fileName,
-              bunny_video_id: (uploaded as any).bunnyVideoId ?? null,
-              bunny_library_id: (uploaded as any).bunnyLibraryId ?? null,
-              video_thumbnail_url: (uploaded as any).thumbnailUrl ?? null
+              video_url: videoUrl,
+              video_file_name: resolvedName,
+              bunny_video_id: bunnyVideoId ?? null,
+              bunny_library_id: bunnyLibraryId ?? null,
+              video_thumbnail_url: thumbnailUrl ?? null
             }
 
-            // Actualizar estado local al URL final (reemplaza blob)
-            const applyFinalUrlById = (rows: any[]) =>
-              rows.map((row) => {
-                if (!row) return row
-                const idRaw = (row as any)?.id
-                const rowId = typeof idRaw === 'number' ? idRaw : Number(idRaw)
-                if (!Number.isFinite(rowId) || !selectedExistingIds.includes(rowId)) return row
-                return {
-                  ...row,
-                  video_url: uploaded.url,
-                  video_file_name: desiredTitle || uploaded.fileName || (row as any).video_file_name || '',
-                  bunny_video_id: (uploaded as any).bunnyVideoId ?? null,
-                  bunny_library_id: (uploaded as any).bunnyLibraryId ?? null,
-                  video_thumbnail_url: (uploaded as any).thumbnailUrl ?? null
-                }
-              })
-
-            setExistingData((prev) => applyFinalUrlById(prev))
-            setCsvData((prev) => applyFinalUrlById(prev))
-            if (parentCsvData && parentSetCsvData) {
-              parentSetCsvData(applyFinalUrlById(parentCsvData))
+            try {
+              await persistVideoToDb(payloadBase, selectedExistingIds)
+            } catch {
+              // ya logueado dentro
             }
-
-            await persistVideoToDb(payloadBase, selectedExistingIds)
-          } catch (e) {
-            console.warn('⚠️ Error subiendo/persistiendo video nuevo:', {
-              error: String(e),
-              productCategory,
-              selectedExistingIds
-            })
-          } finally {
-            setShowVideoModal(false)
-          }
-          return
-        }
-
-        // 3) Persistir a DB para filas existentes (solo cuando es un video existente, no blob)
-        if (!videoFile && videoUrl && !videoUrl.startsWith('blob:') && selectedExistingIds.length > 0) {
-          const payloadBase = {
-            category: productCategory === 'nutricion' ? 'nutricion' : 'fitness',
-            video_url: videoUrl,
-            video_file_name: resolvedName,
-            bunny_video_id: bunnyVideoId ?? null,
-            bunny_library_id: bunnyLibraryId ?? null,
-            video_thumbnail_url: thumbnailUrl ?? null
           }
 
-          try {
-            await persistVideoToDb(payloadBase, selectedExistingIds)
-          } catch {
-            // ya logueado dentro
-          }
-        }
-
-        setShowVideoModal(false)
-      }}
-    />
+          setShowVideoModal(false)
+        }}
+      />
 
       {/* Bloque Manual */}
       {mode === 'manual' && (
         <div className="mb-4 space-y-5">
-          
+
           {/* Nombre y descripción */}
           <div className="space-y-3">
-            <input 
-              className="bg-zinc-900/60 px-3 py-2 rounded text-sm w-full" 
-              placeholder={productCategory === 'nutricion' ? "Nombre del Plato" : "Nombre de la Actividad"} 
-              value={manualForm.nombre || ''} 
-              onChange={(e)=>setManualForm({...manualForm, nombre:e.target.value})} 
+            <input
+              className="bg-zinc-900/60 px-3 py-2 rounded text-sm w-full"
+              placeholder={productCategory === 'nutricion' ? "Nombre del Plato" : "Nombre de la Actividad"}
+              value={manualForm.nombre || ''}
+              onChange={(e) => setManualForm({ ...manualForm, nombre: e.target.value })}
             />
             {productCategory === 'nutricion' ? (
               /* Receta con pasos para nutrición */
@@ -3641,7 +3657,7 @@ Batido de Proteína,Desayuno,Batido con proteína en polvo plátano y leche,320,
                         setRecipeSteps(newSteps)
                         // Actualizar descripcion con los pasos
                         const stepsText = newSteps.map((step, idx) => `${idx + 1}. ${step}`).join('\n')
-                        setManualForm({...manualForm, descripcion: stepsText})
+                        setManualForm({ ...manualForm, descripcion: stepsText })
                         setRecipeStepInput('')
                         e.preventDefault()
                       }
@@ -3654,7 +3670,7 @@ Batido de Proteína,Desayuno,Batido con proteína en polvo plátano y leche,320,
                         setRecipeSteps(newSteps)
                         // Actualizar descripcion con los pasos
                         const stepsText = newSteps.map((step, idx) => `${idx + 1}. ${step}`).join('\n')
-                        setManualForm({...manualForm, descripcion: stepsText})
+                        setManualForm({ ...manualForm, descripcion: stepsText })
                         setRecipeStepInput('')
                       }
                     }}
@@ -3675,7 +3691,7 @@ Batido de Proteína,Desayuno,Batido con proteína en polvo plátano y leche,320,
                             setRecipeSteps(newSteps)
                             // Actualizar descripcion con los pasos restantes
                             const stepsText = newSteps.map((step, idx) => `${idx + 1}. ${step}`).join('\n')
-                            setManualForm({...manualForm, descripcion: stepsText})
+                            setManualForm({ ...manualForm, descripcion: stepsText })
                           }}
                           className="text-zinc-400 hover:text-white ml-2"
                         >
@@ -3687,12 +3703,12 @@ Batido de Proteína,Desayuno,Batido con proteína en polvo plátano y leche,320,
                 )}
               </div>
             ) : (
-              <textarea 
-                className="bg-zinc-900/60 px-3 py-2 rounded text-sm w-full" 
-                rows={2} 
-                placeholder="Descripción" 
-                value={manualForm.descripcion || ''} 
-                onChange={(e)=>setManualForm({...manualForm, descripcion:e.target.value})} 
+              <textarea
+                className="bg-zinc-900/60 px-3 py-2 rounded text-sm w-full"
+                rows={2}
+                placeholder="Descripción"
+                value={manualForm.descripcion || ''}
+                onChange={(e) => setManualForm({ ...manualForm, descripcion: e.target.value })}
               />
             )}
           </div>
@@ -3703,18 +3719,18 @@ Batido de Proteína,Desayuno,Batido con proteína en polvo plátano y leche,320,
               <div className="grid grid-cols-1 gap-3">
                 <div className="relative">
                   <div className="absolute left-2 top-2 text-zinc-400"><Flame className="h-4 w-4" /></div>
-                  <input className="bg-zinc-900/60 pl-8 pr-3 py-2 rounded text-sm w-full" placeholder="Calorías" value={manualForm.calorias || ''} onChange={(e)=>setManualForm({...manualForm, calorias:e.target.value})} />
+                  <input className="bg-zinc-900/60 pl-8 pr-3 py-2 rounded text-sm w-full" placeholder="Calorías" value={manualForm.calorias || ''} onChange={(e) => setManualForm({ ...manualForm, calorias: e.target.value })} />
                 </div>
               </div>
               {/* Macronutrientes */}
               <div className="grid grid-cols-3 gap-3">
-                <input className="bg-zinc-900/60 px-3 py-2 rounded text-sm w-full" placeholder="Proteínas (g)" value={manualForm.proteinas || ''} onChange={(e)=>setManualForm({...manualForm, proteinas:e.target.value})} />
-                <input className="bg-zinc-900/60 px-3 py-2 rounded text-sm w-full" placeholder="Carbohidratos (g)" value={manualForm.carbohidratos || ''} onChange={(e)=>setManualForm({...manualForm, carbohidratos:e.target.value})} />
-                <input className="bg-zinc-900/60 px-3 py-2 rounded text-sm w-full" placeholder="Grasas (g)" value={manualForm.grasas || ''} onChange={(e)=>setManualForm({...manualForm, grasas:e.target.value})} />
+                <input className="bg-zinc-900/60 px-3 py-2 rounded text-sm w-full" placeholder="Proteínas (g)" value={manualForm.proteinas || ''} onChange={(e) => setManualForm({ ...manualForm, proteinas: e.target.value })} />
+                <input className="bg-zinc-900/60 px-3 py-2 rounded text-sm w-full" placeholder="Carbohidratos (g)" value={manualForm.carbohidratos || ''} onChange={(e) => setManualForm({ ...manualForm, carbohidratos: e.target.value })} />
+                <input className="bg-zinc-900/60 px-3 py-2 rounded text-sm w-full" placeholder="Grasas (g)" value={manualForm.grasas || ''} onChange={(e) => setManualForm({ ...manualForm, grasas: e.target.value })} />
               </div>
               {/* Dificultad */}
               <div className="grid grid-cols-1 gap-3">
-                <select className="bg-zinc-900/60 px-3 py-2 rounded text-sm" value={manualForm.dificultad || 'Principiante'} onChange={(e)=>setManualForm({...manualForm, dificultad:e.target.value})}>
+                <select className="bg-zinc-900/60 px-3 py-2 rounded text-sm" value={manualForm.dificultad || 'Principiante'} onChange={(e) => setManualForm({ ...manualForm, dificultad: e.target.value })}>
                   <option value="Principiante">Principiante</option>
                   <option value="Intermedio">Intermedio</option>
                   <option value="Avanzado">Avanzado</option>
@@ -3725,11 +3741,11 @@ Batido de Proteína,Desayuno,Batido con proteína en polvo plátano y leche,320,
               </div>
               {/* Ingredientes, Porciones y Minutos */}
               <div className="grid grid-cols-1 gap-3">
-                <textarea className="bg-zinc-900/60 px-3 py-2 rounded text-sm w-full" placeholder="Ingredientes (ej: açaí: 200g, granola: 50g)" value={manualForm.ingredientes || ''} onChange={(e)=>setManualForm({...manualForm, ingredientes:e.target.value})} rows={3} />
+                <textarea className="bg-zinc-900/60 px-3 py-2 rounded text-sm w-full" placeholder="Ingredientes (ej: açaí: 200g, granola: 50g)" value={manualForm.ingredientes || ''} onChange={(e) => setManualForm({ ...manualForm, ingredientes: e.target.value })} rows={3} />
               </div>
               <div className="grid grid-cols-2 gap-3">
-                <input className="bg-zinc-900/60 px-3 py-2 rounded text-sm w-full" placeholder="Porciones" value={manualForm.porciones || ''} onChange={(e)=>setManualForm({...manualForm, porciones:e.target.value})} />
-                <input className="bg-zinc-900/60 px-3 py-2 rounded text-sm w-full" placeholder="Minutos de preparación" value={manualForm.minutos || ''} onChange={(e)=>setManualForm({...manualForm, minutos:e.target.value})} />
+                <input className="bg-zinc-900/60 px-3 py-2 rounded text-sm w-full" placeholder="Porciones" value={manualForm.porciones || ''} onChange={(e) => setManualForm({ ...manualForm, porciones: e.target.value })} />
+                <input className="bg-zinc-900/60 px-3 py-2 rounded text-sm w-full" placeholder="Minutos de preparación" value={manualForm.minutos || ''} onChange={(e) => setManualForm({ ...manualForm, minutos: e.target.value })} />
               </div>
             </>
           ) : (
@@ -3739,11 +3755,11 @@ Batido de Proteína,Desayuno,Batido con proteína en polvo plátano y leche,320,
               <div className="grid grid-cols-2 gap-3">
                 <div className="relative">
                   <div className="absolute left-2 top-2 text-zinc-400"><Clock className="h-4 w-4" /></div>
-                  <input className="bg-zinc-900/60 pl-8 pr-3 py-2 rounded text-sm w-full" placeholder="Duración (min)" value={manualForm.duracion_min || ''} onChange={(e)=>setManualForm({...manualForm, duracion_min:e.target.value})} />
+                  <input className="bg-zinc-900/60 pl-8 pr-3 py-2 rounded text-sm w-full" placeholder="Duración (min)" value={manualForm.duracion_min || ''} onChange={(e) => setManualForm({ ...manualForm, duracion_min: e.target.value })} />
                 </div>
                 <div className="relative">
                   <div className="absolute left-2 top-2 text-zinc-400"><Flame className="h-4 w-4" /></div>
-                  <input className="bg-zinc-900/60 pl-8 pr-3 py-2 rounded text-sm w-full" placeholder="Calorías" value={manualForm.calorias || ''} onChange={(e)=>setManualForm({...manualForm, calorias:e.target.value})} />
+                  <input className="bg-zinc-900/60 pl-8 pr-3 py-2 rounded text-sm w-full" placeholder="Calorías" value={manualForm.calorias || ''} onChange={(e) => setManualForm({ ...manualForm, calorias: e.target.value })} />
                 </div>
               </div>
             </>
@@ -3753,13 +3769,13 @@ Batido de Proteína,Desayuno,Batido con proteína en polvo plátano y leche,320,
             <>
               {/* Tipo y Nivel */}
               <div className="grid grid-cols-2 gap-3">
-                <select className="bg-zinc-900/60 px-3 py-2 rounded text-sm" value={manualForm.tipo_ejercicio || ''} onChange={(e)=>setManualForm({...manualForm, tipo_ejercicio: normalizeExerciseType(e.target.value)})}>
+                <select className="bg-zinc-900/60 px-3 py-2 rounded text-sm" value={manualForm.tipo_ejercicio || ''} onChange={(e) => setManualForm({ ...manualForm, tipo_ejercicio: normalizeExerciseType(e.target.value) })}>
                   <option value="">Tipo de Ejercicio</option>
                   {exerciseTypeOptions.map(opt => (
                     <option key={opt.value} value={opt.value}>{opt.label}</option>
                   ))}
                 </select>
-                <select className="bg-zinc-900/60 px-3 py-2 rounded text-sm" value={manualForm.nivel_intensidad || ''} onChange={(e)=>setManualForm({...manualForm, nivel_intensidad:e.target.value})}>
+                <select className="bg-zinc-900/60 px-3 py-2 rounded text-sm" value={manualForm.nivel_intensidad || ''} onChange={(e) => setManualForm({ ...manualForm, nivel_intensidad: e.target.value })}>
                   <option value="">Nivel de Intensidad</option>
                   {intensityLevels.map(opt => (
                     <option key={opt} value={opt}>{opt}</option>
@@ -3771,104 +3787,104 @@ Batido de Proteína,Desayuno,Batido con proteína en polvo plátano y leche,320,
           {/* Equipo y Partes del Cuerpo con + - solo para fitness */}
           {productCategory !== 'nutricion' && (
             <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-            <div>
-              <div className="flex gap-2">
-                <select className="bg-zinc-900/60 px-3 py-2 rounded text-sm flex-1" value={equipoInput} onChange={(e)=>setEquipoInput(e.target.value)}>
-                  <option value="">Equipo Necesario</option>
-                  {equipmentOptions.map(opt => (
-                    <option key={opt} value={opt}>{opt}</option>
-                  ))}
-                </select>
-                <Button onClick={()=>{ if(equipoInput.trim()){ setEquipoList([...equipoList, equipoInput.trim()]); setEquipoInput('') } }} className="bg-orange-600 hover:bg-orange-700 text-white border-0 h-8 px-3 text-xs">+
-                </Button>
-              </div>
-              {equipoList.length>0 && (
-                <div className="flex flex-wrap gap-2 mt-2">
-                  {equipoList.map((eq,idx)=> (
-                    <span key={idx} className="inline-flex items-center gap-1 bg-zinc-800 text-white px-2 py-0.5 rounded-full text-xs">
-                      {eq}
-                      <button onClick={()=>setEquipoList(equipoList.filter((_,i)=>i!==idx))} className="ml-1 text-zinc-300 hover:text-white">×</button>
-                    </span>
-                  ))}
+              <div>
+                <div className="flex gap-2">
+                  <select className="bg-zinc-900/60 px-3 py-2 rounded text-sm flex-1" value={equipoInput} onChange={(e) => setEquipoInput(e.target.value)}>
+                    <option value="">Equipo Necesario</option>
+                    {equipmentOptions.map(opt => (
+                      <option key={opt} value={opt}>{opt}</option>
+                    ))}
+                  </select>
+                  <Button onClick={() => { if (equipoInput.trim()) { setEquipoList([...equipoList, equipoInput.trim()]); setEquipoInput('') } }} className="bg-orange-600 hover:bg-orange-700 text-white border-0 h-8 px-3 text-xs">+
+                  </Button>
                 </div>
-              )}
-            </div>
-            {/* Partes del Cuerpo con chips */}
-            <div>
-              <div className="flex gap-2">
-                <select className="bg-zinc-900/60 px-3 py-2 rounded text-sm flex-1" value={bodyPartInput} onChange={(e)=>setBodyPartInput(e.target.value)}>
-                  <option value="">Partes del Cuerpo</option>
-                  {bodyPartsOptions.map(opt => (
-                    <option key={opt} value={opt}>{opt}</option>
-                  ))}
-                </select>
-                <Button onClick={()=>{ if(bodyPartInput.trim()){ setBodyParts([...bodyParts, bodyPartInput.trim()]); setBodyPartInput('') } }} className="bg-orange-600 hover:bg-orange-700 text-white border-0 h-8 px-3 text-xs">
-                  +
-                </Button>
+                {equipoList.length > 0 && (
+                  <div className="flex flex-wrap gap-2 mt-2">
+                    {equipoList.map((eq, idx) => (
+                      <span key={idx} className="inline-flex items-center gap-1 bg-zinc-800 text-white px-2 py-0.5 rounded-full text-xs">
+                        {eq}
+                        <button onClick={() => setEquipoList(equipoList.filter((_, i) => i !== idx))} className="ml-1 text-zinc-300 hover:text-white">×</button>
+                      </span>
+                    ))}
+                  </div>
+                )}
               </div>
-              {bodyParts.length>0 && (
-                <div className="flex flex-wrap gap-2 mt-2">
-                  {bodyParts.map((bp,idx)=> (
-                    <span key={idx} className="inline-flex items-center gap-1 bg-orange-600/20 text-orange-300 px-2 py-0.5 rounded-full text-xs">
-                      {bp}
-                      <button onClick={()=>setBodyParts(bodyParts.filter((_,i)=>i!==idx))} className="ml-1 text-orange-300 hover:text-white">×</button>
-                    </span>
-                  ))}
+              {/* Partes del Cuerpo con chips */}
+              <div>
+                <div className="flex gap-2">
+                  <select className="bg-zinc-900/60 px-3 py-2 rounded text-sm flex-1" value={bodyPartInput} onChange={(e) => setBodyPartInput(e.target.value)}>
+                    <option value="">Partes del Cuerpo</option>
+                    {bodyPartsOptions.map(opt => (
+                      <option key={opt} value={opt}>{opt}</option>
+                    ))}
+                  </select>
+                  <Button onClick={() => { if (bodyPartInput.trim()) { setBodyParts([...bodyParts, bodyPartInput.trim()]); setBodyPartInput('') } }} className="bg-orange-600 hover:bg-orange-700 text-white border-0 h-8 px-3 text-xs">
+                    +
+                  </Button>
                 </div>
-              )}
+                {bodyParts.length > 0 && (
+                  <div className="flex flex-wrap gap-2 mt-2">
+                    {bodyParts.map((bp, idx) => (
+                      <span key={idx} className="inline-flex items-center gap-1 bg-orange-600/20 text-orange-300 px-2 py-0.5 rounded-full text-xs">
+                        {bp}
+                        <button onClick={() => setBodyParts(bodyParts.filter((_, i) => i !== idx))} className="ml-1 text-orange-300 hover:text-white">×</button>
+                      </span>
+                    ))}
+                  </div>
+                )}
+              </div>
             </div>
-          </div>
           )}
           {/* Campo URL eliminado; selección por modal */}
           {/* Constructor de series - solo para fitness */}
           {productCategory !== 'nutricion' && (
             <div className="space-y-2 max-w-md">
-            <div className="grid grid-cols-[80px_80px_80px_auto] gap-2 items-center">
-              <input
-                type="number"
-                inputMode="numeric"
-                className="bg-zinc-900/60 px-2 py-2 rounded text-sm text-center w-full"
-                placeholder="Peso"
-                value={seriePeso}
-                onChange={(e)=>setSeriePeso(e.target.value)}
-              />
-              <input
-                type="number"
-                inputMode="numeric"
-                className="bg-zinc-900/60 px-2 py-2 rounded text-sm text-center w-full"
-                placeholder="Reps"
-                value={serieReps}
-                onChange={(e)=>setSerieReps(e.target.value)}
-              />
-              <input
-                type="number"
-                inputMode="numeric"
-                className="bg-zinc-900/60 px-2 py-2 rounded text-sm text-center w-full"
-                placeholder="Series"
-                value={serieSeries}
-                onChange={(e)=>setSerieSeries(e.target.value)}
-              />
-              <Button onClick={()=>{
-                const p = parseFloat(seriePeso); const r = parseInt(serieReps); const s = parseInt(serieSeries);
-                if(!isNaN(p) && !isNaN(r) && !isNaN(s)){
-                  setSeriesList([...seriesList, {peso:p, repeticiones:r, series:s}])
-                  setSeriePeso(''); setSerieReps(''); setSerieSeries('')
-                }
-              }} className="bg-orange-600 hover:bg-orange-700 text-white border-0 h-8 px-3 text-xs w-full">+
-              </Button>
-            </div>
-            {seriesList.length>0 && (
-              <div className="flex flex-wrap gap-2">
-                {seriesList.map((sr,idx)=> (
-                  <span key={idx} className="inline-flex items-center gap-1 bg-zinc-800 text-white px-2 py-0.5 rounded-full text-xs">
-                    {sr.peso}-{sr.repeticiones}-{sr.series}
-                    <button onClick={()=>setSeriesList(seriesList.filter((_,i)=>i!==idx))} className="ml-1 text-zinc-300 hover:text-white">×</button>
-                  </span>
-                ))}
+              <div className="grid grid-cols-[80px_80px_80px_auto] gap-2 items-center">
+                <input
+                  type="number"
+                  inputMode="numeric"
+                  className="bg-zinc-900/60 px-2 py-2 rounded text-sm text-center w-full"
+                  placeholder="Peso"
+                  value={seriePeso}
+                  onChange={(e) => setSeriePeso(e.target.value)}
+                />
+                <input
+                  type="number"
+                  inputMode="numeric"
+                  className="bg-zinc-900/60 px-2 py-2 rounded text-sm text-center w-full"
+                  placeholder="Reps"
+                  value={serieReps}
+                  onChange={(e) => setSerieReps(e.target.value)}
+                />
+                <input
+                  type="number"
+                  inputMode="numeric"
+                  className="bg-zinc-900/60 px-2 py-2 rounded text-sm text-center w-full"
+                  placeholder="Series"
+                  value={serieSeries}
+                  onChange={(e) => setSerieSeries(e.target.value)}
+                />
+                <Button onClick={() => {
+                  const p = parseFloat(seriePeso); const r = parseInt(serieReps); const s = parseInt(serieSeries);
+                  if (!isNaN(p) && !isNaN(r) && !isNaN(s)) {
+                    setSeriesList([...seriesList, { peso: p, repeticiones: r, series: s }])
+                    setSeriePeso(''); setSerieReps(''); setSerieSeries('')
+                  }
+                }} className="bg-orange-600 hover:bg-orange-700 text-white border-0 h-8 px-3 text-xs w-full">+
+                </Button>
               </div>
-            )}
-            <p className="text-[11px] text-zinc-400">Se genera como: (peso-reps-series); …</p>
-          </div>
+              {seriesList.length > 0 && (
+                <div className="flex flex-wrap gap-2">
+                  {seriesList.map((sr, idx) => (
+                    <span key={idx} className="inline-flex items-center gap-1 bg-zinc-800 text-white px-2 py-0.5 rounded-full text-xs">
+                      {sr.peso}-{sr.repeticiones}-{sr.series}
+                      <button onClick={() => setSeriesList(seriesList.filter((_, i) => i !== idx))} className="ml-1 text-zinc-300 hover:text-white">×</button>
+                    </span>
+                  ))}
+                </div>
+              )}
+              <p className="text-[11px] text-zinc-400">Se genera como: (peso-reps-series); …</p>
+            </div>
           )}
           {(manualForm.video_url || manualForm.video_file_name) && (
             <div className="max-w-md">
@@ -3936,7 +3952,7 @@ Batido de Proteína,Desayuno,Batido con proteína en polvo plátano y leche,320,
                 </>
               )}
             </Button>
-            
+
             {/* Botón Cancelar - Solo visible cuando se está editando */}
             {editingExerciseIndex !== null && (
               <button
@@ -3970,42 +3986,42 @@ Batido de Proteína,Desayuno,Batido con proteína en polvo plátano y leche,320,
                       const fileToRemove = uploadedFiles[idx]
                       const timestampToRemove = fileToRemove.timestamp
                       console.log('🗑️ Eliminando archivo CSV:', fileToRemove.name, 'timestamp:', timestampToRemove)
-                      
+
                       // Obtener todas las filas de este archivo antes de eliminarlas
                       // Buscar en ambos estados: local y padre
                       const allCurrentData = [...csvData, ...(parentCsvData || [])]
-                      
+
                       console.log('🔍 Buscando filas con timestamp:', timestampToRemove)
                       console.log('🔍 Total datos a revisar:', allCurrentData.length)
-                      console.log('🔍 Timestamps encontrados en datos:', allCurrentData.map(item => ({ 
-                        name: getExerciseName(item), 
+                      console.log('🔍 Timestamps encontrados en datos:', allCurrentData.map(item => ({
+                        name: getExerciseName(item),
                         timestamp: item.csvFileTimestamp,
                         matches: item.csvFileTimestamp === timestampToRemove
                       })))
-                      
-                      const rowsFromThisFile = allCurrentData.filter(item => 
+
+                      const rowsFromThisFile = allCurrentData.filter(item =>
                         item.csvFileTimestamp === timestampToRemove
                       )
                       const rowsWithIds = rowsFromThisFile.filter(item => item.id)
                       const idsToDelete = rowsWithIds.map(item => item.id).filter((id): id is number => id !== undefined)
-                      
+
                       console.log('🗑️ Filas del archivo a eliminar:', {
                         totalRows: rowsFromThisFile.length,
                         rowsWithIds: rowsWithIds.length,
                         idsToDelete: idsToDelete,
                         rowsDetails: rowsFromThisFile.map(r => ({ name: getExerciseName(r), id: r.id, timestamp: r.csvFileTimestamp }))
                       })
-                      
+
                       // Eliminar de la BD si tienen ID
                       if (idsToDelete.length > 0 && activityId > 0) {
                         try {
                           // Usar el endpoint correcto según la categoría del producto
-                          const endpoint = productCategory === 'nutricion' 
+                          const endpoint = productCategory === 'nutricion'
                             ? '/api/delete-nutrition-items'
                             : '/api/delete-exercise-items'
-                          
+
                           console.log('🗑️ Eliminando filas del archivo usando endpoint:', endpoint, 'para categoría:', productCategory)
-                          
+
                           const response = await fetch(endpoint, {
                             method: 'DELETE',
                             headers: { 'Content-Type': 'application/json' },
@@ -4014,7 +4030,7 @@ Batido de Proteína,Desayuno,Batido con proteína en polvo plátano y leche,320,
                               activityId: activityId
                             })
                           })
-                          
+
                           if (!response.ok) {
                             const errorData = await response.json()
                             console.error('❌ Error eliminando filas de la BD:', errorData.error)
@@ -4025,36 +4041,36 @@ Batido de Proteína,Desayuno,Batido con proteína en polvo plátano y leche,320,
                           console.error('❌ Error al llamar API de eliminación:', error)
                         }
                       }
-                      
+
                       // Filtrar filas del estado local
                       setCsvData(prev => {
-                        const filtered = prev.filter(item => 
+                        const filtered = prev.filter(item =>
                           !item.csvFileTimestamp || item.csvFileTimestamp !== timestampToRemove
                         )
                         console.log('🗑️ Filas eliminadas del estado local:', prev.length - filtered.length, 'de', prev.length)
                         return filtered
                       })
-                      
+
                       // Filtrar filas del estado del padre
                       if (parentSetCsvData) {
                         const currentParentData = parentCsvData || []
-                        const filteredParent = currentParentData.filter((item: any) => 
+                        const filteredParent = currentParentData.filter((item: any) =>
                           !item.csvFileTimestamp || item.csvFileTimestamp !== timestampToRemove
                         )
                         parentSetCsvData(filteredParent)
                         console.log('🗑️ Filas eliminadas del padre:', currentParentData.length - filteredParent.length, 'de', currentParentData.length)
                       }
-                      
+
                       // Eliminar archivo de la lista
                       setUploadedFiles(prev => prev.filter((_, i) => i !== idx))
-                      
+
                       // Limpiar error si se eliminaron todas las filas del CSV
                       // Verificar si quedan filas con csvFileTimestamp
-                      const remainingCsvRows = [...csvData, ...(parentCsvData || [])].filter(item => 
+                      const remainingCsvRows = [...csvData, ...(parentCsvData || [])].filter(item =>
                         item.csvFileTimestamp && item.csvFileTimestamp !== timestampToRemove
                       )
                       if (remainingCsvRows.length === 0) {
-            updateErrorState(null)
+                        updateErrorState(null)
                         console.log('✅ Error limpiado - no quedan filas de CSV')
                       }
                     }}
@@ -4069,83 +4085,83 @@ Batido de Proteína,Desayuno,Batido con proteína en polvo plátano y leche,320,
           </div>
         </div>
       )}
-      
+
       {/* Contador de ejercicios/platos con barra segmentada - Sin fondo, minimalista */}
       {(allData.length > 0 || existingData.length > 0) && (
         <div className="mb-4 w-full">
           {/* Título y límite en una línea */}
           <div className="flex items-center justify-between mb-2">
-              <h4 className="text-sm font-medium text-gray-300">
-                {productCategory === 'nutricion' ? 'Resumen de Platos' : 'Resumen de Ejercicios'}
-              </h4>
+            <h4 className="text-sm font-medium text-gray-300">
+              {productCategory === 'nutricion' ? 'Resumen de Platos' : 'Resumen de Ejercicios'}
+            </h4>
             <div className={`text-xs ${exceedsActivitiesLimit ? 'text-red-400 font-semibold' : 'text-gray-400'}`}>
               {activitiesLimitValue !== null
                 ? `${allData.length}/${activitiesLimitValue}${planLimits?.planType ? ` (Plan ${planLimits.planType})` : ''}`
                 : `${allData.length} ${productCategory === 'nutricion' ? 'platos' : 'ejercicios'}`}
-              </div>
             </div>
-            
+          </div>
+
           {/* Barra segmentada con espacio libre */}
           <div className={`flex rounded-xl overflow-hidden h-6 mb-2 w-full ${exceedsActivitiesLimit ? 'ring-1 ring-red-500/60' : ''}`}>
-              {/* Ejercicios nuevos */}
-              {newExercises > 0 && (
-                <div 
+            {/* Ejercicios nuevos */}
+            {newExercises > 0 && (
+              <div
                 className="bg-[#FF7939] flex items-center justify-center text-white text-xs font-medium min-w-[24px]"
                 style={{ width: activitiesLimitValue && activitiesLimitValue > 0 ? `${Math.min((newExercises / activitiesLimitValue) * 100, 100)}%` : `${allData.length > 0 ? (newExercises / Math.max(allData.length, 1)) * 100 : 0}%` }}
-                  title={`${newExercises} ejercicios nuevos`}
-                >
-                  {newExercises}
-                </div>
-              )}
-              
-              {/* Ejercicios existentes */}
-              {existingCount > 0 && (
-                <div 
+                title={`${newExercises} ejercicios nuevos`}
+              >
+                {newExercises}
+              </div>
+            )}
+
+            {/* Ejercicios existentes */}
+            {existingCount > 0 && (
+              <div
                 className="bg-[#FF8C42] flex items-center justify-center text-white text-xs font-medium min-w-[24px]"
                 style={{ width: activitiesLimitValue && activitiesLimitValue > 0 ? `${Math.min((existingCount / activitiesLimitValue) * 100, 100)}%` : `${allData.length > 0 ? (existingCount / Math.max(allData.length, 1)) * 100 : 0}%` }}
-                  title={`${existingCount} ejercicios existentes`}
-                >
-                  {existingCount}
-                </div>
-              )}
-            
+                title={`${existingCount} ejercicios existentes`}
+              >
+                {existingCount}
+              </div>
+            )}
+
             {/* Espacio libre (solo si hay límite) */}
             {activitiesLimitValue !== null && allData.length < activitiesLimitValue && (
-              <div 
+              <div
                 className="bg-gray-700/50 flex items-center justify-center text-gray-400 text-xs font-medium"
                 style={{ width: `${((activitiesLimitValue - allData.length) / activitiesLimitValue) * 100}%` }}
                 title={`${activitiesLimitValue - allData.length} espacios libres`}
               >
                 {activitiesLimitValue - allData.length > 0 && (activitiesLimitValue - allData.length)}
-                </div>
-              )}
-              
-              {/* Si no hay ejercicios, mostrar barra vacía */}
-              {allData.length === 0 && (
-                <div className="w-full bg-gray-700 flex items-center justify-center text-gray-400 text-xs">
-                  Sin ejercicios
-                </div>
-              )}
-            </div>
-            
+              </div>
+            )}
+
+            {/* Si no hay ejercicios, mostrar barra vacía */}
+            {allData.length === 0 && (
+              <div className="w-full bg-gray-700 flex items-center justify-center text-gray-400 text-xs">
+                Sin ejercicios
+              </div>
+            )}
+          </div>
+
           {/* Leyendas - Compactas */}
-            <div className="flex gap-4 text-xs text-gray-400">
-              <div className="flex items-center gap-1">
+          <div className="flex gap-4 text-xs text-gray-400">
+            <div className="flex items-center gap-1">
               <div className="w-2 h-2 rounded bg-[#FF7939]"></div>
-                <span>Nuevos: {newExercises}</span>
-              </div>
-              <div className="flex items-center gap-1">
+              <span>Nuevos: {newExercises}</span>
+            </div>
+            <div className="flex items-center gap-1">
               <div className="w-2 h-2 rounded bg-[#FF8C42]"></div>
-                <span>Existentes: {existingCount}</span>
-              </div>
+              <span>Existentes: {existingCount}</span>
+            </div>
             {activitiesLimitValue !== null && allData.length < activitiesLimitValue && (
               <div className="flex items-center gap-1">
                 <div className="w-2 h-2 rounded bg-gray-700/50"></div>
                 <span>Libres: {activitiesLimitValue - allData.length}</span>
               </div>
             )}
-            </div>
           </div>
+        </div>
       )}
 
       {limitWarning && (
@@ -4225,6 +4241,23 @@ Batido de Proteína,Desayuno,Batido con proteína en polvo plátano y leche,320,
       {/* Action Buttons - Siempre visibles cuando hay datos */}
       {(csvData.length > 0 || (parentCsvData && parentCsvData.length > 0)) && (
         <div className="flex items-center justify-end gap-4 mb-4">
+          {/* Botón Condicionar - NUEVO */}
+          <button
+            onClick={() => setShowRulesPanel(true)}
+            className="flex items-center gap-2 text-[#FF7939] hover:text-[#FF6B35] transition-colors relative"
+            title="Configurar reglas condicionales para este producto"
+          >
+            <div className="relative">
+              <Settings2 className="h-5 w-5" />
+              {rulesCount > 0 && (
+                <span className="absolute -top-2 -right-2 bg-[#FF7939] text-white text-[8px] font-bold px-1 rounded-full min-w-[14px] h-[14px] flex items-center justify-center border border-black shadow-lg">
+                  {rulesCount}
+                </span>
+              )}
+            </div>
+            <span className="text-sm font-medium">Condicionar</span>
+          </button>
+
           {/* Botón Agregar Video */}
           <button
             onClick={() => {
@@ -4235,30 +4268,28 @@ Batido de Proteína,Desayuno,Batido con proteína en polvo plátano y leche,320,
               setShowVideoModal(true)
             }}
             disabled={selectedRows.size === 0}
-            className={`transition-colors ${
-              selectedRows.size === 0 
-                ? 'text-gray-400 cursor-not-allowed' 
-                : 'text-[#FF7939] hover:text-[#FF6B35]'
-            }`}
+            className={`transition-colors ${selectedRows.size === 0
+              ? 'text-gray-400 cursor-not-allowed'
+              : 'text-[#FF7939] hover:text-[#FF6B35]'
+              }`}
             title="Agregar video a filas seleccionadas"
           >
             <Video className="h-5 w-5" />
           </button>
-          
+
           {/* Botón Eliminar Filas */}
           <button
             onClick={handleRemoveSelected}
             disabled={selectedRows.size === 0}
-            className={`transition-colors ${
-              selectedRows.size === 0 
-                ? 'text-gray-400 cursor-not-allowed' 
-                : 'text-red-400 hover:text-red-300'
-            }`}
+            className={`transition-colors ${selectedRows.size === 0
+              ? 'text-gray-400 cursor-not-allowed'
+              : 'text-red-400 hover:text-red-300'
+              }`}
             title="Eliminar filas seleccionadas permanentemente"
           >
             <Trash2 className="h-5 w-5" />
           </button>
-          
+
           {/* Botón Desactivar/Reactivar Filas - Dinámico */}
           {(() => {
             // Determinar si los elementos seleccionados están desactivados
@@ -4266,36 +4297,34 @@ Batido de Proteína,Desayuno,Batido con proteína en polvo plátano y leche,320,
             const allInactive = selectedItems.length > 0 && selectedItems.every(item => item.is_active === false)
             const allActive = selectedItems.length > 0 && selectedItems.every(item => item.is_active !== false)
             const hasMixed = selectedItems.length > 0 && !allInactive && !allActive
-            
+
             // Si todos están desactivados, mostrar botón de reactivar
             if (allInactive) {
               return (
                 <button
                   onClick={handleReactivateSelected}
                   disabled={selectedRows.size === 0}
-                  className={`transition-colors ${
-                    selectedRows.size === 0 
-                      ? 'text-gray-400 cursor-not-allowed' 
-                      : 'text-green-400 hover:text-green-300'
-                  }`}
+                  className={`transition-colors ${selectedRows.size === 0
+                    ? 'text-gray-400 cursor-not-allowed'
+                    : 'text-green-400 hover:text-green-300'
+                    }`}
                   title="Reactivar filas seleccionadas (se mostrarán a nuevos clientes)"
                 >
                   <Power className="h-5 w-5" />
                 </button>
               )
             }
-            
+
             // Si todos están activos o hay mezcla, mostrar botón de desactivar
             return (
               <button
                 onClick={handleDeleteSelected}
                 disabled={selectedRows.size === 0}
-                className={`transition-colors ${
-                  selectedRows.size === 0 
-                    ? 'text-gray-400 cursor-not-allowed' 
-                    : 'text-[#FF7939] hover:text-[#FF6B35]'
-                }`}
-                title={hasMixed 
+                className={`transition-colors ${selectedRows.size === 0
+                  ? 'text-gray-400 cursor-not-allowed'
+                  : 'text-[#FF7939] hover:text-[#FF6B35]'
+                  }`}
+                title={hasMixed
                   ? "Desactivar filas seleccionadas (algunas ya están desactivadas)"
                   : "Desactivar filas seleccionadas (no se mostrarán a nuevos clientes)"
                 }
@@ -4332,95 +4361,94 @@ Batido de Proteína,Desayuno,Batido con proteína en polvo plátano y leche,320,
           {/* Renderizando tabla */}
           <table className="w-full min-w-full">
             <thead>
-                <tr>
-                  {/* Header para numerador de fila */}
-                  <th className="px-2 py-3 text-left text-xs font-medium text-white border-b border-gray-600 w-8"></th>
-                  <th className="px-3 py-3 text-left text-xs font-medium text-white border-b border-gray-600 w-16">
-                    <button
-                      onClick={() => {
+              <tr>
+                {/* Header para numerador de fila */}
+                <th className="px-2 py-3 text-left text-xs font-medium text-white border-b border-gray-600 w-8"></th>
+                <th className="px-3 py-3 text-left text-xs font-medium text-white border-b border-gray-600 w-16">
+                  <button
+                    onClick={() => {
+                      const allIndices = paginatedData.map((_, index) => startIndex + index)
+                      const allSelected = allIndices.every(index => selectedRows.has(index))
+
+                      if (allSelected) {
+                        // Si todos están seleccionados, deseleccionar todos de esta página
+                        const newSelected = new Set(selectedRows)
+                        allIndices.forEach(idx => newSelected.delete(idx))
+                        setSelectedRows(newSelected)
+                      } else {
+                        // Si no todos están seleccionados, seleccionar todos de esta página
+                        const newSelected = new Set(selectedRows)
+                        allIndices.forEach(idx => newSelected.add(idx))
+                        setSelectedRows(newSelected)
+                      }
+                    }}
+                    className="p-1 hover:bg-gray-700/50 rounded transition-colors mx-auto"
+                    title="Seleccionar/deseleccionar todos de esta página"
+                  >
+                    <Flame
+                      className={`h-4 w-4 transition-colors ${(() => {
                         const allIndices = paginatedData.map((_, index) => startIndex + index)
-                        const allSelected = allIndices.every(index => selectedRows.has(index))
-                        
-                        if (allSelected) {
-                          // Si todos están seleccionados, deseleccionar todos de esta página
-                          const newSelected = new Set(selectedRows)
-                          allIndices.forEach(idx => newSelected.delete(idx))
-                          setSelectedRows(newSelected)
-                        } else {
-                          // Si no todos están seleccionados, seleccionar todos de esta página
-                          const newSelected = new Set(selectedRows)
-                          allIndices.forEach(idx => newSelected.add(idx))
-                          setSelectedRows(newSelected)
-                        }
-                      }}
-                      className="p-1 hover:bg-gray-700/50 rounded transition-colors mx-auto"
-                      title="Seleccionar/deseleccionar todos de esta página"
-                    >
-                      <Flame 
-                        className={`h-4 w-4 transition-colors ${
-                          (() => {
-                            const allIndices = paginatedData.map((_, index) => startIndex + index)
-                            const allSelected = allIndices.length > 0 && allIndices.every(index => selectedRows.has(index))
-                            return allSelected ? 'text-[#FF7939]' : 'text-white'
-                          })()
-                        }`} 
-                      />
-                    </button>
-                  </th>
-                  <th className="px-2 py-3 text-left text-xs font-medium text-white border-b border-gray-600 w-12">
-                    Editar
-                  </th>
-                  {activityId === 0 && (
-                    <th className="px-3 py-3 text-left text-xs font-medium text-white border-b border-gray-600 w-48">
-                      Estado
-                    </th>
-                  )}
+                        const allSelected = allIndices.length > 0 && allIndices.every(index => selectedRows.has(index))
+                        return allSelected ? 'text-[#FF7939]' : 'text-white'
+                      })()
+                        }`}
+                    />
+                  </button>
+                </th>
+                <th className="px-2 py-3 text-left text-xs font-medium text-white border-b border-gray-600 w-12">
+                  Editar
+                </th>
+                {activityId === 0 && (
                   <th className="px-3 py-3 text-left text-xs font-medium text-white border-b border-gray-600 w-48">
-                    {productCategory === 'nutricion' ? 'Plato' : 'Ejercicio'}
+                    Estado
                   </th>
-                  <th className="px-3 py-3 text-left text-xs font-medium text-white border-b border-gray-600 w-48">
-                    {productCategory === 'nutricion' ? 'Receta' : 'Descripción'}
-                  </th>
-                  {productCategory === 'nutricion' ? (
-                    <>
-                      <th className="px-3 py-3 text-left text-xs font-medium text-white border-b border-gray-600 w-20">Calorías</th>
-                      <th className="px-3 py-3 text-left text-xs font-medium text-white border-b border-gray-600 w-24">Proteínas</th>
-                      <th className="px-3 py-3 text-left text-xs font-medium text-white border-b border-gray-600 w-24">Carbohidratos</th>
-                      <th className="px-3 py-3 text-left text-xs font-medium text-white border-b border-gray-600 w-20">Grasas</th>
-                      <th className="px-3 py-3 text-left text-xs font-medium text-white border-b border-gray-600 w-24">Dificultad</th>
-                      <th className="px-3 py-3 text-left text-xs font-medium text-white border-b border-gray-600 w-32">Ingredientes</th>
-                      <th className="px-3 py-3 text-left text-xs font-medium text-white border-b border-gray-600 w-20">Porciones</th>
-                      <th className="px-3 py-3 text-left text-xs font-medium text-white border-b border-gray-600 w-20">Minutos</th>
-                      <th className="px-3 py-3 text-left text-xs font-medium text-white border-b border-gray-600 w-32">Video</th>
-                    </>
-                  ) : (
-                    <>
-                      <th className="px-3 py-3 text-left text-xs font-medium text-white border-b border-gray-600 w-20">Duración</th>
-                      <th className="px-3 py-3 text-left text-xs font-medium text-white border-b border-gray-600 w-24">Tipo</th>
-                      <th className="px-3 py-3 text-left text-xs font-medium text-white border-b border-gray-600 w-32">Equipo</th>
-                      <th className="px-3 py-3 text-left text-xs font-medium text-white border-b border-gray-600 w-32">P-R-S</th>
-                      <th className="px-3 py-3 text-left text-xs font-medium text-white border-b border-gray-600 w-32">Partes</th>
-                      <th className="px-3 py-3 text-left text-xs font-medium text-white border-b border-gray-600 w-20">Calorías</th>
-                      <th className="px-3 py-3 text-left text-xs font-medium text-white border-b border-gray-600 w-24">Intensidad</th>
-                      <th className="px-3 py-3 text-left text-xs font-medium text-white border-b border-gray-600 w-32">Video</th>
-                    </>
-                  )}
-                </tr>
-              </thead>
-              <tbody>
-                {paginatedData.length === 0 ? (
-                  <tr>
-                    <td
-                      colSpan={(productCategory === 'nutricion' ? 15 : 11) + (activityId === 0 ? 1 : 0)}
-                      className="px-4 py-8 text-center text-gray-400"
-                    >
-                      {loadingExisting
-                        ? `Cargando ${productCategory === 'nutricion' ? 'platos' : 'ejercicios'} existentes...`
-                        : `No hay ${productCategory === 'nutricion' ? 'platos' : 'ejercicios'} para mostrar`}
-                    </td>
-                  </tr>
+                )}
+                <th className="px-3 py-3 text-left text-xs font-medium text-white border-b border-gray-600 w-48">
+                  {productCategory === 'nutricion' ? 'Plato' : 'Ejercicio'}
+                </th>
+                <th className="px-3 py-3 text-left text-xs font-medium text-white border-b border-gray-600 w-48">
+                  {productCategory === 'nutricion' ? 'Receta' : 'Descripción'}
+                </th>
+                {productCategory === 'nutricion' ? (
+                  <>
+                    <th className="px-3 py-3 text-left text-xs font-medium text-white border-b border-gray-600 w-20">Calorías</th>
+                    <th className="px-3 py-3 text-left text-xs font-medium text-white border-b border-gray-600 w-24">Proteínas</th>
+                    <th className="px-3 py-3 text-left text-xs font-medium text-white border-b border-gray-600 w-24">Carbohidratos</th>
+                    <th className="px-3 py-3 text-left text-xs font-medium text-white border-b border-gray-600 w-20">Grasas</th>
+                    <th className="px-3 py-3 text-left text-xs font-medium text-white border-b border-gray-600 w-24">Dificultad</th>
+                    <th className="px-3 py-3 text-left text-xs font-medium text-white border-b border-gray-600 w-32">Ingredientes</th>
+                    <th className="px-3 py-3 text-left text-xs font-medium text-white border-b border-gray-600 w-20">Porciones</th>
+                    <th className="px-3 py-3 text-left text-xs font-medium text-white border-b border-gray-600 w-20">Minutos</th>
+                    <th className="px-3 py-3 text-left text-xs font-medium text-white border-b border-gray-600 w-32">Video</th>
+                  </>
                 ) : (
-                  paginatedData.map((item, pageIndex) => {
+                  <>
+                    <th className="px-3 py-3 text-left text-xs font-medium text-white border-b border-gray-600 w-20">Duración</th>
+                    <th className="px-3 py-3 text-left text-xs font-medium text-white border-b border-gray-600 w-24">Tipo</th>
+                    <th className="px-3 py-3 text-left text-xs font-medium text-white border-b border-gray-600 w-32">Equipo</th>
+                    <th className="px-3 py-3 text-left text-xs font-medium text-white border-b border-gray-600 w-32">P-R-S</th>
+                    <th className="px-3 py-3 text-left text-xs font-medium text-white border-b border-gray-600 w-32">Partes</th>
+                    <th className="px-3 py-3 text-left text-xs font-medium text-white border-b border-gray-600 w-20">Calorías</th>
+                    <th className="px-3 py-3 text-left text-xs font-medium text-white border-b border-gray-600 w-24">Intensidad</th>
+                    <th className="px-3 py-3 text-left text-xs font-medium text-white border-b border-gray-600 w-32">Video</th>
+                  </>
+                )}
+              </tr>
+            </thead>
+            <tbody>
+              {paginatedData.length === 0 ? (
+                <tr>
+                  <td
+                    colSpan={(productCategory === 'nutricion' ? 15 : 11) + (activityId === 0 ? 1 : 0)}
+                    className="px-4 py-8 text-center text-gray-400"
+                  >
+                    {loadingExisting
+                      ? `Cargando ${productCategory === 'nutricion' ? 'platos' : 'ejercicios'} existentes...`
+                      : `No hay ${productCategory === 'nutricion' ? 'platos' : 'ejercicios'} para mostrar`}
+                  </td>
+                </tr>
+              ) : (
+                paginatedData.map((item, pageIndex) => {
                   const actualIndex = startIndex + pageIndex
                   const exerciseName = getExerciseName(item)
                   const isDuplicate = duplicateNames.includes(exerciseName)
@@ -4430,160 +4458,158 @@ Batido de Proteína,Desayuno,Batido con proteína en polvo plátano y leche,320,
                   const hasIntensityIssue = validationErrors.some(error => error.toLowerCase().includes('intensidad'))
                   const hasBodyPartsIssue = validationErrors.some(error => error.toLowerCase().includes('partes'))
                   const hasEquipmentIssue = validationErrors.some(error => error.toLowerCase().includes('equipo'))
-                  
+
                   return (
-                  <tr key={actualIndex} className="border-b border-gray-700 hover:bg-zinc-900/40">
-                    {/* Numerador de fila - Pequeño, naranja, sin frame */}
-                    <td className="px-2 py-3 text-center w-8">
-                      <span className="text-[#FF7939] text-[10px] font-medium">{actualIndex + 1}</span>
-                    </td>
-                    
-                    {/* Columna de Selección (Llama) - Segunda columna */}
-                    <td className="px-3 py-3 text-center">
-                      <button
-                        onClick={() => handleRowSelection(actualIndex)}
-                        className="p-1 hover:bg-gray-700/50 rounded transition-colors"
-                        title={selectedRows.has(actualIndex) ? 'Deseleccionar' : 'Seleccionar'}
-                      >
-                        <Flame 
-                          className={`h-4 w-4 transition-colors ${
-                            selectedRows.has(actualIndex) 
-                              ? 'text-[#FF7939]' 
+                    <tr key={actualIndex} className="border-b border-gray-700 hover:bg-zinc-900/40">
+                      {/* Numerador de fila - Pequeño, naranja, sin frame */}
+                      <td className="px-2 py-3 text-center w-8">
+                        <span className="text-[#FF7939] text-[10px] font-medium">{actualIndex + 1}</span>
+                      </td>
+
+                      {/* Columna de Selección (Llama) - Segunda columna */}
+                      <td className="px-3 py-3 text-center">
+                        <button
+                          onClick={() => handleRowSelection(actualIndex)}
+                          className="p-1 hover:bg-gray-700/50 rounded transition-colors"
+                          title={selectedRows.has(actualIndex) ? 'Deseleccionar' : 'Seleccionar'}
+                        >
+                          <Flame
+                            className={`h-4 w-4 transition-colors ${selectedRows.has(actualIndex)
+                              ? 'text-[#FF7939]'
                               : 'text-white'
-                          }`} 
-                        />
-                      </button>
-                    </td>
-                    
-                    {/* Columna Editar - Segunda columna */}
-                    <td className="px-2 py-3 text-center">
-                      <Button
-                        variant="ghost"
-                        size="sm"
-                        onClick={() => handleEditExercise(item, actualIndex)}
-                        className="text-blue-400 hover:bg-blue-400/10 p-1 h-5 w-5"
-                        title="Editar ejercicio"
-                      >
-                        <Eye className="h-3 w-3" />
-                      </Button>
-                    </td>
-                    
-                    {/* Columna Estado (solo en modo genérico) */}
-                    {activityId === 0 && (
-                      <td className="px-3 py-3 text-xs text-white">
-                        {(() => {
-                          const itemId = item.id && typeof item.id === 'number' ? item.id : null
-                          const usage = itemId ? exerciseUsage[itemId] : null
-                          
-                          // Obtener actividades desde activity_id_new o activity_id para el estado
-                          const activityIdNew = item.activity_id_new || item.activity_id
-                          const activityStatus: Record<number, boolean> = {}
-                          
-                          if (activityIdNew) {
-                            if (typeof activityIdNew === 'object' && !Array.isArray(activityIdNew)) {
-                              // Es JSONB: {"93": {"activo": true}, "94": {"activo": false}}
-                              Object.keys(activityIdNew).forEach((key) => {
+                              }`}
+                          />
+                        </button>
+                      </td>
+
+                      {/* Columna Editar - Segunda columna */}
+                      <td className="px-2 py-3 text-center">
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          onClick={() => handleEditExercise(item, actualIndex)}
+                          className="text-blue-400 hover:bg-blue-400/10 p-1 h-5 w-5"
+                          title="Editar ejercicio"
+                        >
+                          <Eye className="h-3 w-3" />
+                        </Button>
+                      </td>
+
+                      {/* Columna Estado (solo en modo genérico) */}
+                      {activityId === 0 && (
+                        <td className="px-3 py-3 text-xs text-white">
+                          {(() => {
+                            const itemId = item.id && typeof item.id === 'number' ? item.id : null
+                            const usage = itemId ? exerciseUsage[itemId] : null
+
+                            // Obtener actividades desde activity_id_new o activity_id para el estado
+                            const activityIdNew = item.activity_id_new || item.activity_id
+                            const activityStatus: Record<number, boolean> = {}
+
+                            if (activityIdNew) {
+                              if (typeof activityIdNew === 'object' && !Array.isArray(activityIdNew)) {
+                                // Es JSONB: {"93": {"activo": true}, "94": {"activo": false}}
+                                Object.keys(activityIdNew).forEach((key) => {
+                                  const activityIdNum = parseInt(key, 10)
+                                  if (!isNaN(activityIdNum)) {
+                                    const activityData = activityIdNew[key]
+                                    activityStatus[activityIdNum] = activityData?.activo !== false
+                                  }
+                                })
+                              } else if (typeof activityIdNew === 'number') {
+                                // Es integer: solo un ID, asumimos activo
+                                activityStatus[activityIdNew] = true
+                              }
+                            }
+
+                            // Combinar datos de usage (nombres) con activityStatus (estado)
+                            const activities: Array<{ id: number; name: string; activo: boolean }> = []
+
+                            if (usage && usage.activities && usage.activities.length > 0) {
+                              usage.activities.forEach((act: any) => {
+                                // Remover prefijo "Actividad: " si existe
+                                let cleanName = act.name || `${act.id}`
+                                cleanName = cleanName.replace(/^Actividad:\s*/i, '').replace(/^Actividad\s+/i, '')
+                                activities.push({
+                                  id: act.id,
+                                  name: cleanName,
+                                  activo: activityStatus[act.id] !== false
+                                })
+                              })
+                            } else if (Object.keys(activityStatus).length > 0) {
+                              // Si no hay usage pero hay activityStatus, usar el mapa de nombres de actividades
+                              Object.keys(activityStatus).forEach((key) => {
                                 const activityIdNum = parseInt(key, 10)
                                 if (!isNaN(activityIdNum)) {
-                                  const activityData = activityIdNew[key]
-                                  activityStatus[activityIdNum] = activityData?.activo !== false
+                                  // Buscar el nombre de la actividad en el mapa
+                                  const activityName = activityNamesMap[activityIdNum] || `Actividad ${activityIdNum}`
+                                  activities.push({
+                                    id: activityIdNum,
+                                    name: activityName,
+                                    activo: activityStatus[activityIdNum]
+                                  })
                                 }
                               })
-                            } else if (typeof activityIdNew === 'number') {
-                              // Es integer: solo un ID, asumimos activo
-                              activityStatus[activityIdNew] = true
                             }
-                          }
-                          
-                          // Combinar datos de usage (nombres) con activityStatus (estado)
-                          const activities: Array<{ id: number; name: string; activo: boolean }> = []
-                          
-                          if (usage && usage.activities && usage.activities.length > 0) {
-                            usage.activities.forEach((act: any) => {
-                              // Remover prefijo "Actividad: " si existe
-                              let cleanName = act.name || `${act.id}`
-                              cleanName = cleanName.replace(/^Actividad:\s*/i, '').replace(/^Actividad\s+/i, '')
-                              activities.push({
-                                id: act.id,
-                                name: cleanName,
-                                activo: activityStatus[act.id] !== false
-                              })
-                            })
-                          } else if (Object.keys(activityStatus).length > 0) {
-                            // Si no hay usage pero hay activityStatus, usar el mapa de nombres de actividades
-                            Object.keys(activityStatus).forEach((key) => {
-                              const activityIdNum = parseInt(key, 10)
-                              if (!isNaN(activityIdNum)) {
-                                // Buscar el nombre de la actividad en el mapa
-                                const activityName = activityNamesMap[activityIdNum] || `Actividad ${activityIdNum}`
-                                activities.push({
-                                  id: activityIdNum,
-                                  name: activityName,
-                                  activo: activityStatus[activityIdNum]
-                                })
-                              }
-                            })
-                          }
-                          
-                          if (activities.length === 0) {
-                            return <span className="text-gray-500">-</span>
-                          }
-                          
-                          return (
-                            <div className={`flex flex-wrap gap-2 ${activities.length > 3 ? 'max-h-20 overflow-y-auto' : ''}`}>
-                              {activities.map((act) => {
-                                const imageUrl = activityImagesMap[act.id] || null
-                                return (
-                                  <div
-                                    key={act.id}
-                                    className="relative inline-flex items-center"
-                                    title={act.activo ? `${act.name} (ID: ${act.id}) - Activa` : `${act.name} (ID: ${act.id}) - Inactiva`}
-                                  >
-                                    {/* Imagen circular de la actividad */}
-                                    <div className="relative w-8 h-8 rounded-full overflow-hidden">
-                                      {imageUrl ? (
-                                        <img
-                                          src={imageUrl}
-                                          alt={act.name}
-                                          className="w-full h-full object-cover"
-                                        />
-                                      ) : (
-                                        <div className="w-full h-full bg-gradient-to-br from-[#FF7939] to-[#E66829] flex items-center justify-center">
-                                          <span className="text-xs font-bold text-white">
-                                            {act.name.charAt(0).toUpperCase()}
-                                          </span>
-                                        </div>
-                                      )}
-                                    </div>
-                                    {/* Punto de estado (verde o rojo) */}
+
+                            if (activities.length === 0) {
+                              return <span className="text-gray-500">-</span>
+                            }
+
+                            return (
+                              <div className={`flex flex-wrap gap-2 ${activities.length > 3 ? 'max-h-20 overflow-y-auto' : ''}`}>
+                                {activities.map((act) => {
+                                  const imageUrl = activityImagesMap[act.id] || null
+                                  return (
                                     <div
-                                      className={`absolute -bottom-0.5 -right-0.5 w-3 h-3 rounded-full border-2 border-gray-900 ${
-                                        act.activo ? 'bg-green-500' : 'bg-red-500'
-                                      }`}
-                                    />
-                                  </div>
-                                )
-                              })}
-                            </div>
-                          )
-                        })()}
+                                      key={act.id}
+                                      className="relative inline-flex items-center"
+                                      title={act.activo ? `${act.name} (ID: ${act.id}) - Activa` : `${act.name} (ID: ${act.id}) - Inactiva`}
+                                    >
+                                      {/* Imagen circular de la actividad */}
+                                      <div className="relative w-8 h-8 rounded-full overflow-hidden">
+                                        {imageUrl ? (
+                                          <img
+                                            src={imageUrl}
+                                            alt={act.name}
+                                            className="w-full h-full object-cover"
+                                          />
+                                        ) : (
+                                          <div className="w-full h-full bg-gradient-to-br from-[#FF7939] to-[#E66829] flex items-center justify-center">
+                                            <span className="text-xs font-bold text-white">
+                                              {act.name.charAt(0).toUpperCase()}
+                                            </span>
+                                          </div>
+                                        )}
+                                      </div>
+                                      {/* Punto de estado (verde o rojo) */}
+                                      <div
+                                        className={`absolute -bottom-0.5 -right-0.5 w-3 h-3 rounded-full border-2 border-gray-900 ${act.activo ? 'bg-green-500' : 'bg-red-500'
+                                          }`}
+                                      />
+                                    </div>
+                                  )
+                                })}
+                              </div>
+                            )
+                          })()}
+                        </td>
+                      )}
+                      {/* Columna Ejercicio/Plato */}
+                      <td className="px-3 py-3 text-xs font-medium whitespace-pre-wrap break-words">
+                        <span className={isDuplicate ? 'text-red-400' : 'text-white'}>
+                          {productCategory === 'nutricion'
+                            ? (item['Nombre'] || item.nombre || '-')
+                            : getExerciseName(item) || '-'
+                          }
+                        </span>
                       </td>
-                    )}
-                    {/* Columna Ejercicio/Plato */}
-                    <td className="px-3 py-3 text-xs font-medium whitespace-pre-wrap break-words">
-                      <span className={isDuplicate ? 'text-red-400' : 'text-white'}>
-                        {productCategory === 'nutricion' 
-                          ? (item['Nombre'] || item.nombre || '-')
-                          : getExerciseName(item) || '-'
-                        }
-                      </span>
-                    </td>
-                    
-                    {/* Columna Descripción/Receta */}
-                    <td className="px-3 py-3 text-xs text-white">
-                      <div className="max-h-32 overflow-y-auto">
-                        {productCategory === 'nutricion' 
-                          ? (() => {
+
+                      {/* Columna Descripción/Receta */}
+                      <td className="px-3 py-3 text-xs text-white">
+                        <div className="max-h-32 overflow-y-auto">
+                          {productCategory === 'nutricion'
+                            ? (() => {
                               const receta = item['Receta'] || item.receta || item['Descripción'] || item.descripcion || item.Descripción || '-'
                               if (receta === '-') return <span>-</span>
                               // Separar por ; y mostrar cada paso en una línea
@@ -4598,300 +4624,321 @@ Batido de Proteína,Desayuno,Batido con proteína en polvo plátano y leche,320,
                                 </div>
                               )
                             })()
-                          : <span className="break-words">{item['Descripción'] || item.descripcion || item.Descripción || '-'}</span>
-                        }
-                      </div>
-                    </td>
-                    
-                    {productCategory === 'nutricion' ? (
-                      <>
-                        {/* Columna Calorías */}
-                        <td className="px-3 py-3 text-xs text-white">
-                          {(() => {
-                            const calorias = item['Calorías'] ?? item.calorias ?? item.calorías
-                            const numValue = Number(calorias)
-                            return (calorias !== undefined && calorias !== null && calorias !== '' && !isNaN(numValue) && numValue > 0) ? numValue : '-'
-                          })()}
-                        </td>
-                        
-                        {/* Columna Proteínas */}
-                        <td className="px-3 py-3 text-xs text-white">
-                          {(() => {
-                            const proteinas = item['Proteínas (g)'] ?? item['Proteínas'] ?? item.proteinas
-                            const numValue = Number(proteinas)
-                            const value = (proteinas !== undefined && proteinas !== null && proteinas !== '' && !isNaN(numValue) && numValue > 0) ? numValue : null
-                            return value === null ? '-' : `${value}g`
-                          })()}
-                        </td>
-                        
-                        {/* Columna Carbohidratos */}
-                        <td className="px-3 py-3 text-xs text-white">
-                          {(() => {
-                            const carbohidratos = item['Carbohidratos (g)'] ?? item['Carbohidratos'] ?? item.carbohidratos
-                            const numValue = Number(carbohidratos)
-                            const value = (carbohidratos !== undefined && carbohidratos !== null && carbohidratos !== '' && !isNaN(numValue) && numValue > 0) ? numValue : null
-                            return value === null ? '-' : `${value}g`
-                          })()}
-                        </td>
-                        
-                        {/* Columna Grasas */}
-                        <td className="px-3 py-3 text-xs text-white">
-                          {(() => {
-                            const grasas = item['Grasas (g)'] ?? item['Grasas'] ?? item.grasas
-                            const numValue = Number(grasas)
-                            const value = (grasas !== undefined && grasas !== null && grasas !== '' && !isNaN(numValue) && numValue > 0) ? numValue : null
-                            return value === null ? '-' : `${value}g`
-                          })()}
-                        </td>
-                        
-                        {/* Columna Dificultad */}
-                        <td className="px-3 py-3 text-xs text-white">
-                          {(() => {
-                            const dificultad = item['Dificultad'] ?? item.dificultad ?? '-'
-                            return dificultad || '-'
-                          })()}
-                        </td>
-                        
-                        {/* Columna Ingredientes */}
-                        <td className="px-3 py-3 text-xs text-white">
-                          <div className="max-h-32 overflow-y-auto">
+                            : <span className="break-words">{item['Descripción'] || item.descripcion || item.Descripción || '-'}</span>
+                          }
+                        </div>
+                      </td>
+
+                      {productCategory === 'nutricion' ? (
+                        <>
+                          {/* Columna Calorías */}
+                          <td className="px-3 py-3 text-xs text-white">
                             {(() => {
-                              let ingredientes = item['Ingredientes'] || item.ingredientes
-                              
-                              // Si ingredientes es un array, convertirlo a string
-                              if (Array.isArray(ingredientes)) {
-                                ingredientes = ingredientes.join('; ')
-                              } else if (typeof ingredientes === 'object' && ingredientes !== null) {
-                                // Si es un objeto, intentar convertirlo
-                                try {
-                                  ingredientes = JSON.stringify(ingredientes)
-                                } catch {
+                              const calorias = item['Calorías'] ?? item.calorias ?? item.calorías
+                              const numValue = Number(calorias)
+                              return (calorias !== undefined && calorias !== null && calorias !== '' && !isNaN(numValue) && numValue > 0) ? numValue : '-'
+                            })()}
+                          </td>
+
+                          {/* Columna Proteínas */}
+                          <td className="px-3 py-3 text-xs text-white">
+                            {(() => {
+                              const proteinas = item['Proteínas (g)'] ?? item['Proteínas'] ?? item.proteinas
+                              const numValue = Number(proteinas)
+                              const value = (proteinas !== undefined && proteinas !== null && proteinas !== '' && !isNaN(numValue) && numValue > 0) ? numValue : null
+                              return value === null ? '-' : `${value}g`
+                            })()}
+                          </td>
+
+                          {/* Columna Carbohidratos */}
+                          <td className="px-3 py-3 text-xs text-white">
+                            {(() => {
+                              const carbohidratos = item['Carbohidratos (g)'] ?? item['Carbohidratos'] ?? item.carbohidratos
+                              const numValue = Number(carbohidratos)
+                              const value = (carbohidratos !== undefined && carbohidratos !== null && carbohidratos !== '' && !isNaN(numValue) && numValue > 0) ? numValue : null
+                              return value === null ? '-' : `${value}g`
+                            })()}
+                          </td>
+
+                          {/* Columna Grasas */}
+                          <td className="px-3 py-3 text-xs text-white">
+                            {(() => {
+                              const grasas = item['Grasas (g)'] ?? item['Grasas'] ?? item.grasas
+                              const numValue = Number(grasas)
+                              const value = (grasas !== undefined && grasas !== null && grasas !== '' && !isNaN(numValue) && numValue > 0) ? numValue : null
+                              return value === null ? '-' : `${value}g`
+                            })()}
+                          </td>
+
+                          {/* Columna Dificultad */}
+                          <td className="px-3 py-3 text-xs text-white">
+                            {(() => {
+                              const dificultad = item['Dificultad'] ?? item.dificultad ?? '-'
+                              return dificultad || '-'
+                            })()}
+                          </td>
+
+                          {/* Columna Ingredientes */}
+                          <td className="px-3 py-3 text-xs text-white">
+                            <div className="max-h-32 overflow-y-auto">
+                              {(() => {
+                                let ingredientes = item['Ingredientes'] || item.ingredientes
+
+                                // Si ingredientes es un array, convertirlo a string
+                                if (Array.isArray(ingredientes)) {
+                                  ingredientes = ingredientes.join('; ')
+                                } else if (typeof ingredientes === 'object' && ingredientes !== null) {
+                                  // Si es un objeto, intentar convertirlo
+                                  try {
+                                    ingredientes = JSON.stringify(ingredientes)
+                                  } catch {
+                                    ingredientes = String(ingredientes)
+                                  }
+                                } else if (ingredientes === undefined || ingredientes === null || ingredientes === '') {
+                                  ingredientes = '-'
+                                } else {
                                   ingredientes = String(ingredientes)
                                 }
-                              } else if (ingredientes === undefined || ingredientes === null || ingredientes === '') {
-                                ingredientes = '-'
-                              } else {
-                                ingredientes = String(ingredientes)
-                              }
-                              
-                              if (ingredientes === '-' || !ingredientes) return <span>-</span>
-                              
-                              // Separar por ; o , y mostrar cada ingrediente en una línea con viñeta
-                              const items = ingredientes.split(/[;,]/).map((i: string) => i.trim()).filter((i: string) => i)
-                              if (items.length === 0) return <span>-</span>
-                              
+
+                                if (ingredientes === '-' || !ingredientes) return <span>-</span>
+
+                                // Separar por ; o , y mostrar cada ingrediente en una línea con viñeta
+                                const items = ingredientes.split(/[;,]/).map((i: string) => i.trim()).filter((i: string) => i)
+                                if (items.length === 0) return <span>-</span>
+
+                                return (
+                                  <div className="space-y-0.5 break-words">
+                                    {items.map((ing: string, idx: number) => (
+                                      <div key={idx} className="text-white/90 flex items-start">
+                                        <span className="text-[#FF7939] mr-1.5 flex-shrink-0">•</span>
+                                        <span className="break-words">{ing}</span>
+                                      </div>
+                                    ))}
+                                  </div>
+                                )
+                              })()}
+                            </div>
+                          </td>
+
+                          {/* Columna Porciones */}
+                          <td className="px-3 py-3 text-xs text-white">
+                            {(() => {
+                              const porciones = item['Porciones'] ?? item.porciones
+                              return (porciones !== undefined && porciones !== null && porciones !== '') ? porciones : '-'
+                            })()}
+                          </td>
+
+                          {/* Columna Minutos */}
+                          <td className="px-3 py-3 text-xs text-white">
+                            {(() => {
+                              const minutos = item['Minutos'] ?? item.minutos
+                              const value = (minutos !== undefined && minutos !== null && minutos !== '') ? minutos : '-'
+                              return value === '-' ? '-' : `${value} min`
+                            })()}
+                          </td>
+                        </>
+                      ) : (
+                        <>
+                          {/* Columna Duración */}
+                          <td className="px-3 py-3 text-xs text-white">
+                            {item['Duración (min)'] || item.duracion_min || item.Duración || '-'} min
+                          </td>
+
+                          {/* Columna Tipo - Con tag de color */}
+                          <td className="px-3 py-3 text-xs whitespace-pre-wrap break-words">
+                            {(() => {
+                              const exerciseType = item['Tipo de Ejercicio'] || item.tipo_ejercicio || item.type || ''
+                              const normalizedType = normalizeExerciseType(exerciseType)
+                              const colorClass = getExerciseTypeColor(normalizedType)
                               return (
-                                <div className="space-y-0.5 break-words">
-                                  {items.map((ing: string, idx: number) => (
-                                    <div key={idx} className="text-white/90 flex items-start">
-                                      <span className="text-[#FF7939] mr-1.5 flex-shrink-0">•</span>
-                                      <span className="break-words">{ing}</span>
-                                    </div>
-                                  ))}
-                                </div>
+                                <span className={`${colorClass} text-black text-[10px] px-1.5 py-0.5 rounded-full font-medium border border-black/10 whitespace-nowrap inline-block`}>
+                                  {getExerciseTypeLabel(normalizedType)}
+                                </span>
                               )
                             })()}
-                          </div>
-                        </td>
-                        
-                        {/* Columna Porciones */}
-                        <td className="px-3 py-3 text-xs text-white">
-                          {(() => {
-                            const porciones = item['Porciones'] ?? item.porciones
-                            return (porciones !== undefined && porciones !== null && porciones !== '') ? porciones : '-'
-                          })()}
-                        </td>
-                        
-                        {/* Columna Minutos */}
-                        <td className="px-3 py-3 text-xs text-white">
-                          {(() => {
-                            const minutos = item['Minutos'] ?? item.minutos
-                            const value = (minutos !== undefined && minutos !== null && minutos !== '') ? minutos : '-'
-                            return value === '-' ? '-' : `${value} min`
-                          })()}
-                        </td>
-                      </>
-                    ) : (
-                      <>
-                        {/* Columna Duración */}
-                        <td className="px-3 py-3 text-xs text-white">
-                          {item['Duración (min)'] || item.duracion_min || item.Duración || '-'} min
-                        </td>
-                        
-                        {/* Columna Tipo - Con tag de color */}
-                        <td className="px-3 py-3 text-xs whitespace-pre-wrap break-words">
-                          {(() => {
-                            const exerciseType = item['Tipo de Ejercicio'] || item.tipo_ejercicio || item.type || ''
-                            const normalizedType = normalizeExerciseType(exerciseType)
-                            const colorClass = getExerciseTypeColor(normalizedType)
-                            return (
-                              <span className={`${colorClass} text-black text-[10px] px-1.5 py-0.5 rounded-full font-medium border border-black/10 whitespace-nowrap inline-block`}>
-                                {getExerciseTypeLabel(normalizedType)}
-                              </span>
-                            )
-                          })()}
-                        </td>
-                        
-                        {/* Columna Equipo */}
-                        <td className={`px-3 py-3 text-xs whitespace-pre-wrap break-words ${hasEquipmentIssue ? 'text-red-400' : 'text-white'}`}>
-                          {item['Equipo Necesario'] || item.equipo_necesario || '-'}
-                        </td>
-                        
-                        {/* Columna P-R-S */}
-                        <td className="px-3 py-3 text-xs text-white whitespace-pre break-normal">
-                         {(() => {
-                           const candidates = [
-                             item['Detalle de Series (peso-repeticiones-series)'],
-                             item['Detalle de Series'],
-                             item['P-R-S'],
-                             item.detalle_series
-                           ]
-                           
-                            const first = candidates.find(v => !!v)
-                            if (typeof first === 'string') {
-                              const parts = first
-                                .toString()
-                                .split(/;|\n/)
-                                .map(s => s.trim())
-                                .filter(Boolean)
-                                .map(s => (s.endsWith(';') ? s : `${s};`))
-                              return parts.join('\n') || '-'
-                            }
-                            if (Array.isArray(first)) {
-                              return first
-                                .map((s: any) => `(${s.peso}-${s.repeticiones}-${s.series});`)
-                                .join('\n') || '-'
-                            }
-                            if (Array.isArray(item.detalle_series)) {
-                              return item.detalle_series
-                                .map((s: any) => `(${s.peso}-${s.repeticiones}-${s.series});`)
-                                .join('\n') || '-'
-                            }
-                            return '-'
-                          })()}
-                        </td>
-                        
-                        {/* Columna Partes */}
-                        <td className={`px-3 py-3 text-xs whitespace-pre-wrap break-words ${hasBodyPartsIssue ? 'text-red-400' : 'text-white'}`}>
-                          {(item['Partes del Cuerpo'] || item.body_parts || '')
-                            .toString()
-                            .split(/;|,/)
-                            .filter(Boolean)
-                            .map((p: string) => p.trim())
-                            .join('\n') || '-'}
-                        </td>
-                        
-                        {/* Columna Calorías */}
-                        <td className="px-3 py-3 text-xs text-white">
-                          {item.Calorías || item.calorias || '-'}
-                        </td>
-                        
-                        {/* Columna Intensidad */}
-                        <td className="px-3 py-3 text-xs text-white">
-                          <span
-                            className={`inline-flex items-center px-2 py-1 rounded-full text-xs font-medium ${
-                              hasIntensityIssue
+                          </td>
+
+                          {/* Columna Equipo */}
+                          <td className={`px-3 py-3 text-xs whitespace-pre-wrap break-words ${hasEquipmentIssue ? 'text-red-400' : 'text-white'}`}>
+                            {item['Equipo Necesario'] || item.equipo_necesario || '-'}
+                          </td>
+
+                          {/* Columna P-R-S */}
+                          <td className="px-3 py-3 text-xs text-white whitespace-pre break-normal">
+                            {(() => {
+                              const candidates = [
+                                item['Detalle de Series (peso-repeticiones-series)'],
+                                item['Detalle de Series'],
+                                item['P-R-S'],
+                                item.detalle_series
+                              ]
+
+                              const first = candidates.find(v => !!v)
+                              if (typeof first === 'string') {
+                                const parts = first
+                                  .toString()
+                                  .split(/;|\n/)
+                                  .map(s => s.trim())
+                                  .filter(Boolean)
+                                  .map(s => (s.endsWith(';') ? s : `${s};`))
+                                return parts.join('\n') || '-'
+                              }
+                              if (Array.isArray(first)) {
+                                return first
+                                  .map((s: any) => `(${s.peso}-${s.repeticiones}-${s.series});`)
+                                  .join('\n') || '-'
+                              }
+                              if (Array.isArray(item.detalle_series)) {
+                                return item.detalle_series
+                                  .map((s: any) => `(${s.peso}-${s.repeticiones}-${s.series});`)
+                                  .join('\n') || '-'
+                              }
+                              return '-'
+                            })()}
+                          </td>
+
+                          {/* Columna Partes */}
+                          <td className={`px-3 py-3 text-xs whitespace-pre-wrap break-words ${hasBodyPartsIssue ? 'text-red-400' : 'text-white'}`}>
+                            {(item['Partes del Cuerpo'] || item.body_parts || '')
+                              .toString()
+                              .split(/;|,/)
+                              .filter(Boolean)
+                              .map((p: string) => p.trim())
+                              .join('\n') || '-'}
+                          </td>
+
+                          {/* Columna Calorías */}
+                          <td className="px-3 py-3 text-xs text-white">
+                            {item.Calorías || item.calorias || '-'}
+                          </td>
+
+                          {/* Columna Intensidad */}
+                          <td className="px-3 py-3 text-xs text-white">
+                            <span
+                              className={`inline-flex items-center px-2 py-1 rounded-full text-xs font-medium ${hasIntensityIssue
                                 ? 'bg-red-500/10 text-red-400 border border-red-500/30'
-                                : (item['Nivel de Intensidad'] || item.intensidad || '').toLowerCase().includes('alto') || 
-                                  (item['Nivel de Intensidad'] || item.intensidad || '').toLowerCase().includes('high') 
+                                : (item['Nivel de Intensidad'] || item.intensidad || '').toLowerCase().includes('alto') ||
+                                  (item['Nivel de Intensidad'] || item.intensidad || '').toLowerCase().includes('high')
                                   ? 'bg-red-100 text-red-800'
-                                  : (item['Nivel de Intensidad'] || item.intensidad || '').toLowerCase().includes('medio') || 
+                                  : (item['Nivel de Intensidad'] || item.intensidad || '').toLowerCase().includes('medio') ||
                                     (item['Nivel de Intensidad'] || item.intensidad || '').toLowerCase().includes('medium') ||
                                     (item['Nivel de Intensidad'] || item.intensidad || '').toLowerCase().includes('moderada')
-                                  ? 'bg-yellow-100 text-yellow-800'
-                                  : (item['Nivel de Intensidad'] || item.intensidad || '').toLowerCase().includes('bajo') || 
-                                    (item['Nivel de Intensidad'] || item.intensidad || '').toLowerCase().includes('low')
-                                  ? 'bg-green-100 text-green-800'
-                                  : 'bg-gray-100 text-gray-800'
-                            }`}
-                          >
-                            {item['Nivel de Intensidad'] || item.intensidad || '-'}
-                          </span>
-                        </td>
-                      </>
-                    )}
-                    
-                    {/* Columna Video */}
-                    <td className="px-3 py-3 text-xs text-white whitespace-pre-wrap break-words">
-                      {(() => {
-                        const url = (item as any).video_url || (item as any).video || ''
-                        const fileName = (item as any).video_file_name
-                        const bunnyId = (item as any).bunny_video_id
-                        if (!url && !fileName) return '-'
-                        const display = getVideoDisplayName(fileName, url, bunnyId)
-                        if (!display) return '-'
-                        return display.length > 24 ? display.slice(0, 24) + '…' : display
-                      })()}
-                    </td>
-                    
-                    
-                  </tr>
+                                    ? 'bg-yellow-100 text-yellow-800'
+                                    : (item['Nivel de Intensidad'] || item.intensidad || '').toLowerCase().includes('bajo') ||
+                                      (item['Nivel de Intensidad'] || item.intensidad || '').toLowerCase().includes('low')
+                                      ? 'bg-green-100 text-green-800'
+                                      : 'bg-gray-100 text-gray-800'
+                                }`}
+                            >
+                              {item['Nivel de Intensidad'] || item.intensidad || '-'}
+                            </span>
+                          </td>
+                        </>
+                      )}
+
+                      {/* Columna Video */}
+                      <td className="px-3 py-3 text-xs text-white whitespace-pre-wrap break-words">
+                        {(() => {
+                          const url = (item as any).video_url || (item as any).video || ''
+                          const fileName = (item as any).video_file_name
+                          const bunnyId = (item as any).bunny_video_id
+                          if (!url && !fileName) return '-'
+                          const display = getVideoDisplayName(fileName, url, bunnyId)
+                          if (!display) return '-'
+                          return display.length > 24 ? display.slice(0, 24) + '…' : display
+                        })()}
+                      </td>
+
+
+                    </tr>
                   )
                 })
-                )}
-              </tbody>
-            </table>
-            
-            {/* Contenido personalizado después de la tabla (ej: botón continuar) */}
-            {renderAfterTable && (
-              <div className="flex justify-end mt-3 mb-2">
-                {renderAfterTable}
-              </div>
-            )}
-            
-            {/* Paginación - Mostrar si hay más de 15 filas */}
-            {allData.length > itemsPerPage && (
-              <div className="flex items-center justify-center gap-2 mt-4 pb-4">
-                <button
-                  onClick={() => setCurrentPage(prev => Math.max(1, prev - 1))}
-                  disabled={currentPage === 1}
-                  className={`${
-                    currentPage === 1
-                      ? 'text-gray-500 cursor-not-allowed opacity-50'
-                      : 'text-[#FF7939] hover:text-[#FF6B35] cursor-pointer'
-                  } transition-colors`}
-                  title="Página anterior"
-                >
-                  <ChevronLeft className="h-5 w-5" />
-                </button>
-                
-                <div className="flex gap-1">
-                  {Array.from({ length: totalPages }, (_, i) => i + 1).map(pageNum => (
-                    <button
-                      key={pageNum}
-                      onClick={() => setCurrentPage(pageNum)}
-                      className={`px-3 py-1 rounded text-sm ${
-                        currentPage === pageNum
-                          ? 'bg-[#FF7939] text-white'
-                          : 'bg-gray-700 text-white hover:bg-gray-600'
-                      }`}
-                    >
-                      {pageNum}
-                    </button>
-                  ))}
-                </div>
-                
-                <button
-                  onClick={() => setCurrentPage(prev => Math.min(totalPages, prev + 1))}
-                  disabled={currentPage === totalPages}
-                  className={`${
-                    currentPage === totalPages
-                      ? 'text-gray-500 cursor-not-allowed opacity-50'
-                      : 'text-[#FF7939] hover:text-[#FF6B35] cursor-pointer'
-                  } transition-colors`}
-                  title="Página siguiente"
-                >
-                  <ChevronRight className="h-5 w-5" />
-                </button>
-              </div>
-            )}
-          </div>
-          <div className="overflow-x-auto w-full mt-2">
-            <div className="h-1 rounded-full bg-zinc-800/70"></div>
-          </div>
-        </div>
+              )}
+            </tbody>
+          </table>
 
-      
+          {/* Contenido personalizado después de la tabla (ej: botón continuar) */}
+          {renderAfterTable && (
+            <div className="flex justify-end mt-3 mb-2">
+              {renderAfterTable}
+            </div>
+          )}
+
+          {/* Paginación - Mostrar si hay más de 15 filas */}
+          {allData.length > itemsPerPage && (
+            <div className="flex items-center justify-center gap-2 mt-4 pb-4">
+              <button
+                onClick={() => setCurrentPage(prev => Math.max(1, prev - 1))}
+                disabled={currentPage === 1}
+                className={`${currentPage === 1
+                  ? 'text-gray-500 cursor-not-allowed opacity-50'
+                  : 'text-[#FF7939] hover:text-[#FF6B35] cursor-pointer'
+                  } transition-colors`}
+                title="Página anterior"
+              >
+                <ChevronLeft className="h-5 w-5" />
+              </button>
+
+              <div className="flex gap-1">
+                {Array.from({ length: totalPages }, (_, i) => i + 1).map(pageNum => (
+                  <button
+                    key={pageNum}
+                    onClick={() => setCurrentPage(pageNum)}
+                    className={`px-3 py-1 rounded text-sm ${currentPage === pageNum
+                      ? 'bg-[#FF7939] text-white'
+                      : 'bg-gray-700 text-white hover:bg-gray-600'
+                      }`}
+                  >
+                    {pageNum}
+                  </button>
+                ))}
+              </div>
+
+              <button
+                onClick={() => setCurrentPage(prev => Math.min(totalPages, prev + 1))}
+                disabled={currentPage === totalPages}
+                className={`${currentPage === totalPages
+                  ? 'text-gray-500 cursor-not-allowed opacity-50'
+                  : 'text-[#FF7939] hover:text-[#FF6B35] cursor-pointer'
+                  } transition-colors`}
+                title="Página siguiente"
+              >
+                <ChevronRight className="h-5 w-5" />
+              </button>
+            </div>
+          )}
+        </div>
+        <div className="overflow-x-auto w-full mt-2">
+          <div className="h-1 rounded-full bg-zinc-800/70"></div>
+        </div>
+      </div>
+
+      <ConditionalRulesPanel
+        isOpen={showRulesPanel}
+        onClose={() => setShowRulesPanel(false)}
+        productCategory={productCategory}
+        availableItems={allData}
+        productId={activityId > 0 ? activityId : undefined}
+        coachId={coachId}
+        onSaveRules={(rules) => {
+          setRulesCount(rules.length)
+          // Also keep in sessionStorage for immediate feedback/offline
+          if (activityId > 0) {
+            sessionStorage.setItem(`conditional_rules_${activityId}`, JSON.stringify(rules))
+          }
+        }}
+        initialRules={(() => {
+          if (activityId > 0) {
+            try {
+              const saved = sessionStorage.getItem(`conditional_rules_${activityId}`)
+              return saved ? JSON.parse(saved) : []
+            } catch {
+              return []
+            }
+          }
+          return []
+        })()}
+      />
     </div>
   )
 }

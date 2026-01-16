@@ -1835,11 +1835,8 @@ export function ClientCalendar({ clientId, onLastWorkoutUpdate, onDaySelected, e
     const today = new Date()
     today.setHours(0, 0, 0, 0)
 
-    // Solo permitir cambiar fechas futuras (desde mañana en adelante)
-    if (date <= today) {
-      console.log('No se puede cambiar la fecha de días pasados o hoy')
-      return
-    }
+    // Permitir editar cualquier fecha (pasado, hoy o futuro)
+    // if (date <= today) { ... }
 
     if (isSelectingNewDate) {
       // Cancelar modo de selección
@@ -3540,7 +3537,7 @@ export function ClientCalendar({ clientId, onLastWorkoutUpdate, onDaySelected, e
                 className={`
                   relative p-2 text-sm rounded-lg transition-all duration-300 min-h-[50px] flex flex-col items-center justify-start group
                   ${!isCurrentMonth ? 'text-gray-600 bg-transparent' : 'text-white'}
-                  ${isSelected && !isSelectedForEdit && !isTargetForEdit ? 'bg-[#FF7939] text-white shadow-lg shadow-[#FF7939]/25' : ''}
+                  ${isSelected && !isSelectedForEdit && !isTargetForEdit ? 'bg-[#FF7939]/20 backdrop-blur-md border border-[#FF7939]/50 text-white shadow-[0_0_15px_rgba(255,121,57,0.3)]' : ''}
                   ${isSelectedForEdit ? 'bg-[#FF7939]/30 border-2 border-[#FF7939] text-white' : ''}
                   ${isTargetForEdit ? 'bg-white text-black border-2 border-white' : ''}
                   ${hasExercises && !isToday && !isSelectedForEdit && !isTargetForEdit ? 'bg-zinc-800/50 hover:bg-zinc-700/70 cursor-pointer border border-zinc-600/30' : ''}
@@ -4093,8 +4090,8 @@ export function ClientCalendar({ clientId, onLastWorkoutUpdate, onDaySelected, e
               <div className="space-y-3">
                 <div className="bg-zinc-800/30 rounded-lg p-3 border border-zinc-700/30">
                   <div className="flex items-center justify-between text-xs">
-                    <span className="text-gray-400">Tus programas</span>
-                    <span className="text-gray-200 font-semibold">{formatMinutesCompact(ownedMins) || '0m'}</span>
+                    <span className="text-[#FF7939] font-medium">Tus programas</span>
+                    <span className="text-[#FF7939] font-semibold">{formatMinutesCompact(ownedMins) || '0m'}</span>
                   </div>
                   <div className="flex items-center justify-between text-xs mt-1">
                     <span className="text-gray-400">Otras actividades</span>

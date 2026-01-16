@@ -5,21 +5,21 @@ import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Textarea } from "@/components/ui/textarea"
-import { 
+import {
   Select,
   SelectContent,
   SelectItem,
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select"
-import { 
+import {
   Dialog,
   DialogContent,
   DialogHeader,
   DialogTitle,
   DialogDescription,
 } from "@/components/ui/dialog"
-import { 
+import {
   User,
   Camera,
   X,
@@ -28,36 +28,44 @@ import {
 import { useProfileManagement } from '@/hooks/client/use-profile-management'
 import { useToast } from "@/components/ui/use-toast"
 
-// Lista predefinida de especialidades (máximo 25)
-const PREDEFINED_SPECIALIZATIONS = [
-  // Fitness y entrenamiento
-  "Fitness General",
-  "Entrenamiento Funcional",
-  "CrossFit",
-  "Calistenia",
-  "Pilates",
-  "Yoga",
-  "Spinning",
-  "HIIT",
-  "Bodybuilding",
-  "Powerlifting",
-  "Running",
-  "Ciclismo",
-  "Natación",
-  "Boxeo",
-  "MMA",
-  // Deportes
+const FITNESS_GOALS_OPTIONS = [
+  "Subir de peso",
+  "Bajar de peso",
+  "Quemar grasas",
+  "Ganar masa muscular",
+  "Mejorar condición física",
+  "Tonificar",
+  "Mejorar flexibilidad",
+  "Reducir estrés",
+  "Controlar respiración",
+  "Corregir postura",
+  "Meditación y Mindfulness",
+  "Equilibrio corporal",
+  "Aumentar resistencia",
+  "Salud articular"
+]
+
+const SPORTS_OPTIONS = [
   "Fútbol",
-  "Básquet",
   "Tenis",
+  "Padel",
+  "Calistenia",
+  "Natación",
+  "Running",
+  "Crossfit",
+  "Yoga",
+  "Pilates",
+  "Ciclismo",
+  "Boxeo",
+  "Artes Marciales",
+  "Gimnasio",
+  "Básquet",
   "Vóley",
-  "Rugby",
-  // Nutrición
-  "Nutrición Deportiva",
-  "Nutrición Clínica",
-  "Nutrición Vegana",
-  "Nutrición Vegetariana",
-  "Pérdida de Peso",
+  "Patinaje",
+  "Golf",
+  "Escalada",
+  "Surf",
+  "Otro"
 ]
 
 interface ProfileEditModalProps {
@@ -69,7 +77,7 @@ interface ProfileEditModalProps {
 export function ProfileEditModal({ isOpen, onClose, editingSection }: ProfileEditModalProps) {
   const { profile, updateProfile, loading, loadProfile } = useProfileManagement()
   const { toast } = useToast()
-  
+
   const [profileData, setProfileData] = useState({
     full_name: "",
     email: "",
@@ -82,19 +90,23 @@ export function ProfileEditModal({ isOpen, onClose, editingSection }: ProfileEdi
     gender: "",
     level: "Principiante"
   })
-  
-  const [specializations, setSpecializations] = useState<string[]>([])
-  const [isSpecializationPopoverOpen, setIsSpecializationPopoverOpen] = useState(false)
+
+  const [goals, setGoals] = useState<string[]>([])
+  const [sports, setSports] = useState<string[]>([])
+  const [isGoalsPopoverOpen, setIsGoalsPopoverOpen] = useState(false)
+  const [isSportsPopoverOpen, setIsSportsPopoverOpen] = useState(false)
+
   const [errors, setErrors] = useState({
     weight: false,
     height: false,
     emergency_contact: false,
   })
-  
+
   const [profileImage, setProfileImage] = useState<File | null>(null)
   const [previewImage, setPreviewImage] = useState<string | null>(null)
   const fileInputRef = useRef<HTMLInputElement>(null)
-  const specializationsSectionRef = useRef<HTMLDivElement | null>(null)
+  const goalsSectionRef = useRef<HTMLDivElement | null>(null)
+  const sportsSectionRef = useRef<HTMLDivElement | null>(null)
 
   // Cargar perfil cuando se abre el modal
   useEffect(() => {
@@ -135,16 +147,19 @@ export function ProfileEditModal({ isOpen, onClose, editingSection }: ProfileEdi
         level: profile.level || "Principiante"
       })
       setPreviewImage(profile.avatar_url || null)
-      
-      // Cargar especialidades desde el perfil (si existe specialization)
-      if ((profile as any).specialization) {
-        const specs = (profile as any).specialization
-          .split(',')
-          .map((s: string) => s.trim())
-          .filter((s: string) => s.length > 0)
-        setSpecializations(specs)
+
+      // Cargar Goals
+      if ((profile as any).fitness_goals) {
+        setGoals((profile as any).fitness_goals)
       } else {
-        setSpecializations([])
+        setGoals([])
+      }
+
+      // Cargar Sports
+      if ((profile as any).sports) {
+        setSports((profile as any).sports)
+      } else {
+        setSports([])
       }
     }
   }, [profile])
@@ -167,40 +182,38 @@ export function ProfileEditModal({ isOpen, onClose, editingSection }: ProfileEdi
     setProfileData({ ...profileData, emergency_contact: sanitized })
   }
 
-  const handleAddSpecialization = (spec: string) => {
-    // Máximo 5 especialidades
-    if (specializations.length >= 5) {
-      toast({
-        title: "Límite de especialidades",
-        description: "Solo puedes seleccionar hasta 5 especialidades.",
-        variant: "destructive"
-      })
-      return
-    }
-
-    if (!specializations.includes(spec)) {
-      setSpecializations([...specializations, spec])
+  const handleToggleGoal = (goal: string) => {
+    if (goals.includes(goal)) {
+      setGoals(goals.filter(g => g !== goal))
+    } else {
+      setGoals([...goals, goal])
     }
   }
 
-  const handleRemoveSpecialization = (spec: string) => {
-    setSpecializations(specializations.filter(s => s !== spec))
+  const handleToggleSport = (sport: string) => {
+    if (sports.includes(sport)) {
+      setSports(sports.filter(s => s !== sport))
+    } else {
+      setSports([...sports, sport])
+    }
   }
 
-  // Obtener especialidades disponibles (las que no están ya seleccionadas)
-  const availableSpecializations = PREDEFINED_SPECIALIZATIONS.filter(
-    spec => !specializations.includes(spec)
-  )
+  // Obtener opciones disponibles
+  const availableGoals = FITNESS_GOALS_OPTIONS.filter(g => !goals.includes(g))
+  const availableSports = SPORTS_OPTIONS.filter(s => !sports.includes(s))
 
-  // Cuando abrimos la lista de especialidades, hacer scroll para que quede visible
+  // Scroll logic for popovers
   useEffect(() => {
-    if (isSpecializationPopoverOpen && specializationsSectionRef.current) {
-      specializationsSectionRef.current.scrollIntoView({
-        behavior: "smooth",
-        block: "start"
-      })
+    if (isGoalsPopoverOpen && goalsSectionRef.current) {
+      goalsSectionRef.current.scrollIntoView({ behavior: "smooth", block: "start" })
     }
-  }, [isSpecializationPopoverOpen])
+  }, [isGoalsPopoverOpen])
+
+  useEffect(() => {
+    if (isSportsPopoverOpen && sportsSectionRef.current) {
+      sportsSectionRef.current.scrollIntoView({ behavior: "smooth", block: "start" })
+    }
+  }, [isSportsPopoverOpen])
 
   const handleSaveProfile = async () => {
     try {
@@ -243,13 +256,16 @@ export function ProfileEditModal({ isOpen, onClose, editingSection }: ProfileEdi
       })
 
       // Convertir especialidades a string separado por comas
-      const specializationString = specializations.join(', ')
-      
-      // Guardar perfil con imagen si existe y especialidades
+
+      // Guardar perfil con imagen y nuevos campos
       const profileDataWithSpecs = {
         ...profileData,
-        specialization: specializationString
+        weight: profileData.weight ? Number(profileData.weight) : 0,
+        height: profileData.height ? Number(profileData.height) : 0,
+        fitness_goals: goals,
+        sports: sports
       }
+      // @ts-ignore - Ignoring strict type check for partial updates
       await updateProfile(profileDataWithSpecs, profileImage || undefined)
       onClose()
     } catch (error) {
@@ -260,235 +276,257 @@ export function ProfileEditModal({ isOpen, onClose, editingSection }: ProfileEdi
 
   return (
     <Dialog open={isOpen} onOpenChange={onClose}>
-      <DialogContent className="w-[95vw] max-w-[520px] mx-auto bg-[#1A1C1F] border-gray-700 text-white max-h-[90vh] flex flex-col">
-        <DialogHeader className="flex-shrink-0">
-          <DialogTitle className="text-xl font-bold text-white pr-20">Editar Perfil</DialogTitle>
-          <DialogDescription className="text-gray-400 text-sm">
-            Actualiza tu información personal y configuración de perfil
-          </DialogDescription>
-        </DialogHeader>
-        
-        {/* Botón Guardar Perfil a la altura de la X de cerrar (top-6 = 1.5rem = 24px) */}
-        <Button 
-          onClick={handleSaveProfile}
-          disabled={loading}
-          className="absolute top-6 right-14 bg-[#FF7939]/20 text-[#FF7939] border border-[#FF7939]/30 rounded-full px-3 py-1.5 text-xs hover:bg-[#FF7939]/30 transition-colors h-auto z-10"
-        >
-          {loading ? "Guardando..." : "Guardar"}
-        </Button>
+      <DialogContent className="w-[95vw] max-w-[480px] p-0 overflow-hidden bg-black/60 backdrop-blur-2xl border-white/10 text-white shadow-2xl rounded-3xl">
+        {/* Header Compacto con Blur */}
+        <div className="absolute top-0 left-0 right-0 z-20 px-6 py-4 flex items-center justify-between bg-gradient-to-b from-black/80 to-transparent pointer-events-none">
+          <DialogTitle className="text-lg font-medium text-white/90">Editar Perfil</DialogTitle>
+          {/* Botón Guardar flotante superior - Más abajo y a la izquierda de la X */}
+          <div className="pointer-events-auto mr-10 mt-4">
+            <Button
+              onClick={handleSaveProfile}
+              disabled={loading}
+              className="bg-[#FF7939] hover:bg-[#FF7939]/90 text-black font-medium text-xs rounded-full px-4 h-8 transition-all shadow-lg shadow-orange-900/20"
+            >
+              {loading ? "..." : "Guardar"}
+            </Button>
+          </div>
+        </div>
 
-        {/* Contenido scrolleable */}
-        <div className="flex-1 overflow-y-auto space-y-4 px-1">
-              {/* Foto de perfil */}
-              <div className="flex flex-col items-center space-y-4">
-                <div className="relative">
-                  <div className="w-24 h-24 rounded-full bg-gradient-to-br from-[#FF6A00] to-[#FF8C42] flex items-center justify-center overflow-hidden">
-                    {previewImage ? (
-                      <img 
-                        src={previewImage} 
-                        alt="Profile" 
-                        className="w-full h-full object-cover"
-                      />
-                    ) : (
-                      <User className="h-12 w-12 text-white" />
-                    )}
-                  </div>
-                  <button
-                    onClick={() => fileInputRef.current?.click()}
-                    className="absolute -bottom-1 -right-1 w-8 h-8 bg-[#FF6A00] rounded-full flex items-center justify-center hover:bg-[#FF8C42] transition-colors"
-                  >
-                    <Camera className="h-4 w-4 text-white" />
-                  </button>
-                </div>
-                <input
-                  ref={fileInputRef}
-                  type="file"
-                  accept="image/*"
-                  onChange={handleImageChange}
-                  className="hidden"
-                />
-                <p className="text-sm text-gray-400 text-center">
-                  Toca la cámara para cambiar tu foto
-                </p>
+        {/* Contenido con scroll personalizado */}
+        <div className="max-h-[85vh] overflow-y-auto px-6 pt-20 pb-8 space-y-8 scrollbar-hide">
+
+          {/* Foto de perfil Minimalista */}
+          <div className="flex flex-col items-center justify-center space-y-3">
+            <div className="relative group cursor-pointer" onClick={() => fileInputRef.current?.click()}>
+              <div className="w-28 h-28 rounded-full bg-zinc-900/80 border border-white/10 flex items-center justify-center overflow-hidden shadow-2xl group-hover:border-[#FF7939]/50 transition-all duration-300">
+                {previewImage ? (
+                  <img
+                    src={previewImage}
+                    alt="Profile"
+                    className="w-full h-full object-cover opacity-90 group-hover:opacity-100 transition-opacity"
+                  />
+                ) : (
+                  <User className="h-10 w-10 text-zinc-600" />
+                )}
               </div>
+              <div className="absolute inset-0 bg-black/40 rounded-full flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity">
+                <Camera className="h-6 w-6 text-white/80" />
+              </div>
+            </div>
+            <input
+              ref={fileInputRef}
+              type="file"
+              accept="image/*"
+              onChange={handleImageChange}
+              className="hidden"
+            />
+            <p className="text-[10px] text-gray-500 uppercase tracking-widest font-medium">Foto de Perfil</p>
+          </div>
 
-              {/* Información básica */}
+          {/* Grid Principal */}
+          <div className="grid grid-cols-2 gap-x-6 gap-y-4">
+            {/* Seccion Personal */}
+            <div className="col-span-2 space-y-4">
               <div className="space-y-4">
-                <div>
-                  <Label htmlFor="full_name" className="text-white">Nombre completo</Label>
+                <div className="group">
+                  <Label htmlFor="full_name" className="text-[10px] uppercase tracking-widest text-gray-500 group-focus-within:text-[#FF7939] transition-colors">Nombre completo</Label>
                   <Input
                     id="full_name"
                     value={profileData.full_name}
-                    onChange={(e) => setProfileData({...profileData, full_name: e.target.value})}
-                    className="bg-gray-800 border-gray-600 text-white"
-                    placeholder="Tu nombre completo"
+                    onChange={(e) => setProfileData({ ...profileData, full_name: e.target.value })}
+                    className="bg-transparent border-0 border-b border-white/10 rounded-none px-0 py-2 h-auto text-white focus-visible:ring-0 focus-visible:border-[#FF7939] placeholder:text-gray-700 transition-colors text-sm"
+                    placeholder="Tu nombre"
                   />
                 </div>
-
-                <div>
-                  <Label htmlFor="email" className="text-white">Email</Label>
-                  <Input
-                    id="email"
-                    type="email"
-                    value={profileData.email}
-                    onChange={(e) => setProfileData({...profileData, email: e.target.value})}
-                    className="bg-gray-800 border-gray-600 text-white"
-                    placeholder="tu@email.com"
-                  />
-                </div>
-
-                <div>
-                  <Label htmlFor="phone" className="text-white">Teléfono</Label>
-                  <Input
-                    id="phone"
-                    value={profileData.phone}
-                    onChange={(e) => setProfileData({...profileData, phone: e.target.value})}
-                    className="bg-gray-800 border-gray-600 text-white"
-                    placeholder="+54 9 11 1234-5678"
-                  />
-                </div>
-
-                <div>
-                  <Label htmlFor="location" className="text-white">Ubicación</Label>
+                <div className="group">
+                  <Label htmlFor="location" className="text-[10px] uppercase tracking-widest text-gray-500 group-focus-within:text-[#FF7939] transition-colors">Ubicación</Label>
                   <Input
                     id="location"
                     value={profileData.location}
-                    onChange={(e) => setProfileData({...profileData, location: e.target.value})}
-                    className="bg-gray-800 border-gray-600 text-white"
+                    onChange={(e) => setProfileData({ ...profileData, location: e.target.value })}
+                    className="bg-transparent border-0 border-b border-white/10 rounded-none px-0 py-2 h-auto text-white focus-visible:ring-0 focus-visible:border-[#FF7939] placeholder:text-gray-700 transition-colors text-sm"
                     placeholder="Ciudad, País"
                   />
                 </div>
+              </div>
+            </div>
 
-                <div>
-                  <Label htmlFor="emergency_contact" className="text-white">Contacto de emergencia (teléfono)</Label>
-                  <Input
-                    id="emergency_contact"
-                    value={profileData.emergency_contact}
-                    type="tel"
-                    inputMode="tel"
-                    onChange={(e) => handleEmergencyContactChange(e.target.value)}
-                    className={`bg-gray-800 text-white ${errors.emergency_contact ? "border-red-500 focus-visible:ring-red-500" : "border-gray-600"}`}
-                    placeholder="+54 9 11 1234-5678"
-                  />
-                </div>
+            {/* Datos físicos (2 Columnas) */}
+            <div className="group">
+              <Label htmlFor="birth_date" className="text-[10px] uppercase tracking-widest text-gray-500 group-focus-within:text-[#FF7939] transition-colors">Fecha nacimiento</Label>
+              <Input
+                id="birth_date"
+                type="date"
+                value={profileData.birth_date}
+                onChange={(e) => setProfileData({ ...profileData, birth_date: e.target.value })}
+                className="bg-transparent border-0 border-b border-white/10 rounded-none px-0 py-2 h-auto text-white focus-visible:ring-0 focus-visible:border-[#FF7939] w-full text-sm font-medium"
+              />
+            </div>
+
+            <div className="group">
+              <Label htmlFor="gender" className="text-[10px] uppercase tracking-widest text-gray-500 group-focus-within:text-[#FF7939] transition-colors">Género</Label>
+              <Select value={profileData.gender} onValueChange={(value) => setProfileData({ ...profileData, gender: value })}>
+                <SelectTrigger className="bg-transparent border-0 border-b border-white/10 rounded-none px-0 py-2 h-auto text-white focus:ring-0 focus:border-[#FF7939] text-sm">
+                  <SelectValue placeholder="Seleccionar" />
+                </SelectTrigger>
+                <SelectContent className="bg-[#1A1C1F] border-white/10 text-white">
+                  <SelectItem value="M">Masculino</SelectItem>
+                  <SelectItem value="F">Femenino</SelectItem>
+                  <SelectItem value="O">Otro</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+
+            <div className="group">
+              <Label htmlFor="weight" className="text-[10px] uppercase tracking-widest text-gray-500 group-focus-within:text-[#FF7939] transition-colors">Peso (kg)</Label>
+              <Input
+                id="weight"
+                type="number"
+                step="0.1"
+                value={profileData.weight}
+                onChange={(e) => setProfileData({ ...profileData, weight: e.target.value })}
+                className={`bg-transparent border-0 border-b border-white/10 rounded-none px-0 py-2 h-auto text-white focus-visible:ring-0 focus-visible:border-[#FF7939] placeholder:text-gray-700 transition-colors text-sm ${errors.weight ? "border-red-500" : ""}`}
+                placeholder="0.0"
+              />
+            </div>
+
+            <div className="group">
+              <Label htmlFor="height" className="text-[10px] uppercase tracking-widest text-gray-500 group-focus-within:text-[#FF7939] transition-colors">Altura (cm)</Label>
+              <Input
+                id="height"
+                type="number"
+                value={profileData.height}
+                onChange={(e) => setProfileData({ ...profileData, height: e.target.value })}
+                className={`bg-transparent border-0 border-b border-white/10 rounded-none px-0 py-2 h-auto text-white focus-visible:ring-0 focus-visible:border-[#FF7939] placeholder:text-gray-700 transition-colors text-sm ${errors.height ? "border-red-500" : ""}`}
+                placeholder="0"
+              />
+            </div>
+
+            {/* Contacto adicional */}
+            <div className="col-span-2 grid grid-cols-2 gap-6 pt-2">
+              <div className="group">
+                <Label htmlFor="phone" className="text-[10px] uppercase tracking-widest text-gray-500 group-focus-within:text-[#FF7939] transition-colors">Teléfono</Label>
+                <Input
+                  id="phone"
+                  value={profileData.phone}
+                  onChange={(e) => setProfileData({ ...profileData, phone: e.target.value })}
+                  className="bg-transparent border-0 border-b border-white/10 rounded-none px-0 py-2 h-auto text-white focus-visible:ring-0 focus-visible:border-[#FF7939] placeholder:text-gray-700 transition-colors text-sm"
+                  placeholder="+00 000 0000"
+                />
+              </div>
+              <div className="group">
+                <Label htmlFor="emergency" className="text-[10px] uppercase tracking-widest text-gray-500 group-focus-within:text-[#FF7939] transition-colors">Emergencia</Label>
+                <Input
+                  id="emergency"
+                  value={profileData.emergency_contact}
+                  onChange={(e) => handleEmergencyContactChange(e.target.value)}
+                  className={`bg-transparent border-0 border-b border-white/10 rounded-none px-0 py-2 h-auto text-white focus-visible:ring-0 focus-visible:border-[#FF7939] placeholder:text-gray-700 transition-colors text-sm ${errors.emergency_contact ? "border-red-500" : ""}`}
+                  placeholder="+00 000 0000"
+                />
+              </div>
+            </div>
+          </div>
+
+          {/* Separator */}
+          <div className="h-px w-full bg-gradient-to-r from-transparent via-white/10 to-transparent" />
+
+          {/* Objetivos & Deportes */}
+          <div className="space-y-6">
+            <div ref={goalsSectionRef}>
+              <div className="flex items-center justify-between mb-3">
+                <Label className="text-[10px] uppercase tracking-widest text-[#FF7939]">Objetivos</Label>
+                <button
+                  type="button"
+                  onClick={() => setIsGoalsPopoverOpen(!isGoalsPopoverOpen)}
+                  className="w-6 h-6 rounded-full bg-[#FF7939]/10 text-[#FF7939] flex items-center justify-center hover:bg-[#FF7939]/20 transition-colors"
+                >
+                  <Plus className="h-4 w-4" />
+                </button>
               </div>
 
-              {/* Información física */}
-              <div className="space-y-4">
-                <h3 className="text-lg font-semibold text-white">Información física</h3>
-                
-                <div className="grid grid-cols-2 gap-4">
-                  <div>
-                    <Label htmlFor="birth_date" className="text-white">Fecha de nacimiento</Label>
-                    <Input
-                      id="birth_date"
-                      type="date"
-                      value={profileData.birth_date}
-                      onChange={(e) => setProfileData({...profileData, birth_date: e.target.value})}
-                      className="bg-gray-800 border-gray-600 text-white"
-                    />
+              <div className="flex flex-wrap gap-2">
+                {goals.map((g, index) => (
+                  <div
+                    key={index}
+                    onClick={() => handleToggleGoal(g)}
+                    className="cursor-pointer flex items-center gap-1.5 bg-[#FF7939]/10 text-[#FF7939] border border-[#FF7939]/30 rounded-full px-3 py-1 text-xs font-bold uppercase tracking-wide transition-all hover:scale-105"
+                  >
+                    <span>{g}</span>
+                    <X className="h-3 w-3 opacity-50" />
                   </div>
+                ))}
+                {goals.length === 0 && !isGoalsPopoverOpen && (
+                  <span className="text-sm text-gray-600 italic">Sin objetivos seleccionados</span>
+                )}
+              </div>
 
-                  <div>
-                  <Label htmlFor="weight" className="text-white">Peso (kg)</Label>
-                    <Input
-                      id="weight"
-                      type="number"
-                      step="0.1"
-                      value={profileData.weight}
-                    onChange={(e) => setProfileData({...profileData, weight: e.target.value})}
-                    className={`bg-gray-800 text-white ${errors.weight ? "border-red-500 focus-visible:ring-red-500" : "border-gray-600"}`}
-                      placeholder="70.5"
-                    />
-                  </div>
-                </div>
-
-                <div className="grid grid-cols-2 gap-4">
-                  <div>
-                    <Label htmlFor="height" className="text-white">Altura (cm)</Label>
-                    <Input
-                      id="height"
-                      type="number"
-                      value={profileData.height}
-                    onChange={(e) => setProfileData({...profileData, height: e.target.value})}
-                    className={`bg-gray-800 text-white ${errors.height ? "border-red-500 focus-visible:ring-red-500" : "border-gray-600"}`}
-                      placeholder="175"
-                    />
-                  </div>
-
-                  <div>
-                    <Label htmlFor="gender" className="text-white">Género</Label>
-                    <Select value={profileData.gender} onValueChange={(value) => setProfileData({...profileData, gender: value})}>
-                      <SelectTrigger className="relative z-20 bg-gray-800 border-gray-600 text-white">
-                        <SelectValue placeholder="Seleccionar" />
-                      </SelectTrigger>
-                      <SelectContent className="z-[70] bg-gray-800 border-gray-600">
-                        <SelectItem value="M" className="text-white">Masculino</SelectItem>
-                        <SelectItem value="F" className="text-white">Femenino</SelectItem>
-                        <SelectItem value="O" className="text-white">Otro</SelectItem>
-                      </SelectContent>
-                    </Select>
-                  </div>
-                </div>
-
-                <div ref={specializationsSectionRef}>
-                  <Label htmlFor="specializations" className="text-white">Especialidades</Label>
-                  <div className="space-y-2">
-                    {/* Chips de especialidades con scroll horizontal */}
-                    <div className="flex gap-2 overflow-x-auto pb-2 -mx-1 px-1" style={{ scrollbarWidth: 'thin', scrollbarColor: '#4B5563 #1F2937' }}>
-                      {specializations.map((spec, index) => (
-                        <div
-                          key={index}
-                          className="flex items-center gap-1 bg-[#FF7939]/20 text-[#FF7939] border border-[#FF7939]/30 rounded-full px-3 py-1.5 text-sm whitespace-nowrap flex-shrink-0"
-                        >
-                          <span>{spec}</span>
-                          <button
-                            type="button"
-                            onClick={() => handleRemoveSpecialization(spec)}
-                            className="ml-1 hover:bg-[#FF7939]/30 rounded-full p-0.5 transition-colors"
-                          >
-                            <X className="h-3 w-3" />
-                          </button>
-                        </div>
-                      ))}
-
-                      {/* Botón + para agregar especialidades */}
+              {isGoalsPopoverOpen && (
+                <div className="mt-4 animate-in fade-in slide-in-from-top-2 duration-200">
+                  <div className="grid grid-cols-2 gap-2 max-h-[160px] overflow-y-auto pr-2 custom-scrollbar">
+                    {availableGoals.map((g) => (
                       <button
+                        key={g}
                         type="button"
-                        onClick={() => setIsSpecializationPopoverOpen(!isSpecializationPopoverOpen)}
-                        className="flex items-center justify-center bg-[#FF7939]/20 text-[#FF7939] border border-[#FF7939]/30 rounded-full px-3 py-1.5 text-sm whitespace-nowrap flex-shrink-0 hover:bg-[#FF7939]/30 transition-colors"
+                        onClick={() => handleToggleGoal(g)}
+                        className="text-left px-3 py-2 rounded-lg bg-white/5 hover:bg-white/10 text-gray-300 text-xs transition-colors border border-white/5"
                       >
-                        <Plus className="h-4 w-4" />
+                        {g}
                       </button>
-                    </div>
-
-                    {/* Lista de especialidades disponibles (aparece debajo cuando se presiona +).
-                        Diseño más minimalista, usando solo el fondo base y menos marco. */}
-                    {isSpecializationPopoverOpen && (
-                      <div className="mt-1 space-y-2">
-                        <p className="text-xs font-medium text-gray-300">Selecciona especialidades</p>
-                        <div className="grid grid-cols-2 gap-2 max-h-[180px] overflow-y-auto">
-                          {availableSpecializations.map((spec) => (
-                            <button
-                              key={spec}
-                              type="button"
-                              onClick={() => handleAddSpecialization(spec)}
-                              className="text-left px-3 py-2 rounded-lg bg-gray-800/70 hover:bg-gray-700 text-white text-sm transition-colors border border-gray-700/70"
-                            >
-                              {spec}
-                            </button>
-                          ))}
-                          {availableSpecializations.length === 0 && (
-                            <div className="col-span-2 text-center text-gray-400 text-xs py-2">
-                              Todas las especialidades han sido agregadas
-                            </div>
-                          )}
-                        </div>
-                      </div>
-                    )}
+                    ))}
                   </div>
                 </div>
+              )}
+            </div>
+
+            <div ref={sportsSectionRef}>
+              <div className="flex items-center justify-between mb-3">
+                <Label className="text-[10px] uppercase tracking-widest text-[#FF7939]">Deportes</Label>
+                <button
+                  type="button"
+                  onClick={() => setIsSportsPopoverOpen(!isSportsPopoverOpen)}
+                  className="w-6 h-6 rounded-full bg-[#FF7939]/10 text-[#FF7939] flex items-center justify-center hover:bg-[#FF7939]/20 transition-colors"
+                >
+                  <Plus className="h-4 w-4" />
+                </button>
               </div>
+
+              <div className="flex flex-wrap gap-2">
+                {sports.map((s, index) => (
+                  <div
+                    key={index}
+                    onClick={() => handleToggleSport(s)}
+                    className="cursor-pointer flex items-center gap-1.5 bg-[#FF7939]/10 text-[#FF7939] border border-[#FF7939]/30 rounded-full px-3 py-1 text-xs font-bold uppercase tracking-wide transition-colors hover:bg-[#FF7939]/20"
+                  >
+                    <span>{s}</span>
+                    <X className="h-3 w-3 opacity-50" />
+                  </div>
+                ))}
+                {sports.length === 0 && !isSportsPopoverOpen && (
+                  <span className="text-sm text-gray-600 italic">Sin deportes seleccionados</span>
+                )}
+              </div>
+
+              {isSportsPopoverOpen && (
+                <div className="mt-4 animate-in fade-in slide-in-from-top-2 duration-200">
+                  <div className="grid grid-cols-2 gap-2 max-h-[160px] overflow-y-auto pr-2 custom-scrollbar">
+                    {availableSports.map((s) => (
+                      <button
+                        key={s}
+                        type="button"
+                        onClick={() => handleToggleSport(s)}
+                        className="text-left px-3 py-2 rounded-lg bg-white/5 hover:bg-white/10 text-gray-300 text-xs transition-colors border border-white/5"
+                      >
+                        {s}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+              )}
+            </div>
+          </div>
+
+          {/* Bloque espaciador final para el scroll */}
+          <div className="h-4" />
         </div>
       </DialogContent>
     </Dialog>

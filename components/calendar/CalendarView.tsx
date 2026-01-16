@@ -4,7 +4,10 @@ import { useState, useEffect, useMemo, useRef, Fragment, useCallback } from "rea
 import { createClient } from '@/lib/supabase/supabase-client'
 import { format, startOfMonth, endOfMonth, eachDayOfInterval, isSameDay, isToday, addMonths, subMonths, startOfWeek, addDays } from "date-fns"
 import { es } from "date-fns/locale"
-import { Bell, Calendar as CalendarIcon, ChevronLeft, ChevronRight, Clock, Flame, Plus, Minus, Utensils, Video, X, Zap, Target, GraduationCap, CheckCircle2, XCircle, Ban, Users, User } from "lucide-react"
+import { Bell, Calendar as CalendarIcon, ChevronLeft, ChevronRight, Clock, Flame, Plus, Minus, Utensils, Video, X, Zap, Target, GraduationCap, CheckCircle2, XCircle, Ban, Users, User, RotateCcw, ArrowRight, AlertTriangle } from "lucide-react"
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter, DialogDescription } from "@/components/ui/dialog"
+import { Checkbox } from "@/components/ui/checkbox"
+import { Label } from "@/components/ui/label"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import Image from "next/image"
@@ -86,6 +89,14 @@ export default function CalendarView({ activityIds, onActivityClick, scheduleMee
       pendingMinutes: number
     }>
   >([])
+
+  // Edit Mode States
+  const [isEditing, setIsEditing] = useState(false)
+  const [sourceDate, setSourceDate] = useState<Date | null>(null)
+  const [targetDate, setTargetDate] = useState<Date | null>(null)
+  const [showConfirmModal, setShowConfirmModal] = useState(false)
+  const [applyToAllSameDays, setApplyToAllSameDays] = useState(false)
+  const [isUpdating, setIsUpdating] = useState(false)
 
   const selectedDayKeyRef = useRef<string | null>(null)
   const [loading, setLoading] = useState(true)
@@ -1647,6 +1658,121 @@ export default function CalendarView({ activityIds, onActivityClick, scheduleMee
     setCurrentDate(addMonths(currentDate, 1))
   }
 
+  /* New logic for Edit Mode */
+  const toggleEditMode = () => {
+    if (isEditing) {
+      setIsEditing(false)
+      setSourceDate(null)
+      setTargetDate(null)
+      setShowConfirmModal(false)
+    } else {
+      setIsEditing(true)
+      setSourceDate(null)
+      setTargetDate(null)
+    }
+  }
+
+  const getDayName = (dayIndex: number) => {
+    const days = ['Domingo', 'Lunes', 'Martes', 'Miércoles', 'Jueves', 'Viernes', 'Sábado']
+    return days[dayIndex] || ''
+  }
+
+  const handleConfirmUpdate = async () => {
+    if (!selectedCoachId && !authUserId && !Boolean(activityIds.length)) return
+    const { data: { user } } = await supabase.auth.getUser()
+    if (!user || !sourceDate || !targetDate) return
+
+    setIsUpdating(true)
+    try {
+      const sourceStr = format(sourceDate, 'yyyy-MM-dd')
+      const targetStr = format(targetDate, 'yyyy-MM-dd')
+
+      const { error: errorProg } = await supabase
+        .from('progreso_cliente')
+        .update({ fecha: targetStr })
+        .eq('cliente_id', user.id)
+        .eq('fecha', sourceStr)
+
+      const { error: errorNut } = await supabase
+        .from('progreso_cliente_nutricion')
+        .update({ fecha: targetStr })
+        .eq('cliente_id', user.id)
+        .eq('fecha', sourceStr)
+
+      if (errorProg || errorNut) throw new Error('Error al mover actividades')
+
+      if (applyToAllSameDays) {
+        const { data: futureProgress } = await supabase
+          .from('progreso_cliente')
+          .select('id, fecha')
+          .eq('cliente_id', user.id)
+          .gt('fecha', sourceStr)
+
+        if (futureProgress && futureProgress.length > 0) {
+          const dayOfWeek = sourceDate.getDay()
+          const diffTime = targetDate.getTime() - sourceDate.getTime()
+          const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24))
+
+          const updates = futureProgress.filter((item: any) => {
+            const d = new Date(item.fecha)
+            const dLocal = new Date(d.getTime() + (d.getTimezoneOffset() * 60000))
+            return dLocal.getDay() === dayOfWeek
+          }).map((item: any) => {
+            const d = new Date(item.fecha)
+            const newD = new Date(d.getTime() + (diffDays * 24 * 60 * 60 * 1000))
+            return {
+              id: item.id,
+              fecha: newD.toISOString().split('T')[0]
+            }
+          })
+
+          if (updates.length > 0) {
+            await supabase.from('progreso_cliente').upsert(updates)
+
+            const { data: futureNut } = await supabase
+              .from('progreso_cliente_nutricion')
+              .select('id, fecha')
+              .eq('cliente_id', user.id)
+              .gt('fecha', sourceStr)
+
+            if (futureNut && futureNut.length > 0) {
+              const nutUpdates = futureNut.filter((item: any) => {
+                const d = new Date(item.fecha)
+                const dLocal = new Date(d.getTime() + (d.getTimezoneOffset() * 60000))
+                return dLocal.getDay() === dayOfWeek
+              }).map((item: any) => {
+                const d = new Date(item.fecha)
+                const newD = new Date(d.getTime() + (diffDays * 24 * 60 * 60 * 1000))
+                return {
+                  id: item.id,
+                  fecha: newD.toISOString().split('T')[0]
+                }
+              })
+              if (nutUpdates.length > 0) {
+                await supabase.from('progreso_cliente_nutricion').upsert(nutUpdates)
+              }
+            }
+          }
+        }
+      }
+
+      setIsEditing(false)
+      setSourceDate(null)
+      setTargetDate(null)
+      setShowConfirmModal(false)
+
+      if (typeof window !== 'undefined') {
+        window.location.reload()
+      }
+
+    } catch (error) {
+      console.error('Error updating dates:', error)
+      alert('Hubo un error al cambiar la fecha. Inténtalo de nuevo.')
+    } finally {
+      setIsUpdating(false)
+    }
+  }
+
   const monthLabel = useMemo(() => {
     const raw = format(currentDate, 'MMMM yyyy', { locale: es })
     if (!raw) return raw
@@ -1654,6 +1780,16 @@ export default function CalendarView({ activityIds, onActivityClick, scheduleMee
   }, [currentDate])
 
   const handleDateClick = (date: Date) => {
+    if (isEditing) {
+      if (!sourceDate) {
+        setSourceDate(date)
+      } else {
+        setTargetDate(date)
+        setShowConfirmModal(true)
+      }
+      return
+    }
+
     // Solo seleccionar el día y mostrar la lista de actividades debajo.
     // La navegación a la actividad se hace recién cuando el usuario hace
     // click en una de las actividades listadas.
@@ -2307,11 +2443,29 @@ export default function CalendarView({ activityIds, onActivityClick, scheduleMee
               >
                 <ChevronRight className="h-4 w-4" />
               </Button>
+
+              <button
+                onClick={toggleEditMode}
+                className={`ml-2 flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-medium transition-all ${isEditing
+                  ? 'bg-[#FF7939] text-white shadow-lg shadow-orange-500/20'
+                  : 'bg-zinc-800 text-gray-300 hover:bg-zinc-700'
+                  }`}
+              >
+                <RotateCcw className={`w-3.5 h-3.5 ${isEditing ? 'animate-pulse' : ''}`} />
+                {isEditing ? 'Cancelar' : 'Cambiar'}
+              </button>
             </div>
           </CardHeader>
         )}
 
         <CardContent>
+          {isEditing && (
+            <div className="mb-4 bg-[#FF7939]/10 border border-[#FF7939]/20 rounded-lg p-2 text-center text-xs text-[#FF7939] animate-in fade-in slide-in-from-top-2">
+              {!sourceDate
+                ? "Selecciona el día que quieres mover"
+                : "Ahora selecciona el día destino"}
+            </div>
+          )}
           {meetViewMode === 'day_split' && selectedCoachId && selectedDate ? (
             <div>
               {/* Header: Back + Title */}
@@ -2952,10 +3106,7 @@ export default function CalendarView({ activityIds, onActivityClick, scheduleMee
                   const hasClientMeet = (meets.length ?? 0) > 0
                   const hasPendingClientMeet = meets.some((m) => String((m as any)?.rsvp_status || 'pending') === 'pending')
 
-                  const isSelected = selectedDate && isSameDay(day, selectedDate)
-                  const isTodayDate = isToday(day)
-                  const coachSlotsCount = selectedCoachId ? (availableSlotsCountByDay?.[dateKey] ?? 0) : 0
-                  const hasMeetSlots = coachSlotsCount > 0
+                  const isSource = isEditing && sourceDate && isSameDay(day, sourceDate)
 
                   return (
                     <button
@@ -2963,12 +3114,18 @@ export default function CalendarView({ activityIds, onActivityClick, scheduleMee
                       type="button"
                       onClick={() => handleDateClick(day)}
                       className={
-                        `aspect-square p-1.5 sm:p-2 rounded-lg text-sm font-medium transition-colors flex flex-col items-center justify-start ` +
+                        `aspect-square p-1.5 sm:p-2 rounded-lg text-sm font-medium transition-colors flex flex-col items-center justify-start relative ` +
                         `${isSelected ? 'backdrop-blur-md bg-white/10 border border-[#FF7939]/40 shadow-[0_8px_24px_rgba(0,0,0,0.35)] text-white' : ''} ` +
-                        `${isTodayDate && !isSelected ? 'bg-zinc-800 text-white' : ''} ` +
-                        `${!isSelected && !isTodayDate ? 'text-gray-400 hover:bg-zinc-800' : ''}`
+                        `${isSource ? 'bg-[#FF7939]/20 ring-1 ring-[#FF7939] text-white' : ''} ` +
+                        `${isTodayDate && !isSelected && !isSource ? 'bg-zinc-800 text-white' : ''} ` +
+                        `${!isSelected && !isTodayDate && !isSource ? 'text-gray-400 hover:bg-zinc-800' : ''}`
                       }
                     >
+                      {isSource && (
+                        <div className="absolute -top-1 -right-1 w-4 h-4 bg-[#FF7939] rounded-full flex items-center justify-center text-[8px] font-bold text-white z-10">
+                          1
+                        </div>
+                      )}
                       <div className="w-full text-center">
                         <span>
                           {format(day, 'd')}
@@ -4061,6 +4218,67 @@ export default function CalendarView({ activityIds, onActivityClick, scheduleMee
           </div>
         )
       }
+      <Dialog open={showConfirmModal} onOpenChange={setShowConfirmModal}>
+        <DialogContent className="bg-[#1A1C1F] border-zinc-800 text-white w-[90%] max-w-sm rounded-2xl">
+          <DialogHeader>
+            <DialogTitle className="text-lg">Mover actividades</DialogTitle>
+            <DialogDescription className="text-gray-400">
+              ¿Estás seguro que quieres cambiar la fecha de estas actividades?
+            </DialogDescription>
+          </DialogHeader>
+
+          <div className="bg-[#141414] rounded-xl p-4 my-2 border border-zinc-800 flex items-center justify-between">
+            <div className="flex flex-col items-center">
+              <span className="text-xs text-gray-500 uppercase">De</span>
+              <span className="text-xl font-bold text-white">{sourceDate?.getDate()}</span>
+              <span className="text-xs text-[#FF7939]">{sourceDate && getDayName(sourceDate.getDay())}</span>
+            </div>
+
+            <ArrowRight className="text-gray-600" />
+
+            <div className="flex flex-col items-center">
+              <span className="text-xs text-gray-500 uppercase">A</span>
+              <span className="text-xl font-bold text-white">{targetDate?.getDate()}</span>
+              <span className="text-xs text-green-500">{targetDate && getDayName(targetDate.getDay())}</span>
+            </div>
+          </div>
+
+          {sourceDate && (
+            <div className="flex items-start gap-3 p-3 bg-blue-500/10 rounded-lg border border-blue-500/20">
+              <Checkbox
+                id="apply-all"
+                checked={applyToAllSameDays}
+                onCheckedChange={(checked) => setApplyToAllSameDays(checked as boolean)}
+                className="mt-0.5 border-blue-400 data-[state=checked]:bg-blue-500 data-[state=checked]:text-white"
+              />
+              <div className="grid gap-1.5 leading-none">
+                <Label
+                  htmlFor="apply-all"
+                  className="text-sm font-medium leading-none text-blue-100 cursor-pointer"
+                >
+                  Mover todos los {getDayName(sourceDate.getDay())}s futuros
+                </Label>
+                <p className="text-xs text-blue-200/70">
+                  Esto aplicará el mismo cambio a todos los {getDayName(sourceDate.getDay())}s en el futuro.
+                </p>
+              </div>
+            </div>
+          )}
+
+          <DialogFooter className="flex gap-2 sm:justify-end mt-2">
+            <Button variant="ghost" onClick={() => setShowConfirmModal(false)} className="flex-1 text-gray-400 hover:text-white">
+              Cancelar
+            </Button>
+            <Button
+              onClick={handleConfirmUpdate}
+              disabled={isUpdating}
+              className="flex-1 bg-[#FF7939] hover:bg-[#FF6A00] text-white"
+            >
+              {isUpdating ? 'Guardando...' : 'Confirmar'}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div >
   )
 }

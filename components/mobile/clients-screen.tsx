@@ -2,7 +2,24 @@
 
 import { useState, useEffect, useRef } from "react"
 import { useRouter } from 'next/navigation'
-import { Search, Filter, Users, TrendingUp, Clock, X, MessageCircle, Calendar, Target, AlertTriangle, Flame, MessageSquare, MapPin } from "lucide-react"
+import {
+  Search,
+  Filter,
+  MoreVertical,
+  X,
+  MessageSquare,
+  Calendar,
+  Users,
+  TrendingUp,
+  Target,
+  MapPin,
+  AlertTriangle,
+  Ruler,
+  Weight,
+  Clock,
+  Activity,
+  FileText
+} from "lucide-react"
 import { format } from 'date-fns'
 import { es } from 'date-fns/locale'
 import { ClientCalendar } from "@/components/coach/client-calendar"
@@ -28,6 +45,18 @@ interface Client {
   }>
 }
 
+const calculateAge = (birthDate: string | null) => {
+  if (!birthDate) return null
+  const today = new Date()
+  const birth = new Date(birthDate)
+  let age = today.getFullYear() - birth.getFullYear()
+  const m = today.getMonth() - birth.getMonth()
+  if (m < 0 || (m === 0 && today.getDate() < birth.getDate())) {
+    age--
+  }
+  return age
+}
+
 export function ClientsScreen() {
   const router = useRouter()
   const [filter, setFilter] = useState("all")
@@ -46,7 +75,7 @@ export function ClientsScreen() {
   const [showBiometrics, setShowBiometrics] = useState(false)
   const [showObjectives, setShowObjectives] = useState(false)
   const [showCalendar, setShowCalendar] = useState(false)
-  const [activeTab, setActiveTab] = useState<'calendar' | 'info'>('calendar')
+  const [activeTab, setActiveTab] = useState<'calendar' | 'info'>('info')
   const [activeClientPanel, setActiveClientPanel] = useState<'activities' | 'todo' | 'progress' | 'revenue' | null>(null)
   const [showTodoInput, setShowTodoInput] = useState(false)
   const [hiddenActivities, setHiddenActivities] = useState<Set<number>>(new Set())
@@ -290,8 +319,6 @@ export function ClientsScreen() {
 
   return (
     <div className="bg-black text-white min-h-screen p-4 pb-20">
-      <h1 className="text-2xl font-bold mb-6">Mis Clientes</h1>
-
       {/* Search and filter */}
       <div className="flex items-center justify-between mb-6">
         <div className="relative flex-1 mr-4">
@@ -356,47 +383,50 @@ export function ClientsScreen() {
           filteredClients.map((client) => (
             <div
               key={client.id}
-              className="bg-[#141414] rounded-xl p-3 border border-zinc-800/60 shadow-sm cursor-pointer hover:bg-[#181818] transition-colors"
+              className="bg-[#141414] rounded-3xl p-4 border border-zinc-800/60 shadow-sm cursor-pointer hover:bg-[#181818] transition-colors flex flex-col items-center"
               onClick={() => openClientModal(client)}
             >
-              {/* Header */}
-              <div className="flex items-center gap-3">
+              <div className="relative w-16 h-16 rounded-full overflow-hidden border-2 border-zinc-800 shadow-xl mb-2">
                 <img
                   src={client.avatar_url || "/placeholder.svg"}
                   alt={client.name}
-                  className="w-10 h-10 rounded-full object-cover border border-zinc-700"
+                  className="w-full h-full object-cover"
                 />
-                <div className="flex-1 min-w-0">
-                  <div className="flex items-center justify-between">
-                    <h3 className="font-medium leading-tight truncate text-[15px]">{client.name}</h3>
-                    <div className="text-sm font-semibold text-white/90">${client.totalRevenue}</div>
-                  </div>
-                  <div className="flex items-center gap-2 text-xs text-gray-400 mt-1">
-                    <span className={`inline-block w-2 h-2 rounded-full ${client.status === "active" ? "bg-green-500" : client.status === "pending" ? "bg-yellow-500" : "bg-gray-500"}`}></span>
-                    <span className="truncate">Última ejercitación: {client.lastActive}</span>
-                  </div>
+              </div>
+
+              <div className="flex flex-col items-center mb-0">
+                <h3 className="font-semibold text-base text-white mb-0.5 text-center leading-tight">{client.name}</h3>
+                <div className="flex items-center justify-center gap-2 text-[10px] text-gray-400">
+                  <span className={`inline-block w-1.5 h-1.5 rounded-full ${client.status === "active" ? "bg-green-500" : client.status === "pending" ? "bg-yellow-500" : "bg-gray-500"}`}></span>
+                  <span className="truncate">Última: {client.lastActive}</span>
                 </div>
               </div>
 
-              {/* Metrics row */}
-              <div className="mt-2 bg-zinc-900/60 rounded-md py-2 px-2">
-                <div className="grid grid-cols-3 text-center">
-                  <div>
-                    <div className="text-[10px] text-gray-400 tracking-wide">ACTIVIDADES</div>
-                    <div className="text-sm font-medium">{client.activitiesCount}</div>
-                  </div>
-                  <div className="border-l border-zinc-800">
-                    <div className="text-[10px] text-gray-400 tracking-wide">TO DO</div>
-                    <div className="text-sm font-medium">{client.todoCount || 0}</div>
-                  </div>
-                  <div className="border-l border-zinc-800">
-                    <div className="text-[10px] text-gray-400 tracking-wide">PROGRESO</div>
-                    <div className="text-sm font-medium text-[#FF7939]">{client.progress}%</div>
-                  </div>
+              <div className="w-full grid grid-cols-4 gap-1 items-start mt-2">
+                {/* Progreso - Elevado (Col 1) */}
+                <div className="flex flex-col items-center justify-start pt-0">
+                  <div className="text-base font-bold text-[#FF7939] leading-tight">{client.progress}%</div>
+                  <div className="text-[9px] text-gray-400 uppercase tracking-wide scale-90">Progreso</div>
+                </div>
+
+                {/* Actividades - Bajo (Col 2) */}
+                <div className="flex flex-col items-center justify-start pt-3 border-l border-zinc-800/50 h-full">
+                  <div className="text-base font-bold text-white leading-tight">{client.activitiesCount}</div>
+                  <div className="text-[9px] text-gray-400 uppercase tracking-wide scale-90">Actividades</div>
+                </div>
+
+                {/* To Do - Bajo (Col 3) */}
+                <div className="flex flex-col items-center justify-start pt-3 border-l border-zinc-800/50 h-full">
+                  <div className="text-base font-bold text-white leading-tight">{client.todoCount || 0}</div>
+                  <div className="text-[9px] text-gray-400 uppercase tracking-wide scale-90">To Do</div>
+                </div>
+
+                {/* Ingresos - Elevado (Col 4) */}
+                <div className="flex flex-col items-center justify-start pt-0 border-l border-zinc-800/50">
+                  <div className="text-xs font-bold text-white leading-tight mt-0.5">${client.totalRevenue}</div>
+                  <div className="text-[9px] text-gray-400 uppercase tracking-wide scale-90 mt-0.5">Ingresos</div>
                 </div>
               </div>
-
-              {/* Sin subtexto de completados */}
             </div>
           ))
         )}
@@ -471,13 +501,67 @@ export function ClientsScreen() {
                   </button>
                 </div>
 
-                {/* Nombre y Última ejercitación debajo */}
-                <div className="flex flex-col items-center">
-                  <h3 className="font-semibold text-xl text-white mb-1">{selectedClient.name}</h3>
+                {/* Nombre y Detalles debajo */}
+                <div className="flex flex-col items-center w-full max-w-[300px]">
+                  <h3 className="font-semibold text-xl text-white mb-2 text-center">{selectedClient.name}</h3>
 
-                  <div className="flex items-center justify-center gap-2 text-xs text-white/60">
-                    <span className={`inline-block w-1.5 h-1.5 rounded-full ${selectedClient.status === "active" ? "bg-green-500" : selectedClient.status === "pending" ? "bg-yellow-500" : "bg-gray-500"}`}></span>
-                    <span>Última ejercitación: {selectedClient.lastActive}</span>
+                  {/* Ubicación y Edad */}
+                  <div className="flex items-center gap-3 text-sm text-gray-400 mb-2">
+                    {clientDetail?.client?.physicalData?.location && (
+                      <div className="flex items-center gap-1">
+                        <MapPin className="h-3.5 w-3.5" />
+                        <span>{clientDetail.client.physicalData.location}</span>
+                      </div>
+                    )}
+                    {(clientDetail?.client?.physicalData?.birth_date || clientDetail?.client?.physicalData?.age) && (
+                      <div className="flex items-center gap-1">
+                        <span>
+                          {clientDetail.client.physicalData?.birth_date
+                            ? calculateAge(clientDetail.client.physicalData.birth_date)
+                            : clientDetail.client.physicalData?.age} años
+                        </span>
+                      </div>
+                    )}
+                    {/* Fallback si no hay datos aun */}
+                    {!clientDetail?.client?.physicalData?.location && !clientDetail?.client?.physicalData?.birth_date && !clientDetail?.client?.physicalData?.age && (
+                      <div className="flex items-center gap-1 opacity-50">
+                        <MapPin className="h-3.5 w-3.5" />
+                        <span>Sin ubicación</span>
+                      </div>
+                    )}
+                  </div>
+
+                  {/* Peso y Altura */}
+                  <div className="flex items-center gap-4 text-sm text-gray-400 mb-4">
+                    <div className="flex items-center gap-1.5">
+                      <Weight className="h-3.5 w-3.5" />
+                      <span className="text-white font-medium">{clientDetail?.client?.physicalData?.weight || '-'} kg</span>
+                    </div>
+                    <div className="flex items-center gap-1.5">
+                      <Ruler className="h-3.5 w-3.5" />
+                      <span className="text-white font-medium">{clientDetail?.client?.physicalData?.height || '-'} cm</span>
+                    </div>
+                  </div>
+
+                  {/* Objetivos y Deportes (Scrollable Row) */}
+                  <div className="w-full overflow-x-auto scrollbar-hide flex justify-center">
+                    <div className="flex items-center gap-2 px-4 whitespace-nowrap">
+                      {/* Goals */}
+                      {clientDetail?.client?.physicalData?.fitness_goals?.map((g: string, i: number) => (
+                        <div key={`g-${i}`} className="px-3 py-1 rounded-full bg-[#FF7939]/10 border border-[#FF7939]/30 text-[#FF7939] text-[10px] uppercase font-bold tracking-wider">
+                          {g}
+                        </div>
+                      ))}
+                      {/* Sports */}
+                      {clientDetail?.client?.physicalData?.sports?.map((s: string, i: number) => (
+                        <div key={`s-${i}`} className="px-3 py-1 rounded-full bg-blue-500/10 border border-blue-500/30 text-blue-400 text-[10px] uppercase font-bold tracking-wider">
+                          {s}
+                        </div>
+                      ))}
+                      {(!clientDetail?.client?.physicalData?.fitness_goals?.length && !clientDetail?.client?.physicalData?.sports?.length) && (
+                        <span className="text-xs text-gray-600 italic">Sin objetivos definidos</span>
+                      )}
+                    </div>
                   </div>
                 </div>
 
@@ -871,276 +955,169 @@ export function ClientsScreen() {
 
                   {/* Tab: Información */}
                   {activeTab === 'info' && (
-                    <div className="p-3 space-y-2 pb-32">
-                      {/* Información personal */}
-                      {clientDetail.client.physicalData && (
-                        <div className="bg-zinc-900/40 rounded-lg p-3 space-y-2">
-                          <h4 className="text-sm font-semibold text-white mb-2">Información Personal</h4>
+                    <div className="p-4 space-y-6 pb-32">
 
-                          <div className="grid grid-cols-2 gap-2">
-                            {/* Edad */}
-                            {clientDetail.client.physicalData.age && (
-                              <div className="flex items-center gap-2">
-                                <Calendar className="h-3.5 w-3.5 text-[#FF7939] flex-shrink-0" />
-                                <div>
-                                  <div className="text-xs text-gray-400">Edad</div>
-                                  <div className="text-xs text-white font-medium">{clientDetail.client.physicalData.age} años</div>
+                      {/* 1. Resumen Físico (Minimalista) */}
+                      <div className="grid grid-cols-4 gap-3">
+                        {/* Edad */}
+                        <div className="bg-[#141414] border border-zinc-800 rounded-xl p-3 flex flex-col items-center justify-center text-center">
+                          <span className="text-[10px] text-gray-400 uppercase tracking-wider mb-1">Edad</span>
+                          <div className="flex items-center gap-1.5 justify-center">
+                            <span className="text-lg font-bold text-white">
+                              {clientDetail.client.physicalData?.birth_date
+                                ? calculateAge(clientDetail.client.physicalData.birth_date)
+                                : (clientDetail.client.physicalData?.age || '-')}
+                            </span>
+                            <span className="text-xs font-normal text-gray-500">años</span>
+                          </div>
+                        </div>
+
+                        {/* Peso */}
+                        <div className="bg-[#141414] border border-zinc-800 rounded-xl p-3 flex flex-col items-center justify-center text-center">
+                          <span className="text-[10px] text-gray-400 uppercase tracking-wider mb-1">Peso</span>
+                          <div className="flex items-center gap-1.5 justify-center">
+                            <span className="text-lg font-bold text-white">{clientDetail.client.physicalData?.weight || '-'}</span>
+                            <span className="text-xs font-normal text-gray-500">kg</span>
+                          </div>
+                        </div>
+
+                        {/* Altura */}
+                        <div className="bg-[#141414] border border-zinc-800 rounded-xl p-3 flex flex-col items-center justify-center text-center">
+                          <span className="text-[10px] text-gray-400 uppercase tracking-wider mb-1">Altura</span>
+                          <div className="flex items-center gap-1.5 justify-center">
+                            <span className="text-lg font-bold text-white">{clientDetail.client.physicalData?.height || '-'}</span>
+                            <span className="text-xs font-normal text-gray-500">cm</span>
+                          </div>
+                        </div>
+
+                        {/* Nivel Actividad */}
+                        <div className="bg-[#141414] border border-zinc-800 rounded-xl p-3 flex flex-col items-center justify-center text-center">
+                          <span className="text-[10px] text-gray-400 uppercase tracking-wider mb-1">Actividad</span>
+                          <div className="flex items-center gap-1.5 justify-center">
+                            <span className="text-sm font-bold text-white truncate max-w-full">
+                              {clientDetail.client.physicalData?.nivel_actividad || '-'}
+                            </span>
+                          </div>
+                        </div>
+                      </div>
+
+                      {/* 2. Descripción (Notas moved here) */}
+                      {clientDetail.client.physicalData?.description && (
+                        <div>
+                          <h3 className="text-xs font-semibold text-gray-400 mb-2 uppercase tracking-wider">Descripción</h3>
+                          <div className="bg-[#141414] border border-zinc-800 rounded-xl p-4">
+                            <p className="text-sm text-gray-300 leading-relaxed">
+                              {clientDetail.client.physicalData.description}
+                            </p>
+                          </div>
+                        </div>
+                      )}
+
+                      <div className="space-y-6">
+
+                        {/* Fitness Goals (Objetivos) - Pills Style */}
+                        {clientDetail.client.physicalData?.fitness_goals && clientDetail.client.physicalData.fitness_goals.length > 0 && (
+                          <div>
+                            <h3 className="text-sm font-semibold text-gray-400 mb-3 uppercase tracking-wider flex items-center gap-2">
+                              <Target className="h-4 w-4" />
+                              Objetivos
+                            </h3>
+                            <div className="flex flex-wrap gap-2">
+                              {clientDetail.client.physicalData.fitness_goals.map((goal: string, index: number) => (
+                                <div
+                                  key={index}
+                                  className="px-3 py-1.5 rounded-full border border-[#FF7939]/30 bg-[#FF7939]/10 text-[#FF7939] text-xs font-medium"
+                                >
+                                  {goal}
                                 </div>
+                              ))}
+                            </div>
+                          </div>
+                        )}
+
+                        {/* Lesiones */}
+                        {clientDetail.client.injuries && clientDetail.client.injuries.length > 0 && (
+                          <div>
+                            <div>
+                              <h3 className="text-sm font-semibold text-gray-400 mb-3 uppercase tracking-wider flex items-center gap-2">
+                                <AlertTriangle className="h-4 w-4" />
+                                Lesiones
+                              </h3>
+                              <div className="space-y-2">
+                                {clientDetail.client.injuries.map((injury: any, index: number) => (
+                                  <div key={index} className="bg-[#141414] rounded-xl p-3 border border-zinc-900">
+                                    <div className="flex justify-between items-center mb-1">
+                                      <span className="text-sm font-semibold text-white">{injury.name}</span>
+                                      <span className={`text-[10px] uppercase font-bold px-2 py-0.5 rounded-full ${injury.severity === 'high' ? 'bg-red-500/10 text-red-500' :
+                                        injury.severity === 'medium' ? 'bg-yellow-500/10 text-yellow-500' : 'bg-green-500/10 text-green-500'
+                                        }`}>
+                                        {injury.severity === 'high' ? 'Alta' : injury.severity === 'medium' ? 'Media' : 'Baja'}
+                                      </span>
+                                    </div>
+                                    {injury.description && (
+                                      <p className="text-xs text-gray-500 leading-relaxed">
+                                        {injury.description}
+                                      </p>
+                                    )}
+                                  </div>
+                                ))}
+                              </div>
+                            </div>
+                          </div>
+                        )}
+
+                        {/* 4. Información Adicional (Bio, Contacto) */}
+                        <div>
+                          <h3 className="text-sm font-semibold text-gray-400 mb-3 uppercase tracking-wider flex items-center gap-2">
+                            <FileText className="h-4 w-4" />
+                            Más Detalles
+                          </h3>
+                          <div className="divide-y divide-zinc-800 bg-[#141414] rounded-xl border border-zinc-800 overflow-hidden">
+                            {/* Ubicación */}
+                            {clientDetail.client.physicalData?.location && (
+                              <div className="p-3 flex items-center justify-between">
+                                <div className="flex items-center gap-2 text-gray-400">
+                                  <MapPin className="h-4 w-4" />
+                                  <span className="text-xs">Ubicación</span>
+                                </div>
+                                <span className="text-sm text-white">{clientDetail.client.physicalData.location}</span>
                               </div>
                             )}
 
                             {/* Email */}
-                            <div className="flex items-center gap-2 col-span-2 mt-1">
-                              <div className="w-3.5 flex justify-center flex-shrink-0">
-                                <span className="text-[#FF7939]">@</span>
+                            <div className="p-3 flex items-center justify-between">
+                              <div className="flex items-center gap-2 text-gray-400">
+                                <div className="w-4 flex justify-center font-bold">@</div>
+                                <span className="text-xs">Email</span>
                               </div>
-                              <div>
-                                <div className="text-xs text-gray-400">Email</div>
-                                <div className="text-xs text-white font-medium break-all">{selectedClient.email}</div>
-                              </div>
+                              <span className="text-sm text-white">{clientDetail.client.email}</span>
                             </div>
 
-
-                            {/* Género */}
-                            {clientDetail.client.physicalData.gender && (
-                              <div className="flex items-center gap-2">
-                                <Users className="h-3.5 w-3.5 text-[#FF7939] flex-shrink-0" />
-                                <div>
-                                  <div className="text-xs text-gray-400">Género</div>
-                                  <div className="text-xs text-white font-medium">
-                                    {clientDetail.client.physicalData.gender === 'male' ? 'Masculino' :
-                                      clientDetail.client.physicalData.gender === 'female' ? 'Femenino' :
-                                        clientDetail.client.physicalData.gender}
-                                  </div>
+                            {/* Teléfono */}
+                            {clientDetail.client.physicalData?.phone && (
+                              <div className="p-3 flex items-center justify-between">
+                                <div className="flex items-center gap-2 text-gray-400">
+                                  <MessageSquare className="h-4 w-4" />
+                                  <span className="text-xs">Teléfono</span>
                                 </div>
+                                <span className="text-sm text-white">{clientDetail.client.physicalData.phone}</span>
                               </div>
                             )}
 
-                            {/* Peso */}
-                            {clientDetail.client.physicalData.weight && (
-                              <div className="flex items-center gap-2">
-                                <TrendingUp className="h-3.5 w-3.5 text-[#FF7939] flex-shrink-0" />
-                                <div>
-                                  <div className="text-xs text-gray-400">Peso</div>
-                                  <div className="text-xs text-white font-medium">{clientDetail.client.physicalData.weight} kg</div>
+                            {/* Contacto Emergencia */}
+                            {clientDetail.client.physicalData?.emergencyContact && (
+                              <div className="p-3 flex items-center justify-between bg-red-500/5">
+                                <div className="flex items-center gap-2 text-red-400">
+                                  <AlertTriangle className="h-4 w-4" />
+                                  <span className="text-xs font-medium">Emergencia</span>
                                 </div>
-                              </div>
-                            )}
-
-                            {/* Altura */}
-                            {clientDetail.client.physicalData.height && (
-                              <div className="flex items-center gap-2">
-                                <TrendingUp className="h-3.5 w-3.5 text-[#FF7939] flex-shrink-0" />
-                                <div>
-                                  <div className="text-xs text-gray-400">Altura</div>
-                                  <div className="text-xs text-white font-medium">{clientDetail.client.physicalData.height} cm</div>
-                                </div>
-                              </div>
-                            )}
-
-                            {/* IMC */}
-                            {clientDetail.client.physicalData.bmi && (
-                              <div className="flex items-center gap-2">
-                                <Target className="h-3.5 w-3.5 text-[#FF7939] flex-shrink-0" />
-                                <div>
-                                  <div className="text-xs text-gray-400">IMC</div>
-                                  <div className="text-xs text-white font-medium">{clientDetail.client.physicalData.bmi}</div>
-                                </div>
-                              </div>
-                            )}
-
-                            {/* Ubicación */}
-                            {clientDetail.client.physicalData.location && (
-                              <div className="flex items-center gap-2">
-                                <MapPin className="h-3.5 w-3.5 text-[#FF7939] flex-shrink-0" />
-                                <div>
-                                  <div className="text-xs text-gray-400">Ubicación</div>
-                                  <div className="text-xs text-white font-medium">{clientDetail.client.physicalData.location}</div>
-                                </div>
+                                <span className="text-sm text-white">{clientDetail.client.physicalData.emergencyContact}</span>
                               </div>
                             )}
                           </div>
-
-                          {/* Teléfono */}
-                          {clientDetail.client.physicalData.phone && (
-                            <div className="flex items-center gap-2 pt-2 border-t border-zinc-800">
-                              <MessageSquare className="h-3.5 w-3.5 text-[#FF7939] flex-shrink-0" />
-                              <div>
-                                <div className="text-xs text-gray-400">Teléfono</div>
-                                <div className="text-xs text-white font-medium">{clientDetail.client.physicalData.phone}</div>
-                              </div>
-                            </div>
-                          )}
-
-                          {/* Contacto de emergencia */}
-                          {clientDetail.client.physicalData.emergencyContact && (
-                            <div className="flex items-center gap-2">
-                              <AlertTriangle className="h-3.5 w-3.5 text-[#FF7939] flex-shrink-0" />
-                              <div>
-                                <div className="text-xs text-gray-400">Contacto de emergencia</div>
-                                <div className="text-xs text-white font-medium">{clientDetail.client.physicalData.emergencyContact}</div>
-                              </div>
-                            </div>
-                          )}
-
-                          {/* Nivel de actividad */}
-                          {clientDetail.client.physicalData.activityLevel && (
-                            <div className="flex items-center gap-2 pt-2 border-t border-zinc-800">
-                              <TrendingUp className="h-3.5 w-3.5 text-[#FF7939] flex-shrink-0" />
-                              <div>
-                                <div className="text-xs text-gray-400">Nivel de actividad</div>
-                                <div className="text-xs text-white font-medium">
-                                  {clientDetail.client.physicalData.activityLevel === 'sedentary' ? 'Sedentario' :
-                                    clientDetail.client.physicalData.activityLevel === 'lightly_active' ? 'Ligeramente activo' :
-                                      clientDetail.client.physicalData.activityLevel === 'moderately_active' ? 'Moderadamente activo' :
-                                        clientDetail.client.physicalData.activityLevel === 'very_active' ? 'Muy activo' :
-                                          clientDetail.client.physicalData.activityLevel === 'extremely_active' ? 'Extremadamente activo' :
-                                            clientDetail.client.physicalData.activityLevel}
-                                </div>
-                              </div>
-                            </div>
-                          )}
-
-                          {/* Fitness Goals */}
-                          {clientDetail.client.physicalData.fitnessGoals && clientDetail.client.physicalData.fitnessGoals.length > 0 && (
-                            <div className="pt-2 border-t border-zinc-800">
-                              <div className="text-xs text-gray-400 mb-1">Objetivos de fitness</div>
-                              <div className="flex flex-wrap gap-1">
-                                {clientDetail.client.physicalData.fitnessGoals.map((goal: string, index: number) => (
-                                  <span key={index} className="text-xs px-2 py-1 bg-[#FF7939]/20 text-[#FF7939] rounded">
-                                    {goal}
-                                  </span>
-                                ))}
-                              </div>
-                            </div>
-                          )}
-
-                          {/* Descripción */}
-                          {clientDetail.client.physicalData.description && (
-                            <div className="pt-2 border-t border-zinc-800">
-                              <div className="text-xs text-gray-400 mb-1">Descripción</div>
-                              <div className="text-xs text-white leading-relaxed">{clientDetail.client.physicalData.description}</div>
-                            </div>
-                          )}
                         </div>
-                      )}
+                      </div>
 
-                      {/* Lesiones */}
-                      {clientDetail.client.injuries && clientDetail.client.injuries.length > 0 && (
-                        <div className="bg-zinc-900/40 rounded-lg">
-                          <div
-                            className="flex items-center justify-between p-2 cursor-pointer hover:bg-zinc-800/50 transition-colors"
-                            onClick={() => setShowInjuries(!showInjuries)}
-                          >
-                            <div className="flex items-center gap-2">
-                              <AlertTriangle className="h-3.5 w-3.5 text-yellow-500 flex-shrink-0" />
-                              <span className="text-xs font-medium text-gray-300">Lesiones ({clientDetail.client.injuries.length})</span>
-                            </div>
-                            <div className="text-xs text-gray-500">{showInjuries ? 'Ocultar' : 'Ver'}</div>
-                          </div>
-                          {showInjuries && (
-                            <div className="px-2 pb-2 space-y-1.5">
-                              {clientDetail.client.injuries.map((injury: any, index: number) => (
-                                <div key={index} className="p-2 bg-zinc-800/50 rounded">
-                                  <div className="flex justify-between items-center mb-1">
-                                    <div className="font-medium text-xs">{injury.name}</div>
-                                    <span className={`text-xs px-1.5 py-0.5 rounded ${injury.severity === 'high' ? 'bg-red-900/50 text-red-400' :
-                                      injury.severity === 'medium' ? 'bg-yellow-900/50 text-yellow-400' :
-                                        'bg-green-900/50 text-green-400'
-                                      }`}>
-                                      {injury.severity === 'high' ? 'Alta' : injury.severity === 'medium' ? 'Media' : 'Baja'}
-                                    </span>
-                                  </div>
-                                  {(injury.muscle_name || injury.pain_level) && (
-                                    <div className="space-y-0.5 text-xs text-gray-300">
-                                      {injury.muscle_name && (
-                                        <div className="flex items-center space-x-1">
-                                          <span className="text-[#FF7939]">📍</span>
-                                          <span>{injury.muscle_name}</span>
-                                          {injury.muscle_group && (
-                                            <span className="text-gray-500">({injury.muscle_group})</span>
-                                          )}
-                                        </div>
-                                      )}
-                                      {injury.pain_level && (
-                                        <div className="flex items-center space-x-1">
-                                          <span className="text-[#FF7939]">⚡</span>
-                                          <span>Dolor {injury.pain_level}/3</span>
-                                          {injury.pain_description && (
-                                            <span className="text-gray-500">- {injury.pain_description}</span>
-                                          )}
-                                        </div>
-                                      )}
-                                    </div>
-                                  )}
-                                  {injury.description && (
-                                    <div className="mt-1.5 text-xs text-gray-400 bg-zinc-900/30 p-1.5 rounded">
-                                      {injury.description}
-                                    </div>
-                                  )}
-                                </div>
-                              ))}
-                            </div>
-                          )}
-                        </div>
-                      )}
-
-                      {/* Biométricas */}
-                      {clientDetail.client.biometrics && clientDetail.client.biometrics.length > 0 && (
-                        <div className="bg-zinc-900/40 rounded-lg">
-                          <div
-                            className="flex items-center justify-between p-2 cursor-pointer hover:bg-zinc-800/50 transition-colors"
-                            onClick={() => setShowBiometrics(!showBiometrics)}
-                          >
-                            <div className="flex items-center gap-2">
-                              <TrendingUp className="h-3.5 w-3.5 text-blue-500" />
-                              <span className="text-xs font-medium text-gray-300">Biométricas ({clientDetail.client.biometrics.length})</span>
-                            </div>
-                            <div className="text-xs text-gray-500">{showBiometrics ? 'Ocultar' : 'Ver'}</div>
-                          </div>
-                          {showBiometrics && (
-                            <div className="px-2 pb-2 space-y-0.5">
-                              {clientDetail.client.biometrics.map((biometric: any, index: number) => (
-                                <div key={index} className="flex justify-between items-center py-1.5 px-2 bg-zinc-800/50 rounded">
-                                  <div className="font-medium text-xs">{biometric.name}</div>
-                                  <div className="text-xs font-semibold text-white">
-                                    {biometric.value} {biometric.unit}
-                                  </div>
-                                </div>
-                              ))}
-                            </div>
-                          )}
-                        </div>
-                      )}
-
-                      {/* Objetivos */}
-                      {clientDetail.client.objectives && clientDetail.client.objectives.length > 0 && (
-                        <div className="bg-zinc-900/40 rounded-lg">
-                          <div
-                            className="flex items-center justify-between p-2 cursor-pointer hover:bg-zinc-800/50 transition-colors"
-                            onClick={() => setShowObjectives(!showObjectives)}
-                          >
-                            <div className="flex items-center gap-2">
-                              <Target className="h-3.5 w-3.5 text-green-500" />
-                              <span className="text-xs font-medium text-gray-300">Objetivos ({clientDetail.client.objectives.length})</span>
-                            </div>
-                            <div className="text-xs text-gray-500">{showObjectives ? 'Ocultar' : 'Ver'}</div>
-                          </div>
-                          {showObjectives && (
-                            <div className="px-2 pb-2 space-y-0.5">
-                              {clientDetail.client.objectives.map((objective: any, index: number) => (
-                                <div key={index} className="py-1.5 px-2 bg-zinc-800/50 rounded">
-                                  <div className="font-medium text-xs mb-0.5">{objective.exercise_title}</div>
-                                  <div className="flex justify-between items-center text-xs text-gray-400">
-                                    <span>Actual: {objective.current_value} {objective.unit}</span>
-                                    <span>Objetivo: {objective.objective} {objective.unit}</span>
-                                  </div>
-                                </div>
-                              ))}
-                            </div>
-                          )}
-                        </div>
-                      )}
                     </div>
                   )}
                 </>

@@ -16,6 +16,8 @@ interface ProfileData {
   level?: string
   avatar_url?: string
   specialization?: string
+  fitness_goals?: string[]
+  sports?: string[]
 }
 
 
@@ -53,7 +55,7 @@ export function useProfileManagement() {
         const isFresh = Date.now() - (parsed.timestamp || 0) < 1000 * 60 * 60 // 1h
         if (isFresh && parsed.profile) return parsed.profile as ProfileData
       }
-    } catch {}
+    } catch { }
     // 2) Prefill rápido con datos del usuario autenticado
     if (!user) return null
     return {
@@ -76,7 +78,7 @@ export function useProfileManagement() {
       try {
         const cachedProfile = sessionStorage.getItem("cached_profile_data")
         const profileTimestamp = Number.parseInt(sessionStorage.getItem("profile_cache_timestamp") || "0")
-        
+
         // Usar cache si existe y tiene menos de 5 minutos
         if (cachedProfile && Date.now() - profileTimestamp < 5 * 60 * 1000) {
           const parsedProfile = JSON.parse(cachedProfile)
@@ -114,7 +116,7 @@ export function useProfileManagement() {
 
       if (result.profile) {
         setProfile(result.profile)
-        
+
         // Guardar en caché
         if (typeof window !== 'undefined') {
           try {
@@ -151,7 +153,7 @@ export function useProfileManagement() {
       try {
         const cachedBiometrics = sessionStorage.getItem("cached_biometrics_data")
         const biometricsTimestamp = Number.parseInt(sessionStorage.getItem("biometrics_cache_timestamp") || "0")
-        
+
         // Usar cache si existe y tiene menos de 10 minutos
         if (cachedBiometrics && Date.now() - biometricsTimestamp < 10 * 60 * 1000) {
           const parsedBiometrics = JSON.parse(cachedBiometrics)
@@ -178,7 +180,7 @@ export function useProfileManagement() {
 
       if (result.success && result.biometrics) {
         setBiometrics(result.biometrics)
-        
+
         // Guardar en caché
         if (typeof window !== 'undefined') {
           try {
@@ -207,7 +209,7 @@ export function useProfileManagement() {
       try {
         const cachedInjuries = sessionStorage.getItem("cached_injuries_data")
         const injuriesTimestamp = Number.parseInt(sessionStorage.getItem("injuries_cache_timestamp") || "0")
-        
+
         // Usar cache si existe y tiene menos de 10 minutos
         if (cachedInjuries && Date.now() - injuriesTimestamp < 10 * 60 * 1000) {
           const parsedInjuries = JSON.parse(cachedInjuries)
@@ -234,7 +236,7 @@ export function useProfileManagement() {
 
       if (result.success && result.injuries) {
         setInjuries(result.injuries)
-        
+
         // Guardar en caché
         if (typeof window !== 'undefined') {
           try {
@@ -260,16 +262,16 @@ export function useProfileManagement() {
 
     try {
       setLoading(true)
-      
+
       // Verificar si es coach o cliente
       const isCoach = user.level === 'coach'
-      
+
       // Separar datos para user_profiles
       const userProfileData = {
         full_name: profileData.full_name,
         email: profileData.email
       }
-      
+
       // Datos específicos según el tipo de usuario
       const profileSpecificData: any = {
         height: profileData.height,
@@ -279,9 +281,11 @@ export function useProfileManagement() {
         birth_date: profileData.birth_date,
         phone: profileData.phone,
         location: profileData.location,
-        emergency_contact: profileData.emergency_contact
+        emergency_contact: profileData.emergency_contact,
+        fitness_goals: profileData.fitness_goals,
+        sports: profileData.sports
       }
-      
+
       // Solo agregar specialization si es coach
       if (isCoach && profileData.specialization !== undefined) {
         profileSpecificData.specialization = profileData.specialization
@@ -294,7 +298,7 @@ export function useProfileManagement() {
           userProfileFormData.append(key, value.toString())
         }
       })
-      
+
       if (profileImage) {
         userProfileFormData.append('profile_image', profileImage)
       }
@@ -305,7 +309,7 @@ export function useProfileManagement() {
       })
 
       const userProfileResult = await userProfileResponse.json()
-      
+
       if (!userProfileResult.success) {
         throw new Error(userProfileResult.error)
       }
@@ -324,7 +328,7 @@ export function useProfileManagement() {
       })
 
       const profileResult = await profileResponse.json()
-      
+
       if (!profileResult.success) {
         throw new Error(profileResult.error)
       }
@@ -342,6 +346,8 @@ export function useProfileManagement() {
         phone: profileResult.profile?.phone,
         location: profileResult.profile?.location,
         emergency_contact: profileResult.profile?.emergency_contact,
+        fitness_goals: profileResult.profile?.fitness_goals,
+        sports: profileResult.profile?.sports
       }
 
       console.log('🔄 [Profile Hook] Actualizando perfil local:', {
@@ -352,7 +358,7 @@ export function useProfileManagement() {
       })
 
       setProfile(combinedProfile)
-      
+
       // Limpiar caché para forzar recarga
       if (typeof window !== 'undefined') {
         sessionStorage.removeItem('cached_profile_data')
@@ -364,7 +370,7 @@ export function useProfileManagement() {
         description: "Perfil actualizado correctamente"
       })
       return { success: true, profile: combinedProfile }
-      
+
     } catch (error) {
       console.error('Error updating profile:', error)
       toast({
@@ -398,20 +404,20 @@ export function useProfileManagement() {
 
       if (result.success && result.biometric) {
         setBiometrics(prev => [result.biometric, ...prev])
-        
+
         // Limpiar caché para forzar recarga
         if (typeof window !== 'undefined') {
           sessionStorage.removeItem('cached_biometrics_data')
           sessionStorage.removeItem('biometrics_cache_timestamp')
         }
-        
+
         toast({
           title: "Éxito",
           description: "Medición registrada correctamente"
         })
         return result.biometric
       }
-      
+
       throw new Error('Respuesta inválida del servidor')
     } catch (error) {
       console.error('Error creating biometric:', error)
@@ -442,23 +448,23 @@ export function useProfileManagement() {
       }
 
       if (result.success && result.biometric) {
-        setBiometrics(prev => prev.map(bio => 
+        setBiometrics(prev => prev.map(bio =>
           bio.id === biometricId ? result.biometric : bio
         ))
-        
+
         // Limpiar caché para forzar recarga
         if (typeof window !== 'undefined') {
           sessionStorage.removeItem('cached_biometrics_data')
           sessionStorage.removeItem('biometrics_cache_timestamp')
         }
-        
+
         toast({
           title: "Éxito",
           description: "Medición actualizada correctamente"
         })
         return result.biometric
       }
-      
+
       throw new Error('Respuesta inválida del servidor')
     } catch (error) {
       console.error('Error updating biometric:', error)
@@ -488,13 +494,13 @@ export function useProfileManagement() {
 
       if (result.success) {
         setBiometrics(prev => prev.filter(bio => bio.id !== biometricId))
-        
+
         // Limpiar caché para forzar recarga
         if (typeof window !== 'undefined') {
           sessionStorage.removeItem('cached_biometrics_data')
           sessionStorage.removeItem('biometrics_cache_timestamp')
         }
-        
+
         toast({
           title: "Éxito",
           description: "Medición eliminada correctamente"
@@ -530,20 +536,20 @@ export function useProfileManagement() {
 
       if (result.success && result.injury) {
         setInjuries(prev => [result.injury, ...prev])
-        
+
         // Limpiar caché para forzar recarga
         if (typeof window !== 'undefined') {
           sessionStorage.removeItem('cached_injuries_data')
           sessionStorage.removeItem('injuries_cache_timestamp')
         }
-        
+
         toast({
           title: "Éxito",
           description: "Lesión registrada correctamente"
         })
         return result.injury
       }
-      
+
       throw new Error('Respuesta inválida del servidor')
     } catch (error) {
       console.error('Error creating injury:', error)
@@ -574,23 +580,23 @@ export function useProfileManagement() {
       }
 
       if (result.success && result.injury) {
-        setInjuries(prev => prev.map(injury => 
+        setInjuries(prev => prev.map(injury =>
           injury.id === injuryId ? result.injury : injury
         ))
-        
+
         // Limpiar caché para forzar recarga
         if (typeof window !== 'undefined') {
           sessionStorage.removeItem('cached_injuries_data')
           sessionStorage.removeItem('injuries_cache_timestamp')
         }
-        
+
         toast({
           title: "Éxito",
           description: "Lesión actualizada correctamente"
         })
         return result.injury
       }
-      
+
       throw new Error('Respuesta inválida del servidor')
     } catch (error) {
       console.error('Error updating injury:', error)
@@ -620,13 +626,13 @@ export function useProfileManagement() {
 
       if (result.success) {
         setInjuries(prev => prev.filter(injury => injury.id !== injuryId))
-        
+
         // Limpiar caché para forzar recarga
         if (typeof window !== 'undefined') {
           sessionStorage.removeItem('cached_injuries_data')
           sessionStorage.removeItem('injuries_cache_timestamp')
         }
-        
+
         toast({
           title: "Éxito",
           description: "Lesión eliminada correctamente"
