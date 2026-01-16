@@ -1,6 +1,7 @@
 'use client'
 
 import { useState, useEffect, useCallback, useMemo, useRef } from "react"
+import { useSearchParams } from "next/navigation"
 import { createClient } from "@/lib/supabase/supabase-client"
 import { Bell, Calendar, Clock, Video, ExternalLink, Users, RefreshCw, Plus, Minus, Search, Pencil, ChevronDown, Trash2 } from "lucide-react"
 import { format, startOfMonth, endOfMonth, eachDayOfInterval, isSameDay, isToday, addMonths, subMonths, addDays, subDays, addYears, subYears, differenceInMinutes } from "date-fns"
@@ -141,8 +142,33 @@ export default function CoachCalendarScreen() {
   const [clientSearch, setClientSearch] = useState('')
 
   const meetDateInputRef = useRef<HTMLInputElement | null>(null)
+  const dayEventsRef = useRef<HTMLDivElement | null>(null)
+
+  const searchParams = useSearchParams()
 
   const supabase = createClient()
+
+  // Deep link handler
+  useEffect(() => {
+    const eventIdParam = searchParams.get('eventId')
+    if (eventIdParam && !loading && events.length > 0) {
+      openMeetById(eventIdParam)
+      // Optional: Clean URL? Maybe not, enables refresh to keep open.
+    } else if (eventIdParam && !loading && events.length === 0) {
+      // If events not loaded yet? events dependency will trigger re-run?
+      // openMeetById handles fetch if not in list. So we can call it directly.
+      openMeetById(eventIdParam)
+    }
+  }, [searchParams, loading, events])
+
+  // Scroll to events when day selected
+  useEffect(() => {
+    if (selectedDate && dayEventsRef.current) {
+      setTimeout(() => {
+        dayEventsRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' })
+      }, 100)
+    }
+  }, [selectedDate])
 
   useEffect(() => {
     const loadMeetNotificationCount = async () => {
@@ -202,7 +228,7 @@ export default function CoachCalendarScreen() {
 
       const { data: ev, error } = await supabase
         .from('calendar_events')
-        .select('id, title, description, start_time, end_time, event_type, status, meet_link, google_event_id')
+        .select('id, title, description, start_time, end_time, event_type, status, meet_link, google_event_id, client_id')
         .eq('id', eventId)
         .maybeSingle()
 
@@ -297,6 +323,19 @@ export default function CoachCalendarScreen() {
           const ids = parts
             .map((p: any) => String(p?.client_id || ''))
             .filter((id: string) => !!id)
+
+          // [Robustness] If event has client_id but not in parts (legacy/sync issue), add it
+          if (event.client_id && !ids.includes(event.client_id)) {
+            ids.push(event.client_id)
+              // Synthesize participant part
+              ; (parts as any[]).push({
+                client_id: event.client_id,
+                rsvp_status: 'confirmed', // Assume confirmed if relying on legacy field? Or 'pending'? Confirmed matches user SQL intent.
+                payment_status: 'unpaid',
+                participant_role: 'client'
+              })
+          }
+
           setSelectedClientIds(ids)
           setMeetParticipants(
             parts
@@ -309,26 +348,62 @@ export default function CoachCalendarScreen() {
               .filter((p: any) => !!p.client_id)
           )
 
-          // Buscar nombres de clientes faltantes
-          const missingIds = parts.map((p: any) => p.client_id).filter((cid: string) => cid && !clientsForMeet.some(c => c.id === cid))
+          // Buscar nombres de clientes faltantes (o que les falte avatar/créditos)
+          const missingIds = parts
+            .map((p: any) => p.client_id)
+            .filter((cid: string) => {
+              if (!cid) return false
+              const existing = clientsForMeet.find(c => c.id === cid)
+              // Si no existe, o existe pero no tiene avatar (y debería?) o créditos no cargados explícitamente?
+              // Asumimos que si viene de getCoachEvents solo tiene nombre.
+              // Forzamos recarga si no tiene avatar_url definido (puede ser null, pero si ni siquiera tiene la prop...)
+              // Mejor: chequeamos si es un 'stub' simple.
+              if (!existing) return true
+              // Si ya está, pero queremos asegurarnos de tener la foto y créditos frescos:
+              // Podríamos chequear una flag `full_details_loaded` o similar, pero por ahora
+              // si no tiene `avatar_url` (y asumimos que podría tener), lo recargamos.
+              // Ojo: si el usuario NO tiene foto, avatar_url es null.
+              // Simplemente recarguemos siempre para el modal de evento para asegurar datos frescos?
+              // O solo si no está en la lista completa de clientes.
+              // El problema es que getCoachEvents carga un subset limitado? No, carga nombres map.
+              return true // SIMPLIFICACIÓN: Siempre refrescar datos del perfil al abrir el modal para asegurar créditos/foto actualizados.
+            })
           if (missingIds.length > 0) {
             // Fetch missing profiles async and update state
-            supabase.from('user_profiles').select('id, full_name, avatar_url, credits').in('id', missingIds)
-              .then(({ data }) => {
+            supabase.from('user_profiles').select('id, full_name, avatar_url').in('id', missingIds)
+              .then(async ({ data }) => {
                 if (data && data.length > 0) {
+                  // Fetch credits separately from ledger
+                  let creditsMap: Record<string, number> = {}
+                  if (coachId) {
+                    const { data: ledger } = await supabase
+                      .from('client_meet_credits_ledger')
+                      .select('client_id, meet_credits_available')
+                      .eq('coach_id', coachId)
+                      .in('client_id', missingIds)
+
+                    if (ledger) {
+                      ledger.forEach((l: any) => {
+                        creditsMap[l.client_id] = Number(l.meet_credits_available || 0)
+                      })
+                    }
+                  }
+
                   setClientsForMeet(prev => {
                     const newClients = data.map(d => ({
                       id: d.id,
                       name: d.full_name || 'Cliente',
                       email: '',
                       avatar_url: d.avatar_url,
-                      status: 'active', // assume active if found
-                      meet_credits_available: d.credits || 0 // Fetch credits? user_profiles has credits column
+                      status: 'active',
+                      meet_credits_available: creditsMap[d.id] || 0
                     }))
-                    // Merge avoiding duplicates
-                    const existingIds = new Set(prev.map(c => c.id))
-                    const uniqueNew = newClients.filter(c => !existingIds.has(c.id))
-                    return [...prev, ...uniqueNew]
+
+                    // Merge: Update existing clients with new data, add new ones
+                    const prevMap = new Map(prev.map(c => [c.id, c]))
+                    newClients.forEach(c => prevMap.set(c.id, c))
+
+                    return Array.from(prevMap.values())
                   })
                 }
               })
@@ -740,10 +815,22 @@ export default function CoachCalendarScreen() {
             meet_link_id,
             google_event_id,
             attendance_tracked,
+            id,
+            title,
+            start_time,
+            end_time,
+            event_type,
+            status,
+            activity_id,
+            meet_link,
+            meet_link_id,
+            google_event_id,
+            attendance_tracked,
             description,
             is_free,
             price,
-            currency
+            currency,
+            client_id
           `)
           .eq('coach_id', user.id)
           .gte('start_time', monthStartISO)
@@ -2261,130 +2348,132 @@ export default function CoachCalendarScreen() {
 
             {/* Eventos del día seleccionado */}
             {selectedDate && (
-              <Card className="bg-zinc-900 border-zinc-800">
-                <CardHeader>
-                  <CardTitle className="text-white text-lg">
-                    {format(selectedDate, "d 'de' MMMM", { locale: es })}
-                  </CardTitle>
-                </CardHeader>
-                <CardContent>
-                  {selectedDateEvents.length === 0 ? (
-                    <p className="text-gray-400 text-sm text-center py-4">
-                      No hay eventos programados para este día
-                    </p>
-                  ) : (
-                    <div className="space-y-1">
-                      {selectedDateEvents.map(event => {
-                        const isGoogleEvent = event.is_google_event || event.source === 'google_calendar'
-                        const isWorkshop = event.event_type === 'workshop'
-                        const isConsultation = event.event_type === 'consultation'
-                        return (
-                          <div
-                            key={event.id}
-                            onClick={() => handleEventClick(event)}
-                            className={`p-2 rounded-lg border transition-colors cursor-pointer hover:bg-zinc-800/80 ${isGoogleEvent
-                              ? 'bg-blue-950/30 border-blue-700/50 hover:border-blue-600/70'
-                              : isWorkshop
-                                ? 'bg-[#FF7939]/10 border-[#FF7939]/40 hover:bg-[#FF7939]/15'
-                                : 'bg-zinc-800/60 border-zinc-700/30 hover:border-[#FF7939]/40'
-                              }`}
-                          >
-                            {/* Diseño mejorado y más limpio */}
-                            <div className="space-y-3">
-                              {/* Header: Producto y título */}
-                              <div className="space-y-1">
-                                {isGoogleEvent && (
-                                  <div className="flex items-center gap-1 mb-1">
-                                    <Calendar className="h-3 w-3 text-blue-400" />
-                                    <div className="text-xs text-blue-400 font-medium">Google Calendar</div>
-                                  </div>
-                                )}
-                                {event.product_name && !isGoogleEvent && (
-                                  <div className="text-xs text-[#FF7939] font-medium uppercase tracking-wide">
-                                    {event.product_name}
-                                  </div>
-                                )}
-                                <h3 className="font-semibold text-white text-sm leading-tight">
-                                  {event.title}
-                                </h3>
-                                {event.location && isGoogleEvent && (
-                                  <div className="text-xs text-gray-400">{event.location}</div>
-                                )}
-                              </div>
-
-                              {/* Info bar: Compacta y organizada */}
-                              <div className="flex items-center justify-between">
-                                <div className="flex items-center gap-3 text-xs">
-                                  {/* Horario */}
-                                  <div className="flex items-center gap-1 text-gray-300">
-                                    <Clock className="h-3 w-3" />
-                                    <span className="font-mono">
-                                      {format(new Date(event.start_time), 'HH:mm')}-{format(new Date(event.end_time), 'HH:mm')}
-                                    </span>
-                                  </div>
-
-                                  {/* Participantes - Solo para eventos de Omnia */}
-                                  {!isGoogleEvent && (
-                                    <div className="flex items-center gap-1 text-gray-300">
-                                      <Users className="h-3 w-3" />
-                                      <span className="font-medium">
-                                        {(event.event_type === 'consultation' ? 1 : (event.current_participants || 0))}/{(event.event_type === 'consultation' ? 1 : (event.max_participants || 'N/A'))}
-                                      </span>
-                                    </div>
-                                  )}
-
-                                  {/* Tipo - Solo para eventos de Omnia */}
-                                  {!isGoogleEvent && (
-                                    <div
-                                      className={
-                                        `px-2 py-0.5 rounded-full text-xs font-medium border ` +
-                                        (isWorkshop
-                                          ? 'bg-[#FF7939]/50 text-zinc-950 border-[#FF7939]/50'
-                                          : isConsultation
-                                            ? 'bg-[#FF7939]/10 text-[#FFB366] border-[#FF7939]/40'
-                                            : 'bg-zinc-700 text-gray-300 border-zinc-600')
-                                      }
-                                    >
-                                      {isWorkshop ? 'Taller' : isConsultation ? 'Meet' : event.event_type === 'other' ? 'Doc' : event.event_type}
-                                    </div>
-                                  )}
-
-                                  {/* Badge para eventos de Google */}
+              <div ref={dayEventsRef}>
+                <Card className="bg-zinc-900 border-zinc-800">
+                  <CardHeader>
+                    <CardTitle className="text-white text-lg">
+                      {format(selectedDate, "d 'de' MMMM", { locale: es })}
+                    </CardTitle>
+                  </CardHeader>
+                  <CardContent>
+                    {selectedDateEvents.length === 0 ? (
+                      <p className="text-gray-400 text-sm text-center py-4">
+                        No hay eventos programados para este día
+                      </p>
+                    ) : (
+                      <div className="space-y-1">
+                        {selectedDateEvents.map(event => {
+                          const isGoogleEvent = event.is_google_event || event.source === 'google_calendar'
+                          const isWorkshop = event.event_type === 'workshop'
+                          const isConsultation = event.event_type === 'consultation'
+                          return (
+                            <div
+                              key={event.id}
+                              onClick={() => handleEventClick(event)}
+                              className={`p-2 rounded-lg border transition-colors cursor-pointer hover:bg-zinc-800/80 ${isGoogleEvent
+                                ? 'bg-blue-950/30 border-blue-700/50 hover:border-blue-600/70'
+                                : isWorkshop
+                                  ? 'bg-[#FF7939]/10 border-[#FF7939]/40 hover:bg-[#FF7939]/15'
+                                  : 'bg-zinc-800/60 border-zinc-700/30 hover:border-[#FF7939]/40'
+                                }`}
+                            >
+                              {/* Diseño mejorado y más limpio */}
+                              <div className="space-y-3">
+                                {/* Header: Producto y título */}
+                                <div className="space-y-1">
                                   {isGoogleEvent && (
-                                    <div className="px-2 py-0.5 rounded-full bg-blue-900/50 text-blue-300 text-xs font-medium">
-                                      Google
+                                    <div className="flex items-center gap-1 mb-1">
+                                      <Calendar className="h-3 w-3 text-blue-400" />
+                                      <div className="text-xs text-blue-400 font-medium">Google Calendar</div>
                                     </div>
+                                  )}
+                                  {event.product_name && !isGoogleEvent && (
+                                    <div className="text-xs text-[#FF7939] font-medium uppercase tracking-wide">
+                                      {event.product_name}
+                                    </div>
+                                  )}
+                                  <h3 className="font-semibold text-white text-sm leading-tight">
+                                    {event.title}
+                                  </h3>
+                                  {event.location && isGoogleEvent && (
+                                    <div className="text-xs text-gray-400">{event.location}</div>
                                   )}
                                 </div>
 
-                                {/* Meet Link - Solo mostrar si es un link válido de Google Meet */}
-                                {event.meet_link &&
-                                  event.meet_link.includes('meet.google.com/') &&
-                                  !event.meet_link.includes('test-') &&
-                                  !event.meet_link.includes('xxx-') && (
-                                    <Button
-                                      onClick={(e) => {
-                                        e.stopPropagation()
-                                        window.open(event.meet_link, '_blank')
-                                      }}
-                                      size="sm"
-                                      variant="ghost"
-                                      className="h-7 px-2 gap-1.5 hover:bg-[#FF7939]/20 rounded-lg transition-colors text-[#FF7939]"
-                                      title="Abrir Google Meet"
-                                    >
-                                      <Video className="h-3.5 w-3.5" />
-                                      <span className="text-xs font-medium">Meet</span>
-                                    </Button>
-                                  )}
+                                {/* Info bar: Compacta y organizada */}
+                                <div className="flex items-center justify-between">
+                                  <div className="flex items-center gap-3 text-xs">
+                                    {/* Horario */}
+                                    <div className="flex items-center gap-1 text-gray-300">
+                                      <Clock className="h-3 w-3" />
+                                      <span className="font-mono">
+                                        {format(new Date(event.start_time), 'HH:mm')}-{format(new Date(event.end_time), 'HH:mm')}
+                                      </span>
+                                    </div>
+
+                                    {/* Participantes - Solo para eventos de Omnia */}
+                                    {!isGoogleEvent && (
+                                      <div className="flex items-center gap-1 text-gray-300">
+                                        <Users className="h-3 w-3" />
+                                        <span className="font-medium">
+                                          {(event.event_type === 'consultation' ? 1 : (event.current_participants || 0))}/{(event.event_type === 'consultation' ? 1 : (event.max_participants || 'N/A'))}
+                                        </span>
+                                      </div>
+                                    )}
+
+                                    {/* Tipo - Solo para eventos de Omnia */}
+                                    {!isGoogleEvent && (
+                                      <div
+                                        className={
+                                          `px-2 py-0.5 rounded-full text-xs font-medium border ` +
+                                          (isWorkshop
+                                            ? 'bg-[#FF7939]/50 text-zinc-950 border-[#FF7939]/50'
+                                            : isConsultation
+                                              ? 'bg-[#FF7939]/10 text-[#FFB366] border-[#FF7939]/40'
+                                              : 'bg-zinc-700 text-gray-300 border-zinc-600')
+                                        }
+                                      >
+                                        {isWorkshop ? 'Taller' : isConsultation ? 'Meet' : event.event_type === 'other' ? 'Doc' : event.event_type}
+                                      </div>
+                                    )}
+
+                                    {/* Badge para eventos de Google */}
+                                    {isGoogleEvent && (
+                                      <div className="px-2 py-0.5 rounded-full bg-blue-900/50 text-blue-300 text-xs font-medium">
+                                        Google
+                                      </div>
+                                    )}
+                                  </div>
+
+                                  {/* Meet Link - Solo mostrar si es un link válido de Google Meet */}
+                                  {event.meet_link &&
+                                    event.meet_link.includes('meet.google.com/') &&
+                                    !event.meet_link.includes('test-') &&
+                                    !event.meet_link.includes('xxx-') && (
+                                      <Button
+                                        onClick={(e) => {
+                                          e.stopPropagation()
+                                          window.open(event.meet_link, '_blank')
+                                        }}
+                                        size="sm"
+                                        variant="ghost"
+                                        className="h-7 px-2 gap-1.5 hover:bg-[#FF7939]/20 rounded-lg transition-colors text-[#FF7939]"
+                                        title="Abrir Google Meet"
+                                      >
+                                        <Video className="h-3.5 w-3.5" />
+                                        <span className="text-xs font-medium">Meet</span>
+                                      </Button>
+                                    )}
+                                </div>
                               </div>
                             </div>
-                          </div>
-                        )
-                      })}
-                    </div>
-                  )}
-                </CardContent>
-              </Card>
+                          )
+                        })}
+                      </div>
+                    )}
+                  </CardContent>
+                </Card>
+              </div>
             )}
 
 
@@ -2663,7 +2752,14 @@ export default function CoachCalendarScreen() {
       </div>
 
       {showCreateEventModal && (
-        <div className="fixed inset-0 z-[60] bg-black/60 flex items-center justify-center p-4">
+        <div
+          className="fixed inset-0 z-[60] bg-black/60 flex items-center justify-center p-4"
+          onClick={(e) => {
+            if (e.target === e.currentTarget) {
+              closeCreateEventModal()
+            }
+          }}
+        >
           <div className="w-full max-w-md bg-zinc-950 border border-zinc-800 rounded-2xl p-5">
             <div className="flex items-start justify-between gap-3 mb-2">
               <div className="flex-1 min-w-0 pt-1">
@@ -2893,13 +2989,7 @@ export default function CoachCalendarScreen() {
                           <div className="text-white text-sm font-medium leading-tight truncate">
                             {coachProfile.name} (Tú)
                           </div>
-                          <div className="text-xs text-[#FF7939]">Organizador</div>
                         </div>
-                        {meetModalMode === 'edit' && !isMeetEditing && (
-                          <div className="text-xs font-semibold text-[#FF7939]">
-                            Host
-                          </div>
-                        )}
                       </div>
                     )}
                     {selectedClientIds
@@ -2943,7 +3033,15 @@ export default function CoachCalendarScreen() {
                             }
                           >
                             <div className="relative">
-                              <div className="w-10 h-10 rounded-full bg-zinc-800 overflow-hidden" />
+                              <div className="w-10 h-10 rounded-full bg-zinc-800 overflow-hidden">
+                                {c.avatar_url ? (
+                                  <img src={c.avatar_url} alt={c.name} className="w-full h-full object-cover" />
+                                ) : (
+                                  <div className="w-full h-full flex items-center justify-center text-xs font-bold text-gray-500 uppercase">
+                                    {c.name.substring(0, 2)}
+                                  </div>
+                                )}
+                              </div>
                               <div
                                 className={`absolute -bottom-0.5 -right-0.5 w-3 h-3 rounded-full ${dotColor} border-2 border-zinc-950`}
                               />
@@ -2965,8 +3063,12 @@ export default function CoachCalendarScreen() {
                                 {pay === 'free' && (
                                   <div className="text-xs text-[#FF7939] font-medium">Gratis</div>
                                 )}
-                                {(pay === 'unpaid' || !pay) && (
-                                  <div className="text-xs text-red-400 font-medium">Pago Pendiente / Insuficiente</div>
+                                {(pay === 'unpaid' || !pay) && !newEventIsFree && (
+                                  credits >= (cost || 1) ? (
+                                    <div className="text-xs text-[#FF7939] font-medium">Pago Pendiente</div>
+                                  ) : (
+                                    <div className="text-xs text-red-400 font-medium">Saldo Insuficiente</div>
+                                  )
                                 )}
                               </div>
                             ) : (
@@ -3069,7 +3171,15 @@ export default function CoachCalendarScreen() {
                                   }`}
                               >
                                 <div className="relative">
-                                  <div className="w-10 h-10 rounded-full bg-zinc-800 overflow-hidden" />
+                                  <div className="w-10 h-10 rounded-full bg-zinc-800 overflow-hidden">
+                                    {c.avatar_url ? (
+                                      <img src={c.avatar_url} alt={c.name} className="w-full h-full object-cover" />
+                                    ) : (
+                                      <div className="w-full h-full flex items-center justify-center text-xs font-bold text-gray-500 uppercase">
+                                        {c.name.substring(0, 2)}
+                                      </div>
+                                    )}
+                                  </div>
                                   <div
                                     className={`absolute -bottom-0.5 -right-0.5 w-3 h-3 rounded-full ${dotColor} border-2 border-zinc-950`}
                                   />
@@ -3179,7 +3289,8 @@ export default function CoachCalendarScreen() {
             description="¿Seguro que querés eliminar esta reunión? Esta acción no se puede deshacer."
           />
         </div>
-      )}
-    </div>
+      )
+      }
+    </div >
   )
 }

@@ -3,6 +3,7 @@
 import { useState, useEffect, useRef } from "react"
 import { ChevronLeft, ChevronRight, Calendar, Clock, Flame, Edit, RotateCcw, ChevronDown, Check, X, Trash2, Save, List } from "lucide-react"
 import { Switch } from '@/components/ui/switch'
+import { useRouter } from 'next/navigation'
 import { createClient } from '@/lib/supabase/supabase-client'
 
 interface ClientCalendarProps {
@@ -138,10 +139,12 @@ export function ClientCalendar({ clientId, onLastWorkoutUpdate, onDaySelected, e
 
   const internalExercisesListRef = useRef<HTMLDivElement | null>(null)
   const dayDetailRef = exercisesListRef ?? internalExercisesListRef
+  const router = useRouter()
 
   const supabase = createClient()
 
   const [currentCoachId, setCurrentCoachId] = useState<string | null>(null)
+  const [eventDetailsByKey, setEventDetailsByKey] = useState<Record<string, any>>({})
 
   useEffect(() => {
     let mounted = true
@@ -163,6 +166,23 @@ export function ClientCalendar({ clientId, onLastWorkoutUpdate, onDaySelected, e
       mounted = false
     }
   }, [supabase])
+
+  const loadEventDetails = async (eventId: string) => {
+    if (!eventId || eventDetailsByKey[eventId]) return
+    try {
+      const { data, error } = await supabase
+        .from('calendar_events')
+        .select('*')
+        .eq('id', eventId)
+        .single()
+
+      if (!error && data) {
+        setEventDetailsByKey(prev => ({ ...prev, [eventId]: data }))
+      }
+    } catch {
+      // ignore
+    }
+  }
 
   const formatMinutesCompact = (totalMinutes: number | null | undefined): string => {
     const mins = Number(totalMinutes || 0)
@@ -701,12 +721,33 @@ export function ClientCalendar({ clientId, onLastWorkoutUpdate, onDaySelected, e
 
     if (typeof raw === 'string') {
       // Parse legacy string format: "Item 1; Item 2"
-      list = raw.split(';').map((s: string, idx: number) => ({
-        _key: `legacy_${idx}`,
-        nombre: s.trim(),
-        cantidad: '',
-        unidad: ''
-      })).filter(x => x.nombre)
+      list = raw.split(';').map((s: string, idx: number) => {
+        const trimmed = s.trim()
+        if (!trimmed) return null
+
+        // Intentar extraer cantidad y unidad. 
+        // Regex busca: (cualquier cosa) (espacio opcional) (numero) (espacio opcional) (letras al final)
+        // Ej: "Tofu 150g" -> "Tofu", "150", "g"
+        // Ej: "Limón 1 unidad" -> "Limón", "1", "unidad"
+        const match = trimmed.match(/^(.*?)\s*(\d+(?:[.,]\d+)?)\s*([a-zA-ZñÑáéíóúÁÉÍÓÚ\s]*)$/)
+
+        if (match) {
+          return {
+            _key: `legacy_${idx}`,
+            nombre: match[1].trim(),
+            cantidad: match[2],
+            unidad: match[3].trim()
+          }
+        }
+
+        // Fallback si no matchea formato estandard
+        return {
+          _key: `legacy_${idx}`,
+          nombre: trimmed,
+          cantidad: '',
+          unidad: ''
+        }
+      }).filter(Boolean)
     } else if (Array.isArray(raw)) {
       list = raw.map((v: any, idx: number) => ({
         _key: String(idx),
@@ -3357,12 +3398,17 @@ export function ClientCalendar({ clientId, onLastWorkoutUpdate, onDaySelected, e
       }
 
       setLoading(false)
+      setLoading(false)
       // Cleanup
-      if (cascadeModal?.type === 'fitness') {
-        handleCancelEditSeries()
-      } else {
-        handleCancelNutrition()
-      }
+      // [MOD] Mantener la edición activa tras el guardado
+      // if (cascadeModal?.type === 'fitness') {
+      //   handleCancelEditSeries()
+      // } else {
+      //   handleCancelNutrition()
+      // }
+      // setCascadeModal(null)
+      // NOTA: setCascadeModal(null) se debe llamar para cerrar el modal, 
+      // pero NO cancelar la edición.
       setCascadeModal(null)
     }
   }
@@ -3626,6 +3672,12 @@ export function ClientCalendar({ clientId, onLastWorkoutUpdate, onDaySelected, e
 
             const ownedActivityRows = rows.filter((r) => {
               const isActivityRow = r.activity_id !== null && r.activity_id !== undefined
+              // [MOD] Incluir meets/eventos en "Tus programas" SOLO si coincide el coach
+              if (r.calendar_event_id) {
+                if (!currentCoachId) return true // Show all if context is ambiguous (or change to false if strict)
+                return r.coach_id && String(r.coach_id) === String(currentCoachId)
+              }
+
               if (!isActivityRow) return false
               if (!currentCoachId) return true
               return r.coach_id && String(r.coach_id) === String(currentCoachId)
@@ -3633,7 +3685,13 @@ export function ClientCalendar({ clientId, onLastWorkoutUpdate, onDaySelected, e
 
             const otherRows = rows.filter((r) => {
               const isActivityRow = r.activity_id !== null && r.activity_id !== undefined
-              if (!isActivityRow) return true // calendar event (meet/other)
+              // [MOD] Excluir meets de Otras Actividades SI son del coach actual (ya estan en owned)
+              if (r.calendar_event_id) {
+                if (!currentCoachId) return false
+                return !(r.coach_id && String(r.coach_id) === String(currentCoachId))
+              }
+
+              if (!isActivityRow) return true // calendar event (meet/other) without owning logic match
               if (!currentCoachId) return false
               return !(r.coach_id && String(r.coach_id) === String(currentCoachId))
             })
@@ -3645,22 +3703,30 @@ export function ClientCalendar({ clientId, onLastWorkoutUpdate, onDaySelected, e
               const title = row.activity_title || (row.activity_id ? `Actividad ${row.activity_id}` : 'Evento')
 
               const activityId = row.activity_id !== null && row.activity_id !== undefined ? Number(row.activity_id) : null
-              const expandedKey = activityId ? `${dayStr}::${String(activityId)}` : null
+              const eventId = row.calendar_event_id
+
+              // Expanded Key can now be Activity or Event
+              const expandedKey = activityId
+                ? `${dayStr}::${String(activityId)}`
+                : (eventId ? `${dayStr}::event::${eventId}` : null)
+
               const expanded = expandedKey ? !!expandedActivityKeys?.[expandedKey] : false
+              const canExpand = allowExpand && (!!activityId || !!eventId)
 
               return (
                 <div key={row.id} className="space-y-2 border-b border-zinc-700/30 pb-3 last:border-b-0">
                   <button
                     type="button"
                     onClick={async () => {
-                      if (!allowExpand || !activityId) return
+                      if (!canExpand || !expandedKey) return
                       const next = !expanded
                       setExpandedActivityKeys((prev) => ({ ...prev, [expandedKey!]: next }))
                       if (next) {
-                        await loadDayActivityDetails(dayStr, activityId)
+                        if (activityId) await loadDayActivityDetails(dayStr, activityId)
+                        if (eventId) await loadEventDetails(eventId)
                       }
                     }}
-                    className={`w-full flex items-center justify-between group ${allowExpand && activityId ? 'cursor-pointer' : 'cursor-default'}`}
+                    className={`w-full flex items-center justify-between group ${canExpand ? 'cursor-pointer' : 'cursor-default'}`}
                   >
                     <div className="flex items-center gap-3">
                       {/* Línea vertical naranja */}
@@ -3671,16 +3737,51 @@ export function ClientCalendar({ clientId, onLastWorkoutUpdate, onDaySelected, e
                       </div>
 
                       {/* Flecha naranja simple */}
-                      {allowExpand && activityId && (
+                      {canExpand && (
                         <ChevronRight className={`h-4 w-4 text-[#FF7939] transition-transform duration-200 ${expanded ? 'rotate-90' : ''}`} />
                       )}
                     </div>
                     <div className="text-xs text-gray-400">{formatMinutesCompact(minutes) || '0m'}</div>
                   </button>
 
-                  {allowExpand && activityId && expandedKey && expanded ? (
+                  {canExpand && expandedKey && expanded ? (
                     <div className="space-y-2">
-                      {(() => {
+                      {/* Render Event Details if Event */}
+                      {eventId && eventDetailsByKey[eventId] && (
+                        <div className="pl-4 pr-2 py-2 text-sm text-gray-300 space-y-1 bg-zinc-800/20 rounded-lg">
+                          <div className="flex gap-2 text-xs text-gray-500">
+                            <Clock className="w-3 h-3" />
+                            <span>
+                              {new Date(eventDetailsByKey[eventId].start_time).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })} -
+                              {new Date(eventDetailsByKey[eventId].end_time).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                            </span>
+                          </div>
+                          {eventDetailsByKey[eventId].description && (
+                            <div className="text-gray-400 text-xs italic">
+                              {eventDetailsByKey[eventId].description}
+                            </div>
+                          )}
+                          {eventDetailsByKey[eventId].meet_link && (
+                            <a
+                              href={eventDetailsByKey[eventId].meet_link}
+                              target="_blank"
+                              rel="noreferrer"
+                              className="text-[#FF7939] hover:underline text-xs flex items-center gap-1 mt-1"
+                            >
+                              Unirse a la llamada ↗
+                            </a>
+                          )}
+                          <button
+                            onClick={() => router.push(`/?tab=calendar&eventId=${eventId}`)}
+                            className="mt-3 text-xs bg-zinc-700 hover:bg-zinc-600 text-white px-3 py-1.5 rounded flex items-center gap-2 w-fit transition-colors"
+                          >
+                            Ir al detalle <Calendar className="h-3 w-3" />
+                          </button>
+                        </div>
+                      )}
+
+                      {/* Render Activity Details as before */}
+                      {activityId && (() => {
                         const items = activityDetailsByKey?.[expandedKey] || []
                         return items.length > 0 ? (
                           <div className="space-y-0">
@@ -4184,8 +4285,9 @@ export function ClientCalendar({ clientId, onLastWorkoutUpdate, onDaySelected, e
                 <button
                   onClick={() => {
                     setCascadeModal(null)
-                    if (cascadeModal.type === 'fitness') handleCancelEditSeries()
-                    else handleCancelNutrition()
+                    // [MOD] Mantener la edición activa tras el guardado
+                    // if (cascadeModal.type === 'fitness') handleCancelEditSeries()
+                    // else handleCancelNutrition()
                   }}
                   className="w-full py-3 px-4 bg-[#2A2A2A] text-gray-300 rounded-xl hover:bg-[#3A3A3A] hover:text-white transition-colors text-sm font-medium text-left flex items-center justify-between group"
                 >

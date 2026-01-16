@@ -23,6 +23,7 @@ type NotificationItem = {
     fromEndTime: string | null
     note: string | null
     requestedByUserId: string | null // NEW
+    status?: 'pending' | 'accepted' | 'rejected' // NEW
   } | null
   meetLink: string | null
   otherUserId: string
@@ -89,7 +90,7 @@ export function MeetNotificationsModal({
           .select('event_id, rsvp_status, updated_at, invited_by_role, invited_by_user_id')
           .eq('client_id', userId)
           .order('updated_at', { ascending: false })
-          .limit(50)
+          .limit(200)
 
         if (myPartsError) {
           setError(myPartsError.message || 'No se pudieron cargar las notificaciones')
@@ -207,7 +208,7 @@ export function MeetNotificationsModal({
 
       const { data: events, error: eventsError } = await supabase
         .from('calendar_events')
-        .select('id, title, start_time, end_time, meet_link')
+        .select('id, title, start_time, end_time, meet_link, client_id')
         .eq('coach_id', coachId)
         .eq('event_type', 'consultation')
         .lt('start_time', range.to)
@@ -229,7 +230,7 @@ export function MeetNotificationsModal({
         .select('event_id, client_id, rsvp_status, updated_at, invited_by_role, invited_by_user_id, participant_role')
         .in('event_id', eventIds)
         .order('updated_at', { ascending: false })
-        .limit(50)
+        .limit(200)
 
       if (partsError) {
         setError(partsError.message || 'No se pudieron cargar las notificaciones')
@@ -237,13 +238,38 @@ export function MeetNotificationsModal({
         return
       }
 
+      // [MOVED UP] Fetch Reschedules (Pending + History)
+      const { data: reschedules } = await supabase
+        .from('calendar_event_reschedule_requests')
+        .select('event_id, from_start_time, from_end_time, to_start_time, to_end_time, note, status, created_at, requested_by_user_id')
+        .in('event_id', eventIds)
+        .order('created_at', { ascending: false })
+        .limit(20)
+
+      const pendingRescheduleByEventId: Record<string, any> = {}
+      const historyRescheduleByEventId: Record<string, any> = {}
+
+        ; (reschedules || []).forEach((r: any) => {
+          const eid = String(r?.event_id || '')
+          if (!eid) return
+          if (r.status === 'pending') {
+            if (!pendingRescheduleByEventId[eid]) pendingRescheduleByEventId[eid] = r
+          } else {
+            // Keep latest history
+            if (!historyRescheduleByEventId[eid]) historyRescheduleByEventId[eid] = r
+          }
+        })
+
       const clientIds = Array.from(
-        new Set(
-          (parts || [])
+        new Set([
+          ...(parts || [])
             .filter((p: any) => String(p?.participant_role || '') !== 'coach')
             .map((p: any) => String(p?.client_id || ''))
+            .filter(Boolean),
+          ...(reschedules || [])
+            .map((r: any) => String(r?.requested_by_user_id || ''))
             .filter(Boolean)
-        )
+        ])
       )
 
       const { data: clientProfiles } = clientIds.length
@@ -273,21 +299,6 @@ export function MeetNotificationsModal({
           eventById[String(e.id)] = e
         })
 
-      const { data: reschedules } = await supabase
-        .from('calendar_event_reschedule_requests')
-        .select('event_id, from_start_time, from_end_time, to_start_time, to_end_time, note, status, created_at, requested_by_user_id')
-        .in('event_id', eventIds)
-        .eq('status', 'pending')
-        .order('created_at', { ascending: false })
-
-      const pendingRescheduleByEventId: Record<string, any> = {}
-        ; (reschedules || []).forEach((r: any) => {
-          const eid = String(r?.event_id || '')
-          if (!eid) return
-          if (pendingRescheduleByEventId[eid]) return
-          pendingRescheduleByEventId[eid] = r
-        })
-
       const out: NotificationItem[] = (parts || [])
         .filter((p: any) => String(p?.participant_role || '') !== 'coach')
         .map((p: any) => {
@@ -297,8 +308,15 @@ export function MeetNotificationsModal({
 
           const endIso = ev.end_time ? String(ev.end_time) : null
           const startIso = String(ev.start_time)
-          const endsAfterNow = endIso ? endIso >= range.nowIso : startIso >= range.nowIso
-          if (!endsAfterNow) return null
+
+          // Relax "endsAfterNow" -> allow if updated recently (e.g. 7 days) OR event is future
+          const now = new Date()
+          const eventEnd = endIso ? new Date(endIso) : new Date(startIso)
+          const updateTime = p?.updated_at ? new Date(p.updated_at) : new Date(startIso)
+          const isRecentUpdate = (now.getTime() - updateTime.getTime()) < (7 * 24 * 60 * 60 * 1000)
+          const isFuture = eventEnd >= now
+
+          if (!isFuture && !isRecentUpdate) return null
 
           const rsvpStatus = String(p?.rsvp_status || 'pending')
           const invitedByRole = p?.invited_by_role == null ? null : String(p.invited_by_role)
@@ -315,8 +333,9 @@ export function MeetNotificationsModal({
             startTime: String(ev.start_time),
             endTime: ev.end_time ? String(ev.end_time) : null,
             reschedulePending: (() => {
-              const rr = pendingRescheduleByEventId[eid]
+              const rr = pendingRescheduleByEventId[eid] || historyRescheduleByEventId[eid]
               if (!rr?.to_start_time) return null
+              // If it's the SAME request we are viewing in history, status might be updated.
               return {
                 toStartTime: String(rr.to_start_time),
                 toEndTime: rr.to_end_time ? String(rr.to_end_time) : null,
@@ -324,6 +343,7 @@ export function MeetNotificationsModal({
                 fromEndTime: rr.from_end_time ? String(rr.from_end_time) : null,
                 note: rr.note == null ? null : String(rr.note),
                 requestedByUserId: rr.requested_by_user_id ? String(rr.requested_by_user_id) : null,
+                status: rr.status // Use actual status
               }
             })(),
             meetLink: ev.meet_link ? String(ev.meet_link) : null,
@@ -335,10 +355,116 @@ export function MeetNotificationsModal({
             updatedAt: String(p?.updated_at || ev.start_time),
           }
         })
-        .filter(Boolean)
-        .slice(0, 30) as any
+        .filter(Boolean) as any
 
-      setItems(out)
+      // [Robustness] Add Orphaned Reschedule Requests (e.g. if participant row missing due to RLS)
+      const processedEventIds = new Set(out.map(i => i.eventId))
+
+      // Combine pending AND history for robustness
+      const allReschedules = { ...historyRescheduleByEventId, ...pendingRescheduleByEventId }
+
+      Object.values(allReschedules).forEach((rr: any) => {
+        const eid = String(rr.event_id)
+        // If we already showed this event via participant row, we might have attached the PENDING request.
+        // But what if we have a HISTORY (accepted/rejected) request and the participant row logic didn't pick it up or didn't show the history?
+        // The participant logic only attaches PENDING reschedules.
+        // So if we have a resolved reschedule, we might want to show it as a standalone notification item here 
+        // IF it wasn't already covered. 
+        // But wait, if we have a participant row, we showed that. 
+        // If the user wants to see "Accepted Request", it's a distinct event from "Participant Update" usually?
+        // Actually, if I accept a request, the `status` of RR changes. The participant row might NOT change (unless I also updated RSVP).
+        // So yes, we should add resolved RR items if they are recent.
+
+        if (processedEventIds.has(eid)) {
+          // Valid point: if we already show the event, we only showed PENDING RR. 
+          // If this RR is resolved (accepted/rejected), we missed showing it in the main loop map 
+          // because we only looked at `pendingRescheduleByEventId`.
+          // We should probably allow adding a second item for the resolution? 
+          // Or better, relying on this loop to add purely RR-based notifications.
+          // Let's SKIP if it's PENDING and we already processed it (because we attached it).
+          if (rr.status === 'pending') return
+        }
+
+        const ev = eventById[eid]
+        if (!ev) return
+
+        // Relaxed time check for RR
+        const now = new Date()
+        const updateTime = rr.created_at ? new Date(rr.created_at) : new Date() // created_at or updated_at? Table has created_at properly.
+        const isRecent = (now.getTime() - updateTime.getTime()) < (7 * 24 * 60 * 60 * 1000)
+        if (!isRecent && rr.status !== 'pending') return
+
+        const reqUserId = rr.requested_by_user_id
+        const labelId = `rr:${eid}:${rr.created_at}:${rr.status}`
+
+        out.push({
+          id: labelId,
+          kind: 'status_update',
+          eventId: eid,
+          title: ev.title ? String(ev.title) : 'Meet',
+          startTime: String(ev.start_time),
+          endTime: ev.end_time ? String(ev.end_time) : null,
+          reschedulePending: {
+            toStartTime: String(rr.to_start_time),
+            toEndTime: rr.to_end_time ? String(rr.to_end_time) : null,
+            fromStartTime: String(rr.from_start_time),
+            fromEndTime: rr.from_end_time ? String(rr.from_end_time) : null,
+            note: rr.note == null ? null : String(rr.note),
+            requestedByUserId: reqUserId ? String(reqUserId) : null,
+            status: rr.status // 'pending' | 'accepted' | 'rejected'
+          },
+          meetLink: ev.meet_link ? String(ev.meet_link) : null,
+          otherUserId: reqUserId || '',
+          otherUserName: clientIdToName[reqUserId] || 'Cliente',
+          rsvpStatus: 'confirmed',
+          invitedByRole: null,
+          invitedByUserId: null,
+          updatedAt: String(rr.created_at || new Date().toISOString())
+        })
+      })
+
+        // [Robustness] Add Orphaned Events (Legacy/Manual Inserts with client_id but no parts)
+        ; (events || []).forEach((e: any) => {
+          const eid = String(e.id)
+          if (processedEventIds.has(eid)) return
+
+          // If event has a direct client_id and wasn't processed in parts/reschedules
+          if (e.client_id) {
+            const cId = String(e.client_id)
+            const startIso = String(e.start_time)
+            const endIso = e.end_time ? String(e.end_time) : null
+
+            // Apply same time filter
+            const now = new Date()
+            const eventEnd = endIso ? new Date(endIso) : new Date(startIso)
+            const isFuture = eventEnd >= now
+            if (!isFuture) return
+
+            const labelId = `ev:${eid}:${startIso}`
+
+            out.push({
+              id: labelId,
+              kind: 'invitation',
+              eventId: eid,
+              title: e.title ? String(e.title) : 'Meet',
+              startTime: startIso,
+              endTime: endIso,
+              reschedulePending: null,
+              meetLink: e.meet_link ? String(e.meet_link) : null,
+              otherUserId: cId,
+              otherUserName: clientIdToName[cId] || 'Cliente',
+              rsvpStatus: 'confirmed',
+              invitedByRole: 'coach',
+              invitedByUserId: null,
+              updatedAt: startIso
+            })
+          }
+        })
+
+      // Sort combined list
+      out.sort((a, b) => new Date(b.updatedAt).getTime() - new Date(a.updatedAt).getTime())
+
+      setItems(out.slice(0, 30))
     } finally {
       setLoading(false)
     }
@@ -389,6 +515,41 @@ export function MeetNotificationsModal({
     }
   }
 
+  const respondToReschedule = async (it: NotificationItem, action: 'accepted' | 'rejected') => {
+    try {
+      setActingId(it.id)
+      setError(null)
+
+      // 1. Update request status
+      const { error: upErr } = await supabase
+        .from('calendar_event_reschedule_requests')
+        .update({ status: action })
+        .eq('event_id', it.eventId)
+        .eq('status', 'pending')
+
+      if (upErr) throw upErr
+
+      // 2. If accepted, update event time
+      if (action === 'accepted' && it.reschedulePending) {
+        const { error: evErr } = await supabase
+          .from('calendar_events')
+          .update({
+            start_time: it.reschedulePending.toStartTime,
+            end_time: it.reschedulePending.toEndTime
+          })
+          .eq('id', it.eventId)
+
+        if (evErr) throw evErr
+      }
+
+      await load()
+    } catch (e: any) {
+      setError(e?.message || 'Error actualizando la solicitud')
+    } finally {
+      setActingId(null)
+    }
+  }
+
   useEffect(() => {
     if (!open) return
     load()
@@ -399,15 +560,18 @@ export function MeetNotificationsModal({
 
   const describe = (it: NotificationItem) => {
     // Priority: Reschedule Pending
+    // Priority: Reschedule Pending or History
     if (it.reschedulePending) {
       // If I am the one who requested it:
+      const rStatus = it.reschedulePending.status
       const isMyRequest = it.reschedulePending.requestedByUserId === userId
-      if (role === 'client') {
-        return isMyRequest ? 'Solicitud de nuevo horario por ti' : `Solicitud de nuevo horario por ${it.otherUserName}`
-      } else {
-        // As coach
-        return isMyRequest ? 'Solicitud de nuevo horario por ti' : `Solicitud de nuevo horario por ${it.otherUserName}`
-      }
+      const otherName = it.otherUserName
+
+      if (rStatus === 'accepted') return isMyRequest ? 'Tu solicitud de nuevo horario fue aceptada' : `Solicitud de nuevo horario aceptada por ${otherName}`
+      if (rStatus === 'rejected') return isMyRequest ? 'Tu solicitud de nuevo horario fue rechazada' : `Solicitud de nuevo horario rechazada por ${otherName}`
+
+      // Pending
+      return isMyRequest ? 'Solicitud de nuevo horario por ti' : `Solicitud de nuevo horario por ${otherName}`
     }
 
     if (role === 'coach') {
@@ -474,9 +638,16 @@ export function MeetNotificationsModal({
                 const timeLabel = `${format(start, 'HH:mm')}${end && !Number.isNaN(end.getTime()) ? ` – ${format(end, 'HH:mm')}` : ''}`
                 const dateLabel = format(start, "dd MMM", { locale: es })
                 const pending = it.rsvpStatus === 'pending'
+                const isRescheduleRequest = !!it.reschedulePending && it.reschedulePending.requestedByUserId !== userId
+                const isRescheduleResolved = it.reschedulePending?.status === 'accepted' || it.reschedulePending?.status === 'rejected'
                 const isActing = actingId === it.id
 
                 const getStatusVisuals = () => {
+                  if (it.reschedulePending) {
+                    if (it.reschedulePending.status === 'accepted') return { icon: CheckCircle2, color: 'text-green-500', bg: 'bg-green-500/10', border: 'border-green-500/20' }
+                    if (it.reschedulePending.status === 'rejected') return { icon: XCircle, color: 'text-red-500', bg: 'bg-red-500/10', border: 'border-red-500/20' }
+                    return { icon: Clock, color: 'text-[#FF7939]', bg: 'bg-[#FF7939]/10', border: 'border-[#FF7939]/30' }
+                  }
                   if (it.rsvpStatus === 'confirmed') return { icon: CheckCircle2, color: 'text-green-500', bg: 'bg-green-500/10', border: 'border-green-500/20' }
                   if (it.rsvpStatus === 'declined') return { icon: XCircle, color: 'text-red-500', bg: 'bg-red-500/10', border: 'border-red-500/20' }
                   if (it.rsvpStatus === 'cancelled') return { icon: Ban, color: 'text-red-400', bg: 'bg-red-500/10', border: 'border-red-500/20' }
@@ -520,11 +691,11 @@ export function MeetNotificationsModal({
                         <button
                           type="button"
                           onClick={() => onOpenMeet(it.eventId)}
-                          className={`px-3 py-1.5 rounded-full text-xs font-semibold border border-[#FF7939]/60 text-[#FFB366] hover:bg-[#FF7939]/10 ${pending ? '' : 'hidden'}`}
+                          className={`px-3 py-1.5 rounded-full text-xs font-semibold border border-[#FF7939]/60 text-[#FFB366] hover:bg-[#FF7939]/10 ${pending || (isRescheduleRequest && !isRescheduleResolved) ? '' : 'hidden'}`}
                         >
                           Ver
                         </button>
-                        {!pending && (
+                        {!pending && !(isRescheduleRequest && !isRescheduleResolved) && (
                           <button
                             type="button"
                             onClick={() => onOpenMeet(it.eventId)}
@@ -536,23 +707,23 @@ export function MeetNotificationsModal({
                       </div>
                     </div>
 
-                    {pending && (
+                    {(pending || (isRescheduleRequest && !isRescheduleResolved)) && (
                       <div className="mt-2 flex items-center justify-end gap-2">
                         <button
                           type="button"
                           disabled={isActing}
-                          onClick={() => updateRsvp(it, 'declined')}
-                          className={`px-3 py-1.5 rounded-full text-xs font-semibold border border-white/15 text-white/80 hover:bg-white/10 disabled:opacity-50 ${it.invitedByUserId === userId ? 'hidden' : ''}`}
-                          style={{ display: it.invitedByUserId === userId ? 'none' : undefined }}
+                          onClick={() => isRescheduleRequest ? respondToReschedule(it, 'rejected') : updateRsvp(it, 'declined')}
+                          className={`px-3 py-1.5 rounded-full text-xs font-semibold border border-white/15 text-white/80 hover:bg-white/10 disabled:opacity-50 ${((it.invitedByUserId === userId && !isRescheduleRequest) || (isRescheduleRequest && it.reschedulePending?.requestedByUserId === userId)) ? 'hidden' : ''}`}
+                          style={{ display: ((it.invitedByUserId === userId && !isRescheduleRequest) || (isRescheduleRequest && it.reschedulePending?.requestedByUserId === userId)) ? 'none' : undefined }}
                         >
                           Rechazar
                         </button>
                         <button
                           type="button"
                           disabled={isActing}
-                          onClick={() => updateRsvp(it, 'confirmed')}
-                          className={`px-3 py-1.5 rounded-full text-xs font-semibold border border-[#FF7939]/60 text-[#FFB366] hover:bg-[#FF7939]/10 disabled:opacity-50 ${it.invitedByUserId === userId ? 'hidden' : ''}`}
-                          style={{ display: it.invitedByUserId === userId ? 'none' : undefined }}
+                          onClick={() => isRescheduleRequest ? respondToReschedule(it, 'accepted') : updateRsvp(it, 'confirmed')}
+                          className={`px-3 py-1.5 rounded-full text-xs font-semibold border border-[#FF7939]/60 text-[#FFB366] hover:bg-[#FF7939]/10 disabled:opacity-50 ${((it.invitedByUserId === userId && !isRescheduleRequest) || (isRescheduleRequest && it.reschedulePending?.requestedByUserId === userId)) ? 'hidden' : ''}`}
+                          style={{ display: ((it.invitedByUserId === userId && !isRescheduleRequest) || (isRescheduleRequest && it.reschedulePending?.requestedByUserId === userId)) ? 'none' : undefined }}
                         >
                           Aceptar
                         </button>
