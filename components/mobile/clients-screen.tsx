@@ -543,25 +543,37 @@ export function ClientsScreen() {
                     </div>
                   </div>
 
-                  {/* Objetivos y Deportes (Scrollable Row) */}
-                  <div className="w-full overflow-x-auto scrollbar-hide flex justify-center">
-                    <div className="flex items-center gap-2 px-4 whitespace-nowrap">
-                      {/* Goals */}
-                      {clientDetail?.client?.physicalData?.fitness_goals?.map((g: string, i: number) => (
-                        <div key={`g-${i}`} className="px-3 py-1 rounded-full bg-[#FF7939]/10 border border-[#FF7939]/30 text-[#FF7939] text-[10px] uppercase font-bold tracking-wider">
-                          {g}
+                  {/* Objetivos y Deportes (Stacked Rows) */}
+                  <div className="w-full flex flex-col gap-2 items-center">
+                    {/* Goals Row */}
+                    {clientDetail?.client?.physicalData?.fitness_goals && clientDetail.client.physicalData.fitness_goals.length > 0 && (
+                      <div className="w-full overflow-x-auto scrollbar-hide flex justify-center">
+                        <div className="flex items-center gap-2 px-4 whitespace-nowrap">
+                          {clientDetail.client.physicalData.fitness_goals.map((g: string, i: number) => (
+                            <div key={`g-${i}`} className="px-3 py-1 rounded-full bg-[#FF7939]/10 border border-[#FF7939]/30 text-[#FF7939] text-[10px] font-bold tracking-wider capitalize">
+                              {g}
+                            </div>
+                          ))}
                         </div>
-                      ))}
-                      {/* Sports */}
-                      {clientDetail?.client?.physicalData?.sports?.map((s: string, i: number) => (
-                        <div key={`s-${i}`} className="px-3 py-1 rounded-full bg-blue-500/10 border border-blue-500/30 text-blue-400 text-[10px] uppercase font-bold tracking-wider">
-                          {s}
+                      </div>
+                    )}
+
+                    {/* Sports Row */}
+                    {clientDetail?.client?.physicalData?.sports && clientDetail.client.physicalData.sports.length > 0 && (
+                      <div className="w-full overflow-x-auto scrollbar-hide flex justify-center">
+                        <div className="flex items-center gap-2 px-4 whitespace-nowrap">
+                          {clientDetail.client.physicalData.sports.map((s: string, i: number) => (
+                            <div key={`s-${i}`} className="px-3 py-1 rounded-full bg-orange-300/10 border border-orange-300/30 text-orange-300 text-[10px] font-bold tracking-wider capitalize">
+                              {s}
+                            </div>
+                          ))}
                         </div>
-                      ))}
-                      {(!clientDetail?.client?.physicalData?.fitness_goals?.length && !clientDetail?.client?.physicalData?.sports?.length) && (
-                        <span className="text-xs text-gray-600 italic">Sin objetivos definidos</span>
-                      )}
-                    </div>
+                      </div>
+                    )}
+
+                    {(!clientDetail?.client?.physicalData?.fitness_goals?.length && !clientDetail?.client?.physicalData?.sports?.length) && (
+                      <span className="text-xs text-gray-600 italic">Sin objetivos definidos</span>
+                    )}
                   </div>
                 </div>
 

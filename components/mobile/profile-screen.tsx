@@ -609,25 +609,38 @@ export function ProfileScreen() {
                 </div>
               </div>
 
-              {/* Objetivos y Deportes (Scrollable Row) */}
-              <div className="w-full overflow-x-auto scrollbar-hide flex justify-center">
-                <div className="flex items-center gap-2 px-4 whitespace-nowrap">
-                  {/* Goals */}
-                  {managedProfile?.fitness_goals?.map((g: string, i: number) => (
-                    <div key={`g-${i}`} className="px-3 py-1 rounded-full bg-[#FF7939]/10 border border-[#FF7939]/30 text-[#FF7939] text-[10px] uppercase font-bold tracking-wider">
-                      {g}
+              {/* Objetivos y Deportes (Stacked Rows) */}
+              <div className="w-full flex flex-col gap-2 items-center mt-2">
+
+                {/* Goals Row */}
+                {managedProfile?.fitness_goals && managedProfile.fitness_goals.length > 0 && (
+                  <div className="w-full overflow-x-auto scrollbar-hide flex justify-center">
+                    <div className="flex items-center gap-2 px-4 whitespace-nowrap">
+                      {managedProfile.fitness_goals.map((g: string, i: number) => (
+                        <div key={`g-${i}`} className="px-3 py-1 rounded-full bg-[#FF7939]/10 border border-[#FF7939]/30 text-[#FF7939] text-[10px] font-bold tracking-wider capitalize">
+                          {g}
+                        </div>
+                      ))}
                     </div>
-                  ))}
-                  {/* Sports */}
-                  {managedProfile?.sports?.map((s: string, i: number) => (
-                    <div key={`s-${i}`} className="px-3 py-1 rounded-full bg-blue-500/10 border border-blue-500/30 text-blue-400 text-[10px] uppercase font-bold tracking-wider">
-                      {s}
+                  </div>
+                )}
+
+                {/* Sports Row */}
+                {managedProfile?.sports && managedProfile.sports.length > 0 && (
+                  <div className="w-full overflow-x-auto scrollbar-hide flex justify-center">
+                    <div className="flex items-center gap-2 px-4 whitespace-nowrap">
+                      {managedProfile.sports.map((s: string, i: number) => (
+                        <div key={`s-${i}`} className="px-3 py-1 rounded-full bg-orange-300/10 border border-orange-300/30 text-orange-300 text-[10px] font-bold tracking-wider capitalize">
+                          {s}
+                        </div>
+                      ))}
                     </div>
-                  ))}
-                  {(!managedProfile?.fitness_goals?.length && !managedProfile?.sports?.length) && (
-                    <span className="text-xs text-gray-500 italic">Sin objetivos definidos</span>
-                  )}
-                </div>
+                  </div>
+                )}
+
+                {(!managedProfile?.fitness_goals?.length && !managedProfile?.sports?.length) && (
+                  <span className="text-xs text-gray-500 italic text-center w-full">Sin objetivos definidos</span>
+                )}
               </div>
             </div>
           </div>
@@ -949,8 +962,8 @@ export function ProfileScreen() {
             <button
               onClick={() => setActivityFilter('fitness')}
               className={`text-xs px-3 py-1.5 rounded-full font-medium transition-all ${activityFilter === 'fitness'
-                  ? 'bg-black text-[#FF7939]'
-                  : 'bg-gray-800 text-gray-400 hover:bg-gray-700'
+                ? 'bg-black text-[#FF7939]'
+                : 'bg-gray-800 text-gray-400 hover:bg-gray-700'
                 }`}
             >
               Fitness
@@ -958,8 +971,8 @@ export function ProfileScreen() {
             <button
               onClick={() => setActivityFilter('nutricion')}
               className={`text-xs px-3 py-1.5 rounded-full font-medium transition-all ${activityFilter === 'nutricion'
-                  ? 'bg-white text-[#FF7939]'
-                  : 'bg-gray-800 text-gray-400 hover:bg-gray-700'
+                ? 'bg-white text-[#FF7939]'
+                : 'bg-gray-800 text-gray-400 hover:bg-gray-700'
                 }`}
             >
               Nutrición
