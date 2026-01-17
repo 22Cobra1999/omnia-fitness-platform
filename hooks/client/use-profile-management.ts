@@ -53,7 +53,9 @@ export function useProfileManagement() {
       if (cached) {
         const parsed = JSON.parse(cached)
         const isFresh = Date.now() - (parsed.timestamp || 0) < 1000 * 60 * 60 // 1h
-        if (isFresh && parsed.profile) return parsed.profile as ProfileData
+        // Verificar si tiene los campos nuevos, si no, invalidar
+        const hasNewFields = Array.isArray(parsed.profile?.fitness_goals) && Array.isArray(parsed.profile?.sports)
+        if (isFresh && parsed.profile && hasNewFields) return parsed.profile as ProfileData
       }
     } catch { }
     // 2) Prefill rápido con datos del usuario autenticado

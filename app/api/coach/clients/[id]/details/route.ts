@@ -34,7 +34,7 @@ export async function GET(
     // 1. PERFIL DEL CLIENTE (Datos unificados)
     const { data: profile, error: profileError } = await supabase
       .from('clients')
-      .select('id, full_name, phone, birth_date, weight, Height, fitness_goals, nivel_actividad, Genre, location, emergency_contact, health_conditions, description')
+      .select('id, full_name, phone, birth_date, weight, Height, fitness_goals, sports, nivel_actividad, Genre, location, emergency_contact, health_conditions, description')
       .eq('id', clientId)
       .single()
 
@@ -281,10 +281,12 @@ export async function GET(
       physicalData: {
         height: profile?.Height || null,
         weight: profile?.weight || null,
+        birth_date: profile?.birth_date || null,
         age: calculateAge(profile?.birth_date),
         bmi: profile?.Height && profile?.weight ? calculateBMI(profile.weight, profile.Height) : null,
         gender: profile?.Genre || null,
         fitnessGoals: profile?.fitness_goals || [],
+        sports: profile?.sports || [],
         healthConditions: profile?.health_conditions || [],
         activityLevel: profile?.activity_level || profile?.nivel_actividad || null,
         phone: profile?.phone || null,

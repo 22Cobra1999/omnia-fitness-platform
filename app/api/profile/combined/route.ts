@@ -4,10 +4,10 @@ import { createRouteHandlerClient } from '@/lib/supabase/supabase-server'
 export async function GET(request: NextRequest) {
   try {
     const supabase = await createRouteHandlerClient()
-    
+
     // Verificar autenticación
     const { data: { user }, error: authError } = await supabase.auth.getUser()
-    
+
     if (authError || !user) {
       return NextResponse.json({ error: 'No autenticado' }, { status: 401 })
     }
@@ -36,7 +36,7 @@ export async function GET(request: NextRequest) {
 
     const { data: clientData, error: clientError } = await supabase
       .from('clients')
-      .select('Height, weight, birth_date, Genre, nivel_actividad, phone, location, emergency_contact')
+      .select('Height, weight, birth_date, Genre, nivel_actividad, phone, location, emergency_contact, fitness_goals, sports')
       .eq('id', user.id)
       .maybeSingle()
 
@@ -57,6 +57,8 @@ export async function GET(request: NextRequest) {
       location: coachData?.location || null,
       emergency_contact: coachData?.emergency_contact || null,
       specialization: coachData?.specialization || null,
+      fitness_goals: [],
+      sports: []
     } : {
       height: clientData?.Height || null,
       weight: clientData?.weight || null,
@@ -67,6 +69,8 @@ export async function GET(request: NextRequest) {
       location: clientData?.location || null,
       emergency_contact: clientData?.emergency_contact || null,
       specialization: null,
+      fitness_goals: clientData?.fitness_goals || [],
+      sports: clientData?.sports || []
     }
 
     // Combinar datos

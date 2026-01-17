@@ -3,14 +3,14 @@
 import { useState, useEffect, useCallback, useMemo } from "react"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
-import { 
-  User, 
-  Edit3, 
-  Activity, 
-  Calendar, 
-  Trophy, 
-  Target, 
-  AlertTriangle, 
+import {
+  User,
+  Edit3,
+  Activity,
+  Calendar,
+  Trophy,
+  Target,
+  AlertTriangle,
   FileText,
   TrendingUp,
   TrendingDown,
@@ -84,7 +84,7 @@ function RecentPurchasesList({ userId }: { userId?: string }) {
       try {
         const response = await fetch('/api/client/recent-purchases?limit=10');
         const data = await response.json();
-        
+
         if (data.success) {
           setPurchases(data.purchases || []);
         }
@@ -150,8 +150,8 @@ function RecentPurchasesList({ userId }: { userId?: string }) {
   const formatDate = (dateString: string) => {
     if (!dateString) return '';
     const date = new Date(dateString);
-    return date.toLocaleDateString('es-AR', { 
-      day: 'numeric', 
+    return date.toLocaleDateString('es-AR', {
+      day: 'numeric',
       month: 'short',
       year: 'numeric'
     });
@@ -183,16 +183,30 @@ function RecentPurchasesList({ userId }: { userId?: string }) {
   );
 }
 
+const calculateAge = (birthDate: string | undefined) => {
+  if (!birthDate) return null
+  const today = new Date()
+  const birth = new Date(birthDate)
+  let age = today.getFullYear() - birth.getFullYear()
+  const m = today.getMonth() - birth.getMonth()
+  if (m < 0 || (m === 0 && today.getDate() < birth.getDate())) {
+    age--
+  }
+  return age
+}
+
 export function ProfileScreen() {
-  const { 
-    profile: managedProfile, 
-    biometrics, 
+  const {
+    profile: managedProfile,
+    biometrics,
     injuries,
     loadProfile,
     loadBiometrics,
     loadInjuries,
     deleteBiometric
   } = useProfileManagement()
+
+  // ... (rest of imports and hooks remain the same until the JSX) ...
 
   const { user } = useAuth()
   const [activityFilter, setActivityFilter] = useState<'fitness' | 'nutricion'>('fitness')
@@ -223,13 +237,13 @@ export function ProfileScreen() {
       selectedDay
     })
   }, [selectedDay, activityFilter])
-  
+
   // Determinar si es coach basado en el rol del usuario (antes de cargar)
   const isUserCoach = user?.level === 'coach'
-  
+
   // Solo cargar datos del coach si el usuario tiene rol de coach
   const { profile: coachProfile, salesData, earningsData, recentActivities, loading: coachLoading } = useCoachProfile()
-  
+
   // Determinar si es un coach: verificar rol del usuario directamente
   // Si tiene rol de coach, mostrar vista de coach (incluso si está cargando)
   const isCoach = isUserCoach
@@ -240,14 +254,14 @@ export function ProfileScreen() {
       const now = new Date();
       const month = String(now.getMonth() + 1).padStart(2, '0');
       const year = now.getFullYear();
-      
+
       const url = `/api/coach/export-sales?format=excel&month=${year}-${month}&year=${year}`;
       const response = await fetch(url);
-      
+
       if (!response.ok) {
         throw new Error('Error al descargar factura');
       }
-      
+
       const blob = await response.blob();
       const downloadUrl = window.URL.createObjectURL(blob);
       const a = document.createElement('a');
@@ -319,7 +333,7 @@ export function ProfileScreen() {
   const [showQuickAdd, setShowQuickAdd] = useState(false)
   const [showCalendar, setShowCalendar] = useState(false)
   const [showInjuriesModal, setShowInjuriesModal] = useState(false)
-  
+
   // Estados para modal de confirmación de biometría
   const [showBiometricDeleteConfirmation, setShowBiometricDeleteConfirmation] = useState(false)
   const [biometricToDelete, setBiometricToDelete] = useState<{
@@ -333,39 +347,39 @@ export function ProfileScreen() {
   const source = useMemo(() => {
     return selectedDay
       ? {
-          calories: { current: selectedDay.kcal, target: selectedDay.kcalTarget, percentage: 0 },
-          duration: { current: selectedDay.minutes, target: selectedDay.minutesTarget, percentage: 0 },
-          exercises: { current: selectedDay.exercises, target: selectedDay.exercisesTarget, percentage: 0 }
-        }
+        calories: { current: selectedDay.kcal, target: selectedDay.kcalTarget, percentage: 0 },
+        duration: { current: selectedDay.minutes, target: selectedDay.minutesTarget, percentage: 0 },
+        exercises: { current: selectedDay.exercises, target: selectedDay.exercisesTarget, percentage: 0 }
+      }
       : metrics
   }, [selectedDay, metrics])
 
   const activityRings: ActivityRing[] = useMemo(() => [
-    { 
-      type: "Kcal", 
-      current: source.calories.current, 
-      target: source.calories.target, 
-      color: "#FF6A00", 
-      icon: <Activity className="h-4 w-4" /> 
+    {
+      type: "Kcal",
+      current: source.calories.current,
+      target: source.calories.target,
+      color: "#FF6A00",
+      icon: <Activity className="h-4 w-4" />
     },
-    { 
-      type: "Minutos", 
-      current: source.duration.current, 
-      target: source.duration.target, 
-      color: "#FF8C42", 
-      icon: <Calendar className="h-4 w-4" /> 
+    {
+      type: "Minutos",
+      current: source.duration.current,
+      target: source.duration.target,
+      color: "#FF8C42",
+      icon: <Calendar className="h-4 w-4" />
     },
-    { 
-      type: activityFilter === 'fitness' ? "Ejercicios" : "Platos", 
-      current: source.exercises.current, 
-      target: source.exercises.target, 
-      color: "#FFFFFF", 
-      icon: <Trophy className="h-4 w-4" /> 
+    {
+      type: activityFilter === 'fitness' ? "Ejercicios" : "Platos",
+      current: source.exercises.current,
+      target: source.exercises.target,
+      color: "#FFFFFF",
+      icon: <Trophy className="h-4 w-4" />
     }
   ], [source, activityFilter])
 
   // Datos semanales reales - memoizados
-  const weeklyProgress: WeeklyProgress[] = useMemo(() => 
+  const weeklyProgress: WeeklyProgress[] = useMemo(() =>
     weeklyData.map(day => ({
       date: day.date,
       sessions: day.sessions,
@@ -455,7 +469,7 @@ export function ProfileScreen() {
       // No hacer llamada a la API, solo actualizar estado local
       // Simular éxito
       const data = { success: true, injuries: updatedInjuries }
-      
+
       if (data.success) {
         // Recargar las lesiones específicamente para actualizar inmediatamente
         await loadInjuries()
@@ -475,7 +489,7 @@ export function ProfileScreen() {
 
   const confirmDeleteBiometric = useCallback(async () => {
     if (!biometricToDelete) return
-    
+
     try {
       await deleteBiometric(biometricToDelete.id)
       setShowBiometricDeleteConfirmation(false)
@@ -487,7 +501,7 @@ export function ProfileScreen() {
     }
   }, [biometricToDelete, deleteBiometric, loadBiometrics, setShowBiometricDeleteConfirmation, setBiometricToDelete])
 
-    return (
+  return (
     <div className="min-h-screen bg-[#0F1012] text-white p-4 space-y-6">
       {/* Header del perfil reorganizado */}
       {isCoach ? (
@@ -505,10 +519,10 @@ export function ProfileScreen() {
           streakCount={6}
         />
       ) : (
-        <div 
+        <div
           className="bg-[#1A1C1F] rounded-2xl p-4 relative overflow-hidden"
           style={{
-            backgroundImage: managedProfile?.avatar_url 
+            backgroundImage: managedProfile?.avatar_url
               ? `linear-gradient(rgba(26, 28, 31, 0.7), rgba(26, 28, 31, 0.8)), url(${managedProfile?.avatar_url})`
               : undefined,
             backgroundSize: 'cover',
@@ -518,7 +532,7 @@ export function ProfileScreen() {
         >
           {/* Fondo difuminado adicional */}
           {managedProfile?.avatar_url && (
-            <div 
+            <div
               className="absolute inset-0 opacity-25"
               style={{
                 backgroundImage: `url(${managedProfile?.avatar_url})`,
@@ -529,7 +543,7 @@ export function ProfileScreen() {
               }}
             />
           )}
-          
+
           {/* Contenido del perfil con z-index para estar encima del fondo */}
           <div className="relative z-10">
             {/* Botón de editar en esquina superior derecha */}
@@ -548,9 +562,9 @@ export function ProfileScreen() {
             <div className="flex justify-center mb-2 pt-2">
               <div className="w-20 h-20 bg-gradient-to-br from-[#FF6A00] to-[#FF8C42] rounded-full flex items-center justify-center overflow-hidden">
                 {managedProfile?.avatar_url ? (
-                  <img 
-                    src={managedProfile.avatar_url} 
-                    alt="Foto de perfil" 
+                  <img
+                    src={managedProfile.avatar_url}
+                    alt="Foto de perfil"
                     className="w-full h-full object-cover"
                   />
                 ) : (
@@ -567,7 +581,7 @@ export function ProfileScreen() {
             </div>
 
             {/* Información organizada en filas */}
-            <div className="space-y-2">
+            <div className="space-y-4">
               {/* Ubicación y edad */}
               <div className="flex items-center justify-center space-x-4">
                 <div className="flex items-center space-x-1">
@@ -578,7 +592,7 @@ export function ProfileScreen() {
                 </div>
                 <div className="flex items-center space-x-1">
                   <span className="text-sm text-gray-300">
-                    {managedProfile?.age || "N/A"} años
+                    {managedProfile?.age || calculateAge(managedProfile?.birth_date) || "N/A"} años
                   </span>
                 </div>
               </div>
@@ -587,11 +601,32 @@ export function ProfileScreen() {
               <div className="flex items-center justify-center space-x-4">
                 <div className="flex items-center space-x-1">
                   <Weight className="h-4 w-4 text-gray-400" />
-                  <span className="text-sm text-gray-300">{managedProfile?.weight || "N/A"} kg</span>
+                  <span className="text-sm text-gray-300">{managedProfile?.weight || "-"} kg</span>
                 </div>
                 <div className="flex items-center space-x-1">
                   <Ruler className="h-4 w-4 text-gray-400" />
-                  <span className="text-sm text-gray-300">{managedProfile?.height || "N/A"} cm</span>
+                  <span className="text-sm text-gray-300">{managedProfile?.height || "-"} cm</span>
+                </div>
+              </div>
+
+              {/* Objetivos y Deportes (Scrollable Row) */}
+              <div className="w-full overflow-x-auto scrollbar-hide flex justify-center">
+                <div className="flex items-center gap-2 px-4 whitespace-nowrap">
+                  {/* Goals */}
+                  {managedProfile?.fitness_goals?.map((g: string, i: number) => (
+                    <div key={`g-${i}`} className="px-3 py-1 rounded-full bg-[#FF7939]/10 border border-[#FF7939]/30 text-[#FF7939] text-[10px] uppercase font-bold tracking-wider">
+                      {g}
+                    </div>
+                  ))}
+                  {/* Sports */}
+                  {managedProfile?.sports?.map((s: string, i: number) => (
+                    <div key={`s-${i}`} className="px-3 py-1 rounded-full bg-blue-500/10 border border-blue-500/30 text-blue-400 text-[10px] uppercase font-bold tracking-wider">
+                      {s}
+                    </div>
+                  ))}
+                  {(!managedProfile?.fitness_goals?.length && !managedProfile?.sports?.length) && (
+                    <span className="text-xs text-gray-500 italic">Sin objetivos definidos</span>
+                  )}
                 </div>
               </div>
             </div>
@@ -603,7 +638,7 @@ export function ProfileScreen() {
       {isCoach && (
         <div className="bg-[#1A1C1F] rounded-2xl p-4 relative">
           {/* Ícono de imprimir en esquina superior derecha */}
-          <button 
+          <button
             onClick={handleDownloadInvoice}
             className="absolute top-4 right-4 flex items-center justify-center hover:opacity-80 transition-opacity"
             title="Descargar factura"
@@ -629,7 +664,7 @@ export function ProfileScreen() {
 
           {/* Divider */}
           <div className="h-px bg-[#2A2C2E] mb-4"></div>
-          
+
           {/* Barra de progreso segmentada - 4 segmentos */}
           <div className="mb-3">
             {(() => {
@@ -645,42 +680,42 @@ export function ProfileScreen() {
 
               return (
                 <div className="flex rounded-xl overflow-hidden h-8">
-              {/* Programas */}
-              <div 
-                className="bg-[#FF6A00] flex items-center justify-center text-white text-xs font-medium"
-                style={{ width: `${((Number(salesData.programs) || 0) / denom) * 100}%` }}
-              >
-                {salesData.programs > 0 && `${Math.round(salesData.programs / 1000)}k`}
-              </div>
-              
-              {/* Talleres */}
-              <div 
-                className="bg-[#FFD1A6] flex items-center justify-center text-[#121212] text-xs font-medium"
-                style={{ width: `${((Number(salesData.workshops) || 0) / denom) * 100}%` }}
-              >
-                {salesData.workshops > 0 && `${Math.round(salesData.workshops / 1000)}k`}
-              </div>
-              
-              {/* Documentos */}
-              <div 
-                className="bg-[#FF9FC4] flex items-center justify-center text-white text-xs font-medium"
-                style={{ width: `${((Number(salesData.documents) || 0) / denom) * 100}%` }}
-              >
-                {salesData.documents > 0 && `${Math.round(salesData.documents / 1000)}k`}
-              </div>
-              
-              {/* Consultas */}
-              <div 
-                className="bg-white flex items-center justify-center text-[#121212] text-xs font-medium"
-                style={{ width: `${((Number(salesData.consultations) || 0) / denom) * 100}%` }}
-              >
-                {salesData.consultations > 0 && `${Math.round(salesData.consultations / 1000)}k`}
-              </div>
+                  {/* Programas */}
+                  <div
+                    className="bg-[#FF6A00] flex items-center justify-center text-white text-xs font-medium"
+                    style={{ width: `${((Number(salesData.programs) || 0) / denom) * 100}%` }}
+                  >
+                    {salesData.programs > 0 && `${Math.round(salesData.programs / 1000)}k`}
+                  </div>
+
+                  {/* Talleres */}
+                  <div
+                    className="bg-[#FFD1A6] flex items-center justify-center text-[#121212] text-xs font-medium"
+                    style={{ width: `${((Number(salesData.workshops) || 0) / denom) * 100}%` }}
+                  >
+                    {salesData.workshops > 0 && `${Math.round(salesData.workshops / 1000)}k`}
+                  </div>
+
+                  {/* Documentos */}
+                  <div
+                    className="bg-[#FF9FC4] flex items-center justify-center text-white text-xs font-medium"
+                    style={{ width: `${((Number(salesData.documents) || 0) / denom) * 100}%` }}
+                  >
+                    {salesData.documents > 0 && `${Math.round(salesData.documents / 1000)}k`}
+                  </div>
+
+                  {/* Consultas */}
+                  <div
+                    className="bg-white flex items-center justify-center text-[#121212] text-xs font-medium"
+                    style={{ width: `${((Number(salesData.consultations) || 0) / denom) * 100}%` }}
+                  >
+                    {salesData.consultations > 0 && `${Math.round(salesData.consultations / 1000)}k`}
+                  </div>
                 </div>
               )
             })()}
           </div>
-          
+
           {/* Leyendas - 4 categorías */}
           <div className="grid grid-cols-4 gap-2 text-xs">
             <div className="flex flex-col items-center">
@@ -724,7 +759,7 @@ export function ProfileScreen() {
                     {activity.type === 'consultation' && <MessageCircle className="h-4 w-4 text-[#FF7939]" />}
                     {activity.type === 'client' && <Users className="h-4 w-4 text-[#FF7939]" />}
                   </div>
-                  
+
                   {/* Contenido */}
                   <div className="flex-1 min-w-0">
                     <p className="text-sm font-medium text-white truncate">
@@ -739,7 +774,7 @@ export function ProfileScreen() {
                       </p>
                     )}
                   </div>
-                  
+
                   {/* Timestamp */}
                   <div className="flex-shrink-0">
                     <Clock className="h-3 w-3 text-gray-500" />
@@ -761,7 +796,7 @@ export function ProfileScreen() {
         <div className="space-y-3">
           {/* Suscripción del Coach */}
           <PlanManagement />
-          
+
           {/* Mercado Pago y Google Calendar lado a lado */}
           <div className="flex gap-3">
             <div className="flex-1 min-w-0">
@@ -777,425 +812,423 @@ export function ProfileScreen() {
 
       {/* Anillos de actividad - Solo para clientes */}
       {!isCoach && (
-      <div className="bg-[#1A1C1F] rounded-2xl p-6">
-        <div className="flex items-center justify-between mb-4">
-          <h2 className="text-lg font-semibold">Anillos de actividad</h2>
-          <div className="flex items-center space-x-2">
-            <button 
-              onClick={() => setShowCalendar(!showCalendar)}
-              className="p-2 rounded-lg bg-gray-800 hover:bg-gray-700 transition-colors"
-            >
-              <Calendar className="w-5 h-5 text-gray-400" />
-            </button>
-            {metricsLoading && (
-              <div className="w-4 h-4 border-2 border-orange-500 border-t-transparent rounded-full animate-spin"></div>
-            )}
+        <div className="bg-[#1A1C1F] rounded-2xl p-6">
+          <div className="flex items-center justify-between mb-4">
+            <h2 className="text-lg font-semibold">Anillos de actividad</h2>
+            <div className="flex items-center space-x-2">
+              <button
+                onClick={() => setShowCalendar(!showCalendar)}
+                className="p-2 rounded-lg bg-gray-800 hover:bg-gray-700 transition-colors"
+              >
+                <Calendar className="w-5 h-5 text-gray-400" />
+              </button>
+              {metricsLoading && (
+                <div className="w-4 h-4 border-2 border-orange-500 border-t-transparent rounded-full animate-spin"></div>
+              )}
+            </div>
           </div>
-        </div>
-        
-        {/* Anillos diarios */}
-        <div className="mb-6">
-          <DailyActivityRings
-            userId={user?.id}
-            selectedDate={selectedDay?.date}
-            category={activityFilter}
-            currentWeek={ringsWeek}
-            onWeekChange={(w) => {
-              console.log('🧿 [RINGS][PROFILE] Semana cambiada (desde DailyActivityRings):', {
-                activityFilter,
-                from: ringsWeek.toISOString(),
-                to: w.toISOString()
-              })
-              setRingsWeek(w)
-            }}
-            onSelectDay={(d: any) => {
-              console.log(' [RINGS][PROFILE] Click día en anillos:', {
-                activityFilter,
-                day: d
-              })
-              setSelectedDay({
-                date: d.date,
-                minutes: d.minutes,
-                minutesTarget: d.minutesTarget,
-                kcal: d.kcal,
-                kcalTarget: d.kcalTarget,
-                exercises: d.exercises,
-                exercisesTarget: d.exercisesTarget
-              })
-            }}
-          />
-        </div>
-        
-        <div className="flex items-center justify-between">
-          {/* Círculo principal más a la izquierda */}
-          <div className="relative w-52 h-52">
-            {activityRings.map((ring, index) => {
-              const rawPercentage = ring.target > 0 ? (ring.current / ring.target) * 100 : 0
-              const percentage = isNaN(rawPercentage) || !isFinite(rawPercentage) ? 0 : Math.max(0, Math.min(rawPercentage, 100))
-              const radius = 50 - (index * 12) // Aumentar separación entre anillos
-              const circumference = 2 * Math.PI * radius
-              const strokeDasharray = circumference
-              const strokeDashoffset = circumference - (percentage / 100) * circumference
-              
-              return (
-                <svg
-                  key={ring.type}
-                  className="absolute inset-0 w-full h-full transform -rotate-90"
-                  viewBox="0 0 120 120"
-                >
-                  <circle
-                    cx="60"
-                    cy="60"
-                    r={radius}
-                    stroke="rgba(255,255,255,0.08)"
-                    strokeWidth="10"
-                    fill="none"
-                  />
-                  <circle
-                    cx="60"
-                    cy="60"
-                    r={radius}
-                    stroke={ring.color}
-                    strokeWidth="10"
-                    fill="none"
-                    strokeDasharray={strokeDasharray}
-                    strokeDashoffset={strokeDashoffset}
-                    strokeLinecap="round"
-                    className="transition-all duration-1000 ease-out"
-                    style={{
-                      filter: `drop-shadow(0 0 6px ${ring.color}50)`
-                    }}
-                  />
-                </svg>
-              )
-            })}
-          </div>
-          
-          {/* Información más a la derecha con formato rectangular */}
-          <div className="flex flex-col space-y-3 items-end">
-            <div
-              className="text-xs text-gray-400 mb-2 cursor-pointer"
-              onClick={() => {
-                console.log('🧿 [RINGS][PROFILE] Click volver a semanal:', {
+
+          {/* Anillos diarios */}
+          <div className="mb-6">
+            <DailyActivityRings
+              userId={user?.id}
+              selectedDate={selectedDay?.date}
+              category={activityFilter}
+              currentWeek={ringsWeek}
+              onWeekChange={(w) => {
+                console.log('🧿 [RINGS][PROFILE] Semana cambiada (desde DailyActivityRings):', {
                   activityFilter,
-                  prevSelectedDay: selectedDay?.date || null
+                  from: ringsWeek.toISOString(),
+                  to: w.toISOString()
                 })
-                setSelectedDay(null)
+                setRingsWeek(w)
               }}
-            >
-              {selectedDay ? 'Volver a Semanal' : 'Semanal'}
-            </div>
-            {activityRings.map((ring) => (
-              <div key={ring.type} className="flex flex-col items-end" style={{ minWidth: '120px' }}>
-                <div className="flex items-center gap-1.5 text-sm font-medium justify-end" style={{ color: ring.color }}>
-                  {ring.type === 'Kcal' ? (
-                    activityFilter === 'fitness' ? (
-                      <ArrowDown className="h-4 w-4 flex-shrink-0" style={{ color: "#FF6A00" }} />
-                    ) : (
-                      <ArrowUp className="h-4 w-4 flex-shrink-0" style={{ color: "#FFFFFF" }} />
-                    )
-                  ) : null}
-                  <span>
-                    {ring.type === 'Ejercicios' || ring.type === 'Platos' 
-                      ? (activityFilter === 'fitness' ? 'Ejercicios' : 'Platos')
-                      : ring.type}
-                  </span>
-                </div>
-                <div className="text-lg font-bold" style={{ color: ring.color }}>
-                  {ring.current}/{ring.target}
-                </div>
-              </div>
-            ))}
+              onSelectDay={(d: any) => {
+                console.log(' [RINGS][PROFILE] Click día en anillos:', {
+                  activityFilter,
+                  day: d
+                })
+                setSelectedDay({
+                  date: d.date,
+                  minutes: d.minutes,
+                  minutesTarget: d.minutesTarget,
+                  kcal: d.kcal,
+                  kcalTarget: d.kcalTarget,
+                  exercises: d.exercises,
+                  exercisesTarget: d.exercisesTarget
+                })
+              }}
+            />
           </div>
-        </div>
-        
-        {/* Filtros debajo del círculo y la información */}
-        <div className="flex items-center justify-center gap-2 mt-4">
-          <button
-            onClick={() => setActivityFilter('fitness')}
-            className={`text-xs px-3 py-1.5 rounded-full font-medium transition-all ${
-              activityFilter === 'fitness'
-                ? 'bg-black text-[#FF7939]'
-                : 'bg-gray-800 text-gray-400 hover:bg-gray-700'
-            }`}
-          >
-            Fitness
-          </button>
-          <button
-            onClick={() => setActivityFilter('nutricion')}
-            className={`text-xs px-3 py-1.5 rounded-full font-medium transition-all ${
-              activityFilter === 'nutricion'
-                ? 'bg-white text-[#FF7939]'
-                : 'bg-gray-800 text-gray-400 hover:bg-gray-700'
-            }`}
-          >
-            Nutrición
-          </button>
-        </div>
 
-        {/* Modal del Calendario */}
-        {showCalendar && (
-          <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
-            <div className="bg-[#1A1C1F] rounded-2xl w-full max-w-md max-h-[80vh] overflow-hidden">
-              <div className="p-4 border-b border-gray-700">
-                <div className="flex items-center justify-between">
-                  <h3 className="text-lg font-semibold">Historial de Actividad</h3>
-                  <button 
-                    onClick={() => setShowCalendar(false)}
-                    className="p-2 rounded-lg hover:bg-gray-700 transition-colors"
+          <div className="flex items-center justify-between">
+            {/* Círculo principal más a la izquierda */}
+            <div className="relative w-52 h-52">
+              {activityRings.map((ring, index) => {
+                const rawPercentage = ring.target > 0 ? (ring.current / ring.target) * 100 : 0
+                const percentage = isNaN(rawPercentage) || !isFinite(rawPercentage) ? 0 : Math.max(0, Math.min(rawPercentage, 100))
+                const radius = 50 - (index * 12) // Aumentar separación entre anillos
+                const circumference = 2 * Math.PI * radius
+                const strokeDasharray = circumference
+                const strokeDashoffset = circumference - (percentage / 100) * circumference
+
+                return (
+                  <svg
+                    key={ring.type}
+                    className="absolute inset-0 w-full h-full transform -rotate-90"
+                    viewBox="0 0 120 120"
                   >
-                    <X className="w-5 h-5 text-gray-400" />
-                  </button>
+                    <circle
+                      cx="60"
+                      cy="60"
+                      r={radius}
+                      stroke="rgba(255,255,255,0.08)"
+                      strokeWidth="10"
+                      fill="none"
+                    />
+                    <circle
+                      cx="60"
+                      cy="60"
+                      r={radius}
+                      stroke={ring.color}
+                      strokeWidth="10"
+                      fill="none"
+                      strokeDasharray={strokeDasharray}
+                      strokeDashoffset={strokeDashoffset}
+                      strokeLinecap="round"
+                      className="transition-all duration-1000 ease-out"
+                      style={{
+                        filter: `drop-shadow(0 0 6px ${ring.color}50)`
+                      }}
+                    />
+                  </svg>
+                )
+              })}
+            </div>
+
+            {/* Información más a la derecha con formato rectangular */}
+            <div className="flex flex-col space-y-3 items-end">
+              <div
+                className="text-xs text-gray-400 mb-2 cursor-pointer"
+                onClick={() => {
+                  console.log('🧿 [RINGS][PROFILE] Click volver a semanal:', {
+                    activityFilter,
+                    prevSelectedDay: selectedDay?.date || null
+                  })
+                  setSelectedDay(null)
+                }}
+              >
+                {selectedDay ? 'Volver a Semanal' : 'Semanal'}
+              </div>
+              {activityRings.map((ring) => (
+                <div key={ring.type} className="flex flex-col items-end" style={{ minWidth: '120px' }}>
+                  <div className="flex items-center gap-1.5 text-sm font-medium justify-end" style={{ color: ring.color }}>
+                    {ring.type === 'Kcal' ? (
+                      activityFilter === 'fitness' ? (
+                        <ArrowDown className="h-4 w-4 flex-shrink-0" style={{ color: "#FF6A00" }} />
+                      ) : (
+                        <ArrowUp className="h-4 w-4 flex-shrink-0" style={{ color: "#FFFFFF" }} />
+                      )
+                    ) : null}
+                    <span>
+                      {ring.type === 'Ejercicios' || ring.type === 'Platos'
+                        ? (activityFilter === 'fitness' ? 'Ejercicios' : 'Platos')
+                        : ring.type}
+                    </span>
+                  </div>
+                  <div className="text-lg font-bold" style={{ color: ring.color }}>
+                    {ring.current}/{ring.target}
+                  </div>
                 </div>
-              </div>
-              <div className="p-4 overflow-y-auto max-h-[60vh]">
-                <ActivityCalendar userId={user?.id} />
-              </div>
+              ))}
             </div>
           </div>
-        )}
 
-      </div>
+          {/* Filtros debajo del círculo y la información */}
+          <div className="flex items-center justify-center gap-2 mt-4">
+            <button
+              onClick={() => setActivityFilter('fitness')}
+              className={`text-xs px-3 py-1.5 rounded-full font-medium transition-all ${activityFilter === 'fitness'
+                  ? 'bg-black text-[#FF7939]'
+                  : 'bg-gray-800 text-gray-400 hover:bg-gray-700'
+                }`}
+            >
+              Fitness
+            </button>
+            <button
+              onClick={() => setActivityFilter('nutricion')}
+              className={`text-xs px-3 py-1.5 rounded-full font-medium transition-all ${activityFilter === 'nutricion'
+                  ? 'bg-white text-[#FF7939]'
+                  : 'bg-gray-800 text-gray-400 hover:bg-gray-700'
+                }`}
+            >
+              Nutrición
+            </button>
+          </div>
+
+          {/* Modal del Calendario */}
+          {showCalendar && (
+            <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
+              <div className="bg-[#1A1C1F] rounded-2xl w-full max-w-md max-h-[80vh] overflow-hidden">
+                <div className="p-4 border-b border-gray-700">
+                  <div className="flex items-center justify-between">
+                    <h3 className="text-lg font-semibold">Historial de Actividad</h3>
+                    <button
+                      onClick={() => setShowCalendar(false)}
+                      className="p-2 rounded-lg hover:bg-gray-700 transition-colors"
+                    >
+                      <X className="w-5 h-5 text-gray-400" />
+                    </button>
+                  </div>
+                </div>
+                <div className="p-4 overflow-y-auto max-h-[60vh]">
+                  <ActivityCalendar userId={user?.id} />
+                </div>
+              </div>
+            </div>
+          )}
+
+        </div>
       )}
 
       {/* Objetivos - Solo para clientes */}
       {!isCoach && (
-      <div className="bg-[#1A1C1F] rounded-2xl p-4">
-        <div className="space-y-1">
-          {/* Lista de ejercicios del usuario */}
-          <ExerciseProgressList userId={user?.id} />
-          
-          {/* Formulario rápido para agregar ejercicio */}
-          {showQuickAdd && (
-            <QuickExerciseAdd
-              onAdd={handleQuickAddExercise}
-              onCancel={() => setShowQuickAdd(false)}
-            />
-          )}
-          
-          {/* Botón para agregar nuevo ejercicio - centrado */}
-          {!showQuickAdd && (
-            <div className="flex justify-center -mt-1">
-              <Button
-                onClick={() => handleEditSection("goals")}
-                variant="ghost"
-                size="sm"
-                className="text-[#FF6A00] hover:bg-[#FF6A00]/10 rounded-xl p-2"
-              >
-                <Plus className="h-5 w-5" />
-              </Button>
-            </div>
-          )}
+        <div className="bg-[#1A1C1F] rounded-2xl p-4">
+          <div className="space-y-1">
+            {/* Lista de ejercicios del usuario */}
+            <ExerciseProgressList userId={user?.id} />
+
+            {/* Formulario rápido para agregar ejercicio */}
+            {showQuickAdd && (
+              <QuickExerciseAdd
+                onAdd={handleQuickAddExercise}
+                onCancel={() => setShowQuickAdd(false)}
+              />
+            )}
+
+            {/* Botón para agregar nuevo ejercicio - centrado */}
+            {!showQuickAdd && (
+              <div className="flex justify-center -mt-1">
+                <Button
+                  onClick={() => handleEditSection("goals")}
+                  variant="ghost"
+                  size="sm"
+                  className="text-[#FF6A00] hover:bg-[#FF6A00]/10 rounded-xl p-2"
+                >
+                  <Plus className="h-5 w-5" />
+                </Button>
+              </div>
+            )}
+          </div>
         </div>
-      </div>
       )}
 
       {/* Biometría & Mediciones - Solo para clientes */}
       {!isCoach && (
-      <div className="bg-[#1A1C1F] rounded-2xl p-6">
-        <div className="flex items-center justify-between mb-4">
-          <div className="flex items-center space-x-2">
-            <Activity className="h-5 w-5 text-[#FF6A00]" />
-            <h2 className="text-lg font-semibold">Biometría & Mediciones</h2>
-          </div>
-          <Button
-            onClick={() => {
-              setBiometricsModalMode('register')
-              setIsBiometricsModalOpen(true)
-            }}
-            variant="ghost"
-            size="sm"
-            className="text-[#FF6A00] hover:bg-[#FF6A00]/10 rounded-xl"
-          >
-            <Plus className="h-4 w-4" />
-          </Button>
-        </div>
-        <div className="space-y-3">
-          {biometrics.length > 0 ? (
-            biometrics.map((bio) => (
-              <div key={bio.id} className="flex items-center justify-between p-3 bg-white/5 rounded-xl">
-                <div className="flex-1">
-                  <div className="flex items-center justify-between">
-                    <span className="font-medium text-white">{bio.name}</span>
-                    <span className="text-sm text-gray-400">{bio.value} {bio.unit}</span>
-                  </div>
-                  {bio.notes && (
-                    <p className="text-xs text-gray-400 mt-1">{bio.notes}</p>
-                  )}
-                </div>
-                <Button
-                  onClick={() => handleDeleteBiometric(bio)}
-                  variant="ghost"
-                  size="sm"
-                  className="text-red-400 hover:bg-red-400/10 rounded-xl ml-2"
-                >
-                  <Minus className="h-4 w-4" />
-                </Button>
-              </div>
-            ))
-          ) : (
-            <div className="text-center py-8">
-              <Activity className="h-12 w-12 text-gray-400 mx-auto mb-4" />
-              <p className="text-gray-400">No hay mediciones registradas</p>
+        <div className="bg-[#1A1C1F] rounded-2xl p-6">
+          <div className="flex items-center justify-between mb-4">
+            <div className="flex items-center space-x-2">
+              <Activity className="h-5 w-5 text-[#FF6A00]" />
+              <h2 className="text-lg font-semibold">Biometría & Mediciones</h2>
             </div>
-          )}
+            <Button
+              onClick={() => {
+                setBiometricsModalMode('register')
+                setIsBiometricsModalOpen(true)
+              }}
+              variant="ghost"
+              size="sm"
+              className="text-[#FF6A00] hover:bg-[#FF6A00]/10 rounded-xl"
+            >
+              <Plus className="h-4 w-4" />
+            </Button>
+          </div>
+          <div className="space-y-3">
+            {biometrics.length > 0 ? (
+              biometrics.map((bio) => (
+                <div key={bio.id} className="flex items-center justify-between p-3 bg-white/5 rounded-xl">
+                  <div className="flex-1">
+                    <div className="flex items-center justify-between">
+                      <span className="font-medium text-white">{bio.name}</span>
+                      <span className="text-sm text-gray-400">{bio.value} {bio.unit}</span>
+                    </div>
+                    {bio.notes && (
+                      <p className="text-xs text-gray-400 mt-1">{bio.notes}</p>
+                    )}
+                  </div>
+                  <Button
+                    onClick={() => handleDeleteBiometric(bio)}
+                    variant="ghost"
+                    size="sm"
+                    className="text-red-400 hover:bg-red-400/10 rounded-xl ml-2"
+                  >
+                    <Minus className="h-4 w-4" />
+                  </Button>
+                </div>
+              ))
+            ) : (
+              <div className="text-center py-8">
+                <Activity className="h-12 w-12 text-gray-400 mx-auto mb-4" />
+                <p className="text-gray-400">No hay mediciones registradas</p>
+              </div>
+            )}
+          </div>
+          <p className="text-xs text-gray-400 mt-4">Estos datos no reemplazan consejo médico.</p>
         </div>
-        <p className="text-xs text-gray-400 mt-4">Estos datos no reemplazan consejo médico.</p>
-      </div>
       )}
 
       {/* Compras recientes - Solo para clientes */}
       {!isCoach && (
-      <div className="bg-[#1A1C1F] rounded-2xl p-6">
-        <div className="flex items-center justify-between mb-4">
-          <div className="flex items-center space-x-2">
-            <FileText className="h-5 w-5 text-[#FF6A00]" />
-            <h2 className="text-lg font-semibold">Compras recientes</h2>
+        <div className="bg-[#1A1C1F] rounded-2xl p-6">
+          <div className="flex items-center justify-between mb-4">
+            <div className="flex items-center space-x-2">
+              <FileText className="h-5 w-5 text-[#FF6A00]" />
+              <h2 className="text-lg font-semibold">Compras recientes</h2>
+            </div>
+          </div>
+          <RecentPurchasesList userId={user?.id} />
+          <div className="mt-4">
+            <Button variant="ghost" className="w-full justify-start text-white hover:bg-white/10">
+              <FileText className="h-4 w-4 mr-3" />
+              Ver facturas
+            </Button>
           </div>
         </div>
-        <RecentPurchasesList userId={user?.id} />
-        <div className="mt-4">
-          <Button variant="ghost" className="w-full justify-start text-white hover:bg-white/10">
-            <FileText className="h-4 w-4 mr-3" />
-            Ver facturas
-          </Button>
-        </div>
-      </div>
       )}
 
       {/* Lesiones / Contraindicaciones - Solo para clientes */}
       {!isCoach && (
-      <div className="bg-[#1A1C1F] rounded-2xl p-6">
-        <div className="flex items-center justify-between mb-4">
-          <div className="flex items-center space-x-2">
-            <AlertTriangle className="h-5 w-5 text-[#FF6A00]" />
-            <h2 className="text-lg font-semibold">Lesiones / Contraindicaciones</h2>
-          </div>
-          <Button
-            onClick={() => handleEditSection("injuries")}
-            variant="ghost"
-            size="sm"
-            className="text-[#FF6A00] hover:bg-[#FF6A00]/10 rounded-xl"
-          >
-            <Edit3 className="h-4 w-4" />
-          </Button>
-        </div>
-        {injuries.length > 0 ? (
-          <div className="space-y-3">
-            {injuries.map((injury) => (
-              <div key={injury.id} className="p-3 bg-white/5 rounded-xl">
-                <div className="flex items-center justify-between mb-2">
-                  <div className="flex items-center space-x-3">
-                    <span className={`px-2 py-1 rounded-full text-xs ${getSeverityColor(injury.severity)}`}>
-                      {injury.severity === 'low' ? 'Baja' : injury.severity === 'medium' ? 'Media' : 'Alta'}
-                    </span>
-                    <span className="font-medium">{injury.name}</span>
-                  </div>
-                </div>
-                
-                {/* Información estandarizada */}
-                {(injury.muscleName || injury.painLevel) && (
-                  <div className="mt-2 space-y-1 text-sm text-gray-400">
-                    {injury.muscleName && (
-                      <div className="flex items-center space-x-2">
-                        <span className="text-[#FF6A00]">📍</span>
-                        <span>{injury.muscleName}</span>
-                        {injury.muscleGroup && (
-                          <span className="text-gray-500">({injury.muscleGroup})</span>
-                        )}
-                      </div>
-                    )}
-                    
-                    {injury.painLevel && (
-                      <div className="flex items-center space-x-2">
-                        <span className="text-[#FF6A00]">⚡</span>
-                        <span>Dolor nivel {injury.painLevel}/3</span>
-                        {injury.painDescription && (
-                          <span className="text-gray-500">- {injury.painDescription}</span>
-                        )}
-                      </div>
-                    )}
-                    
-                  </div>
-                )}
-                
-                {/* Descripción adicional */}
-                {injury.description && (
-                  <div className="mt-2 text-sm text-gray-300 bg-gray-800/30 p-2 rounded">
-                    {injury.description}
-                  </div>
-                )}
-              </div>
-            ))}
-          </div>
-        ) : (
-          <div className="text-center py-8">
-            <AlertTriangle className="h-12 w-12 text-gray-400 mx-auto mb-4" />
-            <p className="text-gray-400">No hay lesiones registradas</p>
+        <div className="bg-[#1A1C1F] rounded-2xl p-6">
+          <div className="flex items-center justify-between mb-4">
+            <div className="flex items-center space-x-2">
+              <AlertTriangle className="h-5 w-5 text-[#FF6A00]" />
+              <h2 className="text-lg font-semibold">Lesiones / Contraindicaciones</h2>
+            </div>
             <Button
               onClick={() => handleEditSection("injuries")}
-              variant="outline"
+              variant="ghost"
               size="sm"
-              className="mt-4 text-[#FF6A00] border-[#FF6A00]/20 hover:bg-[#FF6A00]/10"
+              className="text-[#FF6A00] hover:bg-[#FF6A00]/10 rounded-xl"
             >
-              + Agregar lesión
+              <Edit3 className="h-4 w-4" />
             </Button>
           </div>
-        )}
+          {injuries.length > 0 ? (
+            <div className="space-y-3">
+              {injuries.map((injury) => (
+                <div key={injury.id} className="p-3 bg-white/5 rounded-xl">
+                  <div className="flex items-center justify-between mb-2">
+                    <div className="flex items-center space-x-3">
+                      <span className={`px-2 py-1 rounded-full text-xs ${getSeverityColor(injury.severity)}`}>
+                        {injury.severity === 'low' ? 'Baja' : injury.severity === 'medium' ? 'Media' : 'Alta'}
+                      </span>
+                      <span className="font-medium">{injury.name}</span>
+                    </div>
+                  </div>
+
+                  {/* Información estandarizada */}
+                  {(injury.muscleName || injury.painLevel) && (
+                    <div className="mt-2 space-y-1 text-sm text-gray-400">
+                      {injury.muscleName && (
+                        <div className="flex items-center space-x-2">
+                          <span className="text-[#FF6A00]">📍</span>
+                          <span>{injury.muscleName}</span>
+                          {injury.muscleGroup && (
+                            <span className="text-gray-500">({injury.muscleGroup})</span>
+                          )}
+                        </div>
+                      )}
+
+                      {injury.painLevel && (
+                        <div className="flex items-center space-x-2">
+                          <span className="text-[#FF6A00]">⚡</span>
+                          <span>Dolor nivel {injury.painLevel}/3</span>
+                          {injury.painDescription && (
+                            <span className="text-gray-500">- {injury.painDescription}</span>
+                          )}
+                        </div>
+                      )}
+
+                    </div>
+                  )}
+
+                  {/* Descripción adicional */}
+                  {injury.description && (
+                    <div className="mt-2 text-sm text-gray-300 bg-gray-800/30 p-2 rounded">
+                      {injury.description}
+                    </div>
+                  )}
+                </div>
+              ))}
+            </div>
+          ) : (
+            <div className="text-center py-8">
+              <AlertTriangle className="h-12 w-12 text-gray-400 mx-auto mb-4" />
+              <p className="text-gray-400">No hay lesiones registradas</p>
+              <Button
+                onClick={() => handleEditSection("injuries")}
+                variant="outline"
+                size="sm"
+                className="mt-4 text-[#FF6A00] border-[#FF6A00]/20 hover:bg-[#FF6A00]/10"
+              >
+                + Agregar lesión
+              </Button>
+            </div>
+          )}
         </div>
       )}
 
       {/* Logros & badges - Solo para clientes */}
       {!isCoach && (
-      <div className="bg-[#1A1C1F] rounded-2xl p-6">
-        <div className="flex items-center justify-between mb-4">
-          <h2 className="text-lg font-semibold">Logros & badges</h2>
-          <Button
-            onClick={() => handleEditSection("achievements")}
-            variant="ghost"
-            size="sm"
-            className="text-[#FF6A00] hover:bg-[#FF6A00]/10 rounded-xl"
-          >
-            <Edit3 className="h-4 w-4 mr-2" />
-            Editar
-          </Button>
-        </div>
-        <div className="grid grid-cols-3 gap-4">
-          {[1, 2, 3, 4, 5, 6].map((i) => (
-            <div key={i} className="aspect-square bg-white/5 rounded-xl flex items-center justify-center">
-              <div className="text-center">
-                <div className="w-12 h-12 bg-gradient-to-br from-yellow-400 to-yellow-600 rounded-full mx-auto mb-2 flex items-center justify-center">
-                  <Trophy className="h-6 w-6 text-white" />
+        <div className="bg-[#1A1C1F] rounded-2xl p-6">
+          <div className="flex items-center justify-between mb-4">
+            <h2 className="text-lg font-semibold">Logros & badges</h2>
+            <Button
+              onClick={() => handleEditSection("achievements")}
+              variant="ghost"
+              size="sm"
+              className="text-[#FF6A00] hover:bg-[#FF6A00]/10 rounded-xl"
+            >
+              <Edit3 className="h-4 w-4 mr-2" />
+              Editar
+            </Button>
+          </div>
+          <div className="grid grid-cols-3 gap-4">
+            {[1, 2, 3, 4, 5, 6].map((i) => (
+              <div key={i} className="aspect-square bg-white/5 rounded-xl flex items-center justify-center">
+                <div className="text-center">
+                  <div className="w-12 h-12 bg-gradient-to-br from-yellow-400 to-yellow-600 rounded-full mx-auto mb-2 flex items-center justify-center">
+                    <Trophy className="h-6 w-6 text-white" />
+                  </div>
+                  <p className="text-xs text-gray-400">Logro {i}</p>
                 </div>
-                <p className="text-xs text-gray-400">Logro {i}</p>
               </div>
-              </div>
-          ))}
+            ))}
+          </div>
         </div>
-      </div>
       )}
 
       {/* Modales */}
-      <ProfileEditModal 
-        isOpen={isEditModalOpen} 
+      <ProfileEditModal
+        isOpen={isEditModalOpen}
         onClose={() => {
           setIsEditModalOpen(false)
           setEditingSection(null)
         }}
         editingSection={editingSection}
       />
-      
+
       <ObjectivesModal
         isOpen={isObjectivesModalOpen}
         onClose={() => setIsObjectivesModalOpen(false)}
       />
-      
+
       <BiometricsModal
         isOpen={isBiometricsModalOpen}
         onClose={() => setIsBiometricsModalOpen(false)}
         mode={biometricsModalMode}
       />
-      
+
       {/* Modal de confirmación para eliminar biometría */}
       <ConfirmationModal
         isOpen={showBiometricDeleteConfirmation}
@@ -1206,7 +1239,7 @@ export function ProfileScreen() {
         onConfirm={confirmDeleteBiometric}
         title="Eliminar Medición"
         description={
-          biometricToDelete 
+          biometricToDelete
             ? `¿Estás seguro de que quieres eliminar la medición "${biometricToDelete.name}: ${biometricToDelete.value} ${biometricToDelete.unit}"? Esta acción no se puede deshacer.`
             : ""
         }
@@ -1222,7 +1255,7 @@ export function ProfileScreen() {
         injuries={injuries}
         onSave={handleSaveInjuries}
       />
-      
+
       {/* Debug info */}
       {process.env.NODE_ENV === 'development' && (
         <div className="fixed bottom-4 right-4 bg-black/80 text-white p-2 rounded text-xs max-w-xs">
