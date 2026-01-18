@@ -31,12 +31,14 @@ import {
   Printer,
   Loader2,
   ArrowUp,
-  ArrowDown
+  ArrowDown,
+  Edit2
 } from "lucide-react"
 import { useProfileManagement } from '@/hooks/client/use-profile-management'
 import { useClientMetrics } from '@/hooks/client/use-client-metrics'
 import { useCoachProfile } from '@/hooks/coach/use-coach-profile'
 import { useAuth } from "@/contexts/auth-context"
+import { useToast } from "@/components/ui/use-toast"
 import { ProfileEditModal } from "@/components/mobile/profile-edit-modal"
 import { ObjectivesModal } from "@/components/mobile/objectives-modal"
 import { BiometricsModal } from "@/components/mobile/biometrics-modal"
@@ -203,13 +205,20 @@ export function ProfileScreen() {
     loadProfile,
     loadBiometrics,
     loadInjuries,
-    deleteBiometric
+    deleteBiometric,
+    createBiometric,
+    createInjury,
+    updateInjury,
+    deleteInjury
   } = useProfileManagement()
 
   // ... (rest of imports and hooks remain the same until the JSX) ...
 
   const { user } = useAuth()
+  const { toast } = useToast()
   const [activityFilter, setActivityFilter] = useState<'fitness' | 'nutricion'>('fitness')
+  const [selectedBiometric, setSelectedBiometric] = useState<any>(null)
+  const [bioMode, setBioMode] = useState<'register' | 'edit'>('register')
   const [ringsWeek, setRingsWeek] = useState(new Date())
   const { metrics, weeklyData, loading: metricsLoading } = useClientMetrics(user?.id, activityFilter, ringsWeek)
 
@@ -223,6 +232,44 @@ export function ProfileScreen() {
     exercisesTarget: number;
   } | null>(null)
 
+  const processedBiometrics = useMemo(() => {
+    if (!Array.isArray(biometrics)) return []
+
+    // Agrupar por nombre
+    const groups: { [key: string]: any[] } = {}
+    biometrics.forEach(b => {
+      if (!groups[b.name]) groups[b.name] = []
+      groups[b.name].push(b)
+    })
+
+    // Procesar cada grupo
+    return Object.keys(groups).map(name => {
+      // Ordenar descendente por fecha (aunque API ya lo hace, mejor asegurar)
+      const sorted = groups[name].sort((a, b) =>
+        new Date(b.created_at || 0).getTime() - new Date(a.created_at || 0).getTime()
+      )
+
+      const current = sorted[0]
+      const previous = sorted[1]
+
+      let trend = 'neutral'
+      let diff = 0
+
+      if (previous) {
+        diff = current.value - previous.value
+        if (diff > 0) trend = 'up'
+        else if (diff < 0) trend = 'down'
+      }
+
+      return {
+        ...current,
+        trend,
+        previousValue: previous?.value,
+        diff: Math.abs(diff)
+      }
+    })
+  }, [biometrics])
+
   useEffect(() => {
     console.log('🧿 [RINGS][PROFILE] Filtro cambiado:', {
       activityFilter,
@@ -230,6 +277,8 @@ export function ProfileScreen() {
       selectedDay: selectedDay?.date || null
     })
   }, [activityFilter, user?.id])
+
+
 
   useEffect(() => {
     console.log('🧿 [RINGS][PROFILE] selectedDay actualizado:', {
@@ -464,28 +513,151 @@ export function ProfileScreen() {
 
   const handleSaveInjuries = useCallback(async (updatedInjuries: any[]) => {
     try {
-      // API eliminada - solo actualizar estado local
-      console.warn('⚠️ API /api/profile/injuries eliminada - guardando lesiones localmente')
-      // No hacer llamada a la API, solo actualizar estado local
-      // Simular éxito
-      const data = { success: true, injuries: updatedInjuries }
+      // 1. Identificar eliminadas (están en current, no en updated)
+      const currentIds = injuries.map(i => i.id)
+      const updatedIds = updatedInjuries.filter(i => !i.id.toString().startsWith('temp_')).map(i => i.id)
+      const toDelete = currentIds.filter(id => !updatedIds.includes(id))
 
-      if (data.success) {
-        // Recargar las lesiones específicamente para actualizar inmediatamente
-        await loadInjuries()
-        setShowInjuriesModal(false)
-      } else {
-        console.error('Error saving injuries:', data.error)
+      // 2. Identificar nuevas (tienen temp_)
+      const toCreate = updatedInjuries.filter(i => i.id.toString().startsWith('temp_'))
+
+      // 3. Identificar actualizadas (están en ambos but changed... simplified: update all existing in updated list)
+      const toUpdate = updatedInjuries.filter(i => !i.id.toString().startsWith('temp_'))
+
+      // Ejecutar operaciones en paralelo
+      const promises = []
+
+      // Delete
+      for (const id of toDelete) {
+        promises.push(deleteInjury(id))
       }
+
+      // Create
+      for (const injury of toCreate) {
+        const { id, ...data } = injury
+        promises.push(createInjury({
+          name: data.name,
+          severity: data.severity,
+          description: data.description,
+          restrictions: data.restrictions,
+          // Campos adicionales para el frontend (asegurar que se envíen si el backend los soporta o ignorarlos)
+          // @ts-ignore
+          muscleId: data.muscleId,
+          // @ts-ignore
+          muscleName: data.muscleName,
+          // @ts-ignore
+          muscleGroup: data.muscleGroup,
+          // @ts-ignore
+          painLevel: data.painLevel,
+          // @ts-ignore
+          painDescription: data.painDescription
+        }))
+      }
+
+      // Update
+      for (const injury of toUpdate) {
+        const { id, ...data } = injury
+        promises.push(updateInjury(id, {
+          name: data.name,
+          severity: data.severity,
+          description: data.description,
+          restrictions: data.restrictions,
+          // @ts-ignore
+          muscleId: data.muscleId,
+          // @ts-ignore
+          muscleName: data.muscleName,
+          // @ts-ignore
+          muscleGroup: data.muscleGroup,
+          // @ts-ignore
+          painLevel: data.painLevel,
+          // @ts-ignore
+          painDescription: data.painDescription
+        }))
+      }
+
+      await Promise.all(promises)
+
+      // Recargar para asegurar sincronización
+      await loadInjuries()
+      setShowInjuriesModal(false)
+
+      toast({
+        title: "Éxito",
+        description: "Lesiones actualizadas correctamente"
+      })
+
     } catch (error) {
       console.error('Error saving injuries:', error)
+      toast({
+        title: "Error",
+        description: "Error al guardar los cambios",
+        variant: "destructive"
+      })
     }
-  }, [loadInjuries, setShowInjuriesModal])
+  }, [injuries, createInjury, updateInjury, deleteInjury, loadInjuries, setShowInjuriesModal, toast])
 
-  const handleDeleteBiometric = useCallback((biometric: { id: string; name: string; value: string; unit: string }) => {
-    setBiometricToDelete(biometric)
-    setShowBiometricDeleteConfirmation(true)
-  }, [setBiometricToDelete, setShowBiometricDeleteConfirmation])
+  /* --------------------------------------------------------------------------------
+   * GESTIÓN DE BIOMETRÍAS
+   * -------------------------------------------------------------------------------- */
+  const handleEditBiometric = (biometric: any) => {
+    setSelectedBiometric(biometric)
+    setBiometricsModalMode('edit')
+    setIsBiometricsModalOpen(true)
+  }
+
+  const handleSaveBiometric = useCallback(async (data: { name: string, value: number, unit: string }) => {
+    try {
+      if (biometricsModalMode === 'edit' && selectedBiometric) {
+        // En modo edición, NO eliminamos el anterior para mantener historial
+        // createBiometric creará una nueva entrada
+      }
+
+      await createBiometric({
+        name: data.name,
+        value: data.value,
+        unit: data.unit
+      })
+
+      toast({
+        title: biometricsModalMode === 'edit' ? "Medición actualizada" : "Medición registrada",
+        description: `${data.name}: ${data.value} ${data.unit}`,
+      })
+
+      await loadBiometrics()
+      setIsBiometricsModalOpen(false)
+      setSelectedBiometric(null)
+      setBiometricsModalMode('register')
+    } catch (error) {
+      console.error('Error saving biometric:', error)
+      toast({
+        variant: "destructive",
+        title: "Error",
+        description: "No se pudo guardar la medición"
+      })
+    }
+  }, [biometricsModalMode, selectedBiometric, createBiometric, deleteBiometric, loadBiometrics, setIsBiometricsModalOpen, setBiometricsModalMode, toast])
+
+  const handleDeleteBiometricFromModal = useCallback(async () => {
+    if (selectedBiometric) {
+      try {
+        await deleteBiometric(selectedBiometric.id)
+        toast({
+          title: "Medición eliminada",
+        })
+        await loadBiometrics()
+        setIsBiometricsModalOpen(false)
+        setSelectedBiometric(null)
+        setBiometricsModalMode('register')
+      } catch (error) {
+        toast({
+          variant: "destructive",
+          title: "Error",
+          description: "No se pudo eliminar la medición"
+        })
+      }
+    }
+  }, [selectedBiometric, deleteBiometric, loadBiometrics, setIsBiometricsModalOpen, setBiometricsModalMode, toast])
+
 
   const confirmDeleteBiometric = useCallback(async () => {
     if (!biometricToDelete) return
@@ -500,6 +672,8 @@ export function ProfileScreen() {
       console.error('Error deleting biometric:', error)
     }
   }, [biometricToDelete, deleteBiometric, loadBiometrics, setShowBiometricDeleteConfirmation, setBiometricToDelete])
+
+
 
   return (
     <div className="min-h-screen bg-[#0F1012] text-white p-4 space-y-6">
@@ -826,21 +1000,6 @@ export function ProfileScreen() {
       {/* Anillos de actividad - Solo para clientes */}
       {!isCoach && (
         <div className="bg-[#1A1C1F] rounded-2xl p-6">
-          <div className="flex items-center justify-between mb-4">
-            <h2 className="text-lg font-semibold">Anillos de actividad</h2>
-            <div className="flex items-center space-x-2">
-              <button
-                onClick={() => setShowCalendar(!showCalendar)}
-                className="p-2 rounded-lg bg-gray-800 hover:bg-gray-700 transition-colors"
-              >
-                <Calendar className="w-5 h-5 text-gray-400" />
-              </button>
-              {metricsLoading && (
-                <div className="w-4 h-4 border-2 border-orange-500 border-t-transparent rounded-full animate-spin"></div>
-              )}
-            </div>
-          </div>
-
           {/* Anillos diarios */}
           <div className="mb-6">
             <DailyActivityRings
@@ -856,6 +1015,19 @@ export function ProfileScreen() {
                 })
                 setRingsWeek(w)
               }}
+              headerRight={
+                <div className="flex items-center space-x-2">
+                  <button
+                    onClick={() => setShowCalendar(!showCalendar)}
+                    className="p-2 rounded-lg bg-gray-800 hover:bg-gray-700 transition-colors"
+                  >
+                    <Calendar className="w-5 h-5 text-gray-400" />
+                  </button>
+                  {metricsLoading && (
+                    <div className="w-4 h-4 border-2 border-orange-500 border-t-transparent rounded-full animate-spin"></div>
+                  )}
+                </div>
+              }
               onSelectDay={(d: any) => {
                 console.log(' [RINGS][PROFILE] Click día en anillos:', {
                   activityFilter,
@@ -921,18 +1093,8 @@ export function ProfileScreen() {
 
             {/* Información más a la derecha con formato rectangular */}
             <div className="flex flex-col space-y-3 items-end">
-              <div
-                className="text-xs text-gray-400 mb-2 cursor-pointer"
-                onClick={() => {
-                  console.log('🧿 [RINGS][PROFILE] Click volver a semanal:', {
-                    activityFilter,
-                    prevSelectedDay: selectedDay?.date || null
-                  })
-                  setSelectedDay(null)
-                }}
-              >
-                {selectedDay ? 'Volver a Semanal' : 'Semanal'}
-              </div>
+              {selectedDay ? 'Volver a Semanal' : 'Semanal'}
+
               {activityRings.map((ring) => (
                 <div key={ring.type} className="flex flex-col items-end" style={{ minWidth: '120px' }}>
                   <div className="flex items-center gap-1.5 text-sm font-medium justify-end" style={{ color: ring.color }}>
@@ -977,255 +1139,304 @@ export function ProfileScreen() {
             >
               Nutrición
             </button>
+
+          </div>
+
+
+          {/* Calendar Icon - Absolute inside relative parent - Moved left */}
+          <div className="absolute top-6 right-12 z-20">
+            <button
+              className="text-gray-400 hover:text-white transition-colors bg-black/20 p-2 rounded-full backdrop-blur-sm"
+              onClick={() => setShowCalendar(true)}
+            >
+              <Calendar className="h-5 w-5" />
+            </button>
           </div>
 
           {/* Modal del Calendario */}
-          {showCalendar && (
-            <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
-              <div className="bg-[#1A1C1F] rounded-2xl w-full max-w-md max-h-[80vh] overflow-hidden">
-                <div className="p-4 border-b border-gray-700">
-                  <div className="flex items-center justify-between">
-                    <h3 className="text-lg font-semibold">Historial de Actividad</h3>
-                    <button
-                      onClick={() => setShowCalendar(false)}
-                      className="p-2 rounded-lg hover:bg-gray-700 transition-colors"
-                    >
-                      <X className="w-5 h-5 text-gray-400" />
-                    </button>
+          {
+            showCalendar && (
+              <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
+                <div className="bg-[#1A1C1F] rounded-2xl w-full max-w-md max-h-[80vh] overflow-hidden">
+                  <div className="p-4 border-b border-gray-700">
+                    <div className="flex items-center justify-between">
+                      <h3 className="text-lg font-semibold">Historial de Actividad</h3>
+                      <button
+                        onClick={() => setShowCalendar(false)}
+                        className="p-2 rounded-lg hover:bg-gray-700 transition-colors"
+                      >
+                        <X className="w-5 h-5 text-gray-400" />
+                      </button>
+                    </div>
+                  </div>
+                  <div className="p-4 overflow-y-auto max-h-[60vh]">
+                    <ActivityCalendar userId={user?.id} />
                   </div>
                 </div>
-                <div className="p-4 overflow-y-auto max-h-[60vh]">
-                  <ActivityCalendar userId={user?.id} />
+              </div>
+            )
+          }
+
+        </div >
+      )
+      }
+
+      {/* Sections Wrapper */}
+      <div className="space-y-6">
+
+        {/* 1. SECCIÓN BIOMETRÍA */}
+        {!isCoach && (
+          <div className="flex flex-col space-y-3">
+            <div className="flex items-center justify-between px-2">
+              <div className="flex items-center gap-2">
+                <Activity className="h-4 w-4 text-[#FF6A00]" />
+                <h2 className="text-sm font-semibold text-gray-200">Biometría</h2>
+              </div>
+              <div className="flex gap-1">
+                {/* Botón de editar visual (abre modal para editar values existentes al clickear card realmente) */}
+                <Button
+                  onClick={() => {
+                    setSelectedBiometric(null)
+                    setBiometricsModalMode('edit')
+                    setIsBiometricsModalOpen(true)
+                  }}
+                  variant="ghost"
+                  size="sm"
+                  className="text-gray-500 hover:text-white h-6 w-6 p-0 rounded-full"
+                >
+                  <Edit2 className="h-3 w-3" />
+                </Button>
+                <Button
+                  onClick={() => {
+                    setBiometricsModalMode('register')
+                    setIsBiometricsModalOpen(true)
+                  }}
+                  variant="ghost"
+                  size="sm"
+                  className="text-[#FF6A00] hover:bg-[#FF6A00]/10 h-6 w-6 p-0 rounded-full"
+                >
+                  <Plus className="h-4 w-4" />
+                </Button>
+              </div>
+            </div>
+
+            {/* Horizontal Scroll Biometrics - Fixed Height */}
+            <div className="bg-transparent h-[120px] w-full">
+              <div className="overflow-x-auto pb-2 -mx-2 px-2 custom-scrollbar hide-scrollbar-mobile" style={{ scrollbarWidth: 'none' }}>
+                <div className="flex gap-3 min-w-max">
+                  {processedBiometrics.length > 0 ? (
+                    processedBiometrics.map((bio) => (
+                      <div
+                        key={bio.id}
+                        onClick={() => handleEditBiometric(bio)}
+                        className="bg-white/5 rounded-2xl p-3 cursor-pointer hover:bg-white/10 transition-all border-l-2 border-transparent hover:border-l-[#FF6A00] w-[130px] h-[90px] flex flex-col justify-between group"
+                      >
+                        <div className="flex justify-between items-start">
+                          <span className="text-[10px] uppercase text-gray-400 font-bold max-w-[70%] leading-tight tracking-wider">{bio.name}</span>
+                          {bio.trend !== 'neutral' && (
+                            <div className={`flex items-center gap-0.5 text-[9px] font-bold ${bio.trend === 'up' ? 'text-green-500' : 'text-red-500'}`}>
+                              {bio.trend === 'up' ? <ArrowUp className="h-2.5 w-2.5" /> : <ArrowDown className="h-2.5 w-2.5" />}
+                              <span>{Number(bio.diff).toFixed(1)}</span>
+                            </div>
+                          )}
+                        </div>
+                        <div className="flex items-baseline gap-1 mt-auto">
+                          <span className="text-2xl font-bold text-white">{bio.value}</span>
+                          <span className="text-[10px] text-gray-500 font-medium">{bio.unit}</span>
+                        </div>
+                      </div>
+                    ))
+                  ) : (
+                    <div className="flex items-center justify-center w-full h-[100px] text-xs text-gray-500 border border-dashed border-white/10 rounded-2xl">
+                      Sin datos registrados
+                    </div>
+                  )}
                 </div>
               </div>
             </div>
-          )}
+          </div>
+        )}
 
-        </div>
-      )}
-
-      {/* Objetivos - Solo para clientes */}
-      {!isCoach && (
-        <div className="bg-[#1A1C1F] rounded-2xl p-4">
-          <div className="space-y-1">
-            {/* Lista de ejercicios del usuario */}
-            <ExerciseProgressList userId={user?.id} />
-
-            {/* Formulario rápido para agregar ejercicio */}
-            {showQuickAdd && (
-              <QuickExerciseAdd
-                onAdd={handleQuickAddExercise}
-                onCancel={() => setShowQuickAdd(false)}
-              />
-            )}
-
-            {/* Botón para agregar nuevo ejercicio - centrado */}
-            {!showQuickAdd && (
-              <div className="flex justify-center -mt-1">
+        {/* 2. SECCIÓN OBJETIVOS */}
+        {!isCoach && (
+          <div className="flex flex-col space-y-3">
+            <div className="flex items-center justify-between px-2">
+              <div className="flex items-center gap-2">
+                <Target className="h-4 w-4 text-[#FF6A00]" />
+                <h2 className="text-sm font-semibold text-gray-200">Objetivos</h2>
+              </div>
+              <div className="flex gap-1">
                 <Button
                   onClick={() => handleEditSection("goals")}
                   variant="ghost"
                   size="sm"
-                  className="text-[#FF6A00] hover:bg-[#FF6A00]/10 rounded-xl p-2"
+                  className="text-gray-500 hover:text-white h-6 w-6 p-0 rounded-full"
                 >
-                  <Plus className="h-5 w-5" />
+                  <Edit2 className="h-3 w-3" />
+                </Button>
+                <Button
+                  onClick={() => setShowQuickAdd(true)}
+                  variant="ghost"
+                  size="sm"
+                  className="text-[#FF6A00] hover:bg-[#FF6A00]/10 h-6 w-6 p-0 rounded-full"
+                >
+                  <Plus className="h-4 w-4" />
                 </Button>
               </div>
-            )}
-          </div>
-        </div>
-      )}
-
-      {/* Biometría & Mediciones - Solo para clientes */}
-      {!isCoach && (
-        <div className="bg-[#1A1C1F] rounded-2xl p-6">
-          <div className="flex items-center justify-between mb-4">
-            <div className="flex items-center space-x-2">
-              <Activity className="h-5 w-5 text-[#FF6A00]" />
-              <h2 className="text-lg font-semibold">Biometría & Mediciones</h2>
             </div>
-            <Button
-              onClick={() => {
-                setBiometricsModalMode('register')
-                setIsBiometricsModalOpen(true)
-              }}
-              variant="ghost"
-              size="sm"
-              className="text-[#FF6A00] hover:bg-[#FF6A00]/10 rounded-xl"
-            >
-              <Plus className="h-4 w-4" />
-            </Button>
-          </div>
-          <div className="space-y-3">
-            {biometrics.length > 0 ? (
-              biometrics.map((bio) => (
-                <div key={bio.id} className="flex items-center justify-between p-3 bg-white/5 rounded-xl">
-                  <div className="flex-1">
-                    <div className="flex items-center justify-between">
-                      <span className="font-medium text-white">{bio.name}</span>
-                      <span className="text-sm text-gray-400">{bio.value} {bio.unit}</span>
-                    </div>
-                    {bio.notes && (
-                      <p className="text-xs text-gray-400 mt-1">{bio.notes}</p>
-                    )}
-                  </div>
-                  <Button
-                    onClick={() => handleDeleteBiometric(bio)}
-                    variant="ghost"
-                    size="sm"
-                    className="text-red-400 hover:bg-red-400/10 rounded-xl ml-2"
-                  >
-                    <Minus className="h-4 w-4" />
-                  </Button>
-                </div>
-              ))
-            ) : (
-              <div className="text-center py-8">
-                <Activity className="h-12 w-12 text-gray-400 mx-auto mb-4" />
-                <p className="text-gray-400">No hay mediciones registradas</p>
+
+            {showQuickAdd && (
+              <div className="mb-2">
+                <QuickExerciseAdd
+                  onAdd={handleQuickAddExercise}
+                  onCancel={() => setShowQuickAdd(false)}
+                />
               </div>
             )}
+
+            {/* Exercise List is now inherently Horizontal & Compact */}
+            <div className="h-[120px] w-full">
+              <ExerciseProgressList userId={user?.id} />
+            </div>
           </div>
-          <p className="text-xs text-gray-400 mt-4">Estos datos no reemplazan consejo médico.</p>
-        </div>
-      )}
+        )}
+
+        {/* 3. SECCIÓN LESIONES */}
+        {!isCoach && (
+          <div className="flex flex-col space-y-3">
+            <div className="flex items-center justify-between px-2">
+              <div className="flex items-center gap-2">
+                <AlertTriangle className="h-4 w-4 text-[#FF6A00]" />
+                <h2 className="text-sm font-semibold text-gray-200">Lesiones</h2>
+              </div>
+              <div className="flex gap-1">
+                {/* Botón editar lesiones (abre modal también) */}
+                <Button
+                  onClick={() => {
+                    // Logic to verify/edit existing? 
+                    setShowInjuriesModal(true)
+                  }}
+                  variant="ghost"
+                  size="sm"
+                  className="text-gray-500 hover:text-white h-6 w-6 p-0 rounded-full"
+                >
+                  <Edit2 className="h-3 w-3" />
+                </Button>
+                <Button
+                  onClick={() => setShowInjuriesModal(true)}
+                  variant="ghost"
+                  size="sm"
+                  className="text-[#FF6A00] hover:bg-[#FF6A00]/10 h-6 w-6 p-0 rounded-full"
+                >
+                  <Plus className="h-4 w-4" />
+                </Button>
+              </div>
+            </div>
+
+            <div className="bg-transparent h-[120px] w-full">
+              <div className="overflow-x-auto pb-2 -mx-2 px-2 custom-scrollbar hide-scrollbar-mobile" style={{ scrollbarWidth: 'none' }}>
+                <div className="flex gap-3 min-w-max">
+                  {injuries.length > 0 ? (
+                    injuries.map((injury) => (
+                      <div
+                        key={injury.id}
+                        onClick={() => {
+                          // Open edit modal for injury
+                          // TODO: Add handleEditInjury if needed, for now just open modal
+                          setShowInjuriesModal(true)
+                        }}
+                        className="bg-white/5 rounded-2xl p-4 cursor-pointer hover:bg-white/10 transition-all border-l-2 border-transparent hover:border-l-[#FF6A00] w-[140px] h-[100px] flex flex-col justify-between group"
+                      >
+                        <div className="flex justify-between items-start">
+                          <span className="text-[10px] uppercase text-gray-400 font-bold leading-tight max-w-[85%]">{injury.muscleName || injury.name}</span>
+                          <div className={`h-2 w-2 rounded-full ${injury.painLevel! >= 7 ? 'bg-red-500' :
+                            injury.painLevel! >= 4 ? 'bg-yellow-500' : 'bg-green-500'
+                            }`}></div>
+                        </div>
+
+                        <div className="mt-auto">
+                          <span className="text-white text-sm font-bold block truncate">{injury.name}</span>
+                          <span className={`text-[10px] font-medium ${injury.painLevel! >= 7 ? 'text-red-400' :
+                              injury.painLevel! >= 4 ? 'text-yellow-400' : 'text-green-400'
+                            }`}>
+                            {injury.painLevel! >= 7 ? 'Fuerte' : injury.painLevel! >= 4 ? 'Moderado' : 'Leve'}
+                          </span>
+                        </div>
+                      </div>
+                    ))
+                  ) : (
+                    <div className="flex items-center justify-center w-full h-[100px] text-xs text-gray-500 border border-dashed border-white/10 rounded-2xl">
+                      Sin lesiones activas
+                    </div>
+                  )}
+                </div>
+              </div>
+            </div>
+          </div>
+        )}
+
+      </div>
 
       {/* Compras recientes - Solo para clientes */}
-      {!isCoach && (
-        <div className="bg-[#1A1C1F] rounded-2xl p-6">
-          <div className="flex items-center justify-between mb-4">
-            <div className="flex items-center space-x-2">
-              <FileText className="h-5 w-5 text-[#FF6A00]" />
-              <h2 className="text-lg font-semibold">Compras recientes</h2>
+      {
+        !isCoach && (
+          <div className="bg-[#1A1C1F] rounded-2xl p-6">
+            <div className="flex items-center justify-between mb-4">
+              <div className="flex items-center space-x-2">
+                <FileText className="h-5 w-5 text-[#FF6A00]" />
+                <h2 className="text-lg font-semibold">Compras recientes</h2>
+              </div>
+            </div>
+            <RecentPurchasesList userId={user?.id} />
+            <div className="mt-4">
+              <Button variant="ghost" className="w-full justify-start text-white hover:bg-white/10">
+                <FileText className="h-4 w-4 mr-3" />
+                Ver facturas
+              </Button>
             </div>
           </div>
-          <RecentPurchasesList userId={user?.id} />
-          <div className="mt-4">
-            <Button variant="ghost" className="w-full justify-start text-white hover:bg-white/10">
-              <FileText className="h-4 w-4 mr-3" />
-              Ver facturas
-            </Button>
-          </div>
-        </div>
-      )}
+        )
+      }
 
-      {/* Lesiones / Contraindicaciones - Solo para clientes */}
-      {!isCoach && (
-        <div className="bg-[#1A1C1F] rounded-2xl p-6">
-          <div className="flex items-center justify-between mb-4">
-            <div className="flex items-center space-x-2">
-              <AlertTriangle className="h-5 w-5 text-[#FF6A00]" />
-              <h2 className="text-lg font-semibold">Lesiones / Contraindicaciones</h2>
+
+
+      {/* Logros & badges - Solo para clientes */}
+      {
+        !isCoach && (
+          <div className="bg-[#1A1C1F] rounded-2xl p-6">
+            <div className="flex items-center justify-between mb-4">
+              <h2 className="text-lg font-semibold">Logros & badges</h2>
+              <Button
+                onClick={() => handleEditSection("achievements")}
+                variant="ghost"
+                size="sm"
+                className="text-[#FF6A00] hover:bg-[#FF6A00]/10 rounded-xl"
+              >
+                <Edit3 className="h-4 w-4 mr-2" />
+                Editar
+              </Button>
             </div>
-            <Button
-              onClick={() => handleEditSection("injuries")}
-              variant="ghost"
-              size="sm"
-              className="text-[#FF6A00] hover:bg-[#FF6A00]/10 rounded-xl"
-            >
-              <Edit3 className="h-4 w-4" />
-            </Button>
-          </div>
-          {injuries.length > 0 ? (
-            <div className="space-y-3">
-              {injuries.map((injury) => (
-                <div key={injury.id} className="p-3 bg-white/5 rounded-xl">
-                  <div className="flex items-center justify-between mb-2">
-                    <div className="flex items-center space-x-3">
-                      <span className={`px-2 py-1 rounded-full text-xs ${getSeverityColor(injury.severity)}`}>
-                        {injury.severity === 'low' ? 'Baja' : injury.severity === 'medium' ? 'Media' : 'Alta'}
-                      </span>
-                      <span className="font-medium">{injury.name}</span>
+            <div className="grid grid-cols-3 gap-4">
+              {[1, 2, 3, 4, 5, 6].map((i) => (
+                <div key={i} className="aspect-square bg-white/5 rounded-xl flex items-center justify-center">
+                  <div className="text-center">
+                    <div className="w-12 h-12 bg-gradient-to-br from-yellow-400 to-yellow-600 rounded-full mx-auto mb-2 flex items-center justify-center">
+                      <Trophy className="h-6 w-6 text-white" />
                     </div>
+                    <p className="text-xs text-gray-400">Logro {i}</p>
                   </div>
-
-                  {/* Información estandarizada */}
-                  {(injury.muscleName || injury.painLevel) && (
-                    <div className="mt-2 space-y-1 text-sm text-gray-400">
-                      {injury.muscleName && (
-                        <div className="flex items-center space-x-2">
-                          <span className="text-[#FF6A00]">📍</span>
-                          <span>{injury.muscleName}</span>
-                          {injury.muscleGroup && (
-                            <span className="text-gray-500">({injury.muscleGroup})</span>
-                          )}
-                        </div>
-                      )}
-
-                      {injury.painLevel && (
-                        <div className="flex items-center space-x-2">
-                          <span className="text-[#FF6A00]">⚡</span>
-                          <span>Dolor nivel {injury.painLevel}/3</span>
-                          {injury.painDescription && (
-                            <span className="text-gray-500">- {injury.painDescription}</span>
-                          )}
-                        </div>
-                      )}
-
-                    </div>
-                  )}
-
-                  {/* Descripción adicional */}
-                  {injury.description && (
-                    <div className="mt-2 text-sm text-gray-300 bg-gray-800/30 p-2 rounded">
-                      {injury.description}
-                    </div>
-                  )}
                 </div>
               ))}
             </div>
-          ) : (
-            <div className="text-center py-8">
-              <AlertTriangle className="h-12 w-12 text-gray-400 mx-auto mb-4" />
-              <p className="text-gray-400">No hay lesiones registradas</p>
-              <Button
-                onClick={() => handleEditSection("injuries")}
-                variant="outline"
-                size="sm"
-                className="mt-4 text-[#FF6A00] border-[#FF6A00]/20 hover:bg-[#FF6A00]/10"
-              >
-                + Agregar lesión
-              </Button>
-            </div>
-          )}
-        </div>
-      )}
-
-      {/* Logros & badges - Solo para clientes */}
-      {!isCoach && (
-        <div className="bg-[#1A1C1F] rounded-2xl p-6">
-          <div className="flex items-center justify-between mb-4">
-            <h2 className="text-lg font-semibold">Logros & badges</h2>
-            <Button
-              onClick={() => handleEditSection("achievements")}
-              variant="ghost"
-              size="sm"
-              className="text-[#FF6A00] hover:bg-[#FF6A00]/10 rounded-xl"
-            >
-              <Edit3 className="h-4 w-4 mr-2" />
-              Editar
-            </Button>
           </div>
-          <div className="grid grid-cols-3 gap-4">
-            {[1, 2, 3, 4, 5, 6].map((i) => (
-              <div key={i} className="aspect-square bg-white/5 rounded-xl flex items-center justify-center">
-                <div className="text-center">
-                  <div className="w-12 h-12 bg-gradient-to-br from-yellow-400 to-yellow-600 rounded-full mx-auto mb-2 flex items-center justify-center">
-                    <Trophy className="h-6 w-6 text-white" />
-                  </div>
-                  <p className="text-xs text-gray-400">Logro {i}</p>
-                </div>
-              </div>
-            ))}
-          </div>
-        </div>
-      )}
+        )
+      }
 
       {/* Modales */}
       <ProfileEditModal
         isOpen={isEditModalOpen}
         onClose={() => {
-          setIsEditModalOpen(false)
+          setShowInjuriesModal(false)
           setEditingSection(null)
         }}
         editingSection={editingSection}
@@ -1240,6 +1451,9 @@ export function ProfileScreen() {
         isOpen={isBiometricsModalOpen}
         onClose={() => setIsBiometricsModalOpen(false)}
         mode={biometricsModalMode}
+        onSave={handleSaveBiometric}
+        initialData={selectedBiometric}
+        onDelete={handleDeleteBiometricFromModal}
       />
 
       {/* Modal de confirmación para eliminar biometría */}
@@ -1269,21 +1483,8 @@ export function ProfileScreen() {
         onSave={handleSaveInjuries}
       />
 
-      {/* Debug info */}
-      {process.env.NODE_ENV === 'development' && (
-        <div className="fixed bottom-4 right-4 bg-black/80 text-white p-2 rounded text-xs max-w-xs">
-          <div>Lesiones cargadas: {injuries?.length || 0}</div>
-          <div>Modal abierto: {showInjuriesModal ? 'Sí' : 'No'}</div>
-          {injuries && injuries.length > 0 && (
-            <div>Primera lesión: {injuries[0]?.name}</div>
-          )}
-        </div>
-      )}
-    </div>
+    </div >
   )
 }
 
 export default ProfileScreen
-
-
-

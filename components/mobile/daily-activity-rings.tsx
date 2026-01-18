@@ -24,9 +24,10 @@ interface DailyActivityRingsProps {
   onSelectDay?: (day: DailyMetrics) => void
   currentWeek?: Date
   onWeekChange?: (week: Date) => void
+  headerRight?: React.ReactNode
 }
 
-export function DailyActivityRings({ userId, selectedDate, category = 'fitness', onSelectDay, currentWeek: controlledWeek, onWeekChange }: DailyActivityRingsProps) {
+export function DailyActivityRings({ userId, selectedDate, category = 'fitness', onSelectDay, currentWeek: controlledWeek, onWeekChange, headerRight }: DailyActivityRingsProps) {
   const [uncontrolledWeek, setUncontrolledWeek] = useState(new Date())
   const currentWeek = controlledWeek ?? uncontrolledWeek
   const setCurrentWeek = (d: Date) => {
@@ -40,7 +41,7 @@ export function DailyActivityRings({ userId, selectedDate, category = 'fitness',
   const [dailyData, setDailyData] = useState<DailyMetrics[]>([])
   const [loading, setLoading] = useState(false)
   const [highlightedDay, setHighlightedDay] = useState<string | null>(selectedDate || null)
-  
+
   // Usar el hook existente para obtener datos reales con filtro de categoría
   const { weeklyData, loading: metricsLoading } = useClientMetrics(userId, category, currentWeek)
 
@@ -65,17 +66,17 @@ export function DailyActivityRings({ userId, selectedDate, category = 'fitness',
     try {
       const weekData: DailyMetrics[] = []
       const dayNames = ['Lun', 'Mar', 'Mié', 'Jue', 'Vie', 'Sáb', 'Dom']
-      
+
       // weeklyData ya viene como semana actual (Lun-Dom) desde useClientMetrics
       weeklyData.slice(0, 7).forEach((dayData, index) => {
         const dateString = dayData.date
-        
+
         console.log('📊 DailyActivityRings: Procesando día real', {
           dateString,
           dayData,
           hasData: !!dayData
         })
-        
+
         weekData.push({
           date: dateString,
           dayName: dayNames[index % 7], // Ajustar día de la semana
@@ -88,7 +89,7 @@ export function DailyActivityRings({ userId, selectedDate, category = 'fitness',
           category
         })
       })
-      
+
       setDailyData(weekData)
     } catch (error) {
       console.error('Error processing weekly data:', error)
@@ -124,13 +125,13 @@ export function DailyActivityRings({ userId, selectedDate, category = 'fitness',
     const day = startOfWeek.getDay()
     const diff = startOfWeek.getDate() - day + (day === 0 ? -6 : 1)
     startOfWeek.setDate(diff)
-    
+
     const endOfWeek = new Date(startOfWeek)
     endOfWeek.setDate(startOfWeek.getDate() + 6)
-    
+
     const startMonth = startOfWeek.toLocaleDateString('es-ES', { month: 'short' })
     const endMonth = endOfWeek.toLocaleDateString('es-ES', { month: 'short' })
-    
+
     if (startMonth === endMonth) {
       return `${startOfWeek.getDate()}-${endOfWeek.getDate()} ${startMonth}`
     } else {
@@ -203,9 +204,9 @@ export function DailyActivityRings({ userId, selectedDate, category = 'fitness',
   }
 
   return (
-    <div className="space-y-3">
+    <div className="space-y-3 relative">
       {/* Navegación semanal */}
-      <div className="flex items-center justify-center gap-2">
+      <div className="flex items-center justify-center gap-2 relative">
         <Button
           onClick={goToPreviousWeek}
           variant="ghost"
@@ -225,6 +226,13 @@ export function DailyActivityRings({ userId, selectedDate, category = 'fitness',
         >
           <ChevronRight className="h-4 w-4" />
         </Button>
+
+        {/* Elemento extra (Calendario) a la derecha */}
+        {headerRight && (
+          <div className="absolute right-0 top-1/2 -translate-y-1/2 translate-x-12">
+            {headerRight}
+          </div>
+        )}
       </div>
 
       {/* Grid de anillos diarios */}
@@ -234,13 +242,12 @@ export function DailyActivityRings({ userId, selectedDate, category = 'fitness',
           const minutesProgress = day.minutesTarget > 0 ? Math.min((day.minutes / day.minutesTarget) * 100, 100) : 0
           const exercisesProgress = day.exercisesTarget > 0 ? Math.min((day.exercises / day.exercisesTarget) * 100, 100) : 0
           const isHighlighted = highlightedDay === day.date
-          
+
           return (
             <div
               key={day.date}
-              className={`text-center cursor-pointer flex flex-col items-center rounded-lg p-1 transition-all ${
-                isHighlighted ? 'bg-blue-600/20 ring-2 ring-blue-400' : 'hover:bg-gray-800/50'
-              }`}
+              className={`text-center cursor-pointer flex flex-col items-center rounded-lg p-1 transition-all ${isHighlighted ? 'bg-blue-600/20 ring-2 ring-blue-400' : 'hover:bg-gray-800/50'
+                }`}
               onClick={() => {
                 console.log('🧿 [RINGS][DAILY] Click día:', {
                   category,
@@ -254,35 +261,35 @@ export function DailyActivityRings({ userId, selectedDate, category = 'fitness',
               <div className="text-gray-400 text-xs font-medium mb-2 h-3 flex items-center justify-center w-full">
                 {day.dayName.charAt(0)}
               </div>
-              
+
               {/* Anillos apilados */}
               <div
                 className="flex justify-center relative"
                 style={{ width: 40, height: 40 }}
               >
                 {/* Anillo exterior - Kcal */}
-                <ActivityRing 
-                  progress={kcalProgress} 
-                  color="#FF6A00" 
+                <ActivityRing
+                  progress={kcalProgress}
+                  color="#FF6A00"
                   size={40}
                 />
-                
+
                 {/* Anillo medio - Minutos (solo si aplica) */}
                 {shouldShowMiddleRing(day.category || 'fitness', day.minutesTarget) && (
                   <div className="absolute top-1 left-1">
-                    <ActivityRing 
-                      progress={minutesProgress} 
-                      color="#FF8C42" 
+                    <ActivityRing
+                      progress={minutesProgress}
+                      color="#FF8C42"
                       size={32}
                     />
                   </div>
                 )}
-                
+
                 {/* Anillo interior - Ejercicios/Platos */}
                 <div className={`absolute ${shouldShowMiddleRing(day.category || 'fitness', day.minutesTarget) ? 'top-2 left-2' : 'top-1 left-1'}`}>
-                  <ActivityRing 
-                    progress={exercisesProgress} 
-                    color="#FFFFFF" 
+                  <ActivityRing
+                    progress={exercisesProgress}
+                    color="#FFFFFF"
                     size={shouldShowMiddleRing(day.category || 'fitness', day.minutesTarget) ? 24 : 32}
                   />
                 </div>

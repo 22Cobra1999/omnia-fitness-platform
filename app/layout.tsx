@@ -30,6 +30,15 @@ if (typeof window !== "undefined" && "serviceWorker" in navigator && !isServiceW
     })
 }
 
+import { Inter, Anton } from 'next/font/google'
+
+const inter = Inter({ subsets: ['latin'] })
+const anton = Anton({
+  weight: '400',
+  subsets: ['latin'],
+  variable: '--font-anton',
+})
+
 export const metadata: Metadata = {
   title: "OMNIA",
   description: "OMNIA platform",
@@ -42,7 +51,7 @@ export default function RootLayout({
   children: React.ReactNode
 }) {
   return (
-    <html lang="en" suppressHydrationWarning>
+    <html lang="en" suppressHydrationWarning className={`${inter.className} ${anton.variable}`}>
       <head>
         {/* Script para prevenir registro automático de Service Workers en entornos no soportados */}
         {!isServiceWorkerSupported && (

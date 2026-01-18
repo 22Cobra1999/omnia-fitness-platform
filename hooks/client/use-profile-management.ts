@@ -39,6 +39,12 @@ interface Injury {
   restrictions?: string
   created_at: string
   updated_at?: string
+  // Campos adicionales para UI mejorada
+  muscleId?: string
+  muscleName?: string
+  muscleGroup?: string
+  painLevel?: number
+  painDescription?: string
 }
 
 export function useProfileManagement() {

@@ -4,18 +4,45 @@ import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
-import { Heart, X, Plus } from "lucide-react"
+import { Heart, X, Plus, Trash2 } from "lucide-react"
 
 interface BiometricsModalProps {
   isOpen: boolean
   onClose: () => void
-  mode: 'edit' | 'register' // 'edit' para editar, 'register' para registrar nueva medición
+  mode: 'edit' | 'register'
+  onSave: (data: { name: string, value: number, unit: string }) => void
+  initialData?: any
+  onDelete?: () => void
 }
 
-export function BiometricsModal({ isOpen, onClose, mode }: BiometricsModalProps) {
+export function BiometricsModal({ isOpen, onClose, mode, onSave, initialData, onDelete }: BiometricsModalProps) {
   const [measurementType, setMeasurementType] = useState("")
   const [measurementValue, setMeasurementValue] = useState("")
-  const [measurementUnit, setMeasurementUnit] = useState("")
+
+  // Initialize state when initialData changes or modal opens
+  useState(() => {
+    if (mode === 'edit' && initialData) {
+      // Intentar mapear el tipo basado en el nombre (que viene en español/capitalizado desde la lista)
+      // La lista muestra "bio.name", debemos buscar el "value" correspondiente en measurementTypes
+      const foundType = measurementTypes.find(t => t.label.toLowerCase() === initialData.name.toLowerCase())
+      if (foundType) {
+        setMeasurementType(foundType.value)
+      }
+      setMeasurementValue(initialData.value.toString())
+    } else {
+      setMeasurementType("")
+      setMeasurementValue("")
+    }
+  })
+
+  // Effect to update state when opening in edit mode
+  if (isOpen && mode === 'edit' && initialData && measurementValue === "" && measurementType === "") {
+    const foundType = measurementTypes.find(t => t.label.toLowerCase() === initialData.name.toLowerCase())
+    if (foundType) {
+      setMeasurementType(foundType.value)
+    }
+    setMeasurementValue(initialData.value.toString())
+  }
 
   const measurementTypes = [
     { value: "pecho", label: "Pecho", unit: "cm" },
@@ -31,44 +58,42 @@ export function BiometricsModal({ isOpen, onClose, mode }: BiometricsModalProps)
   ]
 
   const handleSave = () => {
-    // Aquí guardarías la medición
-    console.log("Medición guardada:", { measurementType, measurementValue, measurementUnit })
-    onClose()
+    const selectedType = measurementTypes.find(t => t.value === measurementType)
+    if (selectedType && measurementValue) {
+      onSave({
+        name: selectedType.label,
+        value: parseFloat(measurementValue),
+        unit: selectedType.unit
+      })
+      // Close handled by parent often, but we can reset
+    }
   }
 
   const selectedType = measurementTypes.find(type => type.value === measurementType)
 
   return (
     <Dialog open={isOpen} onOpenChange={onClose}>
-      <DialogContent className="w-[95vw] max-w-[400px] mx-auto bg-[#1A1C1F] border-gray-700 text-white max-h-[85vh] overflow-y-auto">
-        <DialogHeader className="flex flex-row items-center justify-between">
-          <DialogTitle className="text-xl font-semibold text-white flex items-center gap-2">
-            <Heart className="h-5 w-5 text-[#FF6A00]" />
-            {mode === 'edit' ? 'Editar Mediciones' : 'Registrar Medición'}
+      <DialogContent className="w-[90vw] max-w-[350px] mx-auto bg-[#1A1C1F] border border-white/10 text-white max-h-[85vh] overflow-y-auto p-0 rounded-3xl shadow-2xl">
+        <DialogHeader className="p-4 border-b border-white/5 bg-white/5 flex flex-row items-center justify-between space-y-0">
+          <DialogTitle className="text-lg font-bold text-white tracking-tight flex items-center gap-2">
+            <Heart className="h-4 w-4 text-[#FF6A00]" />
+            {mode === 'edit' ? 'Editar biometría' : 'Registrar'}
           </DialogTitle>
-          <Button
-            variant="ghost"
-            size="sm"
-            onClick={onClose}
-            className="text-gray-400 hover:text-white"
-          >
-            <X className="h-4 w-4" />
-          </Button>
         </DialogHeader>
 
-        <div className="space-y-6">
+        <div className="p-4 space-y-5">
           {/* Tipo de medición */}
-          <div className="space-y-2">
-            <Label htmlFor="measurement" className="text-white font-medium">
-              Tipo de medición
+          <div className="space-y-1.5">
+            <Label htmlFor="measurement" className="text-[10px] font-bold text-gray-500 uppercase tracking-widest ml-1">
+              Tipo
             </Label>
             <Select value={measurementType} onValueChange={setMeasurementType}>
-              <SelectTrigger className="bg-gray-800 border-gray-600 text-white">
-                <SelectValue placeholder="Selecciona una medición" />
+              <SelectTrigger className="bg-[#0F1012] border-white/10 text-white h-10 rounded-xl text-sm focus:ring-[#FF6A00]/50 focus:border-[#FF6A00]/50">
+                <SelectValue placeholder="Seleccionar..." />
               </SelectTrigger>
-              <SelectContent className="bg-gray-800 border-gray-600">
+              <SelectContent className="bg-[#1A1C1F] border-white/10 text-white rounded-xl z-[100]">
                 {measurementTypes.map((type) => (
-                  <SelectItem key={type.value} value={type.value} className="text-white">
+                  <SelectItem key={type.value} value={type.value} className="text-white focus:bg-white/10 focus:text-white cursor-pointer text-sm">
                     {type.label}
                   </SelectItem>
                 ))}
@@ -77,87 +102,51 @@ export function BiometricsModal({ isOpen, onClose, mode }: BiometricsModalProps)
           </div>
 
           {/* Valor de la medición */}
-          {measurementType && (
-            <div className="space-y-2">
-              <Label htmlFor="value" className="text-white font-medium">
-                Valor
-              </Label>
-              <div className="flex gap-2">
-                <Input
-                  id="value"
-                  type="number"
-                  placeholder="0"
-                  value={measurementValue}
-                  onChange={(e) => setMeasurementValue(e.target.value)}
-                  className="bg-gray-800 border-gray-600 text-white flex-1"
-                />
-                <div className="bg-gray-700 px-3 py-2 rounded-md text-gray-300 text-sm flex items-center">
-                  {selectedType?.unit}
-                </div>
+          <div className={`space-y-1.5 transition-all duration-300 ${measurementType ? 'opacity-100' : 'opacity-50 pointer-events-none'}`}>
+            <Label htmlFor="value" className="text-[10px] font-bold text-gray-500 uppercase tracking-widest ml-1">
+              Valor
+            </Label>
+            <div className="flex gap-2">
+              <Input
+                id="value"
+                type="number"
+                placeholder="0"
+                value={measurementValue}
+                onChange={(e) => setMeasurementValue(e.target.value)}
+                className="bg-[#0F1012] border-white/10 text-white h-10 rounded-xl focus-visible:ring-[#FF6A00]/50 focus-visible:border-[#FF6A00]/50 flex-1 text-base font-semibold px-3"
+              />
+              <div className="bg-white/5 border border-white/10 px-3 rounded-xl text-gray-400 font-medium flex items-center justify-center min-w-[50px] text-sm">
+                {selectedType?.unit || '-'}
               </div>
             </div>
-          )}
-
-          {/* Información adicional según el tipo */}
-          {measurementType && (
-            <div className="bg-gray-800 p-3 rounded-lg">
-              <p className="text-sm text-gray-300 mb-2">Información:</p>
-              {measurementType === "pecho" && (
-                <p className="text-xs text-gray-400">• Mide alrededor del pecho, a la altura de los pezones</p>
-              )}
-              {measurementType === "cintura" && (
-                <p className="text-xs text-gray-400">• Mide alrededor de la cintura, a la altura del ombligo</p>
-              )}
-              {measurementType === "cadera" && (
-                <p className="text-xs text-gray-400">• Mide alrededor de la cadera, en la parte más ancha</p>
-              )}
-              {measurementType === "brazo" && (
-                <p className="text-xs text-gray-400">• Mide alrededor del brazo, en la parte más ancha</p>
-              )}
-              {measurementType === "muslo" && (
-                <p className="text-xs text-gray-400">• Mide alrededor del muslo, en la parte más ancha</p>
-              )}
-              {measurementType === "peso" && (
-                <p className="text-xs text-gray-400">• Pésate en ayunas, sin ropa, a la misma hora</p>
-              )}
-              {measurementType === "grasa_corporal" && (
-                <p className="text-xs text-gray-400">• Usa una báscula de bioimpedancia o calibrador</p>
-              )}
-              {measurementType === "musculo" && (
-                <p className="text-xs text-gray-400">• Masa muscular total del cuerpo</p>
-              )}
-              {measurementType === "agua" && (
-                <p className="text-xs text-gray-400">• Porcentaje de agua corporal total</p>
-              )}
-              {measurementType === "hueso" && (
-                <p className="text-xs text-gray-400">• Masa ósea total del cuerpo</p>
-              )}
-            </div>
-          )}
-
-          {/* Disclaimer */}
-          <div className="bg-gray-900 p-3 rounded-lg border border-gray-700">
-            <p className="text-xs text-gray-400 text-center">
-              Estos datos no reemplazan consejo médico. Consulta siempre con un profesional de la salud.
-            </p>
           </div>
         </div>
 
-        {/* Botones */}
-        <div className="flex gap-3 pt-4">
+        {/* Footer Actions */}
+        <div className="p-4 border-t border-white/5 bg-white/5 flex gap-2">
+          {mode === 'edit' && onDelete && (
+            <Button
+              variant="ghost"
+              onClick={onDelete}
+              className="h-10 w-10 p-0 rounded-xl text-gray-400 hover:text-red-400 hover:bg-red-400/10 mr-auto"
+            >
+              <Trash2 className="h-4 w-4" />
+            </Button>
+          )}
+
           <Button
-            variant="outline"
+            variant="ghost"
             onClick={onClose}
-            className="flex-1 border-gray-600 text-gray-300 hover:bg-gray-700"
+            className={`h-10 rounded-xl text-gray-400 hover:text-white hover:bg-white/5 ${mode === 'edit' ? 'flex-1' : 'flex-1'}`}
           >
             Cancelar
           </Button>
           <Button
             onClick={handleSave}
             disabled={!measurementType || !measurementValue}
-            className="flex-1 bg-[#FF6A00] hover:bg-[#FF8C42] text-white"
+            className={`h-10 rounded-xl bg-[#FF6A00] hover:bg-[#FF6A00]/90 text-white font-semibold shadow-lg shadow-[#FF6A00]/20 disabled:opacity-50 ${mode === 'edit' ? 'flex-[2]' : 'flex-1'}`}
           >
-            {mode === 'edit' ? 'Actualizar' : 'Registrar'}
+            {mode === 'edit' ? 'Actualizar' : 'Guardar'}
           </Button>
         </div>
       </DialogContent>

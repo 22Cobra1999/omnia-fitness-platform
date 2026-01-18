@@ -30,27 +30,27 @@ export function ObjectivesModal({ isOpen, onClose }: ObjectivesModalProps) {
   const [isLoading, setIsLoading] = useState(false)
   const [showAddForm, setShowAddForm] = useState(false)
   const [editingRecord, setEditingRecord] = useState<string | null>(null)
-  
+
   // Formulario para nuevo ejercicio
   const [newExercise, setNewExercise] = useState({
     title: "",
     unit: "",
     current_value: ""
   })
-  
+
   const [timeValue, setTimeValue] = useState({
     hours: 0,
     minutes: 0,
     seconds: 0
   })
-  
+
   // Formulario para nuevo record
   const [newRecord, setNewRecord] = useState({
     exercise_title: "",
     current_value: "",
     notes: ""
   })
-  
+
   // Formulario para editar record
   const [editRecord, setEditRecord] = useState({
     id: "",
@@ -93,16 +93,16 @@ export function ObjectivesModal({ isOpen, onClose }: ObjectivesModalProps) {
 
   const handleAddExercise = async () => {
     if (!newExercise.title || !newExercise.unit) return
-    
+
     let valueToSend = newExercise.current_value
-    
+
     // Si la unidad es "tiempo", convertir a segundos
     if (newExercise.unit === "tiempo") {
       valueToSend = convertTimeToSeconds(timeValue.hours, timeValue.minutes, timeValue.seconds).toString()
     }
-    
+
     if (!valueToSend || valueToSend === "0") return
-    
+
     setIsLoading(true)
     try {
       const response = await fetch('/api/profile/exercise-progress', {
@@ -130,15 +130,15 @@ export function ObjectivesModal({ isOpen, onClose }: ObjectivesModalProps) {
 
   const handleAddValue = async (exerciseId: string, value: string) => {
     if (!value) return
-    
+
     setIsLoading(true)
     try {
       const response = await fetch('/api/profile/exercise-progress', {
-        method: 'POST',
+        method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          exercise_id: exerciseId,
-          value: parseFloat(value)
+          id: exerciseId,
+          current_value: parseFloat(value)
         })
       })
 
@@ -156,7 +156,7 @@ export function ObjectivesModal({ isOpen, onClose }: ObjectivesModalProps) {
 
   const handleEditValue = async (exerciseId: string, valueIndex: number, value: string) => {
     if (!value) return
-    
+
     setIsLoading(true)
     try {
       const response = await fetch('/api/profile/exercise-progress', {
@@ -230,7 +230,7 @@ export function ObjectivesModal({ isOpen, onClose }: ObjectivesModalProps) {
     return { hours, minutes, seconds }
   }
 
-  const formatValueForDisplay = (value: number, unit: string) => {
+  const formatValueForDisplay = (value: number | undefined | null, unit: string) => {
     if (unit === "tiempo" && value) {
       const time = convertSecondsToTime(value)
       return formatTimeToString(time.hours, time.minutes, time.seconds)
@@ -238,136 +238,140 @@ export function ObjectivesModal({ isOpen, onClose }: ObjectivesModalProps) {
     return value?.toString() || "0"
   }
 
+  // Helper to get unit label
+  const getUnitLabel = (unitValue: string) => {
+    return unitOptions.find(u => u.value === unitValue)?.label || unitValue
+  }
+
   return (
     <Dialog open={isOpen} onOpenChange={onClose}>
-      <DialogContent className="w-[95vw] max-w-[500px] mx-auto bg-[#1A1C1F] border-gray-700 text-white max-h-[90vh] overflow-y-auto">
-        <DialogHeader className="flex flex-row items-center justify-between">
-          <DialogTitle className="text-xl font-semibold text-white flex items-center gap-2">
+      <DialogContent className="w-[95vw] max-w-[500px] mx-auto bg-[#1A1C1F] border border-white/10 text-white max-h-[90vh] overflow-y-auto p-0 rounded-3xl shadow-2xl">
+        <DialogHeader className="p-5 border-b border-white/5 bg-white/5 flex flex-row items-center justify-between space-y-0">
+          <DialogTitle className="text-xl font-bold text-white tracking-tight flex items-center gap-2">
             <Target className="h-5 w-5 text-[#FF6A00]" />
-            Progreso de Ejercicios
+            Objetivos
           </DialogTitle>
           <Button
             variant="ghost"
             size="sm"
             onClick={onClose}
-            className="text-gray-400 hover:text-white"
+            className="text-gray-400 hover:text-white rounded-full h-8 w-8 p-0 hover:bg-white/10"
           >
             <X className="h-4 w-4" />
           </Button>
         </DialogHeader>
 
-        <div className="space-y-6">
-          {/* Botón para agregar nuevo ejercicio */}
+        <div className="p-5 space-y-6">
+          {/* Botón para agregar nuevo ejercicio - Solo visible si no hay form activo */}
           {!showAddForm && (
             <Button
               onClick={() => setShowAddForm(true)}
-              className="w-full bg-[#FF6A00] hover:bg-[#FF8C42] text-white"
+              className="w-full bg-[#FF6A00] hover:bg-[#FF6A00]/90 text-white h-12 rounded-xl font-semibold shadow-lg shadow-[#FF6A00]/20 flex items-center justify-center gap-2"
             >
-              <Plus className="h-4 w-4 mr-2" />
-              Agregar Nuevo Ejercicio
+              <Plus className="h-5 w-5" />
+              Nuevo Objetivo
             </Button>
           )}
 
           {/* Formulario para nuevo ejercicio */}
           {showAddForm && (
-            <div className="bg-gray-800 p-4 rounded-lg space-y-4">
-              <h3 className="text-lg font-medium text-white">Nuevo Ejercicio</h3>
-              
-              <div className="space-y-2">
-                <Label className="text-white font-medium">Título del ejercicio</Label>
-                <Input
-                  placeholder="Ej: Press militar, Correr, Sentadilla..."
-                  value={newExercise.title}
-                  onChange={(e) => setNewExercise({...newExercise, title: e.target.value})}
-                  className="bg-gray-700 border-gray-600 text-white"
-                />
+            <div className="bg-white/5 border border-white/10 p-5 rounded-2xl space-y-4 animate-in fade-in slide-in-from-top-2">
+              <div className="flex items-center justify-between mb-2">
+                <h3 className="text-lg font-bold text-white">Nuevo Objetivo</h3>
+                <Button variant="ghost" size="sm" onClick={() => setShowAddForm(false)} className="h-8 w-8 p-0 rounded-full hover:bg-white/10">
+                  <X className="h-4 w-4 text-gray-400" />
+                </Button>
               </div>
 
-              <div className="space-y-2">
-                <Label className="text-white font-medium">Unidad</Label>
-                <Select value={newExercise.unit} onValueChange={(value) => setNewExercise({...newExercise, unit: value})}>
-                  <SelectTrigger className="bg-gray-700 border-gray-600 text-white">
-                    <SelectValue placeholder="Selecciona unidad" />
-                  </SelectTrigger>
-                  <SelectContent className="bg-gray-800 border-gray-600">
-                    {unitOptions.map((unit) => (
-                      <SelectItem key={unit.value} value={unit.value} className="text-white">
-                        {unit.label}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              </div>
-
-              <div className="space-y-2">
-                <Label className="text-white font-medium">Valor inicial</Label>
-                {newExercise.unit === "tiempo" ? (
-                  <div className="flex items-center gap-2">
-                    <div className="flex items-center gap-1">
-                      <Input
-                        type="number"
-                        min="0"
-                        max="23"
-                        value={timeValue.hours}
-                        onChange={(e) => setTimeValue({...timeValue, hours: parseInt(e.target.value) || 0})}
-                        className="w-16 bg-gray-700 border-gray-600 text-white text-center"
-                        placeholder="00"
-                      />
-                      <span className="text-gray-400">h</span>
-                    </div>
-                    <span className="text-gray-400">:</span>
-                    <div className="flex items-center gap-1">
-                      <Input
-                        type="number"
-                        min="0"
-                        max="59"
-                        value={timeValue.minutes}
-                        onChange={(e) => setTimeValue({...timeValue, minutes: parseInt(e.target.value) || 0})}
-                        className="w-16 bg-gray-700 border-gray-600 text-white text-center"
-                        placeholder="00"
-                      />
-                      <span className="text-gray-400">m</span>
-                    </div>
-                    <span className="text-gray-400">:</span>
-                    <div className="flex items-center gap-1">
-                      <Input
-                        type="number"
-                        min="0"
-                        max="59"
-                        value={timeValue.seconds}
-                        onChange={(e) => setTimeValue({...timeValue, seconds: parseInt(e.target.value) || 0})}
-                        className="w-16 bg-gray-700 border-gray-600 text-white text-center"
-                        placeholder="00"
-                      />
-                      <span className="text-gray-400">s</span>
-                    </div>
-                  </div>
-                ) : (
+              <div className="space-y-4">
+                <div className="space-y-1.5">
+                  <Label className="text-xs font-medium text-gray-400 uppercase tracking-wide ml-1">Ejercicio</Label>
                   <Input
-                    type="number"
-                    placeholder="0"
-                    value={newExercise.current_value}
-                    onChange={(e) => setNewExercise({...newExercise, current_value: e.target.value})}
-                    className="bg-gray-700 border-gray-600 text-white"
+                    placeholder="Ej: Press Banca, Correr 5k..."
+                    value={newExercise.title}
+                    onChange={(e) => setNewExercise({ ...newExercise, title: e.target.value })}
+                    className="bg-[#0F1012] border-white/10 text-white h-11 rounded-xl focus-visible:ring-[#FF6A00]/50 focus-visible:border-[#FF6A00]/50"
                   />
-                )}
-              </div>
+                </div>
 
-              <div className="flex gap-2">
-                <Button
-                  variant="outline"
-                  onClick={() => setShowAddForm(false)}
-                  className="flex-1 border-gray-600 text-gray-300 hover:bg-gray-700"
-                >
-                  Cancelar
-                </Button>
-                <Button
-                  onClick={handleAddExercise}
-                  disabled={!newExercise.title || !newExercise.unit || (newExercise.unit === "tiempo" ? (timeValue.hours === 0 && timeValue.minutes === 0 && timeValue.seconds === 0) : !newExercise.current_value) || isLoading}
-                  className="flex-1 bg-[#FF6A00] hover:bg-[#FF8C42] text-white"
-                >
-                  {isLoading ? "Guardando..." : "Crear"}
-                </Button>
+                <div className="grid grid-cols-2 gap-4">
+                  <div className="space-y-1.5">
+                    <Label className="text-xs font-medium text-gray-400 uppercase tracking-wide ml-1">Unidad</Label>
+                    <Select value={newExercise.unit} onValueChange={(value) => setNewExercise({ ...newExercise, unit: value })}>
+                      <SelectTrigger className="bg-[#0F1012] border-white/10 text-white h-11 rounded-xl focus:ring-[#FF6A00]/50 focus:border-[#FF6A00]/50">
+                        <SelectValue placeholder="Unidad" />
+                      </SelectTrigger>
+                      <SelectContent className="bg-[#1A1C1F] border-white/10 text-white rounded-xl">
+                        {unitOptions.map((unit) => (
+                          <SelectItem key={unit.value} value={unit.value} className="text-white hover:bg-white/10 cursor-pointer">
+                            {unit.label}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </div>
+
+                  <div className="space-y-1.5">
+                    <Label className="text-xs font-medium text-gray-400 uppercase tracking-wide ml-1">Valor Inicial</Label>
+                    {newExercise.unit === "tiempo" ? (
+                      <div className="flex items-center gap-1 bg-[#0F1012] border border-white/10 rounded-xl px-2 h-11">
+                        <Input
+                          type="number"
+                          min="0"
+                          value={timeValue.hours || ''}
+                          onChange={(e) => setTimeValue({ ...timeValue, hours: parseInt(e.target.value) || 0 })}
+                          className="w-full bg-transparent border-none text-center p-0 h-full focus-visible:ring-0"
+                          placeholder="HH"
+                        />
+                        <span className="text-gray-500">:</span>
+                        <Input
+                          type="number"
+                          min="0"
+                          max="59"
+                          value={timeValue.minutes || ''}
+                          onChange={(e) => setTimeValue({ ...timeValue, minutes: parseInt(e.target.value) || 0 })}
+                          className="w-full bg-transparent border-none text-center p-0 h-full focus-visible:ring-0"
+                          placeholder="MM"
+                        />
+                        <span className="text-gray-500">:</span>
+                        <Input
+                          type="number"
+                          min="0"
+                          max="59"
+                          value={timeValue.seconds || ''}
+                          onChange={(e) => setTimeValue({ ...timeValue, seconds: parseInt(e.target.value) || 0 })}
+                          className="w-full bg-transparent border-none text-center p-0 h-full focus-visible:ring-0"
+                          placeholder="SS"
+                        />
+                      </div>
+                    ) : (
+                      <Input
+                        type="number"
+                        placeholder="0"
+                        value={newExercise.current_value}
+                        onChange={(e) => setNewExercise({ ...newExercise, current_value: e.target.value })}
+                        className="bg-[#0F1012] border-white/10 text-white h-11 rounded-xl focus-visible:ring-[#FF6A00]/50 focus-visible:border-[#FF6A00]/50"
+                      />
+                    )}
+                  </div>
+                </div>
+
+                <div className="flex gap-3 pt-2">
+                  <Button
+                    variant="outline"
+                    onClick={() => setShowAddForm(false)}
+                    className="flex-1 h-11 rounded-xl border-white/10 bg-transparent text-gray-300 hover:bg-white/5 hover:text-white"
+                  >
+                    Cancelar
+                  </Button>
+                  <Button
+                    onClick={handleAddExercise}
+                    disabled={!newExercise.title || !newExercise.unit || (newExercise.unit === "tiempo" ? (timeValue.hours === 0 && timeValue.minutes === 0 && timeValue.seconds === 0) : !newExercise.current_value) || isLoading}
+                    className="flex-1 h-11 rounded-xl bg-[#FF6A00] hover:bg-[#FF6A00]/90 text-white shadow-lg shadow-[#FF6A00]/20"
+                  >
+                    {isLoading ? "Guardando..." : "Crear"}
+                  </Button>
+                </div>
               </div>
             </div>
           )}
@@ -379,138 +383,131 @@ export function ObjectivesModal({ isOpen, onClose }: ObjectivesModalProps) {
                 const values = [exercise.value_1, exercise.value_2, exercise.value_3, exercise.value_4]
                 const dates = [exercise.date_1, exercise.date_2, exercise.date_3, exercise.date_4]
                 const hasEmptySlot = values.some(v => v === null || v === undefined)
-                
+                const lastValue = values.find(v => v !== null && v !== undefined)
+
                 return (
-                  <div key={exercise.id} className="bg-gray-800 p-4 rounded-lg">
-                    <div className="flex items-center justify-between mb-3">
-                      <h3 className="text-lg font-medium text-white">
-                        {exercise.exercise_title} ({exercise.unit})
-                      </h3>
+                  <div key={exercise.id} className="bg-white/[0.03] border border-white/5 p-5 rounded-2xl space-y-4">
+                    <div className="flex items-center justify-between">
+                      <div>
+                        <h3 className="text-lg font-bold text-white capitalize">
+                          {exercise.exercise_title}
+                        </h3>
+                        <p className="text-xs text-[#FF6A00] font-medium uppercase tracking-wider mt-0.5">
+                          {getUnitLabel(exercise.unit)}
+                        </p>
+                      </div>
                       <Button
                         variant="ghost"
                         size="sm"
                         onClick={() => handleDeleteExercise(exercise.id)}
-                        className="text-red-400 hover:text-red-300"
+                        className="text-gray-500 hover:text-red-400 hover:bg-red-400/10 rounded-lg h-8 w-8 p-0"
                       >
                         <Trash2 className="h-4 w-4" />
                       </Button>
                     </div>
 
-                    {/* Tabla de progreso simplificada */}
-                    <div className="overflow-x-auto">
-                      <table className="w-full text-sm">
-                        <thead>
-                          <tr className="border-b border-gray-600">
-                            <th className="text-left py-2 text-gray-300">Actual</th>
-                            {values.map((value, index) => (
-                              <th key={index} className="text-center py-2 text-gray-300">
-                                {dates[index] ? formatDate(dates[index]) : `Valor ${index + 1}`}
-                              </th>
-                            ))}
-                          </tr>
-                        </thead>
-                        <tbody>
-                          <tr>
-                            <td className="py-2 text-white font-medium">
-                              {formatValueForDisplay(values[0], exercise.unit)} {exercise.unit !== "tiempo" ? exercise.unit : ""}
-                            </td>
-                            {values.map((value, index) => (
-                              <td key={index} className="text-center py-2">
-                                <div className="flex items-center justify-center gap-1">
-                                  <span className="text-white">
-                                    {editingRecord === `${exercise.id}-${index}` ? (
-                                      <Input
-                                        type="number"
-                                        value={editRecord.current_value}
-                                        onChange={(e) => setEditRecord({...editRecord, current_value: e.target.value})}
-                                        className="w-16 h-6 text-xs bg-gray-700 border-gray-600 text-white"
-                                      />
-                                    ) : (
-                                      value ? formatValueForDisplay(value, exercise.unit) : "-"
-                                    )}
-                                  </span>
-                                  <div className="flex gap-1">
-                                    {editingRecord === `${exercise.id}-${index}` ? (
-                                      <>
-                                        <Button
-                                          size="sm"
-                                          onClick={() => handleEditValue(exercise.id, index + 1, editRecord.current_value)}
-                                          className="h-4 w-4 p-0 bg-green-600 hover:bg-green-700"
-                                        >
-                                          ✓
-                                        </Button>
-                                        <Button
-                                          size="sm"
-                                          onClick={() => setEditingRecord(null)}
-                                          className="h-4 w-4 p-0 bg-gray-600 hover:bg-gray-700"
-                                        >
-                                          ✕
-                                        </Button>
-                                      </>
-                                    ) : (
-                                      <Button
-                                        size="sm"
-                                        onClick={() => {
-                                          setEditingRecord(`${exercise.id}-${index}`)
-                                          setEditRecord({
-                                            id: `${exercise.id}-${index}`,
-                                            current_value: value?.toString() || "",
-                                            notes: ""
-                                          })
-                                        }}
-                                        className="h-4 w-4 p-0 bg-blue-600 hover:bg-blue-700"
-                                      >
-                                        <Edit className="h-2 w-2" />
-                                      </Button>
-                                    )}
-                                  </div>
-                                </div>
-                              </td>
-                            ))}
-                          </tr>
-                        </tbody>
-                      </table>
-                      
-                      {/* Botón para agregar nuevo valor */}
-                      {hasEmptySlot && (
-                        <div className="mt-3 flex justify-center">
-                          {newRecord.exercise_title === exercise.id ? (
-                            <div className="flex items-center gap-2">
+                    {/* Visualización de progreso minimalista */}
+                    <div className="grid grid-cols-5 gap-2 text-center text-xs">
+                      <div className="text-gray-500 font-medium uppercase tracking-wider text-[10px] mb-1 col-span-1 text-left">Actual</div>
+                      <div className="text-gray-500 font-medium uppercase tracking-wider text-[10px] mb-1">Registro 1</div>
+                      <div className="text-gray-500 font-medium uppercase tracking-wider text-[10px] mb-1">Registro 2</div>
+                      <div className="text-gray-500 font-medium uppercase tracking-wider text-[10px] mb-1">Registro 3</div>
+                      <div className="text-gray-500 font-medium uppercase tracking-wider text-[10px] mb-1">Registro 4</div>
+
+                      {/* Fila de valores */}
+                      <div className="col-span-1 text-left font-bold text-white text-base">
+                        {formatValueForDisplay(values[0], exercise.unit) || '-'}
+                        <span className="text-[10px] text-gray-500 font-normal ml-1">{exercise.unit !== 'tiempo' ? exercise.unit : ''}</span>
+                      </div>
+
+                      {values.map((value, index) => (
+                        <div key={index} className="flex flex-col items-center justify-center p-2 rounded-lg bg-white/[0.02] border border-white/5 relative group">
+                          {editingRecord === `${exercise.id}-${index}` ? (
+                            <div className="absolute inset-0 bg-[#1A1C1F] z-10 flex items-center justify-center gap-1 p-1 rounded-lg border border-[#FF6A00]/50">
                               <Input
-                                type="number"
-                                placeholder="Nuevo valor"
-                                value={newRecord.current_value}
-                                onChange={(e) => setNewRecord({...newRecord, current_value: e.target.value})}
-                                className="w-24 h-8 text-xs bg-gray-700 border-gray-600 text-white"
+                                type="text"
+                                value={editRecord.current_value}
+                                onChange={(e) => setEditRecord({ ...editRecord, current_value: e.target.value })}
+                                className="h-full w-full bg-transparent border-none text-center text-xs p-0 focus-visible:ring-0 text-white"
+                                autoFocus
                               />
-                              <Button
-                                size="sm"
-                                onClick={() => handleAddValue(exercise.id, newRecord.current_value)}
-                                className="h-8 px-3 bg-green-600 hover:bg-green-700"
-                              >
-                                ✓
-                              </Button>
-                              <Button
-                                size="sm"
-                                onClick={() => setNewRecord({exercise_title: "", current_value: "", notes: ""})}
-                                className="h-8 px-3 bg-gray-600 hover:bg-gray-700"
-                              >
-                                ✕
-                              </Button>
+                              <div className="flex flex-col gap-0.5">
+                                <button onClick={() => handleEditValue(exercise.id, index + 1, editRecord.current_value)} className="text-green-500 hover:text-green-400"><span className="sr-only">Guardar</span>✓</button>
+                                <button onClick={() => setEditingRecord(null)} className="text-red-500 hover:text-red-400"><span className="sr-only">Cancelar</span>✕</button>
+                              </div>
                             </div>
                           ) : (
-                            <Button
-                              size="sm"
-                              onClick={() => setNewRecord({...newRecord, exercise_title: exercise.id})}
-                              className="bg-[#FF6A00] hover:bg-[#FF8C42] text-white"
-                            >
-                              <Plus className="h-3 w-3 mr-1" />
-                              Agregar Valor
-                            </Button>
+                            <>
+                              <span className="text-white font-medium">{value ? formatValueForDisplay(value, exercise.unit) : "-"}</span>
+                              {dates[index] && <span className="text-[8px] text-gray-500 mt-0.5">{formatDate(dates[index])}</span>}
+
+                              {/* Botón editar (hover) */}
+                              {value && (
+                                <button
+                                  onClick={() => {
+                                    setEditingRecord(`${exercise.id}-${index}`)
+                                    setEditRecord({
+                                      id: `${exercise.id}-${index}`,
+                                      current_value: value?.toString() || "",
+                                      notes: ""
+                                    })
+                                  }}
+                                  className="absolute top-0 right-0 p-1 opacity-0 group-hover:opacity-100 text-gray-400 hover:text-[#FF6A00] transition-opacity"
+                                >
+                                  <Edit className="w-2 h-2" />
+                                </button>
+                              )}
+                            </>
                           )}
                         </div>
-                      )}
+                      ))}
                     </div>
+
+                    {/* Input para agregar valor */}
+                    {hasEmptySlot && (
+                      <div className="mt-4 pt-3 border-t border-white/5">
+                        {newRecord.exercise_title === exercise.id ? (
+                          <div className="flex items-center gap-2 animate-in fade-in slide-in-from-left-2">
+                            <div className="flex-1 relative">
+                              <Input
+                                type="number"
+                                placeholder={exercise.unit === 'tiempo' ? "Segundos totales" : "Nuevo valor"}
+                                value={newRecord.current_value}
+                                onChange={(e) => setNewRecord({ ...newRecord, current_value: e.target.value })}
+                                className="bg-[#0F1012] border-[#FF6A00]/50 text-white h-10 rounded-lg pr-12 focus-visible:ring-[#FF6A00]/20"
+                                autoFocus
+                              />
+                              <span className="absolute right-3 top-1/2 -translate-y-1/2 text-xs text-gray-500">
+                                {exercise.unit}
+                              </span>
+                            </div>
+                            <Button
+                              size="sm"
+                              onClick={() => handleAddValue(exercise.id, newRecord.current_value)}
+                              className="h-10 px-4 bg-[#FF6A00] hover:bg-[#FF6A00]/90 text-white rounded-lg"
+                            >
+                              Guardar
+                            </Button>
+                            <Button
+                              size="sm"
+                              variant="ghost"
+                              onClick={() => setNewRecord({ exercise_title: "", current_value: "", notes: "" })}
+                              className="h-10 w-10 p-0 text-gray-400 hover:text-white"
+                            >
+                              <X className="w-4 h-4" />
+                            </Button>
+                          </div>
+                        ) : (
+                          <Button
+                            onClick={() => setNewRecord({ ...newRecord, exercise_title: exercise.id, current_value: "" })}
+                            variant="ghost"
+                            className="w-full h-10 border border-dashed border-white/10 hover:bg-white/5 text-gray-400 hover:text-[#FF6A00] rounded-xl text-xs font-medium uppercase tracking-wide transition-all"
+                          >
+                            + Registrar nuevo progreso
+                          </Button>
+                        )}
+                      </div>
+                    )}
                   </div>
                 )
               })}
@@ -519,20 +516,22 @@ export function ObjectivesModal({ isOpen, onClose }: ObjectivesModalProps) {
 
           {/* Estado vacío */}
           {exercises.length === 0 && !showAddForm && (
-            <div className="text-center py-8 text-gray-400">
-              <Target className="h-12 w-12 mx-auto mb-4 text-gray-600" />
-              <p>No tienes ejercicios registrados</p>
-              <p className="text-sm">Agrega tu primer ejercicio para comenzar a trackear tu progreso</p>
+            <div className="text-center py-12 px-4 border-2 border-dashed border-white/5 rounded-2xl bg-white/[0.02]">
+              <div className="w-16 h-16 rounded-full bg-white/5 flex items-center justify-center mx-auto mb-4">
+                <Target className="w-8 h-8 text-gray-400" />
+              </div>
+              <p className="text-white font-medium mb-1">Sin objetivos activos</p>
+              <p className="text-sm text-gray-500">Define tus metas para realizar un seguimiento efectivo.</p>
             </div>
           )}
         </div>
 
-        {/* Botón cerrar */}
-        <div className="pt-4">
+        {/* Footer Actions */}
+        <div className="p-5 border-t border-white/5 bg-white/5">
           <Button
             variant="outline"
             onClick={onClose}
-            className="w-full border-gray-600 text-gray-300 hover:bg-gray-700"
+            className="w-full h-12 rounded-xl border-white/10 bg-transparent text-gray-300 hover:bg-white/5 hover:text-white"
           >
             Cerrar
           </Button>

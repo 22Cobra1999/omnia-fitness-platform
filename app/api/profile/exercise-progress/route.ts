@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { createRouteHandlerClient } from '@/lib/supabase/supabase-server';
+import { createRouteHandlerClient, createServiceRoleClient } from '@/lib/supabase/supabase-server';
 
 /**
  * GET /api/profile/exercise-progress
@@ -8,10 +8,10 @@ import { createRouteHandlerClient } from '@/lib/supabase/supabase-server';
 export async function GET(request: NextRequest) {
   try {
     const supabase = await createRouteHandlerClient();
-    
+
     // Verificar autenticación
     const { data: { user }, error: authError } = await supabase.auth.getUser();
-    
+
     if (authError || !user) {
       return NextResponse.json(
         { error: 'No autenticado' },
@@ -19,11 +19,19 @@ export async function GET(request: NextRequest) {
       );
     }
 
+    // Check for userId query param (for Coach viewing Client)
+    const { searchParams } = new URL(request.url);
+    const targetUserId = searchParams.get('userId');
+    const queryUserId = targetUserId || user.id;
+
+    // If viewing another user, use admin client to bypass RLS
+    const dbClient = targetUserId ? createServiceRoleClient() : supabase;
+
     // Consultar objetivos de ejercicios del usuario desde user_exercise_objectives
-    const { data: objectives, error: objectivesError } = await supabase
+    const { data: objectives, error: objectivesError } = await dbClient
       .from('user_exercise_objectives')
       .select('id, exercise_title, unit, current_value, objective, created_at, updated_at')
-      .eq('user_id', user.id)
+      .eq('user_id', queryUserId)
       .order('created_at', { ascending: false });
 
     // Si hay error con user_exercise_objectives, intentar con user_exercise_progress como fallback
@@ -31,11 +39,11 @@ export async function GET(request: NextRequest) {
       // Si la tabla no existe, intentar con user_exercise_progress
       if (objectivesError.code === '42P01' || objectivesError.message?.includes('does not exist')) {
         console.log('Tabla user_exercise_objectives no existe, usando user_exercise_progress como fallback');
-        
-        const { data: exercises, error: progressError } = await supabase
+
+        const { data: exercises, error: progressError } = await dbClient
           .from('user_exercise_progress')
           .select('id, exercise_title, unit, value_1, date_1, created_at, updated_at')
-          .eq('user_id', user.id)
+          .eq('user_id', queryUserId)
           .order('created_at', { ascending: false });
 
         if (progressError) {
@@ -44,10 +52,10 @@ export async function GET(request: NextRequest) {
               exercises: []
             });
           }
-          
+
           console.error('Error consultando ejercicios:', progressError);
           return NextResponse.json(
-            { 
+            {
               error: 'Error al consultar ejercicios',
               details: progressError.message,
               code: progressError.code
@@ -57,7 +65,7 @@ export async function GET(request: NextRequest) {
         }
 
         // Transformar datos de user_exercise_progress
-        const formattedExercises = (exercises || []).map(exercise => ({
+        const formattedExercises = (exercises || []).map((exercise: any) => ({
           id: exercise.id,
           exercise_title: exercise.exercise_title,
           unit: exercise.unit,
@@ -71,10 +79,10 @@ export async function GET(request: NextRequest) {
           exercises: formattedExercises
         });
       }
-      
+
       console.error('Error consultando objetivos:', objectivesError);
       return NextResponse.json(
-        { 
+        {
           error: 'Error al consultar objetivos',
           details: objectivesError.message,
           code: objectivesError.code
@@ -84,7 +92,7 @@ export async function GET(request: NextRequest) {
     }
 
     // Transformar los datos de user_exercise_objectives al formato esperado por el componente
-    const formattedExercises = (objectives || []).map(exercise => ({
+    const formattedExercises = (objectives || []).map((exercise: any) => ({
       id: exercise.id,
       exercise_title: exercise.exercise_title,
       unit: exercise.unit,
@@ -117,10 +125,10 @@ export async function GET(request: NextRequest) {
 export async function POST(request: NextRequest) {
   try {
     const supabase = await createRouteHandlerClient();
-    
+
     // Verificar autenticación
     const { data: { user }, error: authError } = await supabase.auth.getUser();
-    
+
     if (authError || !user) {
       return NextResponse.json(
         { error: 'No autenticado' },
@@ -141,7 +149,7 @@ export async function POST(request: NextRequest) {
     // Intentar usar user_exercise_objectives primero
     let useObjectivesTable = true;
     let existing = null;
-    
+
     // Buscar si ya existe un objetivo con ese título para este usuario
     const { data: existingObjective, error: checkError } = await supabase
       .from('user_exercise_objectives')
@@ -170,7 +178,7 @@ export async function POST(request: NextRequest) {
         const updateData: any = {
           updated_at: new Date().toISOString()
         };
-        
+
         if (current_value !== undefined) updateData.current_value = parseFloat(current_value.toString());
         if (objective !== undefined) updateData.objective = parseFloat(objective.toString());
         if (unit !== undefined) updateData.unit = unit;
@@ -329,10 +337,10 @@ export async function POST(request: NextRequest) {
 export async function PUT(request: NextRequest) {
   try {
     const supabase = await createRouteHandlerClient();
-    
+
     // Verificar autenticación
     const { data: { user }, error: authError } = await supabase.auth.getUser();
-    
+
     if (authError || !user) {
       return NextResponse.json(
         { error: 'No autenticado' },
@@ -352,7 +360,7 @@ export async function PUT(request: NextRequest) {
 
     // Intentar actualizar en user_exercise_objectives primero
     let useObjectivesTable = true;
-    
+
     // Verificar si existe en user_exercise_objectives
     const { data: existingObjective, error: checkError } = await supabase
       .from('user_exercise_objectives')
@@ -374,7 +382,7 @@ export async function PUT(request: NextRequest) {
       const updateData: any = {
         updated_at: new Date().toISOString()
       };
-      
+
       if (exercise_title !== undefined) updateData.exercise_title = exercise_title;
       if (unit !== undefined) updateData.unit = unit;
       if (current_value !== undefined) updateData.current_value = parseFloat(current_value.toString());
@@ -413,7 +421,7 @@ export async function PUT(request: NextRequest) {
       const updateData: any = {
         updated_at: new Date().toISOString()
       };
-      
+
       if (exercise_title !== undefined) updateData.exercise_title = exercise_title;
       if (unit !== undefined) updateData.unit = unit;
       if (current_value !== undefined) {
