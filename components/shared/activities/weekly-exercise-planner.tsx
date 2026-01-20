@@ -41,11 +41,11 @@ interface Exercise {
 type DayScheduleEntry =
   | Exercise[]
   | {
-      ejercicios?: Exercise[]
-      exercises?: Exercise[]
-      blockNames?: { [key: number]: string }
-      blockCount?: number
-    }
+    ejercicios?: Exercise[]
+    exercises?: Exercise[]
+    blockNames?: { [key: number]: string }
+    blockCount?: number
+  }
 
 type DaySchedulePayload = {
   exercises: Exercise[]
@@ -110,8 +110,8 @@ const TYPE_COLOR_SCHEMES: Record<string, { hex: string; soft: string; strong: st
   otro: { hex: '#6B7280', soft: 'rgba(107, 114, 128, 0.25)', strong: '#6B7280' } // Gris neutro
 }
 
-const allowedExerciseTypes = ['fuerza','cardio','hiit','movilidad','flexibilidad','equilibrio','funcional','general']
-const allowedNutritionTypes = ['desayuno','almuerzo','cena','snack','merienda','colación','pre-entreno','post-entreno','otro']
+const allowedExerciseTypes = ['fuerza', 'cardio', 'hiit', 'movilidad', 'flexibilidad', 'equilibrio', 'funcional', 'general']
+const allowedNutritionTypes = ['desayuno', 'almuerzo', 'cena', 'snack', 'merienda', 'colación', 'pre-entreno', 'post-entreno', 'otro']
 
 const normalizeExerciseType = (rawType: string): string => {
   const base = (rawType || '')
@@ -180,13 +180,13 @@ const getTypeColorScheme = (type: string | undefined | null, isNutrition: boolea
   if (!type) {
     return isNutrition ? TYPE_COLOR_SCHEMES.otro : TYPE_COLOR_SCHEMES.general
   }
-  
+
   // Si es nutrición, usar normalización de tipos de platos
   if (isNutrition || type.toLowerCase() === 'nutrición' || type.toLowerCase() === 'nutricion') {
     const normalized = normalizeNutritionType(type)
     return TYPE_COLOR_SCHEMES[normalized] ?? TYPE_COLOR_SCHEMES.otro
   }
-  
+
   // Si es ejercicio, usar normalización de tipos de ejercicios
   const normalized = normalizeExerciseType(type)
   return TYPE_COLOR_SCHEMES[normalized] ?? TYPE_COLOR_SCHEMES.general
@@ -195,36 +195,36 @@ const getTypeColorScheme = (type: string | undefined | null, isNutrition: boolea
 // Helper function para verificar si un ejercicio es genérico
 const isGenericExercise = (ex: any): boolean => {
   if (!ex) return true
-  
+
   // ✅ Si tiene un ID válido (número o string que no sea "deleted-"), NO es genérico
   // El nombre se puede obtener después desde availableExercises usando el ID
-  const hasValidId = ex.id !== undefined && 
-                     ex.id !== null && 
-                     ex.id !== '' &&
-                     !String(ex.id).startsWith('deleted-') &&
-                     ex.id !== `deleted-${ex._originalIndex || ''}`
-  
+  const hasValidId = ex.id !== undefined &&
+    ex.id !== null &&
+    ex.id !== '' &&
+    !String(ex.id).startsWith('deleted-') &&
+    ex.id !== `deleted-${ex._originalIndex || ''}`
+
   // Si tiene ID válido, no es genérico (aunque no tenga nombre todavía)
   if (hasValidId) {
     return false
   }
-  
+
   // Si no tiene ID válido, verificar por nombre
   const name = ex.name || ex.nombre_ejercicio || ex['Nombre de la Actividad'] || ex.Nombre || ''
-  const isGenericName = !name || 
-                        name.trim() === '' || 
-                        /^Ejercicio\s+\d+$/i.test(name.trim()) ||
-                        /^Plato\s+\d+$/i.test(name.trim()) ||
-                        name.trim().startsWith('Ejercicio ') ||
-                        name.trim().startsWith('Plato ')
-  
+  const isGenericName = !name ||
+    name.trim() === '' ||
+    /^Ejercicio\s+\d+$/i.test(name.trim()) ||
+    /^Plato\s+\d+$/i.test(name.trim()) ||
+    name.trim().startsWith('Ejercicio ') ||
+    name.trim().startsWith('Plato ')
+
   return isGenericName
 }
 
 // Helper functions para manejar ambos tipos de datos
 const getExercisesFromDay = (dayData: DayScheduleEntry): Exercise[] => {
   if (!dayData) return []
-  
+
   let exercises: Exercise[] = []
   if (Array.isArray(dayData)) {
     exercises = dayData
@@ -233,7 +233,7 @@ const getExercisesFromDay = (dayData: DayScheduleEntry): Exercise[] => {
   } else if (Array.isArray(dayData.exercises)) {
     exercises = dayData.exercises
   }
-  
+
   // ✅ Filtrar ejercicios genéricos antes de retornar
   return exercises.filter(ex => !isGenericExercise(ex))
 }
@@ -245,7 +245,7 @@ const getBlockNamesFromDay = (dayData: DayScheduleEntry): { [key: number]: strin
 
 export function WeeklyExercisePlanner({ exercises, onScheduleChange, onPeriodsChange, onStatsChange, initialSchedule, initialPeriods, activityId, isEditing, productCategory, planLimits, onUndoAvailable, onUndo }: WeeklyExercisePlannerProps) {
   // Inicializando planificador semanal
-  
+
   console.log(`🚀 [WeeklyExercisePlanner] Componente montado/renderizado:`, {
     exercisesCount: exercises?.length || 0,
     exercisesType: typeof exercises,
@@ -272,7 +272,7 @@ export function WeeklyExercisePlanner({ exercises, onScheduleChange, onPeriodsCh
       }
     }) : []
   })
-  
+
   const [weeklySchedule, setWeeklySchedule] = useState<WeeklySchedule>(initialSchedule || {})
   // ✅ Inicializar numberOfWeeks basado en el schedule real, no en un valor por defecto
   // Si el schedule está vacío, numberOfWeeks debe ser 0 para permitir agregar la primera semana
@@ -316,16 +316,16 @@ export function WeeklyExercisePlanner({ exercises, onScheduleChange, onPeriodsCh
   const hasLoggedActiveStatusClientErrorRef = useRef(false)
   // ✅ Ref para rastrear semanas que fueron agregadas por el usuario (no deben eliminarse aunque estén vacías)
   const userAddedWeeksRef = useRef<Set<number>>(new Set())
-  
+
   // ✅ Ref para rastrear si ya hay datos locales (evitar cargar desde backend si hay cambios sin guardar)
   // Inicializar con true si initialSchedule tiene datos al montar
   const hasLocalChangesRef = useRef<boolean>(initialSchedule && Object.keys(initialSchedule || {}).length > 0)
-  
+
   // Actualizar el ref cuando cambia el schedule
   useEffect(() => {
     scheduleRef.current = weeklySchedule
   }, [weeklySchedule])
-  
+
   // ✅ Actualizar el schedule interno cuando initialSchedule cambia (para sincronizar con datos cargados desde backend)
   useEffect(() => {
     // Solo actualizar si initialSchedule cambió y no hay cambios locales del usuario
@@ -333,14 +333,14 @@ export function WeeklyExercisePlanner({ exercises, onScheduleChange, onPeriodsCh
     const currentSchedule = scheduleRef.current // Usar ref para obtener valor actualizado sin agregar dependencias
     const currentScheduleString = JSON.stringify(currentSchedule)
     const initialScheduleString = JSON.stringify(initialSchedule || {})
-    
+
     console.log('🔍 [WeeklyExercisePlanner] Verificando cambios en initialSchedule', {
       hasLocalChanges,
       currentScheduleKeys: Object.keys(currentSchedule).length,
       initialScheduleKeys: Object.keys(initialSchedule || {}).length,
       sonDiferentes: currentScheduleString !== initialScheduleString
     })
-    
+
     if (!hasLocalChanges) {
       // Solo actualizar si son diferentes para evitar loops
       if (currentScheduleString !== initialScheduleString) {
@@ -349,7 +349,7 @@ export function WeeklyExercisePlanner({ exercises, onScheduleChange, onPeriodsCh
           const weekNum = Number(key)
           return !isNaN(weekNum) && weekNum > 0
         })
-        
+
         console.log('✅ [WeeklyExercisePlanner] initialSchedule cambió, actualizando estado interno', {
           semanasAnteriores: Object.keys(currentSchedule).length,
           semanasNuevas: newScheduleKeys.length,
@@ -364,11 +364,11 @@ export function WeeklyExercisePlanner({ exercises, onScheduleChange, onPeriodsCh
             }
           })
         })
-        
+
         setWeeklySchedule(newSchedule)
         scheduleRef.current = newSchedule
         setNumberOfWeeks(newScheduleKeys.length > 0 ? newScheduleKeys.length : 0)
-        
+
         // Marcar que ahora tenemos datos locales (vienen del parent component, pero son datos locales para este componente)
         if (newScheduleKeys.length > 0) {
           hasLocalChangesRef.current = true
@@ -378,7 +378,7 @@ export function WeeklyExercisePlanner({ exercises, onScheduleChange, onPeriodsCh
       console.log('⏭️ [WeeklyExercisePlanner] Hay cambios locales del usuario, NO actualizando desde initialSchedule')
     }
   }, [initialSchedule])
-  
+
   // Marcar que hay datos locales cuando initialSchedule tiene contenido
   useEffect(() => {
     if (initialSchedule && Object.keys(initialSchedule).length > 0) {
@@ -402,19 +402,19 @@ export function WeeklyExercisePlanner({ exercises, onScheduleChange, onPeriodsCh
       scheduleTieneDatos: Object.keys(scheduleRef.current || {}).length > 0,
       esPrimeraVez: previousFingerprintRef.current === null
     })
-    
+
     // ✅ Solo ejecutar si el fingerprint realmente cambió (o es la primera vez)
     if (previousFingerprintRef.current !== null && availableExerciseIdsFingerprint === previousFingerprintRef.current) {
       console.log('⏭️ [LIMPIEZA] Fingerprint no cambió, saltando limpieza')
       return
     }
-    
+
     // ✅ Actualizar el ref
     const oldFingerprint = previousFingerprintRef.current
     previousFingerprintRef.current = availableExerciseIdsFingerprint
-    
+
     const currentSchedule = scheduleRef.current
-    
+
     // ✅ Si no hay ejercicios disponibles (fingerprint vacío), NO limpiar si hay datos o cambios del usuario
     if (!availableExerciseIdsFingerprint || availableExerciseIdsFingerprint.trim() === '') {
       if (currentSchedule && Object.keys(currentSchedule).length > 0) {
@@ -427,7 +427,7 @@ export function WeeklyExercisePlanner({ exercises, onScheduleChange, onPeriodsCh
           })
           return
         }
-        
+
         // ✅ Solo limpiar si realmente no hay datos y no estamos editando (producto nuevo)
         console.log('🧹 [LIMPIEZA] No hay ejercicios disponibles y no hay cambios del usuario, limpiando todo el schedule')
         setWeeklySchedule({})
@@ -440,12 +440,12 @@ export function WeeklyExercisePlanner({ exercises, onScheduleChange, onPeriodsCh
       }
       return
     }
-    
+
     if (!currentSchedule || Object.keys(currentSchedule).length === 0) {
       console.log('⏭️ [LIMPIEZA] No hay schedule, saltando limpieza')
       return
     }
-    
+
     console.log('🧹 [LIMPIEZA] Iniciando limpieza de ejercicios eliminados:', {
       fingerprintAnterior: oldFingerprint,
       fingerprintNuevo: availableExerciseIdsFingerprint,
@@ -456,7 +456,7 @@ export function WeeklyExercisePlanner({ exercises, onScheduleChange, onPeriodsCh
     const availableIds = new Set<string>()
     const availableIdsNum = new Set<number>()
     const availableIdStrings = availableExerciseIdsFingerprint.split(',').filter(Boolean)
-    
+
     availableIdStrings.forEach(idStr => {
       availableIds.add(idStr)
       const idNum = Number(idStr)
@@ -467,7 +467,7 @@ export function WeeklyExercisePlanner({ exercises, onScheduleChange, onPeriodsCh
 
     // ✅ Verificar si todos los IDs disponibles son temporales (nuevos, no guardados)
     // IDs temporales son strings que no son números puros (ej: "nutrition-0", "fitness-1")
-    const allAvailableIdsAreTemporary = availableIdStrings.length > 0 && 
+    const allAvailableIdsAreTemporary = availableIdStrings.length > 0 &&
       availableIdStrings.every(id => {
         // Si el ID contiene un guión o no es un número puro, es temporal
         return id.includes('-') || isNaN(Number(id))
@@ -477,7 +477,7 @@ export function WeeklyExercisePlanner({ exercises, onScheduleChange, onPeriodsCh
     // Recorrer el schedule para ver qué tipos de IDs tiene
     let scheduleHasNumericIds = false
     let scheduleHasAnyExercises = false
-    
+
     Object.values(currentSchedule).forEach((days: any) => {
       Object.values(days || {}).forEach((entry: any) => {
         const rawExercises = Array.isArray(entry) ? entry : (entry?.ejercicios || entry?.exercises || [])
@@ -508,7 +508,7 @@ export function WeeklyExercisePlanner({ exercises, onScheduleChange, onPeriodsCh
         })
         return
       }
-      
+
       console.log('🧹 [LIMPIEZA] Todos los ejercicios disponibles son nuevos (IDs temporales) y el schedule tiene IDs antiguos de BD - Limpiando todo el schedule')
       setWeeklySchedule({})
       scheduleRef.current = {}
@@ -535,23 +535,23 @@ export function WeeklyExercisePlanner({ exercises, onScheduleChange, onPeriodsCh
         } else if (entry && typeof entry === 'object') {
           rawExercises = (entry as any).ejercicios || (entry as any).exercises || []
         }
-        
+
         // ✅ Verificar si el día tenía ejercicios antes de la limpieza
         const dayHadExercises = rawExercises.length > 0
-        
+
         // ✅ Filtrar ejercicios que ya no están disponibles (eliminados en Paso 4)
         const filteredExercises = rawExercises.filter(ex => {
           if (!ex || (ex as any).id === undefined || (ex as any).id === null) return false
-          
+
           const exId = (ex as any).id
           const idStr = String(exId)
           const idNum = typeof exId === 'number' ? exId : Number(exId)
-          
+
           // ✅ Verificar si el ID está en los ejercicios disponibles (como string O como número)
-          const isAvailable = availableIds.has(idStr) || 
-                             (!isNaN(idNum) && availableIdsNum.has(idNum)) ||
-                             availableIds.has(String(idNum))
-          
+          const isAvailable = availableIds.has(idStr) ||
+            (!isNaN(idNum) && availableIdsNum.has(idNum)) ||
+            availableIds.has(String(idNum))
+
           if (!isAvailable) {
             console.log(`🗑️ Eliminando ejercicio ${idStr} (${typeof exId}) del día ${dayKey} de la semana ${weekKey} (ya no está disponible)`, {
               idStr,
@@ -572,12 +572,12 @@ export function WeeklyExercisePlanner({ exercises, onScheduleChange, onPeriodsCh
         // ✅ Si quedan ejercicios válidos, mantener el día
         if (filteredExercises.length > 0) {
           weekHasValidExercises = true
-        let newEntry: DayScheduleEntry = entry
+          let newEntry: DayScheduleEntry = entry
 
-        if (Array.isArray(entry)) {
-          newEntry = filteredExercises
-        } else if (entry && typeof entry === 'object') {
-          // Mantener el resto de metadatos del día (blockNames, blockCount, etc.)
+          if (Array.isArray(entry)) {
+            newEntry = filteredExercises
+          } else if (entry && typeof entry === 'object') {
+            // Mantener el resto de metadatos del día (blockNames, blockCount, etc.)
             newEntry = {
               ...(entry as any),
               ejercicios: filteredExercises,
@@ -601,7 +601,7 @@ export function WeeklyExercisePlanner({ exercises, onScheduleChange, onPeriodsCh
       // El usuario puede tener semanas vacías si lo desea
       const weekHasDays = Object.keys(cleanedDays).length > 0
       const originalWeekHadDays = Object.keys(days as any).length > 0
-      
+
       // ✅ Mantener siempre la semana, incluso si está vacía
       if (weekHasDays || originalWeekHadDays) {
         newSchedule[weekNumber] = cleanedDays
@@ -646,21 +646,21 @@ export function WeeklyExercisePlanner({ exercises, onScheduleChange, onPeriodsCh
   // Historial para undo
   const [scheduleHistory, setScheduleHistory] = useState<WeeklySchedule[]>([])
   const [canUndo, setCanUndo] = useState(false)
-  
+
   // Función para guardar estado antes de cambios
   const saveToHistory = (schedule: WeeklySchedule) => {
     setScheduleHistory(prev => [...prev.slice(-9), JSON.parse(JSON.stringify(schedule))]) // Mantener últimos 10 estados
     setCanUndo(true)
   }
-  
+
   // Ref para almacenar la función callback y evitar loops infinitos
   const onUndoAvailableRef = useRef(onUndoAvailable)
-  
+
   // Actualizar el ref cuando la función cambia (sin causar re-renders)
   useEffect(() => {
     onUndoAvailableRef.current = onUndoAvailable
   }, [onUndoAvailable])
-  
+
   // Función para deshacer último cambio (como Ctrl+Z)
   const handleUndo = React.useCallback(() => {
     setScheduleHistory(prev => {
@@ -671,17 +671,17 @@ export function WeeklyExercisePlanner({ exercises, onScheduleChange, onPeriodsCh
         }
         return prev
       }
-      
+
       // El último elemento del historial es el estado anterior al actual
       // El estado actual está en weeklySchedule, así que deshacer significa volver al último del historial
       const previousSchedule = prev[prev.length - 1]
       const newHistory = prev.slice(0, -1)
-      
+
       // Actualizar el schedule al estado anterior
       const restoredSchedule = JSON.parse(JSON.stringify(previousSchedule))
       setWeeklySchedule(restoredSchedule)
       scheduleRef.current = restoredSchedule
-      
+
       // Recalcular numberOfWeeks basado en el schedule restaurado
       const restoredWeekNumbers = Object.keys(restoredSchedule).map(Number).filter(n => !isNaN(n) && n > 0)
       if (restoredWeekNumbers.length > 0) {
@@ -689,11 +689,11 @@ export function WeeklyExercisePlanner({ exercises, onScheduleChange, onPeriodsCh
       } else {
         setNumberOfWeeks(0)
       }
-      
+
       // Actualizar canUndo basado en si queda historial
       const stillCanUndo = newHistory.length > 0
       setCanUndo(stillCanUndo)
-      
+
       // Notificar al padre
       if (onScheduleChange) {
         setTimeout(() => onScheduleChange(previousSchedule), 0)
@@ -701,11 +701,11 @@ export function WeeklyExercisePlanner({ exercises, onScheduleChange, onPeriodsCh
       if (onUndoAvailableRef.current) {
         onUndoAvailableRef.current(stillCanUndo)
       }
-      
+
       return newHistory
     })
   }, [onScheduleChange])
-  
+
   // Soporte para Ctrl+Z
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
@@ -717,18 +717,18 @@ export function WeeklyExercisePlanner({ exercises, onScheduleChange, onPeriodsCh
         }
       }
     }
-    
+
     window.addEventListener('keydown', handleKeyDown)
     return () => window.removeEventListener('keydown', handleKeyDown)
   }, [canUndo, handleUndo])
-  
+
   // Notificar al padre sobre disponibilidad de undo
   useEffect(() => {
     if (onUndoAvailableRef.current) {
       onUndoAvailableRef.current(canUndo)
     }
   }, [canUndo])
-  
+
   // Exponer handleUndo para uso externo
   useEffect(() => {
     if (onUndo) {
@@ -760,33 +760,33 @@ export function WeeklyExercisePlanner({ exercises, onScheduleChange, onPeriodsCh
   const findSimilarDaysInSchedule = (schedule: WeeklySchedule, currentDayKey: string, currentExercises: Exercise[]) => {
     const currentFingerprint = generateSelectionFingerprint(currentExercises)
     const similarDaysList: string[] = []
-    
+
     console.log('🔍 BUSCANDO DÍAS SIMILARES:', {
       currentDay: currentDayKey,
       currentFingerprint,
       scheduleKeys: Object.keys(schedule)
     })
-    
+
     Object.keys(schedule).forEach(weekKey => {
       Object.keys(schedule[parseInt(weekKey)]).forEach(dayKey => {
         const dayExercises = schedule[parseInt(weekKey)][parseInt(dayKey)]
         const dayExercisesList = getExercisesFromDay(dayExercises)
         const dayFingerprint = generateSelectionFingerprint(dayExercisesList)
-        
+
         console.log('🔍 COMPARANDO DÍA:', {
           day: `${weekKey}-${dayKey}`,
           dayFingerprint,
           dayExercises: dayExercisesList.length,
           isSimilar: dayFingerprint === currentFingerprint && `${weekKey}-${dayKey}` !== currentDayKey
         })
-        
+
         if (dayFingerprint === currentFingerprint && `${weekKey}-${dayKey}` !== currentDayKey) {
           similarDaysList.push(`${weekKey}-${dayKey}`)
           console.log('✅ DÍA SIMILAR ENCONTRADO:', `${weekKey}-${dayKey}`)
         }
       })
     })
-    
+
     console.log('🎯 RESULTADO FINAL:', similarDaysList)
     return similarDaysList
   }
@@ -794,8 +794,15 @@ export function WeeklyExercisePlanner({ exercises, onScheduleChange, onPeriodsCh
   const [selectedDay, setSelectedDay] = useState<string | null>(null)
   const [showDayExercises, setShowDayExercises] = useState(false)
   const [periods, setPeriods] = useState(initialPeriods && initialPeriods > 0 ? initialPeriods : 1)
+
+  // Sincronizar periods cuando initialPeriods cambia (desde carga asíncrona)
+  useEffect(() => {
+    if (initialPeriods && initialPeriods > 0) {
+      setPeriods(initialPeriods)
+    }
+  }, [initialPeriods])
   const [isLoadingPlanning, setIsLoadingPlanning] = useState(false)
-  
+
   // ✅ Función helper para calcular semanas con ejercicios válidos
   const getWeeksWithExercises = React.useCallback((): Set<number> => {
     const weeksWithExercises = new Set<number>()
@@ -815,10 +822,10 @@ export function WeeklyExercisePlanner({ exercises, onScheduleChange, onPeriodsCh
     }
     return weeksWithExercises
   }, [weeklySchedule, numberOfWeeks])
-  
+
   // Ref para rastrear si acabamos de agregar una semana nueva
   const justAddedWeekRef = useRef<number | null>(null)
-  
+
   // ✅ NO ajustar currentWeek automáticamente - permitir que el usuario seleccione semanas vacías
   // El usuario debe poder seleccionar y trabajar con semanas vacías si lo desea
   // Se eliminó el useEffect que ajustaba automáticamente currentWeek cuando una semana estaba vacía
@@ -828,7 +835,7 @@ export function WeeklyExercisePlanner({ exercises, onScheduleChange, onPeriodsCh
     const dayData = weeklySchedule[weekNumber]?.[dayNumber]
     // ✅ Usar getExercisesFromDay que ya filtra ejercicios genéricos
     const result = getExercisesFromDay(dayData)
-    
+
     // Log para debug cuando se llama desde el modal
     if (selectedDay && parseInt(selectedDay) === dayNumber && currentWeek === weekNumber) {
       console.log('📋 getExercisesForDay llamado desde modal', {
@@ -846,7 +853,7 @@ export function WeeklyExercisePlanner({ exercises, onScheduleChange, onPeriodsCh
         }))
       })
     }
-    
+
     return result
   }
 
@@ -874,7 +881,7 @@ export function WeeklyExercisePlanner({ exercises, onScheduleChange, onPeriodsCh
     })
     return similarDaysList
   }, [currentWeek, selectedDay, weeklySchedule])
-  
+
   // ✅ Refs para evitar notificaciones durante la carga inicial
   const isInitialMount = React.useRef(true)
   const lastScheduleNotified = React.useRef<string>('')
@@ -891,7 +898,7 @@ export function WeeklyExercisePlanner({ exercises, onScheduleChange, onPeriodsCh
       if (hasContent) {
         const currentScheduleString = JSON.stringify(weeklySchedule)
         const initialScheduleString = JSON.stringify(initialSchedule)
-        
+
         // Solo sincronizar si son diferentes (evitar loops)
         if (currentScheduleString !== initialScheduleString) {
           console.log('🔄 WeeklyExercisePlanner: Sincronizando con initialSchedule del padre (datos locales persistentes)', {
@@ -1052,14 +1059,14 @@ export function WeeklyExercisePlanner({ exercises, onScheduleChange, onPeriodsCh
             } else if (exerciseId) {
               console.log(`⚠️ Ejercicio ${exerciseId} (${ex.name || ex['Nombre de la Actividad']}) no encontrado en mapa. IDs en mapa:`, Array.from(activeStatusMap.keys()))
             }
-            
+
             return ex
           })
 
           setExercisesWithActiveStatus(updatedExercises)
           const inactiveCount = updatedExercises.filter((ex: any) => ex.is_active === false || ex.activo === false).length
           console.log('✅ Estado activo actualizado desde planificacion_ejercicios:', inactiveCount, 'ejercicios inactivos')
-          
+
           // Log detallado de ejercicios inactivos
           if (inactiveCount > 0) {
             const inactiveExercises = updatedExercises.filter((ex: any) => ex.is_active === false || ex.activo === false)
@@ -1157,14 +1164,14 @@ export function WeeklyExercisePlanner({ exercises, onScheduleChange, onPeriodsCh
     if (isEditing && activityId && activityId > 0) {
       // ✅ PRIORIDAD 1: Si hay datos locales en initialSchedule, NO cargar desde backend (preservar cambios del usuario)
       const hasLocalData = initialSchedule && Object.keys(initialSchedule).length > 0
-      
+
       if (hasLocalData || hasLocalChangesRef.current) {
         console.log('✅ [WeeklyExercisePlanner] Hay datos locales, NO cargando desde backend para preservar cambios del usuario', {
           semanasLocales: hasLocalData ? Object.keys(initialSchedule).length : 0,
           hasLocalChanges: hasLocalChangesRef.current,
           initialSchedule: hasLocalData ? initialSchedule : null
         })
-        
+
         // Usar los datos locales en lugar de cargar desde backend (preservar cambios del usuario)
         if (hasLocalData) {
           const currentScheduleString = JSON.stringify(weeklySchedule)
@@ -1183,7 +1190,7 @@ export function WeeklyExercisePlanner({ exercises, onScheduleChange, onPeriodsCh
         }
         return // ✅ IMPORTANTE: No cargar desde backend si hay datos locales
       }
-      
+
       // ✅ PRIORIDAD 1.5: Si TODOS los ejercicios disponibles tienen IDs temporales (solo CSV nuevo),
       // NO debemos seguir trayendo la planificación vieja desde el backend.
       // En este caso, el coach reemplazó todos los ejercicios/platos y el planner debe empezar desde cero.
@@ -1248,7 +1255,7 @@ export function WeeklyExercisePlanner({ exercises, onScheduleChange, onPeriodsCh
           return
         }
       }
-      
+
       // ✅ PRIORIDAD 2: Solo cargar desde backend si NO hay datos locales Y hay ejercicios disponibles
       // Si no hay ejercicios, el schedule debe estar vacío y no tiene sentido cargar desde el backend
       if (availableExerciseIdsFingerprint && availableExerciseIdsFingerprint.trim() !== '') {
@@ -1267,7 +1274,7 @@ export function WeeklyExercisePlanner({ exercises, onScheduleChange, onPeriodsCh
 
   const loadPlanningFromBackend = async () => {
     if (!activityId) return
-    
+
     // ✅ NO cargar desde backend si ya hay datos locales (cambios sin guardar del usuario)
     if (hasLocalChangesRef.current || (initialSchedule && Object.keys(initialSchedule).length > 0)) {
       console.log('⏭️ [loadPlanningFromBackend] Hay datos locales, saltando carga desde backend para preservar cambios del usuario')
@@ -1276,20 +1283,20 @@ export function WeeklyExercisePlanner({ exercises, onScheduleChange, onPeriodsCh
 
     setIsLoadingPlanning(true)
     try {
-      
+
       const response = await fetch(`/api/get-product-planning?actividad_id=${activityId}`)
       const result = await response.json()
 
       if (result.success && result.data) {
         const { weeklySchedule: backendSchedule, periods: backendPeriods } = result.data
-        
+
         // ✅ Verificar nuevamente si hay datos locales antes de sobrescribir
         if (hasLocalChangesRef.current || (initialSchedule && Object.keys(initialSchedule).length > 0)) {
           console.log('⏭️ [loadPlanningFromBackend] Datos locales detectados durante la carga, cancelando sobrescritura')
           setIsLoadingPlanning(false)
           return
         }
-        
+
         console.log('📅 WeeklyExercisePlanner: Datos del backend cargados', {
           semanas: Object.keys(backendSchedule).length,
           periodos: backendPeriods,
@@ -1333,15 +1340,15 @@ export function WeeklyExercisePlanner({ exercises, onScheduleChange, onPeriodsCh
             semanas: Object.keys(backendSchedule).length,
             schedule: backendSchedule
           })
-          
+
           // Guardar el schedule tal cual viene del backend
           // El useEffect de limpieza se ejecutará después y limpiará los ejercicios eliminados
           setWeeklySchedule(backendSchedule)
           setNumberOfWeeks(Object.keys(backendSchedule).length)
-          
+
           // ✅ Actualizar el ref del schedule para que el useEffect de limpieza pueda acceder a él
           scheduleRef.current = backendSchedule
-          
+
           // ✅ Forzar ejecución del useEffect de limpieza después de cargar desde el backend
           // Esto asegura que se limpien ejercicios eliminados que ya no están en availableExercises
           // Resetear el fingerprint anterior para forzar que el useEffect se ejecute
@@ -1351,7 +1358,7 @@ export function WeeklyExercisePlanner({ exercises, onScheduleChange, onPeriodsCh
             fingerprint: availableExerciseIdsFingerprint,
             tieneFingerprint: !!availableExerciseIdsFingerprint && availableExerciseIdsFingerprint.trim() !== ''
           })
-          
+
           // Ejecutar limpieza manualmente después de un pequeño delay para asegurar que el schedule se haya actualizado
           setTimeout(() => {
             const currentSchedule = scheduleRef.current
@@ -1366,7 +1373,7 @@ export function WeeklyExercisePlanner({ exercises, onScheduleChange, onPeriodsCh
                 setIsLoadingPlanning(false)
                 return
               }
-              
+
               console.log('🧹 [LIMPIEZA MANUAL] No hay ejercicios disponibles y no hay planificación, limpiando todo el schedule')
               setWeeklySchedule({})
               scheduleRef.current = {}
@@ -1396,14 +1403,14 @@ export function WeeklyExercisePlanner({ exercises, onScheduleChange, onPeriodsCh
               const cleanedDays: { [key: string]: DayScheduleEntry } = {}
               let weekHasValidExercises = false
 
-            Object.entries(days as { [key: string]: DayScheduleEntry }).forEach(([dayKey, entry]) => {
+              Object.entries(days as { [key: string]: DayScheduleEntry }).forEach(([dayKey, entry]) => {
                 let rawExercises: Exercise[] = []
                 if (Array.isArray(entry)) {
                   rawExercises = entry
                 } else if (entry && typeof entry === 'object') {
                   rawExercises = (entry as any).ejercicios || (entry as any).exercises || []
                 }
-                
+
                 const filteredExercises = rawExercises.filter(ex => {
                   if (!ex || (ex as any).id === undefined || (ex as any).id === null) return false
                   const exId = (ex as any).id
@@ -1455,7 +1462,7 @@ export function WeeklyExercisePlanner({ exercises, onScheduleChange, onPeriodsCh
             }
           }, 100) // Pequeño delay para asegurar que el estado se haya actualizado
         }
-        
+
         if (backendPeriods && backendPeriods > 0) {
           setPeriods(backendPeriods)
         }
@@ -1471,7 +1478,7 @@ export function WeeklyExercisePlanner({ exercises, onScheduleChange, onPeriodsCh
             onPeriodsChange(backendPeriods)
           }, 0)
         }
-        
+
         // ✅ Resetear el flag de montaje inicial después de cargar datos
         isInitialMount.current = false
       } else {
@@ -1490,7 +1497,7 @@ export function WeeklyExercisePlanner({ exercises, onScheduleChange, onPeriodsCh
       isInitialMount.current = false
       return
     }
-    
+
     // Solo notificar si el schedule realmente cambió
     const scheduleString = JSON.stringify(weeklySchedule)
     if (onScheduleChange && scheduleString !== lastScheduleNotified.current) {
@@ -1521,7 +1528,7 @@ export function WeeklyExercisePlanner({ exercises, onScheduleChange, onPeriodsCh
   if (exercises?.length > 0) {
     // Procesando ejercicios
   }
-  
+
   // Debug: Log de ejercicios antes de mapear
   console.log('🔍 Construyendo availableExercises desde exercisesWithActiveStatus:', {
     count: exercisesWithActiveStatus.length,
@@ -1568,15 +1575,15 @@ export function WeeklyExercisePlanner({ exercises, onScheduleChange, onPeriodsCh
   }, [exercisesWithActiveStatus])
 
   const availableExercises: Exercise[] = normalizedExercisePool.map((row, index) => {
-    
+
     // Detectar si es nutrición por la presencia de campos específicos
     const isNutrition = row && typeof row === 'object' && (
-      'Nombre' in row || 
-      'Proteínas (g)' in row || 
-      'Carbohidratos (g)' in row || 
+      'Nombre' in row ||
+      'Proteínas (g)' in row ||
+      'Carbohidratos (g)' in row ||
       'Grasas (g)' in row
     )
-    
+
     // Si row es un array de strings, usar índices numéricos
     if (Array.isArray(row)) {
       const exercise = {
@@ -1598,7 +1605,7 @@ export function WeeklyExercisePlanner({ exercises, onScheduleChange, onPeriodsCh
       // Ejercicio procesado desde array
       return exercise
     }
-    
+
     // Si es nutrición, usar campos específicos de nutrición
     if (isNutrition) {
       // Procesando datos de nutrición
@@ -1609,16 +1616,16 @@ export function WeeklyExercisePlanner({ exercises, onScheduleChange, onPeriodsCh
         receta: row['Receta'],
         calorias: row['Calorías']
       })
-      
+
       // Obtener el tipo real del plato (Desayuno, Almuerzo, Cena, etc.)
       // Buscar en múltiples campos posibles
-      const rawTipo = row['Tipo'] || 
-                     row.tipo || 
-                     row.tipo_plato || 
-                     (row as any)?.tipo ||
-                     (row as any)?.['Tipo'] ||
-                     'otro'
-      
+      const rawTipo = row['Tipo'] ||
+        row.tipo ||
+        row.tipo_plato ||
+        (row as any)?.tipo ||
+        (row as any)?.['Tipo'] ||
+        'otro'
+
       console.log('🔍 Tipo de plato detectado:', {
         id: row.id,
         nombre: row['Nombre'] || row['nombre'] || row.nombre,
@@ -1630,11 +1637,11 @@ export function WeeklyExercisePlanner({ exercises, onScheduleChange, onPeriodsCh
           tipo_plato: row.tipo_plato
         }
       })
-      
+
       const platoTipo = normalizeNutritionType(rawTipo)
-      
+
       console.log('✅ Tipo normalizado:', platoTipo, 'desde raw:', rawTipo)
-      
+
       const exercise = {
         id: row.id || `nutrition-${index}`,
         name: row['Nombre'] || row['nombre'] || row.nombre || `Plato ${index + 1}`,
@@ -1659,17 +1666,17 @@ export function WeeklyExercisePlanner({ exercises, onScheduleChange, onPeriodsCh
       // Ejercicio de nutrición creado
       return exercise
     }
-    
+
     // Si row es un objeto de fitness, usar propiedades de fitness
     const exercise = {
-    id: row.id || `exercise-${index}`, // Usar ID real si existe, sino temporal
-    name: row.name || row.nombre_ejercicio || row['Nombre de la Actividad'] || row[0] || `Ejercicio ${index + 1}`,
-    description: row.description || row.descripcion || row['Descripción'] || row[1] || '',
-    duration: parseInt(row.duration || row.duracion_min || row['Duración (min)'] || row[2] || '0') || null,
-    type: row.type || row.tipo || row['Tipo de Ejercicio'] || row[3] || 'General',
-    intensity: row.intensity || row.intensidad || row['Nivel de Intensidad'] || row[4] || 'Media',
-    equipment: row.equipment || row.equipo || row['Equipo Necesario'] || row[5] || 'Ninguno',
-    bodyParts: row.bodyParts || row.body_parts || row['Partes del Cuerpo'] || row[6] || '',
+      id: row.id || `exercise-${index}`, // Usar ID real si existe, sino temporal
+      name: row.name || row.nombre_ejercicio || row['Nombre de la Actividad'] || row[0] || `Ejercicio ${index + 1}`,
+      description: row.description || row.descripcion || row['Descripción'] || row[1] || '',
+      duration: parseInt(row.duration || row.duracion_min || row['Duración (min)'] || row[2] || '0') || null,
+      type: row.type || row.tipo || row['Tipo de Ejercicio'] || row[3] || 'General',
+      intensity: row.intensity || row.intensidad || row['Nivel de Intensidad'] || row[4] || 'Media',
+      equipment: row.equipment || row.equipo || row['Equipo Necesario'] || row[5] || 'Ninguno',
+      bodyParts: row.bodyParts || row.body_parts || row['Partes del Cuerpo'] || row[6] || '',
       calories: parseInt(row.calories || row.calorias || row['Calorías'] || row[7] || '0') || null,
       peso: row.peso || row['Peso'] || row['1RM'] || row[8] || '',
       reps: row.reps || row['Repeticiones'] || row[9] || '',
@@ -1686,7 +1693,7 @@ export function WeeklyExercisePlanner({ exercises, onScheduleChange, onPeriodsCh
       is_active: row.is_active !== undefined ? row.is_active : (row.activo !== undefined ? row.activo : true),
       activo: row.activo !== undefined ? row.activo : (row.is_active !== undefined ? row.is_active : true)
     }
-    
+
     // Debug: Log si el ejercicio está inactivo
     if (exercise.is_active === false || exercise.activo === false) {
       console.log(`🔴 Ejercicio INACTIVO detectado en mapeo: ${exercise.name} (ID: ${exercise.id}), is_active=${exercise.is_active}, activo=${exercise.activo}`)
@@ -1706,21 +1713,21 @@ export function WeeklyExercisePlanner({ exercises, onScheduleChange, onPeriodsCh
 
     // Extraer todos los ejercicios únicos del schedule
     const exercisesFromSchedule = new Map<string, Exercise>()
-    
+
     Object.keys(weeklySchedule).forEach(weekKey => {
       const weekNum = Number(weekKey)
       if (isNaN(weekNum) || weekNum <= 0) return
-      
+
       const weekData = weeklySchedule[weekNum]
       if (!weekData) return
-      
+
       Object.keys(weekData).forEach(dayKey => {
         const dayNum = Number(dayKey)
         if (isNaN(dayNum) || dayNum <= 0 || dayNum > 7) return
-        
+
         const dayData = weekData[dayNum]
         if (!dayData) return
-        
+
         const dayExercises = getExercisesFromDay(dayData)
         dayExercises.forEach(ex => {
           if (ex && ex.id) {
@@ -1730,7 +1737,7 @@ export function WeeklyExercisePlanner({ exercises, onScheduleChange, onPeriodsCh
               // Buscar nombre real desde la BD si está disponible
               const dbData = exerciseNamesFromDB.get(exId)
               const realName = dbData?.nombre || dbData?.name || ex.name || (ex as any)?.nombre_ejercicio || (ex as any)?.Nombre || null
-              
+
               // ✅ NO usar nombres genéricos - si no hay nombre real, buscar en availableExercises
               let finalName = realName
               if (!finalName || finalName.trim() === '' || /^Plato\s+\d+$/i.test(finalName.trim())) {
@@ -1743,7 +1750,7 @@ export function WeeklyExercisePlanner({ exercises, onScheduleChange, onPeriodsCh
                   return
                 }
               }
-              
+
               // Construir ejercicio completo desde el schedule
               const exercise: Exercise = {
                 id: ex.id,
@@ -1770,7 +1777,7 @@ export function WeeklyExercisePlanner({ exercises, onScheduleChange, onPeriodsCh
         })
       })
     })
-    
+
     const exercisesArray = Array.from(exercisesFromSchedule.values())
     if (exercisesArray.length > 0) {
       console.log('📦 [WeeklyExercisePlanner] Construyendo availableExercises desde schedule:', {
@@ -1778,7 +1785,7 @@ export function WeeklyExercisePlanner({ exercises, onScheduleChange, onPeriodsCh
         sample: exercisesArray.slice(0, 3).map(ex => ({ id: ex.id, name: ex.name }))
       })
     }
-    
+
     return exercisesArray
   }, [availableExercises, weeklySchedule, productCategory, exerciseNamesFromDB])
 
@@ -1794,17 +1801,17 @@ export function WeeklyExercisePlanner({ exercises, onScheduleChange, onPeriodsCh
     Object.keys(weeklySchedule).forEach(weekKey => {
       const weekNum = Number(weekKey)
       if (isNaN(weekNum) || weekNum <= 0) return
-      
+
       const weekData = weeklySchedule[weekNum]
       if (!weekData) return
-      
+
       Object.keys(weekData).forEach(dayKey => {
         const dayNum = Number(dayKey)
         if (isNaN(dayNum) || dayNum <= 0 || dayNum > 7) return
-        
+
         const dayData = weekData[dayNum]
         if (!dayData) return
-        
+
         const dayExercises = getExercisesFromDay(dayData)
         dayExercises.forEach(ex => {
           if (ex && ex.id) {
@@ -1871,7 +1878,7 @@ export function WeeklyExercisePlanner({ exercises, onScheduleChange, onPeriodsCh
 
   // ✅ Cargar TODOS los platos del coach cuando se está en modo nutrición (SIEMPRE para nutrición)
   const [allCoachExercises, setAllCoachExercises] = React.useState<Exercise[]>([])
-  
+
   React.useEffect(() => {
     // Para nutrición, SIEMPRE cargar todos los platos del coach, no solo los del producto actual
     if (productCategory === 'nutricion') {
@@ -1927,7 +1934,7 @@ export function WeeklyExercisePlanner({ exercises, onScheduleChange, onPeriodsCh
     if (productCategory === 'nutricion') {
       // Para nutrición, combinar todos los platos del coach con los que están en el schedule
       const combinedExercises = new Map<string, Exercise>()
-      
+
       // Primero agregar todos los platos del coach
       if (allCoachExercises.length > 0) {
         allCoachExercises.forEach(ex => {
@@ -1935,7 +1942,7 @@ export function WeeklyExercisePlanner({ exercises, onScheduleChange, onPeriodsCh
           combinedExercises.set(exId, ex)
         })
       }
-      
+
       // Luego agregar los platos del producto actual (si hay)
       if (availableExercises.length > 0) {
         availableExercises.forEach(ex => {
@@ -1946,7 +1953,7 @@ export function WeeklyExercisePlanner({ exercises, onScheduleChange, onPeriodsCh
           }
         })
       }
-      
+
       // Finalmente agregar los platos que están en el schedule (para asegurar que aparezcan aunque no estén en el coach)
       if (availableExercisesFromSchedule.length > 0) {
         availableExercisesFromSchedule.forEach(ex => {
@@ -1972,7 +1979,7 @@ export function WeeklyExercisePlanner({ exercises, onScheduleChange, onPeriodsCh
           }
         })
       }
-      
+
       const result = Array.from(combinedExercises.values())
       console.log(`📋 [WeeklyExercisePlanner] Ejercicios combinados para nutrición:`, {
         total: result.length,
@@ -1981,14 +1988,14 @@ export function WeeklyExercisePlanner({ exercises, onScheduleChange, onPeriodsCh
         fromSchedule: availableExercisesFromSchedule.length,
         primeros: result.slice(0, 5).map(ex => ({ id: ex.id, name: ex.name }))
       })
-      
+
       return result
     } else {
       // Para fitness: lógica normal
-      return availableExercises.length > 0 
-        ? availableExercises 
-        : (availableExercisesFromSchedule.length > 0 
-          ? availableExercisesFromSchedule 
+      return availableExercises.length > 0
+        ? availableExercises
+        : (availableExercisesFromSchedule.length > 0
+          ? availableExercisesFromSchedule
           : allCoachExercises)
     }
   }, [productCategory, allCoachExercises, availableExercises, availableExercisesFromSchedule])
@@ -2024,16 +2031,16 @@ export function WeeklyExercisePlanner({ exercises, onScheduleChange, onPeriodsCh
 
     return totals
   }, [finalAvailableExercises, selectedExercises, productCategory])
-  
+
   // Ejercicios procesados
   if (finalAvailableExercises.length > 0) {
     // Ejercicios procesados
     // Log específico para nutrición
     const nutritionExercises = finalAvailableExercises.filter(ex => ex.type === 'Nutrición')
     // Platos de nutrición detectados
-    
+
     // Debug: Verificar flags de actividad
-    const inactiveExercises = finalAvailableExercises.filter(ex => 
+    const inactiveExercises = finalAvailableExercises.filter(ex =>
       (ex as any).is_active === false || (ex as any).activo === false
     )
     if (inactiveExercises.length > 0) {
@@ -2045,7 +2052,7 @@ export function WeeklyExercisePlanner({ exercises, onScheduleChange, onPeriodsCh
       })))
     }
   }
-  
+
   // Ejercicios procesados para el planificador semanal
 
   // Función para formatear las series como P-R-S
@@ -2070,7 +2077,7 @@ export function WeeklyExercisePlanner({ exercises, onScheduleChange, onPeriodsCh
         blockNames: {}
       }
     }
-    
+
     // Agregar ejercicio (permitir duplicados)
     const dayData = newSchedule[weekNumber][dayNumber]
     if (Array.isArray(dayData)) {
@@ -2114,19 +2121,19 @@ export function WeeklyExercisePlanner({ exercises, onScheduleChange, onPeriodsCh
       currentSelectionSize: selectedExercises.size,
       isSelected: selectedExercises.has(exerciseId)
     })
-    
+
     // No permitir seleccionar ejercicios inactivos
     const exercise = finalAvailableExercises.find(ex => ex.id === exerciseId)
     if (!exercise) {
       console.warn('⚠️ [WeeklyExercisePlanner] Ejercicio no encontrado:', exerciseId)
       return
     }
-    
+
     if ((exercise as any).is_active === false || (exercise as any).activo === false) {
       console.log('⚠️ [WeeklyExercisePlanner] Intento de seleccionar ejercicio inactivo:', exercise.name)
       return // No hacer nada si el ejercicio está desactivado
     }
-    
+
     const newSelection = new Set(selectedExercises)
     if (newSelection.has(exerciseId)) {
       newSelection.delete(exerciseId)
@@ -2140,12 +2147,12 @@ export function WeeklyExercisePlanner({ exercises, onScheduleChange, onPeriodsCh
 
   const selectAllExercises = () => {
     // Solo seleccionar ejercicios activos
-    const activeExercises = finalAvailableExercises.filter(ex => 
+    const activeExercises = finalAvailableExercises.filter(ex =>
       (ex as any).is_active !== false && (ex as any).activo !== false
     )
     const activeIds = activeExercises.map(ex => ex.id)
     const allActiveSelected = activeIds.length > 0 && activeIds.every(id => selectedExercises.has(id))
-    
+
     if (allActiveSelected) {
       setSelectedExercises(new Set())
     } else {
@@ -2202,7 +2209,7 @@ export function WeeklyExercisePlanner({ exercises, onScheduleChange, onPeriodsCh
     let totalDays = 0
     const uniqueExerciseIds = new Set<string>()
     const weeksWithExercises = new Set<number>()
-    
+
     // ✅ Obtener IDs de ejercicios disponibles desde finalAvailableExercises (incluye platos del schedule)
     // Esto asegura que se cuenten correctamente incluso cuando persistentCsvData está vacío
     const availableExerciseIds = new Set<string>()
@@ -2217,27 +2224,27 @@ export function WeeklyExercisePlanner({ exercises, onScheduleChange, onPeriodsCh
         }
       }
     })
-    
-    // También agregar IDs de exercises (persistentCsvData) si están disponibles
-    ;(exercises || []).forEach(ex => {
-      if (ex && ex.id !== undefined && ex.id !== null) {
-        const idStr = String(ex.id)
-        availableExerciseIds.add(idStr)
-        const idNum = Number(ex.id)
-        if (!isNaN(idNum)) {
-          availableExerciseIdsNum.add(idNum)
+
+      // También agregar IDs de exercises (persistentCsvData) si están disponibles
+      ; (exercises || []).forEach(ex => {
+        if (ex && ex.id !== undefined && ex.id !== null) {
+          const idStr = String(ex.id)
+          availableExerciseIds.add(idStr)
+          const idNum = Number(ex.id)
+          if (!isNaN(idNum)) {
+            availableExerciseIdsNum.add(idNum)
+          }
         }
-      }
-    })
-    
+      })
+
     for (let week = 1; week <= numberOfWeeks; week++) {
       let weekHasExercises = false
-      
+
       for (const day of DAYS) {
         // ✅ Usar getExercisesFromDay que ya filtra genéricos
         const dayEntry = weeklySchedule[week]?.[day.key]
         const dayExercises = getExercisesFromDay(dayEntry)
-        
+
         // ✅ Filtrar solo ejercicios que:
         // 1. NO son genéricos (ya filtrado por getExercisesFromDay)
         // 2. Aún están disponibles en el paso 4
@@ -2247,48 +2254,48 @@ export function WeeklyExercisePlanner({ exercises, onScheduleChange, onPeriodsCh
           if (isGenericExercise(exercise)) {
             return false
           }
-          
+
           // Verificar que esté disponible (comparar como string y número)
           const exerciseId = exercise.id
           const exerciseIdStr = exerciseId !== undefined && exerciseId !== null ? String(exerciseId) : null
           const exerciseIdNum = exerciseIdStr && !isNaN(Number(exerciseIdStr)) ? Number(exerciseIdStr) : null
-          
+
           const isAvailable = exerciseIdStr && (
             availableExerciseIds.has(exerciseIdStr) ||
             (exerciseIdNum !== null && availableExerciseIdsNum.has(exerciseIdNum)) ||
             availableExerciseIds.has(String(exerciseIdNum))
           )
-          
+
           // Verificar que esté activo (si no está definido, asumir activo por defecto)
           const isActive = (exercise as any).activo !== false && (exercise as any).is_active !== false
-          
+
           return isAvailable && isActive
         })
-        
+
         // ✅ Solo contar si hay ejercicios válidos (no genéricos, disponibles y activos)
         if (validDayExercises.length > 0) {
           totalExercises += validDayExercises.length
           totalDays++
           weekHasExercises = true
-          
+
           // Agregar IDs únicos de ejercicios válidos y activos
           validDayExercises.forEach(exercise => {
             uniqueExerciseIds.add(String(exercise.id))
           })
         }
       }
-      
+
       // ✅ Solo contar semanas que tienen al menos un día con ejercicios válidos
       if (weekHasExercises) {
         weeksWithExercises.add(week)
       }
     }
-    
+
     // Calcular semanas únicas (número real de semanas con ejercicios válidos)
     const uniqueWeeks = weeksWithExercises.size
     // Total de semanas considerando períodos (si hay 2 semanas base y 2 períodos, son 4 semanas totales)
     const totalWeeks = uniqueWeeks > 0 ? uniqueWeeks * periods : 0 // ✅ 0 si no hay semanas válidas
-    
+
     const stats = {
       totalExercises, // ✅ Ejercicios totales válidos (no genéricos, disponibles y activos)
       totalDays, // ✅ Sesiones (días con ejercicios válidos)
@@ -2297,7 +2304,7 @@ export function WeeklyExercisePlanner({ exercises, onScheduleChange, onPeriodsCh
       totalSessions: totalDays * periods, // ✅ Sesiones totales considerando períodos
       totalExercisesReplicated: totalExercises * periods // ✅ Ejercicios totales replicados
     }
-    
+
     console.log('📊 [getPatternStats] Estadísticas calculadas:', {
       stats,
       numberOfWeeks,
@@ -2311,7 +2318,7 @@ export function WeeklyExercisePlanner({ exercises, onScheduleChange, onPeriodsCh
       totalExercises,
       totalDays
     })
-    
+
     return stats
   }, [weeklySchedule, numberOfWeeks, periods, exercises, finalAvailableExercises]) // Incluir finalAvailableExercises en las dependencias
 
@@ -2320,7 +2327,7 @@ export function WeeklyExercisePlanner({ exercises, onScheduleChange, onPeriodsCh
     if (onStatsChange) {
       const stats = getPatternStats()
       const statsString = JSON.stringify(stats)
-      
+
       // Solo notificar si las estadísticas realmente cambiaron
       if (statsString !== lastStatsNotified.current) {
         lastStatsNotified.current = statsString
@@ -2337,7 +2344,7 @@ export function WeeklyExercisePlanner({ exercises, onScheduleChange, onPeriodsCh
   const assignSelectedToDay = (weekNumber: number, dayNumber: number) => {
     // Guardar estado actual en historial antes de cambiar
     saveToHistory(weeklySchedule)
-    
+
     const newSchedule = { ...weeklySchedule }
     if (!newSchedule[weekNumber]) {
       newSchedule[weekNumber] = {}
@@ -2360,7 +2367,7 @@ export function WeeklyExercisePlanner({ exercises, onScheduleChange, onPeriodsCh
     selectedExercises.forEach(exerciseId => {
       // ✅ Buscar en finalAvailableExercises (que incluye todos los platos del coach para nutrición)
       const exercise = finalAvailableExercises.find(ex => String(ex.id) === String(exerciseId))
-      
+
       if (!exercise) {
         console.warn(`⚠️ [assignSelectedToDay] Ejercicio no encontrado en finalAvailableExercises:`, {
           exerciseId,
@@ -2369,13 +2376,13 @@ export function WeeklyExercisePlanner({ exercises, onScheduleChange, onPeriodsCh
         })
         return
       }
-      
+
       console.log(`✅ [assignSelectedToDay] Ejercicio encontrado:`, {
         id: exercise.id,
         name: exercise.name,
         type: exercise.type
       })
-      
+
       // ✅ PERMITIR DUPLICADOS - Removida validación de existencia
       // Manejar tanto el formato antiguo (array) como el nuevo (objeto con ejercicios)
       if (Array.isArray(newSchedule[weekNumber][dayNumber])) {
@@ -2398,18 +2405,18 @@ export function WeeklyExercisePlanner({ exercises, onScheduleChange, onPeriodsCh
     })
 
     setWeeklySchedule(newSchedule)
-    
+
     // Actualizar días similares después de asignar ejercicios
     const currentDayKey = `${weekNumber}-${dayNumber}`
     const assignedExercises = getExercisesFromDay(newSchedule[weekNumber][dayNumber])
-    
+
     // Buscar días similares usando el nuevo schedule
     const similarDaysList = findSimilarDaysInSchedule(newSchedule, currentDayKey, assignedExercises)
     setSimilarDays(prev => ({
       ...prev,
       [currentDayKey]: similarDaysList
     }))
-    
+
     if (onScheduleChange) {
       setTimeout(() => onScheduleChange(newSchedule), 0)
     }
@@ -2425,18 +2432,18 @@ export function WeeklyExercisePlanner({ exercises, onScheduleChange, onPeriodsCh
       periods,
       planLimits
     })
-    
+
     // ✅ Calcular el nuevo número de semana basado en semanas existentes (no solo numberOfWeeks)
     const existingWeekNumbers = Object.keys(weeklySchedule).map(Number).filter(n => !isNaN(n) && n > 0).sort((a, b) => a - b)
     const maxWeekNumber = existingWeekNumbers.length > 0 ? Math.max(...existingWeekNumbers) : 0
     const newWeekNumber = maxWeekNumber + 1
-    
+
     // ✅ Usar el número real de semanas en el schedule
     // Si no hay semanas, totalWeeksInSchedule será 0, permitiendo agregar la primera semana
     const totalWeeksInSchedule = existingWeekNumbers.length
     const totalWeeksAfterAdd = totalWeeksInSchedule + 1
     const totalWithPeriods = totalWeeksAfterAdd * periods
-    
+
     console.log('🔍 [addWeek] Verificando límite:', {
       existingWeekNumbers,
       maxWeekNumber,
@@ -2448,7 +2455,7 @@ export function WeeklyExercisePlanner({ exercises, onScheduleChange, onPeriodsCh
       weeksLimit,
       willExceedLimit: weeksLimit !== null && weeksLimit !== undefined && totalWithPeriods > weeksLimit
     })
-    
+
     // ✅ Verificar límite: (semanas totales + 1 nueva semana) * períodos <= límite
     // Nota: La nueva semana estará vacía inicialmente, pero aún así cuenta para el límite
     if (weeksLimit !== null && weeksLimit !== undefined && totalWithPeriods > weeksLimit) {
@@ -2462,27 +2469,27 @@ export function WeeklyExercisePlanner({ exercises, onScheduleChange, onPeriodsCh
       setWeekLimitError(errorMsg)
       return
     }
-    
+
     setWeekLimitError(null)
-    
+
     // Guardar estado actual en historial antes de agregar semana
     saveToHistory(JSON.parse(JSON.stringify(weeklySchedule)))
-    
+
     const newSchedule = { ...weeklySchedule }
-    
+
     // Inicializar la nueva semana con días vacíos
     newSchedule[newWeekNumber] = {}
     for (let day = 1; day <= 7; day++) {
       newSchedule[newWeekNumber][day] = []
     }
-    
+
     console.log('✅ [addWeek] Agregando semana', {
       newWeekNumber,
       newSchedule,
       scheduleKeys: Object.keys(newSchedule),
       scheduleKeysLength: Object.keys(newSchedule).length
     })
-    
+
     setWeeklySchedule(newSchedule)
     // ✅ Actualizar numberOfWeeks basado en el número máximo de semana
     setNumberOfWeeks(newWeekNumber)
@@ -2501,13 +2508,13 @@ export function WeeklyExercisePlanner({ exercises, onScheduleChange, onPeriodsCh
 
   const removeWeek = (weekToRemove: number = currentWeek) => {
     if (numberOfWeeks <= 1) return
-    
+
     // Guardar estado actual en historial antes de eliminar semana
     saveToHistory(JSON.parse(JSON.stringify(weeklySchedule)))
-    
+
     const tempSchedule = { ...weeklySchedule }
     delete tempSchedule[weekToRemove]
-    
+
     // ✅ Limpiar la semana del ref de semanas agregadas por el usuario
     userAddedWeeksRef.current.delete(weekToRemove)
     console.log(`🧹 Semana ${weekToRemove} eliminada del ref de semanas agregadas por el usuario`)
@@ -2663,31 +2670,29 @@ export function WeeklyExercisePlanner({ exercises, onScheduleChange, onPeriodsCh
             const validWeeksCount = weeksWithExercises.size || 1 // Al menos 1 para permitir agregar
             const canIncreasePeriods = weeksLimit === null ? true : (validWeeksCount * (periods + 1)) <= weeksLimit
             return (
-          <div className="flex items-center gap-1">
-            <button
-              onClick={decreasePeriods}
-              disabled={!canDecreasePeriods}
-              className={`w-6 h-6 rounded-full border-2 text-xs font-light transition-colors flex items-center justify-center ${
-                canDecreasePeriods
-                  ? 'border-[#FF7939] text-[#FF7939] hover:bg-[#FF7939]/10'
-                  : 'border-gray-700 text-gray-600 cursor-not-allowed opacity-50'
-              }`}
-            >
-              -
-            </button>
-            <span className="text-[#FF7939] text-sm font-medium w-6 text-center">{periods}</span>
-            <button
-              onClick={increasePeriods}
-              disabled={!canIncreasePeriods}
-              className={`w-6 h-6 rounded-full border-2 text-xs font-light transition-colors flex items-center justify-center ${
-                canIncreasePeriods
-                  ? 'border-[#FF7939] text-[#FF7939] hover:bg-[#FF7939]/10'
-                  : 'border-gray-700 text-gray-600 cursor-not-allowed opacity-50'
-              }`}
-            >
-              +
-            </button>
-          </div>
+              <div className="flex items-center gap-1">
+                <button
+                  onClick={decreasePeriods}
+                  disabled={!canDecreasePeriods}
+                  className={`w-6 h-6 rounded-full border-2 text-xs font-light transition-colors flex items-center justify-center ${canDecreasePeriods
+                      ? 'border-[#FF7939] text-[#FF7939] hover:bg-[#FF7939]/10'
+                      : 'border-gray-700 text-gray-600 cursor-not-allowed opacity-50'
+                    }`}
+                >
+                  -
+                </button>
+                <span className="text-[#FF7939] text-sm font-medium w-6 text-center">{periods}</span>
+                <button
+                  onClick={increasePeriods}
+                  disabled={!canIncreasePeriods}
+                  className={`w-6 h-6 rounded-full border-2 text-xs font-light transition-colors flex items-center justify-center ${canIncreasePeriods
+                      ? 'border-[#FF7939] text-[#FF7939] hover:bg-[#FF7939]/10'
+                      : 'border-gray-700 text-gray-600 cursor-not-allowed opacity-50'
+                    }`}
+                >
+                  +
+                </button>
+              </div>
             )
           })()}
         </div>
@@ -2700,11 +2705,10 @@ export function WeeklyExercisePlanner({ exercises, onScheduleChange, onPeriodsCh
           <button
             onClick={handleUndo}
             disabled={!canUndo}
-            className={`w-8 h-8 rounded-full border-2 flex items-center justify-center transition-colors ${
-              canUndo
+            className={`w-8 h-8 rounded-full border-2 flex items-center justify-center transition-colors ${canUndo
                 ? 'border-[#FF7939] text-[#FF7939] hover:bg-[#FF7939]/10 bg-black'
                 : 'border-gray-700 text-gray-600 bg-black cursor-not-allowed opacity-50'
-            }`}
+              }`}
             title={canUndo ? 'Deshacer último cambio' : 'No hay acciones para deshacer'}
             aria-label="Deshacer"
           >
@@ -2714,13 +2718,13 @@ export function WeeklyExercisePlanner({ exercises, onScheduleChange, onPeriodsCh
             {(() => {
               // ✅ Usar la función helper para calcular semanas con ejercicios
               const weeksWithExercises = getWeeksWithExercises()
-              
+
               // ✅ Obtener todas las semanas del schedule (incluyendo vacías agregadas por el usuario)
               const allWeeksInSchedule = Object.keys(weeklySchedule)
                 .map(Number)
                 .filter(n => !isNaN(n) && n > 0)
                 .sort((a, b) => a - b)
-              
+
               // ✅ Si no hay semanas en el schedule, mostrar mensaje
               if (allWeeksInSchedule.length === 0 && weeksWithExercises.size === 0) {
                 return (
@@ -2729,31 +2733,30 @@ export function WeeklyExercisePlanner({ exercises, onScheduleChange, onPeriodsCh
                   </div>
                 )
               }
-              
+
               // ✅ Mostrar TODAS las semanas del schedule (incluso las vacías)
               return allWeeksInSchedule.map((weekNumber) => {
                 const hasExercises = weeksWithExercises.has(weekNumber)
                 const isWeekEmpty = !hasExercises
-                
+
                 return (
-              <button
+                  <button
                     key={weekNumber}
                     onClick={() => setCurrentWeek(weekNumber)}
-                className={`w-8 h-8 rounded-full border-2 text-sm font-light transition-colors ${
-                      currentWeek === weekNumber
-                    ? 'border-[#FF7939]'
-                    : 'border-gray-600 hover:border-gray-500'
-                }`}
-                style={{
-                  color: isWeekEmpty 
-                    ? '#ef4444' // Rojo si la semana está vacía
-                    : currentWeek === weekNumber 
-                      ? '#FF7939' // Naranja si está seleccionada
-                      : '#d1d5db' // Gris si no está seleccionada
-                }}
-              >
+                    className={`w-8 h-8 rounded-full border-2 text-sm font-light transition-colors ${currentWeek === weekNumber
+                        ? 'border-[#FF7939]'
+                        : 'border-gray-600 hover:border-gray-500'
+                      }`}
+                    style={{
+                      color: isWeekEmpty
+                        ? '#ef4444' // Rojo si la semana está vacía
+                        : currentWeek === weekNumber
+                          ? '#FF7939' // Naranja si está seleccionada
+                          : '#d1d5db' // Gris si no está seleccionada
+                    }}
+                  >
                     {weekNumber}
-              </button>
+                  </button>
                 )
               })
             })()}
@@ -2780,7 +2783,7 @@ export function WeeklyExercisePlanner({ exercises, onScheduleChange, onPeriodsCh
                 const totalWeeksAfterAdd = totalWeeksInSchedule + 1
                 const totalWithPeriods = totalWeeksAfterAdd * periods
                 const isDisabled = totalWithPeriods > weeksLimit
-                
+
                 console.log('🔍 [Agregar Semana] Verificando límite:', {
                   existingWeekNumbers,
                   numberOfWeeks,
@@ -2791,12 +2794,11 @@ export function WeeklyExercisePlanner({ exercises, onScheduleChange, onPeriodsCh
                   weeksLimit,
                   isDisabled
                 })
-                
+
                 // Permitir agregar si el total (semanas totales + 1 nueva) * períodos no supera el límite
                 return isDisabled
               })()}
-              className={`w-8 h-8 rounded-full border-2 text-sm font-light transition-colors ${
-                (() => {
+              className={`w-8 h-8 rounded-full border-2 text-sm font-light transition-colors ${(() => {
                   if (weeksLimit === null || weeksLimit === undefined) return false
                   const existingWeekNumbers = Object.keys(weeklySchedule).map(Number).filter(n => !isNaN(n) && n > 0)
                   const totalWeeksInSchedule = existingWeekNumbers.length
@@ -2805,22 +2807,22 @@ export function WeeklyExercisePlanner({ exercises, onScheduleChange, onPeriodsCh
                 })()
                   ? 'border-gray-700 text-gray-600 cursor-not-allowed opacity-50'
                   : 'border-[#FF7939] text-[#FF7939] hover:bg-[#FF7939]/10'
-              }`}
+                }`}
             >
               +
             </button>
           </div>
-          
+
           {/* Botón eliminar semana - solo mostrar si hay más de una semana con ejercicios */}
           {(() => {
             const weeksWithExercises = getWeeksWithExercises()
             return weeksWithExercises.size > 1 && (
-            <button
-              onClick={() => removeWeek(currentWeek)}
-              className="w-6 h-6 rounded-full border-2 border-[#FF7939] text-[#FF7939] hover:bg-[#FF7939]/10 text-xs font-light transition-colors flex items-center justify-center"
-            >
-              ✕
-            </button>
+              <button
+                onClick={() => removeWeek(currentWeek)}
+                className="w-6 h-6 rounded-full border-2 border-[#FF7939] text-[#FF7939] hover:bg-[#FF7939]/10 text-xs font-light transition-colors flex items-center justify-center"
+              >
+                ✕
+              </button>
             )
           })()}
         </div>
@@ -3059,128 +3061,127 @@ export function WeeklyExercisePlanner({ exercises, onScheduleChange, onPeriodsCh
                 const filteredExercises = searchTerm.trim() === ''
                   ? finalAvailableExercises
                   : finalAvailableExercises.filter(ex => {
-                      const searchLower = searchTerm.toLowerCase()
-                      const name = (ex.name || '').toLowerCase()
-                      const description = (ex.description || '').toLowerCase()
-                      const type = ((ex.type || ex.tipo) || '').toLowerCase()
-                      return name.includes(searchLower) || description.includes(searchLower) || type.includes(searchLower)
-                    })
+                    const searchLower = searchTerm.toLowerCase()
+                    const name = (ex.name || '').toLowerCase()
+                    const description = (ex.description || '').toLowerCase()
+                    const type = ((ex.type || ex.tipo) || '').toLowerCase()
+                    return name.includes(searchLower) || description.includes(searchLower) || type.includes(searchLower)
+                  })
 
                 return filteredExercises.map((exercise) => {
-            const isInactive = (exercise as any).is_active === false || (exercise as any).activo === false
-            
-            // Debug log para verificar estado
-            if (isInactive) {
-              console.log(`🔴 Ejercicio INACTIVO detectado: ${exercise.name} (ID: ${exercise.id}), is_active: ${(exercise as any).is_active}, activo: ${(exercise as any).activo}`)
-            }
-            
-            // Determinar si es nutrición: SOLO por categoría del producto.
-            // Evita mostrar macros en ejercicios fitness aunque vengan campos P/C/G.
-            const isNutrition = productCategory === 'nutricion'
-            
-            // Obtener el tipo normalizado y su esquema de color
-            const exerciseType = isNutrition 
-              ? normalizeNutritionType(exercise.type || (exercise as any).tipo || 'otro')
-              : normalizeExerciseType(exercise.type || (exercise as any).tipo || 'General')
-            
-            const scheme = getTypeColorScheme(exerciseType, isNutrition)
-            
-            // Obtener el nombre del tipo para mostrar (capitalizado)
-            const getTypeDisplayName = (type: string) => {
-              const typeMap: Record<string, string> = {
-                'desayuno': 'Desayuno',
-                'almuerzo': 'Almuerzo',
-                'cena': 'Cena',
-                'snack': 'Snack',
-                'merienda': 'Merienda',
-                'colación': 'Colación',
-                'colacion': 'Colación',
-                'pre-entreno': 'Pre-entreno',
-                'post-entreno': 'Post-entreno',
-                'otro': 'Otro'
-              }
-              return typeMap[type.toLowerCase()] || type.charAt(0).toUpperCase() + type.slice(1)
-            }
-            
-            return (
-            <div 
-              key={exercise.id}
-              className={`bg-gray-900/40 border border-gray-700/70 rounded-lg p-2 transition-colors ${
-                isInactive ? 'opacity-50 cursor-not-allowed' : 'cursor-pointer hover:border-gray-500'
-              }`}
-              style={(() => {
+                  const isInactive = (exercise as any).is_active === false || (exercise as any).activo === false
+
+                  // Debug log para verificar estado
                   if (isInactive) {
-                    return { borderColor: '#3F3F46' }
+                    console.log(`🔴 Ejercicio INACTIVO detectado: ${exercise.name} (ID: ${exercise.id}), is_active: ${(exercise as any).is_active}, activo: ${(exercise as any).activo}`)
                   }
-                  if (selectedExercises.has(exercise.id)) {
-                  // Solo el seleccionado resalta el frame, siempre con el mismo color (sin diferenciar por tipo)
-                  return {
-                    borderColor: '#FF7939',
-                    backgroundColor: 'rgba(255, 121, 57, 0.15)'
+
+                  // Determinar si es nutrición: SOLO por categoría del producto.
+                  // Evita mostrar macros en ejercicios fitness aunque vengan campos P/C/G.
+                  const isNutrition = productCategory === 'nutricion'
+
+                  // Obtener el tipo normalizado y su esquema de color
+                  const exerciseType = isNutrition
+                    ? normalizeNutritionType(exercise.type || (exercise as any).tipo || 'otro')
+                    : normalizeExerciseType(exercise.type || (exercise as any).tipo || 'General')
+
+                  const scheme = getTypeColorScheme(exerciseType, isNutrition)
+
+                  // Obtener el nombre del tipo para mostrar (capitalizado)
+                  const getTypeDisplayName = (type: string) => {
+                    const typeMap: Record<string, string> = {
+                      'desayuno': 'Desayuno',
+                      'almuerzo': 'Almuerzo',
+                      'cena': 'Cena',
+                      'snack': 'Snack',
+                      'merienda': 'Merienda',
+                      'colación': 'Colación',
+                      'colacion': 'Colación',
+                      'pre-entreno': 'Pre-entreno',
+                      'post-entreno': 'Post-entreno',
+                      'otro': 'Otro'
+                    }
+                    return typeMap[type.toLowerCase()] || type.charAt(0).toUpperCase() + type.slice(1)
                   }
-              }
-                // No aplicar color de tipo al resto; marco neutro
-                return {}
-              })()}
-              onClick={() => !isInactive && toggleExerciseSelection(exercise.id)}
-              title={isInactive ? 'Ejercicio desactivado' : undefined}
-            >
-              <div className="flex items-center justify-between gap-2 mb-1">
-                <div className="flex items-center gap-2 flex-1 min-w-0">
-                  <div
-                    className="w-2 h-2 rounded-full flex-shrink-0 bg-[#FF7939]"
-                  ></div>
-                  <p className={`text-xs font-light truncate ${isInactive ? 'text-gray-500 line-through' : 'text-gray-100'}`}>
-                    {exercise.name}
-                  </p>
-                </div>
-                {/* Ya no mostramos el tipo en la card de selección; solo se usa en la tabla de días (bloques) */}
-              </div>
-              <div className="flex items-center gap-2 ml-4">
-                {isNutrition && exercise.proteinas !== undefined ? (
-                  <div className={`text-xs ${isInactive ? 'text-gray-500 line-through' : 'text-gray-400'}`}>
-                    <p>
-                      P: {exercise.proteinas}g | C: {exercise.carbohidratos}g | G: {exercise.grasas}g
-                      {exercise.calorias !== undefined && exercise.calorias !== null && ` | ${exercise.calorias}kcal`}
-                    </p>
-                  </div>
-                ) : (
-                  <>
-                    {(() => {
-                      const exerciseScheme = getTypeColorScheme(exerciseType, false)
-                      return (
-                        <p
-                          className={`text-xs px-2 py-1 rounded border ${isInactive ? 'text-gray-500 line-through opacity-50 border-gray-600 bg-transparent' : 'font-medium'}`}
-                          style={
-                            isInactive
-                              ? undefined
-                              : {
-                                  color: exerciseScheme.hex,
-                                  borderColor: exerciseScheme.hex,
-                                  backgroundColor: exerciseScheme.soft
-                                }
+
+                  return (
+                    <div
+                      key={exercise.id}
+                      className={`bg-gray-900/40 border border-gray-700/70 rounded-lg p-2 transition-colors ${isInactive ? 'opacity-50 cursor-not-allowed' : 'cursor-pointer hover:border-gray-500'
+                        }`}
+                      style={(() => {
+                        if (isInactive) {
+                          return { borderColor: '#3F3F46' }
+                        }
+                        if (selectedExercises.has(exercise.id)) {
+                          // Solo el seleccionado resalta el frame, siempre con el mismo color (sin diferenciar por tipo)
+                          return {
+                            borderColor: '#FF7939',
+                            backgroundColor: 'rgba(255, 121, 57, 0.15)'
                           }
-                        >
-                          {exercise.type || 'General'}
-                        </p>
-                      )
-                    })()}
-                    {formatSeriesDisplay(exercise) ? (
-                      <p className={`text-xs ${isInactive ? 'text-gray-500 line-through' : 'text-gray-400'}`}>
-                        {formatSeriesDisplay(exercise)}
-                      </p>
-                    ) : null}
-                  </>
-                )}
-              </div>
+                        }
+                        // No aplicar color de tipo al resto; marco neutro
+                        return {}
+                      })()}
+                      onClick={() => !isInactive && toggleExerciseSelection(exercise.id)}
+                      title={isInactive ? 'Ejercicio desactivado' : undefined}
+                    >
+                      <div className="flex items-center justify-between gap-2 mb-1">
+                        <div className="flex items-center gap-2 flex-1 min-w-0">
+                          <div
+                            className="w-2 h-2 rounded-full flex-shrink-0 bg-[#FF7939]"
+                          ></div>
+                          <p className={`text-xs font-light truncate ${isInactive ? 'text-gray-500 line-through' : 'text-gray-100'}`}>
+                            {exercise.name}
+                          </p>
+                        </div>
+                        {/* Ya no mostramos el tipo en la card de selección; solo se usa en la tabla de días (bloques) */}
+                      </div>
+                      <div className="flex items-center gap-2 ml-4">
+                        {isNutrition && exercise.proteinas !== undefined ? (
+                          <div className={`text-xs ${isInactive ? 'text-gray-500 line-through' : 'text-gray-400'}`}>
+                            <p>
+                              P: {exercise.proteinas}g | C: {exercise.carbohidratos}g | G: {exercise.grasas}g
+                              {exercise.calorias !== undefined && exercise.calorias !== null && ` | ${exercise.calorias}kcal`}
+                            </p>
+                          </div>
+                        ) : (
+                          <>
+                            {(() => {
+                              const exerciseScheme = getTypeColorScheme(exerciseType, false)
+                              return (
+                                <p
+                                  className={`text-xs px-2 py-1 rounded border ${isInactive ? 'text-gray-500 line-through opacity-50 border-gray-600 bg-transparent' : 'font-medium'}`}
+                                  style={
+                                    isInactive
+                                      ? undefined
+                                      : {
+                                        color: exerciseScheme.hex,
+                                        borderColor: exerciseScheme.hex,
+                                        backgroundColor: exerciseScheme.soft
+                                      }
+                                  }
+                                >
+                                  {exercise.type || 'General'}
+                                </p>
+                              )
+                            })()}
+                            {formatSeriesDisplay(exercise) ? (
+                              <p className={`text-xs ${isInactive ? 'text-gray-500 line-through' : 'text-gray-400'}`}>
+                                {formatSeriesDisplay(exercise)}
+                              </p>
+                            ) : null}
+                          </>
+                        )}
+                      </div>
+                    </div>
+                  )
+                })
+              })()}
             </div>
-            )
-          })
-          })()}
-        </div>
-      </>
-    )}
-  </div>
+          </>
+        )}
+      </div>
 
       {/* Modal para ver/editar ejercicios del día con sistema de bloques */}
       {showDayExercises && selectedDay && (
@@ -3193,25 +3194,25 @@ export function WeeklyExercisePlanner({ exercises, onScheduleChange, onPeriodsCh
           onUpdateExercises={(payload) => {
             // Guardar estado actual en historial antes de cambiar
             saveToHistory(JSON.parse(JSON.stringify(weeklySchedule)))
-            
+
             // ✅ Filtrar ejercicios genéricos del payload antes de guardar
             const exercises = getExercisesFromDay(payload) // Ya filtra genéricos
-            const cleanedPayload = Array.isArray(payload) 
-              ? exercises 
+            const cleanedPayload = Array.isArray(payload)
+              ? exercises
               : {
-                  ...payload,
-                  exercises: exercises,
-                  ejercicios: exercises,
-                  blockCount: exercises.length > 0 ? (payload.blockCount || 1) : 0
-                }
-            
+                ...payload,
+                exercises: exercises,
+                ejercicios: exercises,
+                blockCount: exercises.length > 0 ? (payload.blockCount || 1) : 0
+              }
+
             setWeeklySchedule(prev => {
               const newSchedule = { ...prev }
               if (!newSchedule[currentWeek]) {
                 newSchedule[currentWeek] = {}
               }
               const dayNumber = parseInt(selectedDay)
-              
+
               // ✅ Si no hay ejercicios válidos, eliminar el día del schedule
               if (exercises.length === 0) {
                 delete newSchedule[currentWeek][dayNumber]
@@ -3220,10 +3221,10 @@ export function WeeklyExercisePlanner({ exercises, onScheduleChange, onPeriodsCh
                   delete newSchedule[currentWeek]
                 }
               } else {
-              // Manejar tanto ejercicios como información de bloques
+                // Manejar tanto ejercicios como información de bloques
                 newSchedule[currentWeek][dayNumber] = cleanedPayload
               }
-              
+
               // Actualizar rastreo de días similares
               const currentDayKey = `${currentWeek}-${dayNumber}`
               const similarDaysList = findSimilarDays(currentDayKey, exercises)
@@ -3231,7 +3232,7 @@ export function WeeklyExercisePlanner({ exercises, onScheduleChange, onPeriodsCh
                 ...prev,
                 [currentDayKey]: similarDaysList
               }))
-              
+
               // notificar al padre para que persista en estado superior
               if (onScheduleChange) {
                 setTimeout(() => onScheduleChange(newSchedule), 0)
@@ -3247,15 +3248,15 @@ export function WeeklyExercisePlanner({ exercises, onScheduleChange, onPeriodsCh
           onApplyToSimilarDays={(blockNames, exercises, blockCountValue) => {
             // Guardar estado actual en historial antes de aplicar cambios
             saveToHistory(JSON.parse(JSON.stringify(weeklySchedule)))
-            
+
             // ✅ Filtrar ejercicios genéricos antes de aplicar
             const validExercises = exercises.filter(ex => !isGenericExercise(ex))
-            
+
             // Aplicar la configuración a todos los días similares
             const currentDayKey = `${currentWeek}-${selectedDay}`
             const currentExercises = getExercisesForDay(currentWeek, parseInt(selectedDay))
             const similarDaysList = findSimilarDays(currentDayKey, currentExercises)
-            
+
             console.log('🔧 APLICANDO A DÍAS SIMILARES:', {
               currentDay: currentDayKey,
               similarDays: similarDaysList,
@@ -3263,17 +3264,17 @@ export function WeeklyExercisePlanner({ exercises, onScheduleChange, onPeriodsCh
               exercisesOriginales: exercises.length,
               ejerciciosValidos: validExercises.length
             })
-            
+
             // ✅ Si no hay ejercicios válidos, no aplicar nada
             if (validExercises.length === 0) {
               console.log('⚠️ No hay ejercicios válidos para aplicar a días similares')
               return
             }
-            
+
             // Actualizar el schedule con todos los cambios (día actual + días similares)
             setWeeklySchedule(prev => {
               const newSchedule = { ...prev }
-              
+
               // 1. Primero guardar el día actual
               if (!newSchedule[currentWeek]) {
                 newSchedule[currentWeek] = {}
@@ -3285,12 +3286,12 @@ export function WeeklyExercisePlanner({ exercises, onScheduleChange, onPeriodsCh
                 blockCount: blockCountValue
               }
               console.log('🔧 Día actual guardado:', currentDayKey, newSchedule[currentWeek][parseInt(selectedDay)])
-              
+
               // 2. Luego aplicar a días similares
               similarDaysList.forEach(dayKey => {
                 const [week, day] = dayKey.split('-')
                 console.log('🔧 Aplicando a día:', dayKey, 'ejercicios:', validExercises.length, 'bloques:', Object.keys(blockNames).length)
-                
+
                 if (!newSchedule[parseInt(week)]) {
                   newSchedule[parseInt(week)] = {}
                 }
@@ -3302,10 +3303,10 @@ export function WeeklyExercisePlanner({ exercises, onScheduleChange, onPeriodsCh
                 }
                 console.log('🔧 Día similar actualizado:', dayKey, newSchedule[parseInt(week)][parseInt(day)])
               })
-              
+
               return newSchedule
             })
-            
+
             // Notificar al padre sobre los cambios
             if (onScheduleChange) {
               setTimeout(() => {
@@ -3320,7 +3321,7 @@ export function WeeklyExercisePlanner({ exercises, onScheduleChange, onPeriodsCh
                   blockNames: blockNames,
                   blockCount: blockCountValue
                 }
-                
+
                 similarDaysList.forEach(dayKey => {
                   const [week, day] = dayKey.split('-')
                   if (!updatedSchedule[parseInt(week)]) {
@@ -3333,7 +3334,7 @@ export function WeeklyExercisePlanner({ exercises, onScheduleChange, onPeriodsCh
                     blockCount: blockCountValue
                   }
                 })
-                
+
                 onScheduleChange(updatedSchedule)
               }, 0)
             }
@@ -3360,7 +3361,7 @@ interface DayExercisesModalProps {
   onApplyToSimilarDays?: (blockNames: { [key: number]: string }, exercises: Exercise[], blockCount: number) => void
 }
 
-  function DayExercisesModal({ dayKey, dayLabel, exercises, availableExercises, onClose, onUpdateExercises, weekNumber, blockNames = {}, blockCountStored = 1, productCategory, similarDays = [], onApplyToSimilarDays }: DayExercisesModalProps) {
+function DayExercisesModal({ dayKey, dayLabel, exercises, availableExercises, onClose, onUpdateExercises, weekNumber, blockNames = {}, blockCountStored = 1, productCategory, similarDays = [], onApplyToSimilarDays }: DayExercisesModalProps) {
   const [exercisesLocal, setExercisesLocal] = useState<Exercise[]>([])
   const [blockCount, setBlockCount] = useState(1)
   const [showAvailableExercises, setShowAvailableExercises] = useState(false)
@@ -3374,27 +3375,27 @@ interface DayExercisesModalProps {
   // Opciones predefinidas para nombres de bloques
   const blockNameOptions = isNutrition
     ? [
-        'Desayuno',
-        'Almuerzo',
-        'Merienda',
-        'Cena',
-        'Colación',
-        'Pre-entreno',
-        'Post-entreno'
-      ]
+      'Desayuno',
+      'Almuerzo',
+      'Merienda',
+      'Cena',
+      'Colación',
+      'Pre-entreno',
+      'Post-entreno'
+    ]
     : Array.from({ length: Math.max(blockCount, 12) }, (_, i) => `Bloque ${i + 1}`)
 
   // Orden lógico para asignación automática
   const logicalOrder = isNutrition
     ? [
-        'Desayuno',
-        'Almuerzo',
-        'Merienda',
-        'Cena',
-        'Colación',
-        'Pre-entreno',
-        'Post-entreno'
-      ]
+      'Desayuno',
+      'Almuerzo',
+      'Merienda',
+      'Cena',
+      'Colación',
+      'Pre-entreno',
+      'Post-entreno'
+    ]
     : []
 
   // Nombres que se pueden repetir
@@ -3417,11 +3418,11 @@ interface DayExercisesModalProps {
                 // ✅ Asegurar que siempre haya un nombre válido
                 const nombre = plato.nombre || plato.Nombre || plato.name || plato.nombre_plato || ''
                 const name = nombre.trim()
-                
+
                 // ✅ Incluir TODOS los platos, incluso si no tienen nombre (usar ID como fallback)
                 // NO filtrar platos - mostrar todos los que vienen del backend
                 const finalName = name || `Plato ID ${plato.id}`
-                
+
                 return {
                   id: String(plato.id),
                   name: finalName,
@@ -3440,7 +3441,7 @@ interface DayExercisesModalProps {
                   dificultad: plato.dificultad || 'Principiante'
                 }
               })
-              // ✅ NO filtrar - incluir TODOS los platos del backend (20 platos)
+            // ✅ NO filtrar - incluir TODOS los platos del backend (20 platos)
             console.log('✅ [DayExercisesModal] Todos los platos del coach cargados:', exercises.length, 'platos:', exercises.map(e => ({ id: e.id, name: e.name })))
             setAllCoachExercisesInModal(exercises)
           }
@@ -3527,10 +3528,10 @@ interface DayExercisesModalProps {
 
       const exerciseId = exercise.id ?? exercise?.['id']
       const exerciseIdStr = exerciseId !== undefined && exerciseId !== null ? String(exerciseId) : null
-      
+
       // Buscar en el mapa con diferentes formatos de ID
       let source = exerciseIdStr ? availableExercisesMap.get(exerciseIdStr) : undefined
-      
+
       // Si no se encuentra, intentar buscar con número (para IDs numéricos)
       if (!source && exerciseIdStr) {
         const exerciseIdNum = Number(exerciseIdStr)
@@ -3559,7 +3560,7 @@ interface DayExercisesModalProps {
           }
         }
       }
-      
+
       // Si aún no se encuentra, intentar búsqueda exhaustiva en todas las claves y valores
       if (!source && exerciseIdStr) {
         for (const [mapKey, mapValue] of availableExercisesMap.entries()) {
@@ -3567,7 +3568,7 @@ interface DayExercisesModalProps {
           const exerciseIdNum = Number(exerciseIdStr)
           const mapValueId = mapValue.id
           const mapValueIdStr = mapValueId !== undefined && mapValueId !== null ? String(mapValueId) : null
-          
+
           // Comparar claves
           if (
             mapKey === exerciseIdStr ||
@@ -3583,7 +3584,7 @@ interface DayExercisesModalProps {
             })
             break
           }
-          
+
           // Comparar valores del ID
           if (mapValueIdStr && (
             mapValueIdStr === exerciseIdStr ||
@@ -3604,7 +3605,7 @@ interface DayExercisesModalProps {
           }
         }
       }
-      
+
       // Log si no se encontró
       if (!source && exerciseIdStr) {
         console.log('⚠️ [mergeExerciseData] Ejercicio NO encontrado en mapa:', {
@@ -3619,7 +3620,7 @@ interface DayExercisesModalProps {
           }))
         })
       }
-      
+
       // ✅ Si aún no se encuentra y el ID es temporal (contiene guión), buscar por coincidencia exacta de string
       // Esto es importante para IDs temporales como "nutrition-0", "nutrition-1", etc.
       if (!source && exerciseIdStr && exerciseIdStr.includes('-')) {
@@ -3638,10 +3639,10 @@ interface DayExercisesModalProps {
           }
         }
       }
-      
+
       // finalSource es el source encontrado (puede ser null/undefined)
       const finalSource = source
-      
+
       // Silenciar logs en producción para reducir ruido
 
       // Priorizar datos del schedule (vienen del backend), luego del source (del paso 4)
@@ -3665,10 +3666,10 @@ interface DayExercisesModalProps {
 
       const preferredType = normalizeExerciseType(
         exercise.type ||
-          exercise.tipo ||
-          finalSource?.type ||
-          (finalSource as any)?.tipo ||
-          ''
+        exercise.tipo ||
+        finalSource?.type ||
+        (finalSource as any)?.tipo ||
+        ''
       )
 
       const preferredSeries =
@@ -3691,7 +3692,7 @@ interface DayExercisesModalProps {
         finalSource?.calories ??
         (finalSource as any)?.calorias ??
         null
-      
+
       // Silenciar logs detallados para mejorar performance
 
       // Construir el objeto merged asegurando que todos los campos estén presentes
@@ -3699,7 +3700,7 @@ interface DayExercisesModalProps {
         ...(finalSource || {}),
         ...exercise
       }
-      
+
       const merged: Exercise = {
         ...mergedBase,
         id: String(exercise.id ?? finalSource?.id ?? `exercise-${index}`),
@@ -3727,7 +3728,7 @@ interface DayExercisesModalProps {
         body_parts: (mergedBase as any)?.body_parts || mergedBase.bodyParts || undefined,
         video_url: (mergedBase as any)?.video_url || undefined
       } as Exercise
-      
+
       // Silenciar logs en merge final
 
       return merged
@@ -3738,10 +3739,10 @@ interface DayExercisesModalProps {
   // Función para asignar automáticamente nombres a los bloques
   const assignBlockNames = (currentBlockNames: { [key: number]: string }, newBlockCount: number) => {
     const newBlockNames = { ...currentBlockNames }
-    
+
     // Obtener nombres ya asignados
     const assignedNames = Object.values(newBlockNames)
-    
+
     for (let blockId = 1; blockId <= newBlockCount; blockId++) {
       if (!newBlockNames[blockId]) {
         if (!isNutrition) {
@@ -3752,7 +3753,7 @@ interface DayExercisesModalProps {
 
         // Buscar el siguiente nombre disponible en el orden lógico
         let assignedName = null
-        
+
         // Primero intentar con nombres únicos en orden lógico
         for (const name of logicalOrder) {
           if (!repeatableNames.includes(name) && !assignedNames.includes(name)) {
@@ -3760,7 +3761,7 @@ interface DayExercisesModalProps {
             break
           }
         }
-        
+
         // Si no hay nombres únicos disponibles, usar nombres repetibles
         if (!assignedName && repeatableNames.length > 0) {
           // Contar cuántas veces se ha usado cada nombre repetible
@@ -3768,21 +3769,21 @@ interface DayExercisesModalProps {
           for (const name of repeatableNames) {
             nameCounts[name] = assignedNames.filter(n => n === name).length
           }
-          
+
           // Elegir el nombre repetible menos usado
-          const leastUsedName = repeatableNames.reduce((a, b) => 
+          const leastUsedName = repeatableNames.reduce((a, b) =>
             nameCounts[a] < nameCounts[b] ? a : b
           )
           assignedName = leastUsedName
         }
-        
+
         newBlockNames[blockId] = assignedName ?? `Bloque ${blockId}`
         assignedNames.push(newBlockNames[blockId])
       } else if (!isNutrition) {
         newBlockNames[blockId] = `Bloque ${blockId}`
       }
     }
-    
+
     return newBlockNames
   }
 
@@ -3791,8 +3792,8 @@ interface DayExercisesModalProps {
   useEffect(() => {
     const exercisesSignature = Array.isArray(exercises)
       ? exercises
-          .map((ex) => `${ex?.id ?? ''}-${ex?.block ?? ex?.bloque ?? ''}-${ex?.orden ?? ''}`)
-          .join('|')
+        .map((ex) => `${ex?.id ?? ''}-${ex?.block ?? ex?.bloque ?? ''}-${ex?.orden ?? ''}`)
+        .join('|')
       : ''
     const blockNamesSignature = blockNames ? JSON.stringify(blockNames) : ''
     const signature = `${blockCountStored}|${blockNamesSignature}|${exercisesSignature}|${availableExercisesSignature}`
@@ -3805,9 +3806,9 @@ interface DayExercisesModalProps {
     // ✅ Filtrar ejercicios genéricos o sin nombre válido antes de establecer el estado
     const base = (exercises || [])
       .map((ex, index) => {
-      const merged = mergeExerciseData(ex, index)
-      return {
-        ...merged,
+        const merged = mergeExerciseData(ex, index)
+        return {
+          ...merged,
           block: merged.block || 1,
           _originalIndex: index // Guardar índice original para referencia
         }
@@ -3815,18 +3816,18 @@ interface DayExercisesModalProps {
       .filter((merged) => {
         // Filtrar ejercicios genéricos o sin nombre válido
         const name = merged.name || (merged as any)?.nombre_ejercicio || (merged as any)?.['Nombre de la Actividad'] || (merged as any)?.Nombre || ''
-        
+
         // ✅ Si el ejercicio tiene un ID válido (temporal o numérico) pero no tiene nombre,
         // verificar si está en availableExercisesMap - si está, usar el nombre del mapa
         const mergedIdStr = merged.id ? String(merged.id) : null
-        const hasTemporaryId = mergedIdStr && mergedIdStr.includes('-') && 
-                               (mergedIdStr.startsWith('nutrition-') || mergedIdStr.startsWith('exercise-'))
+        const hasTemporaryId = mergedIdStr && mergedIdStr.includes('-') &&
+          (mergedIdStr.startsWith('nutrition-') || mergedIdStr.startsWith('exercise-'))
         const hasNumericId = mergedIdStr && !isNaN(Number(mergedIdStr)) && !mergedIdStr.includes('-')
-        
+
         // Si tiene ID válido pero nombre genérico o vacío, verificar si está en availableExercisesMap
         if ((hasTemporaryId || hasNumericId) && (!name || /^Ejercicio\s+\d+$/i.test(name.trim()) || /^Plato\s+\d+$/i.test(name.trim()) || name.trim().startsWith('Ejercicio ') || name.trim().startsWith('Plato '))) {
           let exerciseInMap: Exercise | undefined = undefined
-          
+
           // Buscar en el mapa con diferentes formatos
           if (mergedIdStr) {
             exerciseInMap = availableExercisesMap.get(mergedIdStr)
@@ -3845,7 +3846,7 @@ interface DayExercisesModalProps {
               }
             }
           }
-          
+
           if (exerciseInMap && (exerciseInMap.name || (exerciseInMap as any)?.nombre_ejercicio)) {
             // El ejercicio está en el mapa y tiene nombre, no filtrarlo
             // Actualizar el nombre del merged con el nombre del mapa
@@ -3860,27 +3861,27 @@ interface DayExercisesModalProps {
             return true
           }
         }
-        
+
         // ✅ Si tiene ID numérico válido, NO filtrar aunque tenga nombre genérico
         // Los nombres genéricos pueden venir del backend cuando los ejercicios aún no se han cargado
         // El nombre se puede actualizar después cuando se carguen los ejercicios disponibles
         const hasValidNumericId = hasNumericId && Number(mergedIdStr) > 0
-        
+
         if (hasValidNumericId) {
           // Si tiene ID válido, NO filtrar - el nombre se puede obtener después
           console.log('✅ Ejercicio con ID válido, NO filtrando aunque tenga nombre genérico:', { id: merged.id, name, merged })
           return true
         }
-        
-        const isGenericName = !name || 
-                              name.trim() === '' || 
-                              /^Ejercicio\s+\d+$/i.test(name.trim()) ||
-                              /^Plato\s+\d+$/i.test(name.trim()) ||
-                              name.trim().startsWith('Ejercicio ') ||
-                              name.trim().startsWith('Plato ') ||
-                              merged.id === `deleted-${(merged as any)._originalIndex}` ||
-                              String(merged.id || '').startsWith('deleted-')
-        
+
+        const isGenericName = !name ||
+          name.trim() === '' ||
+          /^Ejercicio\s+\d+$/i.test(name.trim()) ||
+          /^Plato\s+\d+$/i.test(name.trim()) ||
+          name.trim().startsWith('Ejercicio ') ||
+          name.trim().startsWith('Plato ') ||
+          merged.id === `deleted-${(merged as any)._originalIndex}` ||
+          String(merged.id || '').startsWith('deleted-')
+
         if (isGenericName) {
           console.log('🚫 Filtrando ejercicio genérico:', { id: merged.id, name, merged })
           return false
@@ -3888,14 +3889,14 @@ interface DayExercisesModalProps {
         return true
       })
       .map(({ _originalIndex, ...rest }) => rest) // Remover _originalIndex antes de guardar
-    
+
     setExercisesLocal(base)
-    
+
     const maxBlockFromExercises = base.length > 0 ? Math.max(...base.map(ex => ex.block || 1)) : 1
     const storedCount = Math.max(1, blockCountStored || 1)
     const initialCount = Math.max(storedCount, maxBlockFromExercises)
     setBlockCount(initialCount)
-    
+
     // Inicializar nombres de bloques con asignación automática
     const initialBlockNames = assignBlockNames(blockNames, initialCount)
     setLocalBlockNames(initialBlockNames)
@@ -3911,7 +3912,7 @@ interface DayExercisesModalProps {
     }))
     setBlockCount(newCount)
     setExercisesLocal(reassigned)
-    
+
     // Asignar automáticamente nombres a los bloques
     const newBlockNames = assignBlockNames(localBlockNames, newCount)
     setLocalBlockNames(newBlockNames)
@@ -3921,22 +3922,22 @@ interface DayExercisesModalProps {
     // ✅ Filtrar ejercicios sin nombre válido (eliminados/genéricos)
     const validExercises = exercisesLocal.filter(ex => {
       const name = ex.name || (ex as any)?.nombre_ejercicio || (ex as any)?.['Nombre de la Actividad'] || (ex as any)?.Nombre || ''
-      const isGenericName = !name || 
-                            name.trim() === '' || 
-                            /^Ejercicio\s+\d+$/i.test(name.trim()) ||
-                            /^Plato\s+\d+$/i.test(name.trim()) ||
-                            name.trim().startsWith('Ejercicio ') ||
-                            name.trim().startsWith('Plato ') ||
-                            ex.id === `deleted-${exercisesLocal.indexOf(ex)}` ||
-                            String(ex.id || '').startsWith('deleted-')
-      
+      const isGenericName = !name ||
+        name.trim() === '' ||
+        /^Ejercicio\s+\d+$/i.test(name.trim()) ||
+        /^Plato\s+\d+$/i.test(name.trim()) ||
+        name.trim().startsWith('Ejercicio ') ||
+        name.trim().startsWith('Plato ') ||
+        ex.id === `deleted-${exercisesLocal.indexOf(ex)}` ||
+        String(ex.id || '').startsWith('deleted-')
+
       if (isGenericName) {
         console.log('🚫 Guardando: Filtrando ejercicio genérico:', { id: ex.id, name, ex })
         return false
       }
       return true
     })
-    
+
     // Si no hay ejercicios válidos, guardar array vacío
     if (validExercises.length === 0) {
       const payload: DaySchedulePayload = {
@@ -3949,22 +3950,22 @@ interface DayExercisesModalProps {
       onClose()
       return
     }
-    
+
     // Incluir información de bloques en el payload
     // 1) Recalcular cantidad real de bloques (solo bloques con ejercicios válidos)
     const maxBlockUsed = validExercises.length > 0 ? Math.max(...validExercises.map(ex => ex.block || 1)) : 0
     const finalBlockCount = Math.max(0, maxBlockUsed) // ✅ Puede ser 0 si está vacío
-    
+
     // 2) Podar nombres de bloques que queden vacíos
-    const prunedBlockNames: { [key:number]: string } = {}
+    const prunedBlockNames: { [key: number]: string } = {}
     for (let i = 1; i <= finalBlockCount; i++) {
       // Solo incluir bloques que realmente tienen ejercicios
       const hasExercisesInBlock = validExercises.some(ex => (ex.block || 1) === i)
       if (hasExercisesInBlock && localBlockNames[i]) {
         prunedBlockNames[i] = localBlockNames[i]
+      }
     }
-    }
-    
+
     const payload: DaySchedulePayload = {
       exercises: validExercises,
       ejercicios: validExercises,
@@ -4077,13 +4078,13 @@ interface DayExercisesModalProps {
       activo: (exercise as any).activo,
       exercisesLocalLength: exercisesLocal.length
     })
-    
+
     // No permitir agregar ejercicios inactivos
     if ((exercise as any).is_active === false || (exercise as any).activo === false) {
       console.log('⚠️ Intento de agregar ejercicio desactivado:', exercise.name)
       return
     }
-    
+
     // Agregando ejercicio desde disponibles
     // Permitir duplicados - agregar siempre
     // Asegurar que el ejercicio tenga un bloque asignado (usar el primer bloque si no tiene)
@@ -4092,7 +4093,7 @@ interface DayExercisesModalProps {
       block: exercise.block || 1,
       orden: exercise.orden || exercisesLocal.length + 1
     }
-    
+
     setExercisesLocal(prev => {
       const newList = [...prev, exerciseWithBlock]
       console.log('✅ [DayExercisesModal] Ejercicio agregado al estado:', {
@@ -4134,448 +4135,447 @@ interface DayExercisesModalProps {
           </div>
         </div>
         <div className="overflow-auto flex-1 pb-24">
-        {/* Controles de bloques (+ / -) con distribución equitativa */}
-        <div className="flex items-center justify-between mb-4 w-full">
-          <div className="flex items-center gap-2 flex-1">
-            <span className="text-white text-sm">Bloques:</span>
-            <button
-              onClick={() => distributeEvenly(Math.max(1, blockCount - 1))}
-              className="w-7 h-7 rounded-md border border-[#FF7939] text-[#FF7939] hover:bg-[#FF7939]/10 flex items-center justify-center"
-            >
-              -
-            </button>
-            <span className="text-[#FF7939] text-sm w-6 text-center">{blockCount}</span>
-            <button
-              onClick={() => {
-                const maxBlocksNutrition = blockNameOptions.length
-                const nextCount = isNutrition
-                  ? Math.min(maxBlocksNutrition, blockCount + 1)
-                  : blockCount + 1
-                distributeEvenly(nextCount)
-              }}
-              className="w-7 h-7 rounded-md border border-[#FF7939] text-[#FF7939] hover:bg-[#FF7939]/10 flex items-center justify-center"
-            >
-              +
-            </button>
-          </div>
-        </div>
-        {/* (Guardado en línea con acciones al pie; se quitó este botón superior) */}
-
-        {/* Bloques en grilla responsive para aprovechar el ancho */}
-        <div className="mb-6 grid grid-cols-1 gap-4 w-full px-0">
-          {exercisesLocal.length === 0 && (
-            <div className="text-gray-400 text-sm col-span-full">No hay {isNutrition ? 'platos' : 'ejercicios'} en este día.</div>
-          )}
-          {/* Solo mostrar bloques que tienen ejercicios - NO mostrar bloques vacíos */}
-          {Array.from({ length: blockCount }, (_, i) => i + 1)
-            .map((blockId) => {
-            const items = exercisesLocal
-              .map((ex, idx) => ({ ex, idx }))
-              .filter(({ ex }) => (ex.block || 1) === blockId)
-              return { blockId, items }
-            })
-            .filter(({ items }) => items.length > 0) // ✅ FILTRAR: Solo mostrar bloques con ejercicios
-            .map(({ blockId, items }) => {
-            return (
-              <div key={`block-${blockId}`} className="bg-transparent rounded-none p-0 border-0 w-full">
-                <div className="flex items-center justify-between mb-2">
-                  <div className="flex items-center gap-2">
-                    {isNutrition ? (
-                      <select
-                        value={
-                          localBlockNames[blockId] ||
-                          blockNameOptions[blockId - 1] ||
-                          blockNameOptions[blockNameOptions.length - 1] ||
-                          `Bloque ${blockId}`
-                        }
-                        onChange={(e) => setLocalBlockNames(prev => ({ ...prev, [blockId]: e.target.value }))}
-                        className="bg-gray-800 border border-gray-600 rounded-md px-2 py-1 text-white text-sm focus:outline-none focus:border-[#FF7939]"
-                      >
-                        {blockNameOptions.map((option) => (
-                          <option key={option} value={option} className="bg-gray-800">
-                            {option}
-                          </option>
-                        ))}
-                      </select>
-                    ) : (
-                      <span className="text-sm text-white font-medium">
-                        {localBlockNames[blockId] || `Bloque ${blockId}`}
-                      </span>
-                    )}
-                  </div>
-                  <span className="text-xs text-gray-400">
-                    {items.length} {productCategory === 'nutricion' ? 'platos' : 'ejercicios'}
-                  </span>
-                </div>
-                <div className="space-y-2">
-                  {items.map(({ ex, idx }) => {
-                    // Renderizando ejercicio en bloque
-                    const inactive = (ex as any).is_active === false || (ex as any).activo === false
-                    
-                    // Buscar ejercicio completo en availableExercises usando el ID (probar diferentes formatos)
-                    let fullExercise = null
-                    if (ex.id) {
-                      // Probar coincidencia exacta primero
-                      fullExercise = availableExercises.find(ae => ae.id === ex.id)
-                      
-                      // Si no se encuentra, probar con conversión de tipos
-                      if (!fullExercise) {
-                        const exIdNum = Number(ex.id)
-                        const exIdStr = String(ex.id)
-                        fullExercise = availableExercises.find(ae => {
-                          const aeId = ae.id
-                          const aeIdStr = String(aeId)
-                          const aeIdNum = Number(aeId)
-                          return (
-                            (typeof aeId === 'number' && aeId === exIdNum) ||
-                            (typeof aeId === 'string' && aeId === exIdStr) ||
-                            (!Number.isNaN(aeIdNum) && !Number.isNaN(exIdNum) && aeIdNum === exIdNum) ||
-                            aeIdStr === exIdStr
-                          )
-                        })
-                      }
-                      
-                      // Si aún no se encuentra, buscar por nombre como último recurso
-                      if (!fullExercise && ex.name) {
-                        fullExercise = availableExercises.find(ae => 
-                          ae.name === ex.name || 
-                          (ae as any).nombre_ejercicio === ex.name ||
-                          ae.name === (ex as any).nombre_ejercicio ||
-                          (ae as any).nombre_ejercicio === (ex as any).nombre_ejercicio
-                        )
-                      }
-                    }
-                    
-                    // Buscar nombre en todos los campos posibles (priorizar availableExercises, luego merged exercise)
-                    // ✅ NO generar nombres genéricos - si no hay nombre, no mostrar el ejercicio
-                    const displayTitle =
-                      fullExercise?.name ||
-                      (fullExercise as any)?.nombre_ejercicio ||
-                      ex.name ||
-                      (ex as any)?.nombre_ejercicio ||
-                      (ex as any)?.['Nombre de la Actividad'] ||
-                      (ex as any)?.Nombre ||
-                      '' // ✅ Cambiar: en lugar de `Ejercicio ${idx + 1}`, usar string vacío
-                    
-                    // ✅ Si no hay nombre válido O es un nombre genérico, no renderizar este ejercicio
-                    const isGenericName = displayTitle.trim() === '' || 
-                                         /^Ejercicio\s+\d+$/i.test(displayTitle.trim()) ||
-                                         /^Plato\s+\d+$/i.test(displayTitle.trim()) ||
-                                         displayTitle.trim().startsWith('Ejercicio ') ||
-                                         displayTitle.trim().startsWith('Plato ') ||
-                                         ex.id === `deleted-${idx}` ||
-                                         String(ex.id || '').startsWith('deleted-')
-                    
-                    if (!displayTitle || displayTitle.trim() === '' || isGenericName) {
-                      return null
-                    }
-                      
-                    // Determinar si es nutrición: SOLO por categoría del producto.
-                    // Evita mostrar macros en ejercicios fitness aunque vengan campos P/C/G.
-                    const isNutrition = productCategory === 'nutricion'
-                    
-                    // Buscar tipo en todos los campos posibles (priorizar availableExercises)
-                    const normalizedTypeLabel =
-                      fullExercise?.type ||
-                      fullExercise?.tipo ||
-                      ex.type ||
-                      (ex as any)?.tipo ||
-                      (isNutrition ? 'otro' : 'General')
-                    
-                    // Normalizar el tipo según si es nutrición o ejercicio
-                    const normalizedType = isNutrition 
-                      ? normalizeNutritionType(normalizedTypeLabel)
-                      : normalizeExerciseType(normalizedTypeLabel)
-                    
-                    const typeColorScheme = getTypeColorScheme(normalizedType, isNutrition)
-                    
-                    // Obtener el nombre del tipo para mostrar (capitalizado)
-                    const getTypeDisplayName = (type: string) => {
-                      const typeMap: Record<string, string> = {
-                        'desayuno': 'Desayuno',
-                        'almuerzo': 'Almuerzo',
-                        'cena': 'Cena',
-                        'snack': 'Snack',
-                        'merienda': 'Merienda',
-                        'colación': 'Colación',
-                        'colacion': 'Colación',
-                        'pre-entreno': 'Pre-entreno',
-                        'post-entreno': 'Post-entreno',
-                        'otro': 'Otro'
-                      }
-                      return typeMap[type.toLowerCase()] || type.charAt(0).toUpperCase() + type.slice(1)
-                    }
-                  // Buscar series en todos los campos posibles (priorizar availableExercises)
-                  const displaySeries =
-                    fullExercise?.detalle_series ||
-                    (fullExercise as any)?.detalle_series ||
-                    formatSeriesDisplay(fullExercise || ex) ||
-                    (ex as any)?.detalle_series ||
-                    ex.detalle_series ||
-                    formatSeriesDisplay(ex) ||
-                    (ex.series ? String(ex.series) : null)
-                    
-                  // Buscar duración en todos los campos posibles (priorizar availableExercises)
-                  const durationValue = 
-                    fullExercise?.duration ?? 
-                    fullExercise?.duracion_min ?? 
-                    (fullExercise as any)?.duration ?? 
-                    ex.duration ?? 
-                    (ex as any)?.duracion_min ?? 
-                    (ex as any)?.duration ?? 
-                    null
-                    
-                  // Buscar calorías en todos los campos posibles (priorizar availableExercises)
-                  const caloriesValue = 
-                    fullExercise?.calories ?? 
-                    fullExercise?.calorias ?? 
-                    (fullExercise as any)?.calories ?? 
-                    ex.calories ?? 
-                    (ex as any)?.calorias ?? 
-                    (ex as any)?.calories ?? 
-                    null
-                    return (
-                    <div
-                      key={`${ex.id}-${idx}`}
-                      className={`rounded-md p-3 transition-colors w-full ${inactive ? 'bg-gray-900/10 border border-gray-800/50' : 'bg-gray-900/20'}`}
-                    >
-                      <div className="flex items-center gap-3">
-                        <div className="flex-1 min-w-0">
-                        <p className={`text-sm font-medium truncate ${inactive ? 'text-gray-500 line-through' : 'text-white'}`}>{displayTitle}</p>
-                          <div className={`flex flex-wrap items-center gap-2 text-xs mt-1 ${inactive ? 'text-gray-500' : 'text-gray-400'}`}>
-                            {isNutrition && (fullExercise?.proteinas !== undefined || ex.proteinas !== undefined) ? (
-                              <span>
-                                P: {fullExercise?.proteinas ?? ex.proteinas}g | C: {fullExercise?.carbohidratos ?? ex.carbohidratos}g | G: {fullExercise?.grasas ?? ex.grasas}g
-                                {caloriesValue !== null && caloriesValue !== undefined && ` | ${caloriesValue}kcal`}
-                              </span>
-                            ) : (
-                              <>
-                                <span
-                                  className={`px-2 py-0.5 rounded border ${
-                                    inactive ? 'text-gray-500 line-through opacity-60 border-gray-600' : 'font-medium'
-                                  }`}
-                                  style={
-                                    inactive
-                                      ? undefined
-                                      : {
-                                          color: typeColorScheme.hex,
-                                          borderColor: typeColorScheme.hex,
-                                          backgroundColor: typeColorScheme.soft
-                                        }
-                                  }
-                                >
-                                  {isNutrition ? getTypeDisplayName(normalizedType) : normalizedTypeLabel}
-                                </span>
-                                {displaySeries && (
-                                  <span className={inactive ? 'line-through' : undefined}>{displaySeries}</span>
-                                )}
-                                {typeof caloriesValue === 'number' && caloriesValue > 0 && (
-                                  <span className={inactive ? 'line-through' : undefined}>{caloriesValue} kcal</span>
-                                )}
-                                {typeof durationValue === 'number' && (
-                                  <span className={inactive ? 'line-through' : undefined}>{durationValue} min</span>
-                                )}
-                              </>
-                            )}
-                          </div>
-                        </div>
-                        <div className="flex items-center gap-1">
-                          <button onClick={() => moveUpInBlock(idx)} className="w-7 h-7 rounded-md border border-gray-700 text-gray-300 hover:text-white hover:border-gray-500 disabled:opacity-40 disabled:cursor-not-allowed flex items-center justify-center">
-                            <ChevronUp className="w-4 h-4" />
-                          </button>
-                          <button onClick={() => moveDownInBlock(idx)} className="w-7 h-7 rounded-md border border-gray-700 text-gray-300 hover:text-white hover:border-gray-500 disabled:opacity-40 disabled:cursor-not-allowed flex items-center justify-center">
-                            <ChevronDown className="w-4 h-4" />
-                          </button>
-                          <button onClick={() => removeAt(idx)} className="w-7 h-7 rounded-md border border-red-500/50 text-red-400 hover:text-red-300 hover:border-red-400 flex items-center justify-center">
-                            ✕
-                          </button>
-                        </div>
-                      </div>
-                    </div>
-                    )
-                  })}
-                </div>
-              </div>
-            )
-          })}
-        </div>
-
-        {/* Botón + ejercicios/platos con desplegable y búsqueda */}
-        <div className="mb-6">
-          <div className="flex items-center justify-between mb-3">
-            <h4 className="text-white text-sm font-medium">{isNutrition ? 'Selecciona platos' : 'Selecciona ejercicios'}</h4>
-            <button
-              onClick={() => setShowAvailableExercises(!showAvailableExercises)}
-              className="flex items-center gap-2 text-[#FF7939] hover:text-white transition-colors"
-            >
-              <span className="text-xl">+</span>
-              <span>{isNutrition ? 'platos' : 'ejercicios'}</span>
-            </button>
-          </div>
-          {/* Icono de búsqueda SIEMPRE visible debajo del título "Selecciona platos" */}
-          {(() => {
-            console.log('🔍 [DayExercisesModal] Verificando visibilidad del icono de búsqueda:', { isNutrition, productCategory })
-            return null
-          })()}
-          {isNutrition && (
-            <div className="mb-3 flex items-center gap-2">
+          {/* Controles de bloques (+ / -) con distribución equitativa */}
+          <div className="flex items-center justify-between mb-4 w-full">
+            <div className="flex items-center gap-2 flex-1">
+              <span className="text-white text-sm">Bloques:</span>
+              <button
+                onClick={() => distributeEvenly(Math.max(1, blockCount - 1))}
+                className="w-7 h-7 rounded-md border border-[#FF7939] text-[#FF7939] hover:bg-[#FF7939]/10 flex items-center justify-center"
+              >
+                -
+              </button>
+              <span className="text-[#FF7939] text-sm w-6 text-center">{blockCount}</span>
               <button
                 onClick={() => {
-                  console.log('🔍 [DayExercisesModal] Click en icono de búsqueda, showSearchBar actual:', showSearchBar)
-                  setShowSearchBar(!showSearchBar)
-                  if (!showSearchBar) {
-                    setSearchQuery('')
-                  }
+                  const maxBlocksNutrition = blockNameOptions.length
+                  const nextCount = isNutrition
+                    ? Math.min(maxBlocksNutrition, blockCount + 1)
+                    : blockCount + 1
+                  distributeEvenly(nextCount)
                 }}
-                className="text-[#FF7939] hover:text-[#FF6B35] transition-colors p-1.5 flex-shrink-0"
-                title="Buscar platos"
+                className="w-7 h-7 rounded-md border border-[#FF7939] text-[#FF7939] hover:bg-[#FF7939]/10 flex items-center justify-center"
               >
-                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
-                  <circle cx="11" cy="11" r="8"></circle>
-                  <path d="m21 21-4.35-4.35"></path>
-                </svg>
+                +
               </button>
-              {showSearchBar && (
-                <input
-                  type="text"
-                  value={searchQuery}
-                  onChange={(e) => setSearchQuery(e.target.value)}
-                  placeholder="Buscar plato..."
-                  className="flex-1 bg-gray-800 border border-gray-600 rounded-md px-3 py-1.5 text-white text-sm focus:outline-none focus:border-[#FF7939]"
-                  autoFocus
-                />
-              )}
             </div>
-          )}
-          {showAvailableExercises && (
-            <div className="grid grid-cols-2 md:grid-cols-4 gap-2 max-h-96 overflow-y-auto">
-              {(() => {
-                console.log('🔍 [DayExercisesModal] Renderizando platos:', {
-                  filteredCount: filteredExercisesToUse.length,
-                  totalCount: exercisesToUse.length,
-                  allCoachCount: allCoachExercisesInModal.length,
-                  availableCount: availableExercises.length,
-                  isNutrition,
-                  showAvailableExercises,
-                  exerciseNames: filteredExercisesToUse.map(e => e.name)
-                })
-                return null
-              })()}
-              {filteredExercisesToUse.map((exercise) => {
-                const isInactive = (exercise as any).is_active === false || (exercise as any).activo === false
-                const handleClick = (e: React.MouseEvent) => {
-                  e.preventDefault()
-                  e.stopPropagation()
-                  console.log('🖱️ [DayExercisesModal] Click en plato:', {
-                    id: exercise.id,
-                    name: exercise.name,
-                    isInactive,
-                    exercisesLocalLength: exercisesLocal.length
-                  })
-                  if (!isInactive) {
-                    addFromAvailable(exercise)
-                  } else {
-                    console.log('⚠️ [DayExercisesModal] Intento de agregar plato inactivo bloqueado')
-                  }
-                }
-                return (
-                <div
-                  key={exercise.id}
-                  onClick={handleClick}
-                  onMouseDown={(e) => e.preventDefault()} // Prevenir comportamiento por defecto
-                  className={`rounded-lg p-2 transition-colors ${
-                    isInactive
-                      ? 'bg-gray-800/10 opacity-50 cursor-not-allowed border border-gray-700/50'
-                      : 'bg-gray-800/30 cursor-pointer hover:bg-gray-800/50 active:bg-gray-800/70'
-                  }`}
-                  title={isInactive ? (isNutrition ? 'Plato desactivado - no se puede agregar' : 'Ejercicio desactivado - no se puede agregar') : `Click para agregar ${exercise.name}`}
-                >
-                  {(() => {
-                    // Determinar si es nutrición
-                    const isNutrition = productCategory === 'nutricion' || 
-                                       exercise.proteinas !== undefined || 
-                                       exercise.carbohidratos !== undefined ||
-                                       exercise.grasas !== undefined ||
-                                       allowedNutritionTypes.includes((exercise.type || '').toLowerCase())
-                    
-                    // Obtener el tipo normalizado
-                    const exerciseType = isNutrition 
-                      ? normalizeNutritionType(exercise.type || (exercise as any).tipo || 'otro')
-                      : normalizeExerciseType(exercise.type || (exercise as any).tipo || 'General')
-                    
-                    const scheme = getTypeColorScheme(exerciseType, isNutrition)
-                    
-                    // Obtener el nombre del tipo para mostrar (capitalizado)
-                    const getTypeDisplayName = (type: string) => {
-                      const typeMap: Record<string, string> = {
-                        'desayuno': 'Desayuno',
-                        'almuerzo': 'Almuerzo',
-                        'cena': 'Cena',
-                        'snack': 'Snack',
-                        'merienda': 'Merienda',
-                        'colación': 'Colación',
-                        'colacion': 'Colación',
-                        'pre-entreno': 'Pre-entreno',
-                        'post-entreno': 'Post-entreno',
-                        'otro': 'Otro'
-                      }
-                      return typeMap[type.toLowerCase()] || type.charAt(0).toUpperCase() + type.slice(1)
-                    }
-                    
-                    return (
-                      <div className="flex items-start justify-between gap-3">
-                        <div className="min-w-0 flex-1">
-                          <p className={`text-xs font-medium truncate ${isInactive ? 'text-gray-500 line-through' : 'text-white'}`}>{exercise.name}</p>
-                          {isNutrition && exercise.proteinas !== undefined ? (
-                            <p className={`text-xs ${isInactive ? 'text-gray-500 line-through' : 'text-gray-400'}`}>
-                              P: {exercise.proteinas}g | C: {exercise.carbohidratos}g | G: {exercise.grasas}g
-                              {exercise.calorias !== undefined && exercise.calorias !== null && ` | ${exercise.calorias}kcal`}
-                            </p>
-                          ) : (
-                            <div className={`flex flex-wrap items-center gap-2 text-xs ${isInactive ? 'text-gray-500 line-through' : 'text-gray-400'}`}>
-                              <span
-                                className={`px-2 py-0.5 rounded border ${isInactive ? 'border-gray-700 text-gray-500' : ''}`}
-                                style={
-                                  isInactive
-                                    ? undefined
-                                    : { color: scheme.hex, borderColor: scheme.hex, backgroundColor: scheme.soft }
-                                }
-                              >
-                                {exercise.type || (exercise as any).tipo || 'General'}
-                              </span>
-                            </div>
-                          )}
-                        </div>
+          </div>
+          {/* (Guardado en línea con acciones al pie; se quitó este botón superior) */}
 
-                        {!isNutrition && (
-                          <div className={`flex flex-col items-end text-xs whitespace-nowrap ${isInactive ? 'text-gray-500 line-through' : 'text-gray-400'}`}>
-                            {(exercise.calorias !== undefined && exercise.calorias !== null) && (
-                              <span>{exercise.calorias} kcal</span>
-                            )}
-                            {((exercise as any).duracion_min !== undefined && (exercise as any).duracion_min !== null) && (
-                              <span>{(exercise as any).duracion_min} min</span>
-                            )}
-                          </div>
+          {/* Bloques en grilla responsive para aprovechar el ancho */}
+          <div className="mb-6 grid grid-cols-1 gap-4 w-full px-0">
+            {exercisesLocal.length === 0 && (
+              <div className="text-gray-400 text-sm col-span-full">No hay {isNutrition ? 'platos' : 'ejercicios'} en este día.</div>
+            )}
+            {/* Solo mostrar bloques que tienen ejercicios - NO mostrar bloques vacíos */}
+            {Array.from({ length: blockCount }, (_, i) => i + 1)
+              .map((blockId) => {
+                const items = exercisesLocal
+                  .map((ex, idx) => ({ ex, idx }))
+                  .filter(({ ex }) => (ex.block || 1) === blockId)
+                return { blockId, items }
+              })
+              .filter(({ items }) => items.length > 0) // ✅ FILTRAR: Solo mostrar bloques con ejercicios
+              .map(({ blockId, items }) => {
+                return (
+                  <div key={`block-${blockId}`} className="bg-transparent rounded-none p-0 border-0 w-full">
+                    <div className="flex items-center justify-between mb-2">
+                      <div className="flex items-center gap-2">
+                        {isNutrition ? (
+                          <select
+                            value={
+                              localBlockNames[blockId] ||
+                              blockNameOptions[blockId - 1] ||
+                              blockNameOptions[blockNameOptions.length - 1] ||
+                              `Bloque ${blockId}`
+                            }
+                            onChange={(e) => setLocalBlockNames(prev => ({ ...prev, [blockId]: e.target.value }))}
+                            className="bg-gray-800 border border-gray-600 rounded-md px-2 py-1 text-white text-sm focus:outline-none focus:border-[#FF7939]"
+                          >
+                            {blockNameOptions.map((option) => (
+                              <option key={option} value={option} className="bg-gray-800">
+                                {option}
+                              </option>
+                            ))}
+                          </select>
+                        ) : (
+                          <span className="text-sm text-white font-medium">
+                            {localBlockNames[blockId] || `Bloque ${blockId}`}
+                          </span>
                         )}
                       </div>
-                    )
-                  })()}
-                </div>
-              )})}
+                      <span className="text-xs text-gray-400">
+                        {items.length} {productCategory === 'nutricion' ? 'platos' : 'ejercicios'}
+                      </span>
+                    </div>
+                    <div className="space-y-2">
+                      {items.map(({ ex, idx }) => {
+                        // Renderizando ejercicio en bloque
+                        const inactive = (ex as any).is_active === false || (ex as any).activo === false
+
+                        // Buscar ejercicio completo en availableExercises usando el ID (probar diferentes formatos)
+                        let fullExercise = null
+                        if (ex.id) {
+                          // Probar coincidencia exacta primero
+                          fullExercise = availableExercises.find(ae => ae.id === ex.id)
+
+                          // Si no se encuentra, probar con conversión de tipos
+                          if (!fullExercise) {
+                            const exIdNum = Number(ex.id)
+                            const exIdStr = String(ex.id)
+                            fullExercise = availableExercises.find(ae => {
+                              const aeId = ae.id
+                              const aeIdStr = String(aeId)
+                              const aeIdNum = Number(aeId)
+                              return (
+                                (typeof aeId === 'number' && aeId === exIdNum) ||
+                                (typeof aeId === 'string' && aeId === exIdStr) ||
+                                (!Number.isNaN(aeIdNum) && !Number.isNaN(exIdNum) && aeIdNum === exIdNum) ||
+                                aeIdStr === exIdStr
+                              )
+                            })
+                          }
+
+                          // Si aún no se encuentra, buscar por nombre como último recurso
+                          if (!fullExercise && ex.name) {
+                            fullExercise = availableExercises.find(ae =>
+                              ae.name === ex.name ||
+                              (ae as any).nombre_ejercicio === ex.name ||
+                              ae.name === (ex as any).nombre_ejercicio ||
+                              (ae as any).nombre_ejercicio === (ex as any).nombre_ejercicio
+                            )
+                          }
+                        }
+
+                        // Buscar nombre en todos los campos posibles (priorizar availableExercises, luego merged exercise)
+                        // ✅ NO generar nombres genéricos - si no hay nombre, no mostrar el ejercicio
+                        const displayTitle =
+                          fullExercise?.name ||
+                          (fullExercise as any)?.nombre_ejercicio ||
+                          ex.name ||
+                          (ex as any)?.nombre_ejercicio ||
+                          (ex as any)?.['Nombre de la Actividad'] ||
+                          (ex as any)?.Nombre ||
+                          '' // ✅ Cambiar: en lugar de `Ejercicio ${idx + 1}`, usar string vacío
+
+                        // ✅ Si no hay nombre válido O es un nombre genérico, no renderizar este ejercicio
+                        const isGenericName = displayTitle.trim() === '' ||
+                          /^Ejercicio\s+\d+$/i.test(displayTitle.trim()) ||
+                          /^Plato\s+\d+$/i.test(displayTitle.trim()) ||
+                          displayTitle.trim().startsWith('Ejercicio ') ||
+                          displayTitle.trim().startsWith('Plato ') ||
+                          ex.id === `deleted-${idx}` ||
+                          String(ex.id || '').startsWith('deleted-')
+
+                        if (!displayTitle || displayTitle.trim() === '' || isGenericName) {
+                          return null
+                        }
+
+                        // Determinar si es nutrición: SOLO por categoría del producto.
+                        // Evita mostrar macros en ejercicios fitness aunque vengan campos P/C/G.
+                        const isNutrition = productCategory === 'nutricion'
+
+                        // Buscar tipo en todos los campos posibles (priorizar availableExercises)
+                        const normalizedTypeLabel =
+                          fullExercise?.type ||
+                          fullExercise?.tipo ||
+                          ex.type ||
+                          (ex as any)?.tipo ||
+                          (isNutrition ? 'otro' : 'General')
+
+                        // Normalizar el tipo según si es nutrición o ejercicio
+                        const normalizedType = isNutrition
+                          ? normalizeNutritionType(normalizedTypeLabel)
+                          : normalizeExerciseType(normalizedTypeLabel)
+
+                        const typeColorScheme = getTypeColorScheme(normalizedType, isNutrition)
+
+                        // Obtener el nombre del tipo para mostrar (capitalizado)
+                        const getTypeDisplayName = (type: string) => {
+                          const typeMap: Record<string, string> = {
+                            'desayuno': 'Desayuno',
+                            'almuerzo': 'Almuerzo',
+                            'cena': 'Cena',
+                            'snack': 'Snack',
+                            'merienda': 'Merienda',
+                            'colación': 'Colación',
+                            'colacion': 'Colación',
+                            'pre-entreno': 'Pre-entreno',
+                            'post-entreno': 'Post-entreno',
+                            'otro': 'Otro'
+                          }
+                          return typeMap[type.toLowerCase()] || type.charAt(0).toUpperCase() + type.slice(1)
+                        }
+                        // Buscar series en todos los campos posibles (priorizar availableExercises)
+                        const displaySeries =
+                          fullExercise?.detalle_series ||
+                          (fullExercise as any)?.detalle_series ||
+                          formatSeriesDisplay(fullExercise || ex) ||
+                          (ex as any)?.detalle_series ||
+                          ex.detalle_series ||
+                          formatSeriesDisplay(ex) ||
+                          (ex.series ? String(ex.series) : null)
+
+                        // Buscar duración en todos los campos posibles (priorizar availableExercises)
+                        const durationValue =
+                          fullExercise?.duration ??
+                          fullExercise?.duracion_min ??
+                          (fullExercise as any)?.duration ??
+                          ex.duration ??
+                          (ex as any)?.duracion_min ??
+                          (ex as any)?.duration ??
+                          null
+
+                        // Buscar calorías en todos los campos posibles (priorizar availableExercises)
+                        const caloriesValue =
+                          fullExercise?.calories ??
+                          fullExercise?.calorias ??
+                          (fullExercise as any)?.calories ??
+                          ex.calories ??
+                          (ex as any)?.calorias ??
+                          (ex as any)?.calories ??
+                          null
+                        return (
+                          <div
+                            key={`${ex.id}-${idx}`}
+                            className={`rounded-md p-3 transition-colors w-full ${inactive ? 'bg-gray-900/10 border border-gray-800/50' : 'bg-gray-900/20'}`}
+                          >
+                            <div className="flex items-center gap-3">
+                              <div className="flex-1 min-w-0">
+                                <p className={`text-sm font-medium truncate ${inactive ? 'text-gray-500 line-through' : 'text-white'}`}>{displayTitle}</p>
+                                <div className={`flex flex-wrap items-center gap-2 text-xs mt-1 ${inactive ? 'text-gray-500' : 'text-gray-400'}`}>
+                                  {isNutrition && (fullExercise?.proteinas !== undefined || ex.proteinas !== undefined) ? (
+                                    <span>
+                                      P: {fullExercise?.proteinas ?? ex.proteinas}g | C: {fullExercise?.carbohidratos ?? ex.carbohidratos}g | G: {fullExercise?.grasas ?? ex.grasas}g
+                                      {caloriesValue !== null && caloriesValue !== undefined && ` | ${caloriesValue}kcal`}
+                                    </span>
+                                  ) : (
+                                    <>
+                                      <span
+                                        className={`px-2 py-0.5 rounded border ${inactive ? 'text-gray-500 line-through opacity-60 border-gray-600' : 'font-medium'
+                                          }`}
+                                        style={
+                                          inactive
+                                            ? undefined
+                                            : {
+                                              color: typeColorScheme.hex,
+                                              borderColor: typeColorScheme.hex,
+                                              backgroundColor: typeColorScheme.soft
+                                            }
+                                        }
+                                      >
+                                        {isNutrition ? getTypeDisplayName(normalizedType) : normalizedTypeLabel}
+                                      </span>
+                                      {displaySeries && (
+                                        <span className={inactive ? 'line-through' : undefined}>{displaySeries}</span>
+                                      )}
+                                      {typeof caloriesValue === 'number' && caloriesValue > 0 && (
+                                        <span className={inactive ? 'line-through' : undefined}>{caloriesValue} kcal</span>
+                                      )}
+                                      {typeof durationValue === 'number' && (
+                                        <span className={inactive ? 'line-through' : undefined}>{durationValue} min</span>
+                                      )}
+                                    </>
+                                  )}
+                                </div>
+                              </div>
+                              <div className="flex items-center gap-1">
+                                <button onClick={() => moveUpInBlock(idx)} className="w-7 h-7 rounded-md border border-gray-700 text-gray-300 hover:text-white hover:border-gray-500 disabled:opacity-40 disabled:cursor-not-allowed flex items-center justify-center">
+                                  <ChevronUp className="w-4 h-4" />
+                                </button>
+                                <button onClick={() => moveDownInBlock(idx)} className="w-7 h-7 rounded-md border border-gray-700 text-gray-300 hover:text-white hover:border-gray-500 disabled:opacity-40 disabled:cursor-not-allowed flex items-center justify-center">
+                                  <ChevronDown className="w-4 h-4" />
+                                </button>
+                                <button onClick={() => removeAt(idx)} className="w-7 h-7 rounded-md border border-red-500/50 text-red-400 hover:text-red-300 hover:border-red-400 flex items-center justify-center">
+                                  ✕
+                                </button>
+                              </div>
+                            </div>
+                          </div>
+                        )
+                      })}
+                    </div>
+                  </div>
+                )
+              })}
+          </div>
+
+          {/* Botón + ejercicios/platos con desplegable y búsqueda */}
+          <div className="mb-6">
+            <div className="flex items-center justify-between mb-3">
+              <h4 className="text-white text-sm font-medium">{isNutrition ? 'Selecciona platos' : 'Selecciona ejercicios'}</h4>
+              <button
+                onClick={() => setShowAvailableExercises(!showAvailableExercises)}
+                className="flex items-center gap-2 text-[#FF7939] hover:text-white transition-colors"
+              >
+                <span className="text-xl">+</span>
+                <span>{isNutrition ? 'platos' : 'ejercicios'}</span>
+              </button>
+            </div>
+            {/* Icono de búsqueda SIEMPRE visible debajo del título "Selecciona platos" */}
+            {(() => {
+              console.log('🔍 [DayExercisesModal] Verificando visibilidad del icono de búsqueda:', { isNutrition, productCategory })
+              return null
+            })()}
+            {isNutrition && (
+              <div className="mb-3 flex items-center gap-2">
+                <button
+                  onClick={() => {
+                    console.log('🔍 [DayExercisesModal] Click en icono de búsqueda, showSearchBar actual:', showSearchBar)
+                    setShowSearchBar(!showSearchBar)
+                    if (!showSearchBar) {
+                      setSearchQuery('')
+                    }
+                  }}
+                  className="text-[#FF7939] hover:text-[#FF6B35] transition-colors p-1.5 flex-shrink-0"
+                  title="Buscar platos"
+                >
+                  <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+                    <circle cx="11" cy="11" r="8"></circle>
+                    <path d="m21 21-4.35-4.35"></path>
+                  </svg>
+                </button>
+                {showSearchBar && (
+                  <input
+                    type="text"
+                    value={searchQuery}
+                    onChange={(e) => setSearchQuery(e.target.value)}
+                    placeholder="Buscar plato..."
+                    className="flex-1 bg-gray-800 border border-gray-600 rounded-md px-3 py-1.5 text-white text-sm focus:outline-none focus:border-[#FF7939]"
+                    autoFocus
+                  />
+                )}
+              </div>
+            )}
+            {showAvailableExercises && (
+              <div className="grid grid-cols-2 md:grid-cols-4 gap-2 max-h-96 overflow-y-auto">
+                {(() => {
+                  console.log('🔍 [DayExercisesModal] Renderizando platos:', {
+                    filteredCount: filteredExercisesToUse.length,
+                    totalCount: exercisesToUse.length,
+                    allCoachCount: allCoachExercisesInModal.length,
+                    availableCount: availableExercises.length,
+                    isNutrition,
+                    showAvailableExercises,
+                    exerciseNames: filteredExercisesToUse.map(e => e.name)
+                  })
+                  return null
+                })()}
+                {filteredExercisesToUse.map((exercise) => {
+                  const isInactive = (exercise as any).is_active === false || (exercise as any).activo === false
+                  const handleClick = (e: React.MouseEvent) => {
+                    e.preventDefault()
+                    e.stopPropagation()
+                    console.log('🖱️ [DayExercisesModal] Click en plato:', {
+                      id: exercise.id,
+                      name: exercise.name,
+                      isInactive,
+                      exercisesLocalLength: exercisesLocal.length
+                    })
+                    if (!isInactive) {
+                      addFromAvailable(exercise)
+                    } else {
+                      console.log('⚠️ [DayExercisesModal] Intento de agregar plato inactivo bloqueado')
+                    }
+                  }
+                  return (
+                    <div
+                      key={exercise.id}
+                      onClick={handleClick}
+                      onMouseDown={(e) => e.preventDefault()} // Prevenir comportamiento por defecto
+                      className={`rounded-lg p-2 transition-colors ${isInactive
+                          ? 'bg-gray-800/10 opacity-50 cursor-not-allowed border border-gray-700/50'
+                          : 'bg-gray-800/30 cursor-pointer hover:bg-gray-800/50 active:bg-gray-800/70'
+                        }`}
+                      title={isInactive ? (isNutrition ? 'Plato desactivado - no se puede agregar' : 'Ejercicio desactivado - no se puede agregar') : `Click para agregar ${exercise.name}`}
+                    >
+                      {(() => {
+                        // Determinar si es nutrición
+                        const isNutrition = productCategory === 'nutricion' ||
+                          exercise.proteinas !== undefined ||
+                          exercise.carbohidratos !== undefined ||
+                          exercise.grasas !== undefined ||
+                          allowedNutritionTypes.includes((exercise.type || '').toLowerCase())
+
+                        // Obtener el tipo normalizado
+                        const exerciseType = isNutrition
+                          ? normalizeNutritionType(exercise.type || (exercise as any).tipo || 'otro')
+                          : normalizeExerciseType(exercise.type || (exercise as any).tipo || 'General')
+
+                        const scheme = getTypeColorScheme(exerciseType, isNutrition)
+
+                        // Obtener el nombre del tipo para mostrar (capitalizado)
+                        const getTypeDisplayName = (type: string) => {
+                          const typeMap: Record<string, string> = {
+                            'desayuno': 'Desayuno',
+                            'almuerzo': 'Almuerzo',
+                            'cena': 'Cena',
+                            'snack': 'Snack',
+                            'merienda': 'Merienda',
+                            'colación': 'Colación',
+                            'colacion': 'Colación',
+                            'pre-entreno': 'Pre-entreno',
+                            'post-entreno': 'Post-entreno',
+                            'otro': 'Otro'
+                          }
+                          return typeMap[type.toLowerCase()] || type.charAt(0).toUpperCase() + type.slice(1)
+                        }
+
+                        return (
+                          <div className="flex items-start justify-between gap-3">
+                            <div className="min-w-0 flex-1">
+                              <p className={`text-xs font-medium truncate ${isInactive ? 'text-gray-500 line-through' : 'text-white'}`}>{exercise.name}</p>
+                              {isNutrition && exercise.proteinas !== undefined ? (
+                                <p className={`text-xs ${isInactive ? 'text-gray-500 line-through' : 'text-gray-400'}`}>
+                                  P: {exercise.proteinas}g | C: {exercise.carbohidratos}g | G: {exercise.grasas}g
+                                  {exercise.calorias !== undefined && exercise.calorias !== null && ` | ${exercise.calorias}kcal`}
+                                </p>
+                              ) : (
+                                <div className={`flex flex-wrap items-center gap-2 text-xs ${isInactive ? 'text-gray-500 line-through' : 'text-gray-400'}`}>
+                                  <span
+                                    className={`px-2 py-0.5 rounded border ${isInactive ? 'border-gray-700 text-gray-500' : ''}`}
+                                    style={
+                                      isInactive
+                                        ? undefined
+                                        : { color: scheme.hex, borderColor: scheme.hex, backgroundColor: scheme.soft }
+                                    }
+                                  >
+                                    {exercise.type || (exercise as any).tipo || 'General'}
+                                  </span>
+                                </div>
+                              )}
+                            </div>
+
+                            {!isNutrition && (
+                              <div className={`flex flex-col items-end text-xs whitespace-nowrap ${isInactive ? 'text-gray-500 line-through' : 'text-gray-400'}`}>
+                                {(exercise.calorias !== undefined && exercise.calorias !== null) && (
+                                  <span>{exercise.calorias} kcal</span>
+                                )}
+                                {((exercise as any).duracion_min !== undefined && (exercise as any).duracion_min !== null) && (
+                                  <span>{(exercise as any).duracion_min} min</span>
+                                )}
+                              </div>
+                            )}
+                          </div>
+                        )
+                      })()}
+                    </div>
+                  )
+                })}
+              </div>
+            )}
+          </div>
+
+          {/* Información de días similares */}
+          {similarDays.length > 0 && (
+            <div className="text-sm text-gray-400 mb-4 text-center">
+              También aplica a: {similarDays.map(day => {
+                const [week, dayNum] = day.split('-')
+                const dayName = DAYS.find(d => d.key === parseInt(dayNum))?.fullLabel || `Día ${dayNum}`
+                return `Semana ${week} - ${dayName}`
+              }).join(', ')}
             </div>
           )}
-        </div>
-
-        {/* Información de días similares */}
-        {similarDays.length > 0 && (
-          <div className="text-sm text-gray-400 mb-4 text-center">
-            También aplica a: {similarDays.map(day => {
-              const [week, dayNum] = day.split('-')
-              const dayName = DAYS.find(d => d.key === parseInt(dayNum))?.fullLabel || `Día ${dayNum}`
-              return `Semana ${week} - ${dayName}`
-            }).join(', ')}
-          </div>
-        )}
 
         </div>
         {/* Botones de acción (sticky bottom) */}

@@ -95,7 +95,7 @@ export function ConditionalRulesPanel({
     productId,
     coachId
 }: ConditionalRulesPanelProps & { productId?: number, coachId?: string }) {
-    console.log('🔍 [RulesPanel DEBUG] Render. coachId:', coachId, 'productId:', productId)
+    // console.log('🔍 [RulesPanel DEBUG] Render. coachId:', coachId, 'productId:', productId)
     const supabase = createClient()
     const [rules, setRules] = useState<ConditionalRule[]>(initialRules)
     const [isCreating, setIsCreating] = useState(false)
@@ -131,7 +131,7 @@ export function ConditionalRulesPanel({
     useEffect(() => {
         const fetchRules = async () => {
             if (!coachId) {
-                console.log('⚠️ [RulesPanel] Skipping fetch: No coachId')
+                // console.log('⚠️ [RulesPanel] Skipping fetch: No coachId')
                 return
             }
 
@@ -176,7 +176,7 @@ export function ConditionalRulesPanel({
             // Only fetch if type differs from current context
             if (currentType === productCategory) return
 
-            console.log('🔄 [RulesPanel] Fetching alternate items for:', currentType)
+            // console.log('🔄 [RulesPanel] Fetching alternate items for:', currentType)
 
             try {
                 // Map 'fitness' -> 'exercise', 'nutricion' -> 'recipe'
@@ -192,7 +192,7 @@ export function ConditionalRulesPanel({
                 if (error) throw error
 
                 if (data) {
-                    console.log(`✅ [RulesPanel] Loaded ${data.length} alternate items`)
+                    // console.log(`✅ [RulesPanel] Loaded ${data.length} alternate items`)
                     setFetchedItems(data.map(item => ({
                         ...item,
                         nombre: item.title, // Map title to nombre for consistency
@@ -216,7 +216,7 @@ export function ConditionalRulesPanel({
                     .eq('is_active', true)
 
                 if (data) {
-                    console.log('📦 [RulesPanel] Loaded products:', data)
+                    // console.log('📦 [RulesPanel] Loaded products:', data)
                     setFetchedProducts(data)
                 }
             } catch (err) {
@@ -264,7 +264,7 @@ export function ConditionalRulesPanel({
     }
 
     const handleSaveNewRule = async () => {
-        console.log('💾 [RulesPanel] Saving rule...', { name: newRule.name, productId, coachId })
+        // console.log('💾 [RulesPanel] Saving rule...', { name: newRule.name, productId, coachId })
         if (!newRule.name) return
 
         const isEditing = !!newRule.id
@@ -302,7 +302,7 @@ export function ConditionalRulesPanel({
 
             try {
                 if (isEditing) {
-                    console.log('🔄 [RulesPanel] Updating rule:', ruleId, 'coachId:', coachId)
+                    // console.log('🔄 [RulesPanel] Updating rule:', ruleId, 'coachId:', coachId)
                     const { error } = await supabase
                         .from('product_conditional_rules')
                         .update(rulePayload)
@@ -310,7 +310,7 @@ export function ConditionalRulesPanel({
 
                     if (error) throw error
                 } else {
-                    console.log('💾 [RulesPanel] Inserting new rule. coachId:', coachId)
+                    // console.log('💾 [RulesPanel] Inserting new rule. coachId:', coachId)
                     const { data, error } = await supabase
                         .from('product_conditional_rules')
                         .insert(rulePayload)
@@ -333,7 +333,7 @@ export function ConditionalRulesPanel({
                 // Ideally revert optimistic update here
             }
         } else {
-            console.log('⚠️ [RulesPanel] No coachId, saved only to local state. coachId value:', coachId)
+            // console.log('⚠️ [RulesPanel] No coachId, saved only to local state. coachId value:', coachId)
         }
     }
 

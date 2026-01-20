@@ -13,41 +13,72 @@ interface ActivityCardProps {
   onClick?: (activity: Activity) => void
 }
 
-const ActivityCard: React.FC<ActivityCardProps> = ({ 
-  activity, 
-  size = 'medium', 
-  onClick 
+const ActivityCard: React.FC<ActivityCardProps> = ({
+  activity,
+  size = 'medium',
+  onClick
 }) => {
   // Hooks removed - using default values
   // const { stats, loading, product } = useProductStats(activity.id)
   // const { isFinished, canReactivate, loading: workshopLoading } = useWorkshopStatus(activity.id)
-  
+
   // Usar valores por defecto directamente de la actividad
   const loading = false // Hooks removed - no loading state needed
-  
+
   // Si hay previewStats, usar esos valores (paso 6 del modal de creación)
   const previewStats = (activity as any).previewStats
   // Para talleres: usar cantidad de temas y días
   const isWorkshop = activity.type === 'workshop'
+  const isDocument = activity.type === 'document'
   const cantidadTemas = (activity as any).cantidadTemas
   const cantidadDias = (activity as any).cantidadDias
-  
-  // Calcular sesiones totales - usar previewStats.sesiones si existe, sino totalSessions
-  // Para talleres: usar cantidad de días (cada tema = 1 día)
-  const sessionsToShow = isWorkshop && cantidadDias !== undefined
-    ? cantidadDias
-    : (previewStats?.sesiones || previewStats?.totalSessions || activity.totalSessions || 0)
-  
+
+  // Para documentos: calcular duración desde semanas_totales
+  const documentDuration = (() => {
+    if (!isDocument) return null
+
+    // Si no hay semanas_totales o es 0, mostrar placeholder
+    if (!activity.semanas_totales || activity.semanas_totales === 0) {
+      return '-' // Placeholder para documentos sin duración configurada
+    }
+
+    const semanas = activity.semanas_totales
+
+    // Si es menos de 1 semana, mostrar en días
+    if (semanas < 1) {
+      const dias = Math.ceil(semanas * 7)
+      return `${dias} ${dias === 1 ? 'día' : 'días'}`
+    }
+
+    // Si es más de 4 semanas, mostrar en meses
+    if (semanas > 4) {
+      const meses = Math.ceil(semanas / 4)
+      return `${meses} ${meses === 1 ? 'mes' : 'meses'}`
+    }
+
+    // Mostrar en semanas
+    return `${Math.ceil(semanas)} ${semanas === 1 ? 'semana' : 'semanas'}`
+  })()
+
+  //Para talleres: usar cantidad de días (cada tema = 1 día)
+  // Para documentos: mostrar duración calculada desde semanas_totales
+  const sessionsToShow = isDocument && documentDuration
+    ? documentDuration
+    : isWorkshop && cantidadDias !== undefined
+      ? cantidadDias
+      : (previewStats?.sesiones || previewStats?.totalSessions || activity.sesiones_dias_totales || activity.totalSessions || 0)
+
   // ✅ Para platos únicos: SI hay previewStats (paso 6 del modal), usar SIEMPRE ejerciciosUnicos
   // (platos únicos realmente usados en la planificación del paso 5), incluso si es 0.
   // Solo usar exercisesCount como fallback cuando NO hay previewStats (card fuera del modal).
   // Para talleres: usar cantidad de temas para el icono de rayo
+  // Para documentos: usar cantidad de temas también
   const uniqueExercises = (() => {
-    // Para talleres: usar cantidad de temas
-    if (isWorkshop && cantidadTemas !== undefined) {
+    // Para talleres y documentos: usar cantidad de temas
+    if ((isWorkshop || isDocument) && cantidadTemas !== undefined) {
       return cantidadTemas
     }
-    
+
     // Si hay previewStats, siempre usar ejerciciosUnicos (platos únicos en planificación)
     if (previewStats !== undefined && previewStats !== null) {
       const previewUnicos = previewStats.ejerciciosUnicos
@@ -60,12 +91,18 @@ const ActivityCard: React.FC<ActivityCardProps> = ({
         return previewStats.ejerciciosTotales
       }
     }
-    
-    // Solo si NO hay previewStats, usar exercisesCount (total de platos disponibles)
+
+    // Usar el campo denormalizado de la base de datos si existe
+    if (activity.items_unicos !== undefined && activity.items_unicos !== null) {
+      return activity.items_unicos
+    }
+
+    // Solo si NO hay previewStats ni items_unicos, usar exercisesCount (total de platos disponibles)
     return activity.exercisesCount || 0
   })()
-  
-  // Log para debug (solo en desarrollo)
+
+  // Log para debug (solo en desarrollo) - Comentado para performance
+  /* 
   if (process.env.NODE_ENV === 'development' && activity.categoria === 'nutricion') {
     console.log('🍽️ [ActivityCard] Platos únicos calculados:', {
       previewStatsEjerciciosUnicos: previewStats?.ejerciciosUnicos,
@@ -76,14 +113,15 @@ const ActivityCard: React.FC<ActivityCardProps> = ({
       activityId: activity.id
     })
   }
-  
+  */
+
   const totalSessions = activity.totalSessions || 0
-  
+
   const productCapacity = activity.capacity
   // Obtener modalidad de diferentes campos posibles (modality o type)
   const productModality = activity.modality || (activity as any).type || null
   const isWorkshopFinished = false // To be reimplemented if needed
-  
+
   // Parsear objetivos desde workshop_type si no vienen parseados desde la API
   let objetivos = (activity as any).objetivos
   if (!objetivos || !Array.isArray(objetivos)) {
@@ -97,7 +135,7 @@ const ActivityCard: React.FC<ActivityCardProps> = ({
             parsed = JSON.parse(ws)
           }
         }
-        
+
         if (parsed && typeof parsed === 'object' && !Array.isArray(parsed) && parsed.objetivos) {
           objetivos = String(parsed.objetivos).split(';').map((obj: string) => obj.trim()).filter((obj: string) => obj.length > 0)
         } else if (Array.isArray(parsed)) {
@@ -109,28 +147,28 @@ const ActivityCard: React.FC<ActivityCardProps> = ({
       }
     }
   }
-  
+
   // Debug: Verificar valores de capacity
   const capacityNumber = productCapacity ? parseInt(productCapacity.toString()) : null
   const shouldShowCapacity = capacityNumber && capacityNumber > 0
-  
-  
+
+
   const getValidImageUrl = (activity: Activity) => {
     // Try different possible image sources
-    const imageUrl = activity.media?.image_url || 
-                    activity.image_url || 
-                    (activity as any).activity_media?.[0]?.image_url
-    
+    const imageUrl = activity.media?.image_url ||
+      activity.image_url ||
+      (activity as any).activity_media?.[0]?.image_url
+
     // Verificar si hay una imagen válida (no placeholder, no vacía)
-    if (imageUrl && 
-        imageUrl.trim() !== '' && 
-        !imageUrl.includes('via.placeholder.com') && 
-        !imageUrl.includes('placeholder.svg') &&
-        !imageUrl.includes('placeholder') &&
-        !imageUrl.startsWith('/placeholder')) {
+    if (imageUrl &&
+      imageUrl.trim() !== '' &&
+      !imageUrl.includes('via.placeholder.com') &&
+      !imageUrl.includes('placeholder.svg') &&
+      !imageUrl.includes('placeholder') &&
+      !imageUrl.startsWith('/placeholder')) {
       return imageUrl
     }
-    
+
     // Si no hay imagen real, devolver null para mostrar logo de Omnia
     return null
   }
@@ -200,16 +238,16 @@ const ActivityCard: React.FC<ActivityCardProps> = ({
 
   const formatPrice = (price?: number | null) => {
     if (!price) return '$0'
-    
+
     // Convertir a string y dividir por punto para manejar decimales
     const priceStr = price.toString()
     const parts = priceStr.split('.')
-    
+
     // Si tiene parte decimal, usar coma como separador decimal
     if (parts.length === 2) {
       const integerPart = parseInt(parts[0]).toLocaleString('es-ES')
       const decimalPart = parts[1].padEnd(2, '0').substring(0, 2)
-      
+
       // Si los decimales son 00, no mostrarlos
       if (decimalPart === '00') {
         return `$${integerPart}`
@@ -308,7 +346,7 @@ const ActivityCard: React.FC<ActivityCardProps> = ({
         return 'text-[#FF7939]'
     }
   }
-  
+
   const getModalityLabel = (modality?: string | null) => {
     if (!modality) return 'Online'
     const mod = modality.toLowerCase().trim()
@@ -386,10 +424,10 @@ const ActivityCard: React.FC<ActivityCardProps> = ({
 
   const getDietTypeDisplay = (dietType?: string | null) => {
     if (!dietType) return null
-    
+
     const friendlyName = getFriendlyDietName(dietType)
     const truncatedName = friendlyName.length > 12 ? `${friendlyName.substring(0, 12)}...` : friendlyName
-    
+
     return (
       <div className="flex items-center gap-1 text-[#FF7939]">
         <UtensilsCrossed className="w-4 h-4" />
@@ -400,22 +438,22 @@ const ActivityCard: React.FC<ActivityCardProps> = ({
     )
   }
 
-        const getSizeClasses = () => {
-          switch (size) {
-            case 'small':
-              return 'w-40 h-[30rem]' // 480px de altura - asegurar visibilidad de precio
-            case 'medium':
-              return 'w-64 h-[32rem]' // altura media
-            case 'large':
-              return 'w-80 h-[36rem]' // altura grande
-            default:
-              return 'w-64 h-[32rem]'
-          }
-        }
+  const getSizeClasses = () => {
+    switch (size) {
+      case 'small':
+        return 'w-40 h-[30rem]' // 480px de altura - asegurar visibilidad de precio
+      case 'medium':
+        return 'w-64 h-[32rem]' // altura media
+      case 'large':
+        return 'w-80 h-[36rem]' // altura grande
+      default:
+        return 'w-64 h-[32rem]'
+    }
+  }
 
   // Verificar si el producto está pausado
   const isPaused = (activity as any).is_paused || false
-  
+
   // Para talleres: verificar si está activo (disponible para nuevas ventas)
   // Si es taller y tiene taller_activo = false, está finalizado/inactivo
   const tallerActivoValue = (activity as any).taller_activo
@@ -427,14 +465,14 @@ const ActivityCard: React.FC<ActivityCardProps> = ({
     const parsed = parseInt(String(raw ?? '0'), 10)
     return Number.isFinite(parsed) ? parsed : 0
   })()
-  
+
   // Silenciar logs de diagnóstico en producción
-  
+
   // Determinar si debe mostrarse en gris (pausado o taller inactivo)
   const shouldShowAsInactive = isPaused || isWorkshopInactive
-  
+
   return (
-    <div 
+    <div
       className={`${getSizeClasses()} cursor-pointer group relative`}
       onClick={() => onClick?.(activity)}
     >
@@ -448,6 +486,8 @@ const ActivityCard: React.FC<ActivityCardProps> = ({
               width={200}
               height={200}
               className="object-cover w-full h-full"
+              loading="lazy"
+              priority={false}
             />
           ) : (
             // Logo de Omnia cuando no hay imagen (igual que cuando no hay video en ejercicios)
@@ -464,29 +504,29 @@ const ActivityCard: React.FC<ActivityCardProps> = ({
               {getRatingDisplay(activity.program_rating, activity.total_program_reviews)}
             </span>
           </div>
-          
+
           {/* Icono de Visibilidad en la esquina superior derecha */}
           <div className="absolute top-3 right-3">
             <div className="bg-black/80 rounded-full p-1.5">
               {getVisibilityIcon(activity.is_public)}
             </div>
           </div>
-          
+
         </div>
 
         {/* Activity Info - Estructura fija y consistente para todas las cards */}
         <div className="p-4 flex-1 flex flex-col h-full min-h-0">
-          
+
           {/* 1. NOMBRE DEL PROGRAMA - Sección fija */}
           <div className="mb-3">
-            <h3 className="text-white font-bold leading-tight text-sm sm:text-base md:text-lg lg:text-xl xl:text-2xl overflow-hidden" 
-                style={{
-                  display: '-webkit-box',
-                  WebkitLineClamp: 2,
-                  WebkitBoxOrient: 'vertical',
-                  lineHeight: '1.2em',
-                  height: '2.4em'
-                }}>
+            <h3 className="text-white font-bold leading-tight text-sm sm:text-base md:text-lg lg:text-xl xl:text-2xl overflow-hidden"
+              style={{
+                display: '-webkit-box',
+                WebkitLineClamp: 2,
+                WebkitBoxOrient: 'vertical',
+                lineHeight: '1.2em',
+                height: '2.4em'
+              }}>
               {activity.title || 'Sin título'}
             </h3>
           </div>
@@ -512,87 +552,93 @@ const ActivityCard: React.FC<ActivityCardProps> = ({
             <span className={`bg-black/20 ${getCategoryColor(activity.categoria || 'fitness')} text-[10px] px-1.5 py-0.5 rounded-full font-bold border border-[#FF7939]/30`}>
               {getCategoryBadge(activity.categoria || 'fitness')}
             </span>
-            
+
             {/* Badge de Tipo - Derecha */}
             <span className={`bg-black/20 ${getTypeColor(activity.type || 'program')} text-[10px] px-1.5 py-0.5 rounded-full font-bold border border-[#FF7939]/30`}>
               {getTypeBadge(activity.type || 'program')}
             </span>
           </div>
 
-         {/* 4. INTENSIDAD/DIETA - MODO TALLER / MEET - MODALIDAD - Sección fija */}
-         <div className="flex items-center justify-between mb-4">
-           <div className="flex items-center gap-2 text-[#FF7939]">
-            {/* Para productos de nutrición, mostrar tipo de dieta en lugar de dificultad */}
-            {activity.categoria === 'nutricion' || activity.categoria === 'nutrition' ?
-              getDietTypeDisplay(((activity as any).dieta ?? undefined) as string | undefined) :
-              <div className="flex items-center gap-1">
-                {getDifficultyFires(activity.difficulty || undefined)}
-              </div>
-            }
-           </div>
-           
-           {/* Centro: Modo de taller (solo para talleres) */}
-           <div className="flex items-center justify-center flex-1">
-             {activity.type === 'workshop' && (() => {
-               const workshopMode = (activity as any).workshop_mode || 'grupal'
-               if (workshopMode === 'individual') {
-                 // Mostrar badge "1:1" en amarillo con estilo de objetivos
-                 return (
-                   <span
-                     className="bg-yellow-500/20 text-yellow-500 text-[10px] px-1.5 py-0.5 rounded-full font-medium border border-yellow-500/30 whitespace-nowrap flex-shrink-0"
-                     title="1:1 Individual"
-                   >
-                     1:1
-                   </span>
-                 )
-               } else {
-                 // Mostrar 3 personas en forma de triángulo: 2 abajo, 1 arriba
-                 return (
-                   <div className="relative flex items-center justify-center text-white" title="Grupal">
-                     <div className="flex items-end gap-1">
-                       {/* Persona izquierda abajo */}
-                       <Users className="h-3 w-3" />
-                       {/* Persona derecha abajo */}
-                       <Users className="h-3 w-3" />
-                     </div>
-                     {/* Persona arriba en el centro */}
-                     <Users className="h-3 w-3 absolute -top-1.5 left-1/2 transform -translate-x-1/2" />
-                   </div>
-                 )
-               }
-             })()}
+          {/* 4. INTENSIDAD/DIETA - MODO TALLER / MEET - MODALIDAD - Sección fija */}
+          <div className="flex items-center justify-between mb-4">
+            <div className="flex items-center gap-2 text-[#FF7939]">
+              {/* Para productos de nutrición, mostrar tipo de dieta en lugar de dificultad */}
+              {activity.categoria === 'nutricion' || activity.categoria === 'nutrition' ?
+                getDietTypeDisplay(((activity as any).dieta ?? undefined) as string | undefined) :
+                <div className="flex items-center gap-1">
+                  {getDifficultyFires(activity.difficulty || undefined)}
+                </div>
+              }
+            </div>
+
+            {/* Centro: Modo de taller (solo para talleres) */}
+            <div className="flex items-center justify-center flex-1">
+              {activity.type === 'workshop' && (() => {
+                const workshopMode = (activity as any).workshop_mode || 'grupal'
+                if (workshopMode === 'individual') {
+                  // Mostrar badge "1:1" en amarillo con estilo de objetivos
+                  return (
+                    <span
+                      className="bg-yellow-500/20 text-yellow-500 text-[10px] px-1.5 py-0.5 rounded-full font-medium border border-yellow-500/30 whitespace-nowrap flex-shrink-0"
+                      title="1:1 Individual"
+                    >
+                      1:1
+                    </span>
+                  )
+                } else {
+                  // Mostrar 3 personas en forma de triángulo: 2 abajo, 1 arriba
+                  return (
+                    <div className="relative flex items-center justify-center text-white" title="Grupal">
+                      <div className="flex items-end gap-1">
+                        {/* Persona izquierda abajo */}
+                        <Users className="h-3 w-3" />
+                        {/* Persona derecha abajo */}
+                        <Users className="h-3 w-3" />
+                      </div>
+                      {/* Persona arriba en el centro */}
+                      <Users className="h-3 w-3 absolute -top-1.5 left-1/2 transform -translate-x-1/2" />
+                    </div>
+                  )
+                }
+              })()}
 
               {activity.type !== 'workshop' && includedMeetCredits > 0 && (
                 <div className="flex items-center justify-center flex-shrink-0" title="Incluye reuniones 1:1">
                   <Video className="h-4 w-4 text-rose-100/90" />
                 </div>
               )}
-           </div>
-           
-           {/* Derecha: Modalidad - Siempre a la derecha */}
-           <div className="flex items-center">
-             {(() => {
-               const modalityToShow = productModality || 'online'
-               return (
-                 <div className={`flex items-center ${getModalityColor(modalityToShow)}`}>
-                   {getModalityIcon(modalityToShow)}
-                 </div>
-               )
-             })()}
-           </div>
-         </div>
+            </div>
 
-         {/* 5. 3 ICONOS - Sección fija */}
-         <div className="flex items-center justify-between text-gray-300 mb-2">
+            {/* Derecha: Modalidad - Siempre a la derecha */}
+            <div className="flex items-center">
+              {(() => {
+                const modalityToShow = productModality || 'online'
+                return (
+                  <div className={`flex items-center ${getModalityColor(modalityToShow)}`}>
+                    {getModalityIcon(modalityToShow)}
+                  </div>
+                )
+              })()}
+            </div>
+          </div>
+
+          {/* 5. 3 ICONOS - Sección fija */}
+          <div className="flex items-center justify-between text-gray-300 mb-2">
             {/* Sesiones - Siempre mostrar sesiones, con "d" en naranja pequeña */}
             <div className="flex items-center gap-1">
               <Calendar className="w-4 h-4 text-[#FF7939]" />
               <span className="text-sm font-medium text-gray-300">
-                {loading ? '...' : (sessionsToShow || totalSessions || 0)}
-                <span className="text-[#FF7939] text-[10px]"> d</span>
+                {loading ? '...' : (
+                  activity.type === 'document'
+                    ? (activity.semanas_totales || 0)
+                    : (activity.sesiones_dias_totales || totalSessions || 0)
+                )}
+                <span className="text-[#FF7939] text-[10px]">
+                  {activity.type === 'document' ? ' s' : ' d'}
+                </span>
               </span>
             </div>
-            
+
             {/* Ejercicios/Platos usados (si hay previewStats) o totales (modo normal) */}
             <div className="flex items-center gap-1">
               {activity.categoria === 'nutricion' || activity.categoria === 'nutrition' ? (
@@ -600,9 +646,9 @@ const ActivityCard: React.FC<ActivityCardProps> = ({
               ) : (
                 <Zap className="w-4 h-4 text-[#FF7939]" />
               )}
-              <span className="text-sm font-medium">{loading ? '...' : uniqueExercises}</span>
+              <span className="text-sm font-medium">{loading ? '...' : (activity.items_unicos ?? uniqueExercises)}</span>
             </div>
-            
+
             {/* Capacidad - Siempre mostrar */}
             <div className="flex items-center gap-1">
               <Users className="w-4 h-4 text-[#FF7939]" />
@@ -621,8 +667,8 @@ const ActivityCard: React.FC<ActivityCardProps> = ({
           </div>
 
 
-         {/* 6. OBJETIVOS/TAGS - Sección fija (siempre presente para mantener alineación) */}
-         <div className="flex flex-nowrap gap-1 mb-1 justify-start overflow-x-auto hide-scrollbar min-h-[1.5rem] pb-1">
+          {/* 6. OBJETIVOS/TAGS - Sección fija (siempre presente para mantener alineación) */}
+          <div className="flex flex-nowrap gap-1 mb-1 justify-start overflow-x-auto hide-scrollbar min-h-[1.5rem] pb-1">
             {/* Para productos de nutrición, usar tipo de dieta como "objetivo" principal */}
             {((activity.categoria === 'nutricion' || activity.categoria === 'nutrition') && (activity as any).dieta) ? (
               <span
@@ -634,20 +680,20 @@ const ActivityCard: React.FC<ActivityCardProps> = ({
             ) : objetivos && Array.isArray(objetivos) && objetivos.length > 0 ? (
               (() => {
                 // Filtrar objetivos válidos (no vacíos, no nulos, no "Enel" o valores incompletos)
-                const objetivosValidos = objetivos.filter((objetivo: string) => 
-                  objetivo && 
-                  objetivo.trim() !== '' && 
-                  objetivo !== 'Enel' && 
-                  objetivo !== 'Ene' && 
+                const objetivosValidos = objetivos.filter((objetivo: string) =>
+                  objetivo &&
+                  objetivo.trim() !== '' &&
+                  objetivo !== 'Enel' &&
+                  objetivo !== 'Ene' &&
                   objetivo.length > 2
                 )
-                
+
                 if (objetivosValidos.length === 0) {
                   return (
                     <div className="h-6"></div>
                   )
                 }
-                
+
                 return (
                   <>
                     {objetivosValidos.map((objetivo: string, index: number) => (
@@ -668,16 +714,16 @@ const ActivityCard: React.FC<ActivityCardProps> = ({
             )}
           </div>
 
-         {/* 6.5. UBICACIÓN - Eliminado: solo mantener ícono de modalidad en la fila de intensidad */}
+          {/* 6.5. UBICACIÓN - Eliminado: solo mantener ícono de modalidad en la fila de intensidad */}
 
-         {/* 7. PRECIO - Sección fija en la parte inferior */}
-         <div className="border-t border-gray-700 text-center mt-2">
+          {/* 7. PRECIO - Sección fija en la parte inferior */}
+          <div className="border-t border-gray-700 text-center mt-2">
             <span className="text-orange-300 font-bold text-xl">
               {formatPrice(activity.price)}
             </span>
           </div>
         </div>
-        
+
         {/* Overlay de Reactivación para Talleres Finalizados/Inactivos */}
         {isWorkshopInactive && (
           <div className="absolute inset-0 bg-black/80 rounded-2xl flex items-center justify-center z-10">
@@ -688,7 +734,7 @@ const ActivityCard: React.FC<ActivityCardProps> = ({
             </div>
           </div>
         )}
-        
+
         {/* Overlay para Productos Pausados (no talleres inactivos) */}
         {isPaused && !isWorkshopInactive && (
           <div className="absolute inset-0 bg-black/60 rounded-2xl flex items-center justify-center z-10">
@@ -704,4 +750,5 @@ const ActivityCard: React.FC<ActivityCardProps> = ({
   )
 }
 
-export default ActivityCard
+// Optimización: React.memo para evitar re-renders innecesarios
+export default React.memo(ActivityCard)

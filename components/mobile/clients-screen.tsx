@@ -61,7 +61,7 @@ export function ClientsScreen() {
   const [showObjectives, setShowObjectives] = useState(false)
   const [showCalendar, setShowCalendar] = useState(false)
   const [activeTab, setActiveTab] = useState<'calendar' | 'info'>('info')
-  const [activeModalTab, setActiveModalTab] = useState<'calendar' | 'info' | 'activities'>('info')
+  const [activeModalTab, setActiveModalTab] = useState<'calendar' | 'info' | 'activities'>('activities')
   const [activeClientPanel, setActiveClientPanel] = useState<'activities' | 'todo' | 'progress' | 'revenue' | null>(null)
   const [showTodoInput, setShowTodoInput] = useState(false)
   const [hiddenActivities, setHiddenActivities] = useState<Set<number>>(new Set())
@@ -179,6 +179,18 @@ export function ClientsScreen() {
       setLoadingDetail(false)
     }
   }
+
+  // Lock body scroll when modal is open
+  useEffect(() => {
+    if (selectedClient) {
+      document.body.style.overflow = 'hidden'
+    } else {
+      document.body.style.overflow = 'unset'
+    }
+    return () => {
+      document.body.style.overflow = 'unset'
+    }
+  }, [selectedClient])
 
   // Función para abrir modal del cliente
   const openClientModal = (client: Client) => {
@@ -539,11 +551,15 @@ export function ClientsScreen() {
                     </button>
 
                     {/* Foto de perfil Squircle con Borde Roto y Badge */}
-                    <div className="relative w-28 h-28 sm:w-36 sm:h-36 flex items-center justify-center">
+                    <div className="relative w-24 h-24 sm:w-32 sm:h-32 flex items-center justify-center">
                       {/* Badge "5" (Orange Box) */}
-                      <div className="absolute -bottom-1 sm:-bottom-2 z-20 flex flex-col items-center">
-                        <div className="bg-[#FF7939] text-white text-xs sm:text-lg font-bold px-1.5 py-0 sm:px-3 sm:py-0.5 rounded-lg shadow-lg border-2 border-black z-20 font-[var(--font-anton)] tracking-wide">
-                          {selectedClient.activitiesCount || 0}
+                      {/* Badge "5" (Flame) */}
+                      <div className="absolute -bottom-2 sm:-bottom-3 z-20 flex flex-col items-center justify-center">
+                        <div className="relative flex items-center justify-center">
+                          <Flame className="h-8 w-8 sm:h-10 sm:w-10 text-[#FF7939] drop-shadow-lg" fill="#FF7939" strokeWidth={1.5} />
+                          <span className="absolute text-black font-bold text-[10px] sm:text-xs font-[var(--font-anton)] pt-1">
+                            {selectedClient.activitiesCount || 0}
+                          </span>
                         </div>
                       </div>
 
@@ -640,7 +656,7 @@ export function ClientsScreen() {
               <div className="bg-transparent px-4 pt-2 sticky top-0 z-20">
                 <div className="flex relative border-b border-zinc-800 pb-0">
                   {/* Tab: Estilo Base */}
-                  {['calendar', 'info', 'activities'].map((tab) => (
+                  {['calendar', 'activities', 'info'].map((tab) => (
                     <button
                       key={tab}
                       onClick={() => setActiveModalTab(tab as any)}
@@ -660,7 +676,7 @@ export function ClientsScreen() {
                   <div
                     className="absolute bottom-0 h-[3px] bg-[#FF7939] transition-all duration-300 ease-out rounded-t-full"
                     style={{
-                      left: activeModalTab === 'calendar' ? '12%' : activeModalTab === 'info' ? '45%' : '78%',
+                      left: activeModalTab === 'calendar' ? '12%' : activeModalTab === 'activities' ? '45%' : '78%',
                       width: '10%', // Short line
                       transform: 'translateX(-50%)'
                     }}
@@ -669,7 +685,7 @@ export function ClientsScreen() {
               </div>
 
               {/* Panel de Contenido por Tabs */}
-              <div className="bg-transparent px-0 py-3 min-h-[300px]">
+              <div className="bg-transparent px-0 pt-3 pb-40 min-h-[300px]">
 
                 {/* --- LOADING SPINNER --- */}
                 {loadingDetail && (

@@ -7,11 +7,11 @@ import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Card, CardContent } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
-import { 
-  Video, 
-  Upload, 
-  Play, 
-  Calendar, 
+import {
+  Video,
+  Upload,
+  Play,
+  Calendar,
   FileText,
   Check,
   X,
@@ -107,12 +107,12 @@ export function MediaSelectionModal({
           filename: m.filename
         }))
       })
-      
+
       const uploadedItem = media.find(item => {
         const itemUrl = mediaType === 'image' ? item.image_url : item.video_url
         // Comparar URLs (pueden tener parámetros diferentes, así que comparamos la parte base)
         const urlMatches = itemUrl && pendingUploadUrl && (
-          itemUrl === pendingUploadUrl || 
+          itemUrl === pendingUploadUrl ||
           itemUrl.includes(pendingUploadUrl.split('?')[0]) ||
           pendingUploadUrl.includes(itemUrl.split('?')[0])
         )
@@ -122,10 +122,10 @@ export function MediaSelectionModal({
           item.filename.includes(pendingUploadFileName) ||
           pendingUploadFileName.includes(item.filename)
         )
-        
+
         return urlMatches || filenameMatches
       })
-      
+
       if (uploadedItem) {
         // Actualizar la lista para reemplazar el item temporal con el real del servidor
         setMedia(prev => {
@@ -138,7 +138,7 @@ export function MediaSelectionModal({
           const exists = filtered.some(item => item.id === uploadedItem.id)
           return exists ? filtered : [uploadedItem, ...filtered]
         })
-        
+
         setPreviewImage(uploadedItem)
         setSelectedMedia(uploadedItem.id)
         // Limpiar el archivo nuevo ahora que la selección está confirmada
@@ -162,7 +162,7 @@ export function MediaSelectionModal({
           if (firstImage) {
             // Remover items temporales de la lista
             setMedia(prev => prev.filter(item => !item.id.startsWith('new-')))
-            
+
             setPreviewImage(firstImage)
             setSelectedMedia(firstImage.id)
             // Limpiar el archivo nuevo ahora que la selección está confirmada
@@ -206,22 +206,22 @@ export function MediaSelectionModal({
       if (mediaType === 'image') {
         // Para imágenes, usar el mismo endpoint que el widget de almacenamiento
         console.log('🔄 MediaSelectionModal: Cargando imágenes del coach desde storage-files')
-        
+
         const response = await fetch('/api/coach/storage-files', { credentials: 'include' })
         const data = await response.json()
-        
+
         console.log('📁 MediaSelectionModal: Respuesta de storage-files:', {
-          status: response.status, 
-          ok: response.ok, 
+          status: response.status,
+          ok: response.ok,
           filesCount: data.files?.length || 0,
           success: data.success,
           error: data.error
         })
-        
+
         if (response.ok && data.success && Array.isArray(data.files)) {
           // Filtrar solo imágenes y convertir al formato esperado
           const imageFiles = data.files.filter((file: any) => file.concept === 'image') || []
-          
+
           // Convertir formato de StorageFile a CoachMedia
           const convertedMedia: CoachMedia[] = imageFiles.map((file: any) => ({
             id: file.fileId || `image-${file.fileName}`,
@@ -239,15 +239,15 @@ export function MediaSelectionModal({
             activity_title: (() => {
               const names = Array.isArray(file.activities)
                 ? file.activities
-                    .map((a: any) => a?.name)
-                    .filter(Boolean)
+                  .map((a: any) => a?.name)
+                  .filter(Boolean)
                 : []
               if (names.length === 0) return 'Portada'
               if (names.length === 1) return names[0]
               return `${names[0]} +${names.length - 1}`
             })(),
           }))
-          
+
           console.log('🎯 MediaSelectionModal: Imágenes convertidas:', {
             totalImagenes: imageFiles.length,
             mediaConvertidas: convertedMedia.length,
@@ -258,7 +258,7 @@ export function MediaSelectionModal({
               activity_title: item.activity_title
             }))
           })
-          
+
           // Preservar items temporales que aún no se han encontrado en el servidor
           setMedia(prev => {
             const tempItems = prev.filter(item => item.id.startsWith('new-'))
@@ -310,8 +310,8 @@ export function MediaSelectionModal({
               activity_title: (() => {
                 const names = Array.isArray(file.activities)
                   ? file.activities
-                      .map((a: any) => a?.name)
-                      .filter(Boolean)
+                    .map((a: any) => a?.name)
+                    .filter(Boolean)
                   : []
                 if (names.length === 0) return ''
                 if (names.length === 1) return names[0]
@@ -366,8 +366,8 @@ export function MediaSelectionModal({
             activity_title: (() => {
               const names = Array.isArray(file.activities)
                 ? file.activities
-                    .map((a: any) => a?.name)
-                    .filter(Boolean)
+                  .map((a: any) => a?.name)
+                  .filter(Boolean)
                 : []
               if (names.length === 0) return 'Documento'
               if (names.length === 1) return names[0]
@@ -396,10 +396,10 @@ export function MediaSelectionModal({
       isAlreadySelected: selectedMedia === mediaId,
       allMediaIds: media.map(m => m.id)
     })
-    
+
     // Encontrar el item seleccionado
     const selectedItem = media.find(m => m.id === mediaId)
-    
+
     // Si ya está seleccionado, deseleccionarlo
     if (selectedMedia === mediaId) {
       console.log('❌ Deseleccionando media actual')
@@ -503,7 +503,7 @@ export function MediaSelectionModal({
   const handleUploadFile = async (file: File) => {
     setUploading(true)
     setError(null)
-    
+
     try {
       console.log('📤 MediaSelectionModal: Subiendo archivo inmediatamente...', {
         name: file.name,
@@ -603,7 +603,7 @@ export function MediaSelectionModal({
     if (selectedMedia) {
       // ✅ Buscar el item por ID y obtener su URL según el mediaType solicitado
       const selectedItem = media.find(item => item.id === selectedMedia)
-      
+
       console.log('🎯 MediaSelectionModal: Confirmando selección:', {
         selectedId: selectedMedia,
         mediaType,
@@ -616,12 +616,12 @@ export function MediaSelectionModal({
           filename: selectedItem.filename
         } : null
       })
-      
+
       // ✅ Elegir la URL correcta según el tipo de media solicitado
-      const mediaUrl = selectedItem 
-        ? (mediaType === 'image' ? selectedItem.image_url : selectedItem.video_url)
+      const mediaUrl = selectedItem
+        ? (mediaType === 'image' ? selectedItem.image_url : mediaType === 'video' ? selectedItem.video_url : selectedItem.pdf_url)
         : null
-      
+
       if (mediaUrl) {
         onMediaSelected(mediaUrl, mediaType)
         onClose()
@@ -629,10 +629,10 @@ export function MediaSelectionModal({
         console.error('❌ No se pudo encontrar la URL para el ID seleccionado', {
           selectedId: selectedMedia,
           selectedItemExists: !!selectedItem,
-          selectedItemUrl: selectedItem ? (mediaType === 'image' ? selectedItem.image_url : selectedItem.video_url) : null,
-          allMedia: media.map(m => ({ id: m.id, image_url: m.image_url, video_url: m.video_url }))
+          selectedItemUrl: selectedItem ? (mediaType === 'image' ? selectedItem.image_url : mediaType === 'video' ? selectedItem.video_url : selectedItem.pdf_url) : null,
+          allMedia: media.map(m => ({ id: m.id, image_url: m.image_url, video_url: m.video_url, pdf_url: m.pdf_url }))
         })
-        setError('No se pudo encontrar la imagen seleccionada. Por favor, inténtalo de nuevo.')
+        setError(`No se pudo encontrar ${getMediaTypeLabel(mediaType).toLowerCase()} seleccionado. Por favor, inténtalo de nuevo.`)
       }
     } else if (newMediaFile) {
       console.log('📁 MediaSelectionModal: Archivo seleccionado (NO subido aún)', {
@@ -641,14 +641,14 @@ export function MediaSelectionModal({
         type: newMediaFile.type,
         mediaType
       })
-      
+
       // ✅ NO subir todavía - solo crear una URL temporal local
       // El archivo se subirá cuando se apriete "Actualizar Producto"
       const temporaryUrl = URL.createObjectURL(newMediaFile)
-      
+
       console.log('🎯 MediaSelectionModal: URL temporal creada (archivo en memoria):', temporaryUrl)
       console.log('⏳ MediaSelectionModal: El archivo se subirá cuando se actualice el producto')
-      
+
       // Pasar el archivo Y la URL temporal al padre
       onMediaSelected(temporaryUrl, mediaType, newMediaFile)
       onClose()
@@ -663,12 +663,16 @@ export function MediaSelectionModal({
     return parseFloat((bytes / Math.pow(k, i)).toFixed(2)) + ' ' + sizes[i]
   }
 
-  const getMediaTypeIcon = (mediaType: 'image' | 'video') => {
-    return mediaType === 'image' ? <ImageIcon className="h-4 w-4" /> : <Video className="h-4 w-4" />
+  const getMediaTypeIcon = (mediaType: 'image' | 'video' | 'pdf') => {
+    if (mediaType === 'image') return <ImageIcon className="h-4 w-4" />
+    if (mediaType === 'video') return <Video className="h-4 w-4" />
+    return <FileText className="h-4 w-4" />
   }
 
-  const getMediaTypeLabel = (mediaType: 'image' | 'video') => {
-    return mediaType === 'image' ? 'Imagen' : 'Video'
+  const getMediaTypeLabel = (mediaType: 'image' | 'video' | 'pdf') => {
+    if (mediaType === 'image') return 'Imagen'
+    if (mediaType === 'video') return 'Video'
+    return 'Documento'
   }
 
   return (
@@ -690,33 +694,30 @@ export function MediaSelectionModal({
               <button
                 type="button"
                 onClick={() => setSourceFilter('cover')}
-                className={`px-3 py-2 rounded-lg border text-xs font-semibold transition-all ${
-                  sourceFilter === 'cover'
-                    ? 'border-[#FF7939] bg-[#FF7939]/10 text-white'
-                    : 'border-white/10 bg-black text-gray-300 hover:border-[#FF7939]/50'
-                }`}
+                className={`px-3 py-2 rounded-lg border text-xs font-semibold transition-all ${sourceFilter === 'cover'
+                  ? 'border-[#FF7939] bg-[#FF7939]/10 text-white'
+                  : 'border-white/10 bg-black text-gray-300 hover:border-[#FF7939]/50'
+                  }`}
               >
                 Portada
               </button>
               <button
                 type="button"
                 onClick={() => setSourceFilter('catalog')}
-                className={`px-3 py-2 rounded-lg border text-xs font-semibold transition-all ${
-                  sourceFilter === 'catalog'
-                    ? 'border-[#FF7939] bg-[#FF7939]/10 text-white'
-                    : 'border-white/10 bg-black text-gray-300 hover:border-[#FF7939]/50'
-                }`}
+                className={`px-3 py-2 rounded-lg border text-xs font-semibold transition-all ${sourceFilter === 'catalog'
+                  ? 'border-[#FF7939] bg-[#FF7939]/10 text-white'
+                  : 'border-white/10 bg-black text-gray-300 hover:border-[#FF7939]/50'
+                  }`}
               >
                 Ejercicios / Platos
               </button>
               <button
                 type="button"
                 onClick={() => setSourceFilter('all')}
-                className={`px-3 py-2 rounded-lg border text-xs font-semibold transition-all ${
-                  sourceFilter === 'all'
-                    ? 'border-[#FF7939] bg-[#FF7939]/10 text-white'
-                    : 'border-white/10 bg-black text-gray-300 hover:border-[#FF7939]/50'
-                }`}
+                className={`px-3 py-2 rounded-lg border text-xs font-semibold transition-all ${sourceFilter === 'all'
+                  ? 'border-[#FF7939] bg-[#FF7939]/10 text-white'
+                  : 'border-white/10 bg-black text-gray-300 hover:border-[#FF7939]/50'
+                  }`}
               >
                 Todo
               </button>
@@ -750,23 +751,25 @@ export function MediaSelectionModal({
                     e.stopPropagation()
                     // Limpiar error al volver a intentar
                     setError(null)
-                    document.getElementById('media-upload')?.click()
+                    document.getElementById(`media-upload-${mediaType}`)?.click()
                   }}
                   className="bg-[#FF7939]/20 text-[#FF7939] border border-[#FF7939]/30 rounded-full w-10 h-10 flex items-center justify-center transition-all duration-200 hover:bg-[#FF7939]/30"
                 >
                   <Plus className="h-5 w-5" />
                 </motion.button>
                 <p className="text-xs text-gray-400 text-center max-w-xs">
-                  Elegí otro video (máximo 30 segundos) para usar como portada de tu producto.
+                  {mediaType === 'pdf'
+                    ? 'Elegí un documento PDF para tu producto.'
+                    : 'Elegí otro video (máximo 30 segundos) para usar como portada de tu producto.'}
                 </p>
               </div>
               {/* Input oculto para subir archivo */}
               <input
                 type="file"
-                accept={mediaType === 'image' ? 'image/*' : 'video/mp4,video/webm,video/quicktime'}
+                accept={mediaType === 'image' ? 'image/*' : mediaType === 'video' ? 'video/mp4,video/webm,video/quicktime' : 'application/pdf'}
                 onChange={handleFileChange}
                 className="hidden"
-                id="media-upload"
+                id={`media-upload-${mediaType}`}
               />
             </div>
           ) : media.length === 0 ? (
@@ -776,24 +779,24 @@ export function MediaSelectionModal({
                 <p className="mb-4">No hay {getMediaTypeLabel(mediaType).toLowerCase()}s disponibles</p>
               </div>
               {/* Botón + naranja (estilo objetivos) para agregar nueva imagen cuando no hay imágenes */}
-              <motion.button
-                initial={{ opacity: 0, scale: 0.9 }}
-                animate={{ opacity: 1, scale: 1 }}
-                onClick={(e) => {
-                  e.stopPropagation()
-                  document.getElementById('media-upload')?.click()
-                }}
-                className="bg-[#FF7939]/20 text-[#FF7939] border border-[#FF7939]/30 rounded-full w-10 h-10 flex items-center justify-center transition-all duration-200 hover:bg-[#FF7939]/30"
+              <div
+                className="relative bg-[#FF7939]/20 text-[#FF7939] border border-[#FF7939]/30 rounded-full w-10 h-10 flex items-center justify-center transition-all duration-200 hover:bg-[#FF7939]/30 overflow-hidden"
               >
+                <input
+                  type="file"
+                  accept={mediaType === 'image' ? 'image/*' : mediaType === 'video' ? 'video/mp4,video/webm,video/quicktime' : 'application/pdf'}
+                  onChange={handleFileChange}
+                  className="absolute inset-0 w-full h-full opacity-0 cursor-pointer z-10"
+                />
                 <Plus className="h-5 w-5" />
-              </motion.button>
+              </div>
               {/* Input oculto para subir archivo */}
               <input
                 type="file"
-                accept={mediaType === 'image' ? 'image/*' : 'video/mp4,video/webm,video/quicktime'}
+                accept={mediaType === 'image' ? 'image/*' : mediaType === 'video' ? 'video/mp4,video/webm,video/quicktime' : 'application/pdf'}
                 onChange={handleFileChange}
                 className="hidden"
-                id="media-upload"
+                id={`media-upload-${mediaType}`}
               />
             </div>
           ) : (
@@ -822,7 +825,7 @@ export function MediaSelectionModal({
 
                     return (
                       <motion.button
-                        key={item.id}
+                        key={`${item.id}-${index}`}
                         initial={{ opacity: 0, x: 10 }}
                         animate={{ opacity: 1, x: 0 }}
                         exit={{ opacity: 0, x: -10 }}
@@ -833,9 +836,8 @@ export function MediaSelectionModal({
                           handleMediaSelect(item.id)
                           setPreviewImage(item)
                         }}
-                        className={`flex-shrink-0 text-left rounded-xl border overflow-hidden bg-black ${
-                          isSelected ? 'border-[#FF7939]' : 'border-white/10 hover:border-[#FF7939]/50'
-                        }`}
+                        className={`flex-shrink-0 text-left rounded-xl border overflow-hidden bg-black ${isSelected ? 'border-[#FF7939]' : 'border-white/10 hover:border-[#FF7939]/50'
+                          }`}
                       >
                         <div className={`relative ${widthClass} ${heightClass} bg-[#111111]`}>
                           {coverSrc ? (
@@ -931,7 +933,7 @@ export function MediaSelectionModal({
                   })}
                 </div>
               </div>
-              
+
               {/* Línea con botón + y botón Guardar */}
               <div className="flex items-center justify-center gap-3 flex-shrink-0 w-full py-2">
                 {/* Botón + naranja (estilo objetivos) para agregar nueva imagen */}
@@ -940,13 +942,13 @@ export function MediaSelectionModal({
                   animate={{ opacity: 1, scale: 1 }}
                   onClick={(e) => {
                     e.stopPropagation()
-                    document.getElementById('media-upload')?.click()
+                    document.getElementById(`media-upload-${mediaType}`)?.click()
                   }}
                   className="bg-[#FF7939]/20 text-[#FF7939] border border-[#FF7939]/30 rounded-full w-8 h-8 flex items-center justify-center transition-all duration-200 flex-shrink-0 hover:bg-[#FF7939]/30"
                 >
                   <Plus className="h-4 w-4" />
                 </motion.button>
-                
+
                 {/* Botón Guardar (solo visible cuando hay selección) */}
                 {selectedMedia || newMediaFile ? (
                   <Button
@@ -965,14 +967,14 @@ export function MediaSelectionModal({
                   </Button>
                 ) : null}
               </div>
-              
+
               {/* Input oculto para subir archivo */}
               <input
                 type="file"
                 accept={mediaType === 'image' ? 'image/*' : 'video/mp4,video/webm,video/quicktime'}
                 onChange={handleFileChange}
                 className="hidden"
-                id="media-upload"
+                id={`media-upload-${mediaType}`}
               />
             </div>
           )}

@@ -20,18 +20,18 @@ export function ActivityDetailExpanded({ activity, onBack }: ActivityDetailExpan
   // const { stats, loading, product } = useProductStats(activity.id)
   const stats = { totalSessions: 0, uniqueExercises: 0 }
   const loading = false
-  
+
   const vimeoId = extractVimeoId(activity.video_url || '')
-  
+
   // Usar las estadísticas del hook o los valores por defecto
   const totalSessions = stats.totalSessions || activity.totalSessions || 0
   const uniqueExercises = stats.uniqueExercises || activity.exercisesCount || 0
-  
+
   const productCapacity = (activity as any).capacity
   const productModality = (activity as any).modality
   const locationName = (activity as any).location_name
   const locationUrl = (activity as any).location_url
-  
+
   // Parsear objetivos
   let objetivos = []
   if (activity.workshop_type) {
@@ -111,7 +111,7 @@ export function ActivityDetailExpanded({ activity, onBack }: ActivityDetailExpan
           <ChevronLeft className="h-5 w-5" />
           <span>Volver</span>
         </button>
-        
+
         <div className="flex items-center space-x-2">
           <Star className="h-4 w-4 text-yellow-400 fill-current" />
           <span className="text-sm font-medium">{activity.coach_rating?.toFixed(1) || 'N/A'}</span>
@@ -124,7 +124,7 @@ export function ActivityDetailExpanded({ activity, onBack }: ActivityDetailExpan
         {/* Hero Video/Image */}
         <div className="relative h-64 md:h-80 bg-gray-900">
           {vimeoId ? (
-            <VimeoPlayer 
+            <VimeoPlayer
               videoId={vimeoId}
               autoplay={false}
               className="w-full h-full"
@@ -140,10 +140,10 @@ export function ActivityDetailExpanded({ activity, onBack }: ActivityDetailExpan
               <span className="text-2xl font-bold">🎯</span>
             </div>
           )}
-          
+
           {/* Overlay */}
           <div className="absolute inset-0 bg-gradient-to-t from-black/60 to-transparent" />
-          
+
           {/* Price Badge */}
           <div className="absolute top-4 right-4">
             <div className="bg-[#FF7939] text-white px-3 py-1 rounded-full font-bold">
@@ -157,7 +157,7 @@ export function ActivityDetailExpanded({ activity, onBack }: ActivityDetailExpan
           {/* Title and Coach */}
           <div>
             <h1 className="text-2xl md:text-3xl font-bold mb-2">{activity.title}</h1>
-            
+
             {/* Coach Info */}
             <div className="flex items-center space-x-3 text-left">
               <div className="w-12 h-12 rounded-full overflow-hidden bg-gray-700">
@@ -167,12 +167,12 @@ export function ActivityDetailExpanded({ activity, onBack }: ActivityDetailExpan
                   className="w-full h-full object-cover"
                 />
               </div>
-              <div>
+              <div className="flex items-center gap-2 flex-1">
                 <p className="font-medium">{activity.coach_name || 'Coach'}</p>
                 <div className="flex items-center space-x-1 text-sm text-gray-400">
                   <Star className="h-3 w-3 text-yellow-400 fill-current" />
                   <span>{activity.coach_rating?.toFixed(1) || 'N/A'}</span>
-                  <span>({activity.total_coach_reviews || 0} reseñas)</span>
+                  <span className="text-xs">({activity.total_coach_reviews || 0})</span>
                 </div>
               </div>
             </div>
@@ -186,7 +186,7 @@ export function ActivityDetailExpanded({ activity, onBack }: ActivityDetailExpan
                 <p>{activity.description || 'No hay descripción disponible.'}</p>
               ) : (
                 <div>
-                  <p 
+                  <p
                     className="overflow-hidden"
                     style={{
                       display: '-webkit-box',
@@ -225,12 +225,12 @@ export function ActivityDetailExpanded({ activity, onBack }: ActivityDetailExpan
               <Calendar className="h-5 w-5 text-[#FF7939]" />
               <span className="text-gray-300">Sesiones: {loading ? '...' : totalSessions}</span>
             </div>
-            
+
             <div className="flex items-center space-x-2">
               {getCategoryIcon(activity.categoria ?? undefined)}
               <span className="text-gray-300">{getCategoryLabel(activity.categoria ?? undefined)}: {loading ? '...' : uniqueExercises}</span>
             </div>
-            
+
             {productCapacity && (
               <div className="flex items-center space-x-2">
                 <Users className="h-5 w-5 text-[#FF7939]" />
@@ -239,7 +239,7 @@ export function ActivityDetailExpanded({ activity, onBack }: ActivityDetailExpan
                 </span>
               </div>
             )}
-            
+
             <div className="flex items-center space-x-2">
               {getModalityIcon(productModality ?? undefined)}
               <span className="text-gray-300">{getModalityLabel(productModality ?? undefined)}</span>
@@ -252,7 +252,7 @@ export function ActivityDetailExpanded({ activity, onBack }: ActivityDetailExpan
               <h3 className="text-lg font-semibold mb-2">Objetivos</h3>
               <div className="flex gap-2 overflow-x-auto hide-scrollbar pb-2">
                 {objetivos.map((objetivo, index) => (
-                  <span 
+                  <span
                     key={index}
                     className="bg-[#FF7939]/20 text-[#FF7939] text-sm px-3 py-1 rounded-full font-medium border border-[#FF7939]/30 whitespace-nowrap flex-shrink-0"
                   >

@@ -812,7 +812,7 @@ export default function CoachCalendarScreen() {
             status,
             activity_id,
             meet_link,
-            meet_link_id,
+
             google_event_id,
             attendance_tracked,
             description,

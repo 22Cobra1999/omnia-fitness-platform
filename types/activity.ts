@@ -66,6 +66,13 @@ export interface ActivityBase {
   coach_name?: string | null // Joined from coaches table
   coach_avatar_url?: string | null // Joined from coaches table
   coach_whatsapp?: string | null // Joined from coaches table
+
+  // Denormalized stats
+  semanas_totales?: number | null
+  sesiones_dias_totales?: number | null
+  items_totales?: number | null
+  items_unicos?: number | null
+  periodos_configurados?: number | null
 }
 
 // Combined Activity interface for fetched data, including joined tables
@@ -93,7 +100,7 @@ export interface Activity extends ActivityBase {
 
   // Category for filtering in UI
   categoria?: string | null // Assuming 'categoria' is a direct column in 'activities'
-  
+
   // Diet type for nutrition products
   dieta?: string | null
 
@@ -135,18 +142,18 @@ export interface Activity extends ActivityBase {
   full_name?: string | null
   specialization?: string | null
   availability?: any | null
-  
+
   // Additional coach properties from coaches table
   coach_experience_years?: number | null
   coach_rating?: number | null
   coach_total_reviews?: number | null
   coach_instagram?: string | null
-  
+
   // Workshop-specific properties
   sessions_per_client?: number | null
   workshop_type?: string | null
   capacity?: number | null
-  
+
   // Location properties for presencial activities
   location_url?: string | null
   location_name?: string | null

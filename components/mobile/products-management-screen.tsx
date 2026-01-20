@@ -84,6 +84,9 @@ export default function ProductsManagementScreen({ onTabChange }: ProductsManage
   const [sortDirection, setSortDirection] = useState<SortDirection>('asc')
   const [showTypeDropdown, setShowTypeDropdown] = useState(false)
 
+  // 🚀 Optimización: Limitar productos visible s inicialmente
+  const [visibleProductsCount, setVisibleProductsCount] = useState(20)
+
   // Estado para tabs principales
   const [activeMainTab, setActiveMainTab] = useState<'products' | 'exercises' | 'storage'>('products')
 
@@ -352,14 +355,14 @@ export default function ProductsManagementScreen({ onTabChange }: ProductsManage
 
     // Escuchar eventos de producto creado
     const handleProductCreated = (event: CustomEvent) => {
-      console.log('📦 Evento productCreated recibido')
+      // console.log('📦 Evento productCreated recibido')
       fetchProductsRef.current() // Recargar productos
     }
 
     // Escuchar eventos de producto actualizado (solo cuando realmente se necesita)
     const handleProductUpdated = (event: CustomEvent) => {
       const { productId } = event.detail
-      console.log('🔄 Evento productUpdated recibido para producto:', productId)
+      // console.log('🔄 Evento productUpdated recibido para producto:', productId)
       // Solo recargar si no es un cambio de pausa (eso se maneja con productPauseChanged)
       // No recargamos aquí para evitar loops, solo actualizamos estadísticas
     }
@@ -367,7 +370,7 @@ export default function ProductsManagementScreen({ onTabChange }: ProductsManage
     // Escuchar eventos de cambio de pausa (más rápido, solo actualiza el estado)
     const handleProductPauseChanged = (event: CustomEvent) => {
       const { productId, is_paused } = event.detail
-      console.log('🔄 Actualizando estado de pausa del producto:', { productId, is_paused })
+      // console.log('🔄 Actualizando estado de pausa del producto:', { productId, is_paused })
 
       // Actualizar el producto en la lista sin recargar todo
       setProducts(prevProducts =>
@@ -497,7 +500,7 @@ export default function ProductsManagementScreen({ onTabChange }: ProductsManage
   const toggleCafeConsultation = async () => {
     if (isTogglingCafe) return // Evitar múltiples clics
 
-    console.log('🔄 toggleCafeConsultation llamado', { userId: user?.id, currentState: cafeConsultation.active })
+    // console.log('🔄 toggleCafeConsultation llamado', { userId: user?.id, currentState: cafeConsultation.active })
 
     if (!user?.id) {
       console.error('❌ No hay usuario autenticado')
@@ -507,7 +510,7 @@ export default function ProductsManagementScreen({ onTabChange }: ProductsManage
 
     setIsTogglingCafe(true)
     const newActiveState = !cafeConsultation.active
-    console.log('🔄 Nuevo estado:', newActiveState)
+    // console.log('🔄 Nuevo estado:', newActiveState)
 
     // Optimistic update
     setCafeConsultation(prev => ({
@@ -516,7 +519,7 @@ export default function ProductsManagementScreen({ onTabChange }: ProductsManage
     }))
 
     try {
-      console.log('📡 Enviando request a /api/coach/cafe', { enabled: newActiveState })
+      // console.log('📡 Enviando request a /api/coach/cafe', { enabled: newActiveState })
       const response = await fetch('/api/coach/cafe', {
         method: 'PUT',
         credentials: 'include', // ✅ Incluir cookies en la petición
@@ -528,7 +531,7 @@ export default function ProductsManagementScreen({ onTabChange }: ProductsManage
         })
       })
 
-      console.log('📡 Respuesta recibida:', { ok: response.ok, status: response.status })
+      // console.log('📡 Respuesta recibida:', { ok: response.ok, status: response.status })
 
       if (!response.ok) {
         const error = await response.json()
@@ -541,7 +544,7 @@ export default function ProductsManagementScreen({ onTabChange }: ProductsManage
         alert(`Error al actualizar el estado del café: ${error.error || 'Error desconocido'}`)
       } else {
         const result = await response.json()
-        console.log('✅ Café actualizado exitosamente:', result)
+        // console.log('✅ Café actualizado exitosamente:', result)
         // Actualizar con los datos del servidor para estar seguros
         if (result.success && result.cafe) {
           setCafeConsultation({
@@ -945,18 +948,18 @@ export default function ProductsManagementScreen({ onTabChange }: ProductsManage
     const isWorkshopFinished = product.type === 'workshop' &&
       ((product as any).is_finished === true || (product as any).taller_activo === false)
 
-    console.log('🔍 handlePreviewProduct:', {
-      productId: product.id,
-      isWorkshopFinished,
-      is_finished: (product as any).is_finished,
-      taller_activo: (product as any).taller_activo,
-      hasCachedSurvey: completedCoachSurveys[product.id]
-    })
+    // console.log('🔍 handlePreviewProduct:', {
+    //   productId: product.id,
+    //   isWorkshopFinished,
+    //   is_finished: (product as any).is_finished,
+    //   taller_activo: (product as any).taller_activo,
+    //   hasCachedSurvey: completedCoachSurveys[product.id]
+    // })
 
     if (isWorkshopFinished) {
       // Si ya sabemos que la encuesta fue completada en esta sesión, no volver a mostrarla
       if (completedCoachSurveys[product.id]) {
-        console.log('✅ Encuesta ya completada (caché), abriendo detalle sin encuesta')
+        // console.log('✅ Encuesta ya completada (caché), abriendo detalle sin encuesta')
         setSelectedProduct(product)
         setIsProductModalOpen(true)
         // Asegurar que el modal de encuesta esté cerrado
@@ -967,11 +970,11 @@ export default function ProductsManagementScreen({ onTabChange }: ProductsManage
 
       // Verificar si ya tiene encuesta completada
       try {
-        console.log('🔍 Verificando encuesta en backend para producto:', product.id)
+        // console.log('🔍 Verificando encuesta en backend para producto:', product.id)
         const response = await fetch(`/api/activities/${product.id}/check-coach-survey`)
         const result = await response.json()
 
-        console.log('📥 Respuesta de check-coach-survey:', result)
+        // console.log('📥 Respuesta de check-coach-survey:', result)
 
         if (!result.success) {
           console.error('❌ Error en respuesta de check-coach-survey:', result.error)
@@ -984,7 +987,7 @@ export default function ProductsManagementScreen({ onTabChange }: ProductsManage
         }
 
         if (!result.hasSurvey) {
-          console.log('⚠️ No tiene encuesta, mostrando encuesta cerrable')
+          // console.log('⚠️ No tiene encuesta, mostrando encuesta cerrable')
           // No tiene encuesta, mostrar el detalle PERO con el modal de encuesta (cerrable)
           setSelectedProduct(product)
           setIsProductModalOpen(true)
@@ -998,7 +1001,7 @@ export default function ProductsManagementScreen({ onTabChange }: ProductsManage
         }
 
         // Si el backend confirma que tiene encuesta, guardar en caché local y NO mostrar encuesta
-        console.log('✅ Encuesta ya completada (backend), guardando en caché y abriendo detalle sin encuesta')
+        // console.log('✅ Encuesta ya completada (backend), guardando en caché y abriendo detalle sin encuesta')
         setCompletedCoachSurveys((prev) => ({
           ...prev,
           [product.id]: true
@@ -1017,7 +1020,7 @@ export default function ProductsManagementScreen({ onTabChange }: ProductsManage
     }
 
     // Preview normal o taller con encuesta ya completada
-    console.log('📖 Abriendo detalle del producto (preview normal)')
+    // console.log('📖 Abriendo detalle del producto (preview normal)')
     setSelectedProduct(product)
     setIsProductModalOpen(true)
     // Asegurar que el modal de encuesta esté cerrado si no es un taller finalizado
@@ -1096,6 +1099,12 @@ export default function ProductsManagementScreen({ onTabChange }: ProductsManage
       categoria: product.categoria || 'fitness', // ✅ Agregar categoria con valor por defecto
       created_at: product.created_at,
       updated_at: product.updated_at,
+      // ✅ Campos denormalizados para estadísticas
+      semanas_totales: (product as any).semanas_totales || null,
+      sesiones_dias_totales: (product as any).sesiones_dias_totales || null,
+      items_totales: (product as any).items_totales || null,
+      items_unicos: (product as any).items_unicos || null,
+      periodos_configurados: (product as any).periodos_configurados || null,
       tags: [],
       video_url: null,
       vimeo_id: null,
@@ -1196,22 +1205,22 @@ export default function ProductsManagementScreen({ onTabChange }: ProductsManage
 
   // Función para confirmar eliminación
   const confirmDelete = useCallback(async () => {
-    console.log('🗑️ CONFIRM DELETE: Iniciando eliminación...')
-    console.log('🗑️ CONFIRM DELETE: productToDelete:', productToDelete)
-    console.log('🗑️ CONFIRM DELETE: isDeleting:', isDeleting)
+    // console.log('🗑️ CONFIRM DELETE: Iniciando eliminación...')
+    // console.log('🗑️ CONFIRM DELETE: productToDelete:', productToDelete)
+    // console.log('🗑️ CONFIRM DELETE: isDeleting:', isDeleting)
 
     if (!productToDelete) {
-      console.log('❌ CONFIRM DELETE: No hay producto para eliminar')
+      // console.log('❌ CONFIRM DELETE: No hay producto para eliminar')
       return
     }
 
     if (isDeleting) {
-      console.log('⚠️ CONFIRM DELETE: Ya se está procesando una eliminación')
+      // console.log('⚠️ CONFIRM DELETE: Ya se está procesando una eliminación')
       return
     }
 
     // CERRAR MODAL INMEDIATAMENTE - SIN AWAIT
-    console.log('🚪 CONFIRM DELETE: Cerrando modal inmediatamente')
+    // console.log('🚪 CONFIRM DELETE: Cerrando modal inmediatamente')
     setDeleteConfirmationOpen(false)
     setProductToDelete(null)
     setIsDeleting(true)
@@ -1221,32 +1230,32 @@ export default function ProductsManagementScreen({ onTabChange }: ProductsManage
 
     // Eliminar del estado INMEDIATAMENTE para que desaparezca de la UI
     setProducts(prevProducts => {
-      console.log('📝 CONFIRM DELETE: Eliminando producto inmediatamente del estado')
-      console.log('📝 CONFIRM DELETE: Productos antes del filtro:', prevProducts.length)
-      console.log('📝 CONFIRM DELETE: ID a eliminar:', productToDeleteData.id)
+      // console.log('📝 CONFIRM DELETE: Eliminando producto inmediatamente del estado')
+      // console.log('📝 CONFIRM DELETE: Productos antes del filtro:', prevProducts.length)
+      // console.log('📝 CONFIRM DELETE: ID a eliminar:', productToDeleteData.id)
 
       const newProducts = prevProducts.filter(p => String(p.id) !== String(productToDeleteData.id))
 
-      console.log('📝 CONFIRM DELETE: Productos después del filtro:', newProducts.length)
+      // console.log('📝 CONFIRM DELETE: Productos después del filtro:', newProducts.length)
       return newProducts
     })
 
     // Ejecutar eliminación en segundo plano
     setTimeout(async () => {
       try {
-        console.log('🌐 CONFIRM DELETE: Enviando request a API...')
+        // console.log('🌐 CONFIRM DELETE: Enviando request a API...')
         const response = await fetch(`/api/delete-activity-final?id=${productToDeleteData.id}`, {
           method: 'DELETE',
         })
 
-        console.log('📡 CONFIRM DELETE: Respuesta recibida:', {
-          ok: response.ok,
-          status: response.status,
-          statusText: response.statusText
-        })
+        // console.log('📡 CONFIRM DELETE: Respuesta recibida:', {
+        //   ok: response.ok,
+        //   status: response.status,
+        //   statusText: response.statusText
+        // })
 
         if (response.ok) {
-          console.log('✅ CONFIRM DELETE: Eliminación exitosa en backend')
+          // console.log('✅ CONFIRM DELETE: Eliminación exitosa en backend')
 
           // Guardar nombre del producto eliminado para el modal de éxito
           setDeletedProductName(productToDeleteData.title)
@@ -1254,14 +1263,14 @@ export default function ProductsManagementScreen({ onTabChange }: ProductsManage
           // Mostrar modal de éxito
           setDeleteSuccessOpen(true)
 
-          console.log('🎉 CONFIRM DELETE: Modal de éxito mostrado')
+          // console.log('🎉 CONFIRM DELETE: Modal de éxito mostrado')
         } else {
           const result = await response.json()
-          console.log('❌ CONFIRM DELETE: Error en respuesta:', result)
+          // console.log('❌ CONFIRM DELETE: Error en respuesta:', result)
 
           // Si hay error, revertir la eliminación del estado
           setProducts(prevProducts => {
-            console.log('🔄 CONFIRM DELETE: Revirtiendo eliminación del estado')
+            // console.log('🔄 CONFIRM DELETE: Revirtiendo eliminación del estado')
             return [...prevProducts, productToDeleteData]
           })
 
@@ -1273,7 +1282,7 @@ export default function ProductsManagementScreen({ onTabChange }: ProductsManage
 
         // Si hay error, revertir la eliminación del estado
         setProducts(prevProducts => {
-          console.log('🔄 CONFIRM DELETE: Revirtiendo eliminación del estado por error')
+          // console.log('🔄 CONFIRM DELETE: Revirtiendo eliminación del estado por error')
           return [...prevProducts, productToDeleteData]
         })
 
@@ -1288,7 +1297,7 @@ export default function ProductsManagementScreen({ onTabChange }: ProductsManage
 
   // Función para cancelar eliminación
   const cancelDelete = useCallback(() => {
-    console.log('❌ CANCEL DELETE: Cancelando eliminación')
+    // console.log('❌ CANCEL DELETE: Cancelando eliminación')
     setDeleteConfirmationOpen(false)
     setProductToDelete(null)
     setIsDeleting(false)
@@ -1438,8 +1447,8 @@ export default function ProductsManagementScreen({ onTabChange }: ProductsManage
               <button
                 onClick={() => setActiveMainTab('products')}
                 className={`text-sm transition-all ${activeMainTab === 'products'
-                    ? 'text-[#FF7939] font-medium'
-                    : 'text-gray-500 hover:text-gray-400'
+                  ? 'text-[#FF7939] font-medium'
+                  : 'text-gray-500 hover:text-gray-400'
                   }`}
               >
                 Productos
@@ -1447,8 +1456,8 @@ export default function ProductsManagementScreen({ onTabChange }: ProductsManage
               <button
                 onClick={() => setActiveMainTab('exercises')}
                 className={`text-sm transition-all ${activeMainTab === 'exercises'
-                    ? 'text-[#FF7939] font-medium'
-                    : 'text-gray-500 hover:text-gray-400'
+                  ? 'text-[#FF7939] font-medium'
+                  : 'text-gray-500 hover:text-gray-400'
                   }`}
               >
                 Ejercicios/Platos
@@ -1456,8 +1465,8 @@ export default function ProductsManagementScreen({ onTabChange }: ProductsManage
               <button
                 onClick={() => setActiveMainTab('storage')}
                 className={`text-sm transition-all ${activeMainTab === 'storage'
-                    ? 'text-[#FF7939] font-medium'
-                    : 'text-gray-500 hover:text-gray-400'
+                  ? 'text-[#FF7939] font-medium'
+                  : 'text-gray-500 hover:text-gray-400'
                   }`}
               >
                 Almacenamiento
@@ -1667,18 +1676,33 @@ export default function ProductsManagementScreen({ onTabChange }: ProductsManage
                   <div className="text-gray-400 text-sm">No hay productos creados aún</div>
                 </div>
               ) : (
-                <div className="overflow-x-auto pb-2">
-                  <div className="flex -space-x-4" style={{ minWidth: 'min-content' }}>
-                    {/* Productos */}
-                    {sortedProducts.map((product) => (
-                      <ProductCard
-                        key={product.id}
-                        product={product}
-                        onPreview={handlePreviewProduct}
-                        convertProductToActivity={convertProductToActivity}
-                      />
-                    ))}
+                <div>
+                  <div className="overflow-x-auto pb-2">
+                    <div className="flex -space-x-4" style={{ minWidth: 'min-content' }}>
+                      {/* Productos - Solo mostrar los visibles */}
+                      {sortedProducts.slice(0, visibleProductsCount).map((product) => (
+                        <ProductCard
+                          key={product.id}
+                          product={product}
+                          onPreview={handlePreviewProduct}
+                          convertProductToActivity={convertProductToActivity}
+                        />
+                      ))}
+                    </div>
                   </div>
+
+                  {/* Botón Cargar Más */}
+                  {sortedProducts.length > visibleProductsCount && (
+                    <div className="flex justify-center mt-4">
+                      <button
+                        type="button"
+                        onClick={() => setVisibleProductsCount(prev => prev + 20)}
+                        className="px-4 py-2 rounded-lg border border-white/10 bg-white/5 text-white text-sm font-medium hover:bg-white/10 transition-all"
+                      >
+                        Cargar más ({sortedProducts.length - visibleProductsCount} restantes)
+                      </button>
+                    </div>
+                  )}
                 </div>
               )}
             </div>
@@ -1692,8 +1716,8 @@ export default function ProductsManagementScreen({ onTabChange }: ProductsManage
               <button
                 onClick={() => setActiveSubTab('fitness')}
                 className={`text-base transition-all px-4 py-2 ${activeSubTab === 'fitness'
-                    ? 'text-[#FF7939] font-medium'
-                    : 'text-gray-500 hover:text-gray-400'
+                  ? 'text-[#FF7939] font-medium'
+                  : 'text-gray-500 hover:text-gray-400'
                   }`}
               >
                 Fitness
@@ -1701,21 +1725,20 @@ export default function ProductsManagementScreen({ onTabChange }: ProductsManage
               <button
                 onClick={() => setActiveSubTab('nutrition')}
                 className={`text-base transition-all px-4 py-2 ${activeSubTab === 'nutrition'
-                    ? 'text-[#FF7939] font-medium'
-                    : 'text-gray-500 hover:text-gray-400'
+                  ? 'text-[#FF7939] font-medium'
+                  : 'text-gray-500 hover:text-gray-400'
                   }`}
               >
                 Nutrición
               </button>
             </div>
             <div key={activeSubTab}>
-              {console.log('🔍 [ProductsScreen] Render CSVManager. User:', user?.id)}
               <CSVManagerEnhanced
                 activityId={0}
                 coachId={user?.id || ""}
                 productCategory={activeSubTab === 'fitness' ? 'fitness' : 'nutricion'}
                 onSuccess={() => {
-                  console.log('Ejercicios/platos actualizados exitosamente')
+                  // console.log('Ejercicios/platos actualizados exitosamente')
                 }}
               />
             </div>
@@ -1802,7 +1825,7 @@ export default function ProductsManagementScreen({ onTabChange }: ProductsManage
             setTimeout(async () => {
               if (!productIdToRefresh) return
               try {
-                console.log('🔄 Refrescando producto al cerrar modal:', productIdToRefresh)
+                // console.log('🔄 Refrescando producto al cerrar modal:', productIdToRefresh)
                 const response = await fetch(API_ENDPOINTS.PRODUCTS, {
                   credentials: 'include' // ✅ Incluir cookies en la petición
                 })
@@ -1813,11 +1836,11 @@ export default function ProductsManagementScreen({ onTabChange }: ProductsManage
                 const refreshedProduct = result.products.find((p: Product) => p.id === productIdToRefresh)
                 if (!refreshedProduct) return
 
-                console.log('✅ Producto refrescado:', {
-                  id: refreshedProduct.id,
-                  is_paused: refreshedProduct.is_paused,
-                  old_is_paused: prevPausedState
-                })
+                // console.log('✅ Producto refrescado:', {
+                //   id: refreshedProduct.id,
+                //   is_paused: refreshedProduct.is_paused,
+                //   old_is_paused: prevPausedState
+                // })
 
                 setProducts(prevProducts =>
                   prevProducts.map(p =>
@@ -1943,8 +1966,8 @@ export default function ProductsManagementScreen({ onTabChange }: ProductsManage
                             type="button"
                             onClick={() => setWorkshopRating(star)}
                             className={`w-10 h-10 rounded-lg transition-all ${star <= workshopRating
-                                ? 'bg-[#FF7939] text-white'
-                                : 'bg-gray-800 text-gray-400 hover:bg-gray-700'
+                              ? 'bg-[#FF7939] text-white'
+                              : 'bg-gray-800 text-gray-400 hover:bg-gray-700'
                               }`}
                           >
                             {star}
@@ -1995,10 +2018,10 @@ export default function ProductsManagementScreen({ onTabChange }: ProductsManage
 
                           const result = await response.json()
 
-                          console.log('📤 Respuesta de finish-workshop:', result)
+                          // console.log('📤 Respuesta de finish-workshop:', result)
 
                           if (result.success) {
-                            console.log('✅ Encuesta guardada exitosamente, versión:', result.version)
+                            // console.log('✅ Encuesta guardada exitosamente, versión:', result.version)
                             toast.success('Encuesta enviada exitosamente')
                             setSurveySubmitted(true)
                             // Marcar encuesta como completada localmente para este taller
@@ -2008,7 +2031,7 @@ export default function ProductsManagementScreen({ onTabChange }: ProductsManage
                                 ...prev,
                                 [surveyModalProduct.id]: true
                               }))
-                              console.log('✅ Encuesta marcada como completada localmente para taller:', surveyModalProduct.id, 'versión:', result.version)
+                              // console.log('✅ Encuesta marcada como completada localmente para taller:', surveyModalProduct.id, 'versión:', result.version)
                             }
                             // Recargar productos para actualizar el estado
                             await fetchProducts()
@@ -2073,12 +2096,12 @@ export default function ProductsManagementScreen({ onTabChange }: ProductsManage
                     <Button
                       onClick={async () => {
                         const product = surveyModalProduct
-                        console.log('🔄 Clic en "Agregar nuevas fechas" para producto:', product?.id)
+                        // console.log('🔄 Clic en "Agregar nuevas fechas" para producto:', product?.id)
 
                         if (!product) return
 
                         // Cerrar primero el modal de encuesta completamente
-                        console.log('🔒 Cerrando modal de encuesta antes de abrir modal de edición')
+                        // console.log('🔒 Cerrando modal de encuesta antes de abrir modal de edición')
                         setShowSurveyModalInDetail(false)
                         setSurveyModalProduct(null)
                         setSurveySubmitted(false)
@@ -2087,7 +2110,7 @@ export default function ProductsManagementScreen({ onTabChange }: ProductsManage
 
                         // Usar un pequeño delay para asegurar que el modal de encuesta se cierre primero
                         await new Promise(resolve => setTimeout(resolve, 150))
-                        console.log('✅ Modal de encuesta cerrado, procediendo a abrir modal de edición')
+                        // console.log('✅ Modal de encuesta cerrado, procediendo a abrir modal de edición')
 
                         // Abrir modal de edición en paso 5
                         // Primero refrescar el producto para asegurar que tiene la encuesta actualizada
@@ -2101,14 +2124,14 @@ export default function ProductsManagementScreen({ onTabChange }: ProductsManage
                               const refreshedProduct = result.products.find((p: Product) => p.id === product.id)
                               if (refreshedProduct) {
                                 // Usar el producto refrescado que ya tiene la encuesta
-                                console.log('✅ Producto refrescado, abriendo modal en paso 5')
+                                // console.log('✅ Producto refrescado, abriendo modal en paso 5')
                                 // Establecer estados primero
                                 setEditingProduct(refreshedProduct)
                                 setShouldOpenWorkshopSchedule(true)
                                 setShouldShowDateChangeNoticeAfterStep5(true)
                                 // Abrir modal después de un pequeño delay para asegurar que el modal de encuesta se cerró
                                 setTimeout(() => {
-                                  console.log('🚀 Abriendo CreateProductModal con initialStep=workshopSchedule')
+                                  // console.log('🚀 Abriendo CreateProductModal con initialStep=workshopSchedule')
                                   setIsModalOpen(true)
                                 }, 100)
                                 return
@@ -2119,13 +2142,13 @@ export default function ProductsManagementScreen({ onTabChange }: ProductsManage
                           console.error('❌ Error refrescando producto:', error)
                         }
                         // Fallback: usar el producto original
-                        console.log('⚠️ Usando producto original (fallback), abriendo modal en paso 5')
+                        // console.log('⚠️ Usando producto original (fallback), abriendo modal en paso 5')
                         setEditingProduct(product)
                         setShouldOpenWorkshopSchedule(true)
                         setShouldShowDateChangeNoticeAfterStep5(true)
                         // Abrir modal después de un pequeño delay
                         setTimeout(() => {
-                          console.log('🚀 Abriendo CreateProductModal con initialStep=workshopSchedule (fallback)')
+                          // console.log('🚀 Abriendo CreateProductModal con initialStep=workshopSchedule (fallback)')
                           setIsModalOpen(true)
                         }, 100)
                       }}

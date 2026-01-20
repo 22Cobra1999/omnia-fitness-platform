@@ -15,13 +15,13 @@ export async function POST(request: NextRequest) {
 
     const body = await request.json()
     const { activityId, weeklySchedule, periods, blockNames } = body
-    
+
     // Validar límite de semanas según plan
     const supabaseService = createClient(
       process.env.NEXT_PUBLIC_SUPABASE_URL!,
       process.env.SUPABASE_SERVICE_ROLE_KEY!
     )
-    
+
     // Obtener plan del coach
     const { data: plan } = await supabaseService
       .from('planes_uso_coach')
@@ -31,17 +31,17 @@ export async function POST(request: NextRequest) {
       .order('started_at', { ascending: false })
       .limit(1)
       .maybeSingle()
-    
+
     const planType = (plan?.plan_type || 'free') as 'free' | 'basico' | 'black' | 'premium'
     const { getPlanLimit } = await import('@/lib/utils/plan-limits')
     const weeksLimit = getPlanLimit(planType, 'weeksPerProduct')
-    
+
     // Calcular semanas totales (número de semanas en weeklySchedule * períodos)
     const weeksCount = Object.keys(weeklySchedule).length * (periods || 1)
-    
+
     if (weeksCount > weeksLimit) {
-      return NextResponse.json({ 
-        error: `El número de semanas (${weeksCount}) excede el límite de tu plan (${planType}: ${weeksLimit} semanas). Reduce el número de semanas o períodos.` 
+      return NextResponse.json({
+        error: `El número de semanas (${weeksCount}) excede el límite de tu plan (${planType}: ${weeksLimit} semanas). Reduce el número de semanas o períodos.`
       }, { status: 400 })
     }
 
@@ -73,10 +73,10 @@ export async function POST(request: NextRequest) {
       .select('categoria')
       .eq('id', activityId)
       .single()
-    
+
     const isNutrition = activityData?.categoria === 'nutricion'
     const tableName = isNutrition ? 'nutrition_program_details' : 'ejercicios_detalles'
-    
+
     // Obtener todos los ejercicios de la actividad para crear un mapa de is_active
     let exerciseActiveMap = new Map<number, boolean>()
 
@@ -105,14 +105,14 @@ export async function POST(request: NextRequest) {
         .from(tableName)
         .select('id, activity_id, activity_id_new')
         .contains('activity_id_new', activityKeyObj)
-      
+
       // Si no hay resultados en activity_id_new, buscar en activity_id (integer)
       if ((!data || data.length === 0) && !error) {
         const { data: dataInteger, error: errorInteger } = await supabase
           .from(tableName)
           .select('id, activity_id, activity_id_new')
           .eq('activity_id', activityId)
-        
+
         if (!errorInteger && dataInteger) {
           data = dataInteger
         } else if (errorInteger) {
@@ -137,13 +137,13 @@ export async function POST(request: NextRequest) {
         console.log('⚠️ No se pudo crear mapa de estado activo, usando valores del frontend')
       }
     }
-    
+
     // Preparar datos para inserción
     const planningData = []
-    
+
     for (const [weekNumber, weekData] of Object.entries(weeklySchedule)) {
       const weekNum = parseInt(weekNumber)
-      
+
       // Crear objeto con los días de la semana
       const weekPlanning = {
         actividad_id: activityId,
@@ -160,16 +160,16 @@ export async function POST(request: NextRequest) {
       // Procesar cada día de la semana (las claves son días 1-7, no períodos)
       for (const [dayNumber, dayData] of Object.entries(weekData as Record<string, any>)) {
         const dayNum = parseInt(dayNumber)
-        
+
         // Validar que sea un día válido (1-7)
         if (isNaN(dayNum) || dayNum < 1 || dayNum > 7) {
           console.log('⚠️ DÍA INVÁLIDO IGNORADO:', dayNumber, 'debe ser 1-7')
           continue
         }
-        
+
         console.log('🔍 PROCESANDO DÍA:', dayNumber, '->', dayNum)
         console.log('📊 DATOS DEL DÍA:', JSON.stringify(dayData, null, 2))
-        
+
         // El día puede venir como array directo o como objeto {exercises: [], blockCount: N}
         let dayExercises: any[] = []
         if (Array.isArray(dayData)) {
@@ -185,23 +185,23 @@ export async function POST(request: NextRequest) {
           console.log('❌ FORMATO DE DÍA NO RECONOCIDO:', typeof dayData, dayData)
           continue
         }
-        
+
         // Convertir ejercicios a formato esperado por la base de datos
         // Solo guardar ID, orden y bloque (numérico) - los detalles están en ejercicios_detalles
         const exercisesData = await Promise.all(dayExercises.map(async (exercise: any, index: number) => {
           console.log('🔍 EJERCICIO RECIBIDO:', JSON.stringify(exercise, null, 2))
-          
+
           // Mapear IDs temporales a reales si es necesario
           let exerciseId = exercise.id
-          
+
           // Si el ID es temporal (exercise-X o nutrition-X), buscar el ID real en la base de datos
           if (typeof exerciseId === 'string' && (exerciseId.startsWith('exercise-') || exerciseId.startsWith('nutrition-'))) {
             console.log('🔄 ID TEMPORAL DETECTADO:', exerciseId, 'buscando ID real...')
-            
+
             // ✅ Intentar extraer el índice del ID temporal
             const tempIndexMatch = exerciseId.match(/(\d+)$/)
             const tempIndex = tempIndexMatch ? parseInt(tempIndexMatch[1], 10) : null
-            
+
             // Buscar ejercicio por nombre en la base de datos
             const exerciseName = exercise.name || exercise['Nombre de la Actividad'] || exercise.nombre || exercise['Nombre']
             if (exerciseName) {
@@ -210,14 +210,14 @@ export async function POST(request: NextRequest) {
                 // Usar la variable isNutrition ya obtenida al inicio del endpoint
                 const tableName = isNutrition ? 'nutrition_program_details' : 'ejercicios_detalles'
                 const nameField = isNutrition ? 'nombre' : 'nombre_ejercicio' // ✅ Campo correcto: 'nombre' no 'nombre_plato'
-                
+
                 console.log('🔍 Buscando en tabla:', tableName, 'campo:', nameField, 'para:', exerciseName)
-                
+
                 // Buscar ejercicio por nombre en la actividad actual
                 // Para nutrición, buscar en activity_id_new (JSONB) o activity_id (integer)
                 let realExercise: any = null
                 let searchError: any = null
-                
+
                 if (isNutrition) {
                   // ✅ Intentar buscar en activity_id_new primero (JSONB)
                   const activityKeyObj = { [activityId.toString()]: {} }
@@ -227,7 +227,7 @@ export async function POST(request: NextRequest) {
                     .ilike(nameField, exerciseName)
                     .contains('activity_id_new', activityKeyObj)
                     .maybeSingle()
-                  
+
                   if (dataNew && !errorNew) {
                     realExercise = dataNew
                   } else {
@@ -238,7 +238,7 @@ export async function POST(request: NextRequest) {
                       .ilike(nameField, exerciseName)
                       .eq('activity_id', activityId)
                       .maybeSingle()
-                    
+
                     if (dataInteger && !errorInteger) {
                       realExercise = dataInteger
                     } else if (errorInteger) {
@@ -254,13 +254,13 @@ export async function POST(request: NextRequest) {
                     .ilike(nameField, exerciseName)
                     .contains('activity_id', activityKeyObj)
                     .maybeSingle()
-                  
+
                   realExercise = dataFitness
                   searchError = errorFitness
                 }
-                
+
                 console.log('🔍 RESULTADO BÚSQUEDA:', { realExercise, searchError })
-                
+
                 if (realExercise && !searchError) {
                   exerciseId = realExercise.id
                   console.log('✅ ID REAL ENCONTRADO:', exerciseId, 'para plato/ejercicio:', exerciseName)
@@ -276,7 +276,7 @@ export async function POST(request: NextRequest) {
                       .contains('activity_id_new', activityKeyObj)
                       .order('created_at', { ascending: true })
                       .limit(100)
-                    
+
                     // Si no hay resultados, buscar en activity_id (integer)
                     if ((!allExercises || allExercises.length === 0) && !listError) {
                       const { data: dataInteger, error: errorInteger } = await supabase
@@ -285,14 +285,14 @@ export async function POST(request: NextRequest) {
                         .eq('activity_id', activityId)
                         .order('created_at', { ascending: true })
                         .limit(100)
-                      
+
                       if (!errorInteger && dataInteger) {
                         allExercises = dataInteger
                       } else if (errorInteger) {
                         listError = errorInteger
                       }
                     }
-                    
+
                     if (!listError && allExercises && allExercises.length > tempIndex) {
                       exerciseId = allExercises[tempIndex].id
                       console.log(`✅ ID REAL ENCONTRADO POR ÍNDICE: ${exerciseId} (índice ${tempIndex})`)
@@ -310,14 +310,14 @@ export async function POST(request: NextRequest) {
               }
             }
           }
-          
+
           // Usar el orden del ejercicio si existe, sino usar la posición en el array
           const orden = exercise.orden || (index + 1)
           // El bloque DEBE ser numérico (1, 2, 3, 4...)
           const bloque = exercise.block || exercise.bloque || 1
-          
+
           console.log('✅ Guardando - ID:', exerciseId, 'Orden:', orden, 'Bloque:', bloque)
-          
+
           // Normalizar ID a número si es posible
           const exerciseIdNumber = typeof exerciseId === 'string'
             ? (exerciseId.includes('-') ? exerciseId : parseInt(exerciseId, 10))
@@ -356,12 +356,12 @@ export async function POST(request: NextRequest) {
           return 1
         })()
 
-        const dayDataToSave = { 
+        const dayDataToSave = {
           ejercicios: exercisesData,
           blockNames: blockNamesForDay,
           blockCount: blockCountValue
         }
-        
+
         const hasContent =
           exercisesData.length > 0 ||
           Object.keys(blockNamesForDay || {}).length > 0 ||
@@ -369,7 +369,7 @@ export async function POST(request: NextRequest) {
 
         if (hasContent) {
           console.log('📅 APLICANDO DÍA AL DÍA ESPECÍFICO:', dayNum, 'ejercicios:', exercisesData.length)
-          
+
           // Aplicar ejercicios al día correspondiente
           // Día 1 = Lunes, Día 2 = Martes, Día 3 = Miércoles, etc.
           switch (dayNum) {

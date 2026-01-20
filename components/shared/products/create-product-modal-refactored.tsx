@@ -34,7 +34,7 @@ interface CreateProductModalProps {
   isOpen: boolean
   onClose: (saved?: boolean) => void
   editingProduct?: any
-  initialStep?: 'type' | 'programType' | 'general' | 'specific' | 'workshopMaterial' | 'workshopSchedule' | 'weeklyPlan' | 'preview'
+  initialStep?: 'type' | 'programType' | 'general' | 'specific' | 'workshopMaterial' | 'workshopSchedule' | 'documentMaterial' | 'weeklyPlan' | 'preview'
   showDateChangeNotice?: boolean
 }
 
@@ -183,17 +183,17 @@ export default function CreateProductModal({ isOpen, onClose, editingProduct, in
     const inferred: ProgramSubType = productCategory === 'nutricion' ? 'nutrition' : 'fitness'
     setSelectedProgramType(inferred)
   }, [selectedType, selectedProgramType, productCategory])
-  
+
   // Si estamos editando y hay initialStep, usarlo; si no, ir a 'general' para edición
-  const getInitialStep = (): 'type' | 'programType' | 'general' | 'specific' | 'workshopMaterial' | 'workshopSchedule' | 'weeklyPlan' | 'preview' => {
+  const getInitialStep = (): 'type' | 'programType' | 'general' | 'specific' | 'workshopMaterial' | 'workshopSchedule' | 'documentMaterial' | 'weeklyPlan' | 'preview' => {
     if (initialStep) return initialStep
     if (editingProduct) return 'general'
     return 'type'
   }
-  
-  const [currentStep, setCurrentStep] = useState<'type' | 'programType' | 'general' | 'specific' | 'workshopMaterial' | 'workshopSchedule' | 'weeklyPlan' | 'preview'>(getInitialStep())
+
+  const [currentStep, setCurrentStep] = useState<'type' | 'programType' | 'general' | 'specific' | 'workshopMaterial' | 'workshopSchedule' | 'documentMaterial' | 'weeklyPlan' | 'preview'>(getInitialStep())
   const [showDateChangeNoticeLocal, setShowDateChangeNoticeLocal] = useState(showDateChangeNotice)
-  
+
   // Estado para selección de videos
   const [isVideoModalOpen, setIsVideoModalOpen] = useState(false)
   const [isVideoPreviewActive, setIsVideoPreviewActive] = useState(false)
@@ -224,7 +224,7 @@ export default function CreateProductModal({ isOpen, onClose, editingProduct, in
   const [inlineMediaError, setInlineMediaError] = useState<string | null>(null)
   const [inlineSelectedId, setInlineSelectedId] = useState<string | null>(null)
   const inlineFileInputRef = useRef<HTMLInputElement | null>(null)
-  
+
   // Ref para cachear la planificación cargada desde la base de datos
   const cachedPlanningFromDBRef = useRef<any>(null)
 
@@ -247,8 +247,20 @@ export default function CreateProductModal({ isOpen, onClose, editingProduct, in
   }, [isOpen])
 
   const handleInlineUploadChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    console.log('📂 [handleInlineUploadChange] Archivo seleccionado detectado', {
+      files: e.target.files?.length,
+      file: e.target.files?.[0]?.name,
+      mediaType: inlineMediaType
+    })
     const file = e.target.files?.[0]
-    if (!file) return
+    if (!file) {
+      console.log('⚠️ [handleInlineUploadChange] No se encontró el archivo')
+      return
+    }
+
+    // Cerrar el modal de fuente ahora que ya se seleccionó el archivo
+    console.log('✅ [handleInlineUploadChange] Cerrando modal de fuente y subiendo...')
+    setShowMediaSourceModal(false)
 
     const mediaType: InlineMediaType = inlineMediaType || 'video'
     setInlineMediaLoading(true)
@@ -317,14 +329,14 @@ export default function CreateProductModal({ isOpen, onClose, editingProduct, in
   const [coachCatalogExercises, setCoachCatalogExercises] = useState<any[]>([])
   const [coachCatalogLoading, setCoachCatalogLoading] = useState(false)
   const [coachCatalogError, setCoachCatalogError] = useState<string | null>(null)
-  
+
   // Estado persistente del calendario (debe ser objeto, no array)
   const [persistentCalendarSchedule, setPersistentCalendarSchedule] = useState<any>({})
-  
+
   // Flag para saber si la planificación se limpió explícitamente por un cambio fuerte de contenido (eliminar + reemplazar platos/ejercicios)
   // Cuando es true, no debemos volver a cargar la planificación vieja desde el backend en esta sesión de edición
   const [planningClearedByContentChange, setPlanningClearedByContentChange] = useState(false)
-  
+
   // Estado para los períodos del planificador semanal
   const [periods, setPeriods] = useState(1)
 
@@ -379,7 +391,7 @@ export default function CreateProductModal({ isOpen, onClose, editingProduct, in
       cancelled = true
     }
   }, [isOpen, selectedType, editingProduct?.id, planningClearedByContentChange])
-  
+
   // Estado para las estadísticas del paso 5
   const [weeklyStats, setWeeklyStats] = useState({
     semanas: 1,
@@ -530,15 +542,15 @@ export default function CreateProductModal({ isOpen, onClose, editingProduct, in
       setInlineMediaLoading(false)
     }
   }
-  
+
   // Estado para controlar si se puede deshacer en el paso 5
   const [canUndoWeeklyPlan, setCanUndoWeeklyPlan] = useState(false)
-  
+
   // Callback memoizado para onUndoAvailable para evitar loops infinitos
   const handleUndoAvailable = useCallback((canUndo: boolean) => {
     setCanUndoWeeklyPlan(canUndo)
   }, [])
-  
+
   // Callback memoizado para onUndo para evitar loops infinitos
   const handleUndo = useCallback(() => {
     // Llamar a la función de undo del WeeklyExercisePlanner
@@ -546,7 +558,7 @@ export default function CreateProductModal({ isOpen, onClose, editingProduct, in
       (window as any).weeklyPlannerUndo()
     }
   }, [])
-  
+
   // Estado para taller - Material opcional (Paso 5)
   const [workshopMaterial, setWorkshopMaterial] = useState({
     pdfType: 'none' as 'none' | 'general' | 'by-topic', // Tipo de PDF: ninguno, general, o por tema
@@ -554,10 +566,28 @@ export default function CreateProductModal({ isOpen, onClose, editingProduct, in
     pdfUrl: null as string | null,
     topicPdfs: {} as Record<string, { file: File | null, url: string | null, fileName: string | null }> // PDFs por tema
   })
-  
+
+  // Estado para documento - Material (temas y PDFs)
+  const [documentMaterial, setDocumentMaterial] = useState({
+    pdfType: 'general' as 'general' | 'by-topic', // Tipo de PDF: general o por tema
+    pdfFile: null as File | null,
+    pdfUrl: null as string | null,
+    pdfFileName: null as string | null, // Nombre del archivo PDF general
+    topics: [] as Array<{ id: string, title: string, description: string, saved: boolean }>, // Temas con descripción y estado guardado
+    topicPdfs: {} as Record<string, { file: File | null, url: string | null, fileName: string | null }> // PDFs por tema
+  })
+
+  // Estado para modal de selección de PDF (existentes o nuevo)
+  const [showPdfSelectionModal, setShowPdfSelectionModal] = useState(false)
+  const [pendingPdfContext, setPendingPdfContext] = useState<{ scope: 'general' } | { scope: 'topic'; topicTitle: string } | null>(null)
+  const [uploadingPdf, setUploadingPdf] = useState<string | null>(null) // 'general' o el ID del tema
+
+  // Estado para modal de selección de fuente de medios (foto/video)
+  const [showMediaSourceModal, setShowMediaSourceModal] = useState(false)
+
   // Estado para selección de temas en la tabla
   const [selectedTopics, setSelectedTopics] = useState<Set<string>>(new Set())
-  
+
   // Estado para taller - Fechas y horarios (Paso 4)
   const [workshopSchedule, setWorkshopSchedule] = useState<Array<{
     title?: string
@@ -568,7 +598,7 @@ export default function CreateProductModal({ isOpen, onClose, editingProduct, in
     duration: number
     isPrimary?: boolean
   }>>([])
-  
+
   // Estado para confirmación de finalización del taller
   const [showWorkshopFinishedConfirm, setShowWorkshopFinishedConfirm] = useState(false)
   const [workshopFinishedConfirmed, setWorkshopFinishedConfirmed] = useState(false)
@@ -580,29 +610,29 @@ export default function CreateProductModal({ isOpen, onClose, editingProduct, in
   const [feedbackSubmitted, setFeedbackSubmitted] = useState(false)
   const [showAddNewDatesPrompt, setShowAddNewDatesPrompt] = useState(false)
   const [workshopIsFinished, setWorkshopIsFinished] = useState(false)
-  
+
   // Estado para confirmación de cierre y acciones pendientes
   const [showCloseConfirmation, setShowCloseConfirmation] = useState(false)
   const [pendingAction, setPendingAction] = useState<'close' | 'tab' | null>(null)
   const [pendingTab, setPendingTab] = useState<string | null>(null)
-  
+
   // Estado para confirmación de eliminación de PDF por tema
   const [showDeletePdfConfirm, setShowDeletePdfConfirm] = useState(false)
   const [pdfToDelete, setPdfToDelete] = useState<string | null>(null)
   const [pdfToDeleteType, setPdfToDeleteType] = useState<'topic' | 'general' | null>(null)
-  
+
   // Estado para validación y errores
   const [validationErrors, setValidationErrors] = useState<string[]>([])
-  const [fieldErrors, setFieldErrors] = useState<{[key: string]: boolean}>({})
-  
+  const [fieldErrors, setFieldErrors] = useState<{ [key: string]: boolean }>({})
+
   // Hook para gestión del CSV (solo para funciones auxiliares) - removed, using local state instead
   // const csvManagement = useCSVManagement(productCategory)
-  const csvManagement = { 
-    handleFileUpload: () => {}, 
-    handleFileSelect: () => {}, 
-    handleRowSelection: () => {},
-    csvData: persistentCsvData || [], 
-    selectedRows: persistentSelectedRows || new Set() 
+  const csvManagement = {
+    handleFileUpload: () => { },
+    handleFileSelect: () => { },
+    handleRowSelection: () => { },
+    csvData: persistentCsvData || [],
+    selectedRows: persistentSelectedRows || new Set()
   }
 
   function getExerciseVideoKey(exercise: any, index: number): string {
@@ -651,7 +681,7 @@ export default function CreateProductModal({ isOpen, onClose, editingProduct, in
     }
     return undefined
   }
-  
+
   // Contexto de autenticación
   const { user } = useAuth()
 
@@ -665,15 +695,31 @@ export default function CreateProductModal({ isOpen, onClose, editingProduct, in
 
   // Función para verificar si hay cambios sin guardar
   const hasUnsavedChanges = () => {
-    // Verificar si estamos en paso 3 o superior
-    const stepIndex = ['type', 'programType', 'general', 'specific', 'weeklyPlan', 'preview'].indexOf(currentStep)
-    console.log(`🔍 Verificando cambios sin guardar - Paso actual: ${currentStep} (índice: ${stepIndex})`)
-    
+    // En modo edición, SIEMPRE verificar si hay cambios
+    if (editingProduct) {
+      console.log('🔍 Modo EDICIÓN - Verificando cambios')
+      // Si hay cualquier dato en los formularios, considerar que hay cambios potenciales
+      const hasGeneralData = generalForm.name || generalForm.description || generalForm.image || generalForm.videoUrl
+      const hasSpecificData = specificForm.duration || specificForm.capacity
+      const hasCsvData = persistentCsvData && persistentCsvData.length > 0
+      const hasCalendarData = persistentCalendarSchedule && Object.keys(persistentCalendarSchedule).length > 0
+      const hasDocumentData = documentMaterial.topics.length > 0 || documentMaterial.pdfUrl
+      const hasWorkshopData = workshopSchedule.length > 0
+
+      const hasChanges = hasGeneralData || hasSpecificData || hasCsvData || hasCalendarData || hasDocumentData || hasWorkshopData
+      console.log('🎯 [EDICIÓN] ¿Hay cambios? ' + hasChanges)
+      return hasChanges
+    }
+
+    // En modo creación, verificar si estamos en paso 3 o superior
+    const stepIndex = ['type', 'programType', 'general', 'specific', 'documentMaterial', 'weeklyPlan', 'preview'].indexOf(currentStep)
+    console.log(`🔍 [CREACIÓN] Verificando cambios - Paso: ${currentStep} (índice: ${stepIndex})`)
+
     if (stepIndex < 2) {
       console.log(`❌ Paso ${stepIndex + 1} - No hay cambios importantes`)
       return false // Pasos 1 y 2 no tienen cambios importantes
     }
-    
+
     // Verificar si hay datos en el formulario general
     const hasGeneralData = generalForm.name || generalForm.description || generalForm.image || generalForm.videoUrl
     console.log(`📝 Datos generales:`, {
@@ -683,10 +729,10 @@ export default function CreateProductModal({ isOpen, onClose, editingProduct, in
       hasVideo: !!generalForm.videoUrl,
       hasGeneralData
     })
-    
+
     // Verificar si hay datos específicos
-    const hasSpecificData = specificForm.duration || specificForm.capacity || 
-                           (specificForm as any).weeklyExercises || Object.keys((specificForm as any).weeklyExercises || {}).length > 0
+    const hasSpecificData = specificForm.duration || specificForm.capacity ||
+      (specificForm as any).weeklyExercises || Object.keys((specificForm as any).weeklyExercises || {}).length > 0
     console.log(`📋 Datos específicos:`, {
       duration: specificForm.duration,
       capacity: specificForm.capacity,
@@ -694,24 +740,24 @@ export default function CreateProductModal({ isOpen, onClose, editingProduct, in
       weeklyExercisesKeys: Object.keys((specificForm as any).weeklyExercises || {}).length,
       hasSpecificData
     })
-    
+
     // Verificar si hay datos de CSV
     const hasCsvData = persistentCsvData && persistentCsvData.length > 0
     console.log(`📊 Datos CSV:`, {
       csvLength: persistentCsvData?.length || 0,
       hasCsvData
     })
-    
+
     // Verificar si hay datos de calendario
     const hasCalendarData = persistentCalendarSchedule && Object.keys(persistentCalendarSchedule).length > 0
     console.log(`📅 Datos calendario:`, {
       calendarLength: persistentCalendarSchedule ? Object.keys(persistentCalendarSchedule).length : 0,
       hasCalendarData
     })
-    
+
     const hasChanges = hasGeneralData || hasSpecificData || hasCsvData || hasCalendarData
-    console.log(`🎯 ¿Hay cambios sin guardar? ${hasChanges}`)
-    
+    console.log(`🎯 [CREACIÓN] ¿Hay cambios sin guardar? ${hasChanges}`)
+
     return hasChanges
   }
 
@@ -727,7 +773,7 @@ export default function CreateProductModal({ isOpen, onClose, editingProduct, in
     console.log(`🚪 Estado showCloseConfirmation: ${showCloseConfirmation}`)
     const hasChanges = hasUnsavedChanges()
     console.log(`🚪 ¿Mostrar confirmación? ${hasChanges}`)
-    
+
     if (hasChanges) {
       console.log(`⚠️ Mostrando modal de confirmación`)
       setPendingAction('close')
@@ -848,6 +894,16 @@ export default function CreateProductModal({ isOpen, onClose, editingProduct, in
         'preview': 6
       }
       return workshopStepMap[step] || 1
+    } else if (selectedType === 'document') {
+      // For documents: type, programType, general, documentMaterial, preview
+      const documentStepMap: { [key: string]: number } = {
+        'type': 1,
+        'programType': 2,
+        'general': 3,
+        'documentMaterial': 4,
+        'preview': 5
+      }
+      return documentStepMap[step] || 1
     } else {
       const programStepMap: { [key: string]: number } = {
         'type': 1,
@@ -863,26 +919,35 @@ export default function CreateProductModal({ isOpen, onClose, editingProduct, in
   // Función para navegar a un paso específico
   const goToStep = (stepNumber: number) => {
     let stepMap: { [key: number]: string }
-    
+
     if (selectedType === 'workshop') {
       stepMap = {
         1: 'type',
-        2: 'programType', 
+        2: 'programType',
         3: 'general',
         4: 'workshopSchedule',
         5: 'workshopMaterial',
         6: 'preview'
       }
+    } else if (selectedType === 'document') {
+      // For documents, include documentMaterial step
+      stepMap = {
+        1: 'type',
+        2: 'programType',
+        3: 'general',
+        4: 'documentMaterial',
+        5: 'preview'
+      }
     } else {
       stepMap = {
         1: 'type',
-        2: 'programType', 
+        2: 'programType',
         3: 'general',
         4: 'weeklyPlan',
         5: 'preview'
       }
     }
-    
+
     const targetStep = stepMap[stepNumber]
     if (targetStep) {
       // Validar que se puede navegar a ese paso
@@ -914,13 +979,16 @@ export default function CreateProductModal({ isOpen, onClose, editingProduct, in
     location_name: '' as string,
     location_url: '' as string,
     workshop_mode: 'grupal' as 'individual' | 'grupal',
-    participants_per_class: undefined as number | undefined
+    participants_per_class: undefined as number | undefined,
+    // Para documentos: duración
+    duration_value: '' as string,
+    duration_unit: 'semanas' as 'días' | 'semanas' | 'meses'
   })
 
   // Wrapper para setGeneralForm
   const setGeneralFormWithLogs = (newForm: any) => {
     console.log('📝 CREATE-PRODUCT-MODAL: Actualizando generalForm:', newForm)
-    
+
     // Logs específicos para variables del paso 3
     if (newForm.modality !== undefined && newForm.modality !== generalForm.modality) {
       console.log('🔄 MODAL - Modalidad actualizada:', { anterior: generalForm.modality, nuevo: newForm.modality })
@@ -934,7 +1002,7 @@ export default function CreateProductModal({ isOpen, onClose, editingProduct, in
     if (newForm.stockQuantity !== undefined && newForm.stockQuantity !== generalForm.stockQuantity) {
       console.log('🔄 MODAL - Stock Quantity actualizado:', { anterior: generalForm.stockQuantity, nuevo: newForm.stockQuantity })
     }
-    
+
     setGeneralForm(newForm)
   }
 
@@ -1070,12 +1138,12 @@ export default function CreateProductModal({ isOpen, onClose, editingProduct, in
   // Wrapper para setSpecificForm con logs
   const setSpecificFormWithLogs = (newForm: any) => {
     console.log('📝 CREATE-PRODUCT-MODAL: Actualizando specificForm:', newForm)
-    
+
     // Log específico para intensidad (level)
     if (newForm.level !== undefined && newForm.level !== specificForm.level) {
       console.log('🔄 MODAL - Intensidad (level) actualizada:', { anterior: specificForm.level, nuevo: newForm.level })
     }
-    
+
     setSpecificForm(newForm)
   }
 
@@ -1235,7 +1303,7 @@ export default function CreateProductModal({ isOpen, onClose, editingProduct, in
   const [csvFileName, setCsvFileName] = useState<string>('')
   const [showCSVConfirmDialog, setShowCSVConfirmDialog] = useState(false)
   const [pendingCSVFile, setPendingCSVFile] = useState<File | null>(null)
-  
+
   // ✅ NUEVO: Estados para archivos pendientes de subida
   const [pendingImageFile, setPendingImageFile] = useState<File | null>(null)
   const [pendingVideoFile, setPendingVideoFile] = useState<File | null>(null)
@@ -1549,7 +1617,7 @@ export default function CreateProductModal({ isOpen, onClose, editingProduct, in
 
     setPersistentCsvData(updatedCsvData)
     if (typeof window !== 'undefined') {
-      ;(window as any).__LAST_PERSISTENT_CSV__ = updatedCsvData
+      ; (window as any).__LAST_PERSISTENT_CSV__ = updatedCsvData
       console.log(
         '🗂️ Estado persistentCsvData tras asignar video',
         updatedCsvData.slice(0, 3).map((row, idx) => ({
@@ -1667,12 +1735,12 @@ export default function CreateProductModal({ isOpen, onClose, editingProduct, in
     if (mediaType === 'pdf') {
       return
     }
-    console.log('🎯 CREATE-PRODUCT-MODAL: Media seleccionada:', { 
-      mediaUrl, 
-      mediaType, 
+    console.log('🎯 CREATE-PRODUCT-MODAL: Media seleccionada:', {
+      mediaUrl,
+      mediaType,
       hasFile: !!mediaFile
     })
-    
+
     if (mediaType === 'image') {
       setGeneralForm(prev => {
         const newForm = { ...prev, image: { url: mediaUrl } }
@@ -1711,8 +1779,80 @@ export default function CreateProductModal({ isOpen, onClose, editingProduct, in
   }
 
   const openPdfGallery = (context: { scope: 'general' } | { scope: 'topic'; topicTitle: string }) => {
-    setPdfModalContext(context)
-    setIsPdfModalOpen(true)
+    setPendingPdfContext(context)
+    setShowPdfSelectionModal(true)
+  }
+
+  const handlePdfSelectionChoice = (choice: 'existing' | 'new') => {
+    setShowPdfSelectionModal(false)
+
+    if (choice === 'existing' && pendingPdfContext) {
+      // Abrir galería de PDFs existentes
+      setPdfModalContext(pendingPdfContext)
+      setIsPdfModalOpen(true)
+    } else if (choice === 'new') {
+      // Abrir file picker directamente
+      const input = document.createElement('input')
+      input.type = 'file'
+      input.accept = 'application/pdf'
+      input.onchange = async (e) => {
+        const file = (e.target as HTMLInputElement).files?.[0]
+        if (file && pendingPdfContext) {
+          // Determinar el ID para el loading state
+          const uploadId = pendingPdfContext.scope === 'general' ? 'general' : pendingPdfContext.topicTitle
+          setUploadingPdf(uploadId)
+
+          // Subir el PDF inmediatamente
+          const formData = new FormData()
+          formData.append('file', file)
+          formData.append('mediaType', 'pdf')
+          formData.append('category', 'product')
+
+          try {
+            const response = await fetch('/api/upload-organized', {
+              method: 'POST',
+              body: formData
+            })
+
+            const data = await response.json()
+
+            if (response.ok) {
+              // Actualizar el estado según el contexto
+              if (selectedType === 'document') {
+                if (pendingPdfContext.scope === 'general') {
+                  setDocumentMaterial(prev => ({
+                    ...prev,
+                    pdfFile: file,
+                    pdfUrl: data.url,
+                    pdfFileName: file.name
+                  }))
+                } else {
+                  const topicTitle = pendingPdfContext.topicTitle
+                  setDocumentMaterial(prev => ({
+                    ...prev,
+                    topicPdfs: {
+                      ...(prev.topicPdfs || {}),
+                      [topicTitle]: {
+                        file: file,
+                        url: data.url,
+                        fileName: file.name
+                      }
+                    }
+                  }))
+                }
+              }
+            }
+          } catch (error) {
+            console.error('Error subiendo PDF:', error)
+          } finally {
+            setUploadingPdf(null)
+          }
+        }
+      }
+      input.click()
+    }
+
+    setPendingPdfContext(null)
   }
 
   const handlePdfSelected = (mediaUrl: string, _mediaType: 'image' | 'video' | 'pdf', mediaFile?: File) => {
@@ -1721,25 +1861,63 @@ export default function CreateProductModal({ isOpen, onClose, editingProduct, in
       return
     }
 
-    if (pdfModalContext.scope === 'general') {
-      setWorkshopMaterial(prev => ({
-        ...prev,
-        pdfFile: mediaFile || null,
-        pdfUrl: mediaFile ? null : mediaUrl
-      }))
-    } else {
-      const topicTitle = pdfModalContext.topicTitle
-      setWorkshopMaterial(prev => ({
-        ...prev,
-        topicPdfs: {
-          ...(prev.topicPdfs || {}),
-          [topicTitle]: {
-            file: mediaFile || null,
-            url: mediaFile ? null : mediaUrl,
-            fileName: mediaFile ? mediaFile.name : truncateLabel(String(mediaUrl || 'PDF'))
+    // Para productos tipo documento
+    if (selectedType === 'document') {
+      if (pdfModalContext.scope === 'general') {
+        // Extraer nombre del archivo desde la URL
+        const fileName = mediaFile
+          ? mediaFile.name
+          : mediaUrl.split('/').pop()?.split('?')[0] || 'PDF seleccionado'
+
+        setDocumentMaterial(prev => ({
+          ...prev,
+          pdfFile: mediaFile || null,
+          pdfUrl: mediaFile ? null : mediaUrl,
+          pdfFileName: fileName
+        }))
+      } else {
+        const topicId = pdfModalContext.topicTitle; // Ahora contiene el ID
+
+        // Extraer nombre del archivo desde la URL
+        const fileName = mediaFile
+          ? mediaFile.name
+          : mediaUrl.split('/').pop()?.split('?')[0] || 'PDF seleccionado'
+
+        setDocumentMaterial(prev => ({
+          ...prev,
+          topicPdfs: {
+            ...(prev.topicPdfs || {}),
+            [topicId]: {
+              file: mediaFile || null,
+              url: mediaFile ? null : mediaUrl,
+              fileName: fileName
+            }
           }
-        }
-      }))
+        }))
+      }
+    }
+    // Para talleres (workshop)
+    else {
+      if (pdfModalContext.scope === 'general') {
+        setWorkshopMaterial(prev => ({
+          ...prev,
+          pdfFile: mediaFile || null,
+          pdfUrl: mediaFile ? null : mediaUrl
+        }))
+      } else {
+        const topicTitle = pdfModalContext.topicTitle
+        setWorkshopMaterial(prev => ({
+          ...prev,
+          topicPdfs: {
+            ...(prev.topicPdfs || {}),
+            [topicTitle]: {
+              file: mediaFile || null,
+              url: mediaFile ? null : mediaUrl,
+              fileName: mediaFile ? mediaFile.name : truncateLabel(String(mediaUrl || 'PDF'))
+            }
+          }
+        }))
+      }
     }
 
     setIsPdfModalOpen(false)
@@ -1775,20 +1953,20 @@ export default function CreateProductModal({ isOpen, onClose, editingProduct, in
       csvData: persistentCsvData?.length || 0,
       schedule: persistentCalendarSchedule ? Object.keys(persistentCalendarSchedule).length : 0
     })
-    
+
     try {
       // Validar datos requeridos
       const validationErrors: string[] = []
-      
+
       if (!generalForm.name) validationErrors.push('Título es requerido')
       if (!generalForm.description) validationErrors.push('Descripción es requerida')
       if (!generalForm.price) validationErrors.push('Precio es requerido')
-      
+
       console.log('🔍 Validación final antes de publicar:', {
         erroresEncontrados: validationErrors,
         puedePublicar: validationErrors.length === 0
       })
-      
+
       if (validationErrors.length > 0) {
         console.log('❌ NO SE PUEDE PUBLICAR - Campos faltantes:', validationErrors)
         // Establecer errores visuales
@@ -1803,7 +1981,7 @@ export default function CreateProductModal({ isOpen, onClose, editingProduct, in
         setPublishProgress('')
         return
       }
-      
+
       console.log('✅ TODOS LOS CAMPOS COMPLETADOS - Procediendo con la publicación')
       // Limpiar errores si la validación es exitosa
       setValidationErrors([])
@@ -1815,7 +1993,7 @@ export default function CreateProductModal({ isOpen, onClose, editingProduct, in
           ? (generalForm.image as any).url
           : null
       let finalVideoUrl = generalForm.videoUrl || null
-      
+
       // Subir imagen pendiente si existe
       if (pendingImageFile) {
         setPublishProgress('Subiendo imagen...')
@@ -1825,12 +2003,12 @@ export default function CreateProductModal({ isOpen, onClose, editingProduct, in
           formData.append('file', pendingImageFile)
           formData.append('mediaType', 'image')
           formData.append('category', 'product')
-          
+
           const uploadResponse = await fetch('/api/upload-organized', {
             method: 'POST',
             body: formData
           })
-          
+
           if (uploadResponse.ok) {
             const uploadResult = await uploadResponse.json()
             if (uploadResult.success) {
@@ -1852,7 +2030,7 @@ export default function CreateProductModal({ isOpen, onClose, editingProduct, in
           return
         }
       }
-      
+
       // Subir video pendiente si existe
       let uploadedVideoData = null
       if (pendingVideoFile) {
@@ -1862,7 +2040,7 @@ export default function CreateProductModal({ isOpen, onClose, editingProduct, in
           const formData = new FormData()
           formData.append('file', pendingVideoFile)
           formData.append('title', pendingVideoFile.name)
-          
+
           const uploadResponse = await fetch('/api/bunny/upload-video', {
             method: 'POST',
             credentials: 'include',
@@ -1921,12 +2099,12 @@ export default function CreateProductModal({ isOpen, onClose, editingProduct, in
             formData.append('file', workshopMaterial.pdfFile)
             formData.append('mediaType', 'pdf')
             formData.append('category', 'product')
-            
+
             const uploadResponse = await fetch('/api/upload-organized', {
               method: 'POST',
               body: formData
             })
-            
+
             if (uploadResponse.ok) {
               const uploadResult = await uploadResponse.json()
               if (uploadResult.success) {
@@ -1951,12 +2129,12 @@ export default function CreateProductModal({ isOpen, onClose, editingProduct, in
             return
           }
         }
-        
+
         // Subir PDFs por tema si existen
         if (workshopMaterial.pdfType === 'by-topic' && Object.keys(workshopMaterial.topicPdfs).length > 0) {
           setPublishProgress('Subiendo PDFs por tema...')
           const uploadedTopicPdfs: Record<string, { file: File | null, url: string | null, fileName: string | null }> = {}
-          
+
           for (const [topicTitle, topicPdf] of Object.entries(workshopMaterial.topicPdfs)) {
             // Solo subir PDFs nuevos (que tienen file pero no url)
             // Si ya tiene URL, significa que ya está subido o viene de la BD
@@ -1966,18 +2144,18 @@ export default function CreateProductModal({ isOpen, onClose, editingProduct, in
                 formData.append('file', topicPdf.file)
                 formData.append('mediaType', 'pdf')
                 formData.append('category', 'product')
-                
+
                 console.log(`📤 Subiendo PDF para tema "${topicTitle}":`, {
                   fileName: topicPdf.fileName,
                   fileSize: topicPdf.file.size,
                   fileType: topicPdf.file.type
                 })
-                
+
                 const uploadResponse = await fetch('/api/upload-organized', {
                   method: 'POST',
                   body: formData
                 })
-                
+
                 if (uploadResponse.ok) {
                   const uploadResult = await uploadResponse.json()
                   if (uploadResult.success) {
@@ -2021,7 +2199,7 @@ export default function CreateProductModal({ isOpen, onClose, editingProduct, in
               console.log(`✅ PDF para tema "${topicTitle}" ya tiene URL (no se necesita subir):`, topicPdf.url)
             }
           }
-          
+
           finalWorkshopMaterial = {
             ...workshopMaterial,
             topicPdfs: uploadedTopicPdfs
@@ -2063,10 +2241,10 @@ export default function CreateProductModal({ isOpen, onClose, editingProduct, in
         }
         if (generalForm.capacity === 'limitada' && generalForm.stockQuantity) {
           const stockNum = parseInt(generalForm.stockQuantity)
-          console.log('📊 Capacity desde generalForm limitada:', { 
-            generalFormCapacity: generalForm.capacity, 
-            stockQuantity: generalForm.stockQuantity, 
-            stockNum, 
+          console.log('📊 Capacity desde generalForm limitada:', {
+            generalFormCapacity: generalForm.capacity,
+            stockQuantity: generalForm.stockQuantity,
+            stockNum,
             isNaN: isNaN(stockNum),
             result: isNaN(stockNum) ? null : stockNum
           })
@@ -2087,7 +2265,7 @@ export default function CreateProductModal({ isOpen, onClose, editingProduct, in
         console.error('❌ Usuario no autenticado')
         return
       }
-      
+
       console.log('👤 Usuario autenticado:', {
         id: user.id,
         email: user.email
@@ -2129,11 +2307,25 @@ export default function CreateProductModal({ isOpen, onClose, editingProduct, in
         location_url: generalForm.location_url || null,
         // ✅ INCLUIR MODO DE TALLER Y PARTICIPANTES POR CLASE
         workshop_mode: selectedType === 'workshop' ? (generalForm.workshop_mode || 'grupal') : undefined,
-        participants_per_class: selectedType === 'workshop' && generalForm.workshop_mode === 'grupal' 
-          ? generalForm.participants_per_class || null 
-          : null
+        participants_per_class: selectedType === 'workshop' && generalForm.workshop_mode === 'grupal'
+          ? generalForm.participants_per_class || null
+          : null,
+        // ✅ INCLUIR ESTADÍSTICAS CALCULADAS PARA DENORMALIZACIÓN
+        semanas_totales: selectedType === 'document' ? (() => {
+          // Para documentos: convertir duration a semanas
+          const value = parseFloat(generalForm.duration_value) || 0
+          const unit = generalForm.duration_unit
+          if (unit === 'días') return Math.ceil(value / 7) // Convertir días a semanas
+          if (unit === 'semanas') return Math.ceil(value)
+          if (unit === 'meses') return Math.ceil(value * 4) // Convertir meses a semanas
+          return 0
+        })() : weeklyStats.semanas,
+        sesiones_dias_totales: selectedType === 'document' ? 0 : weeklyStats.sesiones,
+        items_totales: selectedType === 'document' ? documentMaterial.topics.filter(t => t.saved).length : weeklyStats.ejerciciosTotales,
+        items_unicos: selectedType === 'document' ? documentMaterial.topics.filter(t => t.saved).length : weeklyStats.ejerciciosUnicos,
+        periodos_configurados: selectedType === 'document' ? 1 : periods
       }
-      
+
       console.log('📦 Datos preparados para la API:', {
         name: productData.name,
         description: productData.description,
@@ -2165,7 +2357,7 @@ export default function CreateProductModal({ isOpen, onClose, editingProduct, in
         // ✅ WORKSHOP_TYPE
         workshop_type: productData.workshop_type
       })
-      
+
       // Log específico para talleres
       if (selectedType === 'workshop') {
         console.log('🎯 TALLER DETECTADO - Datos del workshop:')
@@ -2186,7 +2378,7 @@ export default function CreateProductModal({ isOpen, onClose, editingProduct, in
         image_url: productData.image_url,
         video_url: productData.video_url
       })
-      
+
       const response = await fetch('/api/products', {
         method: isEditing ? 'PUT' : 'POST', // ✅ PUT para edición, POST para creación
         headers: { 'Content-Type': 'application/json' },
@@ -2349,12 +2541,12 @@ export default function CreateProductModal({ isOpen, onClose, editingProduct, in
             const cached = completedUploads.get(signature)!
             const cachedMeta = cached.meta as
               | {
-                  url?: string
-                  videoId?: string
-                  thumbnailUrl?: string
-                  libraryId?: number
-                  fileName?: string
-                }
+                url?: string
+                videoId?: string
+                thumbnailUrl?: string
+                libraryId?: number
+                fileName?: string
+              }
               | undefined
 
             const cachedVideoId = cachedMeta?.videoId
@@ -2478,7 +2670,7 @@ export default function CreateProductModal({ isOpen, onClose, editingProduct, in
           })
         }
       }
-      
+
       console.log('📥 Respuesta de la API:', {
         success: result.success,
         hasError: !!result.error,
@@ -2488,25 +2680,25 @@ export default function CreateProductModal({ isOpen, onClose, editingProduct, in
       if (result.success) {
         console.log(isEditing ? '✅ PRODUCTO ACTUALIZADO EXITOSAMENTE' : '✅ PRODUCTO PUBLICADO EXITOSAMENTE')
         console.log('🎉 ID del producto:', result.product?.id)
-        
+
         // ✅ Limpiar archivos pendientes después de publicar
         setPendingImageFile(null)
         setPendingVideoFile(null)
         console.log('🧹 Archivos pendientes limpiados')
-        
+
         // ✅ GUARDAR EJERCICIOS/PLATOS si hay datos CSV
         let idMapping: Record<string, number> = {} // Declarar fuera para que esté disponible más adelante
         let resolveMappedIdForEntry = (entry: any) => entry?.id
-        
+
         if (persistentCsvData && persistentCsvData.length > 0 && selectedType === 'program') {
           setPublishProgress('Guardando ejercicios...')
           console.log('💾 Guardando platos/ejercicios en la base de datos:', persistentCsvData.length, 'items')
-          
+
           try {
-            const endpoint = productCategory === 'nutricion' 
+            const endpoint = productCategory === 'nutricion'
               ? '/api/activity-nutrition/bulk'
               : '/api/activities/exercises/bulk'
-            
+
             const normalizeName = (value: any) => {
               if (value === null || value === undefined) return ''
               return value.toString().trim().toLowerCase()
@@ -2550,18 +2742,18 @@ export default function CreateProductModal({ isOpen, onClose, editingProduct, in
                 (item.isExisting === undefined && typeof rawId === 'number')
               const resolvedId = isExistingRecord
                 ? (typeof rawId === 'number'
-                    ? rawId
-                    : typeof rawId === 'string' && /^\d+$/.test(rawId)
-                      ? parseInt(rawId, 10)
-                      : rawId)
+                  ? rawId
+                  : typeof rawId === 'string' && /^\d+$/.test(rawId)
+                    ? parseInt(rawId, 10)
+                    : rawId)
                 : tempIdString
 
               const normalizedPlateName = normalizeName(
                 item['Nombre de la Actividad'] ||
-                  item['Nombre'] ||
-                  item.nombre ||
-                  item.name ||
-                  ''
+                item['Nombre'] ||
+                item.nombre ||
+                item.name ||
+                ''
               )
 
               registerTempKey(tempIdString, normalizedPlateName)
@@ -2590,17 +2782,17 @@ export default function CreateProductModal({ isOpen, onClose, editingProduct, in
                 try {
                   if (item['Ingredientes'] || item.ingredientes) {
                     const ingredientesRaw = item['Ingredientes'] || item.ingredientes
-                    
+
                     // ✅ Si ya es un array u objeto, usarlo directamente
                     if (Array.isArray(ingredientesRaw) || (typeof ingredientesRaw === 'object' && ingredientesRaw !== null)) {
                       ingredientes = ingredientesRaw
-                    } 
+                    }
                     // ✅ Si es string, intentar parsear como JSON primero
                     else if (typeof ingredientesRaw === 'string') {
                       // Verificar si parece JSON (empieza con [ o {)
                       const trimmed = ingredientesRaw.trim()
-                      if ((trimmed.startsWith('[') && trimmed.endsWith(']')) || 
-                          (trimmed.startsWith('{') && trimmed.endsWith('}'))) {
+                      if ((trimmed.startsWith('[') && trimmed.endsWith(']')) ||
+                        (trimmed.startsWith('{') && trimmed.endsWith('}'))) {
                         try {
                           ingredientes = JSON.parse(ingredientesRaw)
                         } catch (parseError) {
@@ -2620,19 +2812,19 @@ export default function CreateProductModal({ isOpen, onClose, editingProduct, in
                   // En caso de error, usar el valor original
                   ingredientes = item['Ingredientes'] || item.ingredientes || null
                 }
-                
+
                 // Mapear nombre con múltiples variantes posibles
-                const nombreValue = item['Nombre'] || 
-                                   item['Nombre del Plato'] || 
-                                   item.nombre || 
-                                   item.nombre_plato || 
-                                   item.title || 
-                                   ''
-                
+                const nombreValue = item['Nombre'] ||
+                  item['Nombre del Plato'] ||
+                  item.nombre ||
+                  item.nombre_plato ||
+                  item.title ||
+                  ''
+
                 if (!nombreValue || nombreValue.trim() === '') {
                   console.warn('⚠️ BULK: Plato sin nombre en índice', index, 'item:', item)
                 }
-                
+
                 return {
                   id: isExistingRecord ? resolvedId : tempIdString || `nutrition-${index}`,
                   tempId: tempIdString || `nutrition-${index}`,
@@ -2716,19 +2908,19 @@ export default function CreateProductModal({ isOpen, onClose, editingProduct, in
             }
 
             const bulkResult = await bulkResponse.json()
-            
+
             console.log('📥 BULK: Respuesta recibida:', {
               success: bulkResult.success,
               count: bulkResult.count,
               failuresCount: bulkResult.failures?.length || 0,
               firstFailure: bulkResult.failures?.[0] || null
             })
-            
+
             // ✅ Verificar si hay errores en la respuesta
             const successCount = bulkResult.count || 0
             const failureCount = bulkResult.failures?.length || 0
             const allFailed = successCount === 0 && failureCount === plates.length
-            
+
             if (bulkResult.failures && bulkResult.failures.length > 0) {
               console.error('❌ ERRORES al guardar platos/ejercicios:', {
                 total: plates.length,
@@ -2743,12 +2935,12 @@ export default function CreateProductModal({ isOpen, onClose, editingProduct, in
                   rawId: f.rawId
                 }))
               })
-              
+
               // Mostrar errores al usuario con detalles completos
-              const errorMessages = bulkResult.failures.map((f: any, idx: number) => 
+              const errorMessages = bulkResult.failures.map((f: any, idx: number) =>
                 `${idx + 1}. ${f.nombre || f.tempId || 'Plato desconocido'}: ${f.detalles || f.motivo || 'Error desconocido'}`
               ).join('\n')
-              
+
               if (allFailed) {
                 alert(`❌ Error: No se pudo guardar ningún plato/ejercicio.\n\nErrores:\n${errorMessages}\n\nPor favor, revisa los datos e intenta nuevamente.`)
                 setIsPublishing(false)
@@ -2758,7 +2950,7 @@ export default function CreateProductModal({ isOpen, onClose, editingProduct, in
                 alert(`⚠️ Se encontraron errores al guardar algunos platos:\n\n${errorMessages}`)
               }
             }
-            
+
             if (bulkResult.success && successCount > 0) {
               console.log('✅ Platos/ejercicios guardados exitosamente:', {
                 count: successCount,
@@ -2766,7 +2958,7 @@ export default function CreateProductModal({ isOpen, onClose, editingProduct, in
                 failures: failureCount,
                 data: bulkResult.data
               })
-              
+
               // Crear mapeo temporal de IDs temporales a IDs reales (para ambos: nutricion y fitness)
               if (bulkResult.data && Array.isArray(bulkResult.data)) {
                 const mappedIds: Record<string, number> = {}
@@ -2831,7 +3023,7 @@ export default function CreateProductModal({ isOpen, onClose, editingProduct, in
                     const endpoint = productCategory === 'nutricion'
                       ? `/api/activity-nutrition/${result.product.id}?t=${Date.now()}`
                       : `/api/activity-exercises/${result.product.id}?t=${Date.now()}`
-                    
+
                     const exercisesResponse = await fetch(endpoint)
                     if (exercisesResponse.ok) {
                       const exercisesResult = await exercisesResponse.json()
@@ -2853,7 +3045,7 @@ export default function CreateProductModal({ isOpen, onClose, editingProduct, in
                         )
                         if (!normalized) return
                         const potentialTempIds = nameToTempIds[normalized] || []
-                        
+
                         // ✅ También agregar IDs temporales basados en el índice si no hay nombre
                         if (potentialTempIds.length === 0) {
                           if (productCategory === 'nutricion') {
@@ -2862,7 +3054,7 @@ export default function CreateProductModal({ isOpen, onClose, editingProduct, in
                             potentialTempIds.push(`exercise-${listIndex}`)
                           }
                         }
-                        
+
                         potentialTempIds.forEach((tempKey) => {
                           if (idMapping[tempKey] === undefined) {
                             idMapping[tempKey] = exercise.id
@@ -2881,7 +3073,7 @@ export default function CreateProductModal({ isOpen, onClose, editingProduct, in
                           }
                         })
                       })
-                      
+
                       console.log('🔄 Mapeo actualizado después de obtener listado:', idMapping)
                     } else {
                       console.warn('⚠️ No se pudo obtener ejercicios para completar mapeo:', exercisesResponse.status)
@@ -2890,7 +3082,7 @@ export default function CreateProductModal({ isOpen, onClose, editingProduct, in
                     console.error('❌ Error obteniendo ejercicios para completar mapeo:', fetchError)
                   }
                 }
-                
+
                 resolveMappedIdForEntry = (entry: any) => {
                   if (!entry) return entry
                   const potentialKeys: (string | number | undefined | null)[] = [
@@ -2920,10 +3112,10 @@ export default function CreateProductModal({ isOpen, onClose, editingProduct, in
 
                   const normalizedEntryName = normalizeName(
                     entry.name ||
-                      entry['Nombre de la Actividad'] ||
-                      entry['Nombre'] ||
-                      entry.nombre ||
-                      ''
+                    entry['Nombre de la Actividad'] ||
+                    entry['Nombre'] ||
+                    entry.nombre ||
+                    ''
                   )
 
                   if (normalizedEntryName && nameToTempIds[normalizedEntryName]) {
@@ -2989,7 +3181,7 @@ export default function CreateProductModal({ isOpen, onClose, editingProduct, in
         // ✅ GUARDAR PLANIFICACIÓN SEMANAL si existe
         if (persistentCalendarSchedule && Object.keys(persistentCalendarSchedule).length > 0 && selectedType === 'program') {
           console.log('📅 Guardando planificación semanal:', Object.keys(persistentCalendarSchedule).length, 'semanas')
-          
+
           // Actualizar IDs temporales con IDs reales si tenemos el mapeo
           let scheduleToSave = persistentCalendarSchedule
           if (idMapping && Object.keys(idMapping).length > 0) {
@@ -3003,15 +3195,15 @@ export default function CreateProductModal({ isOpen, onClose, editingProduct, in
                 // ✅ Función helper para actualizar ID de un ejercicio
                 const updateExerciseId = (ex: any): any => {
                   if (!ex || !ex.id) return ex
-                  
+
                   const resolvedId = resolveMappedIdForEntry(ex)
                   let finalId = resolvedId
-                  
+
                   // ✅ Convertir string numérico a número
                   if (typeof resolvedId === 'string' && /^\d+$/.test(resolvedId)) {
                     finalId = parseInt(resolvedId, 10)
                   }
-                  
+
                   // ✅ Si el ID cambió, actualizarlo
                   if (finalId !== ex.id && finalId !== undefined && finalId !== null) {
                     console.log(`🔧 Actualizando ID en planificación: ${ex.id} -> ${finalId}`, {
@@ -3024,7 +3216,7 @@ export default function CreateProductModal({ isOpen, onClose, editingProduct, in
                     totalUpdated++
                     return { ...ex, id: finalId }
                   }
-                  
+
                   return ex
                 }
 
@@ -3035,7 +3227,7 @@ export default function CreateProductModal({ isOpen, onClose, editingProduct, in
                 if (Array.isArray(dayData.exercises)) {
                   dayData.exercises = dayData.exercises.map(updateExerciseId)
                 }
-                
+
                 // ✅ También actualizar si los ejercicios están en un objeto con estructura diferente
                 if (dayData.ejercicios && !Array.isArray(dayData.ejercicios) && typeof dayData.ejercicios === 'object') {
                   const ejerciciosObj = dayData.ejercicios as any
@@ -3047,7 +3239,7 @@ export default function CreateProductModal({ isOpen, onClose, editingProduct, in
             }
             console.log(`✅ Planificación actualizada con IDs reales: ${totalUpdated} IDs actualizados`)
           }
-          
+
           try {
             // Pre-chequeo: evitar llamada si excede el límite conocido (fallback 4 semanas para plan free)
             const uniqueWeeks = Object.keys(scheduleToSave || {}).length
@@ -3084,7 +3276,7 @@ export default function CreateProductModal({ isOpen, onClose, editingProduct, in
             console.error('❌ Error en llamada de planificación semanal:', planningError)
           }
         }
-        
+
         // Guardar videos de ejercicios si hay datos CSV con videos
         if (persistentCsvData && persistentCsvData.length > 0) {
           const exercisesWithPotentialVideos = persistentCsvData
@@ -3368,7 +3560,7 @@ export default function CreateProductModal({ isOpen, onClose, editingProduct, in
                       console.log(`♻️ Reutilizando video previamente subido para ejercicio ${realExerciseId}`)
                       break
                     }
-                    }
+                  }
 
                   if (!reused) {
                     try {
@@ -3426,37 +3618,37 @@ export default function CreateProductModal({ isOpen, onClose, editingProduct, in
             }
 
             if (uploadResults.length > 0) {
-                  setPersistentCsvData((prev) =>
-                    (prev ?? []).map((exercise, index) => {
-                      if (!exercise || typeof exercise !== 'object' || Array.isArray(exercise)) {
-                        return exercise
-                      }
-                      const match = uploadResults.find(
-                        (result) => result.key === getExerciseVideoKey(exercise, index)
-                      )
-                      if (!match) {
-                        return exercise
-                      }
-
-                      const updatedExercise = { ...exercise }
-                      if (match.videoUrl && typeof match.videoUrl === 'string') {
-                        updatedExercise.video_url = match.videoUrl
-                      }
-                      if (match.meta?.videoId) {
-                        updatedExercise.bunny_video_id = match.meta.videoId
-                      }
-                      if (match.meta?.libraryId !== undefined) {
-                        updatedExercise.bunny_library_id = match.meta.libraryId
-                      }
-                      if (match.meta?.thumbnailUrl) {
-                        updatedExercise.video_thumbnail_url = match.meta.thumbnailUrl
-                      }
-                      if (match.meta?.fileName) {
-                        updatedExercise.video_file_name = match.meta.fileName
-                      }
-                      return updatedExercise
-                    })
+              setPersistentCsvData((prev) =>
+                (prev ?? []).map((exercise, index) => {
+                  if (!exercise || typeof exercise !== 'object' || Array.isArray(exercise)) {
+                    return exercise
+                  }
+                  const match = uploadResults.find(
+                    (result) => result.key === getExerciseVideoKey(exercise, index)
                   )
+                  if (!match) {
+                    return exercise
+                  }
+
+                  const updatedExercise = { ...exercise }
+                  if (match.videoUrl && typeof match.videoUrl === 'string') {
+                    updatedExercise.video_url = match.videoUrl
+                  }
+                  if (match.meta?.videoId) {
+                    updatedExercise.bunny_video_id = match.meta.videoId
+                  }
+                  if (match.meta?.libraryId !== undefined) {
+                    updatedExercise.bunny_library_id = match.meta.libraryId
+                  }
+                  if (match.meta?.thumbnailUrl) {
+                    updatedExercise.video_thumbnail_url = match.meta.thumbnailUrl
+                  }
+                  if (match.meta?.fileName) {
+                    updatedExercise.video_file_name = match.meta.fileName
+                  }
+                  return updatedExercise
+                })
+              )
 
               setExerciseVideoFiles((prev) => {
                 const next = { ...prev }
@@ -3473,16 +3665,16 @@ export default function CreateProductModal({ isOpen, onClose, editingProduct, in
             console.log('✅ Videos procesados y guardados en Bunny')
           }
         }
-        
+
         if (videosPendingDeletion.length > 0) {
           try {
             const videosStillUsed = new Set<string>()
-            ;(persistentCsvData || []).forEach((exercise: any) => {
-              const currentId = exercise?.bunny_video_id
-              if (currentId) {
-                videosStillUsed.add(String(currentId))
-              }
-            })
+              ; (persistentCsvData || []).forEach((exercise: any) => {
+                const currentId = exercise?.bunny_video_id
+                if (currentId) {
+                  videosStillUsed.add(String(currentId))
+                }
+              })
 
             const deletionsToAttempt = videosPendingDeletion.filter((entry) => {
               if (!entry.bunnyVideoId) return false
@@ -3533,17 +3725,17 @@ export default function CreateProductModal({ isOpen, onClose, editingProduct, in
             console.error('⚠️ Error gestionando eliminación de videos:', cleanupError)
           }
         }
-        
+
         onClose(true) // true = se guardaron cambios exitosamente
         // ✅ NO recargar la página para poder ver los logs
         // Disparar evento para actualizar estadísticas del producto
         if (result.product?.id) {
           console.log('🔄 Disparando evento productUpdated para producto:', result.product.id)
-          window.dispatchEvent(new CustomEvent('productUpdated', { 
-            detail: { productId: result.product.id } 
+          window.dispatchEvent(new CustomEvent('productUpdated', {
+            detail: { productId: result.product.id }
           }))
         }
-        
+
         // window.location.reload()
       } else {
         console.error('❌ ERROR AL PUBLICAR PRODUCTO:', result.error)
@@ -3578,16 +3770,16 @@ export default function CreateProductModal({ isOpen, onClose, editingProduct, in
   const loadWorkshopData = async (activityId: number) => {
     try {
       console.log('📡 Cargando datos de taller desde el backend para activityId:', activityId)
-      
+
       // Cargar datos desde la tabla taller_detalles
       const response = await fetch(`/api/taller-detalles?actividad_id=${activityId}`)
       if (!response.ok) {
         throw new Error('Error al cargar datos del taller')
       }
-      
+
       const { success, data: tallerDetalles, calendarEvents } = await response.json()
       console.log('📊 Datos del taller cargados desde taller_detalles:', tallerDetalles)
-      
+
       if (success && Array.isArray(tallerDetalles)) {
         // Convertir a formato esperado por el componente
         const sessions: Array<{
@@ -3622,10 +3814,10 @@ export default function CreateProductModal({ isOpen, onClose, editingProduct, in
             return 0
           }
         }
-        
+
         // Extraer todas las fechas existentes para verificar si ya pasaron
         const allExistingDates: string[] = []
-        
+
         // Procesar cada tema de taller
         tallerDetalles.forEach((tema: any) => {
           console.log('🎯 Procesando tema:', tema.nombre)
@@ -3711,7 +3903,7 @@ export default function CreateProductModal({ isOpen, onClose, editingProduct, in
             })
           }
         })
-        
+
         console.log('✅ Sesiones procesadas desde taller_detalles:', sessions)
 
         // Fallback: si taller_detalles no tiene horarios, usar calendar_events (workshop)
@@ -3771,29 +3963,29 @@ export default function CreateProductModal({ isOpen, onClose, editingProduct, in
 
         setWorkshopSchedule(sessions)
         setExistingWorkshopDates(allExistingDates)
-        
+
         // Cargar PDFs existentes (general y por tema)
         await loadWorkshopPdfs(activityId, tallerDetalles)
-        
+
         // Verificar si todas las fechas existentes ya pasaron (solo si se está editando un taller existente)
         // NO mostrar confirmación si se abre desde "Agregar nuevas fechas" (initialStep === 'workshopSchedule')
-        console.log('🔍 loadWorkshopData - Verificando fechas:', { 
-          allExistingDatesCount: allExistingDates.length, 
-          editingProductId: editingProduct?.id, 
+        console.log('🔍 loadWorkshopData - Verificando fechas:', {
+          allExistingDatesCount: allExistingDates.length,
+          editingProductId: editingProduct?.id,
           initialStep,
-          currentStep 
+          currentStep
         })
-        
+
         if (allExistingDates.length > 0 && editingProduct?.id && initialStep !== 'workshopSchedule' && currentStep !== 'workshopSchedule') {
           const now = new Date()
           now.setHours(0, 0, 0, 0)
-          
+
           const allDatesPassed = allExistingDates.every((dateStr: string) => {
             const date = new Date(dateStr)
             date.setHours(0, 0, 0, 0)
             return date < now
           })
-          
+
           if (allDatesPassed) {
             // Todas las fechas existentes ya pasaron, mostrar confirmación
             console.log('📅 Todas las fechas existentes del taller ya pasaron, solicitando confirmación')
@@ -3803,7 +3995,7 @@ export default function CreateProductModal({ isOpen, onClose, editingProduct, in
           console.log('✅ Abriendo desde paso 4 (workshopSchedule), no mostrar confirmación de fechas pasadas', { initialStep, currentStep })
         }
       }
-      
+
     } catch (error) {
       console.error('❌ Error cargando datos del taller:', error)
     }
@@ -3815,21 +4007,21 @@ export default function CreateProductModal({ isOpen, onClose, editingProduct, in
       // Cargar PDF general desde editingProduct o activity_media
       let generalPdfUrl: string | null = null
       if (editingProduct) {
-        generalPdfUrl = editingProduct.activity_media?.find((m: any) => m.pdf_url)?.pdf_url || 
-                        editingProduct.media?.pdf_url
+        generalPdfUrl = editingProduct.activity_media?.find((m: any) => m.pdf_url)?.pdf_url ||
+          editingProduct.media?.pdf_url
       }
-      
+
       // Cargar PDFs por tema desde taller_detalles
       const topicPdfs: Record<string, { file: File | null, url: string | null, fileName: string | null }> = {}
       let hasTopicPdfs = false
-      
+
       console.log('🔍 Buscando PDFs en taller_detalles:', tallerDetalles.map((t: any) => ({
         nombre: t.nombre,
         tienePdf: !!t.pdf_url,
         pdf_url: t.pdf_url ? t.pdf_url.substring(0, 50) + '...' : null,
         pdf_file_name: t.pdf_file_name
       })))
-      
+
       tallerDetalles.forEach((tema: any) => {
         if (tema.pdf_url) {
           topicPdfs[tema.nombre] = {
@@ -3846,7 +4038,7 @@ export default function CreateProductModal({ isOpen, onClose, editingProduct, in
           console.log(`ℹ️ Tema "${tema.nombre}" no tiene PDF (pdf_url: ${tema.pdf_url})`)
         }
       })
-      
+
       if (hasTopicPdfs) {
         console.log('📦 Estableciendo pdfType a "by-topic" y cargando PDFs:', Object.keys(topicPdfs))
         console.log('📦 Detalles de PDFs cargados:', Object.entries(topicPdfs).map(([key, value]) => ({
@@ -3866,12 +4058,12 @@ export default function CreateProductModal({ isOpen, onClose, editingProduct, in
               console.log(`📦 Preservando PDF con archivo para tema "${key}"`)
             }
           })
-          
+
           // Combinar: primero los preservados, luego los de la BD (solo si no hay archivo preservado)
           const mergedPdfs: Record<string, { file: File | null, url: string | null, fileName: string | null }> = {
             ...preservedPdfs
           }
-          
+
           // Agregar PDFs de la BD solo si no hay uno preservado para ese tema
           Object.entries(topicPdfs).forEach(([key, value]) => {
             if (!preservedPdfs[key]) {
@@ -3965,14 +4157,14 @@ export default function CreateProductModal({ isOpen, onClose, editingProduct, in
   useEffect(() => {
     if (editingProduct) {
       console.log('🔄 Cargando datos para edición:', editingProduct)
-      
+
       // Limpiar confirmación previa al cargar nuevo producto
       setShowWorkshopFinishedConfirm(false)
       setWorkshopFinishedConfirmed(false)
       setExistingWorkshopDates([])
       setFeedbackSubmitted(false)
       setShowAddNewDatesPrompt(false)
-      
+
       // Verificar si el taller está finalizado
       if (editingProduct.type === 'workshop' && ((editingProduct as any).is_finished || (editingProduct as any).taller_activo === false)) {
         setWorkshopIsFinished(true)
@@ -3981,7 +4173,7 @@ export default function CreateProductModal({ isOpen, onClose, editingProduct, in
         setWorkshopFinishedConfirmed(false)
         setFeedbackSubmitted(false)
         setShowAddNewDatesPrompt(false)
-        
+
         // Si estamos en el paso 4 (workshopSchedule), significa que ya pasamos por la encuesta
         // No mostrar el modal de encuesta en este caso
         if (initialStep === 'workshopSchedule') {
@@ -4024,10 +4216,10 @@ export default function CreateProductModal({ isOpen, onClose, editingProduct, in
         setFeedbackSubmitted(false)
         setShowAddNewDatesPrompt(false)
       }
-      
+
       // ✅ LIMPIAR ESTADO LOCAL PRIMERO para evitar que datos de sesiones anteriores persistan
       console.log('🧹 Limpiando estado local antes de cargar datos del backend')
-      
+
       // Limpiar sessionStorage PRIMERO (síncrono) antes de limpiar estado
       if (typeof window !== 'undefined' && editingProduct.id) {
         try {
@@ -4040,7 +4232,7 @@ export default function CreateProductModal({ isOpen, onClose, editingProduct, in
           console.warn('⚠️ No se pudo limpiar sessionStorage:', error)
         }
       }
-      
+
       // Ahora limpiar estado local - usar undefined para forzar carga desde backend
       // NO establecer a [] porque eso hace que CSVManagerEnhanced piense que ya hay datos (vacíos)
       // Mantener undefined hasta que los datos se carguen desde el backend
@@ -4052,7 +4244,7 @@ export default function CreateProductModal({ isOpen, onClose, editingProduct, in
       setExerciseVideoFiles({})
       // ✅ Limpiar cache de planificación al cambiar de producto
       cachedPlanningFromDBRef.current = null
-      
+
       // Determinar el tipo de producto
       let productType: ProductType = 'workshop'
       if (editingProduct.type === 'program' || editingProduct.type === 'fitness') {
@@ -4060,11 +4252,11 @@ export default function CreateProductModal({ isOpen, onClose, editingProduct, in
       } else if (editingProduct.type === 'document') {
         productType = 'document'
       }
-      
+
       setSelectedType(productType)
       // Si hay initialStep, usarlo; si no, ir a 'general' para edición normal
       setCurrentStep(initialStep || 'general')
-      
+
       // ✅ ESTABLECER CATEGORÍA DEL PRODUCTO (fitness o nutricion)
       if (editingProduct.categoria) {
         setProductCategory(editingProduct.categoria as 'fitness' | 'nutricion')
@@ -4091,19 +4283,19 @@ export default function CreateProductModal({ isOpen, onClose, editingProduct, in
           setSelectedProgramType('fitness')
         }
       }
-      
+
       // Cargar datos generales
-      
+
       // Usar la imagen disponible (prioridad: activity_media > media > image_url)
       const imageUrl = editingProduct.activity_media?.[0]?.image_url ||
-                      editingProduct.media?.image_url || 
-                      editingProduct.image_url
-      
-      
+        editingProduct.media?.image_url ||
+        editingProduct.image_url
+
+
       // Determinar el tipo de capacidad basándose en el valor actual
       let capacityType = 'ilimitada'
       let stockQuantity = ''
-      
+
       if (editingProduct.capacity) {
         const capacityNum = parseInt(editingProduct.capacity.toString())
         if (!isNaN(capacityNum)) {
@@ -4115,7 +4307,7 @@ export default function CreateProductModal({ isOpen, onClose, editingProduct, in
           stockQuantity = ''
         }
       }
-      
+
       // Establecer datos generales del formulario
       const normalizeModality = (raw: any): 'online' | 'presencial' | 'híbrido' => {
         const value = String(raw || 'online').toLowerCase().trim()
@@ -4123,6 +4315,15 @@ export default function CreateProductModal({ isOpen, onClose, editingProduct, in
         if (value === 'híbrido') return 'híbrido'
         if (value === 'presencial') return 'presencial'
         return 'online'
+      }
+
+      // Inicializar tab de medios: Priorizar imagen, si no video
+      if (imageUrl) {
+        setInlineMediaType('image')
+      } else if (editingProduct.video_url || editingProduct.activity_media?.[0]?.video_url) {
+        setInlineMediaType('video')
+      } else {
+        setInlineMediaType('image')
       }
 
       setGeneralFormWithLogs({
@@ -4145,7 +4346,7 @@ export default function CreateProductModal({ isOpen, onClose, editingProduct, in
         workshop_mode: (editingProduct as any).workshop_mode || 'grupal',
         participants_per_class: (editingProduct as any).participants_per_class
       })
-      
+
       // Establecer datos específicos del formulario
       setSpecificFormWithLogs({
         ...specificForm,
@@ -4172,6 +4373,7 @@ export default function CreateProductModal({ isOpen, onClose, editingProduct, in
       specific: 'Detalles',
       workshopSchedule: 'Temas y horarios',
       workshopMaterial: 'Material del taller',
+      documentMaterial: 'Temas y documentos',
       weeklyPlan: 'Organización',
       preview: 'Vista previa'
     }
@@ -4183,6 +4385,7 @@ export default function CreateProductModal({ isOpen, onClose, editingProduct, in
     <AnimatePresence>
       {isOpen && (
         <motion.div
+          key="main-modal-overlay"
           initial={{ opacity: 0 }}
           animate={{ opacity: 1 }}
           exit={{ opacity: 0 }}
@@ -4190,7 +4393,7 @@ export default function CreateProductModal({ isOpen, onClose, editingProduct, in
           onClick={(e) => {
             // Cerrar solo si se hace click en el overlay, no en el modal
             if (e.target === e.currentTarget) {
-              onClose(false)
+              handleClose()
             }
           }}
         >
@@ -4205,7 +4408,7 @@ export default function CreateProductModal({ isOpen, onClose, editingProduct, in
             <div className="sticky top-0 z-50 bg-[#0b0b0b]/95 backdrop-blur-md h-14 sm:h-20 flex items-center justify-between px-4 sm:px-6 border-b border-white/10">
               <div className="flex items-center gap-4">
                 <button
-                  onClick={() => onClose(false)}
+                  onClick={handleClose}
                   className="text-gray-400 hover:text-white transition-colors"
                 >
                   <X className="h-5 w-5" />
@@ -4214,24 +4417,23 @@ export default function CreateProductModal({ isOpen, onClose, editingProduct, in
                   {stepTitle}
                 </h2>
               </div>
-              
+
               {/* Indicador de pasos */}
               <div className="flex items-center gap-2">
                 {Array.from({ length: totalSteps }).map((_, index) => {
                   const stepNum = index + 1
                   const isActive = stepNum === currentStepNumber
                   const isCompleted = stepNum < currentStepNumber
-                  
+
                   return (
                     <div
                       key={stepNum}
-                      className={`w-2 h-2 rounded-full transition-all ${
-                        isActive
-                          ? 'bg-[#FF7939] w-8'
-                          : isCompleted
+                      className={`w-2 h-2 rounded-full transition-all ${isActive
+                        ? 'bg-[#FF7939] w-8'
+                        : isCompleted
                           ? 'bg-[#FF7939]/50'
                           : 'bg-gray-600'
-                      }`}
+                        }`}
                     />
                   )
                 })}
@@ -4253,11 +4455,10 @@ export default function CreateProductModal({ isOpen, onClose, editingProduct, in
                         setSelectedType('program')
                         setCurrentStep('programType')
                       }}
-                      className={`p-3 rounded-lg border transition-all text-left flex items-start gap-2 ${
-                        selectedType === 'program'
-                          ? 'border-[#FF7939] bg-black'
-                          : 'border-white/10 bg-black hover:border-[#FF7939]/50'
-                      }`}
+                      className={`p-3 rounded-lg border transition-all text-left flex items-start gap-2 ${selectedType === 'program'
+                        ? 'border-[#FF7939] bg-black'
+                        : 'border-white/10 bg-black hover:border-[#FF7939]/50'
+                        }`}
                     >
                       <div className="flex-shrink-0 mt-0.5">
                         <div className="relative">
@@ -4287,11 +4488,10 @@ export default function CreateProductModal({ isOpen, onClose, editingProduct, in
                         setSelectedType('document')
                         setCurrentStep('programType')
                       }}
-                      className={`p-3 rounded-lg border transition-all text-left flex items-start gap-2 ${
-                        selectedType === 'document'
-                          ? 'border-[#FF7939] bg-black'
-                          : 'border-white/10 bg-black hover:border-[#FF7939]/50'
-                      }`}
+                      className={`p-3 rounded-lg border transition-all text-left flex items-start gap-2 ${selectedType === 'document'
+                        ? 'border-[#FF7939] bg-black'
+                        : 'border-white/10 bg-black hover:border-[#FF7939]/50'
+                        }`}
                     >
                       <div className="flex-shrink-0 mt-0.5">
                         <FileText className="h-4 w-4 text-[#FF7939]" />
@@ -4312,11 +4512,10 @@ export default function CreateProductModal({ isOpen, onClose, editingProduct, in
                         setSelectedType('workshop')
                         setCurrentStep('general')
                       }}
-                      className={`p-3 rounded-lg border transition-all text-left flex items-start gap-2 ${
-                        selectedType === 'workshop'
-                          ? 'border-[#FF7939] bg-black'
-                          : 'border-white/10 bg-black hover:border-[#FF7939]/50'
-                      }`}
+                      className={`p-3 rounded-lg border transition-all text-left flex items-start gap-2 ${selectedType === 'workshop'
+                        ? 'border-[#FF7939] bg-black'
+                        : 'border-white/10 bg-black hover:border-[#FF7939]/50'
+                        }`}
                     >
                       <div className="flex-shrink-0 mt-0.5 relative">
                         <Users className="h-4 w-4 text-[#FF7939]" />
@@ -4338,6 +4537,7 @@ export default function CreateProductModal({ isOpen, onClose, editingProduct, in
               )}
 
               <MediaSelectionModal
+                key="media-selection-gallery"
                 isOpen={isMediaModalOpen}
                 onClose={() => setIsMediaModalOpen(false)}
                 onMediaSelected={handleMediaSelection}
@@ -4345,6 +4545,7 @@ export default function CreateProductModal({ isOpen, onClose, editingProduct, in
               />
 
               <MediaSelectionModal
+                key="pdf-selection-gallery"
                 isOpen={isPdfModalOpen}
                 onClose={() => {
                   setIsPdfModalOpen(false)
@@ -4353,6 +4554,56 @@ export default function CreateProductModal({ isOpen, onClose, editingProduct, in
                 onMediaSelected={handlePdfSelected}
                 mediaType={'pdf'}
               />
+
+              {/* Modal de selección: Existentes o Nuevo */}
+              {showPdfSelectionModal && (
+                <div key="pdf-source-modal" className="fixed inset-0 z-50 flex items-center justify-center bg-black/80">
+                  <div className="bg-[#0A0A0A] border border-white/10 rounded-lg p-6 max-w-md w-full mx-4">
+                    <h3 className="text-lg font-semibold text-white mb-4">Seleccionar documento</h3>
+                    <p className="text-sm text-gray-400 mb-6">
+                      Elegí si querés usar un documento existente o subir uno nuevo.
+                    </p>
+                    <div className="grid grid-cols-2 gap-3">
+                      <button
+                        type="button"
+                        onClick={() => handlePdfSelectionChoice('existing')}
+                        className="p-4 rounded-lg border border-white/10 bg-black hover:border-[#FF7939]/50 hover:bg-white/5 transition-all text-center"
+                      >
+                        <FileText className="h-6 w-6 mb-2 text-[#FF7939] mx-auto" />
+                        <div className="text-sm font-semibold text-white">Existentes</div>
+                        <div className="text-xs text-gray-400 mt-1">De tu biblioteca</div>
+                      </button>
+                      <div
+                        className="relative p-4 rounded-lg border border-white/10 bg-black hover:border-[#FF7939]/50 hover:bg-white/5 transition-all text-center group overflow-hidden"
+                      >
+                        <input
+                          type="file"
+                          accept="application/pdf"
+                          onChange={(e) => {
+                            console.log('📄 [Overlay PDF] Change detectado')
+                            handleInlineUploadChange(e)
+                            setShowPdfSelectionModal(false)
+                          }}
+                          className="absolute inset-0 w-full h-full opacity-0 cursor-pointer z-10"
+                        />
+                        <FileUp className="h-6 w-6 mb-2 text-[#FF7939] mx-auto group-hover:scale-110 transition-transform" />
+                        <div className="text-sm font-semibold text-white">Nuevo</div>
+                        <div className="text-xs text-gray-400 mt-1">Subir archivo</div>
+                      </div>
+                    </div>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setShowPdfSelectionModal(false)
+                        setPendingPdfContext(null)
+                      }}
+                      className="mt-4 w-full px-4 py-2 rounded-lg border border-white/10 bg-white/5 hover:bg-white/10 transition-all text-white text-sm"
+                    >
+                      Cancelar
+                    </button>
+                  </div>
+                </div>
+              )}
 
               {/* Paso 2: Categoría y entrega (programas y documentos) */}
               {currentStep === 'programType' && (selectedType === 'program' || selectedType === 'document') && (
@@ -4366,18 +4617,17 @@ export default function CreateProductModal({ isOpen, onClose, editingProduct, in
                         {([
                           { type: 'fitness' as ProgramSubType, label: 'Fitness', icon: Zap },
                           { type: 'nutrition' as ProgramSubType, label: 'Nutrición', icon: UtensilsCrossed }
-                        ]).map(({ type, label, icon: Icon }) => (
+                        ]).map(({ type, label, icon: Icon }, idx) => (
                           <button
-                            key={type}
+                            key={`${type}-${idx}`}
                             onClick={() => {
                               setSelectedProgramType(type)
                               setProductCategory(type === 'fitness' ? 'fitness' : 'nutricion')
                             }}
-                            className={`p-3 rounded-lg border transition-all text-left ${
-                              selectedProgramType === type
-                                ? 'border-[#FF7939] bg-[#FF7939]/10'
-                                : 'border-white/10 bg-black hover:border-[#FF7939]/50'
-                            }`}
+                            className={`p-3 rounded-lg border transition-all text-left ${selectedProgramType === type
+                              ? 'border-[#FF7939] bg-[#FF7939]/10'
+                              : 'border-white/10 bg-black hover:border-[#FF7939]/50'
+                              }`}
                           >
                             <Icon className="h-5 w-5 mb-1 text-[#FF7939]" />
                             <h4 className="text-sm font-semibold text-white">
@@ -4422,43 +4672,45 @@ export default function CreateProductModal({ isOpen, onClose, editingProduct, in
                       </div>
                     </div>
 
-                    <div className="rounded-lg border border-white/10 bg-black p-4">
-                      <div className="mb-3">
-                        <div className="text-sm font-semibold text-white">Modalidad</div>
-                        <div className="text-xs text-gray-400">Cómo lo recibe tu cliente.</div>
-                      </div>
-                      <div className="grid grid-cols-1 md:grid-cols-3 gap-2">
-                        {MODALITY_CHOICES.map(({ value, label, icon: Icon, tone }) => (
-                          <button
-                            key={value}
-                            type="button"
-                            onClick={() => {
-                              setGeneralFormWithLogs({
-                                ...generalForm,
-                                modality: value
-                              })
-                            }}
-                            className={`rounded-lg border px-3 py-3 text-left transition-all flex items-center gap-3 ${
-                              generalForm.modality === value
+                    {/* Modalidad - Hidden for documents (always online) */}
+                    {selectedType !== 'document' && (
+                      <div className="rounded-lg border border-white/10 bg-black p-4">
+                        <div className="mb-3">
+                          <div className="text-sm font-semibold text-white">Modalidad</div>
+                          <div className="text-xs text-gray-400">Cómo lo recibe tu cliente.</div>
+                        </div>
+                        <div className="grid grid-cols-1 md:grid-cols-3 gap-2">
+                          {MODALITY_CHOICES.map(({ value, label, icon: Icon, tone }, idx) => (
+                            <button
+                              key={`${value}-${idx}`}
+                              type="button"
+                              onClick={() => {
+                                setGeneralFormWithLogs({
+                                  ...generalForm,
+                                  modality: value
+                                })
+                              }}
+                              className={`rounded-lg border px-3 py-3 text-left transition-all flex items-center gap-3 ${generalForm.modality === value
                                 ? 'border-[#FF7939] bg-[#FF7939]/10'
                                 : 'border-white/10 hover:border-[#FF7939]/50'
-                            }`}
-                          >
-                            <Icon className="h-4 w-4 text-[#FF7939]" />
-                            <div className="flex-1">
-                              <div className="text-sm font-semibold text-white">{label}</div>
-                              <div className="text-xs text-gray-400">
-                                {value === 'online'
-                                  ? 'Acceso desde Omnia.'
-                                  : value === 'presencial'
-                                    ? 'Se realiza en persona.'
-                                    : 'Online + presencial.'}
+                                }`}
+                            >
+                              <Icon className="h-4 w-4 text-[#FF7939]" />
+                              <div className="flex-1">
+                                <div className="text-sm font-semibold text-white">{label}</div>
+                                <div className="text-xs text-gray-400">
+                                  {value === 'online'
+                                    ? 'Acceso desde Omnia.'
+                                    : value === 'presencial'
+                                      ? 'Se realiza en persona.'
+                                      : 'Online + presencial.'}
+                                </div>
                               </div>
-                            </div>
-                          </button>
-                        ))}
+                            </button>
+                          ))}
+                        </div>
                       </div>
-                    </div>
+                    )}
 
                     {(selectedType === 'program' || selectedType === 'document') && (
                       <div className="rounded-lg border border-white/10 bg-black p-4">
@@ -4510,29 +4762,28 @@ export default function CreateProductModal({ isOpen, onClose, editingProduct, in
                     <div className="text-sm font-semibold text-white">Video y foto</div>
                     <div className="mx-auto w-full md:w-[60%]">
                       <div
-                        className={`relative rounded-xl border border-white/10 bg-black overflow-hidden mx-auto ${
-                          inlineMediaType === 'image'
-                            ? 'w-[240px] max-w-full aspect-[5/6]'
-                            : 'w-full aspect-video'
-                        }`}
+                        className={`relative rounded-xl border border-white/10 bg-black overflow-hidden mx-auto ${inlineMediaType === 'image'
+                          ? 'w-[240px] max-w-full aspect-[5/6]'
+                          : 'w-full aspect-video'
+                          }`}
                       >
-                      {inlineMediaType === 'image' && (generalForm.image && typeof generalForm.image === 'object' && 'url' in generalForm.image && generalForm.image.url) ? (
-                        <img
-                          src={(generalForm.image as any).url}
-                          alt="Portada"
-                          className="w-full h-full object-cover"
-                        />
-                      ) : inlineMediaType === 'video' && generalForm.videoUrl ? (
-                        <video
-                          src={generalForm.videoUrl}
-                          className="w-full h-full object-cover"
-                          controls
-                        />
-                      ) : (
-                        <div className="w-full h-full flex items-center justify-center text-gray-500 text-sm">
-                          Agregá una foto o un video (16:9)
-                        </div>
-                      )}
+                        {inlineMediaType === 'image' && (generalForm.image && typeof generalForm.image === 'object' && 'url' in generalForm.image && generalForm.image.url) ? (
+                          <img
+                            src={(generalForm.image as any).url}
+                            alt="Portada"
+                            className="w-full h-full object-cover"
+                          />
+                        ) : inlineMediaType === 'video' && generalForm.videoUrl ? (
+                          <video
+                            src={generalForm.videoUrl}
+                            className="w-full h-full object-cover"
+                            controls
+                          />
+                        ) : (
+                          <div className="w-full h-full flex items-center justify-center text-gray-500 text-sm">
+                            Agregá una foto o un video (16:9)
+                          </div>
+                        )}
                       </div>
 
                       <div className="mt-3 flex flex-wrap items-center justify-between gap-2">
@@ -4540,11 +4791,10 @@ export default function CreateProductModal({ isOpen, onClose, editingProduct, in
                           <button
                             type="button"
                             onClick={() => loadInlineMedia('image')}
-                            className={`px-3 py-2 rounded-lg border text-xs font-semibold transition-all flex items-center gap-2 ${
-                              inlineMediaType === 'image'
-                                ? 'border-[#FF7939] bg-[#FF7939]/10 text-white'
-                                : 'border-white/10 bg-black text-gray-300 hover:border-[#FF7939]/50'
-                            }`}
+                            className={`px-3 py-2 rounded-lg border text-xs font-semibold transition-all flex items-center gap-2 ${inlineMediaType === 'image'
+                              ? 'border-[#FF7939] bg-[#FF7939]/10 text-white'
+                              : 'border-white/10 bg-black text-gray-300 hover:border-[#FF7939]/50'
+                              }`}
                           >
                             <ImageIcon className="h-4 w-4 text-[#FF7939]" />
                             Foto
@@ -4552,11 +4802,10 @@ export default function CreateProductModal({ isOpen, onClose, editingProduct, in
                           <button
                             type="button"
                             onClick={() => loadInlineMedia('video')}
-                            className={`px-3 py-2 rounded-lg border text-xs font-semibold transition-all flex items-center gap-2 ${
-                              inlineMediaType === 'video'
-                                ? 'border-[#FF7939] bg-[#FF7939]/10 text-white'
-                                : 'border-white/10 bg-black text-gray-300 hover:border-[#FF7939]/50'
-                            }`}
+                            className={`px-3 py-2 rounded-lg border text-xs font-semibold transition-all flex items-center gap-2 ${inlineMediaType === 'video'
+                              ? 'border-[#FF7939] bg-[#FF7939]/10 text-white'
+                              : 'border-white/10 bg-black text-gray-300 hover:border-[#FF7939]/50'
+                              }`}
                           >
                             <Video className="h-4 w-4 text-[#FF7939]" />
                             Video
@@ -4573,12 +4822,8 @@ export default function CreateProductModal({ isOpen, onClose, editingProduct, in
                           />
                           <button
                             type="button"
-                            onClick={() => {
-                              setMediaModalType(inlineMediaType === 'video' ? 'video' : 'image')
-                              setIsMediaModalOpen(true)
-                            }}
+                            onClick={() => setShowMediaSourceModal(true)}
                             className="px-3 py-2 rounded-lg border border-white/10 bg-black text-xs font-semibold text-gray-300 hover:border-[#FF7939]/50 transition-all flex items-center gap-2"
-                            disabled={inlineMediaLoading}
                           >
                             {inlineMediaLoading ? (
                               <Loader2 className="h-4 w-4 animate-spin text-[#FF7939]" />
@@ -4621,16 +4866,15 @@ export default function CreateProductModal({ isOpen, onClose, editingProduct, in
                   <div className="space-y-3">
                     <div className="text-sm font-semibold text-white">Intensidad</div>
                     <div className="grid grid-cols-3 gap-2">
-                      {INTENSITY_CHOICES.map((choice) => (
+                      {INTENSITY_CHOICES.map((choice, idx) => (
                         <button
-                          key={choice.value}
+                          key={`${choice.value}-${idx}`}
                           type="button"
                           onClick={() => setSpecificFormWithLogs({ ...specificForm, level: choice.value })}
-                          className={`rounded-lg border px-2 py-2 sm:px-3 sm:py-3 text-left transition-all min-w-0 ${
-                            specificForm.level === choice.value
-                              ? 'border-[#FF7939] bg-[#FF7939]/10'
-                              : 'border-white/10 bg-black hover:border-[#FF7939]/50'
-                          }`}
+                          className={`rounded-lg border px-2 py-2 sm:px-3 sm:py-3 text-left transition-all min-w-0 ${specificForm.level === choice.value
+                            ? 'border-[#FF7939] bg-[#FF7939]/10'
+                            : 'border-white/10 bg-black hover:border-[#FF7939]/50'
+                            }`}
                         >
                           <div className="flex flex-col gap-1">
                             <div className="text-xs sm:text-sm font-semibold text-white truncate">{choice.label}</div>
@@ -4648,6 +4892,35 @@ export default function CreateProductModal({ isOpen, onClose, editingProduct, in
                     </div>
                   </div>
 
+                  {/* Duración (solo para documentos) */}
+                  {selectedType === 'document' && (
+                    <div className="space-y-2">
+                      <div className="text-sm font-semibold text-white">Duración</div>
+                      <div className="grid grid-cols-[1fr_120px] gap-2">
+                        <Input
+                          type="number"
+                          placeholder="Ejemplo: 4"
+                          value={generalForm.duration_value || ''}
+                          onChange={(e) => setGeneralFormWithLogs({ ...generalForm, duration_value: e.target.value })}
+                          className="bg-black border-white/10 text-white"
+                        />
+                        <Select
+                          value={generalForm.duration_unit || 'semanas'}
+                          onValueChange={(v) => setGeneralFormWithLogs({ ...generalForm, duration_unit: v as 'días' | 'semanas' | 'meses' })}
+                        >
+                          <SelectTrigger className="bg-black border-white/10 text-white">
+                            <SelectValue />
+                          </SelectTrigger>
+                          <SelectContent className="bg-black border-white/10 text-white">
+                            <SelectItem value="días" className="text-white">Días</SelectItem>
+                            <SelectItem value="semanas" className="text-white">Semanas</SelectItem>
+                            <SelectItem value="meses" className="text-white">Meses</SelectItem>
+                          </SelectContent>
+                        </Select>
+                      </div>
+                    </div>
+                  )}
+
                   <div className="space-y-2">
                     <div className="text-sm font-semibold text-white">Objetivos</div>
                     <div className="flex items-center gap-2">
@@ -4663,12 +4936,12 @@ export default function CreateProductModal({ isOpen, onClose, editingProduct, in
                           <SelectValue placeholder="Seleccionar objetivo" />
                         </SelectTrigger>
                         <SelectContent className="bg-black border-white/10 text-white">
-                          {objectiveOptions.map((group) => (
-                            <React.Fragment key={group.label}>
+                          {objectiveOptions.map((group, gIdx) => (
+                            <React.Fragment key={`${group.label}-${gIdx}`}>
                               <SelectGroup>
                                 <SelectLabel className="text-white/70">{group.label}</SelectLabel>
-                                {group.options.map((opt) => (
-                                  <SelectItem key={`${group.label}-${opt}`} value={opt} className="text-white">
+                                {group.options.map((opt, oIdx) => (
+                                  <SelectItem key={`${group.label}-${opt}-${oIdx}`} value={opt} className="text-white">
                                     {opt}
                                   </SelectItem>
                                 ))}
@@ -4679,9 +4952,9 @@ export default function CreateProductModal({ isOpen, onClose, editingProduct, in
                       </Select>
                     </div>
                     <div className="flex gap-2 overflow-x-auto pb-1">
-                      {(generalForm.objetivos || []).map((obj) => (
+                      {(generalForm.objetivos || []).map((obj, idx) => (
                         <button
-                          key={obj}
+                          key={`${obj}-${idx}`}
                           type="button"
                           onClick={() => removeObjetivo(obj)}
                           className="bg-[#FF7939]/20 text-[#FF7939] text-xs px-3 py-1.5 rounded-full font-medium border border-[#FF7939]/30 whitespace-nowrap flex-shrink-0"
@@ -4708,12 +4981,12 @@ export default function CreateProductModal({ isOpen, onClose, editingProduct, in
                           <SelectValue placeholder="Seleccionar restricción" />
                         </SelectTrigger>
                         <SelectContent className="bg-black border-white/10 text-white">
-                          {restrictionOptions.map((group) => (
-                            <React.Fragment key={group.label}>
+                          {restrictionOptions.map((group, gIdx) => (
+                            <React.Fragment key={`${group.label}-${gIdx}`}>
                               <SelectGroup>
                                 <SelectLabel className="text-white/70">{group.label}</SelectLabel>
-                                {group.options.map((opt) => (
-                                  <SelectItem key={`${group.label}-${opt}`} value={opt} className="text-white">
+                                {group.options.map((opt, oIdx) => (
+                                  <SelectItem key={`${group.label}-${opt}-${oIdx}`} value={opt} className="text-white">
                                     {opt}
                                   </SelectItem>
                                 ))}
@@ -4724,9 +4997,9 @@ export default function CreateProductModal({ isOpen, onClose, editingProduct, in
                       </Select>
                     </div>
                     <div className="flex gap-2 overflow-x-auto pb-1">
-                      {(generalForm.restricciones || []).map((r) => (
+                      {(generalForm.restricciones || []).map((r, idx) => (
                         <button
-                          key={r}
+                          key={`${r}-${idx}`}
                           type="button"
                           onClick={() => removeRestriccion(r)}
                           className="bg-white/10 text-white/80 text-xs px-3 py-1.5 rounded-full font-medium border border-white/10 whitespace-nowrap flex-shrink-0"
@@ -4746,11 +5019,10 @@ export default function CreateProductModal({ isOpen, onClose, editingProduct, in
                         <button
                           type="button"
                           onClick={handleToggleCapacity}
-                          className={`col-span-3 sm:col-span-2 px-2 py-2 rounded-md border text-xs font-semibold transition-all ${
-                            isLimitedStock
-                              ? 'border-[#FF7939] bg-[#FF7939]/10 text-white'
-                              : 'border-white/10 bg-black text-gray-300 hover:border-[#FF7939]/50'
-                          }`}
+                          className={`col-span-3 sm:col-span-2 px-2 py-2 rounded-md border text-xs font-semibold transition-all ${isLimitedStock
+                            ? 'border-[#FF7939] bg-[#FF7939]/10 text-white'
+                            : 'border-white/10 bg-black text-gray-300 hover:border-[#FF7939]/50'
+                            }`}
                         >
                           {generalForm.capacity === 'ilimitada' ? '∞' : 'Cupos'}
                         </button>
@@ -4875,11 +5147,10 @@ export default function CreateProductModal({ isOpen, onClose, editingProduct, in
                             topicPdfs: {}
                           }))
                         }
-                        className={`rounded-lg border px-3 py-3 text-left transition-all ${
-                          workshopMaterial.pdfType === 'none'
-                            ? 'border-[#FF7939] bg-[#FF7939]/10'
-                            : 'border-white/10 bg-white/5 hover:bg-white/10'
-                        }`}
+                        className={`rounded-lg border px-3 py-3 text-left transition-all ${workshopMaterial.pdfType === 'none'
+                          ? 'border-[#FF7939] bg-[#FF7939]/10'
+                          : 'border-white/10 bg-white/5 hover:bg-white/10'
+                          }`}
                       >
                         <div className="text-sm font-semibold text-white">Sin PDF</div>
                         <div className="text-xs text-gray-400">No agregar material.</div>
@@ -4894,11 +5165,10 @@ export default function CreateProductModal({ isOpen, onClose, editingProduct, in
                             topicPdfs: {}
                           }))
                         }
-                        className={`rounded-lg border px-3 py-3 text-left transition-all ${
-                          workshopMaterial.pdfType === 'general'
-                            ? 'border-[#FF7939] bg-[#FF7939]/10'
-                            : 'border-white/10 bg-white/5 hover:bg-white/10'
-                        }`}
+                        className={`rounded-lg border px-3 py-3 text-left transition-all ${workshopMaterial.pdfType === 'general'
+                          ? 'border-[#FF7939] bg-[#FF7939]/10'
+                          : 'border-white/10 bg-white/5 hover:bg-white/10'
+                          }`}
                       >
                         <div className="text-sm font-semibold text-white">Un PDF para todos</div>
                         <div className="text-xs text-gray-400">El mismo archivo en cada tema.</div>
@@ -4914,11 +5184,10 @@ export default function CreateProductModal({ isOpen, onClose, editingProduct, in
                             pdfUrl: null
                           }))
                         }
-                        className={`rounded-lg border px-3 py-3 text-left transition-all ${
-                          workshopMaterial.pdfType === 'by-topic'
-                            ? 'border-[#FF7939] bg-[#FF7939]/10'
-                            : 'border-white/10 bg-white/5 hover:bg-white/10'
-                        }`}
+                        className={`rounded-lg border px-3 py-3 text-left transition-all ${workshopMaterial.pdfType === 'by-topic'
+                          ? 'border-[#FF7939] bg-[#FF7939]/10'
+                          : 'border-white/10 bg-white/5 hover:bg-white/10'
+                          }`}
                       >
                         <div className="text-sm font-semibold text-white">PDF por tema</div>
                         <div className="text-xs text-gray-400">Un archivo distinto para cada tema.</div>
@@ -4974,11 +5243,11 @@ export default function CreateProductModal({ isOpen, onClose, editingProduct, in
                                 .map((s: any) => String(s?.title || '').trim())
                                 .filter(Boolean)
                             )
-                          ).map((topicTitle) => {
+                          ).map((topicTitle, idx) => {
                             const current = workshopMaterial.topicPdfs?.[topicTitle]
                             return (
                               <div
-                                key={topicTitle}
+                                key={`${topicTitle}-${idx}`}
                                 className="py-2"
                               >
                                 <div className="text-sm font-semibold text-white mb-2">{topicTitle}</div>
@@ -5032,6 +5301,277 @@ export default function CreateProductModal({ isOpen, onClose, editingProduct, in
                 </div>
               )}
 
+              {/* Paso: Temas y Documentos (solo para documentos) */}
+              {currentStep === 'documentMaterial' && selectedType === 'document' && (
+                <div className="space-y-6">
+                  <h3 className="text-base font-semibold text-white mb-4">
+                    ¿Cómo querés organizar los documentos?
+                  </h3>
+
+                  {/* Opción: Documento único o por tema */}
+                  <div className="grid grid-cols-2 gap-3">
+                    <button
+                      type="button"
+                      onClick={() => setDocumentMaterial(prev => ({ ...prev, pdfType: 'general', topics: [] }))}
+                      className={`p-4 rounded-lg border transition-all text-left ${documentMaterial.pdfType === 'general'
+                        ? 'border-[#FF7939] bg-[#FF7939]/10'
+                        : 'border-white/10 bg-black hover:border-[#FF7939]/50'
+                        }`}
+                    >
+                      <FileText className="h-5 w-5 mb-2 text-[#FF7939]" />
+                      <div className="text-sm font-semibold text-white">Documento único</div>
+                      <div className="text-xs text-gray-400 mt-1">Un PDF para todo el producto</div>
+                    </button>
+
+                    <button
+                      type="button"
+                      onClick={() => setDocumentMaterial(prev => ({ ...prev, pdfType: 'by-topic' }))}
+                      className={`p-4 rounded-lg border transition-all text-left ${documentMaterial.pdfType === 'by-topic'
+                        ? 'border-[#FF7939] bg-[#FF7939]/10'
+                        : 'border-white/10 bg-black hover:border-[#FF7939]/50'
+                        }`}
+                    >
+                      <FileText className="h-5 w-5 mb-2 text-[#FF7939]" />
+                      <div className="text-sm font-semibold text-white">Por tema</div>
+                      <div className="text-xs text-gray-400 mt-1">Un PDF por cada tema</div>
+                    </button>
+                  </div>
+
+                  {/* PDF General */}
+                  {documentMaterial.pdfType === 'general' && (
+                    <div className="rounded-lg border border-white/10 bg-black p-4">
+                      <div className="text-sm font-semibold text-white mb-3">Documento del producto</div>
+                      <button
+                        type="button"
+                        onClick={() => openPdfGallery({ scope: 'general' })}
+                        disabled={uploadingPdf === 'general'}
+                        className="w-full px-4 py-3 rounded-lg border border-white/10 bg-white/5 hover:bg-white/10 transition-all text-white text-sm disabled:opacity-50 disabled:cursor-not-allowed"
+                      >
+                        <div className="flex items-center justify-center gap-2">
+                          {uploadingPdf === 'general' ? (
+                            <>
+                              <div className="animate-spin h-4 w-4 border-2 border-[#FF7939] border-t-transparent rounded-full" />
+                              <span>Subiendo...</span>
+                            </>
+                          ) : (
+                            <>
+                              <FileUp className="h-4 w-4 text-[#FF7939]" />
+                              <span>{documentMaterial.pdfUrl ? 'Cambiar PDF' : 'Seleccionar PDF'}</span>
+                            </>
+                          )}
+                        </div>
+                      </button>
+                      {documentMaterial.pdfFileName && (
+                        <div className="text-xs text-[#FF7939] mt-2 text-center flex items-center justify-center gap-1">
+                          <span>✓</span>
+                          <span className="truncate max-w-[200px]">{documentMaterial.pdfFileName}</span>
+                        </div>
+                      )}
+                    </div>
+                  )}
+
+                  {/* PDFs por tema */}
+                  {documentMaterial.pdfType === 'by-topic' && (
+                    <div className="space-y-4">
+                      {/* Nuevo tema - solo mostrar si hay temas no guardados */}
+                      {documentMaterial.topics.filter(t => !t.saved).length > 0 && (
+                        <div className="space-y-2">
+                          <div className="text-xs font-semibold text-gray-400 uppercase tracking-wide">Nuevo tema</div>
+
+                          {documentMaterial.topics.filter(t => !t.saved).map((topic, idx) => {
+                            const index = documentMaterial.topics.findIndex(t => t.id === topic.id)
+                            return (
+                              <div key={`${topic.id}-${idx}`} className="rounded border border-white/10 bg-black p-2.5 space-y-2">
+                                <div className="flex items-start gap-2">
+                                  <div className="flex-1 space-y-1.5">
+                                    <Input
+                                      value={topic.title}
+                                      onChange={(e) => {
+                                        const newTopics = [...documentMaterial.topics]
+                                        newTopics[index] = { ...topic, title: e.target.value }
+                                        setDocumentMaterial(prev => ({ ...prev, topics: newTopics }))
+                                      }}
+                                      placeholder="Título"
+                                      className="bg-white/5 border-white/10 text-white text-sm h-7 px-2"
+                                    />
+                                    <Textarea
+                                      value={topic.description}
+                                      onChange={(e) => {
+                                        const newTopics = [...documentMaterial.topics]
+                                        newTopics[index] = { ...topic, description: e.target.value }
+                                        setDocumentMaterial(prev => ({ ...prev, topics: newTopics }))
+                                      }}
+                                      placeholder="Descripción (opcional)"
+                                      className="bg-white/5 border-white/10 text-white text-xs min-h-[45px] px-2 py-1.5"
+                                    />
+                                  </div>
+
+                                </div>
+
+                                <div className="flex items-center gap-1.5">
+                                  <button
+                                    type="button"
+                                    onClick={() => topic.title && openPdfGallery({ scope: 'topic', topicTitle: topic.id })}
+                                    disabled={!topic.title || uploadingPdf === topic.id}
+                                    className={`flex-1 px-2 py-1 rounded border text-xs flex items-center justify-center gap-1 transition-all ${uploadingPdf === topic.id
+                                      ? 'border-[#FF7939]/50 bg-[#FF7939]/10 text-white opacity-70 cursor-wait'
+                                      : topic.title
+                                        ? 'border-white/10 bg-white/5 hover:bg-white/10 text-white'
+                                        : 'border-white/5 bg-white/5 opacity-50 cursor-not-allowed text-gray-500'
+                                      }`}
+                                  >
+                                    {uploadingPdf === topic.id ? (
+                                      <>
+                                        <div className="animate-spin h-2.5 w-2.5 border border-[#FF7939] border-t-transparent rounded-full" />
+                                        <span>Subiendo...</span>
+                                      </>
+                                    ) : (
+                                      <>
+                                        <FileUp className="h-2.5 w-2.5" />
+                                        <span>{documentMaterial.topicPdfs[topic.id]?.url ? 'Cambiar' : 'PDF'}</span>
+                                      </>
+                                    )}
+                                  </button>
+
+                                  {documentMaterial.topicPdfs[topic.id]?.url && (
+                                    <button
+                                      type="button"
+                                      onClick={() => {
+                                        setDocumentMaterial(prev => {
+                                          const newPdfs = { ...prev.topicPdfs }
+                                          delete newPdfs[topic.id]
+                                          return { ...prev, topicPdfs: newPdfs }
+                                        })
+                                      }}
+                                      className="p-1 rounded border border-white/10 hover:bg-red-500/10 hover:border-red-500/30 transition-all"
+                                    >
+                                      <Trash className="h-3.5 w-3.5 text-gray-400" />
+                                    </button>
+                                  )}
+
+                                  <button
+                                    type="button"
+                                    onClick={() => {
+                                      if (topic.title) {
+                                        const newTopics = [...documentMaterial.topics]
+                                        newTopics[index] = { ...topic, saved: true }
+                                        setDocumentMaterial(prev => ({ ...prev, topics: newTopics }))
+                                      }
+                                    }}
+                                    disabled={!topic.title}
+                                    className={`px-2.5 py-1 rounded text-xs font-medium transition-all ${topic.title
+                                      ? 'bg-[#FF7939] text-white hover:bg-[#FF7939]/90'
+                                      : 'bg-white/5 text-gray-500 cursor-not-allowed'
+                                      }`}
+                                  >
+                                    Guardar
+                                  </button>
+                                </div>
+
+                                {/* Mostrar estado del PDF */}
+                                {uploadingPdf === topic.id ? (
+                                  <div className="text-[10px] text-[#FF7939] truncate px-0.5 font-medium flex items-center gap-1 animate-pulse">
+                                    <div className="animate-spin h-2 w-2 border border-[#FF7939] border-t-transparent rounded-full" />
+                                    <span>Subiendo PDF...</span>
+                                  </div>
+                                ) : documentMaterial.topicPdfs[topic.id]?.fileName && (
+                                  <div className="text-[10px] text-[#FF7939] truncate px-0.5 font-medium flex items-center gap-1">
+                                    <span>✓</span>
+                                    <span className="truncate">{documentMaterial.topicPdfs[topic.id]?.fileName}</span>
+                                  </div>
+                                )}
+                              </div>
+                            )
+                          })}
+                        </div>
+                      )}
+
+                      {/* Botón agregar tema */}
+                      <button
+                        type="button"
+                        onClick={() => {
+                          const newTopic = {
+                            id: `topic-${Date.now()}`,
+                            title: '',
+                            description: '',
+                            saved: false
+                          }
+                          setDocumentMaterial(prev => ({ ...prev, topics: [...prev.topics, newTopic] }))
+                        }}
+                        className="w-full px-2.5 py-1.5 rounded border border-dashed border-white/20 hover:border-[#FF7939]/50 hover:bg-white/5 transition-all text-white text-xs flex items-center justify-center gap-1.5"
+                      >
+                        <Plus className="h-3 w-3" />
+                        <span>Agregar tema</span>
+                      </button>
+
+                      {/* Temas guardados */}
+                      {documentMaterial.topics.filter(t => t.saved).length > 0 && (
+                        <div className="mt-4 pt-3 border-t border-white/10">
+                          <div className="text-[10px] font-semibold text-gray-500 mb-2 uppercase tracking-wider">
+                            Temas ({documentMaterial.topics.filter(t => t.saved).length})
+                          </div>
+                          <div className="space-y-1.5">
+                            {documentMaterial.topics.filter(t => t.saved).map((topic, idx) => {
+                              const index = documentMaterial.topics.findIndex(t => t.id === topic.id)
+                              return (
+                                <div key={`${topic.id}-${idx}`} className="group rounded border border-white/5 bg-white/[0.02] p-1.5 hover:border-white/10 hover:bg-white/5 transition-all">
+                                  <div className="flex items-center gap-1.5">
+                                    <div className="flex-1 min-w-0">
+                                      <div className="text-xs text-white font-medium truncate">{topic.title}</div>
+                                      {topic.description && (
+                                        <div className="text-[9px] text-gray-500 truncate mt-0.5">{topic.description}</div>
+                                      )}
+                                      {documentMaterial.topicPdfs[topic.id]?.url && (
+                                        <div className="text-[10px] text-[#FF7939] truncate mt-0.5 flex items-center gap-0.5 font-medium">
+                                          <FileText className="h-2 w-2" />
+                                          {documentMaterial.topicPdfs[topic.id]?.fileName}
+                                        </div>
+                                      )}
+                                    </div>
+
+                                    {/* Botones de acción - siempre visibles */}
+                                    <div className="flex items-center gap-1">
+                                      {/* Editar */}
+                                      <button
+                                        type="button"
+                                        onClick={() => {
+                                          const newTopics = [...documentMaterial.topics]
+                                          newTopics[index] = { ...topic, saved: false }
+                                          setDocumentMaterial(prev => ({ ...prev, topics: newTopics }))
+                                        }}
+                                        className="p-1 rounded hover:bg-blue-500/10 transition-all group/edit"
+                                        title="Editar tema"
+                                      >
+                                        <Pencil className="h-3.5 w-3.5 text-gray-400 group-hover/edit:text-blue-400" />
+                                      </button>
+
+                                      {/* Eliminar tema */}
+                                      <button
+                                        type="button"
+                                        onClick={() => {
+                                          const newTopics = documentMaterial.topics.filter(t => t.id !== topic.id)
+                                          const newPdfs = { ...documentMaterial.topicPdfs }
+                                          delete newPdfs[topic.id]
+                                          setDocumentMaterial(prev => ({ ...prev, topics: newTopics, topicPdfs: newPdfs }))
+                                        }}
+                                        className="p-1 rounded hover:bg-red-500/10 transition-all group/delete"
+                                        title="Eliminar tema"
+                                      >
+                                        <Trash className="h-3.5 w-3.5 text-gray-400 group-hover/delete:text-red-400" />
+                                      </button>
+                                    </div>
+                                  </div>
+                                </div>
+                              )
+                            })}
+                          </div>
+                        </div>
+                      )}
+                    </div>
+                  )}
+                </div>
+              )}
+
               {currentStep === 'preview' && (
                 <div className="space-y-6">
                   <div className="flex justify-center">
@@ -5046,32 +5586,32 @@ export default function CreateProductModal({ isOpen, onClose, editingProduct, in
                           difficulty: specificForm.level || (editingProduct as any)?.difficulty || 'beginner',
                           ...(selectedType === 'workshop'
                             ? (() => {
-                                const titles = new Set<string>()
-                                const dates = new Set<string>()
-                                ;(workshopSchedule || []).forEach((s: any) => {
+                              const titles = new Set<string>()
+                              const dates = new Set<string>()
+                                ; (workshopSchedule || []).forEach((s: any) => {
                                   const t = String(s?.title || '').trim()
                                   if (t) titles.add(t)
                                   const d = String(s?.date || '').trim()
                                   if (d) dates.add(d)
                                 })
-                                const now = new Date()
-                                now.setHours(0, 0, 0, 0)
-                                const hasFuture = (workshopSchedule || []).some((s: any) => {
-                                  const ds = String(s?.date || '').trim()
-                                  if (!ds) return false
-                                  const dd = new Date(ds)
-                                  dd.setHours(0, 0, 0, 0)
-                                  return dd >= now
-                                })
-                                return {
-                                  type: 'workshop',
-                                  cantidadTemas: titles.size,
-                                  cantidadDias: dates.size,
-                                  // Forzar estado activo en preview si hay fechas futuras
-                                  taller_activo: hasFuture,
-                                  is_finished: !hasFuture
-                                }
-                              })()
+                              const now = new Date()
+                              now.setHours(0, 0, 0, 0)
+                              const hasFuture = (workshopSchedule || []).some((s: any) => {
+                                const ds = String(s?.date || '').trim()
+                                if (!ds) return false
+                                const dd = new Date(ds)
+                                dd.setHours(0, 0, 0, 0)
+                                return dd >= now
+                              })
+                              return {
+                                type: 'workshop',
+                                cantidadTemas: titles.size,
+                                cantidadDias: dates.size,
+                                // Forzar estado activo en preview si hay fechas futuras
+                                taller_activo: hasFuture,
+                                is_finished: !hasFuture
+                              }
+                            })()
                             : {}),
                           // Mostrar objetivos seleccionados en el preview
                           objetivos: generalForm.objetivos || [],
@@ -5083,6 +5623,28 @@ export default function CreateProductModal({ isOpen, onClose, editingProduct, in
                             const parsed = parseFloat(String(generalForm.price ?? '').replace(',', '.'))
                             return Number.isFinite(parsed) ? parsed : ((editingProduct as any)?.price ?? 0)
                           })(),
+                          // Para documentos: agregar campos denormalizados calculados
+                          ...(selectedType === 'document' ? {
+                            type: 'document',
+                            semanas_totales: (() => {
+                              const valRaw = generalForm.duration_value
+                              const value = parseFloat(valRaw) || 0
+                              if (value <= 0) return 0
+
+                              const unit = generalForm.duration_unit || 'semanas'
+                              if (unit === 'días') return Math.max(1, Math.ceil(value / 7))
+                              if (unit === 'semanas') return Math.ceil(value)
+                              if (unit === 'meses') return Math.ceil(value * 4)
+                              return Math.ceil(value)
+                            })(),
+                            cantidadTemas: documentMaterial.topics.filter(t => t.saved).length,
+                            items_unicos: documentMaterial.topics.filter(t => t.saved).length,
+                            items_totales: documentMaterial.topics.filter(t => t.saved).length,
+                            sesiones_dias_totales: 0,
+                            capacity: generalForm.capacity === 'limitada'
+                              ? parseInt(generalForm.stockQuantity) || 0
+                              : 999
+                          } : {}),
                           previewStats: {
                             sesiones: derivedPreviewStats.sesiones,
                             ejerciciosTotales: derivedPreviewStats.ejerciciosTotales,
@@ -5152,7 +5714,101 @@ export default function CreateProductModal({ isOpen, onClose, editingProduct, in
             </div>
           </motion.div>
         </motion.div>
+      )
+      }
+
+      {/* Modal de selección de fuente para medios (Foto/Video) */}
+      {showMediaSourceModal && (
+        <div key="media-source-modal" className="fixed inset-0 z-[60] flex items-center justify-center p-4 bg-black/80 backdrop-blur-sm">
+          <motion.div
+            initial={{ opacity: 0, scale: 0.95 }}
+            animate={{ opacity: 1, scale: 1 }}
+            className="bg-[#0A0A0A] border border-white/10 rounded-lg p-6 max-w-md w-full shadow-2xl mx-4"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <h3 className="text-lg font-semibold text-white mb-4">Seleccionar fuente</h3>
+            <p className="text-sm text-gray-400 mb-6">
+              Elegí si querés usar un archivo existente o subir uno nuevo.
+            </p>
+
+            <div className="grid grid-cols-2 gap-3">
+              <button
+                type="button"
+                onClick={() => {
+                  setShowMediaSourceModal(false)
+                  setMediaModalType(inlineMediaType === 'video' ? 'video' : 'image')
+                  setIsMediaModalOpen(true)
+                }}
+                className="p-4 rounded-lg border border-white/10 bg-black hover:border-[#FF7939]/50 hover:bg-white/5 transition-all text-center group"
+              >
+                <ImageIcon className="h-6 w-6 mb-2 text-[#FF7939] mx-auto group-hover:scale-110 transition-transform" />
+                <div className="text-sm font-semibold text-white">Existentes</div>
+                <div className="text-xs text-gray-400 mt-1">De tu galería</div>
+              </button>
+
+              <div
+                className="relative p-4 rounded-lg border border-white/10 bg-black hover:border-[#FF7939]/50 hover:bg-white/5 transition-all text-center group overflow-hidden"
+              >
+                <input
+                  type="file"
+                  accept={inlineMediaType === 'image' ? 'image/*' : 'video/*'}
+                  onChange={(e) => {
+                    console.log('🖼️ [Overlay Media] Change detectado')
+                    handleInlineUploadChange(e)
+                  }}
+                  className="absolute inset-0 w-full h-full opacity-0 cursor-pointer z-10"
+                />
+                <Upload className="h-6 w-6 mb-2 text-[#FF7939] mx-auto group-hover:scale-110 transition-transform" />
+                <div className="text-sm font-semibold text-white">Nuevo</div>
+                <div className="text-xs text-gray-400 mt-1">Subir archivo</div>
+              </div>
+            </div>
+
+            <button
+              type="button"
+              onClick={() => setShowMediaSourceModal(false)}
+              className="mt-6 w-full px-4 py-2 rounded-lg border border-white/10 bg-white/5 hover:bg-white/10 transition-all text-white text-sm"
+            >
+              Cancelar
+            </button>
+          </motion.div>
+        </div>
       )}
-    </AnimatePresence>
+
+      {/* Modal de confirmación de cierre */}
+      {
+        showCloseConfirmation && (
+          <div key="close-confirmation-modal" className="fixed inset-0 z-[60] flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm">
+            <motion.div
+              initial={{ opacity: 0, scale: 0.95 }}
+              animate={{ opacity: 1, scale: 1 }}
+              exit={{ opacity: 0, scale: 0.95 }}
+              className="bg-[#1C1C1E] border border-white/10 rounded-xl p-6 max-w-sm w-full shadow-2xl"
+              onClick={(e) => e.stopPropagation()}
+            >
+              <h3 className="text-lg font-bold text-white mb-2">¿Descartar cambios?</h3>
+              <p className="text-sm text-gray-400 mb-6">
+                Tienes cambios sin guardar. Si cierras ahora, se perderán.
+              </p>
+              <div className="flex gap-3">
+                <Button
+                  variant="outline"
+                  onClick={cancelClose}
+                  className="flex-1 border-white/10 hover:bg-white/5 text-white"
+                >
+                  Continuar editando
+                </Button>
+                <Button
+                  onClick={confirmClose}
+                  className="flex-1 bg-red-500 hover:bg-red-600 text-white border-none"
+                >
+                  Descartar y cerrar
+                </Button>
+              </div>
+            </motion.div>
+          </div>
+        )
+      }
+    </AnimatePresence >
   )
 }

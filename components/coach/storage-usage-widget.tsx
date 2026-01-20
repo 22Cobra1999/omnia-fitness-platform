@@ -3,7 +3,7 @@
 import { useState, useEffect } from 'react'
 import { Button } from '@/components/ui/button'
 import { useAuth } from '@/contexts/auth-context'
-import { 
+import {
   RefreshCw,
   Layers,
   FileCheck,
@@ -88,7 +88,7 @@ export function StorageUsageWidget(props: StorageUsageWidgetProps = {}) {
   const [editingFileName, setEditingFileName] = useState<string | null>(null)
   const [newFileName, setNewFileName] = useState<string>('')
   const [viewingFile, setViewingFile] = useState<StorageFile | null>(null)
-  
+
   // Obtener el plan desde la API si no se proporciona como prop
   useEffect(() => {
     if (!planProp) {
@@ -117,7 +117,7 @@ export function StorageUsageWidget(props: StorageUsageWidgetProps = {}) {
       setCurrentPlan(planProp)
     }
   }, [planProp])
-  
+
   // Obtener límite de almacenamiento según el plan
   const planType = currentPlan || planProp || DEFAULT_PLAN
   const storageLimitGB = PLAN_STORAGE_LIMITS[planType] || PLAN_STORAGE_LIMITS[DEFAULT_PLAN]
@@ -135,10 +135,10 @@ export function StorageUsageWidget(props: StorageUsageWidgetProps = {}) {
       conceptFilter,
       viewMode,
     })
-    
+
     try {
       const usageResponse = await fetch('/api/coach/storage-usage', { credentials: 'include' })
-      
+
       if (!usageResponse.ok) {
         console.warn('[storage-widget] storage-usage non-ok', {
           status: usageResponse.status,
@@ -146,7 +146,7 @@ export function StorageUsageWidget(props: StorageUsageWidgetProps = {}) {
         })
         throw new Error(`HTTP error! status: ${usageResponse.status}`)
       }
-      
+
       const usageResult = await usageResponse.json()
 
       console.log('[storage-widget] storage-usage response', {
@@ -156,7 +156,7 @@ export function StorageUsageWidget(props: StorageUsageWidgetProps = {}) {
         total: usageResult?.storage?.total,
         breakdown: usageResult?.storage?.breakdown
       })
-      
+
       if (usageResult.success && usageResult.storage) {
         setStorageData(usageResult.storage)
       } else {
@@ -252,7 +252,7 @@ export function StorageUsageWidget(props: StorageUsageWidgetProps = {}) {
       setShowDeleteWarning(true)
       return
     }
-    
+
     // Si no está en uso, eliminar directamente
     await deleteFile(file)
   }
@@ -275,7 +275,7 @@ export function StorageUsageWidget(props: StorageUsageWidgetProps = {}) {
         // Para imágenes y PDFs, necesitamos el nombre real del archivo
         // El fileName puede ser sintético, necesitamos extraer el nombre real
         endpoint = '/api/storage/delete-file'
-        body = { 
+        body = {
           fileName: file.fileName,
           concept: file.concept,
           activityIds: file.activities.map(a => a.id)
@@ -333,7 +333,7 @@ export function StorageUsageWidget(props: StorageUsageWidgetProps = {}) {
     try {
       // Llamar al endpoint para actualizar en la BD
       console.log('[storage-widget] Guardando nombre:', { fileId: file.fileId, fileName: newFileName.trim(), concept: file.concept })
-      
+
       const response = await fetch('/api/storage/update-file-name', {
         method: 'POST',
         headers: {
@@ -367,15 +367,15 @@ export function StorageUsageWidget(props: StorageUsageWidgetProps = {}) {
       }
 
       // Actualizar localmente solo si la actualización fue exitosa
-      const updatedFiles = storageFiles.map(f => 
-        f.fileId === file.fileId 
+      const updatedFiles = storageFiles.map(f =>
+        f.fileId === file.fileId
           ? { ...f, fileName: newFileName.trim() }
           : f
       )
       setStorageFiles(updatedFiles)
       setEditingFileName(null)
       setNewFileName('')
-      
+
       // Recargar los datos para asegurar consistencia con la BD
       await loadStorageUsage()
     } catch (error) {
@@ -391,7 +391,7 @@ export function StorageUsageWidget(props: StorageUsageWidgetProps = {}) {
   // Agrupar por actividad
   const getActivityView = () => {
     const activityMap = new Map<number, { name: string, files: StorageFile[], totalGB: number }>()
-    
+
     const filteredFiles = storageFiles.filter((file) => conceptFilter === 'all' || file.concept === conceptFilter)
 
     filteredFiles.forEach(file => {
@@ -404,7 +404,7 @@ export function StorageUsageWidget(props: StorageUsageWidgetProps = {}) {
         activity.totalGB += file.sizeGB
       })
     })
-    
+
     return Array.from(activityMap.entries())
       .map(([id, data]) => ({ id, ...data }))
       .sort((a, b) => b.totalGB - a.totalGB)
@@ -423,12 +423,12 @@ export function StorageUsageWidget(props: StorageUsageWidgetProps = {}) {
 
   const usedGB = storageData?.total || 0
   const remainingGB = Math.max(0, storageLimitGB - usedGB)
-  
+
   // Calcular porcentajes basados en el límite total del plan
   const videoGB = storageData?.breakdown.video || 0
   const imageGB = storageData?.breakdown.image || 0
   const pdfGB = storageData?.breakdown.pdf || 0
-  
+
   const videoPercent = storageLimitGB > 0 ? (videoGB / storageLimitGB) * 100 : 0
   const imagePercent = storageLimitGB > 0 ? (imageGB / storageLimitGB) * 100 : 0
   const pdfPercent = storageLimitGB > 0 ? (pdfGB / storageLimitGB) * 100 : 0
@@ -465,34 +465,34 @@ export function StorageUsageWidget(props: StorageUsageWidgetProps = {}) {
             <div className="flex h-full items-center">
               {/* Videos - Naranja más oscuro #FF6B35 */}
               {videoPercent > 0 && (
-                <div 
+                <div
                   className="bg-[#FF6B35] h-full transition-all"
                   style={{ width: `${videoPercent}%`, minWidth: videoPercent > 0.5 ? '4px' : '0px' }}
                   title={`Videos: ${formatMB(videoGB)}`}
                 />
               )}
-              
+
               {/* Imágenes - Naranja semi claro #FF9F5A */}
               {imagePercent > 0 && (
-                <div 
+                <div
                   className="bg-[#FF9F5A] h-full transition-all"
                   style={{ width: `${imagePercent}%`, minWidth: imagePercent > 0.5 ? '4px' : '0px' }}
                   title={`Imágenes: ${formatMB(imageGB)}`}
                 />
               )}
-              
+
               {/* PDFs - Naranja muy claro #FFC999 */}
               {pdfPercent > 0 && (
-                <div 
+                <div
                   className="bg-[#FFC999] h-full transition-all"
                   style={{ width: `${pdfPercent}%`, minWidth: pdfPercent > 0.5 ? '4px' : '0px' }}
                   title={`PDFs: ${formatMB(pdfGB)}`}
                 />
               )}
-              
+
               {/* Disponible - Gris */}
               {availablePercent > 0 && (
-                <div 
+                <div
                   className="bg-gray-600 h-full transition-all"
                   style={{ width: `${availablePercent}%`, minWidth: availablePercent > 0.5 ? '4px' : '0px' }}
                   title={`Disponible: ${formatGB(remainingGB)}`}
@@ -565,312 +565,306 @@ export function StorageUsageWidget(props: StorageUsageWidgetProps = {}) {
 
           {/* Tabs (solo cuando expandido) */}
           {!collapsed && (
-          <div className="flex gap-1 mb-3 border-b border-gray-800">
-            <button
-              onClick={() => setViewMode('activity')}
-              className={`flex-1 py-2 px-2 text-xs font-medium transition-colors ${
-                viewMode === 'activity'
-                  ? 'text-[#FF7939] border-b-2 border-[#FF7939]'
-                  : 'text-gray-400 hover:text-gray-300'
-              }`}
-            >
-              <div className="flex items-center justify-center gap-1">
-                <Layers className="w-3 h-3" />
-                Actividades
-              </div>
-            </button>
-            <button
-              onClick={() => setViewMode('usage')}
-              className={`flex-1 py-2 px-2 text-xs font-medium transition-colors ${
-                viewMode === 'usage'
-                  ? 'text-[#FF7939] border-b-2 border-[#FF7939]'
-                  : 'text-gray-400 hover:text-gray-300'
-              }`}
-            >
-              <div className="flex items-center justify-center gap-1">
-                <FileCheck className="w-3 h-3" />
-                Uso Total
-              </div>
-            </button>
-          </div>
+            <div className="flex gap-1 mb-3 border-b border-gray-800">
+              <button
+                onClick={() => setViewMode('activity')}
+                className={`flex-1 py-2 px-2 text-xs font-medium transition-colors ${viewMode === 'activity'
+                    ? 'text-[#FF7939] border-b-2 border-[#FF7939]'
+                    : 'text-gray-400 hover:text-gray-300'
+                  }`}
+              >
+                <div className="flex items-center justify-center gap-1">
+                  <Layers className="w-3 h-3" />
+                  Actividades
+                </div>
+              </button>
+              <button
+                onClick={() => setViewMode('usage')}
+                className={`flex-1 py-2 px-2 text-xs font-medium transition-colors ${viewMode === 'usage'
+                    ? 'text-[#FF7939] border-b-2 border-[#FF7939]'
+                    : 'text-gray-400 hover:text-gray-300'
+                  }`}
+              >
+                <div className="flex items-center justify-center gap-1">
+                  <FileCheck className="w-3 h-3" />
+                  Uso Total
+                </div>
+              </button>
+            </div>
           )}
 
           {/* Contenido según vista (solo cuando expandido) */}
           {!collapsed && (
-          <div className="space-y-2">
-            {/* Filtros por tipo (imagen / video / pdf) */}
-            <div className="flex items-center justify-center gap-2 pb-2 border-b border-gray-800">
-              <button
-                onClick={() => setConceptFilter('image')}
-                className={`p-2 rounded-lg border transition-colors ${
-                  conceptFilter === 'image'
-                    ? 'bg-[#FF7939]/20 border-[#FF7939]/40 text-[#FF7939]'
-                    : 'bg-transparent border-gray-800 text-gray-400 hover:text-white hover:border-gray-700'
-                }`}
-                title="Filtrar: imágenes"
-              >
-                <ImageIcon className="w-4 h-4" />
-              </button>
-              <button
-                onClick={() => setConceptFilter('video')}
-                className={`p-2 rounded-lg border transition-colors ${
-                  conceptFilter === 'video'
-                    ? 'bg-[#FF7939]/20 border-[#FF7939]/40 text-[#FF7939]'
-                    : 'bg-transparent border-gray-800 text-gray-400 hover:text-white hover:border-gray-700'
-                }`}
-                title="Filtrar: videos"
-              >
-                <Film className="w-4 h-4" />
-              </button>
-              <button
-                onClick={() => setConceptFilter('pdf')}
-                className={`p-2 rounded-lg border transition-colors ${
-                  conceptFilter === 'pdf'
-                    ? 'bg-[#FF7939]/20 border-[#FF7939]/40 text-[#FF7939]'
-                    : 'bg-transparent border-gray-800 text-gray-400 hover:text-white hover:border-gray-700'
-                }`}
-                title="Filtrar: PDFs"
-              >
-                <FileText className="w-4 h-4" />
-              </button>
-              <button
-                onClick={() => setConceptFilter('all')}
-                className={`ml-2 px-2 py-1 rounded-lg border text-[11px] transition-colors ${
-                  conceptFilter === 'all'
-                    ? 'bg-gray-800 border-gray-700 text-white'
-                    : 'bg-transparent border-gray-800 text-gray-400 hover:text-white hover:border-gray-700'
-                }`}
-                title="Quitar filtro"
-                type="button"
-              >
-                Todos
-              </button>
-            </div>
+            <div className="space-y-2">
+              {/* Filtros por tipo (imagen / video / pdf) */}
+              <div className="flex items-center justify-center gap-2 pb-2 border-b border-gray-800">
+                <button
+                  onClick={() => setConceptFilter('image')}
+                  className={`p-2 rounded-lg border transition-colors ${conceptFilter === 'image'
+                      ? 'bg-[#FF7939]/20 border-[#FF7939]/40 text-[#FF7939]'
+                      : 'bg-transparent border-gray-800 text-gray-400 hover:text-white hover:border-gray-700'
+                    }`}
+                  title="Filtrar: imágenes"
+                >
+                  <ImageIcon className="w-4 h-4" />
+                </button>
+                <button
+                  onClick={() => setConceptFilter('video')}
+                  className={`p-2 rounded-lg border transition-colors ${conceptFilter === 'video'
+                      ? 'bg-[#FF7939]/20 border-[#FF7939]/40 text-[#FF7939]'
+                      : 'bg-transparent border-gray-800 text-gray-400 hover:text-white hover:border-gray-700'
+                    }`}
+                  title="Filtrar: videos"
+                >
+                  <Film className="w-4 h-4" />
+                </button>
+                <button
+                  onClick={() => setConceptFilter('pdf')}
+                  className={`p-2 rounded-lg border transition-colors ${conceptFilter === 'pdf'
+                      ? 'bg-[#FF7939]/20 border-[#FF7939]/40 text-[#FF7939]'
+                      : 'bg-transparent border-gray-800 text-gray-400 hover:text-white hover:border-gray-700'
+                    }`}
+                  title="Filtrar: PDFs"
+                >
+                  <FileText className="w-4 h-4" />
+                </button>
+                <button
+                  onClick={() => setConceptFilter('all')}
+                  className={`ml-2 px-2 py-1 rounded-lg border text-[11px] transition-colors ${conceptFilter === 'all'
+                      ? 'bg-gray-800 border-gray-700 text-white'
+                      : 'bg-transparent border-gray-800 text-gray-400 hover:text-white hover:border-gray-700'
+                    }`}
+                  title="Quitar filtro"
+                  type="button"
+                >
+                  Todos
+                </button>
+              </div>
 
-            {/* Vista por Actividad */}
-            {viewMode === 'activity' && (
-              <>
-                {loadingFiles ? (
-                  <div className="flex justify-center items-center py-4">
-                    <RefreshCw className="w-5 h-5 animate-spin text-[#FF7939]" />
-                  </div>
-                ) : getActivityView().length > 0 ? (
-                  <>
-                    {getActivityView().slice(0, expanded ? getActivityView().length : 5).map((activity, idx) => {
-                      const uniqueConcepts = [...new Set(activity.files.map(f => f.concept))]
-                      
-                      return (
-                        <div key={`activity-${activity.id}-${idx}`} className="text-xs pb-3 border-b border-gray-800 last:border-0">
-                          <div className="flex items-start justify-between mb-2">
-                            <div className="flex items-start gap-2 flex-1 min-w-0">
-                              <Layers className="h-4 w-4 text-[#FF7939] mt-0.5 flex-shrink-0" />
-                              <div className="flex-1 min-w-0">
-                                <div className="text-white font-medium truncate mb-1">{activity.name}</div>
-                                <div className="text-gray-500 text-[10px]">
-                                  {activity.files.length} {activity.files.length === 1 ? 'archivo' : 'archivos'} • {uniqueConcepts.length} {uniqueConcepts.length === 1 ? 'tipo' : 'tipos'}
+              {/* Vista por Actividad */}
+              {viewMode === 'activity' && (
+                <>
+                  {loadingFiles ? (
+                    <div className="flex justify-center items-center py-4">
+                      <RefreshCw className="w-5 h-5 animate-spin text-[#FF7939]" />
+                    </div>
+                  ) : getActivityView().length > 0 ? (
+                    <>
+                      {getActivityView().slice(0, expanded ? getActivityView().length : 5).map((activity, idx) => {
+                        const uniqueConcepts = [...new Set(activity.files.map(f => f.concept))]
+
+                        return (
+                          <div key={`activity-${activity.id}-${idx}`} className="text-xs pb-3 border-b border-gray-800 last:border-0">
+                            <div className="flex items-start justify-between mb-2">
+                              <div className="flex items-start gap-2 flex-1 min-w-0">
+                                <Layers className="h-4 w-4 text-[#FF7939] mt-0.5 flex-shrink-0" />
+                                <div className="flex-1 min-w-0">
+                                  <div className="text-white font-medium truncate mb-1">{activity.name}</div>
+                                  <div className="text-gray-500 text-[10px]">
+                                    {activity.files.length} {activity.files.length === 1 ? 'archivo' : 'archivos'} • {uniqueConcepts.length} {uniqueConcepts.length === 1 ? 'tipo' : 'tipos'}
+                                  </div>
                                 </div>
                               </div>
+                              <span className="text-white font-semibold ml-2">
+                                {formatMB(activity.totalGB)}
+                              </span>
                             </div>
-                            <span className="text-white font-semibold ml-2">
-                              {formatMB(activity.totalGB)}
-                            </span>
+                            {/* Scroll horizontal de archivos */}
+                            <div className="flex gap-1 overflow-x-auto pb-1 hide-scrollbar">
+                              {activity.files.map((file, fileIdx) => {
+                                const getFileIcon = () => {
+                                  if (file.concept === 'video') return <Film className="w-3 h-3" />
+                                  if (file.concept === 'image') return <ImageIcon className="w-3 h-3" />
+                                  return <FileText className="w-3 h-3" />
+                                }
+                                return (
+                                  <span
+                                    key={fileIdx}
+                                    className="bg-[#FF7939]/20 text-[#FF7939] text-[10px] px-2 py-1 rounded-full font-medium border border-[#FF7939]/30 whitespace-nowrap flex-shrink-0 flex items-center gap-1"
+                                    title={file.fileName}
+                                  >
+                                    {getFileIcon()}
+                                    {file.fileName.length > 15 ? `${file.fileName.substring(0, 15)}...` : file.fileName}
+                                  </span>
+                                )
+                              })}
+                            </div>
                           </div>
-                          {/* Scroll horizontal de archivos */}
-                          <div className="flex gap-1 overflow-x-auto pb-1 hide-scrollbar">
-                            {activity.files.map((file, fileIdx) => {
-                              const getFileIcon = () => {
-                                if (file.concept === 'video') return <Film className="w-3 h-3" />
-                                if (file.concept === 'image') return <ImageIcon className="w-3 h-3" />
-                                return <FileText className="w-3 h-3" />
-                              }
-                              return (
-                                <span
-                                  key={fileIdx}
-                                  className="bg-[#FF7939]/20 text-[#FF7939] text-[10px] px-2 py-1 rounded-full font-medium border border-[#FF7939]/30 whitespace-nowrap flex-shrink-0 flex items-center gap-1"
-                                  title={file.fileName}
-                                >
-                                  {getFileIcon()}
-                                  {file.fileName.length > 15 ? `${file.fileName.substring(0, 15)}...` : file.fileName}
-                                </span>
-                              )
-                            })}
-                          </div>
-                        </div>
-                      )
-                    })}
-                    
-                    {getActivityView().length > 5 && (
-                      <button
-                        onClick={() => setExpanded(!expanded)}
-                        className="w-full flex items-center justify-center gap-1 text-xs text-gray-400 hover:text-white transition-colors py-1"
-                      >
-                        {expanded ? (
-                          <>
-                            Ver menos <ChevronUp className="w-3 h-3" />
-                          </>
-                        ) : (
-                          <>
-                            Ver {getActivityView().length - 5} más <ChevronDown className="w-3 h-3" />
-                          </>
-                        )}
-                      </button>
-                    )}
-                  </>
-                ) : (
-                  <div className="text-center py-4 text-gray-400 text-xs">
-                    No hay actividades disponibles
-                  </div>
-                )}
-              </>
-            )}
+                        )
+                      })}
 
-            {/* Vista por Uso Total */}
-            {viewMode === 'usage' && (
-              <>
-                {loadingFiles ? (
-                  <div className="flex justify-center items-center py-4">
-                    <RefreshCw className="w-5 h-5 animate-spin text-[#FF7939]" />
-                  </div>
-                ) : getUsageView().length > 0 ? (
-                  <>
-                    {getUsageView().slice(0, expanded ? getUsageView().length : 5).map((file, idx) => {
-                      const getIcon = () => {
-                        if (file.concept === 'video') return <Film className="h-4 w-4 text-[#FF7939]" />
-                        if (file.concept === 'image') return <ImageIcon className="h-4 w-4 text-[#FF8C42]" />
-                        return <FileText className="h-4 w-4 text-[#FF9F5A]" />
-                      }
+                      {getActivityView().length > 5 && (
+                        <button
+                          onClick={() => setExpanded(!expanded)}
+                          className="w-full flex items-center justify-center gap-1 text-xs text-gray-400 hover:text-white transition-colors py-1"
+                        >
+                          {expanded ? (
+                            <>
+                              Ver menos <ChevronUp className="w-3 h-3" />
+                            </>
+                          ) : (
+                            <>
+                              Ver {getActivityView().length - 5} más <ChevronDown className="w-3 h-3" />
+                            </>
+                          )}
+                        </button>
+                      )}
+                    </>
+                  ) : (
+                    <div className="text-center py-4 text-gray-400 text-xs">
+                      No hay actividades disponibles
+                    </div>
+                  )}
+                </>
+              )}
 
-                      const isEditingThisFile = editingFileName === file.fileId
+              {/* Vista por Uso Total */}
+              {viewMode === 'usage' && (
+                <>
+                  {loadingFiles ? (
+                    <div className="flex justify-center items-center py-4">
+                      <RefreshCw className="w-5 h-5 animate-spin text-[#FF7939]" />
+                    </div>
+                  ) : getUsageView().length > 0 ? (
+                    <>
+                      {getUsageView().slice(0, expanded ? getUsageView().length : 5).map((file, idx) => {
+                        const getIcon = () => {
+                          if (file.concept === 'video') return <Film className="h-4 w-4 text-[#FF7939]" />
+                          if (file.concept === 'image') return <ImageIcon className="h-4 w-4 text-[#FF8C42]" />
+                          return <FileText className="h-4 w-4 text-[#FF9F5A]" />
+                        }
 
-                      return (
-                        <div key={`usage-${file.fileId}-${idx}`} className="text-xs pb-2 border-b border-gray-800 last:border-0">
-                          <div className="flex items-start justify-between gap-2">
-                            <div className="flex items-start gap-2 flex-1 min-w-0">
-                              {getIcon()}
-                              <div className="flex-1 min-w-0">
-                                {isEditingThisFile ? (
-                                  <div className="flex items-center gap-1 mb-1">
-                                    <input
-                                      type="text"
-                                      value={newFileName}
-                                      onChange={(e) => setNewFileName(e.target.value)}
-                                      onKeyDown={(e) => {
-                                        if (e.key === 'Enter') {
-                                          handleSaveFileName(file)
-                                        } else if (e.key === 'Escape') {
+                        const isEditingThisFile = editingFileName === file.fileId
+
+                        return (
+                          <div key={`usage-${file.fileId}-${idx}`} className="text-xs pb-2 border-b border-gray-800 last:border-0">
+                            <div className="flex items-start justify-between gap-2">
+                              <div className="flex items-start gap-2 flex-1 min-w-0">
+                                {getIcon()}
+                                <div className="flex-1 min-w-0">
+                                  {isEditingThisFile ? (
+                                    <div className="flex items-center gap-1 mb-1">
+                                      <input
+                                        type="text"
+                                        value={newFileName}
+                                        onChange={(e) => setNewFileName(e.target.value)}
+                                        onKeyDown={(e) => {
+                                          if (e.key === 'Enter') {
+                                            handleSaveFileName(file)
+                                          } else if (e.key === 'Escape') {
+                                            setEditingFileName(null)
+                                            setNewFileName('')
+                                          }
+                                        }}
+                                        className="flex-1 px-2 py-1 bg-gray-800 border border-gray-700 rounded text-white text-xs focus:outline-none focus:border-[#FF7939]"
+                                        autoFocus
+                                      />
+                                      <button
+                                        onClick={() => handleSaveFileName(file)}
+                                        className="p-1 text-[#FF7939] hover:text-[#FF8C42] transition-colors"
+                                        title="Guardar"
+                                      >
+                                        <Save className="w-3.5 h-3.5" />
+                                      </button>
+                                      <button
+                                        onClick={() => {
                                           setEditingFileName(null)
                                           setNewFileName('')
+                                        }}
+                                        className="p-1 text-gray-400 hover:text-white transition-colors"
+                                        title="Cancelar"
+                                      >
+                                        <X className="w-3.5 h-3.5" />
+                                      </button>
+                                    </div>
+                                  ) : (
+                                    <div
+                                      className={`text-white font-medium truncate ${editing ? 'cursor-pointer hover:text-[#FF7939]' : ''}`}
+                                      onClick={() => {
+                                        if (editing && (file.concept === 'video' || file.concept === 'image')) {
+                                          handleViewFile(file)
                                         }
                                       }}
-                                      className="flex-1 px-2 py-1 bg-gray-800 border border-gray-700 rounded text-white text-xs focus:outline-none focus:border-[#FF7939]"
-                                      autoFocus
-                                    />
-                                    <button
-                                      onClick={() => handleSaveFileName(file)}
-                                      className="p-1 text-[#FF7939] hover:text-[#FF8C42] transition-colors"
-                                      title="Guardar"
+                                      title={editing && (file.concept === 'video' || file.concept === 'image') ? 'Click para ver' : ''}
                                     >
-                                      <Save className="w-3.5 h-3.5" />
-                                    </button>
-                                    <button
-                                      onClick={() => {
-                                        setEditingFileName(null)
-                                        setNewFileName('')
-                                      }}
-                                      className="p-1 text-gray-400 hover:text-white transition-colors"
-                                      title="Cancelar"
-                                    >
-                                      <X className="w-3.5 h-3.5" />
-                                    </button>
-                                  </div>
-                                ) : (
-                                  <div 
-                                    className={`text-white font-medium truncate ${editing ? 'cursor-pointer hover:text-[#FF7939]' : ''}`}
-                                    onClick={() => {
-                                      if (editing && (file.concept === 'video' || file.concept === 'image')) {
-                                        handleViewFile(file)
-                                      }
-                                    }}
-                                    title={editing && (file.concept === 'video' || file.concept === 'image') ? 'Click para ver' : ''}
-                                  >
-                                    {file.fileName}
-                                  </div>
-                                )}
-                                <div className="text-gray-500 text-[10px] mt-0.5">
-                                  Usado {file.usesCount} {file.usesCount === 1 ? 'vez' : 'veces'} • {formatMB(file.sizeGB)} cada uno
-                                </div>
-                                {file.activities.length > 0 && (
-                                  <div className="text-[10px] text-yellow-500 mt-0.5">
-                                    {file.activities.length} {file.activities.length === 1 ? 'actividad' : 'actividades'}
-                                  </div>
-                                )}
-                              </div>
-                            </div>
-                            <div className="flex items-start gap-2">
-                              <div className="text-right ml-2">
-                                <div className="text-white font-semibold">
-                                  {formatMB(file.totalUsageGB)}
-                                </div>
-                                <div className="text-[10px] text-gray-500">total</div>
-                              </div>
-                              {editing && !isEditingThisFile && (
-                                <div className="flex gap-1">
-                                  {(file.concept === 'video' || file.concept === 'image') && (
-                                    <button
-                                      onClick={() => handleViewFile(file)}
-                                      className="p-1.5 text-[#FF7939] hover:text-[#FF8C42] hover:bg-[#FF7939]/10 rounded transition-colors"
-                                      title="Ver archivo"
-                                    >
-                                      <Eye className="w-3.5 h-3.5" />
-                                    </button>
+                                      {file.fileName}
+                                    </div>
                                   )}
-                                  <button
-                                    onClick={() => handleEditFileName(file)}
-                                    className="p-1.5 text-blue-500 hover:text-blue-400 hover:bg-blue-500/10 rounded transition-colors"
-                                    title="Editar nombre"
-                                  >
-                                    <Edit className="w-3.5 h-3.5" />
-                                  </button>
-                                  <button
-                                    onClick={() => handleDeleteFile(file)}
-                                    className="p-1.5 text-red-500 hover:text-red-400 hover:bg-red-500/10 rounded transition-colors"
-                                    title="Eliminar archivo"
-                                  >
-                                    <Trash2 className="w-3.5 h-3.5" />
-                                  </button>
+                                  <div className="text-gray-500 text-[10px] mt-0.5">
+                                    Usado {file.usesCount} {file.usesCount === 1 ? 'vez' : 'veces'} • {formatMB(file.sizeGB)} cada uno
+                                  </div>
+                                  {file.activities.length > 0 && (
+                                    <div className="text-[10px] text-yellow-500 mt-0.5">
+                                      {file.activities.length} {file.activities.length === 1 ? 'actividad' : 'actividades'}
+                                    </div>
+                                  )}
                                 </div>
-                              )}
+                              </div>
+                              <div className="flex items-start gap-2">
+                                <div className="text-right ml-2">
+                                  <div className="text-white font-semibold">
+                                    {formatMB(file.totalUsageGB)}
+                                  </div>
+                                  <div className="text-[10px] text-gray-500">total</div>
+                                </div>
+                                {editing && !isEditingThisFile && (
+                                  <div className="flex gap-1">
+                                    {(file.concept === 'video' || file.concept === 'image') && (
+                                      <button
+                                        onClick={() => handleViewFile(file)}
+                                        className="p-1.5 text-[#FF7939] hover:text-[#FF8C42] hover:bg-[#FF7939]/10 rounded transition-colors"
+                                        title="Ver archivo"
+                                      >
+                                        <Eye className="w-3.5 h-3.5" />
+                                      </button>
+                                    )}
+                                    <button
+                                      onClick={() => handleEditFileName(file)}
+                                      className="p-1.5 text-blue-500 hover:text-blue-400 hover:bg-blue-500/10 rounded transition-colors"
+                                      title="Editar nombre"
+                                    >
+                                      <Edit className="w-3.5 h-3.5" />
+                                    </button>
+                                    <button
+                                      onClick={() => handleDeleteFile(file)}
+                                      className="p-1.5 text-red-500 hover:text-red-400 hover:bg-red-500/10 rounded transition-colors"
+                                      title="Eliminar archivo"
+                                    >
+                                      <Trash2 className="w-3.5 h-3.5" />
+                                    </button>
+                                  </div>
+                                )}
+                              </div>
                             </div>
                           </div>
-                        </div>
-                      )
-                    })}
-                    
-                    {getUsageView().length > 5 && (
-                      <button
-                        onClick={() => setExpanded(!expanded)}
-                        className="w-full flex items-center justify-center gap-1 text-xs text-gray-400 hover:text-white transition-colors py-1"
-                      >
-                        {expanded ? (
-                          <>
-                            Ver menos <ChevronUp className="w-3 h-3" />
-                          </>
-                        ) : (
-                          <>
-                            Ver {getUsageView().length - 5} más <ChevronDown className="w-3 h-3" />
-                          </>
-                        )}
-                      </button>
-                    )}
-                  </>
-                ) : (
-                  <div className="text-center py-4 text-gray-400 text-xs">
-                    No hay archivos disponibles
-                  </div>
-                )}
-              </>
-            )}
-          </div>
+                        )
+                      })}
+
+                      {getUsageView().length > 5 && (
+                        <button
+                          onClick={() => setExpanded(!expanded)}
+                          className="w-full flex items-center justify-center gap-1 text-xs text-gray-400 hover:text-white transition-colors py-1"
+                        >
+                          {expanded ? (
+                            <>
+                              Ver menos <ChevronUp className="w-3 h-3" />
+                            </>
+                          ) : (
+                            <>
+                              Ver {getUsageView().length - 5} más <ChevronDown className="w-3 h-3" />
+                            </>
+                          )}
+                        </button>
+                      )}
+                    </>
+                  ) : (
+                    <div className="text-center py-4 text-gray-400 text-xs">
+                      No hay archivos disponibles
+                    </div>
+                  )}
+                </>
+              )}
+            </div>
           )}
 
           {/* Modal para ver archivo */}

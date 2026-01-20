@@ -369,10 +369,10 @@ export function CSVManagerEnhanced({
     if (activityId === 0) {
       // Evitar llamadas múltiples simultáneas
       if (isLoadingDataRef.current) {
-        console.log('⏸️ Ya hay una carga en progreso, saltando...')
+        // console.log('⏸️ Ya hay una carga en progreso, saltando...')
         return
       }
-      console.log('🔄 productCategory cambió a:', productCategory, '- Recargando datos')
+      // console.log('🔄 productCategory cambió a:', productCategory, '- Recargando datos')
       isLoadingDataRef.current = true
       // Limpiar datos actuales
       setCsvData([])
@@ -409,11 +409,11 @@ export function CSVManagerEnhanced({
             }
           }
 
-          console.warn('⚠️ Error cargando actividades del coach (response not ok):', {
+          /* console.warn('⚠️ Error cargando actividades del coach (response not ok):', {
             status: activitiesResponse.status,
             statusText: activitiesResponse.statusText,
             body
-          })
+          }) */
 
           return null
         })
@@ -443,7 +443,7 @@ export function CSVManagerEnhanced({
             })
             setActivityNamesMap(namesMap)
             setActivityImagesMap(imagesMap)
-            console.log(`✅ Mapa de actividades cargado: ${Object.keys(namesMap).length} actividades con ${Object.keys(imagesMap).filter(k => imagesMap[parseInt(k)]).length} imágenes`)
+            // console.log(`✅ Mapa de actividades cargado: ${Object.keys(namesMap).length} actividades con ${Object.keys(imagesMap).filter(k => imagesMap[parseInt(k)]).length} imágenes`)
           }
         })
         .catch((err) => {
@@ -463,7 +463,7 @@ export function CSVManagerEnhanced({
         .then(catalogJson => {
           if (catalogJson && catalogJson.success && Array.isArray(catalogJson.data)) {
             const items = catalogJson.data
-            console.log(`✅ ${category === 'nutricion' ? 'Platos' : 'Ejercicios'} de catálogo cargados:`, items.length)
+            // console.log(`✅ ${category === 'nutricion' ? 'Platos' : 'Ejercicios'} de catálogo cargados:`, items.length)
 
             // Transformar datos para nutrición específicamente
             const transformed = productCategory === 'nutricion'
@@ -524,7 +524,7 @@ export function CSVManagerEnhanced({
                 activo: item.is_active !== false
               }))
 
-            console.log(`✅ ${category === 'nutricion' ? 'Platos' : 'Ejercicios'} transformados para tabla:`, transformed.length)
+            // console.log(`✅ ${category === 'nutricion' ? 'Platos' : 'Ejercicios'} transformados para tabla:`, transformed.length)
             setExistingData(transformed)
             setCsvData(transformed)
             if (parentSetCsvData) {
@@ -540,7 +540,7 @@ export function CSVManagerEnhanced({
 
                 if (itemsToLoad.length === 0) return
 
-                console.log(`🔄 Cargando uso en background para ${itemsToLoad.length} ${category === 'nutricion' ? 'platos' : 'ejercicios'}...`)
+                // console.log(`🔄 Cargando uso en background para ${itemsToLoad.length} ${category === 'nutricion' ? 'platos' : 'ejercicios'}...`)
 
                 // Cargar en batches de 10 para no saturar el servidor
                 const batchSize = 10
@@ -611,7 +611,7 @@ export function CSVManagerEnhanced({
 
     // Si acabamos de eliminar, no recargar los datos
     if (justDeletedRef.current) {
-      console.log('🚫 Saltando recarga - acabamos de eliminar filas')
+      // console.log('🚫 Saltando recarga - acabamos de eliminar filas')
       justDeletedRef.current = false
       hasUserInteractedRef.current = true // Marcar que el usuario interactuó
       return
@@ -622,16 +622,16 @@ export function CSVManagerEnhanced({
     if (parentCsvData === undefined) {
       // Evitar llamadas múltiples simultáneas
       if (isLoadingDataRef.current) {
-        console.log('⏸️ Ya hay una carga en progreso, saltando parentCsvData undefined...')
+        // console.log('⏸️ Ya hay una carga en progreso, saltando parentCsvData undefined...')
         return
       }
-      console.log('🔄 parentCsvData es undefined - forzando carga desde servidor (producto recién abierto)')
+      // console.log('🔄 parentCsvData es undefined - forzando carga desde servidor (producto recién abierto)')
       isLoadingDataRef.current = true
       // Limpiar sessionStorage para asegurar que no haya datos obsoletos
       try {
         sessionStorage.removeItem(`activities_draft_${activityId}`)
         sessionStorage.removeItem(`activities_draft_${activityId}_interacted`)
-        console.log('🧹 SessionStorage limpiado para forzar recarga desde backend')
+        // console.log('🧹 SessionStorage limpiado para forzar recarga desde backend')
       } catch (error) {
         console.warn('⚠️ No se pudo limpiar sessionStorage:', error)
       }
@@ -653,10 +653,10 @@ export function CSVManagerEnhanced({
 
     // ✅ PRIORIDAD 2: Si hay datos persistentes del padre Y tiene contenido, NO recargar desde el servidor
     if (parentCsvData && parentCsvData.length > 0) {
-      console.log('📦 Usando datos persistentes del padre, NO recargando desde servidor', {
+      /* console.log('📦 Usando datos persistentes del padre, NO recargando desde servidor', {
         parentDataLength: parentCsvData.length,
         hasParentData: true
-      })
+      }) */
       hasUserInteractedRef.current = true
       setExistingData([])
       return
@@ -666,13 +666,13 @@ export function CSVManagerEnhanced({
     // Esto significa que el usuario eliminó todas las filas intencionalmente
     if (parentCsvData.length === 0) {
       if (hasInteracted || hasUserInteractedRef.current) {
-        console.log('📦 parentCsvData está vacío PERO usuario ya interactuó - NO recargando (eliminaciones intencionales)')
+        // console.log('📦 parentCsvData está vacío PERO usuario ya interactuó - NO recargando (eliminaciones intencionales)')
         hasUserInteractedRef.current = true
         setExistingData([])
         setCsvData([])
         return
       }
-      console.log('📦 parentCsvData está vacío y es primera vez - cargando desde servidor para mostrar platos existentes')
+      // console.log('📦 parentCsvData está vacío y es primera vez - cargando desde servidor para mostrar platos existentes')
     }
 
     // Cargar borrador desde sessionStorage primero (puede contener eliminaciones)
@@ -683,7 +683,7 @@ export function CSVManagerEnhanced({
         if (saved !== null) { // Verificar explícitamente que existe (incluso si es array vacío)
           const parsed = JSON.parse(saved)
           if (Array.isArray(parsed)) {
-            console.log('📦 Cargando datos desde sessionStorage (incluye eliminaciones):', parsed.length, 'filas')
+            // console.log('📦 Cargando datos desde sessionStorage (incluye eliminaciones):', parsed.length, 'filas')
             hasUserInteractedRef.current = true
             setCsvData(parsed)
             // Si hay datos en sessionStorage, actualizar el padre para mantener consistencia
@@ -704,24 +704,24 @@ export function CSVManagerEnhanced({
     if (activityId === 0) {
       // Modo genérico: siempre cargar si no hay datos del padre
       if (parentCsvData.length === 0 && !hasInteracted && !hasUserInteractedRef.current && !isLoadingDataRef.current) {
-        console.log('🔄 Modo genérico: parentCsvData vacío - cargando desde servidor')
+        // console.log('🔄 Modo genérico: parentCsvData vacío - cargando desde servidor')
         loadExistingData()
       } else if (parentCsvData.length > 0) {
-        console.log('📦 Modo genérico: Usando datos del padre, no recargando')
+        // console.log('📦 Modo genérico: Usando datos del padre, no recargando')
         setExistingData([])
       }
     } else if (activityId && activityId > 0) {
       // Si parentCsvData está vacío y no hay interacción previa, cargar
       if (parentCsvData.length === 0 && !hasInteracted && !hasUserInteractedRef.current && !isLoadingDataRef.current) {
-        console.log('🔄 parentCsvData vacío y primera vez - cargando desde servidor')
+        // console.log('🔄 parentCsvData vacío y primera vez - cargando desde servidor')
         loadExistingData()
       }
       // Si hay datos pero no hay interacción, también cargar para asegurar que estén actualizados
       else if (parentCsvData.length > 0 && !hasInteracted && !hasUserInteractedRef.current && !isLoadingDataRef.current) {
-        console.log('🔄 Hay datos pero es primera vez - verificando si hay más en servidor')
+        // console.log('🔄 Hay datos pero es primera vez - verificando si hay más en servidor')
         loadExistingData()
       } else {
-        console.log('📦 Usando datos existentes, no recargando desde servidor')
+        // console.log('📦 Usando datos existentes, no recargando desde servidor')
         setExistingData([])
       }
     } else {
@@ -736,7 +736,7 @@ export function CSVManagerEnhanced({
       // Marcar que el usuario ya interactuó con este paso
       sessionStorage.setItem(`activities_draft_${activityId}_interacted`, 'true')
       hasUserInteractedRef.current = true
-      console.log('💾 Datos guardados en sessionStorage:', csvData.length, 'filas')
+      // console.log('💾 Datos guardados en sessionStorage:', csvData.length, 'filas')
     } catch (error) {
       console.error('❌ Error guardando en sessionStorage:', error)
     }
@@ -773,7 +773,7 @@ export function CSVManagerEnhanced({
   useEffect(() => {
     // Si acabamos de eliminar, no sincronizar para evitar recargas
     if (justDeletedRef.current) {
-      console.log('🚫 Saltando sincronización con parentCsvData - acabamos de eliminar')
+      // console.log('🚫 Saltando sincronización con parentCsvData - acabamos de eliminar')
       return
     }
 
@@ -791,7 +791,7 @@ export function CSVManagerEnhanced({
           // Solo sincronizar si los datos guardados son diferentes a los locales
           // Esto evita loops infinitos
           if (JSON.stringify(currentLocalData) !== JSON.stringify(savedData)) {
-            console.log('📦 Sincronizando desde sessionStorage (prioridad sobre parentCsvData):', savedData.length, 'filas')
+            // console.log('📦 Sincronizando desde sessionStorage (prioridad sobre parentCsvData):', savedData.length, 'filas')
             setCsvData(savedData)
             if (parentSetCsvData) {
               parentSetCsvData(savedData)
@@ -807,13 +807,13 @@ export function CSVManagerEnhanced({
     // Si parentCsvData es undefined, no hacer nada (esperar a que se carguen los datos)
     // PERO no limpiar existingData ni csvData si ya tienen datos cargados
     if (parentCsvData === undefined) {
-      console.log('⏳ parentCsvData es undefined - esperando carga de datos, manteniendo datos locales si existen')
+      // console.log('⏳ parentCsvData es undefined - esperando carga de datos, manteniendo datos locales si existen')
       // Si ya tenemos datos en existingData o csvData, mantenerlos
       if (existingData.length > 0 || csvData.length > 0) {
-        console.log('📦 Manteniendo datos locales mientras se carga parentCsvData:', {
-          existingData: existingData.length,
-          csvData: csvData.length
-        })
+        // console.log('📦 Manteniendo datos locales mientras se carga parentCsvData:', {
+        //   existingData: existingData.length,
+        //   csvData: csvData.length
+        // })
       }
       return
     }
@@ -824,12 +824,12 @@ export function CSVManagerEnhanced({
       if (!loadingExisting && existingData.length === 0 && csvData.length === 0) {
         setCsvData([])
         setExistingData([])
-        console.log('🔄 CSVManagerEnhanced - Estado sincronizado desde padre (csvData vaciado)')
+        // console.log('🔄 CSVManagerEnhanced - Estado sincronizado desde padre (csvData vaciado)')
         if (typeof window !== 'undefined') {
           ; (window as any).__CSV_MANAGER_PARENT__ = []
         }
       } else {
-        console.log('📦 parentCsvData vacío pero hay datos locales - manteniendo datos locales')
+        // console.log('📦 parentCsvData vacío pero hay datos locales - manteniendo datos locales')
       }
       return
     }
@@ -841,23 +841,23 @@ export function CSVManagerEnhanced({
       ; (window as any).__CSV_MANAGER_PARENT__ = parentCsvData
     }
 
-    console.log(
-      '🧾 CSVManagerEnhanced - parentCsvData recibido (datos persistentes con cambios del usuario)',
-      (parentCsvData as any[])
-        ?.slice(0, 3)
-        .map((row, idx) => ({
-          idx,
-          id: row?.id,
-          nombre:
-            row?.['Nombre de la Actividad'] ??
-            row?.nombre_ejercicio ??
-            row?.Nombre ??
-            row?.name ??
-            null,
-          video_file_name: row?.video_file_name,
-          video_url: row?.video_url?.slice?.(0, 60)
-        })) ?? []
-    )
+    // console.log(
+    //   '🧾 CSVManagerEnhanced - parentCsvData recibido (datos persistentes con cambios del usuario)',
+    //   (parentCsvData as any[])
+    //     ?.slice(0, 3)
+    //     .map((row, idx) => ({
+    //       idx,
+    //       id: row?.id,
+    //       nombre:
+    //         row?.['Nombre de la Actividad'] ??
+    //         row?.nombre_ejercicio ??
+    //         row?.Nombre ??
+    //         row?.name ??
+    //         null,
+    //       video_file_name: row?.video_file_name,
+    //       video_url: row?.video_url?.slice?.(0, 60)
+    //     })) ?? []
+    // )
 
     // Actualizar existingData para reflejar solo los items que están en parentCsvData
     // PERO solo si parentCsvData tiene menos items que existingData (indicando eliminaciones)
@@ -875,7 +875,7 @@ export function CSVManagerEnhanced({
       if (prev.length === 0 && parentCsvData.length > 0) {
         const existingItems = parentCsvData.filter((row: any) => row?.isExisting === true)
         if (existingItems.length > 0) {
-          console.log('🔄 Restaurando existingData desde parentCsvData:', existingItems.length, 'items')
+          // console.log('🔄 Restaurando existingData desde parentCsvData:', existingItems.length, 'items')
           return existingItems
         }
       }
@@ -888,10 +888,10 @@ export function CSVManagerEnhanced({
       // Si parentCsvData tiene menos items que existingData, filtrar
       // Esto indica que se eliminaron items
       if (idsInParent.size < prev.length) {
-        console.log('🔄 Filtrando existingData (eliminaciones detectadas):', {
-          antes: prev.length,
-          despues: idsInParent.size
-        })
+        // console.log('🔄 Filtrando existingData (eliminaciones detectadas):', {
+        //   antes: prev.length,
+        //   despues: idsInParent.size
+        // })
         return prev.filter(item => {
           const id = (item as any)?.id
           if (id === undefined || id === null) {
@@ -906,29 +906,29 @@ export function CSVManagerEnhanced({
       return prev
     })
 
-    console.log('🔄 CSVManagerEnhanced - Estado actual sincronizado desde padre (csvData)', {
-      filas: parentCsvData.length,
-      primeros3: parentCsvData.slice(0, 3).map((row: any) => ({
-        id: row.id,
-        tempId: row.tempId,
-        nombre: row['Nombre'] || row.nombre || row.nombre_plato,
-        isExisting: row.isExisting,
-        is_active: row.is_active,
-        activo: row.activo
-      }))
-    })
+    // console.log('🔄 CSVManagerEnhanced - Estado actual sincronizado desde padre (csvData)', {
+    //   filas: parentCsvData.length,
+    //   primeros3: parentCsvData.slice(0, 3).map((row: any) => ({
+    //     id: row.id,
+    //     tempId: row.tempId,
+    //     nombre: row['Nombre'] || row.nombre || row.nombre_plato,
+    //     isExisting: row.isExisting,
+    //     is_active: row.is_active,
+    //     activo: row.activo
+    //   }))
+    // })
   }, [parentCsvData, activityId, loadingExisting])
 
   const loadExistingData = async () => {
     // Prevenir llamadas múltiples simultáneas
     if (isLoadingDataRef.current) {
-      console.log('⏸️ loadExistingData: Ya hay una carga en progreso, saltando...')
+      // console.log('⏸️ loadExistingData: Ya hay una carga en progreso, saltando...')
       return
     }
     isLoadingDataRef.current = true
     // Modo genérico: activityId = 0 significa cargar todos los ejercicios/platos del coach
     if (activityId === 0) {
-      console.log('🔄 Modo genérico: Cargando todos los ejercicios/platos del coach')
+      // console.log('🔄 Modo genérico: Cargando todos los ejercicios/platos del coach')
       setLoadingExisting(true)
       try {
         // Primero cargar las actividades del coach para tener el mapa de nombres
@@ -961,7 +961,7 @@ export function CSVManagerEnhanced({
               })
               setActivityNamesMap(namesMap)
               setActivityImagesMap(imagesMap)
-              console.log(`✅ Mapa de actividades cargado: ${Object.keys(namesMap).length} actividades con ${Object.keys(imagesMap).filter(k => imagesMap[parseInt(k)]).length} imágenes`)
+              // console.log(`✅ Mapa de actividades cargado: ${Object.keys(namesMap).length} actividades con ${Object.keys(imagesMap).filter(k => imagesMap[parseInt(k)]).length} imágenes`)
             }
           }
         } catch (err) {
@@ -973,10 +973,10 @@ export function CSVManagerEnhanced({
         // Para fitness, mantener el filtro de active=true
         const activeParam = productCategory === 'nutricion' ? '' : '&active=true'
         const catalogResponse = await fetch(`/api/coach/exercises?category=${category}${activeParam}`)
-        console.log('📡 Respuesta catálogo genérico:', {
-          endpoint: `/api/coach/exercises?category=${category}`,
-          status: catalogResponse.status
-        })
+        // console.log('📡 Respuesta catálogo genérico:', {
+        //   endpoint: `/api/coach/exercises?category=${category}`,
+        //   status: catalogResponse.status
+        // })
         if (!catalogResponse.ok) {
           const errorText = await catalogResponse.text().catch(() => 'Error desconocido')
           console.error('❌ Error HTTP en catálogo genérico:', {
@@ -998,7 +998,7 @@ export function CSVManagerEnhanced({
 
         if (catalogJson && catalogJson.success && Array.isArray(catalogJson.data)) {
           const items = catalogJson.data
-          console.log(`✅ ${category === 'nutricion' ? 'Platos' : 'Ejercicios'} de catálogo cargados:`, items.length)
+          // console.log(`✅ ${category === 'nutricion' ? 'Platos' : 'Ejercicios'} de catálogo cargados:`, items.length)
 
           // Transformar datos según la categoría
           const transformed = category === 'nutricion'
@@ -1102,11 +1102,11 @@ export function CSVManagerEnhanced({
               activity_id: item.activity_id || null
             }))
 
-          console.log(`✅ ${category === 'nutricion' ? 'Platos' : 'Ejercicios'} de catálogo transformados para tabla:`, transformed.length)
+          // console.log(`✅ ${category === 'nutricion' ? 'Platos' : 'Ejercicios'} de catálogo transformados para tabla:`, transformed.length)
           setExistingData(transformed)
           setCsvData(transformed)
           if (parentSetCsvData) {
-            console.log(`📤 Enviando ${category === 'nutricion' ? 'platos' : 'ejercicios'} de catálogo al padre:`, transformed.length)
+            // console.log(`📤 Enviando ${category === 'nutricion' ? 'platos' : 'ejercicios'} de catálogo al padre:`, transformed.length)
             parentSetCsvData(transformed)
           }
 
@@ -1119,7 +1119,7 @@ export function CSVManagerEnhanced({
 
             if (itemsToLoad.length === 0) return
 
-            console.log(`🔄 Cargando uso en background para ${itemsToLoad.length} ${category === 'nutricion' ? 'platos' : 'ejercicios'}...`)
+            // console.log(`🔄 Cargando uso en background para ${itemsToLoad.length} ${category === 'nutricion' ? 'platos' : 'ejercicios'}...`)
 
             // Cargar en batches de 10 para no saturar el servidor
             const batchSize = 10
@@ -1179,38 +1179,38 @@ export function CSVManagerEnhanced({
     }
 
     if (!activityId || activityId <= 0) {
-      console.log('🚫 No cargando datos existentes - activityId inválido y categoría no es nutrición:', {
-        activityId,
-        productCategory
-      })
+      // console.log('🚫 No cargando datos existentes - activityId inválido y categoría no es nutrición:', {
+      //   activityId,
+      //   productCategory
+      // })
       return
     }
 
     // NO cargar si ya tenemos datos persistentes del padre
     // Esto previene sobrescribir cambios del usuario cuando navega entre pasos
     if (parentCsvData && parentCsvData.length > 0) {
-      console.log('📦 Saltando carga desde servidor - usando datos persistentes del padre (', parentCsvData.length, 'filas)')
+      // console.log('📦 Saltando carga desde servidor - usando datos persistentes del padre (', parentCsvData.length, 'filas)')
       return
     }
 
-    console.log('🔄 Cargando datos existentes para activityId:', activityId, 'productCategory:', productCategory)
+    // console.log('🔄 Cargando datos existentes para activityId:', activityId, 'productCategory:', productCategory)
     setLoadingExisting(true)
     try {
       const endpoint = productCategory === 'nutricion'
         ? `/api/activity-nutrition/${activityId}`
         : `/api/activity-exercises/${activityId}`
       const response = await fetch(endpoint)
-      console.log('📡 Respuesta de carga de existentes:', {
-        endpoint,
-        status: response.status
-      })
+      // console.log('📡 Respuesta de carga de existentes:', {
+      //   endpoint,
+      //   status: response.status
+      // })
       const result = await response.json().catch((err) => {
         console.error('❌ Error parseando JSON de existentes:', err)
         return null
       })
 
       if (response.ok && result && result.success) {
-        console.log('✅ Datos existentes cargados:', result.data.length, 'ejercicios')
+        // console.log('✅ Datos existentes cargados:', result.data.length, 'ejercicios')
         // Cargar reglas condicionales desde sessionStorage si existen
         if (activityId > 0) {
           try {
@@ -1319,13 +1319,13 @@ export function CSVManagerEnhanced({
               minutos: getValue(item.minutos, '')
             }
 
-            console.log('🍽️ Plato transformado:', {
-              id: transformed.id,
-              nombre: transformed['Nombre'],
-              tipo: transformed['Tipo'],
-              is_active: transformed.is_active,
-              activo: transformed.activo
-            })
+            // console.log('🍽️ Plato transformado:', {
+            //   id: transformed.id,
+            //   nombre: transformed['Nombre'],
+            //   tipo: transformed['Tipo'],
+            //   is_active: transformed.is_active,
+            //   activo: transformed.activo
+            // })
 
             return transformed
           } else {
@@ -1352,8 +1352,8 @@ export function CSVManagerEnhanced({
           }
         })
 
-        console.log('🔄 Datos existentes transformados:', transformedExistingData.length, 'ejercicios')
-        console.log('📝 Primer ejercicio transformado:', transformedExistingData[0])
+        // console.log('🔄 Datos existentes transformados:', transformedExistingData.length, 'ejercicios')
+        // console.log('📝 Primer ejercicio transformado:', transformedExistingData[0])
 
         const planningActiveMap = new Map<number, boolean>()
         if (activityId > 0) {
@@ -1389,11 +1389,11 @@ export function CSVManagerEnhanced({
             return false
           })
 
-          console.log('📋 Platos filtrados por actividad:', {
-            total: transformedExistingData.length,
-            activos: transformedExistingData.filter((item: any) => item.is_active !== false).length,
-            inactivos: transformedExistingData.filter((item: any) => item.is_active === false).length
-          })
+          // console.log('📋 Platos filtrados por actividad:', {
+          //   total: transformedExistingData.length,
+          //   activos: transformedExistingData.filter((item: any) => item.is_active !== false).length,
+          //   inactivos: transformedExistingData.filter((item: any) => item.is_active === false).length
+          // })
         }
 
         if (planningActiveMap.size > 0) {
@@ -1412,23 +1412,23 @@ export function CSVManagerEnhanced({
           })
         }
 
-        console.log('✅ Datos transformados listos para mostrar:', transformedExistingData.length, 'platos')
-        console.log('📋 Primeros 3 platos:', transformedExistingData.slice(0, 3).map((item: any) => ({
-          id: item.id,
-          nombre: item['Nombre'] || item.nombre,
-          tipo: item['Tipo'] || item.tipo
-        })))
+        // console.log('✅ Datos transformados listos para mostrar:', transformedExistingData.length, 'platos')
+        // console.log('📋 Primeros 3 platos:', transformedExistingData.slice(0, 3).map((item: any) => ({
+        //   id: item.id,
+        //   nombre: item['Nombre'] || item.nombre,
+        //   tipo: item['Tipo'] || item.tipo
+        // })))
 
         setExistingData(transformedExistingData)
 
         // IMPORTANTE: Siempre actualizar csvData local con los datos existentes para que se muestren
         setCsvData(transformedExistingData)
-        console.log('💾 csvData actualizado con', transformedExistingData.length, 'platos')
+        // console.log('💾 csvData actualizado con', transformedExistingData.length, 'platos')
 
         // Notificar al padre que se cargaron datos existentes
         // Solo sobrescribir si no hay datos persistentes con videos O datos del CSV
         if (parentSetCsvData) {
-          console.log('📤 Notificando al padre sobre datos existentes:', transformedExistingData.length, 'ejercicios')
+          // console.log('📤 Notificando al padre sobre datos existentes:', transformedExistingData.length, 'ejercicios')
 
           // Verificar si hay datos persistentes con videos
           const hasPersistentVideos = parentCsvData && parentCsvData.some((row: any) => row.video_url)
@@ -1438,7 +1438,7 @@ export function CSVManagerEnhanced({
 
 
           if (hasPersistentVideos || hasCsvData) {
-            console.log('🎥 Manteniendo datos persistentes (videos o CSV), no sobrescribiendo')
+            // console.log('🎥 Manteniendo datos persistentes (videos o CSV), no sobrescribiendo')
             // No sobrescribir, mantener los datos persistentes
             // Pero sí agregar los existentes que no estén ya en el padre
             const latestExistingMap = new Map(
@@ -1471,13 +1471,13 @@ export function CSVManagerEnhanced({
             if (newExistingData.length > 0) {
               const combinedData = [...updatedParent, ...newExistingData]
               parentSetCsvData(combinedData)
-              console.log('➕ Agregados', newExistingData.length, 'ejercicios existentes nuevos al padre')
+              // console.log('➕ Agregados', newExistingData.length, 'ejercicios existentes nuevos al padre')
             } else {
               parentSetCsvData(updatedParent)
             }
           } else {
             // Cargando datos existentes transformados - siempre actualizar el padre
-            console.log('📤 Actualizando padre con datos existentes cargados:', transformedExistingData.length, 'platos')
+            // console.log('📤 Actualizando padre con datos existentes cargados:', transformedExistingData.length, 'platos')
             parentSetCsvData(transformedExistingData)
             // Asegurar que también se actualicen en csvData para que se muestren en allData
             setCsvData(transformedExistingData)
@@ -1522,18 +1522,18 @@ export function CSVManagerEnhanced({
     const selectedFile = inputElement.files?.[0]
     if (!selectedFile) return
 
-    console.log('📁 ARCHIVO SELECCIONADO:', {
-      name: selectedFile.name,
-      size: selectedFile.size,
-      type: selectedFile.type,
-      lastModified: new Date(selectedFile.lastModified).toISOString()
-    })
+    // console.log('📁 ARCHIVO SELECCIONADO:', {
+    //   name: selectedFile.name,
+    //   size: selectedFile.size,
+    //   type: selectedFile.type,
+    //   lastModified: new Date(selectedFile.lastModified).toISOString()
+    // })
 
     const extension = selectedFile.name.split('.').pop()?.toLowerCase() || ''
     const isCSV = extension === 'csv'
     const isExcel = extension === 'xlsx' || extension === 'xls'
     if (!isCSV && !isExcel) {
-      console.log('❌ FORMATO NO SOPORTADO:', selectedFile.name)
+      // console.log('❌ FORMATO NO SOPORTADO:', selectedFile.name)
       updateErrorState('Formato no soportado. Descargá la plantilla de ejemplo y sube un archivo .csv o .xlsx.')
       resetInput()
       return
@@ -1549,11 +1549,11 @@ export function CSVManagerEnhanced({
       const rows = parsed.data || []
       const headers = parsed.meta?.fields || []
 
-      console.log(`📊 ${source.toUpperCase()} procesado:`, {
-        totalRows: rows.length,
-        headers,
-        errors: errors.length
-      })
+      // console.log(`📊 ${source.toUpperCase()} procesado:`, {
+      //   totalRows: rows.length,
+      //   headers,
+      //   errors: errors.length
+      // })
 
       if (errors.length > 0) {
         console.error('❌ Errores en el parsing:', errors)
@@ -1562,7 +1562,7 @@ export function CSVManagerEnhanced({
         return
       }
       if (rows.length === 0) {
-        console.log('❌ Archivo vacío')
+        // console.log('❌ Archivo vacío')
         updateErrorState('El archivo está vacío')
         resetInput()
         return
@@ -1705,7 +1705,7 @@ export function CSVManagerEnhanced({
       setCsvData(prev => {
         const prevNonExisting = prev.filter(item => !item.isExisting)
         const combined = [...existingData, ...prevNonExisting, ...newData]
-        console.log('📊 Total datos combinados:', combined.length, '(existing:', existingData.length, 'prev:', prev.length, 'prevNonExisting:', prevNonExisting.length, 'new:', newData.length, ')')
+        // console.log('📊 Total datos combinados:', combined.length, '(existing:', existingData.length, 'prev:', prev.length, 'prevNonExisting:', prevNonExisting.length, 'new:', newData.length, ')')
         return combined
       })
 
@@ -1715,7 +1715,7 @@ export function CSVManagerEnhanced({
         const nonExistingInParent = currentParentData.filter((item: any) => !item.isExisting)
         const newParentData = [...existingInParent, ...nonExistingInParent, ...newData]
         parentSetCsvData(newParentData)
-        console.log('📊 Estado del padre actualizado con archivo:', newParentData.length, '(existing:', existingInParent.length, 'prevNonExisting:', nonExistingInParent.length, 'new:', newData.length, ')')
+        // console.log('📊 Estado del padre actualizado con archivo:', newParentData.length, '(existing:', existingInParent.length, 'prevNonExisting:', nonExistingInParent.length, 'new:', newData.length, ')')
       }
 
       resetInput()
@@ -1813,11 +1813,11 @@ export function CSVManagerEnhanced({
   }
 
   const handleReset = async () => {
-    console.log('🗑️ ELIMINANDO CSV - Estado actual:', {
-      csvDataLength: csvData.length,
-      parentCsvDataLength: parentCsvData?.length || 0,
-      existingDataLength: existingData.length
-    })
+    // console.log('🗑️ ELIMINANDO CSV - Estado actual:', {
+    //   csvDataLength: csvData.length,
+    //   parentCsvDataLength: parentCsvData?.length || 0,
+    //   existingDataLength: existingData.length
+    // })
 
     // Marcar que estamos eliminando para evitar recargas automáticas
     justDeletedRef.current = true
@@ -1828,23 +1828,23 @@ export function CSVManagerEnhanced({
     const csvOnlyDataWithIds = csvOnlyData.filter(item => item.id)
     const idsToDelete = csvOnlyDataWithIds.map(item => item.id).filter((id): id is number => id !== undefined)
 
-    console.log('🗑️ Filas a eliminar:', {
-      totalCsvRows: csvOnlyData.length,
-      csvRowsWithIds: csvOnlyDataWithIds.length,
-      idsToDelete: idsToDelete
-    })
+    // console.log('🗑️ Filas a eliminar:', {
+    //   totalCsvRows: csvOnlyData.length,
+    //   csvRowsWithIds: csvOnlyDataWithIds.length,
+    //   idsToDelete: idsToDelete
+    // })
 
     // Eliminar de la BD solo las que tienen ID
     // En modo genérico (activityId === 0) también permitimos eliminar
     if (idsToDelete.length > 0 && (activityId > 0 || activityId === 0)) {
-      console.log('🗑️ Eliminando filas del CSV de la base de datos:', idsToDelete.length, 'filas')
+      // console.log('🗑️ Eliminando filas del CSV de la base de datos:', idsToDelete.length, 'filas')
       try {
         // Usar el endpoint correcto según la categoría del producto
         const endpoint = productCategory === 'nutricion'
           ? '/api/delete-nutrition-items'
           : '/api/delete-exercise-items'
 
-        console.log('🗑️ Eliminando filas usando endpoint:', endpoint, 'para categoría:', productCategory)
+        // console.log('🗑️ Eliminando filas usando endpoint:', endpoint, 'para categoría:', productCategory)
 
         const response = await fetch(endpoint, {
           method: 'DELETE',
@@ -1861,7 +1861,7 @@ export function CSVManagerEnhanced({
           updateErrorState(`Error al eliminar filas de la base de datos: ${errorData.error}`)
           justDeletedRef.current = false // Reset flag si hay error
         } else {
-          console.log('✅ Filas eliminadas de la base de datos exitosamente')
+          // console.log('✅ Filas eliminadas de la base de datos exitosamente')
         }
       } catch (error) {
         console.error('❌ Error al llamar API de eliminación:', error)
@@ -1883,13 +1883,13 @@ export function CSVManagerEnhanced({
     // IMPORTANTE: Mantener solo las filas existentes, eliminar todas las del CSV
     const onlyExistingData = existingData.filter(item => item.isExisting)
     setCsvData(onlyExistingData)
-    console.log('🗑️ Estado local limpiado, manteniendo solo existentes:', onlyExistingData.length, 'filas')
+    // console.log('🗑️ Estado local limpiado, manteniendo solo existentes:', onlyExistingData.length, 'filas')
 
     // Limpiar datos del padre, manteniendo solo existentes
     if (parentSetCsvData) {
       const parentOnlyExisting = (parentCsvData || []).filter((item: any) => item.isExisting)
       parentSetCsvData(parentOnlyExisting)
-      console.log('🗑️ Datos del padre limpiados, manteniendo solo existentes:', parentOnlyExisting.length, 'filas')
+      // console.log('🗑️ Datos del padre limpiados, manteniendo solo existentes:', parentOnlyExisting.length, 'filas')
 
       // Actualizar también sessionStorage para persistir las eliminaciones
       try {
@@ -1898,7 +1898,7 @@ export function CSVManagerEnhanced({
           sessionStorage.setItem(`activities_draft_${activityId}`, JSON.stringify(parentOnlyExisting))
           sessionStorage.setItem(`activities_draft_${activityId}_interacted`, 'true')
           hasUserInteractedRef.current = true
-          console.log('💾 Eliminaciones guardadas en sessionStorage desde handleReset:', parentOnlyExisting.length, 'filas')
+          // console.log('💾 Eliminaciones guardadas en sessionStorage desde handleReset:', parentOnlyExisting.length, 'filas')
         }
       } catch (error) {
         console.error('❌ Error guardando eliminaciones en sessionStorage:', error)
@@ -1918,7 +1918,7 @@ export function CSVManagerEnhanced({
 
     // NO resetear el flag inmediatamente - mantenerlo para evitar recargas al navegar
     justDeletedRef.current = true
-    console.log('🔄 Flag de eliminación activado para prevenir recarga al navegar desde handleReset')
+    // console.log('🔄 Flag de eliminación activado para prevenir recarga al navegar desde handleReset')
   }
 
   const handleDownloadTemplate = async () => {
@@ -2149,7 +2149,7 @@ Batido de Proteína,Desayuno,Batido con proteína en polvo plátano y leche,320,
       newSelected.add(index)
     }
 
-    console.log('🔄 Selección actualizada:', newSelected.size, 'filas seleccionadas')
+    // console.log('🔄 Selección actualizada:', newSelected.size, 'filas seleccionadas')
 
     // Actualizar estado local
     setSelectedRows(newSelected)
@@ -2157,13 +2157,13 @@ Batido de Proteína,Desayuno,Batido con proteína en polvo plátano y leche,320,
     // Sincronizar con el padre si está disponible
     if (parentSetSelectedRows) {
       parentSetSelectedRows(newSelected)
-      console.log('📤 Selección sincronizada con padre')
+      // console.log('📤 Selección sincronizada con padre')
     }
   }
 
   // Función para editar ejercicio individual
   const handleEditExercise = (exercise: ExerciseData, index: number) => {
-    console.log('✏️ Editando ejercicio:', exercise, 'índice:', index)
+    // console.log('✏️ Editando ejercicio:', exercise, 'índice:', index)
 
     // Cambiar al modo manual para editar
     setMode('manual')
@@ -3189,16 +3189,16 @@ Batido de Proteína,Desayuno,Batido con proteína en polvo plátano y leche,320,
     })
 
     // Debug: Log del resultado final
-    if (normalizedCombined.length > 0) {
-      console.log('✅ allData combinado - Total filas para mostrar:', normalizedCombined.length)
-    } else {
-      console.log('⚠️ allData vacío - No hay datos para mostrar', {
-        existing: existing.length,
-        csv: csv.length,
-        parent: parent ? parent.length : 0,
-        combined: combined.length
-      })
-    }
+    // if (normalizedCombined.length > 0) {
+    //   console.log('✅ allData combinado - Total filas para mostrar:', normalizedCombined.length)
+    // } else {
+    //   console.log('⚠️ allData vacío - No hay datos para mostrar', {
+    //     existing: existing.length,
+    //     csv: csv.length,
+    //     parent: parent ? parent.length : 0,
+    //     combined: combined.length
+    //   })
+    // }
 
     return normalizedCombined
   })()
@@ -3272,14 +3272,14 @@ Batido de Proteína,Desayuno,Batido con proteína en polvo plátano y leche,320,
   }, [allData.length, totalPages])
 
   // Debug: Log de datos actuales
-  console.log('🔍 CSVManagerEnhanced - Estado actual:', {
-    csvDataLength: csvData.length,
-    parentCsvDataLength: parentCsvData?.length || 0,
-    existingDataLength: existingData.length,
-    allDataLength: allData.length,
-    selectedRowsSize: selectedRows.size,
-    duplicatesCount: duplicateNames.length
-  })
+  // console.log('🔍 CSVManagerEnhanced - Estado actual:', {
+  //   csvDataLength: csvData.length,
+  //   parentCsvDataLength: parentCsvData?.length || 0,
+  //   existingDataLength: existingData.length,
+  //   allDataLength: allData.length,
+  //   selectedRowsSize: selectedRows.size,
+  //   duplicatesCount: duplicateNames.length
+  // })
   const totalExercises = allData.length
   // Contar ejercicios nuevos vs existentes en allData
   const newExercises = allData.filter(item => !item.isExisting).length
@@ -3771,14 +3771,14 @@ Batido de Proteína,Desayuno,Batido con proteína en polvo plátano y leche,320,
               <div className="grid grid-cols-2 gap-3">
                 <select className="bg-zinc-900/60 px-3 py-2 rounded text-sm" value={manualForm.tipo_ejercicio || ''} onChange={(e) => setManualForm({ ...manualForm, tipo_ejercicio: normalizeExerciseType(e.target.value) })}>
                   <option value="">Tipo de Ejercicio</option>
-                  {exerciseTypeOptions.map(opt => (
-                    <option key={opt.value} value={opt.value}>{opt.label}</option>
+                  {exerciseTypeOptions.map((opt, idx) => (
+                    <option key={`${opt.value}-${idx}`} value={opt.value}>{opt.label}</option>
                   ))}
                 </select>
                 <select className="bg-zinc-900/60 px-3 py-2 rounded text-sm" value={manualForm.nivel_intensidad || ''} onChange={(e) => setManualForm({ ...manualForm, nivel_intensidad: e.target.value })}>
                   <option value="">Nivel de Intensidad</option>
-                  {intensityLevels.map(opt => (
-                    <option key={opt} value={opt}>{opt}</option>
+                  {intensityLevels.map((opt, idx) => (
+                    <option key={`${opt}-${idx}`} value={opt}>{opt}</option>
                   ))}
                 </select>
               </div>
@@ -3791,8 +3791,8 @@ Batido de Proteína,Desayuno,Batido con proteína en polvo plátano y leche,320,
                 <div className="flex gap-2">
                   <select className="bg-zinc-900/60 px-3 py-2 rounded text-sm flex-1" value={equipoInput} onChange={(e) => setEquipoInput(e.target.value)}>
                     <option value="">Equipo Necesario</option>
-                    {equipmentOptions.map(opt => (
-                      <option key={opt} value={opt}>{opt}</option>
+                    {equipmentOptions.map((opt, idx) => (
+                      <option key={`${opt}-${idx}`} value={opt}>{opt}</option>
                     ))}
                   </select>
                   <Button onClick={() => { if (equipoInput.trim()) { setEquipoList([...equipoList, equipoInput.trim()]); setEquipoInput('') } }} className="bg-orange-600 hover:bg-orange-700 text-white border-0 h-8 px-3 text-xs">+
@@ -3814,8 +3814,8 @@ Batido de Proteína,Desayuno,Batido con proteína en polvo plátano y leche,320,
                 <div className="flex gap-2">
                   <select className="bg-zinc-900/60 px-3 py-2 rounded text-sm flex-1" value={bodyPartInput} onChange={(e) => setBodyPartInput(e.target.value)}>
                     <option value="">Partes del Cuerpo</option>
-                    {bodyPartsOptions.map(opt => (
-                      <option key={opt} value={opt}>{opt}</option>
+                    {bodyPartsOptions.map((opt, idx) => (
+                      <option key={`${opt}-${idx}`} value={opt}>{opt}</option>
                     ))}
                   </select>
                   <Button onClick={() => { if (bodyPartInput.trim()) { setBodyParts([...bodyParts, bodyPartInput.trim()]); setBodyPartInput('') } }} className="bg-orange-600 hover:bg-orange-700 text-white border-0 h-8 px-3 text-xs">
@@ -4558,11 +4558,11 @@ Batido de Proteína,Desayuno,Batido con proteína en polvo plátano y leche,320,
 
                             return (
                               <div className={`flex flex-wrap gap-2 ${activities.length > 3 ? 'max-h-20 overflow-y-auto' : ''}`}>
-                                {activities.map((act) => {
+                                {activities.map((act, idx) => {
                                   const imageUrl = activityImagesMap[act.id] || null
                                   return (
                                     <div
-                                      key={act.id}
+                                      key={`${act.id}-${idx}`}
                                       className="relative inline-flex items-center"
                                       title={act.activo ? `${act.name} (ID: ${act.id}) - Activa` : `${act.name} (ID: ${act.id}) - Inactiva`}
                                     >
@@ -4617,7 +4617,7 @@ Batido de Proteína,Desayuno,Batido con proteína en polvo plátano y leche,320,
                               return (
                                 <div className="space-y-1 break-words">
                                   {pasos.map((paso: string, idx: number) => (
-                                    <div key={idx} className="text-white/90">
+                                    <div key={`paso-${idx}`} className="text-white/90">
                                       {paso}
                                     </div>
                                   ))}
@@ -4708,8 +4708,8 @@ Batido de Proteína,Desayuno,Batido con proteína en polvo plátano y leche,320,
 
                                 return (
                                   <div className="space-y-0.5 break-words">
-                                    {items.map((ing: string, idx: number) => (
-                                      <div key={idx} className="text-white/90 flex items-start">
+                                    {(items || []).map((ing: string, idx: number) => (
+                                      <div key={`ing-${idx}`} className="text-white/90 flex items-start">
                                         <span className="text-[#FF7939] mr-1.5 flex-shrink-0">•</span>
                                         <span className="break-words">{ing}</span>
                                       </div>
