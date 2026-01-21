@@ -500,7 +500,10 @@ const ActivityCard: React.FC<ActivityCardProps> = ({
           )}
           {/* Badge en la esquina inferior izquierda - Rating */}
           <div className="absolute bottom-3 left-3">
-            <span className="bg-black/80 text-white text-xs px-2 py-1 rounded-full">
+            <span className="bg-black/80 text-white text-xs px-2 py-1 rounded-full flex items-center gap-1">
+              {activity.program_rating && activity.program_rating > 0 ? (
+                <Star className="w-3 h-3 fill-yellow-400 text-yellow-400" />
+              ) : null}
               {getRatingDisplay(activity.program_rating, activity.total_program_reviews)}
             </span>
           </div>
@@ -532,13 +535,15 @@ const ActivityCard: React.FC<ActivityCardProps> = ({
           </div>
 
           {/* 2. NOMBRE DEL COACH - Sección fija con líneas separadoras */}
-          {activity.coach_name && (
+          {(activity.coach_name || (activity.coach_rating && activity.coach_rating > 0)) && (
             <div className="border-t border-b border-gray-700/30 py-2 mb-3">
               <div className="flex items-center gap-2">
                 <div className="flex-1 min-w-0 flex items-center gap-2">
-                  <p className="text-xs font-medium text-gray-300 truncate">{activity.coach_name}</p>
+                  <p className="text-xs font-medium text-gray-300 truncate">{activity.coach_name || 'Coach'}</p>
                   <div className="flex items-center gap-1 text-[10px] text-gray-400">
-                    <Star className="h-2.5 w-2.5 fill-yellow-400 text-yellow-400" />
+                    {activity.coach_rating && activity.coach_rating > 0 ? (
+                      <Star className="h-2.5 w-2.5 fill-yellow-400 text-yellow-400" />
+                    ) : null}
                     <span>{activity.coach_rating && activity.coach_rating > 0 ? activity.coach_rating.toFixed(1) : '-'}</span>
                   </div>
                 </div>
@@ -649,19 +654,21 @@ const ActivityCard: React.FC<ActivityCardProps> = ({
               <span className="text-sm font-medium">{loading ? '...' : (activity.items_unicos ?? uniqueExercises)}</span>
             </div>
 
-            {/* Capacidad - Siempre mostrar */}
+            {/* Capacidad */}
             <div className="flex items-center gap-1">
               <Users className="w-4 h-4 text-[#FF7939]" />
               <span className="text-sm font-medium">
-                {productCapacity && capacityNumber ? (
-                  capacityNumber >= 999 ? (
-                    <span className="text-lg font-bold">∞</span>
-                  ) : (
-                    productCapacity
-                  )
-                ) : (
-                  '-'
-                )}
+                {(() => {
+                  // Prioritize stock if available, else capacity
+                  // Some backends might return 'stock' or 'cupos'
+                  const cupos = (activity as any).stock ?? (activity as any).cupos ?? activity.capacity ?? null
+                  const cuposNum = cupos ? parseInt(String(cupos), 10) : null
+
+                  if (cuposNum !== null && !isNaN(cuposNum)) {
+                    return cuposNum >= 999 ? <span className="text-lg font-bold">∞</span> : cuposNum
+                  }
+                  return '-'
+                })()}
               </span>
             </div>
           </div>

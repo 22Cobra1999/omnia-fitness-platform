@@ -7,15 +7,15 @@ import { createRouteHandlerClient } from '@/lib/supabase/supabase-server'
 export async function POST(request: NextRequest) {
   try {
     console.log('📤 [upload-organized] Iniciando upload de archivo...')
-    
+
     const supabase = await createRouteHandlerClient()
     const { data: { user }, error: authError } = await supabase.auth.getUser()
 
     if (authError || !user) {
       console.error('❌ [upload-organized] Error de autenticación:', authError)
-      return NextResponse.json({ 
+      return NextResponse.json({
         success: false,
-        error: 'No autorizado' 
+        error: 'No autorizado'
       }, { status: 401 })
     }
 
@@ -37,18 +37,18 @@ export async function POST(request: NextRequest) {
 
     if (!file) {
       console.error('❌ [upload-organized] No se proporcionó archivo')
-      return NextResponse.json({ 
+      return NextResponse.json({
         success: false,
-        error: 'No se proporcionó archivo' 
+        error: 'No se proporcionó archivo'
       }, { status: 400 })
     }
 
     // Validar que el archivo tenga un nombre válido
     if (!file.name || file.name.trim() === '') {
       console.error('❌ [upload-organized] El archivo no tiene nombre válido')
-      return NextResponse.json({ 
+      return NextResponse.json({
         success: false,
-        error: 'El archivo no tiene un nombre válido' 
+        error: 'El archivo no tiene un nombre válido'
       }, { status: 400 })
     }
 
@@ -91,9 +91,11 @@ export async function POST(request: NextRequest) {
     // Subir el archivo a Supabase Storage
     // Convertir el File a Blob para asegurar compatibilidad
     console.log('⬆️ [upload-organized] Subiendo archivo a storage...')
-    
+
     // Leer el archivo como ArrayBuffer y luego crear un Blob
+    // Leer el archivo como ArrayBuffer y luego crear un Buffer (más compatible con Node)
     const arrayBuffer = await file.arrayBuffer()
+    const fileBuffer = Buffer.from(arrayBuffer)
     const fallbackContentType =
       file.type ||
       (mediaType === 'image'
@@ -102,11 +104,11 @@ export async function POST(request: NextRequest) {
           ? 'video/mp4'
           : 'application/pdf')
 
-    const blob = new Blob([arrayBuffer], { type: fallbackContentType })
-    
+    // const blob = new Blob([arrayBuffer], { type: fallbackContentType }) // Blob puede fallar en Node fetch
+
     const { error: uploadError, data: uploadData } = await supabase.storage
       .from('product-media')
-      .upload(filePath, blob, {
+      .upload(filePath, fileBuffer, {
         cacheControl: '3600',
         upsert: false,
         contentType: fallbackContentType
@@ -114,7 +116,7 @@ export async function POST(request: NextRequest) {
 
     if (uploadError) {
       console.error('❌ [upload-organized] Error subiendo archivo a storage:', uploadError)
-      return NextResponse.json({ 
+      return NextResponse.json({
         success: false,
         error: 'Error al subir el archivo',
         details: uploadError.message,
@@ -131,7 +133,7 @@ export async function POST(request: NextRequest) {
 
     console.log('✅ [upload-organized] URL pública generada:', urlData.publicUrl)
 
-    return NextResponse.json({ 
+    return NextResponse.json({
       success: true,
       url: urlData.publicUrl,
       fileName: fileName,
@@ -141,7 +143,7 @@ export async function POST(request: NextRequest) {
   } catch (error: any) {
     console.error('❌ [upload-organized] Error en POST /api/upload-organized:', error)
     console.error('❌ [upload-organized] Stack:', error.stack)
-    return NextResponse.json({ 
+    return NextResponse.json({
       success: false,
       error: 'Error interno del servidor',
       details: error.message,

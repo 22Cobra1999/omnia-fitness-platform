@@ -1020,6 +1020,44 @@ export async function POST(request: NextRequest) {
       }
     }
 
+    // ✅ MANEJAR TEMAS Y PDFs DE DOCUMENTOS (NUEVO)
+    if (body.modality === 'document' && body.documentMaterial) {
+      const material = body.documentMaterial
+      const topics = material.topics || []
+      const topicPdfs = material.topicPdfs || {}
+
+      // 1. Guardar PDF general si existe
+      if (material.pdfType === 'general' && material.pdfUrl) {
+        await supabase
+          .from('activity_media')
+          .insert({
+            activity_id: newActivity.id,
+            pdf_url: material.pdfUrl
+          })
+      }
+
+      // 2. Guardar cada tema en document_topics
+      for (const topic of topics) {
+        if (!topic.title) continue
+
+        const topicInsert = {
+          activity_id: newActivity.id,
+          title: topic.title,
+          description: topic.description || '',
+          pdf_url: topicPdfs[topic.id]?.url || null,
+          pdf_filename: topicPdfs[topic.id]?.fileName || null
+        }
+
+        const { error: topicError } = await supabase
+          .from('document_topics')
+          .insert(topicInsert)
+
+        if (topicError) {
+          console.error(`❌ Error insertando tema de documento "${topic.title}":`, topicError)
+        }
+      }
+    }
+
     // Devolver formato esperado por el modal
     return NextResponse.json({
       success: true,
@@ -1127,10 +1165,8 @@ export async function PUT(request: NextRequest) {
       totalClientsLimit
     })
 
-    if (isDocumentProduct) {
-      adjustedCapacity = null
-      console.log(`ℹ️ Producto ${body.editingProductId} de tipo documento: la venta es ilimitada, no se aplica límite de cupos.`)
-    } else if (adjustedCapacity !== null && adjustedCapacity !== undefined) {
+    // Permitir capacity para documentos también
+    if (adjustedCapacity !== null && adjustedCapacity !== undefined) {
       const numericCapacity = normalizeCapacity(adjustedCapacity)
       let targetCapacity = numericCapacity
 
@@ -1588,6 +1624,91 @@ export async function PUT(request: NextRequest) {
           console.error('❌ Error eliminando temas obsoletos:', deleteError)
         } else {
           console.log(`✅ Temas obsoletos eliminados correctamente`)
+        }
+      }
+    }
+
+    // ✅ MANEJAR TEMAS Y PDFs DE DOCUMENTOS EN ACTUALIZACIÓN (NUEVO)
+    if (body.modality === 'document' && body.documentMaterial) {
+      const material = body.documentMaterial
+      const topics = material.topics || []
+      const topicPdfs = material.topicPdfs || {}
+
+      // 1. Guardar/Actualizar PDF general en activity_media
+      if (material.pdfType === 'general' && material.pdfUrl) {
+        const { data: existingMedia } = await supabase
+          .from('activity_media')
+          .select('id')
+          .eq('activity_id', body.editingProductId)
+          .maybeSingle()
+
+        if (existingMedia) {
+          await supabase
+            .from('activity_media')
+            .update({ pdf_url: material.pdfUrl })
+            .eq('activity_id', body.editingProductId)
+        } else {
+          await supabase
+            .from('activity_media')
+            .insert({
+              activity_id: body.editingProductId,
+              pdf_url: material.pdfUrl
+            })
+        }
+      }
+
+      // 2. Cargar temas existentes para sincronizar (desde document_topics)
+      const { data: existingTopics } = await supabase
+        .from('document_topics')
+        .select('id, title')
+        .eq('activity_id', body.editingProductId)
+
+      const existingTopicsMap = new Map()
+      if (existingTopics) {
+        existingTopics.forEach((t: any) => existingTopicsMap.set(t.title, t.id))
+      }
+
+      const currentTopicNames = new Set()
+
+      // 3. Procesar temas: Insertar o actualizar
+      for (const topic of topics) {
+        if (!topic.title) continue
+        currentTopicNames.add(topic.title)
+
+        const topicData = {
+          activity_id: body.editingProductId,
+          title: topic.title,
+          description: topic.description || '',
+          pdf_url: topicPdfs[topic.id]?.url || null,
+          pdf_filename: topicPdfs[topic.id]?.fileName || null
+        }
+
+        if (existingTopicsMap.has(topic.title)) {
+          // Actualizar existente
+          const topicId = existingTopicsMap.get(topic.title)
+          await supabase
+            .from('document_topics')
+            .update(topicData)
+            .eq('id', topicId)
+        } else {
+          // Insertar nuevo
+          await supabase
+            .from('document_topics')
+            .insert(topicData)
+        }
+      }
+
+      // 4. Eliminar temas obsoletos
+      if (existingTopics) {
+        const topicsToDelete = existingTopics
+          .filter((t: any) => !currentTopicNames.has(t.title))
+          .map((t: any) => t.id)
+
+        if (topicsToDelete.length > 0) {
+          await supabase
+            .from('document_topics')
+            .delete()
+            .in('id', topicsToDelete)
         }
       }
     }

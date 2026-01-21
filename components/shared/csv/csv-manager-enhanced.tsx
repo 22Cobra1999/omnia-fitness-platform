@@ -3075,13 +3075,13 @@ Batido de Proteína,Desayuno,Batido con proteína en polvo plátano y leche,320,
 
     // Debug: Log de los datos disponibles
     if (existing.length > 0 || csv.length > 0 || (parent && parent.length > 0)) {
-      console.log('📊 allData - Datos disponibles:', {
-        existing: existing.length,
-        csv: csv.length,
-        parent: parent ? parent.length : 0,
-        parentIsUndefined: parentCsvData === undefined,
-        total: existing.length + csv.length + (parent ? parent.length : 0)
-      })
+      // console.log('📊 allData - Datos disponibles:', {
+      // existing: existing.length,
+      //   csv: csv.length,
+      //     parent: parent ? parent.length : 0,
+      //       parentIsUndefined: parentCsvData === undefined,
+      //         total: existing.length + csv.length + (parent ? parent.length : 0)
+      // })
     }
 
     const existingActiveMap = new Map<number, boolean>()

@@ -2174,6 +2174,18 @@ export function WeeklyExercisePlanner({ exercises, onScheduleChange, onPeriodsCh
     setShowDayExercises(false)
   }
 
+  // Smart day click: assign if exercises are selected, otherwise open day
+  const handleDayClick = (dayNumber: number) => {
+    if (selectedExercises.size > 0) {
+      // Si hay ejercicios seleccionados, asignarlos al día
+      assignSelectedToDay(currentWeek, dayNumber)
+      // NO limpiar la selección para permitir asignar a múltiples días
+    } else {
+      // Si no hay ejercicios seleccionados, abrir el día
+      openDayExercises(String(dayNumber))
+    }
+  }
+
   const removeExerciseFromDay = (dayKey: string, exerciseId: string) => {
     setWeeklySchedule(prev => {
       const newSchedule = { ...prev }
@@ -2623,7 +2635,7 @@ export function WeeklyExercisePlanner({ exercises, onScheduleChange, onPeriodsCh
       <div className="grid grid-cols-2 gap-8">
         {/* Resumen total - Vertical */}
         <div ref={summaryRef} className="space-y-2">
-          <h4 className="text-white text-sm font-medium">Resumen</h4>
+          <h4 className="text-white text-base font-bold uppercase tracking-wider">Resumen</h4>
           <div className="space-y-1 text-xs">
             <div className="flex justify-between">
               <span className="text-gray-400">Semanas:</span>
@@ -2662,7 +2674,7 @@ export function WeeklyExercisePlanner({ exercises, onScheduleChange, onPeriodsCh
 
         {/* Repetir - Centrado */}
         <div className="flex flex-col items-center space-y-2 mt-4">
-          <h4 className="text-white text-sm font-medium">Repetir</h4>
+          <h4 className="text-white text-base font-bold uppercase tracking-wider">Repetir</h4>
           {(() => {
             const canDecreasePeriods = periods > 1
             // ✅ Usar semanas con ejercicios válidos en lugar de numberOfWeeks total
@@ -2675,8 +2687,8 @@ export function WeeklyExercisePlanner({ exercises, onScheduleChange, onPeriodsCh
                   onClick={decreasePeriods}
                   disabled={!canDecreasePeriods}
                   className={`w-6 h-6 rounded-full border-2 text-xs font-light transition-colors flex items-center justify-center ${canDecreasePeriods
-                      ? 'border-[#FF7939] text-[#FF7939] hover:bg-[#FF7939]/10'
-                      : 'border-gray-700 text-gray-600 cursor-not-allowed opacity-50'
+                    ? 'border-[#FF7939] text-[#FF7939] hover:bg-[#FF7939]/10'
+                    : 'border-gray-700 text-gray-600 cursor-not-allowed opacity-50'
                     }`}
                 >
                   -
@@ -2686,8 +2698,8 @@ export function WeeklyExercisePlanner({ exercises, onScheduleChange, onPeriodsCh
                   onClick={increasePeriods}
                   disabled={!canIncreasePeriods}
                   className={`w-6 h-6 rounded-full border-2 text-xs font-light transition-colors flex items-center justify-center ${canIncreasePeriods
-                      ? 'border-[#FF7939] text-[#FF7939] hover:bg-[#FF7939]/10'
-                      : 'border-gray-700 text-gray-600 cursor-not-allowed opacity-50'
+                    ? 'border-[#FF7939] text-[#FF7939] hover:bg-[#FF7939]/10'
+                    : 'border-gray-700 text-gray-600 cursor-not-allowed opacity-50'
                     }`}
                 >
                   +
@@ -2706,8 +2718,8 @@ export function WeeklyExercisePlanner({ exercises, onScheduleChange, onPeriodsCh
             onClick={handleUndo}
             disabled={!canUndo}
             className={`w-8 h-8 rounded-full border-2 flex items-center justify-center transition-colors ${canUndo
-                ? 'border-[#FF7939] text-[#FF7939] hover:bg-[#FF7939]/10 bg-black'
-                : 'border-gray-700 text-gray-600 bg-black cursor-not-allowed opacity-50'
+              ? 'border-[#FF7939] text-[#FF7939] hover:bg-[#FF7939]/10 bg-black'
+              : 'border-gray-700 text-gray-600 bg-black cursor-not-allowed opacity-50'
               }`}
             title={canUndo ? 'Deshacer último cambio' : 'No hay acciones para deshacer'}
             aria-label="Deshacer"
@@ -2744,8 +2756,8 @@ export function WeeklyExercisePlanner({ exercises, onScheduleChange, onPeriodsCh
                     key={weekNumber}
                     onClick={() => setCurrentWeek(weekNumber)}
                     className={`w-8 h-8 rounded-full border-2 text-sm font-light transition-colors ${currentWeek === weekNumber
-                        ? 'border-[#FF7939]'
-                        : 'border-gray-600 hover:border-gray-500'
+                      ? 'border-[#FF7939]'
+                      : 'border-gray-600 hover:border-gray-500'
                       }`}
                     style={{
                       color: isWeekEmpty
@@ -2799,14 +2811,14 @@ export function WeeklyExercisePlanner({ exercises, onScheduleChange, onPeriodsCh
                 return isDisabled
               })()}
               className={`w-8 h-8 rounded-full border-2 text-sm font-light transition-colors ${(() => {
-                  if (weeksLimit === null || weeksLimit === undefined) return false
-                  const existingWeekNumbers = Object.keys(weeklySchedule).map(Number).filter(n => !isNaN(n) && n > 0)
-                  const totalWeeksInSchedule = existingWeekNumbers.length
-                  const totalWeeksAfterAdd = totalWeeksInSchedule + 1
-                  return (totalWeeksAfterAdd * periods) > weeksLimit
-                })()
-                  ? 'border-gray-700 text-gray-600 cursor-not-allowed opacity-50'
-                  : 'border-[#FF7939] text-[#FF7939] hover:bg-[#FF7939]/10'
+                if (weeksLimit === null || weeksLimit === undefined) return false
+                const existingWeekNumbers = Object.keys(weeklySchedule).map(Number).filter(n => !isNaN(n) && n > 0)
+                const totalWeeksInSchedule = existingWeekNumbers.length
+                const totalWeeksAfterAdd = totalWeeksInSchedule + 1
+                return (totalWeeksAfterAdd * periods) > weeksLimit
+              })()
+                ? 'border-gray-700 text-gray-600 cursor-not-allowed opacity-50'
+                : 'border-[#FF7939] text-[#FF7939] hover:bg-[#FF7939]/10'
                 }`}
             >
               +
@@ -2838,7 +2850,7 @@ export function WeeklyExercisePlanner({ exercises, onScheduleChange, onPeriodsCh
               <button
                 type="button"
                 key={day.key}
-                onClick={() => openDayExercises(String(day.key))}
+                onClick={() => handleDayClick(day.key)}
                 className="text-center py-1 text-gray-400 text-sm font-medium w-full"
               >
                 {day.label}
@@ -2945,7 +2957,7 @@ export function WeeklyExercisePlanner({ exercises, onScheduleChange, onPeriodsCh
                         <button
                           type="button"
                           key={`${currentWeek}-${day.key}-type-${typeKey}`}
-                          onClick={() => openDayExercises(String(day.key))}
+                          onClick={() => handleDayClick(day.key)}
                           className="p-2 min-h-[40px] relative flex items-center justify-center w-full"
                         >
                           {dayIndex < 6 && (
@@ -2959,7 +2971,7 @@ export function WeeklyExercisePlanner({ exercises, onScheduleChange, onPeriodsCh
                       <button
                         type="button"
                         key={`${currentWeek}-${day.key}-type-${typeKey}`}
-                        onClick={() => openDayExercises(String(day.key))}
+                        onClick={() => handleDayClick(day.key)}
                         className="p-2 min-h-[40px] relative flex items-center justify-center w-full"
                       >
                         <div
@@ -4108,12 +4120,12 @@ function DayExercisesModal({ dayKey, dayLabel, exercises, availableExercises, on
   }
 
   return (
-    <div className="fixed inset-0 bg-black/80 z-50">
-      <div className="bg-black p-4 md:p-6 pt-20 w-screen h-full max-w-none mx-0 overflow-hidden flex flex-col">
+    <div className="fixed inset-0 bg-black/95 z-[100] flex items-center justify-center p-0 sm:p-4 overflow-hidden">
+      <div className="bg-black p-4 md:p-6 pt-20 w-screen h-full max-w-4xl mx-auto overflow-hidden flex flex-col relative">
         {/* Header */}
         <div className="flex justify-between items-center mb-4">
           <div>
-            <h3 className="text-white text-xl font-light">{dayLabel} - Semana {weekNumber}</h3>
+            <h3 className="text-white text-2xl font-bold">{dayLabel} - Semana {weekNumber}</h3>
             <p className="text-gray-400 text-sm">Organiza {isNutrition ? 'platos' : 'ejercicios'} en bloques</p>
           </div>
           <div className="flex items-center gap-3">
@@ -4134,7 +4146,7 @@ function DayExercisesModal({ dayKey, dayLabel, exercises, availableExercises, on
             </button>
           </div>
         </div>
-        <div className="overflow-auto flex-1 pb-24">
+        <div className="overflow-auto flex-1 pb-[400px]">
           {/* Controles de bloques (+ / -) con distribución equitativa */}
           <div className="flex items-center justify-between mb-4 w-full">
             <div className="flex items-center gap-2 flex-1">
@@ -4403,7 +4415,9 @@ function DayExercisesModal({ dayKey, dayLabel, exercises, availableExercises, on
           {/* Botón + ejercicios/platos con desplegable y búsqueda */}
           <div className="mb-6">
             <div className="flex items-center justify-between mb-3">
-              <h4 className="text-white text-sm font-medium">{isNutrition ? 'Selecciona platos' : 'Selecciona ejercicios'}</h4>
+              <h4 className="text-white text-base font-bold uppercase tracking-wider">
+                {isNutrition ? 'Selecciona platos' : 'Selecciona ejercicios'}
+              </h4>
               <button
                 onClick={() => setShowAvailableExercises(!showAvailableExercises)}
                 className="flex items-center gap-2 text-[#FF7939] hover:text-white transition-colors"
@@ -4484,8 +4498,8 @@ function DayExercisesModal({ dayKey, dayLabel, exercises, availableExercises, on
                       onClick={handleClick}
                       onMouseDown={(e) => e.preventDefault()} // Prevenir comportamiento por defecto
                       className={`rounded-lg p-2 transition-colors ${isInactive
-                          ? 'bg-gray-800/10 opacity-50 cursor-not-allowed border border-gray-700/50'
-                          : 'bg-gray-800/30 cursor-pointer hover:bg-gray-800/50 active:bg-gray-800/70'
+                        ? 'bg-gray-800/10 opacity-50 cursor-not-allowed border border-gray-700/50'
+                        : 'bg-gray-800/30 cursor-pointer hover:bg-gray-800/50 active:bg-gray-800/70'
                         }`}
                       title={isInactive ? (isNutrition ? 'Plato desactivado - no se puede agregar' : 'Ejercicio desactivado - no se puede agregar') : `Click para agregar ${exercise.name}`}
                     >
@@ -4578,8 +4592,8 @@ function DayExercisesModal({ dayKey, dayLabel, exercises, availableExercises, on
           )}
 
         </div>
-        {/* Botones de acción (sticky bottom) */}
-        <div className="sticky bottom-16 bg-black pt-3 pb-4 border-t border-gray-800 flex items-center justify-center">
+        {/* Botones de acción (fixed bottom to ensure visibility) */}
+        <div className="absolute bottom-0 left-0 right-0 bg-black/95 backdrop-blur-sm pt-6 pb-12 border-t border-white/10 flex items-center justify-center z-[110]">
           <div className="flex items-center gap-3">
             {similarDays.length > 0 && (
               <button
