@@ -1635,6 +1635,7 @@ export function ActivityScreen() {
                       available_meets: meetCredits[coach.id] || 0 // Use fetched meet credits
                     }
 
+
                     return (
                       <div key={coach.id} className="flex-shrink-0">
                         <CoachProfileCard
@@ -1970,27 +1971,11 @@ export function ActivityScreen() {
             setIsCoachProfileModalOpen(false)
             setSelectedCoachForProfile(null)
           }}
-          // We do not pass preloadedActivities here. 
-          // This allows CoachProfileModal to trigger its internal loadCoachProducts() 
-          // which fetches fresh data from /api/activities/search, ensuring consistency.
-          onActivityClick={handleActivityClick}
-        />
-      )}
-
-      {/* Coach Profile Modal */}
-      {selectedCoachForProfile && (
-        <CoachProfileModal
-          coach={selectedCoachForProfile}
-          isOpen={isCoachProfileModalOpen}
-          onClose={() => {
-            setIsCoachProfileModalOpen(false)
-            setSelectedCoachForProfile(null)
-          }}
-          // Pasar enrollments como "preloadedActivities" podría ser engañoso si el modal espera productos para vender.
-          // Mejor dejar que el modal cargue sus propios productos si no pasamos nada, o pasar undefined.
-          // En search-screen se pasa allActivities. Aquí no tenemos "todos" los productos.
-          // Así que no pasamos preloadedActivities para que el modal haga su fetch.
-          onActivityClick={handleActivityClick}
+        // We do not pass preloadedActivities here. 
+        // This allows CoachProfileModal to trigger its internal loadCoachProducts() 
+        // which fetches fresh data from /api/activities/search, ensuring consistency.
+        // which fetches fresh data from /api/activities/search, ensuring consistency.
+        // onActivityClick={handleActivityClick} // REMOVED: Should handle its own clicks to show Product Details
         />
       )}
 

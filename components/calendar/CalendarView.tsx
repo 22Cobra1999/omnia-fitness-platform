@@ -646,18 +646,7 @@ export default function CalendarView({ activityIds, onActivityClick, scheduleMee
         }
 
         const meetEvents = (meetEventsRes as any)?.data
-        // Nota: si el select falla, supabase devuelve data=null; normalizamos.
         const meetEventsSafe = Array.isArray(meetEvents) ? meetEvents : []
-
-        if (process.env.NODE_ENV !== 'production') {
-          console.log('📅 [CalendarView] client meet fetch debug', {
-            monthStart: monthStart.toISOString(),
-            monthEndExclusive: addDays(monthEnd, 1).toISOString(),
-            participantRows: Array.isArray(myParts) ? myParts.length : 0,
-            candidateEventIds: candidateEventIds.length,
-            meetEventsFetched: meetEventsSafe.length,
-          })
-        }
 
         const meetMap: Record<
           string,
@@ -1187,28 +1176,7 @@ export default function CalendarView({ activityIds, onActivityClick, scheduleMee
           }))
         )
 
-        if (process.env.NODE_ENV === 'development') {
-          const rows = (Array.isArray(data) ? data : []) as any[]
-          const weekdays = rows.map((r) => Number(r.weekday)).filter((n) => Number.isFinite(n))
-          const dist: Record<string, number> = {}
-          weekdays.forEach((w) => {
-            const k = String(w)
-            dist[k] = (dist[k] || 0) + 1
-          })
-          console.log('[MeetCalendar][Availability] coach', selectedCoachId, {
-            totalRows: rows.length,
-            weekdayDistribution: dist,
-            sample: rows.slice(0, 8).map((r) => ({
-              weekday: r.weekday,
-              start_time: String(r.start_time || '').slice(0, 5),
-              end_time: String(r.end_time || '').slice(0, 5),
-              scope: r.scope,
-              year: r.year,
-              month: r.month,
-              timezone: r.timezone,
-            })),
-          })
-        }
+
       } catch (e) {
         console.error('Error fetching coach availability rules:', e)
         setCoachAvailabilityRows([])
@@ -1228,12 +1196,6 @@ export default function CalendarView({ activityIds, onActivityClick, scheduleMee
 
         const start = meetWeekStart
         const end = addDays(meetWeekStart, 7)
-
-        console.log('[CalendarView] loadBookedSlots calling supabase...', {
-          selectedCoachId,
-          start: start.toISOString(),
-          end: end.toISOString()
-        })
 
         const { data, error } = await supabase
           .from('calendar_events')
@@ -1290,11 +1252,6 @@ export default function CalendarView({ activityIds, onActivityClick, scheduleMee
         const start = startOfMonth(currentDate)
         const end = addDays(endOfMonth(currentDate), 1)
 
-        console.log('[CalendarView] loadBookedSlotsMonth calling supabase...', {
-          selectedCoachId,
-          start: start.toISOString(),
-          end: end.toISOString()
-        })
 
         const { data, error } = await supabase
           .from('calendar_events')
@@ -1482,20 +1439,8 @@ export default function CalendarView({ activityIds, onActivityClick, scheduleMee
     const year = monthStart.getFullYear()
     const days = Array.from(availableSlotDays.values()).sort((a, b) => a.localeCompare(b))
 
-    console.log('[MeetCalendar][AvailableDays] coach', selectedCoachId, {
-      year,
-      month,
-      computedDaysCount: days.length,
-      firstDays: days.slice(0, 14),
-    })
-
     if (days.length === 0) {
-      console.warn('[MeetCalendar][AvailableDays] No se computaron días disponibles. Revisar weekday/scope/mes/año.', {
-        year,
-        month,
-        availabilityRowsCount: coachAvailabilityRows.length,
-        sampleRows: coachAvailabilityRows.slice(0, 8),
-      })
+      // no-op
     }
   }, [availableSlotDays, coachAvailabilityRows, currentDate, selectedCoachId])
 
@@ -3107,6 +3052,11 @@ export default function CalendarView({ activityIds, onActivityClick, scheduleMee
                   const hasPendingClientMeet = meets.some((m) => String((m as any)?.rsvp_status || 'pending') === 'pending')
 
                   const isSource = isEditing && sourceDate && isSameDay(day, sourceDate)
+                  const isSelected = selectedDate ? isSameDay(day, selectedDate) : false
+                  const isTodayDate = isToday(day)
+
+                  const coachSlotsCount = availableSlotsCountByDay[dateKey] || 0
+                  const hasMeetSlots = coachSlotsCount > 0
 
                   return (
                     <button
