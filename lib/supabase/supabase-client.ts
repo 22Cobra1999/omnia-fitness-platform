@@ -1,7 +1,7 @@
-import { createBrowserClient } from "@supabase/ssr"
+import { createClient } from "@supabase/supabase-js"
 
 // Singleton pattern para el cliente de Supabase
-let supabaseClientInstance: ReturnType<typeof createBrowserClient> | null = null
+let supabaseClientInstance: ReturnType<typeof createClient> | null = null
 
 export const createSupabaseClient = () => {
   if (supabaseClientInstance) {
@@ -15,9 +15,15 @@ export const createSupabaseClient = () => {
     throw new Error("Missing Supabase environment variables")
   }
 
-  // createBrowserClient usa document.cookie automáticamente en el navegador
-  // No necesitamos configuración adicional de cookies
-  supabaseClientInstance = createBrowserClient(supabaseUrl, supabaseAnonKey)
+  console.log('🔌 [SupabaseClient] Initializing vanilla JS client with URL:', supabaseUrl)
+
+  supabaseClientInstance = createClient(supabaseUrl, supabaseAnonKey, {
+    auth: {
+      persistSession: true,
+      autoRefreshToken: true,
+      detectSessionInUrl: true
+    }
+  })
 
   return supabaseClientInstance
 }
