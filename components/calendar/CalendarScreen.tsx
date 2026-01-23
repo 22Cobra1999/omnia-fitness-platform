@@ -216,7 +216,7 @@ export function CalendarScreen({ onTabChange }: CalendarScreenProps) {
   }
 
   return (
-    <div className="h-screen bg-[#121212] overflow-y-auto">
+    <div className="h-screen bg-[#121212] overflow-y-auto custom-scrollbar">
       <CalendarView
         activityIds={activityIds}
         onActivityClick={handleActivityClick}

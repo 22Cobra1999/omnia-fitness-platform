@@ -1,16 +1,20 @@
 "use client"
 
 import { useState, useEffect } from 'react'
-import { ChevronDown, ChevronUp, Clock, Calendar, Users, CheckCircle, X, Edit2 } from 'lucide-react'
+import { Calendar, Clock, CheckCircle, ChevronDown, ChevronUp, Download, AlignLeft, Star, Users, X, Edit2, FileText } from "lucide-react"
 import { createClient } from '@/lib/supabase/supabase-client'
 import { useAuth } from '@/contexts/auth-context'
 import { format } from 'date-fns'
 import { es } from 'date-fns/locale'
+import { Button } from "@/components/ui/button"
+import { ActivitySurveyModal } from "@/components/shared/activities/activity-survey-modal"
 
 interface TallerDetalle {
   id: number
   nombre: string
   descripcion: string
+  pdf_url?: string
+  pdf_file_name?: string
   originales: {
     fechas_horarios: Array<{
       fecha: string
@@ -23,29 +27,35 @@ interface TallerDetalle {
 
 interface TemaEstado {
   tema_id: number
-  tema_nombre: string
-  fecha_seleccionada: string | null
-  horario_seleccionado: any
+  tema_nombre: string  // From taller_detalles JOIN
+  fecha_seleccionada?: string | null
+  horario_seleccionado?: any
   confirmo_asistencia: boolean
   asistio: boolean
+  // PDF info from taller_detalles
+  pdf_url?: string | null
+  pdf_file_name?: string | null
 }
+
 
 interface WorkshopClientViewProps {
   activityId: number
   activityTitle: string
   activityDescription?: string
   activityImageUrl?: string
+  isDocument?: boolean
 }
 
-export function WorkshopClientView({ 
-  activityId, 
-  activityTitle, 
+export function WorkshopClientView({
+  activityId,
+  activityTitle,
   activityDescription,
-  activityImageUrl 
+  activityImageUrl,
+  isDocument = false
 }: WorkshopClientViewProps) {
   const { user } = useAuth()
   const supabase = createClient()
-  
+
   const [temas, setTemas] = useState<TallerDetalle[]>([])
   const [ejecucionId, setEjecucionId] = useState<number | null>(null)
   const [temasCubiertos, setTemasCubiertos] = useState<TemaEstado[]>([])
@@ -55,29 +65,45 @@ export function WorkshopClientView({
   const [cuposOcupados, setCuposOcupados] = useState<Record<string, number>>({})
   const [showConfirmModal, setShowConfirmModal] = useState(false)
   const [selectedHorario, setSelectedHorario] = useState<any>(null)
-  // Indica si este cliente pertenece a la versión ACTUAL del taller
-  // Si es false, no debe poder reservar en los nuevos horarios de una versión futura
   const [isOnCurrentWorkshopVersion, setIsOnCurrentWorkshopVersion] = useState(true)
+  const [documentProgress, setDocumentProgress] = useState<Record<number, boolean>>({})
+  const [enrollment, setEnrollment] = useState<any>(null)
+
+  const [isDescriptionExpanded, setIsDescriptionExpanded] = useState(false)
+  const MAX_DESCRIPTION_LENGTH = 150
+  const [isRatingModalOpen, setIsRatingModalOpen] = useState(false)
+  const [isRated, setIsRated] = useState(false)
 
   useEffect(() => {
-    if (user) {
+    if (user?.id) {
+      loadEnrollment()
       loadWorkshopData()
     }
-  }, [user, activityId])
+  }, [user?.id, activityId])
+
+  const loadEnrollment = async () => {
+    const { data } = await supabase
+      .from('activity_enrollments')
+      .select('*')
+      .eq('client_id', user!.id)
+      .eq('activity_id', activityId)
+      .maybeSingle()
+    if (data) {
+      setEnrollment(data)
+      // Check if already rated (using feedback column or similar flag as program does)
+      setIsRated(data.status === 'finalizada' && (data.rating_activity !== null || data.feedback !== null))
+    }
+  }
 
   const parseSpanishDate = (dateStr: string | null | undefined): Date | null => {
     if (!dateStr) return null
-    // Formato esperado: dd/mm/aa o dd/mm/aaaa
     const parts = dateStr.split('/')
     if (parts.length !== 3) return null
     const [dd, mm, yy] = parts
     const day = parseInt(dd, 10)
     const month = parseInt(mm, 10) - 1
     let year = parseInt(yy, 10)
-    if (year < 100) {
-      // Asumimos siglo 2000+ para dos dígitos
-      year = 2000 + year
-    }
+    if (year < 100) year = 2000 + year
     const d = new Date(year, month, day)
     return isNaN(d.getTime()) ? null : d
   }
@@ -85,119 +111,216 @@ export function WorkshopClientView({
   const loadWorkshopData = async () => {
     try {
       setLoading(true)
-      console.log('📚 [WorkshopClientView] Cargando datos del taller:', activityId)
 
-      // 1. Cargar temas del taller desde taller_detalles
-      const { data: temasData, error: temasError } = await supabase
-        .from('taller_detalles')
-        .select('*')
-        .eq('actividad_id', activityId)
-        .order('id')
+      // 1. Cargar temas o tópicos del documento
+      let temasData: any[] = []
 
-      if (temasError) {
-        console.error('❌ Error cargando temas:', temasError)
-        return
-      }
+      if (isDocument) {
+        const { data: topicsData, error: topicsError } = await supabase
+          .from('document_topics')
+          .select('*')
+          .eq('activity_id', activityId)
+          .order('id')
 
-      setTemas(temasData || [])
-      console.log('✅ Temas cargados:', temasData?.length)
+        if (topicsError) console.error('Error loading document topics', topicsError)
 
-      // 2. Cargar o crear ejecución del cliente
-      // Primero verificar si existe
-      const { data: ejecucionExistente, error: checkError } = await supabase
-        .from('ejecuciones_taller')
-        .select('*')
-        .eq('cliente_id', user!.id)
-        .eq('actividad_id', activityId)
-        .limit(1)
+        // Map document_topics to TallerDetalle structure
+        temasData = (topicsData || []).map((topic: any) => ({
+          id: topic.id,
+          nombre: topic.title,
+          descripcion: topic.description,
+          pdf_url: topic.pdf_url,
+          pdf_file_name: topic.pdf_filename,
+          originales: { fechas_horarios: [] } // Document topics don't have schedules
+        }))
 
-      let ejecucion = ejecucionExistente && ejecucionExistente.length > 0 ? ejecucionExistente[0] : null
+        // Load document progress
+        const { data: progressData } = await supabase
+          .from('client_document_progress')
+          .select('topic_id, completed')
+          .eq('client_id', user!.id)
+          .eq('activity_id', activityId)
 
-      // Si no existe, crear ejecución vacía
-      if (!ejecucion) {
-        console.log('📝 Creando nueva ejecución para el cliente')
-
-        const { data: nuevaEjecucion, error: insertError } = await supabase
-          .from('ejecuciones_taller')
-          .insert({
-            cliente_id: user!.id,
-            actividad_id: activityId,
-            temas_pendientes: [],
-            temas_cubiertos: [],
-            estado: 'en_progreso'
+        if (progressData) {
+          const progressMap: Record<number, boolean> = {}
+          progressData.forEach((p: any) => {
+            progressMap[p.topic_id] = p.completed
           })
-          .select()
-          .single()
-
-        if (insertError) {
-          console.error('❌ Error creando ejecución:', insertError)
-          return
+          setDocumentProgress(progressMap)
         }
 
-        ejecucion = nuevaEjecucion
       } else {
-        console.log('✅ Ejecución existente encontrada, ID:', ejecucion.id)
+        const { data: workshopTemas, error: temasError } = await supabase
+          .from('taller_detalles')
+          .select('*')
+          .eq('actividad_id', activityId)
+          .order('id')
+
+        if (temasError) {
+          console.error('❌ Error cargando temas:', temasError)
+          return
+        }
+        temasData = workshopTemas || []
       }
 
-      setEjecucionId(ejecucion.id)
-      setTemasCubiertos(ejecucion.temas_cubiertos || [])
-      setTemasPendientes(ejecucion.temas_pendientes || [])
+      setTemas(temasData)
 
-      // 3. Determinar si el cliente pertenece a la versión actual del taller
-      try {
-        const { data: activityInfo, error: activityError } = await supabase
-          .from('activities')
-          .select('workshop_versions, created_at')
-          .eq('id', activityId)
-          .single()
+      // 2. For WORKSHOPS ONLY: Check if progress records exist
+      // Documents use client_document_progress table, not taller_progreso_temas
+      let existingProgress: any = null // Declare outside for versioning check later
+      let ejecucionId: number | null = null // Declare outside so it's accessible later
 
-        if (activityError) {
-          console.error('❌ Error cargando activity para versiones de taller:', activityError)
+      if (isDocument) {
+        // For documents, we don't need ejecucion_id, skip to loading progress
+        setEjecucionId(0) // Not used for documents
+      } else {
+        // WORKSHOP: Check if progress records exist for this client+activity
+        const { data: progressData } = await supabase
+          .from('taller_progreso_temas')
+          .select('ejecucion_id, created_at')
+          .eq('cliente_id', user!.id)
+          .eq('actividad_id', activityId)
+          .limit(1)
+
+        existingProgress = progressData
+
+        if (existingProgress && existingProgress.length > 0) {
+          // Use existing ejecucion_id
+          ejecucionId = existingProgress[0].ejecucion_id
         } else {
-          const versions = activityInfo?.workshop_versions?.versions || []
+          // Generate new ejecucion_id (simple counter based on max + 1)
+          const { data: maxEjecucion } = await supabase
+            .from('taller_progreso_temas')
+            .select('ejecucion_id')
+            .order('ejecucion_id', { ascending: false })
+            .limit(1)
 
-          if (versions.length === 0) {
-            // No hay versiones: todos los clientes pertenecen a la versión actual
-            setIsOnCurrentWorkshopVersion(true)
-          } else {
-            const lastVersion = versions[versions.length - 1]
-            const lastVersionStart = parseSpanishDate(lastVersion?.empezada_el)
+          ejecucionId = maxEjecucion && maxEjecucion.length > 0 ? (maxEjecucion[0] as any).ejecucion_id + 1 : 1
 
-            // Usar fecha de inscripción o creación de la ejecución
-            const ejecucionCreatedAt =
-              (ejecucion as any)?.fecha_inscripcion ||
-              (ejecucion as any)?.created_at ||
-              null
+          // Create initial progress records (snapshot)
+          if (temasData.length > 0) {
+            const progressRecords = temasData.map((t: any) => ({
+              ejecucion_id: ejecucionId,
+              cliente_id: user!.id,
+              actividad_id: activityId,
+              tema_id: t.id,
+              snapshot_originales: t.originales || null,
+              estado: 'pendiente'
+            }))
 
-            const ejecucionDate = ejecucionCreatedAt ? new Date(ejecucionCreatedAt) : null
+            const { error: batchError } = await (supabase
+              .from('taller_progreso_temas') as any)
+              .insert(progressRecords)
 
-            if (lastVersionStart && ejecucionDate) {
-              // Si la ejecución es anterior al inicio de la última versión,
-              // significa que este cliente compró una versión ANTERIOR del taller.
-              const belongsToCurrent = ejecucionDate >= lastVersionStart
-              setIsOnCurrentWorkshopVersion(belongsToCurrent)
-
-              console.log('📊 [WorkshopClientView] Versión taller / ejecución cliente', {
-                activityId,
-                ejecucionId: ejecucion.id,
-                ejecucionDate: ejecucionDate.toISOString(),
-                lastVersionStart: lastVersionStart.toISOString(),
-                isOnCurrentWorkshopVersion: belongsToCurrent
-              })
-            } else {
-              // Si no podemos determinar bien las fechas, por seguridad
-              // asumimos que pertenece a la versión actual
-              setIsOnCurrentWorkshopVersion(true)
+            if (batchError) {
+              console.error('Error creating topic snapshots:', batchError)
             }
           }
         }
-      } catch (e) {
-        console.error('❌ Error determinando versión de taller para el cliente:', e)
-        setIsOnCurrentWorkshopVersion(true)
       }
 
-      // 4. Cargar cupos ocupados
-      await loadCuposOcupados()
+      setEjecucionId(ejecucionId)
+
+      // 3. Fetch topic progress WITHOUT JOIN (no FK relationship exists)
+      // Only fetch if ejecucionId is valid
+      let topicProgress: any = null
+      let progressError: any = null
+
+      if (ejecucionId !== null && ejecucionId !== undefined) {
+        const result = await supabase
+          .from('taller_progreso_temas')
+          .select('*')
+          .eq('ejecucion_id', ejecucionId)
+
+        topicProgress = result.data
+        progressError = result.error
+      }
+
+      if (progressError) {
+        console.error('❌ [Workshop] Error fetching progress:', progressError)
+      }
+
+      console.log('🔍 [Workshop] Topic progress data:', topicProgress)
+      console.log('🔍 [Workshop] Ejecucion ID:', ejecucionId)
+      console.log('🔍 [Workshop] Activity ID:', activityId)
+      console.log('🔍 [Workshop] Client ID:', user!.id)
+
+      // 4. Fetch taller_detalles separately and merge
+      let tallerDetallesMap: Record<number, any> = {}
+      if (topicProgress && topicProgress.length > 0) {
+        const temaIds = topicProgress.map((p: any) => p.tema_id)
+        const { data: detalles } = await supabase
+          .from('taller_detalles')
+          .select('*')
+          .in('id', temaIds)
+
+        if (detalles) {
+          detalles.forEach((d: any) => {
+            tallerDetallesMap[d.id] = d
+          })
+        }
+      }
+
+      const cubiertos: TemaEstado[] = []
+      const pendientes: TemaEstado[] = []
+
+      // Map DB rows to component state structure
+      if (topicProgress) {
+        topicProgress.forEach((row: any) => {
+          const temaDetails = tallerDetallesMap[row.tema_id]
+          const item: TemaEstado = {
+            tema_id: row.tema_id,
+            tema_nombre: temaDetails?.nombre || 'Sin nombre',
+            fecha_seleccionada: row.fecha_seleccionada,
+            horario_seleccionado: row.horario_seleccionado,
+            // Convert string booleans to actual booleans
+            confirmo_asistencia: row.confirmo_asistencia === true || row.confirmo_asistencia === 'true',
+            asistio: row.asistio === true || row.asistio === 'true',
+            pdf_url: temaDetails?.pdf_url,
+            pdf_file_name: temaDetails?.pdf_file_name,
+            // Attach snapshot to item for strict versioning access
+            ...({ snapshot_originales: row.snapshot_originales } as any)
+          }
+
+          if (item.confirmo_asistencia || item.asistio) {
+            cubiertos.push(item)
+          } else {
+            pendientes.push(item)
+          }
+        })
+      }
+
+      setTemasCubiertos(cubiertos)
+      setTemasPendientes(pendientes)
+
+
+      // 4. Versioning (Solo si es workshop real, aunque para docs no afecta mucho)
+      if (!isDocument) {
+        try {
+          const { data: activityInfo } = await supabase
+            .from('activities')
+            .select('workshop_versions')
+            .eq('id', activityId)
+            .single()
+
+          const versions = (activityInfo as any)?.workshop_versions?.versions || []
+          if (versions.length > 0) {
+            const lastVersion = versions[versions.length - 1]
+            const lastVersionStart = parseSpanishDate(lastVersion?.empezada_el)
+            // Use created_at from first progress record to determine version
+            const progressCreatedAt = existingProgress && existingProgress.length > 0 ? (existingProgress[0] as any).created_at : null
+            const progressDate = progressCreatedAt ? new Date(progressCreatedAt) : null
+            if (lastVersionStart && progressDate) {
+              setIsOnCurrentWorkshopVersion(progressDate >= lastVersionStart)
+            }
+          }
+        } catch (e) { console.error(e) }
+      }
+
+      // 5. Cupos (Solo workshops)
+      if (!isDocument) {
+        await loadCuposOcupados()
+      }
 
     } catch (error) {
       console.error('❌ Error general:', error)
@@ -208,119 +331,76 @@ export function WorkshopClientView({
 
   const loadCuposOcupados = async () => {
     try {
-      // Obtener todas las ejecuciones de esta actividad
-      const { data: ejecuciones } = await supabase
-        .from('ejecuciones_taller')
-        .select('temas_cubiertos, temas_pendientes')
+      // Must now count from taller_progreso_temas
+      const { data: progress } = await supabase
+        .from('taller_progreso_temas')
+        .select('*')
         .eq('actividad_id', activityId)
+        .or('confirmo_asistencia.eq.true,asistio.eq.true')
 
       const cupos: Record<string, number> = {}
+      progress?.forEach((row: any) => {
+        if (row.fecha_seleccionada && row.horario_seleccionado) {
+          // Handle jsonb potentially being string or object
+          const horaInicio = typeof row.horario_seleccionado === 'string'
+            ? JSON.parse(row.horario_seleccionado).hora_inicio
+            : row.horario_seleccionado.hora_inicio
 
-      ejecuciones?.forEach(ejecucion => {
-        // Contar confirmaciones en temas cubiertos
-        ;(ejecucion.temas_cubiertos || []).forEach((tema: any) => {
-          if (tema.confirmo_asistencia && tema.fecha_seleccionada && tema.horario_seleccionado) {
-            const key = `${tema.tema_id}-${tema.fecha_seleccionada}-${tema.horario_seleccionado.hora_inicio}`
-            cupos[key] = (cupos[key] || 0) + 1
-          }
-        })
-
-        // Contar confirmaciones en temas pendientes
-        ;(ejecucion.temas_pendientes || []).forEach((tema: any) => {
-          if (tema.confirmo_asistencia && tema.fecha_seleccionada && tema.horario_seleccionado) {
-            const key = `${tema.tema_id}-${tema.fecha_seleccionada}-${tema.horario_seleccionado.hora_inicio}`
-            cupos[key] = (cupos[key] || 0) + 1
-          }
-        })
+          const key = `${row.tema_id}-${row.fecha_seleccionada}-${horaInicio}`
+          cupos[key] = (cupos[key] || 0) + 1
+        }
       })
-
       setCuposOcupados(cupos)
-    } catch (error) {
-      console.error('❌ Error cargando cupos:', error)
-    }
+    } catch (error) { console.error(error) }
   }
 
-  const handleSelectHorario = (
-    temaId: number,
-    temaNombre: string,
-    fecha: string,
-    horario: any
-  ) => {
+  const handleSelectHorario = (temaId: number, temaNombre: string, fecha: string, horario: any) => {
     const cupoKey = `${temaId}-${fecha}-${horario.hora_inicio}`
     const ocupados = cuposOcupados[cupoKey] || 0
-
     if (ocupados >= horario.cupo) {
-      alert('Este horario está lleno. Por favor, selecciona otro.')
+      alert('Este horario está lleno.')
       return
     }
-
-    setSelectedHorario({
-      temaId,
-      temaNombre,
-      fecha,
-      horario
-    })
+    setSelectedHorario({ temaId, temaNombre, fecha, horario })
     setShowConfirmModal(true)
   }
 
   const confirmAsistencia = async () => {
     try {
       const { temaId, temaNombre, fecha, horario } = selectedHorario
-
-      // Crear el tema cubierto con la nueva estructura
       const temaCubierto = {
         asistio: false,
         tema_id: temaId,
         tema_nombre: temaNombre,
         fecha_seleccionada: fecha,
         confirmo_asistencia: true,
-        horario_seleccionado: {
-          hora_inicio: horario.hora_inicio,
-          hora_fin: horario.hora_fin
-        }
+        horario_seleccionado: { hora_inicio: horario.hora_inicio, hora_fin: horario.hora_fin }
       }
-
-      // Agregar el tema a cubiertos
-      const nuevosTemasCubiertos = [...temasCubiertos, temaCubierto]
-
-      // Actualizar en la base de datos
-      const { error } = await supabase
-        .from('ejecuciones_taller')
+      const nuevosTemasCubiertos = [...temasCubiertos, temaCubierto as TemaEstado]
+      const { error } = await (supabase.from('taller_progreso_temas') as any)
         .update({
-          temas_cubiertos: nuevosTemasCubiertos
+          confirmo_asistencia: true,
+          estado: 'reservado',
+          fecha_seleccionada: fecha,
+          horario_seleccionado: { hora_inicio: horario.hora_inicio, hora_fin: horario.hora_fin }
         })
-        .eq('id', ejecucionId)
+        .eq('ejecucion_id', ejecucionId as any)
+        .eq('tema_id', temaId)
 
-      if (error) {
-        console.error('❌ Error actualizando:', error)
-        alert('Error al confirmar asistencia')
-        return
-      }
+      if (error) { alert('Error al confirmar'); return; }
 
-      // Actualizar estado local
-      setTemasCubiertos(nuevosTemasCubiertos)
-      
-      // Actualizar cupos
+      // Reload data to refresh lists from DB
+      await loadWorkshopData()
+
       const cupoKey = `${temaId}-${fecha}-${horario.hora_inicio}`
-      setCuposOcupados(prev => ({
-        ...prev,
-        [cupoKey]: (prev[cupoKey] || 0) + 1
-      }))
-
+      setCuposOcupados(prev => ({ ...prev, [cupoKey]: (prev[cupoKey] || 0) + 1 }))
       setShowConfirmModal(false)
       setSelectedHorario(null)
-      alert('¡Asistencia confirmada! Te esperamos en este horario.')
-
-    } catch (error) {
-      console.error('❌ Error:', error)
-      alert('Error al confirmar asistencia')
-    }
+      alert('¡Asistencia confirmada!')
+    } catch (e) { alert('Error confirmando') }
   }
 
-  const cancelConfirmacion = () => {
-    setShowConfirmModal(false)
-    setSelectedHorario(null)
-  }
+  const cancelConfirmacion = () => { setShowConfirmModal(false); setSelectedHorario(null); }
 
   const editarReservacion = async (temaId: number) => {
     const temaCubierto = temasCubiertos.find(t => t.tema_id === temaId)
@@ -331,400 +411,575 @@ export function WorkshopClientView({
       return
     }
 
-    // Liberar el cupo actual
     const cupoKey = `${temaId}-${temaCubierto.fecha_seleccionada}-${temaCubierto.horario_seleccionado.hora_inicio}`
-    setCuposOcupados(prev => ({
-      ...prev,
-      [cupoKey]: Math.max(0, (prev[cupoKey] || 1) - 1)
-    }))
+    setCuposOcupados(prev => ({ ...prev, [cupoKey]: Math.max(0, (prev[cupoKey] || 1) - 1) }))
 
-    // Mover de temas_cubiertos de vuelta a pendiente
-    const nuevosTemasCubiertos = temasCubiertos.filter(t => t.tema_id !== temaId)
-
-    // Actualizar en la base de datos
-    const { error } = await supabase
-      .from('ejecuciones_taller')
+    // Update DB row state
+    const { error } = await (supabase
+      .from('taller_progreso_temas') as any)
       .update({
-        temas_cubiertos: nuevosTemasCubiertos
+        fecha_seleccionada: null,
+        horario_seleccionado: null,
+        confirmo_asistencia: false,
+        estado: 'pendiente'
       })
-      .eq('id', ejecucionId)
+      .eq('ejecucion_id', ejecucionId as any)
+      .eq('tema_id', temaId)
 
-    if (error) {
-      console.error('❌ Error editando reserva:', error)
-      alert('Error al editar la reserva')
-      return
+    if (!error) {
+      // Optimistically update lists
+      setTemasCubiertos(prev => prev.filter(t => t.tema_id !== temaId))
+      // Need to re-add to pendientes with cleared data, reusing snapshot logic if possible
+      // Easiest is to reload or manually move.
+      // Let's reload for safety with this complex state
+      loadWorkshopData()
+      setExpandedTema(temaId)
     }
-
-    setTemasCubiertos(nuevosTemasCubiertos)
-    setExpandedTema(temaId) // Expandir el tema para que pueda seleccionar nuevo horario
   }
 
-  const getTemaData = (temaId: number): TallerDetalle | undefined => {
-    return temas.find(t => t.id === temaId)
-  }
 
-  const getTemaEstado = (temaId: number): 'completado' | 'reservado' | 'pendiente' => {
+
+  const getTemaData = (temaId: number) => temas.find(t => t.id === temaId)
+  const getTemaEstado = (temaId: number) => {
     const temaCubierto = temasCubiertos.find(t => t.tema_id === temaId)
     if (temaCubierto?.asistio) return 'completado'
     if (temaCubierto && !temaCubierto.asistio) return 'reservado'
     return 'pendiente'
   }
-
-  const canEditReservation = (fechaSeleccionada: string, horaInicio: string): boolean => {
-    if (!fechaSeleccionada || !horaInicio) return false
-    
-    const fechaHoraEvento = new Date(`${fechaSeleccionada}T${horaInicio}`)
-    const ahora = new Date()
-    const horasHastaEvento = (fechaHoraEvento.getTime() - ahora.getTime()) / (1000 * 60 * 60)
-    
-    return horasHastaEvento >= 48
+  const canEditReservation = (fecha: string, hora: string) => {
+    if (!fecha || !hora) return false
+    const eventDate = new Date(`${fecha}T${hora}`)
+    const diff = (eventDate.getTime() - new Date().getTime()) / (1000 * 3600)
+    return diff >= 48
+  }
+  const formatDate = (d: string) => {
+    if (!d) return d
+    try {
+      // Handle YYYY-MM-DD or other formats
+      const date = d.includes('-') ? new Date(d + 'T12:00:00') : new Date(d)
+      return format(date, "dd 'de' MMMM", { locale: es })
+    } catch { return d }
   }
 
-  const formatDate = (dateString: string) => {
-    try {
-      return format(new Date(dateString), "dd 'de' MMMM", { locale: es })
-    } catch {
-      return dateString
+  const isTemaFinalizado = (temaId: number) => {
+    const today = new Date()
+    today.setHours(0, 0, 0, 0)
+
+    // 1. Check if user already attended or reserved a past date
+    const cubierto = temasCubiertos.find(t => t.tema_id === temaId)
+    if (cubierto?.fecha_seleccionada) {
+      const selectedDate = new Date(cubierto.fecha_seleccionada + 'T00:00:00')
+      return selectedDate < today
     }
+
+
+
+    // 3. If no reservation (pendiente), check if ALL available schedules have passed
+    const pendiente = temasPendientes.find(t => t.tema_id === temaId)
+    // Access snapshot
+    const snapshot = (pendiente as any)?.snapshot_originales
+    const horarios = snapshot?.fechas_horarios || []
+
+    if (horarios.length > 0) {
+      // Check if any schedule is in the future (or today)
+      // If we find at least one future date, topic is NOT finalized (user can still book)
+      const hasFutureDates = horarios.some((h: any) => {
+        const hDate = new Date(h.fecha)
+        // We include today as "not passed"
+        return hDate >= today
+      })
+      // If NO future dates, then it IS finalized (missed)
+      return !hasFutureDates
+    }
+
+    // If no schedules and no reservation, maybe it's just empty/tbd. 
+    // But usually implies nothing to do. Let's keep false if likely just TBD, or true if strictly "finished"?
+    // If snapshot is empty, let's treat as "nothing available" -> not necessarily "Finalizado" badge, 
+    // maybe just empty state. But user wants to hide stuff.
+    // Let's return false here to fallback to "No hay horarios" message, unless we want to hide that too.
+    return false
+  }
+
+  // Check if workshop has expired
+  const isWorkshopExpired = () => {
+    if (!enrollment?.expiration_date) return false
+    const expDate = new Date(enrollment.expiration_date)
+    return expDate < new Date()
+  }
+
+  // Calculate attendance summary
+  const getAttendanceSummary = () => {
+    const totalTopics = temas.length
+    const attendedTopics = temasCubiertos.filter(t => t.asistio).length
+    return { totalTopics, attendedTopics }
+  }
+
+  const toggleDocumentTopic = async (topicId: number) => {
+    if (!user) return
+    const current = documentProgress[topicId] || false
+    const newValue = !current
+
+    // Optimistic update
+    setDocumentProgress(prev => ({ ...prev, [topicId]: newValue }))
+
+    const { error } = await (supabase
+      .from('client_document_progress') as any)
+      .upsert({
+        client_id: user.id,
+        activity_id: activityId,
+        topic_id: topicId,
+        completed: newValue,
+        completed_at: newValue ? new Date().toISOString() : null,
+        updated_at: new Date().toISOString()
+      }, { onConflict: 'client_id, activity_id, topic_id' })
+
+    if (error) {
+      console.error('Error updating progress:', error)
+      // Revert if error
+      setDocumentProgress(prev => ({ ...prev, [topicId]: current }))
+    }
+  }
+
+  const handleDownloadPdf = (url: string) => {
+    window.open(url, '_blank')
   }
 
   if (loading) {
     return (
-      <div className="relative min-h-screen flex items-center justify-center">
-        {/* Fondo con imagen */}
+      <div className="relative min-h-screen flex items-center justify-center bg-black">
         {activityImageUrl && (
-          <div 
-            className="absolute inset-0 bg-cover bg-center"
-            style={{ backgroundImage: `url(${activityImageUrl})` }}
-          >
-            <div className="absolute inset-0 bg-black/60 backdrop-blur-sm" />
-          </div>
+          <div className="absolute inset-0 bg-cover bg-center opacity-30 blur-sm" style={{ backgroundImage: `url(${activityImageUrl})` }} />
         )}
-        <div className="relative z-10 text-white">Cargando taller...</div>
+        <div className="relative z-10 text-white animate-pulse">Cargando contenido...</div>
       </div>
     )
   }
 
   return (
-    <div className="relative min-h-screen text-white">
-      {/* Imagen de fondo */}
+    <div className="relative min-h-screen text-white bg-black">
       {activityImageUrl && (
-        <div 
-          className="fixed inset-0 bg-cover bg-center"
-          style={{ backgroundImage: `url(${activityImageUrl})` }}
-        >
-          <div className="absolute inset-0 bg-black/60 backdrop-blur-sm" />
+        <div className="fixed inset-0 bg-cover bg-center" style={{ backgroundImage: `url(${activityImageUrl})` }}>
+          {/* Dark gradient overlay for readability */}
+          <div className="absolute inset-0 bg-gradient-to-b from-black/80 via-black/70 to-black/90 backdrop-blur-[2px]" />
         </div>
       )}
-      
-      {/* Contenido con glassmorphism */}
-      <div className="relative z-10 pt-20 px-4 pb-6">
-      {/* Header */}
-      <div className="mb-6">
-        <h1 className="text-2xl font-bold text-white mb-3">{activityTitle}</h1>
-        {activityDescription && (
-          <p className="text-gray-200 text-base leading-relaxed">{activityDescription}</p>
-        )}
-      </div>
 
-        {/* Próximas Sesiones */}
-        <h2 className="text-xl font-bold text-white mb-4">Próximas Sesiones</h2>
-        {temasCubiertos.filter(tema => !tema.asistio).length > 0 ? (
-          <div className="space-y-3 mb-6">
-            {temasCubiertos
-              .filter(tema => !tema.asistio)
-              .map((tema) => {
-                return (
-                  <div key={tema.tema_id} className="bg-black/30 backdrop-blur-xl rounded-xl p-4 border border-white/20 shadow-lg">
-                    <div className="flex items-center justify-between">
-                      <div>
-                        <div className="text-white font-semibold">{tema.tema_nombre}</div>
-                        <div className="text-gray-300 text-sm">
-                          {tema.fecha_seleccionada && formatDate(tema.fecha_seleccionada)} - {tema.horario_seleccionado?.hora_inicio} a {tema.horario_seleccionado?.hora_fin}
-                        </div>
-                      </div>
-                      <CheckCircle className="w-5 h-5 text-[#FF7939]" />
-                    </div>
-                  </div>
-                )
-              })}
-          </div>
-        ) : (
-          <p className="text-gray-400 text-center py-4 mb-6">No tienes sesiones confirmadas</p>
-        )}
+      <div className="relative z-10 pt-20 px-4 pb-32 max-w-4xl mx-auto">
 
-      {/* Lista de Temas */}
-      <div className="space-y-4">
-        <div className="flex items-center justify-between mb-4">
-          <h2 className="text-xl font-bold text-white">Temas del Taller</h2>
-          {/* Barra de progreso simple */}
-          <div className="flex items-center gap-3">
-            <span className="text-sm font-bold text-[#FF7939]">
-              {temasCubiertos.filter(t => t.asistio).length} / {temas.length}
-            </span>
-            <div className="w-20 h-2 bg-black/40 rounded-full overflow-hidden">
-              <div 
-                className="h-full bg-gradient-to-r from-[#FF7939] to-[#FF5B39] transition-all duration-500 rounded-full"
-                style={{
-                  width: `${((temasCubiertos.filter(t => t.asistio).length / temas.length) * 100) || 0}%`
-                }}
-              />
-            </div>
-          </div>
-        </div>
-        
-        {temas.filter(tema => {
-          const estado = getTemaEstado(tema.id)
-          return estado === 'pendiente' || estado === 'reservado'
-        }).map((tema) => {
-          const temaData = getTemaData(tema.id)
-          if (!temaData) return null
+        {/* HEADER SECTION with Glassmorphism */}
+        <div className="mb-8 p-6 rounded-3xl bg-white/5 backdrop-blur-xl border border-white/10 shadow-2xl">
+          <h1 className="text-3xl font-bold text-white mb-3 tracking-tight">{activityTitle}</h1>
 
-          const estado = getTemaEstado(tema.id)
-          const isExpanded = expandedTema === tema.id
-
-          return (
-            <div 
-              key={tema.id}
-              className="bg-black/30 backdrop-blur-xl rounded-2xl border border-white/20 overflow-hidden shadow-2xl"
-            >
-              {/* Header del tema */}
-              <div 
-                className="p-6 cursor-pointer hover:bg-white/10 transition-all duration-300"
-                onClick={() => setExpandedTema(isExpanded ? null : tema.id)}
-              >
-                <div className="flex items-center justify-between">
-                  <div className="flex-1">
-                    <div className="space-y-2">
-                      <div className="flex items-center gap-3">
-                        <h3 className="text-white font-semibold text-lg">{temaData.nombre}</h3>
-                        {estado === 'completado' && (
-                          <CheckCircle className="w-5 h-5 text-green-400" />
-                        )}
-                        {estado === 'reservado' && (
-                          <>
-                            <span className="bg-gradient-to-r from-[#FF7939] to-[#FF5B39] text-white text-xs px-3 py-1 rounded-full font-medium">
-                              Reservado
-                            </span>
-                            <button
-                              onClick={(e) => {
-                                e.stopPropagation()
-                                editarReservacion(tema.id)
-                              }}
-                              className="p-2 bg-white/10 backdrop-blur-sm rounded-lg border border-white/20 hover:bg-white/20 transition-all duration-300"
-                              title="Editar horario"
-                            >
-                              <Edit2 className="w-4 h-4 text-white" />
-                            </button>
-                          </>
-                        )}
-                      </div>
-                      {/* Descripción directamente debajo del nombre */}
-                      {temaData.descripcion && (
-                        <p className="text-gray-300 text-sm leading-relaxed">{temaData.descripcion}</p>
-                      )}
-                    </div>
-                  </div>
-                  <div className="transition-transform duration-200" style={{ transform: isExpanded ? 'rotate(180deg)' : 'rotate(0deg)' }}>
-                    <ChevronDown className="w-5 h-5 text-gray-400" />
-                  </div>
-                </div>
-              </div>
-
-              {/* Contenido expandible */}
-              {isExpanded && (
-                <div className="px-6 pb-6 space-y-6">
-                  {/* Información de reserva si está reservado */}
-                  {estado === 'reservado' && (() => {
-                    const temaCubierto = temasCubiertos.find(t => t.tema_id === tema.id)
-                    if (!temaCubierto) return null
-                    
-                    const puedeEditar = canEditReservation(
-                      temaCubierto.fecha_seleccionada!,
-                      temaCubierto.horario_seleccionado!.hora_inicio
-                    )
-                    
-                    return (
-                      <div className="bg-[#FF7939]/10 rounded-xl p-4 border border-[#FF7939]/30">
-                        <h4 className="text-base font-semibold text-white mb-3">Tu Reserva</h4>
-                        <div className="space-y-2 text-gray-200">
-                          <div className="flex items-center gap-2">
-                            <Calendar className="w-4 h-4 text-[#FF7939]" />
-                            <span>{formatDate(temaCubierto.fecha_seleccionada!)}</span>
-                          </div>
-                          <div className="flex items-center gap-2">
-                            <Clock className="w-4 h-4 text-[#FF7939]" />
-                            <span>{temaCubierto.horario_seleccionado?.hora_inicio} - {temaCubierto.horario_seleccionado?.hora_fin}</span>
-                          </div>
-                        </div>
-                        {!puedeEditar && (
-                          <p className="text-yellow-300 text-sm mt-3">
-                            ⚠️ Los cambios solo son posibles con 48 horas o más de antelación
-                          </p>
-                        )}
-                      </div>
-                    )
-                  })()}
-                  
-                  {/* Horarios (solo si es pendiente) */}
-                  {estado === 'pendiente' && (
-                    <>
-                      {!isOnCurrentWorkshopVersion ? (
-                        <div className="bg-black/40 border border-white/10 rounded-xl p-4">
-                          <p className="text-sm text-gray-300">
-                            Este taller ya finalizó para tu inscripción original. 
-                            Los nuevos horarios pertenecen a una nueva versión del taller
-                            y requieren una nueva compra.
-                          </p>
-                        </div>
-                      ) : (
-                        temaData.originales?.fechas_horarios &&
-                        temaData.originales.fechas_horarios.length > 0 && (
-                    <div>
-                      <h4 className="text-base font-semibold text-gray-300 mb-4">Horarios Disponibles</h4>
-                      <div className="space-y-3">
-                        {temaData.originales.fechas_horarios.map((horario, idx) => {
-                          const cupoKey = `${temaData.id}-${horario.fecha}-${horario.hora_inicio}`
-                          const ocupados = cuposOcupados[cupoKey] || 0
-                          const disponibles = horario.cupo - ocupados
-                          const isLleno = disponibles <= 0
-                          const isSeleccionado = false // No hay selección previa para temas pendientes
-
-                          return (
-                            <div 
-                              key={idx}
-                              className={`flex items-center justify-between p-4 rounded-xl border backdrop-blur-sm ${
-                                isSeleccionado 
-                                  ? 'bg-[#FF7939]/20 border-[#FF7939] shadow-lg' 
-                                  : isLleno
-                                  ? 'bg-black/30 border-white/10 opacity-50'
-                                  : 'bg-black/30 border-white/10 hover:border-[#FF7939] hover:bg-[#FF7939]/10 cursor-pointer'
-                              } transition-all duration-300`}
-                              onClick={() => !isLleno && !isSeleccionado && handleSelectHorario(
-                                tema.id,
-                                temaData.nombre,
-                                horario.fecha,
-                                horario
-                              )}
-                            >
-                              <div className="flex items-center gap-4">
-                                <div className="p-2 bg-[#FF7939]/20 rounded-lg">
-                                  <Calendar className="w-5 h-5 text-[#FF7939]" />
-                                </div>
-                                <div>
-                                  <div className="text-white text-base font-semibold">
-                                    {formatDate(horario.fecha)}
-                                  </div>
-                                  <div className="text-gray-300 text-sm flex items-center gap-2">
-                                    <Clock className="w-4 h-4" />
-                                    {horario.hora_inicio} - {horario.hora_fin}
-                                  </div>
-                                </div>
-                              </div>
-                              <div className="flex items-center gap-2">
-                                <div className={`flex items-center gap-1 text-xs ${
-                                  isLleno ? 'text-red-500' : disponibles <= 3 ? 'text-orange-500' : 'text-gray-400'
-                                }`}>
-                                  <Users className="w-3 h-3" />
-                                  <span>{disponibles}/{horario.cupo}</span>
-                                </div>
-                                {isSeleccionado && (
-                                  <CheckCircle className="w-4 h-4 text-[#FF7939]" />
-                                )}
-                              </div>
-                            </div>
-                          )
-                        })}
-                      </div>
-                    </div>
-                        )
-                      )}
-                    </>
-                  )}
-
-                </div>
+          {activityDescription && (
+            <div className="text-gray-300 text-sm leading-relaxed">
+              <p className={isDescriptionExpanded ? '' : 'line-clamp-3'}>
+                {activityDescription}
+              </p>
+              {activityDescription.length > MAX_DESCRIPTION_LENGTH && (
+                <button
+                  onClick={() => setIsDescriptionExpanded(!isDescriptionExpanded)}
+                  className="mt-2 text-[#FF7939] text-xs font-semibold hover:text-[#FF9F70] flex items-center gap-1"
+                >
+                  {isDescriptionExpanded ? 'Mostrar menos' : 'Ver más'}
+                  {isDescriptionExpanded ? <ChevronUp className="w-3 h-3" /> : <ChevronDown className="w-3 h-3" />}
+                </button>
               )}
             </div>
-          )
-        })}
+          )}
+        </div>
 
-        {/* Temas Completados */}
-        {temasCubiertos.filter(tema => tema.asistio).length > 0 && (
-          <div className="mt-6">
-            <h2 className="text-lg font-bold text-white mb-3">Temas Completados</h2>
-            {temasCubiertos
-              .filter(tema => tema.asistio)
-              .map((tema) => {
-                return (
-                  <div 
-                    key={tema.tema_id}
-                    className="bg-green-900/20 backdrop-blur-md rounded-xl border border-green-500/30 p-4 mb-2"
+        {/* Workshop Completion Banner */}
+        {!isDocument && isWorkshopExpired() && (
+          <div className="mb-6 bg-gradient-to-r from-green-500/20 to-blue-500/20 backdrop-blur-md rounded-2xl p-6 border border-green-500/30">
+            <div className="flex items-start gap-4">
+              <div className="flex-shrink-0 w-12 h-12 bg-green-500/20 rounded-full flex items-center justify-center">
+                <CheckCircle className="w-6 h-6 text-green-400" />
+              </div>
+              <div className="flex-1">
+                <h3 className="text-white font-bold text-lg mb-2">¡Taller Finalizado!</h3>
+                <div className="text-gray-300 text-sm space-y-1 mb-4">
+                  {(() => {
+                    const { totalTopics, attendedTopics } = getAttendanceSummary()
+                    return (
+                      <>
+                        <p>📚 <strong>{totalTopics}</strong> temas dictados en total</p>
+                        <p>✅ Asististe a <strong>{attendedTopics}</strong> de {totalTopics} clases</p>
+                        {attendedTopics === totalTopics && (
+                          <p className="text-green-400 font-semibold mt-2">🎉 ¡Completaste todas las clases!</p>
+                        )}
+                      </>
+                    )
+                  })()}
+                </div>
+                {!isRated ? (
+                  <button
+                    onClick={() => setIsRatingModalOpen(true)}
+                    className="bg-[#FF7939] hover:bg-[#FF9F70] text-white font-semibold px-6 py-2.5 rounded-xl transition-all duration-200 flex items-center gap-2"
                   >
-                    <div className="flex items-center justify-between">
-                      <div className="flex items-center gap-2">
-                        <CheckCircle className="w-5 h-5 text-green-500" />
-                        <span className="text-white font-medium">{tema.tema_nombre}</span>
-                      </div>
-                      <span className="text-xs text-gray-400">
-                        {tema.fecha_seleccionada && formatDate(tema.fecha_seleccionada)}
-                      </span>
-                    </div>
-                  </div>
-                )
-              })}
+                    <Star className="w-4 h-4" />
+                    Calificar Taller
+                  </button>
+                ) : (
+                  <p className="text-green-400/80 text-sm italic font-medium flex items-center gap-2">
+                    <CheckCircle className="w-4 h-4" />
+                    Calificación enviada. ¡Gracias!
+                  </p>
+                )}
+              </div>
+            </div>
           </div>
         )}
-      </div>
+
+        {/* 
+            SI ES WORKSHOP: Mostrar Sesiones Próximas (reservas).
+            SI ES DOCUMENTO: No mostrar esto (no hay sesión en vivo).
+            SOLO MOSTRAR SI SON FUTURAS.
+        */}
+        {!isDocument && temasCubiertos.filter(tema => {
+          if (tema.asistio) return false // Already attended
+          if (!tema.fecha_seleccionada) return false
+          const date = new Date(tema.fecha_seleccionada)
+          date.setHours(23, 59, 59) // End of day
+          return date >= new Date() // Only future or today
+        }).length > 0 && (
+            <>
+              <h2 className="text-lg font-bold text-white mb-4 px-2">Próximas Sesiones</h2>
+              <div className="space-y-3 mb-8">
+                {temasCubiertos.filter(tema => {
+                  if (tema.asistio) return false
+                  if (!tema.fecha_seleccionada) return false
+                  const date = new Date(tema.fecha_seleccionada)
+                  date.setHours(23, 59, 59)
+                  return date >= new Date()
+                }).map((tema) => (
+                  <div key={tema.tema_id} className="bg-black/40 backdrop-blur-md rounded-2xl p-5 border border-white/10 shadow-lg flex items-center justify-between">
+                    <div>
+                      <div className="text-white font-semibold mb-1">{tema.tema_nombre}</div>
+                      <div className="text-gray-400 text-xs flex items-center gap-2">
+                        <Calendar className="w-3 h-3 text-[#FF7939]" />
+                        {tema.fecha_seleccionada && formatDate(tema.fecha_seleccionada)}
+                        <span className="w-1 h-1 bg-gray-600 rounded-full" />
+                        <Clock className="w-3 h-3 text-[#FF7939]" />
+                        {tema.horario_seleccionado?.hora_inicio} a {tema.horario_seleccionado?.hora_fin}
+                      </div>
+                    </div>
+                    <CheckCircle className="w-6 h-6 text-[#FF7939]" />
+                  </div>
+                ))}
+              </div>
+            </>
+          )}
+
+        {/* LISTA DE TEMAS / CAPÍTULOS */}
+        <div>
+          <div className="flex items-center justify-between mb-5 px-2">
+            <h2 className="text-xl font-bold text-white flex items-center gap-2">
+              {isDocument ? <AlignLeft className="w-5 h-5 text-[#FF7939]" /> : null}
+              {isDocument ? 'Contenido' : 'Temas del Taller'}
+            </h2>
+            {!isDocument ? (
+              <div className="flex items-center gap-3 bg-black/30 px-3 py-1 rounded-full border border-white/5">
+                <span className="text-xs font-bold text-[#FF7939]">{temasCubiertos.filter(t => t.asistio).length} / {temas.length}</span>
+              </div>
+            ) : (
+              <div className="flex items-center gap-3 bg-black/30 px-3 py-1 rounded-full border border-white/5">
+                <span className="text-xs font-bold text-[#FF7939]">{Object.values(documentProgress).filter(Boolean).length} / {temas.length}</span>
+              </div>
+            )}
+          </div>
+
+          <div className="space-y-4">
+            {temas.map((tema) => {
+              const temaData = getTemaData(tema.id)
+              if (!temaData) return null
+              const estado = getTemaEstado(tema.id)
+              const isExpanded = expandedTema === tema.id
+
+              return (
+                <div key={tema.id} className="group bg-black/40 backdrop-blur-md rounded-2xl border border-white/10 overflow-hidden shadow-lg transition-all duration-300 hover:border-white/20 hover:bg-black/50">
+                  <div className="p-5 cursor-pointer" onClick={() => setExpandedTema(isExpanded ? null : tema.id)}>
+                    <div className="flex items-center justify-between">
+                      <div className="flex-1 pr-4">
+                        <div className="flex items-center gap-3 mb-1">
+                          <h3 className="text-white font-semibold text-base group-hover:text-[#FF7939] transition-colors">{temaData.nombre}</h3>
+                          {!isDocument && estado === 'completado' && <CheckCircle className="w-4 h-4 text-green-400" />}
+                          {!isDocument && isTemaFinalizado(tema.id) && <span className="bg-gray-700 text-gray-300 text-[10px] px-2 py-0.5 rounded-full border border-gray-600">Finalizado</span>}
+                          {!isDocument && estado === 'reservado' && !isTemaFinalizado(tema.id) && <span className="bg-[#FF7939]/20 text-[#FF7939] text-[10px] px-2 py-0.5 rounded-full border border-[#FF7939]/30">Reservado</span>}
+
+                          {isDocument && (
+                            <div
+                              onClick={(e) => { e.stopPropagation(); toggleDocumentTopic(tema.id); }}
+                              className={`ml-2 p-1 rounded-full border transition-all cursor-pointer ${documentProgress[tema.id]
+                                ? 'bg-[#FF7939]/20 border-[#FF7939] text-[#FF7939]'
+                                : 'border-gray-600 text-gray-600 hover:border-[#FF7939]/50'
+                                }`}
+                            >
+                              {documentProgress[tema.id] ? <CheckCircle className="w-4 h-4" /> : <div className="w-4 h-4 rounded-full" />}
+                            </div>
+                          )}
+                        </div>
+                        {/* Status Details for Workshop: Attendance Info */}
+                        {!isDocument && (
+                          <div className="flex flex-col gap-1 mt-1">
+                            {/* Description Preview */}
+                            {!isExpanded && temaData.descripcion && (
+                              <p className="text-gray-400 text-xs line-clamp-1">{temaData.descripcion}</p>
+                            )}
+                            {/* Attendance Info - Prominent */}
+                            {(() => {
+                              const cubierto = temasCubiertos.find(t => Number(t.tema_id) === Number(tema.id))
+                              if (cubierto?.asistio) {
+                                return (
+                                  <div className="flex items-center gap-1.5 mt-1">
+                                    <CheckCircle className="w-3.5 h-3.5 text-green-400" />
+                                    <p className="text-green-400 text-[11px] font-semibold">Asististe el {formatDate(cubierto.fecha_seleccionada!)}</p>
+                                  </div>
+                                )
+                              }
+                              if (isTemaFinalizado(tema.id) && cubierto?.fecha_seleccionada) {
+                                return (
+                                  <div className="flex items-center gap-1.5 mt-1">
+                                    <Calendar className="w-3.5 h-3.5 text-gray-500" />
+                                    <p className="text-gray-500 text-[11px] font-medium">Te inscribiste para el {formatDate(cubierto.fecha_seleccionada)}</p>
+                                  </div>
+                                )
+                              }
+                              return null
+                            })()}
+                          </div>
+                        )}
+                        {/* Document Description Preview only */}
+                        {isDocument && !isExpanded && temaData.descripcion && (
+                          <p className="text-gray-400 text-xs line-clamp-1 mt-1">{temaData.descripcion}</p>
+                        )}
+                      </div>
+                      <div style={{ transform: isExpanded ? 'rotate(180deg)' : 'rotate(0deg)' }} className="transition-transform duration-300 bg-white/5 p-1 rounded-full">
+                        <ChevronDown className="w-4 h-4 text-gray-400" />
+                      </div>
+                    </div>
+                  </div>
+
+                  {isExpanded && (
+                    <div className="px-5 pb-5 pt-0">
+                      <div className="h-[1px] w-full bg-white/10 mb-4" />
+
+                      {/* Full Description */}
+                      {temaData.descripcion && (
+                        <p className="text-gray-300 text-sm leading-relaxed mb-6">{temaData.descripcion}</p>
+                      )}
+
+                      {/* DOCUMENT MODE: PDF Download */}
+                      {isDocument && (
+                        <div className="bg-white/5 rounded-xl p-4 border border-white/10">
+                          <h4 className="text-xs font-bold uppercase tracking-wider text-gray-400 mb-3 flex items-center gap-2">
+                            Recursos
+                          </h4>
+                          {temaData.pdf_url ? (
+                            <div className="flex items-center justify-between bg-black/40 p-3 rounded-lg border border-white/10 hover:border-[#FF7939]/50 transition-colors group/pdf">
+                              <div className="flex items-center gap-3 overflow-hidden">
+                                <div className="bg-red-500/20 p-2 rounded-lg">
+                                  <FileText className="w-5 h-5 text-red-500" />
+                                </div>
+                                <span className="text-sm text-gray-200 truncate group-hover/pdf:text-white transition-colors">
+                                  {temaData.pdf_file_name || `${temaData.nombre}.pdf`}
+                                </span>
+                              </div>
+                              <Button size="sm" className="bg-[#FF7939]/10 hover:bg-[#FF7939]/20 text-[#FF7939] border border-[#FF7939]/30 backdrop-blur-md shadow-[0_0_15px_rgba(255,121,57,0.1)] rounded-xl" onClick={() => handleDownloadPdf(temaData.pdf_url!)}>
+                                <Download className="w-4 h-4 mr-2" /> PDF
+                              </Button>
+                            </div>
+                          ) : (
+                            <p className="text-gray-500 text-xs italic">No hay material descargable disponible.</p>
+                          )}
+                        </div>
+                      )}
+
+                      {/* WORKSHOP MODE: Reservation Content (kept same) */}
+                      {/* WORKSHOP MODE: Reservation Content */}
+                      {!isDocument && (
+                        <div className="space-y-4">
+                          {/* Show "Finalizado" state if passed */}
+                          {isTemaFinalizado(tema.id) ? (
+                            <div className="bg-gray-900/50 rounded-xl p-4 border border-white/10">
+                              <div className="flex items-center gap-3 text-gray-400 mb-2">
+                                <CheckCircle className="w-5 h-5" />
+                                <span className="text-sm font-medium">Este tema ha finalizado.</span>
+                              </div>
+
+                              {/* Show historical info if available */}
+                              {(() => {
+                                const cubierto = temasCubiertos.find(t => t.tema_id === tema.id)
+                                if (cubierto?.fecha_seleccionada) {
+                                  return (
+                                    <div className="text-xs text-gray-300 ml-8 mb-2">
+                                      {cubierto.asistio ? (
+                                        <span className="text-green-400">✅ Confirmamos tu asistencia el {formatDate(cubierto.fecha_seleccionada)}.</span>
+                                      ) : (
+                                        <span>📅 Tenías reserva para el {formatDate(cubierto.fecha_seleccionada)}.</span>
+                                      )}
+                                    </div>
+                                  )
+                                }
+                                return null
+                              })()}
+
+                              <p className="text-xs text-gray-500 ml-8">
+                                Ya no es posible reservar ni modificar horarios. Puedes acceder a los materiales adjuntos si los hubiera.
+                              </p>
+                            </div>
+                          ) : (
+                            /* Only show reservation controls if NOT finalized */
+                            <>
+                              {estado === 'reservado' && (
+                                <div className="bg-[#FF7939]/10 rounded-xl p-4 border border-[#FF7939]/30">
+                                  <div className="flex justify-between items-center mb-2">
+                                    <h4 className="text-sm font-semibold text-[#FF7939]">Tu Reserva</h4>
+                                    <button onClick={(e) => { e.stopPropagation(); editarReservacion(tema.id); }} className="p-1 hover:bg-white/10 rounded text-gray-300 hover:text-white"><Edit2 className="w-4 h-4" /></button>
+                                  </div>
+                                  {(() => {
+                                    const temaCubierto = temasCubiertos.find(t => t.tema_id === tema.id)
+                                    return temaCubierto ? (
+                                      <div className="text-sm text-gray-200">
+                                        <div className="font-medium">{formatDate(temaCubierto.fecha_seleccionada!)}</div>
+                                        <div className="text-gray-400">{temaCubierto.horario_seleccionado?.hora_inicio} - {temaCubierto.horario_seleccionado?.hora_fin}</div>
+                                      </div>
+                                    ) : null
+                                  })()}
+                                </div>
+                              )}
+                              {estado === 'pendiente' && (
+                                <div className="mt-4">
+                                  {(() => {
+                                    // STRICT SOURCE OF TRUTH: temasPendientes (Execution Record)
+                                    const temaPendiente = temasPendientes.find(t => t.tema_id === tema.id)
+
+                                    // Access snapshot from execution record
+                                    const snapshot = (temaPendiente as any)?.snapshot_originales
+
+                                    // Strict mode: if no snapshot is found on the execution record, we show NO schedules.
+                                    // This enforces that only the version captured at purchase time is valid.
+                                    let horarios = snapshot?.fechas_horarios || []
+
+                                    // Keep expiration filter as safety layer
+                                    const filteredHorarios = horarios.filter((h: any) => {
+                                      if (!enrollment?.expiration_date) return true
+                                      const expDate = enrollment.expiration_date.split('T')[0]
+                                      return h.fecha <= expDate
+                                    })
+
+                                    if (filteredHorarios.length === 0) {
+                                      return null // HIDDEN as requested: No "No hay horarios..." message
+                                    }
+
+                                    return (
+                                      <>
+                                        <h4 className="text-sm font-semibold text-gray-400 mb-3">Horarios Disponibles</h4>
+                                        {filteredHorarios.map((horario: any, idx: number) => {
+                                          const cupoKey = `${temaData.id}-${horario.fecha}-${horario.hora_inicio}`
+                                          const ocupados = cuposOcupados[cupoKey] || 0
+                                          const disponibles = horario.cupo - ocupados
+                                          const isLleno = disponibles <= 0
+                                          return (
+                                            <div key={idx} onClick={() => !isLleno && handleSelectHorario(tema.id, temaData.nombre, horario.fecha, horario)}
+                                              className={`flex justify-between items-center p-3 rounded-xl border mb-2 cursor-pointer transition-all ${isLleno ? 'opacity-50 bg-gray-900 border-gray-800' : 'hover:border-[#FF7939] bg-black/20 border-white/5 hover:bg-[#FF7939]/5'}`}>
+                                              <div>
+                                                <div className="text-white text-sm font-medium">{formatDate(horario.fecha)}</div>
+                                                <div className="text-xs text-gray-400">{horario.hora_inicio} - {horario.hora_fin}</div>
+                                              </div>
+                                              <div className={`text-xs font-medium px-2 py-1 rounded-md ${isLleno ? 'bg-red-900/30 text-red-400' : 'bg-green-900/20 text-green-400'}`}>
+                                                {disponibles} cupos
+                                              </div>
+                                            </div>
+                                          )
+                                        })}
+                                      </>
+                                    )
+                                  })()}
+                                </div>
+                              )}
+                            </>
+                          )}
+
+                          {/* PDF Resources - Show for both workshops and documents if available */}
+                          {temaData.pdf_url && (
+                            <div className="bg-white/5 rounded-xl p-4 border border-white/10 mt-4">
+                              <h4 className="text-xs font-bold uppercase tracking-wider text-gray-400 mb-3 flex items-center gap-2">
+                                Material del Tema
+                              </h4>
+                              <div className="flex items-center justify-between bg-black/40 p-3 rounded-lg border border-white/10 hover:border-[#FF7939]/50 transition-colors group/pdf">
+                                <div className="flex items-center gap-3 overflow-hidden">
+                                  <div className="bg-red-500/20 p-2 rounded-lg">
+                                    <FileText className="w-5 h-5 text-red-500" />
+                                  </div>
+                                  <span className="text-sm text-gray-200 truncate group-hover/pdf:text-white transition-colors">
+                                    {temaData.pdf_file_name || `${temaData.nombre}.pdf`}
+                                  </span>
+                                </div>
+                                <Button size="sm" className="bg-[#FF7939]/10 hover:bg-[#FF7939]/20 text-[#FF7939] border border-[#FF7939]/30 backdrop-blur-md shadow-[0_0_15px_rgba(255,121,57,0.1)] rounded-xl" onClick={() => handleDownloadPdf(temaData.pdf_url!)}>
+                                  <Download className="w-4 h-4 mr-2" /> PDF
+                                </Button>
+                              </div>
+                            </div>
+                          )}
+                        </div>
+                      )}
+                    </div>
+                  )}
+                </div>
+              )
+            })}
+          </div>
+        </div>
       </div>
 
-      {/* Modal de Confirmación */}
       {showConfirmModal && selectedHorario && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
-          <div className="absolute inset-0 bg-black/80 backdrop-blur-sm" onClick={cancelConfirmacion} />
-          <div className="relative bg-black/50 backdrop-blur-xl rounded-2xl p-6 border border-white/20 shadow-2xl max-w-sm w-full">
-            <div className="flex items-center justify-between mb-4">
-              <h3 className="text-xl font-bold text-white">Confirmar Asistencia</h3>
-              <button 
-                onClick={cancelConfirmacion}
-                className="p-2 hover:bg-white/10 rounded-lg transition-colors"
-              >
-                <X className="w-5 h-5 text-gray-400" />
-              </button>
+          <div className="absolute inset-0 bg-black/90 backdrop-blur-sm" onClick={cancelConfirmacion} />
+          <div className="relative bg-[#1A1A1A] rounded-3xl p-6 border border-white/10 w-full max-w-sm shadow-2xl">
+            <h3 className="text-xl font-bold text-white mb-2">Confirmar Reserva</h3>
+            <p className="text-gray-400 text-sm mb-6">Estás a punto de reservar turno para:</p>
+
+            <div className="bg-black/40 p-4 rounded-2xl border border-white/5 mb-6">
+              <div className="font-semibold text-white mb-1">{selectedHorario.temaNombre}</div>
+              <div className="text-[#FF7939] text-sm">{formatDate(selectedHorario.fecha)} &bull; {selectedHorario.horario.hora_inicio}</div>
             </div>
-            
-            <div className="space-y-4">
-              <div className="bg-black/30 rounded-xl p-4 border border-white/10">
-                <h4 className="text-lg font-semibold text-white mb-2">{selectedHorario.temaNombre}</h4>
-                <div className="flex items-center gap-2 text-gray-300">
-                  <Calendar className="w-4 h-4 text-[#FF7939]" />
-                  <span>{formatDate(selectedHorario.fecha)}</span>
-                </div>
-                <div className="flex items-center gap-2 text-gray-300 mt-1">
-                  <Clock className="w-4 h-4 text-[#FF7939]" />
-                  <span>{selectedHorario.horario.hora_inicio} - {selectedHorario.horario.hora_fin}</span>
-                </div>
-              </div>
-              
-              <div className="flex gap-3">
-                <button 
-                  onClick={cancelConfirmacion}
-                  className="flex-1 py-3 px-4 bg-gray-600 hover:bg-gray-500 text-white rounded-xl font-medium transition-colors"
-                >
-                  Cancelar
-                </button>
-                <button 
-                  onClick={confirmAsistencia}
-                  className="flex-1 py-3 px-4 bg-gradient-to-r from-[#FF7939] to-[#FF5B39] hover:from-[#FF5B39] hover:to-[#FF7939] text-white rounded-xl font-medium transition-all duration-300"
-                >
-                  Confirmar
-                </button>
-              </div>
+
+            <div className="flex gap-3">
+              <Button variant="outline" onClick={cancelConfirmacion} className="flex-1 border-white/10 text-gray-300 hover:bg-white/5 hover:text-white rounded-xl h-12">Cancelar</Button>
+              <Button onClick={confirmAsistencia} className="flex-1 bg-[#FF7939] hover:bg-[#E66829] text-white rounded-xl h-12 font-bold shadow-lg shadow-[#FF7939]/20">Confirmar</Button>
             </div>
           </div>
         </div>
       )}
+      {/* Rating Modal */}
+      <ActivitySurveyModal
+        isOpen={isRatingModalOpen}
+        onClose={() => setIsRatingModalOpen(false)}
+        activityTitle={activityTitle}
+        onComplete={async (activityRating, coachRating, feedback, wouldRepeat, omniaRating, omniaComments) => {
+          try {
+            const { error } = await (supabase
+              .from('activity_enrollments') as any)
+              .update({
+                rating_activity: activityRating,
+                rating_coach: coachRating,
+                feedback: feedback,
+                would_repeat: wouldRepeat,
+                rating_omnia: omniaRating,
+                omnia_comments: omniaComments,
+                status: 'finalizada' // Asegurar que esté marcada como finalizada
+              })
+              .eq('id', enrollment.id)
+
+            if (error) throw error
+            setIsRated(true)
+            setIsRatingModalOpen(false)
+          } catch (error) {
+            console.error('Error submitting rating:', error)
+            alert('Error al enviar la calificación')
+          }
+        }}
+      />
     </div>
   )
 }
-
-

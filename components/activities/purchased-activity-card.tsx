@@ -3,11 +3,9 @@
 import { useState, useEffect } from "react"
 import { Card } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
-import { Button } from "@/components/ui/button"
 import { Progress } from "@/components/ui/progress"
-import { Calendar, User, Play, Clock, Flame } from "lucide-react"
+import { Calendar, User, Play, Clock, Flame, Star, Zap, CheckCircle2, AlertCircle } from "lucide-react"
 import Image from "next/image"
-import { useRouter } from "next/navigation"
 import type { Enrollment } from "@/types/activity"
 import { createClient } from '@/lib/supabase/supabase-client'
 
@@ -21,340 +19,391 @@ interface PurchasedActivityCardProps {
   realProgress?: number
   onActivityClick?: (activityId: string) => void
   onStartActivity?: (activityId: string, recommendedDay?: number) => void
+  size?: "small" | "medium" | "large"
 }
 
-export function PurchasedActivityCard({ enrollment, nextActivity, realProgress, onActivityClick, onStartActivity }: PurchasedActivityCardProps) {
+export function PurchasedActivityCard({ enrollment, nextActivity, realProgress, onActivityClick, size = "medium" }: PurchasedActivityCardProps) {
   const { activity } = enrollment
   const [isNavigating, setIsNavigating] = useState(false)
   const [pendingCount, setPendingCount] = useState<number | null>(null)
+  const [nextSessionDate, setNextSessionDate] = useState<string | null>(null)
+  const [isFinished, setIsFinished] = useState(false)
 
-  // Usar el progreso real calculado (enrollment.progress no existe en la base de datos)
+  // Usar el progreso real calculado
   const progress = realProgress !== undefined ? realProgress : 0
 
   // Verificar si el programa ya ha comenzado
-  const hasStarted = enrollment.start_date !== null;
+  const hasStarted = !!enrollment.start_date;
 
-  // Calcular días restantes para empezar y verificar si está bloqueado
-  const getDaysRemainingAndBlocked = () => {
-    if (hasStarted) {
-      return { daysRemaining: null, isBlocked: false, isLastDay: false }
-    }
-
-    const today = new Date()
-    today.setHours(0, 0, 0, 0)
-
+  // Calcular días restantes para empezar (Access expiration logic)
+  const getDaysRemainingInfo = () => {
+    // Fecha de compra
     const purchaseDate = new Date(enrollment.created_at)
     purchaseDate.setHours(0, 0, 0, 0)
 
-    const diasAcceso = activity.dias_acceso || 30 // Default 30 días si no está definido
-    const expirationDate = new Date(purchaseDate)
-    expirationDate.setDate(purchaseDate.getDate() + diasAcceso)
+    // Días de acceso configurados (default 30)
+    const diasAcceso = activity.dias_acceso || 30
 
+    // Fecha límite para iniciar (o fecha de expiración de acceso)
+    // Use enrollment.expiration_date if available, otherwise calculate
+    let expirationDate: Date
+    if (enrollment.expiration_date) {
+      expirationDate = new Date(enrollment.expiration_date)
+    } else {
+      expirationDate = new Date(purchaseDate)
+      expirationDate.setDate(purchaseDate.getDate() + diasAcceso)
+    }
+    expirationDate.setHours(0, 0, 0, 0)
+
+    // Hoy
+    const today = new Date()
+    today.setHours(0, 0, 0, 0)
+
+    // Días restantes
     const daysRemaining = Math.ceil((expirationDate.getTime() - today.getTime()) / (1000 * 60 * 60 * 24))
-    const isLastDay = daysRemaining === 0
-    // Bloquear solo si pasaron los días (el último día puede empezarlo sin problema)
-    const isBlocked = daysRemaining < 0
 
-    return { daysRemaining, isBlocked, isLastDay }
+    const isExpired = daysRemaining < 0
+
+    return { daysRemaining, isExpired, totalAccessDays: diasAcceso, expirationDate }
   }
 
-  const { daysRemaining, isBlocked } = getDaysRemainingAndBlocked()
+  const { daysRemaining, isExpired, expirationDate } = getDaysRemainingInfo()
 
-  // Obtener ejercicios/platos pendientes del día de hoy
+  // Obtener ejercicios/platos pendientes del día de hoy y próxima sesión
   useEffect(() => {
-    const fetchTodayPending = async () => {
-      // Solo obtener pendientes si la actividad ya ha comenzado
+    const fetchProgressData = async () => {
       if (!hasStarted) {
         setPendingCount(null)
+        setNextSessionDate(null)
         return
       }
 
       try {
         const supabase = createClient()
         const { data: { session } } = await supabase.auth.getSession()
-
         if (!session?.user) return
 
         const today = new Date().toISOString().split('T')[0]
 
-        // Obtener registro de progreso del día de hoy - usar maybeSingle para evitar error 406
-        const { data: progressRecord, error } = await supabase
-          .from('progreso_cliente')
-          .select('ejercicios_pendientes')
+        // 1. Pendientes hoy
+        const { data: record, error: pendingError } = await supabase
+          .from('progreso_diario_actividad')
+          .select('items_objetivo, items_completados')
           .eq('cliente_id', enrollment.client_id)
           .eq('actividad_id', activity.id)
           .eq('fecha', today)
           .maybeSingle()
 
-        if (error && error.code !== 'PGRST116') {
-          console.error('Error obteniendo pendientes:', error)
-          setPendingCount(null)
-          return
-        }
-
-        if (progressRecord?.ejercicios_pendientes) {
-          let pendientes: any = {}
-
-          try {
-            if (typeof progressRecord.ejercicios_pendientes === 'string') {
-              pendientes = JSON.parse(progressRecord.ejercicios_pendientes)
-            } else {
-              pendientes = progressRecord.ejercicios_pendientes
-            }
-
-            const count = Array.isArray(pendientes) ? pendientes.length : Object.keys(pendientes || {}).length
-            setPendingCount(count > 0 ? count : null)
-          } catch (parseError) {
-            console.error('Error parseando pendientes:', parseError)
-            setPendingCount(null)
-          }
+        if (!pendingError && record) {
+          const total = record.items_objetivo || 0
+          const done = record.items_completados || 0
+          setPendingCount(Math.max(0, total - done))
         } else {
           setPendingCount(null)
         }
+
+        // 2. Próxima sesión
+        if (activity.type?.toLowerCase() === 'workshop' || activity.type?.toLowerCase() === 'taller') {
+          // Buscar próxima clase reservada o pendiente
+          const { data: upcoming } = await supabase
+            .from('taller_progreso_temas')
+            .select('fecha_seleccionada')
+            .eq('actividad_id', activity.id)
+            .eq('cliente_id', enrollment.client_id)
+            .gte('fecha_seleccionada', today)
+            .order('fecha_seleccionada', { ascending: true })
+            .limit(1)
+            .maybeSingle()
+
+          if (upcoming?.fecha_seleccionada) {
+            setNextSessionDate(upcoming.fecha_seleccionada)
+            setIsFinished(false)
+          } else {
+            setNextSessionDate(null)
+            setIsFinished(true)
+          }
+        } else if (activity.type?.toLowerCase() === 'program' || activity.type?.toLowerCase() === 'programa') {
+          // Buscar próximo día con objetivos
+          const { data: upcoming } = await supabase
+            .from('progreso_diario_actividad')
+            .select('fecha')
+            .eq('actividad_id', activity.id)
+            .eq('cliente_id', enrollment.client_id)
+            .gt('fecha', today)
+            .gt('items_objetivo', 0)
+            .order('fecha', { ascending: true })
+            .limit(1)
+            .maybeSingle()
+
+          if (upcoming?.fecha) {
+            setNextSessionDate(upcoming.fecha)
+            setIsFinished(false)
+          } else {
+            setNextSessionDate(null)
+            setIsFinished(progress >= 100)
+          }
+        }
       } catch (error) {
-        console.error('Error obteniendo pendientes del día:', error)
-        setPendingCount(null)
+        console.error('Error fetching progress data:', error)
       }
     }
 
-    fetchTodayPending()
-  }, [hasStarted, enrollment.client_id, activity.id])
+    fetchProgressData()
+  }, [hasStarted, enrollment.client_id, activity.id, progress])
 
-  // Función para manejar el click
   const handleCardClick = async (e: React.MouseEvent) => {
     e.preventDefault()
     e.stopPropagation()
 
-    // Si está bloqueado, no permitir acceso
-    if (isBlocked) {
-      return
-    }
+    if (isExpired && !hasStarted) return // Block if expired and never started
 
     if (isNavigating) return
-
     setIsNavigating(true)
 
     try {
       if (onActivityClick) {
-        // Usar callback si está disponible (para aplicación móvil)
         onActivityClick(activity.id.toString())
       } else {
-        // Fallback a navegación al tab de actividades
-        try {
-          localStorage.setItem("openActivityId", activity.id.toString())
-        } catch (e) {
-          console.error("Error guardando en localStorage:", e)
-        }
+        localStorage.setItem("openActivityId", activity.id.toString())
         window.location.href = '/?tab=activity'
       }
     } catch (error) {
-      console.error("Error navigating to activity:", error)
+      console.error("Error navigating:", error)
     } finally {
       setIsNavigating(false)
     }
   }
 
-  // Formatear fecha de compra
-  const formatPurchaseDate = (dateString: string) => {
-    const date = new Date(dateString)
-    return date.toLocaleDateString('es-ES', {
-      day: 'numeric',
-      month: 'short',
-      year: 'numeric'
-    })
-  }
-
-  // Obtener tipo de actividad basado en la categoría - usar categoria directamente de la base de datos
-  // La columna en la BD es 'categoria', no 'category'
-  const categoria = activity.categoria || (activity as any).category || 'fitness'
-
-  // Debug: Log para verificar la categoría
-  /* if (process.env.NODE_ENV === 'development') {
-    console.log('🔍 PurchasedActivityCard - Activity ID:', activity.id, 'Categoria:', categoria, 'Raw activity:', {
-      categoria: activity.categoria,
-      category: (activity as any).category,
-      type: activity.type
-    })
-  } */
-
-  const getActivityTypeDisplay = (category: string) => {
-    const cat = category?.toLowerCase() || ''
-    switch (cat) {
-      case 'fitness':
-        return 'Fitness'
-      case 'nutrition':
-      case 'nutricion':
-        return 'Nutrición'
-      case 'consultation':
-        return 'Consulta'
-      default:
-        // Si no coincide, intentar inferir del tipo
-        if (cat.includes('nutri')) return 'Nutrición'
-        if (cat.includes('fit')) return 'Fitness'
-        return 'Fitness' // Default a Fitness
+  // Helpers de estilo (mismos que ActivityCard)
+  const getCategoryColor = (categoria?: string) => {
+    switch (categoria?.toLowerCase()) {
+      case 'fitness': return 'text-[#FF7939]'
+      case 'nutrition': case 'nutricion': return 'text-orange-300'
+      default: return 'text-[#FF7939]'
     }
   }
 
-  // Formatear fecha de inicio para mostrar solo el día
-  const formatStartDate = (dateString: string | null) => {
-    if (!dateString) return null
+  const getCategoryBadge = (categoria?: string) => {
+    switch (categoria?.toLowerCase()) {
+      case 'fitness': return 'FITNESS'
+      case 'nutrition': case 'nutricion': return 'NUTRICIÓN'
+      default: return 'FITNESS'
+    }
+  }
+
+  const getTypeBadge = (type?: string) => {
+    switch (type?.toLowerCase()) {
+      case 'program': case 'programa': return 'PROGRAMA'
+      case 'workshop': case 'taller': return 'TALLER'
+      case 'document': case 'documento': return 'DOCUMENTO'
+      default: return 'PROGRAMA'
+    }
+  }
+
+  const getTypeColor = (type?: string) => {
+    switch (type?.toLowerCase()) {
+      case 'program': case 'programa': return 'text-[#FF7939]'
+      case 'workshop': case 'taller': return 'text-orange-300'
+      case 'document': case 'documento': return 'text-white'
+      default: return 'text-[#FF7939]'
+    }
+  }
+
+  const formatDate = (dateString: string) => {
+    if (!dateString) return ''
+    // Handle YYYY-MM-DD explicitly to avoid timezone shifts
+    if (dateString.includes('-') && !dateString.includes('T')) {
+      const parts = dateString.split('-')
+      if (parts.length === 3) {
+        // Create date using local year, month (0-indexed), day
+        const date = new Date(parseInt(parts[0]), parseInt(parts[1]) - 1, parseInt(parts[2]))
+        return date.toLocaleDateString('es-ES', { day: 'numeric', month: 'short' })
+      }
+    }
+    // Fallback for ISO strings or other formats
     const date = new Date(dateString)
-    return date.toLocaleDateString('es-ES', {
-      day: 'numeric',
-      month: 'short'
-    })
+    return date.toLocaleDateString('es-ES', { day: 'numeric', month: 'short' })
   }
 
-  // Formatear días restantes
-  const formatDaysRemaining = (days: number | null) => {
-    if (days === null) return null
-    if (days < 0) return 'Expirado'
-    if (days === 0) return 'Último día para empezar'
-    if (days === 1) return '1 día para empezar'
-    return `${days} días para empezar`
+  // Imagen válida
+  const imageUrl = activity.media?.image_url || activity.image_url || null
+
+  // Determine dimensions based on size (matching ActivityCard)
+  const getSizeClasses = () => {
+    switch (size) {
+      case "small": return "w-40 h-[30rem]" // Compact vertical
+      case "large": return "w-80 h-[36rem]" // Featured
+      default: return "w-64 h-[32rem]" // Standard medium
+    }
   }
 
-  // Obtener URL de imagen para el fondo difuminado
-  const imageUrl = activity.media?.image_url || null
+  // Adjust image height based on card size
+  const getImageHeightClass = () => {
+    switch (size) {
+      case "small": return "h-48"
+      case "large": return "h-56"
+      default: return "h-48"
+    }
+  }
 
   return (
-    <Card
-      className={`relative overflow-hidden rounded-xl shadow-xl transition-all duration-300 ${isBlocked
-          ? 'opacity-50 cursor-not-allowed'
-          : isNavigating
-            ? 'opacity-75 scale-95 cursor-pointer'
-            : 'hover:scale-[1.01] cursor-pointer'
-        }`}
+    <div
+      className={`${getSizeClasses()} cursor-pointer group relative mx-auto flex-shrink-0`}
       onClick={handleCardClick}
-      style={{
-        background: 'rgba(30, 30, 30, 0.6)',
-        backdropFilter: 'blur(20px)',
-        WebkitBackdropFilter: 'blur(20px)',
-        border: '1px solid rgba(255, 255, 255, 0.1)',
-      }}
     >
-      {/* Imagen horizontal con todo el contenido integrado - Compact hero style */}
-      <div className="relative w-full h-40 overflow-hidden rounded-xl">
-        {imageUrl ? (
-          <Image
-            src={imageUrl}
-            alt={activity.title}
-            fill
-            className="object-cover"
-            sizes="(max-width: 768px) 100vw, (max-width: 1200px) 50vw, 33vw"
-          />
-        ) : (
-          <div className="w-full h-full bg-gradient-to-br from-[#FF7939] to-[#E66829] flex items-center justify-center">
-            <span className="text-2xl font-bold text-white">{activity.title.charAt(0)}</span>
-          </div>
-        )}
+      <div className={`bg-[#1A1A1A] rounded-2xl overflow-hidden border border-gray-800 hover:border-[#FF7939]/30 transition-all duration-200 hover:scale-[1.02] h-full flex flex-col relative ${isExpired && !hasStarted ? 'opacity-50 grayscale' : ''}`}>
 
-        {/* Overlay con gradiente para glassmorphism */}
-        <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-black/40 to-transparent" />
+        {/* Activity Image (Parte Superior) */}
+        <div className={`relative w-full ${getImageHeightClass()} flex-shrink-0`}>
+          {imageUrl ? (
+            <Image
+              src={imageUrl}
+              alt={activity.title || 'Actividad'}
+              fill
+              className="object-cover"
+            />
+          ) : (
+            <div className="w-full h-full bg-[rgba(255,255,255,0.02)] flex items-center justify-center flex-col gap-3">
+              <div className="w-16 h-16 bg-[#FF7939] rounded-xl flex items-center justify-center">
+                <Flame className="w-8 h-8 text-black" />
+              </div>
+            </div>
+          )}
 
-        {/* Badge de categoría en la esquina superior derecha - glassmorphism */}
-        <div className="absolute top-2 right-2 z-10">
-          <Badge
-            className="text-xs font-semibold px-2.5 py-0.5 rounded-full border-0 text-white"
-            style={{
-              background: 'rgba(255, 255, 255, 0.15)',
-              backdropFilter: 'blur(10px)',
-              WebkitBackdropFilter: 'blur(10px)',
-              border: '1px solid rgba(255, 255, 255, 0.2)',
-            }}
-          >
-            {getActivityTypeDisplay(categoria)}
-          </Badge>
+          {/* Status Badge Removed per user request */}
         </div>
 
-        {/* Ícono de fuego con pendientes del día en la esquina superior derecha */}
-        {hasStarted && pendingCount !== null && pendingCount > 0 && (
-          <div
-            className="absolute top-2 right-2 z-10 flex items-center gap-1.5 px-2 py-1 rounded-full"
-            style={{
-              background: 'rgba(255, 121, 57, 0.2)',
-              backdropFilter: 'blur(10px)',
-              WebkitBackdropFilter: 'blur(10px)',
-              border: '1px solid rgba(255, 121, 57, 0.3)',
-            }}
-          >
-            <Flame className="w-3.5 h-3.5 text-[#FF7939]" fill="#FF7939" />
-            <span className="text-xs font-bold text-white">{pendingCount}</span>
-          </div>
-        )}
+        {/* Content Body */}
+        <div className="p-4 flex-1 flex flex-col h-full min-h-0 relative">
 
-        {/* Contenido principal: Título y progreso - Compacto */}
-        <div className="absolute bottom-12 left-0 right-0 p-3 z-10">
-          <div className="space-y-1.5">
-            <h3
-              className="font-bold text-lg leading-tight text-white drop-shadow-2xl overflow-hidden"
-              style={{
-                display: '-webkit-box',
-                WebkitLineClamp: 2,
-                WebkitBoxOrient: 'vertical',
-                lineHeight: '1.2em',
-                textShadow: '0 2px 8px rgba(0,0,0,0.9)',
-              }}
-            >
+          {/* 1. Título */}
+          <div className="mb-2">
+            <h3 className="text-white font-bold leading-tight text-lg h-[2.5em] overflow-hidden line-clamp-2">
               {activity.title}
             </h3>
-
-            {/* Barra de progreso compacta */}
-            {progress > 0 && (
-              <div className="flex items-center gap-2">
-                <div
-                  className="relative h-1 flex-1 rounded-full overflow-hidden"
-                  style={{
-                    background: 'rgba(255, 121, 57, 0.2)',
-                  }}
-                >
-                  <div
-                    className="h-full rounded-full transition-all duration-300"
-                    style={{
-                      width: `${progress}%`,
-                      background: 'rgba(255, 121, 57, 0.9)',
-                    }}
-                  />
-                </div>
-                <span className="text-xs font-bold text-white flex-shrink-0">{progress}%</span>
-              </div>
-            )}
           </div>
-        </div>
 
-        {/* Contenido del coach y fecha en la parte inferior - Compacto */}
-        <div className="absolute bottom-0 left-0 right-0 p-3 z-10">
-          <div className="flex items-center justify-between gap-2 w-full">
-            <div className="flex items-center gap-2 flex-1 min-w-0">
-              <div className="relative h-6 w-6 rounded-full overflow-hidden flex-shrink-0 border border-white/20">
+          {/* 2. Coach Info */}
+          <div className="border-t border-b border-gray-700/30 py-2 mb-3">
+            <div className="flex items-center gap-2">
+              <div className="relative h-5 w-5 rounded-full overflow-hidden bg-gray-700">
                 <Image
-                  src={activity.coach_avatar_url || "/placeholder.svg?height=24&width=24&query=coach"}
+                  src={activity.coach_avatar_url || "/placeholder.svg"}
                   alt={activity.coach_name || "Coach"}
                   fill
                   className="object-cover"
                 />
               </div>
-              <p className="text-xs font-medium text-white/90 truncate drop-shadow-lg">
-                Por {activity.coach_name || "Coach"}
-              </p>
-            </div>
-            {/* Fecha o días restantes en lugar del botón */}
-            <div className="flex-shrink-0">
-              {hasStarted && enrollment.start_date ? (
-                <span className="text-xs font-medium text-white/90 drop-shadow-lg">
-                  {formatStartDate(enrollment.start_date)}
-                </span>
-              ) : daysRemaining !== null ? (
-                <span className={`text-xs font-medium drop-shadow-lg ${isBlocked ? 'text-red-400' : daysRemaining <= 3 ? 'text-yellow-400' : 'text-white/90'
-                  }`}>
-                  {formatDaysRemaining(daysRemaining)}
-                </span>
-              ) : null}
+              <p className="text-xs font-medium text-gray-300 truncate">{activity.coach_name || 'Coach'}</p>
             </div>
           </div>
+
+          {/* 3. Badges */}
+          <div className="flex justify-between items-center mb-4 -mx-1">
+            <span className={`bg-black/20 ${getCategoryColor(activity.categoria)} text-[10px] px-1.5 py-0.5 rounded-full font-bold border border-[#FF7939]/30`}>
+              {getCategoryBadge(activity.categoria)}
+            </span>
+            <span className={`bg-black/20 ${getTypeColor(activity.type)} text-[10px] px-1.5 py-0.5 rounded-full font-bold border border-[#FF7939]/30`}>
+              {getTypeBadge(activity.type)}
+            </span>
+          </div>
+
+          {/* 4. Info Dinámica (Progreso / Fechas / Pendientes) */}
+          <div className="flex-1 flex flex-col gap-2 text-sm text-gray-300">
+
+            {/* Fecha Inicio o Countdown */}
+            <div className="flex flex-col gap-1">
+              {hasStarted ? (
+                <>
+                  <div className="flex items-center justify-between">
+                    <div className="flex items-center gap-1.5 text-gray-400">
+                      <Calendar className="w-3.5 h-3.5" />
+                      <span className="text-xs">Iniciado: <span className="text-white">{formatDate(enrollment.start_date || '')}</span></span>
+                    </div>
+                  </div>
+                  {enrollment.program_end_date ? (
+                    <div className="flex items-center gap-1.5 text-[#FF7939]">
+                      <Clock className="w-3.5 h-3.5" />
+                      <span className="text-xs font-medium">Vence: <span className="text-white">{formatDate(enrollment.program_end_date)}</span></span>
+                    </div>
+                  ) : enrollment.expiration_date && (
+                    <div className="flex items-center gap-1.5 text-gray-400">
+                      <Clock className="w-3.5 h-3.5" />
+                      <span className="text-xs">Expira: <span className="text-white">{formatDate(enrollment.expiration_date)}</span></span>
+                    </div>
+                  )}
+                </>
+              ) : (
+                <div className="flex flex-col gap-1">
+                  <div className="flex items-center gap-1.5 text-yellow-500">
+                    <Clock className="w-3.5 h-3.5" />
+                    <span className="text-xs font-medium">
+                      {daysRemaining !== null && daysRemaining > 0
+                        ? `${daysRemaining} días para iniciar`
+                        : 'Acceso expirado'}
+                    </span>
+                  </div>
+                  {expirationDate && (
+                    <div className="flex items-center gap-1.5 text-gray-500">
+                      <Calendar className="w-3.5 h-3.5" />
+                      <span className="text-xs">Límite: <span className="text-gray-300">{formatDate(expirationDate.toISOString())}</span></span>
+                    </div>
+                  )}
+                </div>
+              )}
+            </div>
+
+            {/* Actividades Pendientes Hoy / Next Session */}
+            {hasStarted && (
+              <div className="flex flex-col gap-1.5 mt-1">
+                {((pendingCount !== null && pendingCount > 0) || isFinished || progress >= 100) && (
+                  <div className="flex items-center gap-1.5">
+                    <Zap className={`w-3.5 h-3.5 ${pendingCount ? 'text-[#FF7939]' : 'text-gray-500'}`} />
+                    <span className="text-xs">
+                      {pendingCount !== null && pendingCount > 0
+                        ? <span className="text-white font-medium">{pendingCount} pendientes</span>
+                        : <span className="text-gray-500 font-medium">Finalizado</span>
+                      }
+                    </span>
+                  </div>
+                )}
+
+                {nextSessionDate && (
+                  <div className="flex items-center gap-1.5 text-xs text-gray-400">
+                    <Calendar className="w-3.5 h-3.5" />
+                    <span>Sig: <span className="text-white font-medium">{formatDate(nextSessionDate)}</span></span>
+                  </div>
+                )}
+              </div>
+            )}
+
+            {/* Próxima Sesión */}
+            {hasStarted && nextActivity && (
+              <div className="flex items-center gap-1.5 mt-1 text-xs text-gray-400 bg-gray-800/30 p-1.5 rounded-md">
+                <Play className="w-3 h-3 text-[rgb(0,255,128)]" />
+                <span className="truncate">
+                  <span className="font-medium text-white">Próximo:</span> {nextActivity.title}
+                </span>
+              </div>
+            )}
+          </div>
+
+          {/* 5. Progreso (Abajo) */}
+          <div className="mt-auto pt-3">
+            <div className="flex justify-between text-xs mb-1 text-gray-400">
+              <span>Progreso</span>
+              <span className="text-white font-bold">{progress}%</span>
+            </div>
+            <div className="h-1.5 bg-gray-700 rounded-full overflow-hidden">
+              <div
+                className="h-full bg-[#FF7939] rounded-full transition-all duration-500"
+                style={{ width: `${progress}%` }}
+              />
+            </div>
+          </div>
+
         </div>
       </div>
-    </Card>
+    </div>
   )
 }
-

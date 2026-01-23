@@ -52,6 +52,7 @@ import { WorkshopClientView } from "@/components/client/workshop-client-view"
 import type { Activity, Enrollment } from "@/types/activity" // Import updated types
 import { OmniaLogoText } from '@/components/shared/ui/omnia-logo'
 import { SettingsIcon } from '@/components/shared/ui/settings-icon'
+import { MessagesIcon } from '@/components/shared/ui/messages-icon'
 
 interface Coach {
   id: string
@@ -98,6 +99,7 @@ export function ActivityScreen() {
   const [selectedCoachForProfile, setSelectedCoachForProfile] = useState<Coach | null>(null)
   const [isCoachProfileModalOpen, setIsCoachProfileModalOpen] = useState(false)
   const [meetCredits, setMeetCredits] = useState<Record<string, number>>({})
+  const [nextActivities, setNextActivities] = useState<Record<number, any>>({})
 
   // Función para manejar el click en una actividad
   const handleActivityClick = (activityId: string) => {
@@ -245,11 +247,70 @@ export function ActivityScreen() {
   const calculateRealProgress = useCallback(async (enrollment: Enrollment) => {
     try {
       const activityId = enrollment.activity_id
-      console.log(`🔍 [calculateRealProgress] Calculando progreso simple para actividad ${activityId}`)
+      const activityType = enrollment.activity.type?.toLowerCase() || ""
 
-      // Obtener progreso del cliente para esta actividad usando la nueva tabla progreso_cliente
+      // DOCUMENT: Calculate from client_document_progress
+      if (activityType === 'document' || activityType === 'documento') {
+        const { data: progressData, error: progressError } = await supabase
+          .from('client_document_progress')
+          .select('completed')
+          .eq('client_id', enrollment.client_id)
+          .eq('activity_id', activityId)
+
+        if (progressError) {
+          console.error('❌ Error getting document progress:', progressError)
+          return 0
+        }
+
+        if (!progressData || progressData.length === 0) return 0
+
+        const completedCount = progressData.filter(p => p.completed).length
+        const totalCount = progressData.length
+        return totalCount > 0 ? (completedCount / totalCount) * 100 : 0
+      }
+
+      // WORKSHOP: Calculate from taller_progreso_temas (attendance-based)
+      if (activityType === 'workshop' || activityType === 'taller') {
+        const { data: progressData, error: progressError } = await supabase
+          .from('taller_progreso_temas')
+          .select('asistio, fecha_seleccionada')
+          .eq('cliente_id', enrollment.client_id)
+          .eq('actividad_id', activityId)
+
+        if (progressError) {
+          console.error('❌ Error getting workshop progress:', progressError)
+          return 0
+        }
+
+        if (!progressData || progressData.length === 0) return 0
+
+        // Only count classes that have already happened
+        const today = new Date()
+        today.setHours(0, 0, 0, 0)
+
+        const pastClasses = progressData.filter(p => {
+          if (!p.fecha_seleccionada) return false
+          const classDate = new Date(p.fecha_seleccionada)
+          classDate.setHours(0, 0, 0, 0)
+          return classDate < today
+        })
+
+        if (pastClasses.length === 0) return 0
+
+        const attendedCount = pastClasses.filter(p => p.asistio).length
+        return (attendedCount / pastClasses.length) * 100
+      }
+
+      // PROGRAM: Existing logic
+      const activityCategory = enrollment.activity.categoria?.toLowerCase() || ""
+
+      const isNutrition = activityType.includes("nutrition") || activityCategory === "nutricion" || activityCategory === "nutrition"
+      const tableName = isNutrition ? "progreso_cliente_nutricion" : "progreso_cliente"
+
+
+      // Obtener progreso del cliente para esta actividad usando la tabla correcta
       const { data: progressRecords, error: progressError } = await supabase
-        .from("progreso_cliente")
+        .from(tableName)
         .select("ejercicios_completados, ejercicios_pendientes")
         .eq("actividad_id", activityId)
         .eq("cliente_id", enrollment.client_id)
@@ -285,15 +346,9 @@ export function ActivityScreen() {
 
       const total = totalCompleted + totalPending
 
-      console.log(`📈 [calculateRealProgress] CÁLCULO SIMPLE:`)
-      console.log(`   - Ejercicios completados: ${totalCompleted}`)
-      console.log(`   - Ejercicios pendientes: ${totalPending}`)
-      console.log(`   - Total de ejercicios: ${total}`)
-      console.log(`   - Progreso: ${totalCompleted}/${total} = ${total > 0 ? Math.round((totalCompleted / total) * 100) : 0}%`)
 
       if (total === 0) return 0
       const progressPercentage = Math.round((totalCompleted / total) * 100)
-      console.log(`✅ [calculateRealProgress] Progreso final: ${progressPercentage}%`)
       return progressPercentage
 
     } catch (error) {
@@ -345,6 +400,49 @@ export function ActivityScreen() {
             title: nextNutrition.nombre,
             day: nextNutrition.día,
             week: nextNutrition.semana
+          }
+        }
+      } else if (activityType.includes("workshop") || activityType.includes("taller")) {
+        // Logic for Workshops: Find next session date
+        const { data: workshopTopics, error } = await supabase
+          .from("taller_detalles")
+          .select("originales, secundarios, tema")
+          .eq("actividad_id", activityId)
+
+        if (!error && workshopTopics && workshopTopics.length > 0) {
+          const today = new Date().toISOString().split('T')[0]
+          let nextSession = null
+          let minDiff = Infinity
+
+          workshopTopics.forEach((topic: any) => {
+            const allHorarios = [
+              ...(topic.originales?.fechas_horarios || []),
+              ...(topic.secundarios?.fechas_horarios || [])
+            ]
+
+            allHorarios.forEach((h: any) => {
+              if (h.fecha && h.fecha >= today) {
+                // Check if it's closer than current found date
+                const diff = new Date(h.fecha).getTime() - new Date(today).getTime()
+                if (diff < minDiff) {
+                  minDiff = diff
+                  nextSession = {
+                    title: topic.tema || "Taller",
+                    day: h.fecha, // Using date string as day
+                    week: 1, // Placeholder
+                    isToday: h.fecha === today
+                  }
+                }
+              }
+            })
+          })
+
+          if (nextSession) {
+            return {
+              title: (nextSession as any).isToday ? "¡SESIÓN HOY!" : (nextSession as any).title,
+              day: (nextSession as any).day, // Will be formatted by card
+              week: 0
+            }
           }
         }
       }
@@ -713,6 +811,20 @@ export function ActivityScreen() {
       }, {} as Record<number, number>)
 
       setEnrollmentProgresses(progressMap)
+
+      // Calcular próximas actividades
+      const nextActivityPromises = formattedEnrollments.map(async (enrollment) => {
+        const next = await getNextActivity(enrollment)
+        return { enrollmentId: enrollment.id, next }
+      })
+
+      const nextActivityResults = await Promise.all(nextActivityPromises)
+      const nextActivityMap = nextActivityResults.reduce((acc, { enrollmentId, next }) => {
+        if (next) acc[enrollmentId] = next
+        return acc
+      }, {} as Record<number, any>)
+
+      setNextActivities(nextActivityMap)
 
     } catch (error) {
       console.error("Error al cargar las inscripciones:", error)
@@ -1341,7 +1453,7 @@ export function ActivityScreen() {
     const hasStarted = enrollment.start_date !== null
     const dbStatus = enrollment.status?.toLowerCase() || ''
 
-    // 1. EXPIRADA: status explícito en BD o expiration_date pasó y no empezó
+    // 1. EXPIRADA: status explícito en BD o expiration_date pasó (solo si NO empezó)
     if (dbStatus === 'expirada') {
       return 'expirada'
     }
@@ -1548,30 +1660,48 @@ export function ActivityScreen() {
   if (showTodayScreen && selectedActivityId) {
     const activityType = getSelectedActivityType()
     const selectedEnrollment = enrollments.find(e => e.activity_id.toString() === selectedActivityId)
-    const isWorkshop = activityType?.toLowerCase().includes('workshop')
+    const isWorkshop = activityType?.toLowerCase().includes('workshop') || activityType?.toLowerCase().includes('taller')
+    const isDocument = activityType?.toLowerCase().includes('document') || activityType?.toLowerCase().includes('documento')
 
-    return (
-      <div className="fixed inset-0 z-50" style={{ backgroundColor: '#0F1012' }}>
-        {isWorkshop ? (
+    if (isWorkshop || isDocument) {
+      return (
+        <div className="fixed inset-0 z-50" style={{ backgroundColor: '#0F1012' }}>
           <div className="h-full overflow-y-auto">
-            <div className="fixed top-4 left-4 z-20">
-              <button
-                onClick={handleBackToActivities}
-                className="bg-black/40 backdrop-blur-md px-4 py-2 rounded-lg text-white flex items-center gap-2 border border-white/10 hover:bg-black/60 transition-colors"
-              >
-                ← Volver
-              </button>
+            {/* Header de Omnia */}
+            <div
+              className="fixed top-0 left-0 right-0 z-50 bg-black rounded-b-[32px] px-5 py-3 flex justify-between items-center"
+              style={{ zIndex: 1000 }}
+            >
+              {/* Settings Icon */}
+              <div className="flex items-center cursor-pointer" onClick={() => router.push('/coach')}>
+                <SettingsIcon />
+              </div>
+
+              {/* OMNIA Logo */}
+              <div className="absolute left-1/2 transform -translate-x-1/2 cursor-pointer" onClick={handleBackToActivities}>
+                <OmniaLogoText size="text-3xl" />
+              </div>
+
+              {/* Messages Icon */}
+              <div className="flex items-center cursor-pointer" onClick={() => router.push('/?tab=community')}>
+                <MessagesIcon />
+              </div>
             </div>
             <WorkshopClientView
               activityId={parseInt(selectedActivityId)}
-              activityTitle={selectedEnrollment?.activity?.title || "Taller"}
+              activityTitle={selectedEnrollment?.activity?.title || (isDocument ? "Documento" : "Taller")}
               activityDescription={selectedEnrollment?.activity?.description}
               activityImageUrl={selectedEnrollment?.activity?.media?.image_url || selectedEnrollment?.activity?.image_url}
+              isDocument={isDocument}
             />
           </div>
-        ) : (
-          <TodayScreen activityId={selectedActivityId} onBack={handleBackToActivities} />
-        )}
+        </div>
+      )
+    }
+
+    return (
+      <div className="fixed inset-0 z-50" style={{ backgroundColor: '#0F1012' }}>
+        <TodayScreen activityId={selectedActivityId} onBack={handleBackToActivities} />
       </div>
     )
   }
@@ -1763,16 +1893,18 @@ export function ActivityScreen() {
               )}
             </div>
           ) : (
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <div className="flex gap-4 overflow-x-auto pb-6 snap-x scrollbar-hide -mx-4 px-4">
               {searchFilteredEnrollments.map((enrollment) => (
-                <PurchasedActivityCard
-                  key={enrollment.id}
-                  enrollment={enrollment}
-                  nextActivity={null} // Por ahora null, se puede mejorar después
-                  realProgress={enrollmentProgresses[enrollment.id]}
-                  onActivityClick={handleActivityClick}
-                  onStartActivity={handleStartActivity}
-                />
+                <div key={enrollment.id} className="snap-center">
+                  <PurchasedActivityCard
+                    enrollment={enrollment}
+                    nextActivity={nextActivities[enrollment.id] || null}
+                    realProgress={enrollmentProgresses[enrollment.id]}
+                    onActivityClick={handleActivityClick}
+                    onStartActivity={handleStartActivity}
+                    size="small"
+                  />
+                </div>
               ))}
             </div>
           )}

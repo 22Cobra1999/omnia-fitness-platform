@@ -2528,8 +2528,8 @@ export default function CalendarView({ activityIds, onActivityClick, scheduleMee
                     </div>
 
                     {/* Scrollable Body */}
-                    <div className="flex-1 overflow-y-auto custom-scrollbar relative">
-                      <div className="flex min-h-[1600px] h-full relative">
+                    <div className="flex-1 relative">
+                      <div className="flex min-h-[1200px] h-full relative">
                         {/* Time Axis */}
                         <div className="w-12 flex-shrink-0 border-r border-white/10 bg-zinc-900/20 text-[10px] text-white/30 font-medium text-center relative">
                           {Array.from({ length: END_HOUR - START_HOUR }).map((_, i) => {
@@ -2901,7 +2901,7 @@ export default function CalendarView({ activityIds, onActivityClick, scheduleMee
                 // (renderClientEvents helper moved to component scope)
 
                 return (
-                  <div className="relative border border-white/10 rounded-2xl bg-zinc-950/30 overflow-hidden flex flex-col h-[1600px]">
+                  <div className="relative border border-white/10 rounded-2xl bg-zinc-950/30 overflow-hidden flex flex-col">
                     {/* Header Row */}
                     <div className="flex border-b border-white/10 bg-zinc-900/50">
                       <div className="w-12 flex-shrink-0" />
@@ -2939,8 +2939,8 @@ export default function CalendarView({ activityIds, onActivityClick, scheduleMee
                     </div>
 
                     {/* Scrollable Body */}
-                    <div className="flex-1 overflow-y-auto custom-scrollbar relative">
-                      <div className="flex min-h-[1600px] h-full relative">
+                    <div className="flex-1 relative">
+                      <div className="flex min-h-[1200px] h-full relative">
                         {/* Time Axis */}
                         <div className="w-12 flex-shrink-0 border-r border-white/10 bg-zinc-900/20 text-[10px] text-white/30 font-medium text-center relative">
                           {Array.from({ length: END_HOUR - START_HOUR }).map((_, i) => {

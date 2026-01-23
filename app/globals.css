@@ -527,6 +527,34 @@ html {
   background-color: rgba(255, 255, 255, 0.3);
 }
 
+/* Custom Scrollbar Utility */
+.custom-scrollbar {
+  scrollbar-width: thin;
+  scrollbar-color: rgba(255, 121, 57, 0.4) transparent;
+  -webkit-overflow-scrolling: touch; /* Momentum scrolling for iOS */
+}
+
+.custom-scrollbar::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+
+.custom-scrollbar::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+.custom-scrollbar::-webkit-scrollbar-thumb {
+  background: rgba(255, 121, 57, 0.4);
+  backdrop-filter: blur(10px);
+  -webkit-backdrop-filter: blur(10px);
+  border-radius: 10px;
+  border: 1px solid rgba(255, 121, 57, 0.2);
+}
+
+.custom-scrollbar::-webkit-scrollbar-thumb:hover {
+  background: rgba(255, 121, 57, 0.6);
+}
+
 /* Ocultar scrollbar pero mantener scroll */
 .hide-scrollbar {
   scrollbar-width: none; /* Firefox */
