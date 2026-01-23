@@ -2452,7 +2452,7 @@ export default function CalendarView({ activityIds, onActivityClick, scheduleMee
               <div className="flex flex-col md:flex-row gap-6">
                 {/* LEFT PANEL: TIMELINE (Slots) */}
                 <div className="w-full md:w-1/2">
-                  <div className="bg-zinc-950/30 border border-white/5 rounded-2xl overflow-hidden flex flex-col h-[1600px] relative">
+                  <div className="bg-zinc-950/30 border border-white/5 rounded-2xl overflow-hidden flex flex-col relative">
                     {/* Header */}
                     <div className="flex border-b border-white/10 bg-zinc-900/50">
                       <div className="w-12 flex-shrink-0" />
@@ -2529,7 +2529,7 @@ export default function CalendarView({ activityIds, onActivityClick, scheduleMee
 
                     {/* Scrollable Body */}
                     <div className="flex-1 relative">
-                      <div className="flex min-h-[1200px] h-full relative">
+                      <div className="flex min-h-[1000px] h-full relative">
                         {/* Time Axis */}
                         <div className="w-12 flex-shrink-0 border-r border-white/10 bg-zinc-900/20 text-[10px] text-white/30 font-medium text-center relative">
                           {Array.from({ length: END_HOUR - START_HOUR }).map((_, i) => {
@@ -2940,7 +2940,7 @@ export default function CalendarView({ activityIds, onActivityClick, scheduleMee
 
                     {/* Scrollable Body */}
                     <div className="flex-1 relative">
-                      <div className="flex min-h-[1200px] h-full relative">
+                      <div className="flex min-h-[1000px] h-full relative">
                         {/* Time Axis */}
                         <div className="w-12 flex-shrink-0 border-r border-white/10 bg-zinc-900/20 text-[10px] text-white/30 font-medium text-center relative">
                           {Array.from({ length: END_HOUR - START_HOUR }).map((_, i) => {
