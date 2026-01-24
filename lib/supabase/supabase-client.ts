@@ -15,7 +15,7 @@ export const createSupabaseClient = () => {
     throw new Error("Missing Supabase environment variables")
   }
 
-  console.log('🔌 [SupabaseClient] Initializing vanilla JS client with URL:', supabaseUrl)
+  // Log removido para mantener la consola limpia
 
   supabaseClientInstance = createClient(supabaseUrl, supabaseAnonKey, {
     auth: {

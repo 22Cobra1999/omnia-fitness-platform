@@ -165,7 +165,8 @@ export function useCoachProfile() {
 
         setProfile(coachProfile)
 
-        // Obtener datos de ganancias (últimos 30 días) + breakdown real por tipo
+        // Obtener actividades recientes desde el endpoint de billing
+        let activities: RecentActivity[] = []
         try {
           const billingResponse = await fetch(`/api/coach/billing?days=30`)
           if (billingResponse.ok) {
@@ -188,59 +189,24 @@ export function useCoachProfile() {
             const totalSalesRaw = Number((billingData as any)?.totalSales)
             const safeTotalSales = Number.isFinite(totalSalesRaw) ? totalSalesRaw : 0
             setProfile((prev) => (prev ? { ...prev, total_sales: safeTotalSales } : prev))
+
+            // Mapear facturas a actividades recientes
+            if (billingData.invoices && Array.isArray(billingData.invoices)) {
+              activities = billingData.invoices.map((inv: any) => ({
+                id: inv.id,
+                type: 'sale',
+                title: inv.concept || 'Actividad',
+                description: `Venta realizada el ${new Date(inv.date).toLocaleDateString('es-AR')}`,
+                amount: `$${inv.amount?.toLocaleString('es-AR')}`,
+                timestamp: inv.date,
+                client_name: inv.clientName || 'Cliente' // El endpoint de billing parece no devolver clientName aún, pero lo dejamos preparado
+              }))
+            }
           }
         } catch (earningsError) {
-          console.error('Error cargando datos de ganancias:', earningsError)
-          // Continuar sin datos de ganancias si hay error
+          console.error('Error cargando datos de ganancias y actividades:', earningsError)
         }
-
-        // Obtener actividades recientes (simulado por ahora)
-        // TODO: Implementar consultas reales a las tablas de actividades
-        const mockRecentActivities: RecentActivity[] = [
-          {
-            id: '1',
-            type: 'sale',
-            title: 'Juan compró "Plan Premium"',
-            description: 'Plan de entrenamiento personalizado de 12 meses',
-            amount: '$299',
-            timestamp: '2024-01-15T10:30:00Z',
-            client_name: 'Juan Pérez'
-          },
-          {
-            id: '2',
-            type: 'consultation',
-            title: 'María agendó videollamada',
-            description: 'Consulta nutricional - Mañana 10:00',
-            timestamp: '2024-01-15T09:15:00Z',
-            client_name: 'María García'
-          },
-          {
-            id: '3',
-            type: 'client',
-            title: 'Pedro se inscribió en "Rutina Avanzada"',
-            description: 'Nuevo cliente en programa de fuerza',
-            timestamp: '2024-01-14T16:45:00Z',
-            client_name: 'Pedro Rodríguez'
-          },
-          {
-            id: '4',
-            type: 'sale',
-            title: 'Ana compró "Documento Nutricional"',
-            description: 'Guía de alimentación saludable',
-            amount: '$49',
-            timestamp: '2024-01-14T14:20:00Z',
-            client_name: 'Ana López'
-          },
-          {
-            id: '5',
-            type: 'consultation',
-            title: 'Carlos agendó mensaje',
-            description: 'Consulta sobre técnica de ejercicio',
-            timestamp: '2024-01-14T11:30:00Z',
-            client_name: 'Carlos Martínez'
-          }
-        ]
-        setRecentActivities(mockRecentActivities)
+        setRecentActivities(activities)
 
       } catch (err) {
         console.error('Error in fetchCoachData:', err)

@@ -406,7 +406,7 @@ export function ActivityScreen() {
         // Logic for Workshops: Find next session date
         const { data: workshopTopics, error } = await supabase
           .from("taller_detalles")
-          .select("originales, secundarios, tema")
+          .select("originales, nombre")
           .eq("actividad_id", activityId)
 
         if (!error && workshopTopics && workshopTopics.length > 0) {
@@ -416,8 +416,7 @@ export function ActivityScreen() {
 
           workshopTopics.forEach((topic: any) => {
             const allHorarios = [
-              ...(topic.originales?.fechas_horarios || []),
-              ...(topic.secundarios?.fechas_horarios || [])
+              ...(topic.originales?.fechas_horarios || [])
             ]
 
             allHorarios.forEach((h: any) => {
@@ -427,7 +426,7 @@ export function ActivityScreen() {
                 if (diff < minDiff) {
                   minDiff = diff
                   nextSession = {
-                    title: topic.tema || "Taller",
+                    title: topic.nombre || "Taller",
                     day: h.fecha, // Using date string as day
                     week: 1, // Placeholder
                     isToday: h.fecha === today

@@ -42,7 +42,8 @@ export function UniversalVideoPlayer({
   // En desarrollo evitamos el iframe de Bunny (carga rum.js/metrics y puede fallar DNS),
   // y preferimos HLS directo con hls.js. Pero algunos entornos bloquean el HLS por CORS,
   // entonces permitimos forzar iframe en previews/modales.
-  const useIframeForBunny = forceIframeForBunny || process.env.NODE_ENV !== 'development'
+  // FORCED: Siempre usar iframe para evitar problemas de CORS con HLS directo en local.
+  const useIframeForBunny = true // forceIframeForBunny || process.env.NODE_ENV !== 'development'
 
   const inferredBunny = (() => {
     if (!videoUrl) return null
@@ -134,14 +135,14 @@ export function UniversalVideoPlayer({
     }
 
     const video = videoRef.current
-    
+
     // Determinar la fuente del video (bunnyVideoId o videoSrc)
     const source = bunnyVideoId
       ? `https://vz-${resolveBunnyLibraryId()}.b-cdn.net/${bunnyVideoId}/playlist.m3u8`
       : videoSrc
-    
+
     if (!source) return
-    
+
     // Si es un archivo HLS (.m3u8), usar HLS.js
     if (source.includes('.m3u8')) {
       if (Hls.isSupported()) {
@@ -150,10 +151,10 @@ export function UniversalVideoPlayer({
           lowLatencyMode: true,
           backBufferLength: 90
         })
-        
+
         hls.loadSource(source)
         hls.attachMedia(video)
-        
+
         hls.on(Hls.Events.MANIFEST_PARSED, () => {
           if (autoPlay) {
             video.play().catch(() => {
@@ -161,17 +162,17 @@ export function UniversalVideoPlayer({
             })
           }
         })
-        
+
         hls.on(Hls.Events.ERROR, (event, data) => {
           if (data.fatal) {
             handleError(data)
           }
         })
-        
+
         return () => {
           hls.destroy()
         }
-      } 
+      }
       // Safari soporta HLS nativamente
       else if (video.canPlayType('application/vnd.apple.mpegurl')) {
         video.src = source
@@ -223,7 +224,7 @@ export function UniversalVideoPlayer({
     const vimeoId = extractVimeoId(videoUrl)
     if (vimeoId) {
       const vimeoUrl = `https://player.vimeo.com/video/${vimeoId}?autoplay=${autoPlay ? 1 : 0}&loop=${loop ? 1 : 0}&muted=${isMuted ? 1 : 0}&title=0&byline=0&portrait=0&controls=${controls ? 1 : 0}`
-      
+
       return (
         <div className={cn("relative w-full h-full bg-black", className)}>
           {isLoading && (
@@ -244,7 +245,7 @@ export function UniversalVideoPlayer({
             }}
             style={{ border: 'none' }}
           />
-          
+
           {/* Botón de mute flotante */}
           {!isLoading && (
             <button
@@ -268,9 +269,9 @@ export function UniversalVideoPlayer({
     return (
       <div className={cn("relative w-full h-full bg-black flex items-center justify-center", className)}>
         {thumbnailUrl ? (
-          <img 
-            src={thumbnailUrl} 
-            alt="Video thumbnail" 
+          <img
+            src={thumbnailUrl}
+            alt="Video thumbnail"
             className="w-full h-full object-cover"
           />
         ) : (
@@ -294,8 +295,8 @@ export function UniversalVideoPlayer({
         muted={isMuted}
         loop={loop}
         playsInline
-        style={{ 
-          width: '100%', 
+        style={{
+          width: '100%',
           height: '100%',
           display: 'block',
           objectFit: 'contain',
@@ -359,8 +360,8 @@ export function UniversalVideoPlayer({
 
       {/* Botón de play grande en el centro cuando está pausado y sin controles */}
       {!controls && !isPlaying && !isLoading && !hasError && (
-        <div 
-          className="absolute inset-0 flex items-center justify-center cursor-pointer z-20" 
+        <div
+          className="absolute inset-0 flex items-center justify-center cursor-pointer z-20"
           onClick={togglePlay}
         >
           <div className="bg-black/50 rounded-full p-4 hover:bg-black/70 transition-colors">

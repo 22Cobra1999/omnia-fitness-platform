@@ -378,7 +378,7 @@ export function PurchasedActivityCard({ enrollment, nextActivity, realProgress, 
             )}
 
             {/* Próxima Sesión */}
-            {hasStarted && nextActivity && (
+            {hasStarted && nextActivity && !isFinished && progress < 100 && (
               <div className="flex items-center gap-1.5 mt-1 text-xs text-gray-400 bg-gray-800/30 p-1.5 rounded-md">
                 <Play className="w-3 h-3 text-[rgb(0,255,128)]" />
                 <span className="truncate">

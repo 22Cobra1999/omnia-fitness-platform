@@ -31,7 +31,8 @@ export async function GET(request: NextRequest) {
         payment_date,
         created_at,
         mercadopago_status,
-        activity_id
+        activity_id,
+        enrollment_id
       `)
       .eq('client_id', user.id)
       .order('created_at', { ascending: false })
@@ -46,36 +47,74 @@ export async function GET(request: NextRequest) {
     }
 
     // Obtener información de actividades por separado si hay activity_ids
+    const enrollmentIds = (purchases || [])
+      .map((p: any) => p.enrollment_id)
+      .filter((id: any) => id != null);
+
     const activityIds = (purchases || [])
       .map((p: any) => p.activity_id)
       .filter((id: any) => id != null);
-    
+
     let activitiesMap: Record<number, any> = {};
-    
+    let enrollmentToActivityMap: Record<number, any> = {};
+
+    // First, try to get activities directly linked to purchases
     if (activityIds.length > 0) {
-      const { data: activities, error: activitiesError } = await supabase
+      const { data: directActivities } = await supabase
         .from('activities')
         .select('id, title, image_url, price')
         .in('id', activityIds);
-      
-      if (!activitiesError && activities) {
-        activities.forEach((activity: any) => {
+
+      if (directActivities) {
+        directActivities.forEach((activity: any) => {
           activitiesMap[activity.id] = activity;
+        });
+      }
+    }
+
+    // Second, for those with enrollment_id, fetch activity info via enrollment
+    if (enrollmentIds.length > 0) {
+      const { data: enrollmentsWithActivity } = await supabase
+        .from('activity_enrollments')
+        .select(`
+          id,
+          activity:activities!activity_enrollments_activity_id_fkey (
+            id, title, image_url, price
+          )
+        `)
+        .in('id', enrollmentIds);
+
+      if (enrollmentsWithActivity) {
+        enrollmentsWithActivity.forEach((e: any) => {
+          if (e.activity) {
+            enrollmentToActivityMap[e.id] = e.activity;
+            if (!activitiesMap[e.activity.id]) {
+              activitiesMap[e.activity.id] = e.activity;
+            }
+          }
         });
       }
     }
 
     // Formatear las compras
     const formattedPurchases = (purchases || []).map((purchase: any) => {
-      const activity = purchase.activity_id && activitiesMap[purchase.activity_id]
+      // Find activity either by activity_id or through enrollment_id lookup
+      let activityData = null;
+      if (purchase.activity_id && activitiesMap[purchase.activity_id]) {
+        activityData = activitiesMap[purchase.activity_id];
+      } else if (purchase.enrollment_id && enrollmentToActivityMap[purchase.enrollment_id]) {
+        activityData = enrollmentToActivityMap[purchase.enrollment_id];
+      }
+
+      const activity = activityData
         ? {
-            id: activitiesMap[purchase.activity_id].id,
-            title: activitiesMap[purchase.activity_id].title,
-            imageUrl: activitiesMap[purchase.activity_id].image_url,
-            price: activitiesMap[purchase.activity_id].price
-          }
+          id: activityData.id,
+          title: activityData.title,
+          imageUrl: activityData.image_url,
+          price: activityData.price
+        }
         : null;
-      
+
       return {
         id: purchase.id,
         amount: purchase.amount_paid,

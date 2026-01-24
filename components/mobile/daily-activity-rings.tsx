@@ -51,6 +51,7 @@ export function DailyActivityRings({ userId, selectedDate, category = 'fitness',
     }
   }, [userId, currentWeek, weeklyData])
 
+  /*
   useEffect(() => {
     console.log('🧿 [RINGS][DAILY] Estado actualizado:', {
       userId,
@@ -60,6 +61,7 @@ export function DailyActivityRings({ userId, selectedDate, category = 'fitness',
       weeklyDataLen: weeklyData.length
     })
   }, [userId, category, currentWeek, highlightedDay, weeklyData.length])
+  */
 
   const processWeeklyData = () => {
     setLoading(true)
@@ -71,11 +73,13 @@ export function DailyActivityRings({ userId, selectedDate, category = 'fitness',
       weeklyData.slice(0, 7).forEach((dayData, index) => {
         const dateString = dayData.date
 
+        /*
         console.log('📊 DailyActivityRings: Procesando día real', {
           dateString,
           dayData,
           hasData: !!dayData
         })
+        */
 
         weekData.push({
           date: dateString,
@@ -147,7 +151,7 @@ export function DailyActivityRings({ userId, selectedDate, category = 'fitness',
   }
 
   const shouldShowMiddleRing = (category: string, minutesTarget: number) => {
-    return category !== 'nutricion' && minutesTarget > 0
+    return minutesTarget > 0
   }
 
   const ActivityRing = ({ progress, color, size = 36 }: { progress: number, color: string, size?: number }) => {
@@ -229,7 +233,7 @@ export function DailyActivityRings({ userId, selectedDate, category = 'fitness',
 
         {/* Elemento extra (Calendario) a la derecha */}
         {headerRight && (
-          <div className="absolute right-0 top-1/2 -translate-y-1/2 translate-x-12">
+          <div className="absolute right-0 top-1/2 -translate-y-1/2">
             {headerRight}
           </div>
         )}
@@ -249,10 +253,12 @@ export function DailyActivityRings({ userId, selectedDate, category = 'fitness',
               className={`text-center cursor-pointer flex flex-col items-center rounded-lg p-1 transition-all ${isHighlighted ? 'bg-blue-600/20 ring-2 ring-blue-400' : 'hover:bg-gray-800/50'
                 }`}
               onClick={() => {
+                /*
                 console.log('🧿 [RINGS][DAILY] Click día:', {
                   category,
                   day
                 })
+                */
                 setHighlightedDay(day.date)
                 if (onSelectDay) onSelectDay(day)
               }}

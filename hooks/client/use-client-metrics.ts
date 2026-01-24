@@ -70,7 +70,7 @@ export function useClientMetrics(clientId?: string, category?: 'fitness' | 'nutr
       activeDays: 0
     }
   })
-  
+
   const [weeklyData, setWeeklyData] = useState<WeeklyData[]>([])
   const [loading, setLoading] = useState(true)
   const [weekSummary, setWeekSummary] = useState<DailySummaryRow[]>([])
@@ -80,7 +80,7 @@ export function useClientMetrics(clientId?: string, category?: 'fitness' | 'nutr
     if (clientId) {
       fetchClientMetrics(clientId, category, weekAnchorDate)
     }
-  }, [clientId, weekAnchorDate?.toISOString()])
+  }, [clientId, category, weekAnchorDate?.toISOString()])
 
   useEffect(() => {
     if (!clientId || weekSummary.length === 0) return
@@ -158,7 +158,13 @@ export function useClientMetrics(clientId?: string, category?: 'fitness' | 'nutr
     }
   }, [clientId, category, weekSummary])
 
-  const fetchClientMetrics = async (clientId: string, category?: 'fitness' | 'nutricion', weekAnchorDate?: Date) => {
+  const fetchClientMetrics = async (
+    clientId: string,
+    category?: 'fitness' | 'nutricion',
+    anchorDate?: Date,
+    customStartDate?: string,
+    customEndDate?: string
+  ) => {
     try {
       setLoading(true)
 
@@ -169,43 +175,29 @@ export function useClientMetrics(clientId?: string, category?: 'fitness' | 'nutr
         return `${year}-${month}-${day}`
       }
 
-      const parseRecordDate = (raw: any) => {
-        if (!raw) return null
+      let startDateStr: string
+      let endDateStr: string
 
-        // IMPORTANT: new Date('YYYY-MM-DD') is parsed as UTC, which shifts the day in UTC-03.
-        // Treat date-only strings as LOCAL dates.
-        if (typeof raw === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(raw)) {
-          const [y, m, d] = raw.split('-').map(Number)
-          const local = new Date(y, (m || 1) - 1, d || 1)
-          return isNaN(local.getTime()) ? null : local
-        }
+      if (customStartDate && customEndDate) {
+        startDateStr = customStartDate
+        endDateStr = customEndDate
+      } else {
+        // Obtener fecha de inicio de la semana (lunes) en zona horaria local
+        const anchor = anchorDate ? new Date(anchorDate) : new Date()
+        const startOfWeek = new Date(anchor)
+        const day = anchor.getDay()
+        const diff = anchor.getDate() - day + (day === 0 ? -6 : 1) // Ajustar para que lunes sea 1
+        startOfWeek.setDate(diff)
+        startOfWeek.setHours(0, 0, 0, 0)
 
-        const d = new Date(raw)
-        return isNaN(d.getTime()) ? null : d
+        // Obtener fecha de fin de la semana (domingo) en zona horaria local
+        const endOfWeek = new Date(startOfWeek)
+        endOfWeek.setDate(startOfWeek.getDate() + 6)
+        endOfWeek.setHours(23, 59, 59, 999)
+
+        startDateStr = toLocalDateString(startOfWeek)
+        endDateStr = toLocalDateString(endOfWeek)
       }
-      
-      // Obtener fecha de inicio de la semana (lunes) en zona horaria local
-      const anchor = weekAnchorDate ? new Date(weekAnchorDate) : new Date()
-      const startOfWeek = new Date(anchor)
-      const day = anchor.getDay()
-      const diff = anchor.getDate() - day + (day === 0 ? -6 : 1) // Ajustar para que lunes sea 1
-      startOfWeek.setDate(diff)
-      startOfWeek.setHours(0, 0, 0, 0)
-      
-      // Obtener fecha de fin de la semana (domingo) en zona horaria local
-      const endOfWeek = new Date(startOfWeek)
-      endOfWeek.setDate(startOfWeek.getDate() + 6)
-      endOfWeek.setHours(23, 59, 59, 999)
-
-      console.log('🧿 [RINGS][METRICS] Iniciando cálculo métricas:', {
-        clientId,
-        category: category || 'fitness',
-        weekStart: startOfWeek.toISOString(),
-        weekEnd: endOfWeek.toISOString()
-      })
-
-      const startDateStr = toLocalDateString(startOfWeek)
-      const endDateStr = toLocalDateString(endOfWeek)
 
       // Una sola query: traer la semana completa desde progreso_cliente_daily_summary
       const response = await fetch(
@@ -218,12 +210,14 @@ export function useClientMetrics(clientId?: string, category?: 'fitness' | 'nutr
 
       setWeekSummary(progressSummary || [])
 
+      /*
       console.log('🧿 [RINGS][METRICS] progressSummary recibido:', {
         clientId,
         category: category || 'fitness',
         totalRecords: progressSummary?.length || 0,
         sample: progressSummary?.[0]
       })
+      */
 
       const weekData: DailySummaryRow[] = (progressSummary || [])
 
@@ -236,7 +230,7 @@ export function useClientMetrics(clientId?: string, category?: 'fitness' | 'nutr
       let weeklyItemsCompleted = 0
       let weeklyItemsTarget = 0
 
-      weekData.slice(0, 7).forEach((r: DailySummaryRow) => {
+      weekData.forEach((r: DailySummaryRow) => {
         const itemsCompleted = category === 'nutricion' ? (Number(r.platos_completados) || 0) : (Number(r.ejercicios_completados) || 0)
         const itemsTarget = category === 'nutricion' ? (Number(r.platos_objetivo) || 0) : (Number(r.ejercicios_objetivo) || 0)
         const kcal = category === 'nutricion' ? (Number(r.nutri_kcal) || 0) : (Number(r.fitness_kcal) || 0)
@@ -268,7 +262,7 @@ export function useClientMetrics(clientId?: string, category?: 'fitness' | 'nutr
       const safeWeeklyKcalTarget = weeklyCaloriesTarget > 0 ? weeklyCaloriesTarget : 1
       const safeWeeklyMinutesTarget = weeklyMinutesTarget > 0 ? weeklyMinutesTarget : 1
       const safeWeeklyItemsTarget = weeklyItemsTarget > 0 ? weeklyItemsTarget : 1
-      
+
       setMetrics({
         calories: {
           current: weeklyCalories,
@@ -293,6 +287,7 @@ export function useClientMetrics(clientId?: string, category?: 'fitness' | 'nutr
         }
       })
 
+      /*
       console.log('🧿 [RINGS][METRICS] Totales semanales calculados:', {
         clientId,
         category: category || 'fitness',
@@ -306,6 +301,7 @@ export function useClientMetrics(clientId?: string, category?: 'fitness' | 'nutr
           activeDays
         }
       })
+      */
 
       setWeeklyData(weeklyMetrics)
 
@@ -321,7 +317,8 @@ export function useClientMetrics(clientId?: string, category?: 'fitness' | 'nutr
     weeklyData,
     weekSummary,
     loading,
-    refetch: () => clientId && fetchClientMetrics(clientId, category, weekAnchorDate)
+    refetch: (start?: string, end?: string) =>
+      clientId && fetchClientMetrics(clientId, category, weekAnchorDate, start, end)
   }
 }
 

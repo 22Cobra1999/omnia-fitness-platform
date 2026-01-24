@@ -199,12 +199,9 @@ export function MobileHeader() {
         </div>
 
         {/* OMNIA Logo */}
-        <button
-          onClick={goToHome}
-          className="focus:outline-none hover:opacity-80 transition-opacity"
-        >
+        <div className="flex items-center">
           <OmniaLogoText size="text-6xl" />
-        </button>
+        </div>
 
         {/* Notifications Button and Menu */}
         <div ref={notificationsRef} className="relative">

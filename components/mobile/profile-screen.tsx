@@ -168,7 +168,7 @@ function RecentPurchasesList({ userId }: { userId?: string }) {
         >
           <div className="flex-1 min-w-0">
             <p className="text-sm text-white truncate">
-              {purchase.activity?.title || 'Actividad'}
+              {purchase.activity?.title || purchase.concept || 'Actividad'}
             </p>
             <p className="text-xs text-gray-500 mt-0.5">
               {purchase.paymentDate ? formatDate(purchase.paymentDate) : 'Sin fecha'}
@@ -1143,15 +1143,6 @@ export function ProfileScreen() {
           </div>
 
 
-          {/* Calendar Icon - Absolute inside relative parent - Moved left */}
-          <div className="absolute top-6 right-12 z-20">
-            <button
-              className="text-gray-400 hover:text-white transition-colors bg-black/20 p-2 rounded-full backdrop-blur-sm"
-              onClick={() => setShowCalendar(true)}
-            >
-              <Calendar className="h-5 w-5" />
-            </button>
-          </div>
 
           {/* Modal del Calendario */}
           {
@@ -1357,7 +1348,7 @@ export function ProfileScreen() {
                         <div className="mt-auto">
                           <span className="text-white text-sm font-bold block truncate">{injury.name}</span>
                           <span className={`text-[10px] font-medium ${injury.painLevel! >= 7 ? 'text-red-400' :
-                              injury.painLevel! >= 4 ? 'text-yellow-400' : 'text-green-400'
+                            injury.painLevel! >= 4 ? 'text-yellow-400' : 'text-green-400'
                             }`}>
                             {injury.painLevel! >= 7 ? 'Fuerte' : injury.painLevel! >= 4 ? 'Moderado' : 'Leve'}
                           </span>

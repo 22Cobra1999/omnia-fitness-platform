@@ -43,8 +43,14 @@ interface CalendarViewProps {
 
 export default function CalendarView({ activityIds, onActivityClick, scheduleMeetContext, onSetScheduleMeetContext }: CalendarViewProps) {
   const supabase = useMemo(() => createClient(), [])
-  const [currentDate, setCurrentDate] = useState(new Date())
+  const [currentDate, setCurrentDate] = useState<Date>(new Date())
   const [selectedDate, setSelectedDate] = useState<Date | null>(new Date())
+
+  // Hydration fix: ensure consistent initial render or handle mount
+  const [isMounted, setIsMounted] = useState(false)
+  useEffect(() => {
+    setIsMounted(true)
+  }, [])
   const [authUserId, setAuthUserId] = useState<string | null>(null)
   const [activitiesByDate, setActivitiesByDate] = useState<Record<string, any[]>>({})
   const [activitiesInfo, setActivitiesInfo] = useState<Record<string, any>>({})
@@ -212,6 +218,9 @@ export default function CalendarView({ activityIds, onActivityClick, scheduleMee
     | null
   >(null)
 
+  // Stats per activity (ID -> { minutes })
+  const [activityStats, setActivityStats] = useState<Record<string, { minutes: number }>>({})
+
   const requiredSlotBlocks = useMemo(() => {
     const mins = Number(rescheduleContext?.durationMinutes ?? purchaseContext?.durationMinutes ?? 30) || 30
     return Math.max(1, Math.ceil(mins / 30))
@@ -255,8 +264,8 @@ export default function CalendarView({ activityIds, onActivityClick, scheduleMee
             ? 'Consulta Puntual - 30 min'
             : 'Sesión Profunda - 60 min'
 
-        const { data: inserted, error } = await supabase
-          .from('activities')
+        const { data: inserted, error } = await (supabase
+          .from('activities') as any)
           .insert({
             coach_id: selectedCoachId,
             title: consultationTitle,
@@ -354,8 +363,8 @@ export default function CalendarView({ activityIds, onActivityClick, scheduleMee
     const loadCoachConsultations = async () => {
       try {
         if (!selectedCoachId) return
-        const { data, error } = await supabase
-          .from('coaches')
+        const { data, error } = await (supabase
+          .from('coaches') as any)
           .select('cafe, cafe_enabled, meet_30, meet_30_enabled, meet_1, meet_1_enabled')
           .eq('id', selectedCoachId)
           .single()
@@ -431,8 +440,8 @@ export default function CalendarView({ activityIds, onActivityClick, scheduleMee
 
         // 1) Obtener metadata de las actividades (nombre, tipo, etc.)
         const numericIds = activityIds.map(id => Number(id))
-        const { data: activitiesData, error: activitiesError } = await supabase
-          .from('activities')
+        const { data: activitiesData, error: activitiesError } = await (supabase
+          .from('activities') as any)
           .select('id, title, type, categoria, workshop_mode, coach_id')
           .in('id', numericIds)
 
@@ -449,8 +458,8 @@ export default function CalendarView({ activityIds, onActivityClick, scheduleMee
         // 2) Obtener progreso del cliente para cada actividad y día del mes
         //    Calcular cantidad de actividades pendientes de HOY para cada actividad
         for (const activityId of activityIds) {
-          const { data: progress } = await supabase
-            .from('progreso_cliente')
+          const { data: progress } = await (supabase
+            .from('progreso_cliente') as any)
             .select('fecha, actividad_id, ejercicios_pendientes, detalles_series')
             .eq('actividad_id', activityId)
             .eq('cliente_id', user.id)
@@ -526,10 +535,22 @@ export default function CalendarView({ activityIds, onActivityClick, scheduleMee
           return
         }
 
-        const monthStart = startOfMonth(currentDate)
-        const monthEnd = endOfMonth(currentDate)
-        const startISO = monthStart.toISOString().split('T')[0]
-        const endISO = monthEnd.toISOString().split('T')[0]
+        let startISO: string
+        let endISO: string
+
+        if (meetViewMode === 'week' && meetWeekStart) {
+          const wEnd = addDays(meetWeekStart, 7)
+          startISO = meetWeekStart.toISOString().split('T')[0]
+          endISO = wEnd.toISOString().split('T')[0]
+        } else {
+          const monthStart = startOfMonth(currentDate)
+          const monthEnd = endOfMonth(currentDate)
+          // Add buffer for month view typical grid (usually shows prev/next month days)
+          const bufferedStart = addDays(monthStart, -7)
+          const bufferedEnd = addDays(monthEnd, 14)
+          startISO = bufferedStart.toISOString().split('T')[0]
+          endISO = bufferedEnd.toISOString().split('T')[0]
+        }
 
         const toInt = (v: any) => {
           const n = Number(v)
@@ -549,74 +570,82 @@ export default function CalendarView({ activityIds, onActivityClick, scheduleMee
           }
         > = {}
 
-        // 1) Resumen diario (progreso_cliente_daily_summary)
-        const { data: summaryRows, error: summaryError } = await supabase
-          .from('progreso_cliente_daily_summary')
+        console.log('📅 [loadDayMinutes] Query Range:', { meetViewMode, startISO, endISO })
+
+        // 1) Resumen diario desde la NUEVA tabla: progreso_diario_actividad
+        const { data: activityRows, error: activityError } = await (supabase
+          .from('progreso_diario_actividad') as any)
           .select(
-            'fecha, fitness_mins, fitness_mins_objetivo, nutri_mins, nutri_mins_objetivo, ejercicios_pendientes, platos_pendientes'
+            'fecha, area, minutos, items_objetivo, items_completados, cantidad_actividades_adeudadas, actividad_id'
           )
           .eq('cliente_id', user.id)
           .gte('fecha', startISO)
           .lte('fecha', endISO)
 
-        if (summaryError) {
-          console.error('Error fetching progreso_cliente_daily_summary:', summaryError)
+        if (activityError) {
+          console.error('Error fetching progreso_diario_actividad:', activityError)
         }
 
-        ; (summaryRows || []).forEach((row: any) => {
-          const dayKey = String(row?.fecha || '').split('T')[0]
-          if (!dayKey) return
-          const fitnessTotal = toInt(row?.fitness_mins)
-          const fitnessGoal = toInt(row?.fitness_mins_objetivo)
-          const nutriTotal = toInt(row?.nutri_mins)
-          const nutriGoal = toInt(row?.nutri_mins_objetivo)
+        console.log('📅 [loadDayMinutes] Activity Rows (New Table):', activityRows?.length, activityRows)
 
-          const fitnessPending = Math.max(0, fitnessGoal - fitnessTotal)
-          const nutriPending = Math.max(0, nutriGoal - nutriTotal)
+        const newActivityStats: Record<string, { minutes: number }> = {}
 
-          agg[dayKey] = {
-            fitnessMinutesTotal: fitnessTotal,
-            fitnessMinutesPending: fitnessPending,
-            nutritionMinutesTotal: nutriTotal,
-            nutritionMinutesPending: nutriPending,
-            meetsMinutes: 0,
-            pendingExercises: toInt(row?.ejercicios_pendientes),
-            pendingPlates: toInt(row?.platos_pendientes),
-          }
-        })
+          ; (activityRows || []).forEach((row: any) => {
+            const dayKey = String(row?.fecha || '').split('T')[0]
+            if (!dayKey) return
 
-        // 3) Meets del cliente en el mes
-        //    Hacemos 2 pasos (participants -> events) para evitar edge cases con joins.
-        const { data: myParts, error: myPartsError } = await supabase
-          .from('calendar_event_participants')
+            // Populate Activity Stats
+            if (row.actividad_id) {
+              const aid = String(row.actividad_id)
+              if (!newActivityStats[aid]) newActivityStats[aid] = { minutes: 0 }
+              newActivityStats[aid].minutes += (Number(row.minutos) || 0)
+            }
+
+            // Inicializar si no existe
+            if (!agg[dayKey]) {
+              agg[dayKey] = {
+                fitnessMinutesTotal: 0,
+                fitnessMinutesPending: 0,
+                nutritionMinutesTotal: 0,
+                nutritionMinutesPending: 0,
+                meetsMinutes: 0,
+                pendingExercises: 0,
+                pendingPlates: 0,
+              }
+            }
+
+            const area = String(row.area || '').toLowerCase()
+            const mins = Number(row.minutos) || 0
+            // Si no hay "cantidad_actividades_adeudadas" confiable, se puede calcular con items:
+            // const pendingCount = Math.max(0, (row.items_objetivo || 0) - (row.items_completados || 0))
+            // Pero la tabla tiene 'cantidad_actividades_adeudadas', probemos usar esa o sumar 1 si items_objetivo > items_completados
+            const pendingItems = row.cantidad_actividades_adeudadas || Math.max(0, (row.items_objetivo || 0) - (row.items_completados || 0))
+
+            if (area === 'fitness') {
+              agg[dayKey].fitnessMinutesTotal += mins
+              agg[dayKey].fitnessMinutesPending += mins // Ensure it shows in UI (Busy Minutes logic)
+              // Aproximación de pendientes (si la tabla guarda pendientes por actividad)
+              if (pendingItems > 0) {
+                agg[dayKey].pendingExercises += pendingItems
+              }
+            } else if (area === 'nutricion' || area === 'nutrition') {
+              agg[dayKey].nutritionMinutesTotal += mins
+              agg[dayKey].nutritionMinutesPending += mins // Ensure it shows in UI
+              if (pendingItems > 0) {
+                agg[dayKey].pendingPlates += pendingItems
+              }
+            }
+          })
+
+        // 2) Meets del cliente en el mes
+        const meetMap: Record<string, any[]> = {} // Initialize meetMap here
+        const { data: myParts, error: myPartsError } = await (supabase
+          .from('calendar_event_participants') as any)
           .select('event_id, rsvp_status, invited_by_role, invited_by_user_id')
           .eq('client_id', user.id)
 
         if (myPartsError) {
           console.error('Error fetching client meet participants:', myPartsError)
-        }
-
-        // Diagnóstico: si en DB existe la fila pero acá viene 0, suele ser RLS o proyecto/env equivocado.
-        if (!myPartsError && Array.isArray(myParts) && myParts.length === 0) {
-          try {
-            const sessionRes = await supabase.auth.getSession()
-            const sessionUserId = sessionRes?.data?.session?.user?.id
-
-            const diagCountRes = await supabase
-              .from('calendar_event_participants')
-              .select('id', { count: 'exact' })
-              .eq('client_id', user.id)
-
-            console.log('📅 [CalendarView] participants empty diagnostics', {
-              envSupabaseUrl: process.env.NEXT_PUBLIC_SUPABASE_URL,
-              userIdFromContext: user.id,
-              userIdFromSession: sessionUserId,
-              countForClientId: diagCountRes?.count ?? null,
-              diagError: diagCountRes?.error ?? null,
-            })
-          } catch (e) {
-            console.error('📅 [CalendarView] participants empty diagnostics failed', e)
-          }
         }
 
         const eventIdToParticipantInfo: Record<string, { rsvp: string; invitedBy: string | null; invitedByUserId: string | null }> = {}
@@ -632,13 +661,13 @@ export default function CalendarView({ activityIds, onActivityClick, scheduleMee
 
         const candidateEventIds = Object.keys(eventIdToParticipantInfo)
         const meetEventsRes = candidateEventIds.length
-          ? await supabase
-            .from('calendar_events')
+          ? await (supabase
+            .from('calendar_events') as any)
             .select('id, title, description, meet_link, start_time, end_time, event_type, coach_id')
             .in('id', candidateEventIds)
             .eq('event_type', 'consultation')
-            .gte('start_time', monthStart.toISOString())
-            .lt('start_time', addDays(monthEnd, 1).toISOString())
+            .gte('start_time', startISO)
+            .lt('start_time', addDays(new Date(endISO), 1).toISOString())
           : { data: [], error: null }
 
         if (meetEventsRes && (meetEventsRes as any).error) {
@@ -648,21 +677,6 @@ export default function CalendarView({ activityIds, onActivityClick, scheduleMee
         const meetEvents = (meetEventsRes as any)?.data
         const meetEventsSafe = Array.isArray(meetEvents) ? meetEvents : []
 
-        const meetMap: Record<
-          string,
-          Array<{
-            id: string
-            title?: string | null
-            start_time: string
-            end_time: string | null
-            coach_id?: string | null
-            meet_link?: string | null
-            description?: string | null
-            rsvp_status?: string | null
-            invited_by_role?: string | null
-            invited_by_user_id?: string | null
-          }>
-        > = {}
           ; (meetEventsSafe || []).forEach((ev: any) => {
             if (!ev?.start_time) return
             const start = new Date(ev.start_time)
@@ -711,7 +725,10 @@ export default function CalendarView({ activityIds, onActivityClick, scheduleMee
           meetMap[k].sort((a, b) => String(a.start_time).localeCompare(String(b.start_time)))
         })
 
+        console.log('📅 [loadDayMinutes] Final Agg:', agg)
+
         setDayMinutesByDate(agg)
+        setActivityStats(newActivityStats)
         setMeetEventsByDate(meetMap)
       } catch (e) {
         console.error('Error loading day minutes:', e)
@@ -721,7 +738,7 @@ export default function CalendarView({ activityIds, onActivityClick, scheduleMee
     }
 
     loadDayMinutes()
-  }, [currentDate, supabase])
+  }, [currentDate, supabase, meetViewMode, meetWeekStart])
 
   useEffect(() => {
     const loadSelectedDayBreakdown = async () => {
@@ -789,8 +806,8 @@ export default function CalendarView({ activityIds, onActivityClick, scheduleMee
         > = {}
 
         // Fitness por actividad (progreso_cliente)
-        const { data: progressRows, error: progressError } = await supabase
-          .from('progreso_cliente')
+        const { data: progressRows, error: progressError } = await (supabase
+          .from('progreso_cliente') as any)
           .select('actividad_id, minutos_json, ejercicios_pendientes')
           .eq('cliente_id', user.id)
           .eq('fecha', dayKey)
@@ -819,8 +836,8 @@ export default function CalendarView({ activityIds, onActivityClick, scheduleMee
         })
 
         // Nutrición por actividad (progreso_cliente_nutricion)
-        const { data: nutriRows, error: nutriError } = await supabase
-          .from('progreso_cliente_nutricion')
+        const { data: nutriRows, error: nutriError } = await (supabase
+          .from('progreso_cliente_nutricion') as any)
           .select('actividad_id, macros, ejercicios_pendientes')
           .eq('cliente_id', user.id)
           .eq('fecha', dayKey)
@@ -862,8 +879,8 @@ export default function CalendarView({ activityIds, onActivityClick, scheduleMee
         if (missingIds.length > 0) {
           const numericIds = missingIds.map((id) => Number(id)).filter((n) => Number.isFinite(n))
           if (numericIds.length > 0) {
-            const { data: activitiesData } = await supabase
-              .from('activities')
+            const { data: activitiesData } = await (supabase
+              .from('activities') as any)
               .select('id, title, type, categoria')
               .in('id', numericIds)
             if (activitiesData) {
@@ -950,8 +967,8 @@ export default function CalendarView({ activityIds, onActivityClick, scheduleMee
           return
         }
 
-        const { data, error } = await supabase
-          .from('user_profiles')
+        const { data, error } = await (supabase
+          .from('user_profiles') as any)
           .select('id, full_name, avatar_url')
           .in('id', ids)
 
@@ -975,7 +992,7 @@ export default function CalendarView({ activityIds, onActivityClick, scheduleMee
     }
 
     loadCoachProfiles()
-  }, [purchasedCoachIds, selectedCoachId, supabase])
+  }, [purchasedCoachIds, supabase])
 
   useEffect(() => {
     const loadMeetNotificationCount = async () => {
@@ -985,8 +1002,8 @@ export default function CalendarView({ activityIds, onActivityClick, scheduleMee
           return
         }
 
-        const { count, error } = await supabase
-          .from('calendar_event_participants')
+        const { count, error } = await (supabase
+          .from('calendar_event_participants') as any)
           .select('id', { count: 'exact' })
           .eq('client_id', authUserId)
           .eq('rsvp_status', 'pending')
@@ -1014,8 +1031,8 @@ export default function CalendarView({ activityIds, onActivityClick, scheduleMee
         return
       }
 
-      const { data: ev, error } = await supabase
-        .from('calendar_events')
+      const { data: ev, error } = await (supabase
+        .from('calendar_events') as any)
         .select('id, title, description, meet_link, start_time, end_time, coach_id')
         .eq('id', eventId)
         .maybeSingle()
@@ -1051,8 +1068,8 @@ export default function CalendarView({ activityIds, onActivityClick, scheduleMee
           return
         }
 
-        const { data, error } = await supabase
-          .from('client_meet_credits_ledger')
+        const { data, error } = await (supabase
+          .from('client_meet_credits_ledger') as any)
           .select('coach_id, meet_credits_available')
           .eq('client_id', user.id)
           .in('coach_id', purchasedCoachIds)
@@ -1102,8 +1119,8 @@ export default function CalendarView({ activityIds, onActivityClick, scheduleMee
           return
         }
 
-        const { data: rr, error } = await supabase
-          .from('calendar_event_reschedule_requests')
+        const { data: rr, error } = await (supabase
+          .from('calendar_event_reschedule_requests') as any)
           .select('id, from_start_time, from_end_time, to_start_time, to_end_time, note, status, created_at, requested_by_user_id')
           .eq('event_id', selectedMeetEvent.id)
           .eq('status', 'pending')
@@ -1146,8 +1163,8 @@ export default function CalendarView({ activityIds, onActivityClick, scheduleMee
           return
         }
 
-        const { data, error } = await supabase
-          .from('coach_availability_rules')
+        const { data, error } = await (supabase
+          .from('coach_availability_rules') as any)
           .select('id, weekday, start_time, end_time, scope, year, month, timezone')
           .eq('coach_id', selectedCoachId)
 
@@ -1197,8 +1214,8 @@ export default function CalendarView({ activityIds, onActivityClick, scheduleMee
         const start = meetWeekStart
         const end = addDays(meetWeekStart, 7)
 
-        const { data, error } = await supabase
-          .from('calendar_events')
+        const { data, error } = await (supabase
+          .from('calendar_events') as any)
           .select('start_time, end_time, event_type, coach_id')
           .eq('coach_id', selectedCoachId)
           .eq('event_type', 'consultation')
@@ -1253,8 +1270,8 @@ export default function CalendarView({ activityIds, onActivityClick, scheduleMee
         const end = addDays(endOfMonth(currentDate), 1)
 
 
-        const { data, error } = await supabase
-          .from('calendar_events')
+        const { data, error } = await (supabase
+          .from('calendar_events') as any)
           .select('start_time, end_time, event_type, coach_id')
           .eq('coach_id', selectedCoachId)
           .eq('event_type', 'consultation')
@@ -1314,8 +1331,8 @@ export default function CalendarView({ activityIds, onActivityClick, scheduleMee
           return
         }
 
-        const { data: myPart, error: myPartErr } = await supabase
-          .from('calendar_event_participants')
+        const { data: myPart, error: myPartErr } = await (supabase
+          .from('calendar_event_participants') as any)
           .select('rsvp_status')
           .eq('event_id', selectedMeetEvent.id)
           .eq('client_id', user.id)
@@ -1328,8 +1345,8 @@ export default function CalendarView({ activityIds, onActivityClick, scheduleMee
           setSelectedMeetRsvpStatus('pending')
         }
 
-        const { count, error: countErr } = await supabase
-          .from('calendar_event_participants')
+        const { count, error: countErr } = await (supabase
+          .from('calendar_event_participants') as any)
           .select('id', { count: 'exact', head: true })
           .eq('event_id', selectedMeetEvent.id)
 
@@ -1399,7 +1416,6 @@ export default function CalendarView({ activityIds, onActivityClick, scheduleMee
           const h = Math.floor(t / 60)
           const m = t % 60
           const hhmm = `${String(h).padStart(2, '0')}:${String(m).padStart(2, '0')}`
-
           // Validar bloques contiguos según duración
           let ok = true
           for (let i = 0; i < requiredSlotBlocks; i++) {
@@ -1632,14 +1648,14 @@ export default function CalendarView({ activityIds, onActivityClick, scheduleMee
       const sourceStr = format(sourceDate, 'yyyy-MM-dd')
       const targetStr = format(targetDate, 'yyyy-MM-dd')
 
-      const { error: errorProg } = await supabase
-        .from('progreso_cliente')
+      const { error: errorProg } = await (supabase
+        .from('progreso_cliente') as any)
         .update({ fecha: targetStr })
         .eq('cliente_id', user.id)
         .eq('fecha', sourceStr)
 
-      const { error: errorNut } = await supabase
-        .from('progreso_cliente_nutricion')
+      const { error: errorNut } = await (supabase
+        .from('progreso_cliente_nutricion') as any)
         .update({ fecha: targetStr })
         .eq('cliente_id', user.id)
         .eq('fecha', sourceStr)
@@ -1647,8 +1663,8 @@ export default function CalendarView({ activityIds, onActivityClick, scheduleMee
       if (errorProg || errorNut) throw new Error('Error al mover actividades')
 
       if (applyToAllSameDays) {
-        const { data: futureProgress } = await supabase
-          .from('progreso_cliente')
+        const { data: futureProgress } = await (supabase
+          .from('progreso_cliente') as any)
           .select('id, fecha')
           .eq('cliente_id', user.id)
           .gt('fecha', sourceStr)
@@ -1672,10 +1688,10 @@ export default function CalendarView({ activityIds, onActivityClick, scheduleMee
           })
 
           if (updates.length > 0) {
-            await supabase.from('progreso_cliente').upsert(updates)
+            await (supabase.from('progreso_cliente') as any).upsert(updates)
 
-            const { data: futureNut } = await supabase
-              .from('progreso_cliente_nutricion')
+            const { data: futureNut } = await (supabase
+              .from('progreso_cliente_nutricion') as any)
               .select('id, fecha')
               .eq('cliente_id', user.id)
               .gt('fecha', sourceStr)
@@ -1694,7 +1710,7 @@ export default function CalendarView({ activityIds, onActivityClick, scheduleMee
                 }
               })
               if (nutUpdates.length > 0) {
-                await supabase.from('progreso_cliente_nutricion').upsert(nutUpdates)
+                await (supabase.from('progreso_cliente_nutricion') as any).upsert(nutUpdates)
               }
             }
           }
@@ -1763,11 +1779,12 @@ export default function CalendarView({ activityIds, onActivityClick, scheduleMee
 
   const toMins = (h: string) => {
     const [hh, mm] = h.split(':').map(Number)
+    if (!Number.isFinite(hh) || !Number.isFinite(mm)) return 0
     return hh * 60 + mm
   }
 
-  const add30 = (h: string) => {
-    let m = toMins(h) + 30
+  const add30 = (hhmm: string) => {
+    let m = toMins(hhmm) + 30
     const hh = Math.floor(m / 60)
     const mm = m % 60
     return `${String(hh).padStart(2, '0')}:${String(mm).padStart(2, '0')}`
@@ -2037,8 +2054,10 @@ export default function CalendarView({ activityIds, onActivityClick, scheduleMee
     )
   }
 
+  if (!isMounted) return null // Avoid hydration mismatch for date-dependent rendering
+
   return (
-    <div className="p-4 text-white">
+    <div className="p-4 text-white w-full max-w-full overflow-x-hidden">
       {/* Acciones arriba (fuera del frame del calendario) */}
       <div className="mb-3 relative flex items-center justify-between">
         <button
@@ -2318,8 +2337,8 @@ export default function CalendarView({ activityIds, onActivityClick, scheduleMee
                       const user = auth?.user
                       if (!user?.id) return
 
-                      const { error } = await supabase
-                        .from('calendar_event_reschedule_requests')
+                      const { error } = await (supabase
+                        .from('calendar_event_reschedule_requests') as any)
                         .insert({
                           event_id: rescheduleContext.eventId,
                           requested_by_user_id: user.id,
@@ -2414,21 +2433,24 @@ export default function CalendarView({ activityIds, onActivityClick, scheduleMee
           {meetViewMode === 'day_split' && selectedCoachId && selectedDate ? (
             <div>
               {/* Header: Back + Title */}
-              <div className="flex flex-col items-center justify-center mb-6 relative">
-                <div className="absolute left-0 top-0">
-                  <Button
-                    variant="ghost"
-                    onClick={() => setMeetViewMode('week')}
-                    className="gap-2 text-white/70 hover:text-white hover:bg-white/10"
-                  >
-                    <ChevronLeft className="h-4 w-4" />
-                    Volver a la semana
-                  </Button>
-                </div>
+              <div className="flex flex-col items-center justify-center mb-4 transition-all animate-in fade-in slide-in-from-top-2 relative z-[100] pointer-events-auto">
+                <button
+                  type="button"
+                  onClick={(e) => {
+                    e.preventDefault()
+                    e.stopPropagation()
+                    e.nativeEvent.stopImmediatePropagation()
+                    setMeetViewMode('week')
+                  }}
+                  onMouseDown={(e) => e.stopPropagation()}
+                  onMouseUp={(e) => e.stopPropagation()}
+                  className="flex items-center gap-2 px-4 py-2 rounded-full text-xs font-semibold text-white/50 hover:text-white transition-colors cursor-pointer relative z-[100] mb-4"
+                >
+                  <ChevronLeft className="h-3.5 w-3.5" />
+                  Volver a semana
+                </button>
 
-                {/* Spacer for centering logic if needed, but absolute positioning handles the button */}
-
-                <div className="mt-8 flex items-center gap-4">
+                <div className="flex items-center gap-6">
                   <Button
                     variant="ghost"
                     className="h-8 w-8 p-0 text-white/50 hover:text-white hover:bg-white/10 rounded-full"
@@ -2477,50 +2499,32 @@ export default function CalendarView({ activityIds, onActivityClick, scheduleMee
                           }
 
                           return (
-                            <div className="flex flex-col justify-center h-full gap-0.5">
-                              <div className="text-[10px] text-white/40 uppercase font-bold tracking-wider mb-0.5">
-                                Pendientes
+                            <div className="flex flex-col justify-center h-full gap-2">
+                              {/* <div className="text-[10px] text-white/40 uppercase font-bold tracking-wider">
+                                Resumen
+                              </div> */}
+                              {/* Unified Total Hours Bubble (Matches Weekly/Monthly View) */}
+                              <div className="flex flex-wrap justify-center gap-3">
+                                {(() => {
+                                  const totalActivities = (mins?.fitnessMinutesTotal || 0) + (mins?.nutritionMinutesTotal || 0)
+                                  const totalBusy = totalActivities + (mins?.meetsMinutes || 0)
+
+                                  if (totalBusy > 0) {
+                                    return (
+                                      <span
+                                        className={
+                                          `inline-flex items-center justify-center px-3 py-1 rounded-full border text-xs font-semibold ` +
+                                          `border-[#FF7939]/40 bg-[#FF7939]/10 text-[#FFB366]`
+                                        }
+                                      >
+                                        <Flame className="w-3 h-3 mr-1" />
+                                        {formatMinutes(totalBusy)}
+                                      </span>
+                                    )
+                                  }
+                                  return null
+                                })()}
                               </div>
-                              {dayActs.map((act) => {
-                                const info = activitiesInfo[act.id]
-                                const title = info?.title || 'Actividad'
-                                const fTotal = mins?.fitnessMinutesTotal || 0
-                                const h = Math.floor(fTotal / 60)
-                                const m = fTotal % 60
-                                const timeStr = fTotal > 0 ? ` • ${h}h ${m}m` : ''
-
-                                return (
-                                  <div key={act.id} className="text-xs font-bold text-[#FFB366] whitespace-nowrap">
-                                    {title} • {act.pendingCount} ejercicios{timeStr}
-                                  </div>
-                                )
-                              })}
-
-                              {(mins?.pendingPlates || 0) > 0 && (
-                                <div className="text-xs font-bold text-emerald-400 whitespace-nowrap">
-                                  Nutrición • {mins!.pendingPlates} platos
-                                </div>
-                              )}
-                            </div>
-                          )
-                        })()}
-
-                        {/* Activity Summary */}
-                        {(() => {
-                          const mins = dayMinutesByDate[format(selectedDate, 'yyyy-MM-dd')]
-                          if (!mins) return null
-                          return (
-                            <div className="flex flex-col gap-0.5 mt-1">
-                              {(mins.nutritionMinutesTotal || 0) > 0 && (
-                                <div className="text-[9px] font-medium text-emerald-400/80 leading-none">
-                                  Nutri {Math.round(mins.nutritionMinutesTotal / 60 * 10) / 10}h
-                                </div>
-                              )}
-                              {(mins.fitnessMinutesTotal || 0) > 0 && (
-                                <div className="text-[9px] font-medium text-blue-400/80 leading-none">
-                                  Ejér {Math.round(mins.fitnessMinutesTotal / 60 * 10) / 10}h
-                                </div>
-                              )}
                             </div>
                           )
                         })()}
@@ -2531,12 +2535,13 @@ export default function CalendarView({ activityIds, onActivityClick, scheduleMee
                     <div className="flex-1 relative">
                       <div className="flex min-h-[1000px] h-full relative">
                         {/* Time Axis */}
-                        <div className="w-12 flex-shrink-0 border-r border-white/10 bg-zinc-900/20 text-[10px] text-white/30 font-medium text-center relative">
+                        {/* Time Axis (Day View) */}
+                        <div className="w-6 flex-shrink-0 border-r border-white/10 bg-zinc-900/20 text-[10px] text-white/30 font-medium text-center relative">
                           {Array.from({ length: END_HOUR - START_HOUR }).map((_, i) => {
                             const h = START_HOUR + i
                             return (
                               <div key={h} className="absolute w-full border-t border-white/5" style={{ top: `${(i * 60 / TOTAL_MINS) * 100}%` }}>
-                                <span className="relative -top-2">{h}:00</span>
+                                <span className="relative -top-2">{h}</span>
                               </div>
                             )
                           })}
@@ -2572,10 +2577,14 @@ export default function CalendarView({ activityIds, onActivityClick, scheduleMee
                                     top: `${getTop(block.start)}%`,
                                     height: `${getHeight(duration)}%`
                                   }}
-                                  className="absolute inset-x-2 rounded-md bg-[#FFB366]/20 border border-[#FFB366]/30 hover:bg-[#FFB366]/30 hover:z-10 transition-colors flex flex-col justify-start items-start px-2 py-1 group cursor-pointer"
+                                  className={`absolute left-0 right-0 mx-1 rounded-md border text-[10px] font-medium flex items-center justify-center
+                                      overflow-hidden transition-all shadow-sm group
+                                      bg-[#FF7939]/10 border-[#FF7939]/30 text-[#FFB366] hover:bg-[#FF7939]/20 hover:border-[#FF7939]/50 hover:scale-[1.02] z-10 hover:z-20`}
                                 >
-                                  <div className="text-[10px] font-bold text-[#FFB366] group-hover:text-white">
-                                    {block.start} - {block.end}
+                                  <div className="flex flex-col items-center justify-center leading-none gap-0.5 w-full h-full p-0.5">
+                                    <span className="font-bold truncate">{block.start}</span>
+                                    <span className="text-[8px] opacity-60">-</span>
+                                    <span className="font-bold truncate">{block.end}</span>
                                   </div>
                                 </button>
                               )
@@ -2748,44 +2757,38 @@ export default function CalendarView({ activityIds, onActivityClick, scheduleMee
                                 const user = auth?.user
                                 if (!user?.id) return
 
-                                const { error } = await supabase.from('calendar_events').insert({
+                                const { data: newEvent, error } = await (supabase.from('calendar_events') as any).insert({
                                   title: selectedMeetRequest.title || 'Meet',
                                   description: selectedMeetRequest.description,
                                   start_time: startIso,
                                   end_time: endIso,
                                   coach_id: selectedMeetRequest.coachId,
                                   client_id: user.id, // RLS requirement: auth.uid() must match client_id for client bookings
-                                  event_type: 'consultation'
-                                })
+                                  event_type: 'consultation',
+                                  status: 'scheduled',
+                                  activity_id: scheduleMeetContext?.activityId ? Number(scheduleMeetContext.activityId) : null
+                                }).select('id').single()
 
-                                if (!error) {
-                                  // Also insert participant (client) - usually triggered by backend or RLS, but here we might need manual insert? 
-                                  // Actually CalendarView logic suggests manual insert is needed? 
-                                  // Wait, the original Modal logic used `calendar_events` insert only? 
-                                  // Let's check line 3240 in previous read.
-                                  // Ah, I need to check the original submit logic to be sure.
-
-                                  // Assume explicit participant insert is needed based on previous task fixes.
-                                  // But since I cannot see the original logic right now, I will use the standard path.
-                                  // I'll trust the backend triggers or existing patterns.
-                                  // Actually, in the previous task, I edited CalendarView to include Invited By.
-                                  // I should check consistent logic.
-
-                                  // Re-reading confirm logic is risky without viewing it.
-                                  // I will use a placeholder function call or simplistic insert and rely on triggers/previous logic 
-                                  // OR better: trigger the Modal's logic via a hidden button click? No that's hacky.
-                                  // I should implement the insert correctly.
+                                if (!error && newEvent?.id) {
+                                  // Must insert participant as well
+                                  await (supabase.from('calendar_event_participants') as any).insert({
+                                    event_id: newEvent.id,
+                                    client_id: user.id,
+                                    rsvp_status: 'pending',
+                                    invited_by_user_id: user.id,
+                                    invited_by_role: 'client',
+                                  })
 
                                   // Refresh
                                   setMeetViewMode('month')
                                   setSelectedMeetRequest(null)
-                                  // Deduct credit? The trigger handles it.
+                                  if (onSetScheduleMeetContext) onSetScheduleMeetContext(null)
                                   setShowSuccessModal(true)
                                   setSuccessModalData({
                                     coachName: coachProfiles.find(c => c.id === selectedCoachId)?.full_name || 'Coach',
                                     date: format(new Date(startIso), 'dd MMM yyyy', { locale: es }),
                                     time: `${selectedMeetRequest.timeHHMM} – ...`,
-                                    duration: coachConsultations[selectedConsultationType].time
+                                    duration: duration
                                   })
                                 }
                               } catch (e) {
@@ -2806,17 +2809,20 @@ export default function CalendarView({ activityIds, onActivityClick, scheduleMee
             </div>
           ) : meetViewMode === 'week' && selectedCoachId ? (
             <div>
-              <div className="flex items-center justify-between mb-2">
+              <div className="flex items-center justify-center mb-2">
                 <Button
                   variant="ghost"
-                  onClick={() => setMeetViewMode('month')}
-                  className="gap-1 px-0 text-xs text-white/50 hover:text-white hover:bg-white/5 h-6"
+                  onClick={(e) => {
+                    e.stopPropagation()
+                    setMeetViewMode('month')
+                  }}
+                  className="gap-1 px-4 py-1 text-xs text-white/60 hover:text-white transition-colors h-7 flex items-center"
                 >
                   <ChevronLeft className="h-3 w-3" />
                   Volver al mes
                 </Button>
               </div>
-              <div className="flex items-center justify-between mb-3">
+              <div className="flex items-center justify-between mb-3 px-2">
                 <Button
                   variant="ghost"
                   onClick={() => setMeetWeekStart((d) => addDays(d, -7))}
@@ -2825,8 +2831,11 @@ export default function CalendarView({ activityIds, onActivityClick, scheduleMee
                 >
                   <ChevronLeft className="h-4 w-4" />
                 </Button>
-                <div className="text-white font-semibold">
-                  {format(meetWeekStart, "MMMM d", { locale: es })} – {format(addDays(meetWeekStart, 6), "d, yyyy", { locale: es })}
+                <div className="text-white font-bold text-lg capitalize">
+                  {format(meetWeekStart, "MMMM", { locale: es })}
+                  <span className="ml-1.5 text-sm font-normal text-white/50 lowercase">
+                    {format(meetWeekStart, "d", { locale: es })} - {format(addDays(meetWeekStart, 6), "d", { locale: es })}
+                  </span>
                 </div>
                 <Button
                   variant="ghost"
@@ -2901,10 +2910,10 @@ export default function CalendarView({ activityIds, onActivityClick, scheduleMee
                 // (renderClientEvents helper moved to component scope)
 
                 return (
-                  <div className="relative border border-white/10 rounded-2xl bg-zinc-950/30 overflow-hidden flex flex-col">
+                  <div className="relative overflow-hidden flex flex-col w-full h-full">
                     {/* Header Row */}
-                    <div className="flex border-b border-white/10 bg-zinc-900/50">
-                      <div className="w-12 flex-shrink-0" />
+                    <div className="flex bg-transparent">
+                      <div className="w-6 flex-shrink-0" />
                       <div className="flex flex-1">
                         {Array.from({ length: 7 }).map((_, idx) => {
                           const d = addDays(meetWeekStart, idx)
@@ -2914,23 +2923,35 @@ export default function CalendarView({ activityIds, onActivityClick, scheduleMee
                           const dayKey = format(d, 'yyyy-MM-dd')
                           const mins = dayMinutesByDate[dayKey]
 
+                          const totalPendingMins = (mins?.fitnessMinutesPending || 0) + (mins?.nutritionMinutesPending || 0)
+                          const totalPendingItems = (mins?.pendingPlates || 0) + (mins?.pendingExercises || 0)
+
                           return (
-                            <div key={idx} className={`flex-1 text-center py-2 border-l border-white/5 ${isTodayDay ? 'bg-white/5' : ''}`}>
+                            <div key={idx} className={`flex-1 text-center py-2 ${isTodayDay ? 'bg-white/5' : ''}`}>
                               <div className="text-xs text-white/50 uppercase font-semibold">{label}</div>
                               <div className={`text-sm font-bold ${isTodayDay ? 'text-[#FF7939]' : 'text-white'}`}>{dayNum}</div>
 
-                              {/* Activity Summary */}
-                              <div className="flex flex-col gap-0.5 mt-1">
-                                {(mins?.nutritionMinutesTotal || 0) > 0 && (
-                                  <div className="text-[9px] font-medium text-emerald-400/80 leading-none">
-                                    Nutri {Math.round(mins.nutritionMinutesTotal / 60 * 10) / 10}h
-                                  </div>
-                                )}
-                                {(mins?.fitnessMinutesTotal || 0) > 0 && (
-                                  <div className="text-[9px] font-medium text-blue-400/80 leading-none">
-                                    Ejér {Math.round(mins.fitnessMinutesTotal / 60 * 10) / 10}h
-                                  </div>
-                                )}
+                              {/* Activity Summary Bubbles - Unified (Total Hours) */}
+                              <div className="flex flex-wrap justify-center gap-1 mt-1.5 min-h-[22px]">
+                                {(() => {
+                                  // Use Total minutes instead of Pending for the summary bubble
+                                  const totalActivities = (mins?.fitnessMinutesTotal || 0) + (mins?.nutritionMinutesTotal || 0)
+                                  const totalBusy = totalActivities + (mins?.meetsMinutes || 0)
+
+                                  if (totalBusy > 0) {
+                                    return (
+                                      <span
+                                        className={
+                                          `inline-flex items-center justify-center px-2 py-0.5 rounded-full border text-[10px] font-semibold ` +
+                                          `border-[#FF7939]/40 bg-[#FF7939]/10 text-[#FFB366]`
+                                        }
+                                      >
+                                        {formatMinutes(totalBusy)}
+                                      </span>
+                                    )
+                                  }
+                                  return null
+                                })()}
                               </div>
                             </div>
                           )
@@ -2938,16 +2959,16 @@ export default function CalendarView({ activityIds, onActivityClick, scheduleMee
                       </div>
                     </div>
 
-                    {/* Scrollable Body */}
+                    {/* Scrollable Body (Week View) */}
                     <div className="flex-1 relative">
                       <div className="flex min-h-[1000px] h-full relative">
                         {/* Time Axis */}
-                        <div className="w-12 flex-shrink-0 border-r border-white/10 bg-zinc-900/20 text-[10px] text-white/30 font-medium text-center relative">
+                        <div className="w-6 flex-shrink-0 border-r border-white/10 bg-zinc-900/20 text-[10px] text-white/30 font-medium text-center relative">
                           {Array.from({ length: END_HOUR - START_HOUR }).map((_, i) => {
                             const h = START_HOUR + i
                             return (
                               <div key={h} className="absolute w-full border-t border-white/5" style={{ top: `${(i * 60 / TOTAL_MINS) * 100}%` }}>
-                                <span className="relative -top-2">{h}:00</span>
+                                <span className="relative -top-2">{h}</span>
                               </div>
                             )
                           })}
@@ -2969,7 +2990,7 @@ export default function CalendarView({ activityIds, onActivityClick, scheduleMee
                             const isGhost = selectedMeetRequest?.dayKey === dayKey
 
                             return (
-                              <div key={dayKey} className={`flex-1 relative border-l border-white/5 ${isTodayDay ? 'bg-white/5' : ''}`}>
+                              <div key={dayKey} className={`flex-1 relative ${isTodayDay ? 'bg-white/5' : ''}`}>
                                 {/* Client Events (Rendered BEFORE available slots so slots cover them? No, events should probably be ON TOP or clearly distinct) 
                       Actually, if an event exists, usually the slot is NOT available. 
                       But if the slot IS available (e.g. coach open), we want to show the client already has something?
@@ -3090,7 +3111,9 @@ export default function CalendarView({ activityIds, onActivityClick, scheduleMee
                           >
                             <span className="inline-flex items-center gap-0.5">
                               <Flame className="w-3 h-3" />
-                              <span className="text-[10px] font-semibold">{totalPending}</span>
+                              <span className="text-[10px] font-bold text-black leading-none">
+                                {totalPending}
+                              </span>
                             </span>
                           </span>
                         </div>
@@ -3167,12 +3190,22 @@ export default function CalendarView({ activityIds, onActivityClick, scheduleMee
                   <div className="flex items-center gap-2">
                     <h3 className="text-base font-semibold text-white/95">Actividades · {dateLabel}</h3>
                   </div>
-                  {summary ? (
-                    <div className="mt-1 text-xs text-white/70 flex items-center gap-2">
-                      <Clock className="h-3.5 w-3.5 text-[#FF7939]" />
-                      <span>{dateLabel} · <span className="text-white/80">{summary}</span></span>
+                  {summaryParts.length > 0 && (
+                    <div className="mt-2 flex flex-wrap gap-2">
+                      {mins?.fitnessMinutesPending > 0 || mins?.nutritionMinutesPending > 0 ? (
+                        <div className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full border border-[#FF7939]/40 bg-[#FF7939]/10 text-[#FFB366] text-[10px] font-bold">
+                          <Flame className="h-3 w-3" />
+                          Pendientes {formatMinutes((mins?.fitnessMinutesPending || 0) + (mins?.nutritionMinutesPending || 0))}
+                        </div>
+                      ) : null}
+                      {meetMinutes > 0 && (
+                        <div className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full border border-blue-500/30 bg-blue-500/10 text-blue-400 text-[10px] font-bold">
+                          <Video className="h-3 w-3" />
+                          {formatMinutes(meetMinutes)} en vivo
+                        </div>
+                      )}
                     </div>
-                  ) : null}
+                  )}
                 </div>
               )
             })()}
@@ -3288,8 +3321,14 @@ export default function CalendarView({ activityIds, onActivityClick, scheduleMee
                             )}
                             <div className="min-w-0">
                               <div className="text-sm font-semibold text-white truncate">{it.activityTitle}</div>
-                              <div className="text-xs text-white/65 truncate">
-                                {subtitle}
+                              <div className="text-xs text-white/65 truncate flex items-center gap-2">
+                                <span>{subtitle}</span>
+                                {/* Duration Badge */}
+                                {activityStats[String(it.activityId)]?.minutes > 0 && (
+                                  <span className="text-[#FFB366] bg-[#FF7939]/10 px-1.5 rounded text-[10px] font-bold">
+                                    {formatMinutes(activityStats[String(it.activityId)].minutes)}
+                                  </span>
+                                )}
                                 {isNutri && coachNameForActivity ? (
                                   <span className="text-white/45"> · {coachNameForActivity}</span>
                                 ) : null}
@@ -3364,8 +3403,14 @@ export default function CalendarView({ activityIds, onActivityClick, scheduleMee
                         <span className="text-sm font-semibold text-white truncate">
                           {info?.title || `Actividad ${activity.id}`}
                         </span>
-                        <span className="text-[11px] text-gray-300 mt-0.5">
+                        <span className="text-[11px] text-gray-300 mt-0.5 flex items-center gap-2">
                           {label}
+                          {/* Duration Badge for non-pending items map (if any exist here) */}
+                          {activityStats[String(activity.id)]?.minutes > 0 && (
+                            <span className="text-[#FFB366] bg-[#FF7939]/10 px-1.5 rounded text-[10px] font-bold">
+                              {formatMinutes(activityStats[String(activity.id)].minutes)}
+                            </span>
+                          )}
                         </span>
                       </div>
 
@@ -3458,12 +3503,12 @@ export default function CalendarView({ activityIds, onActivityClick, scheduleMee
                     const userId = auth.user?.id
                     if (!userId) return
 
-                    const { data: existing } = await supabase.from('calendar_event_participants').select('id').eq('event_id', eventId).eq('client_id', userId).single()
+                    const { data: existing } = await (supabase.from('calendar_event_participants') as any).select('id').eq('event_id', eventId).eq('client_id', userId).single()
 
                     if (existing) {
-                      await supabase.from('calendar_event_participants').update({ rsvp_status: newStatus }).eq('id', existing.id)
+                      await (supabase.from('calendar_event_participants') as any).update({ rsvp_status: newStatus }).eq('id', existing.id)
                     } else {
-                      await supabase.from('calendar_event_participants').insert({ event_id: eventId, client_id: userId, rsvp_status: newStatus, payment_status: 'unpaid' })
+                      await (supabase.from('calendar_event_participants') as any).insert({ event_id: eventId, client_id: userId, rsvp_status: newStatus, payment_status: 'unpaid' })
                     }
 
                     const start = new Date(selectedMeetEvent.start_time)
@@ -4068,8 +4113,8 @@ export default function CalendarView({ activityIds, onActivityClick, scheduleMee
 
                             console.log('[CalendarView] Inserting calendar event with payload:', payload);
 
-                            const { data: newEvent, error: eventError } = await supabase
-                              .from('calendar_events')
+                            const { data: newEvent, error: eventError } = await (supabase
+                              .from('calendar_events') as any)
                               .insert(payload)
                               .select('id')
                               .single()
@@ -4079,15 +4124,13 @@ export default function CalendarView({ activityIds, onActivityClick, scheduleMee
                               return
                             }
 
-                            await supabase
-                              .from('calendar_event_participants')
-                              .insert({
-                                event_id: newEvent.id,
-                                client_id: authUserId,
-                                rsvp_status: 'pending',
-                                invited_by_user_id: authUserId,
-                                invited_by_role: 'client',
-                              })
+                            const { data: partData, error: partError } = await (supabase.from('calendar_event_participants') as any).insert({
+                              event_id: newEvent.id,
+                              client_id: authUserId,
+                              rsvp_status: 'pending',
+                              invited_by_user_id: authUserId,
+                              invited_by_role: 'client',
+                            })
 
                             const coachName = selectedCoachProfile?.full_name || 'Coach'
                             const dateFormatted = format(new Date(payload.start_time), "EEEE d 'de' MMMM", { locale: es })

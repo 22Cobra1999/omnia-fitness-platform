@@ -91,7 +91,7 @@ export function WorkshopClientView({
     if (data) {
       setEnrollment(data)
       // Check if already rated (using feedback column or similar flag as program does)
-      setIsRated(data.status === 'finalizada' && (data.rating_activity !== null || data.feedback !== null))
+      setIsRated((data as any).status === 'finalizada' && (((data as any).rating_activity !== null && (data as any).rating_activity !== undefined) || ((data as any).feedback !== null && (data as any).feedback !== undefined)))
     }
   }
 
@@ -590,23 +590,20 @@ export function WorkshopClientView({
 
         {/* Workshop Completion Banner */}
         {!isDocument && isWorkshopExpired() && (
-          <div className="mb-6 bg-gradient-to-r from-green-500/20 to-blue-500/20 backdrop-blur-md rounded-2xl p-6 border border-green-500/30">
-            <div className="flex items-start gap-4">
-              <div className="flex-shrink-0 w-12 h-12 bg-green-500/20 rounded-full flex items-center justify-center">
-                <CheckCircle className="w-6 h-6 text-green-400" />
+          <div className="mb-4 bg-white/5 backdrop-blur-md rounded-2xl p-4 border border-white/10 shadow-lg">
+            <div className="flex items-start gap-3">
+              <div className="flex-shrink-0 w-10 h-10 bg-white/10 rounded-full flex items-center justify-center">
+                <CheckCircle className="w-5 h-5 text-gray-400" />
               </div>
-              <div className="flex-1">
-                <h3 className="text-white font-bold text-lg mb-2">¡Taller Finalizado!</h3>
-                <div className="text-gray-300 text-sm space-y-1 mb-4">
+              <div className="flex-1 min-w-0">
+                <h3 className="text-white font-bold text-base mb-1">Taller Finalizado</h3>
+                <div className="text-gray-400 text-xs space-y-0.5 mb-3">
                   {(() => {
                     const { totalTopics, attendedTopics } = getAttendanceSummary()
                     return (
                       <>
-                        <p>📚 <strong>{totalTopics}</strong> temas dictados en total</p>
-                        <p>✅ Asististe a <strong>{attendedTopics}</strong> de {totalTopics} clases</p>
-                        {attendedTopics === totalTopics && (
-                          <p className="text-green-400 font-semibold mt-2">🎉 ¡Completaste todas las clases!</p>
-                        )}
+                        <p>Total: <strong>{totalTopics}</strong> temas</p>
+                        <p>Asistencia: <strong>{attendedTopics}</strong>/{totalTopics} clases</p>
                       </>
                     )
                   })()}
@@ -614,16 +611,16 @@ export function WorkshopClientView({
                 {!isRated ? (
                   <button
                     onClick={() => setIsRatingModalOpen(true)}
-                    className="bg-[#FF7939] hover:bg-[#FF9F70] text-white font-semibold px-6 py-2.5 rounded-xl transition-all duration-200 flex items-center gap-2"
+                    className="border border-white/20 hover:bg-white/10 text-white text-xs font-semibold px-4 py-1.5 rounded-lg transition-all flex items-center gap-1.5 w-max"
                   >
-                    <Star className="w-4 h-4" />
-                    Calificar Taller
+                    <Star className="w-3.5 h-3.5 text-[#FF7939]" />
+                    Calificar talle
                   </button>
                 ) : (
-                  <p className="text-green-400/80 text-sm italic font-medium flex items-center gap-2">
-                    <CheckCircle className="w-4 h-4" />
-                    Calificación enviada. ¡Gracias!
-                  </p>
+                  <div className="flex items-center gap-1.5 text-green-500/80 text-xs font-medium">
+                    <CheckCircle className="w-3.5 h-3.5" />
+                    Calificado
+                  </div>
                 )}
               </div>
             </div>
@@ -761,168 +758,90 @@ export function WorkshopClientView({
 
                   {isExpanded && (
                     <div className="px-5 pb-5 pt-0">
-                      <div className="h-[1px] w-full bg-white/10 mb-4" />
+                      {/* Simple Content: Description + PDF */}
+                      <div className="px-1 text-gray-300 text-sm leading-relaxed space-y-4">
+                        {temaData.descripcion && (
+                          <p>{temaData.descripcion}</p>
+                        )}
 
-                      {/* Full Description */}
-                      {temaData.descripcion && (
-                        <p className="text-gray-300 text-sm leading-relaxed mb-6">{temaData.descripcion}</p>
-                      )}
-
-                      {/* DOCUMENT MODE: PDF Download */}
-                      {isDocument && (
-                        <div className="bg-white/5 rounded-xl p-4 border border-white/10">
-                          <h4 className="text-xs font-bold uppercase tracking-wider text-gray-400 mb-3 flex items-center gap-2">
-                            Recursos
-                          </h4>
-                          {temaData.pdf_url ? (
-                            <div className="flex items-center justify-between bg-black/40 p-3 rounded-lg border border-white/10 hover:border-[#FF7939]/50 transition-colors group/pdf">
-                              <div className="flex items-center gap-3 overflow-hidden">
-                                <div className="bg-red-500/20 p-2 rounded-lg">
-                                  <FileText className="w-5 h-5 text-red-500" />
-                                </div>
-                                <span className="text-sm text-gray-200 truncate group-hover/pdf:text-white transition-colors">
-                                  {temaData.pdf_file_name || `${temaData.nombre}.pdf`}
-                                </span>
-                              </div>
-                              <Button size="sm" className="bg-[#FF7939]/10 hover:bg-[#FF7939]/20 text-[#FF7939] border border-[#FF7939]/30 backdrop-blur-md shadow-[0_0_15px_rgba(255,121,57,0.1)] rounded-xl" onClick={() => handleDownloadPdf(temaData.pdf_url!)}>
-                                <Download className="w-4 h-4 mr-2" /> PDF
-                              </Button>
-                            </div>
-                          ) : (
-                            <p className="text-gray-500 text-xs italic">No hay material descargable disponible.</p>
-                          )}
-                        </div>
-                      )}
-
-                      {/* WORKSHOP MODE: Reservation Content (kept same) */}
-                      {/* WORKSHOP MODE: Reservation Content */}
-                      {!isDocument && (
-                        <div className="space-y-4">
-                          {/* Show "Finalizado" state if passed */}
-                          {isTemaFinalizado(tema.id) ? (
-                            <div className="bg-gray-900/50 rounded-xl p-4 border border-white/10">
-                              <div className="flex items-center gap-3 text-gray-400 mb-2">
-                                <CheckCircle className="w-5 h-5" />
-                                <span className="text-sm font-medium">Este tema ha finalizado.</span>
-                              </div>
-
-                              {/* Show historical info if available */}
-                              {(() => {
-                                const cubierto = temasCubiertos.find(t => t.tema_id === tema.id)
-                                if (cubierto?.fecha_seleccionada) {
-                                  return (
-                                    <div className="text-xs text-gray-300 ml-8 mb-2">
-                                      {cubierto.asistio ? (
-                                        <span className="text-green-400">✅ Confirmamos tu asistencia el {formatDate(cubierto.fecha_seleccionada)}.</span>
-                                      ) : (
-                                        <span>📅 Tenías reserva para el {formatDate(cubierto.fecha_seleccionada)}.</span>
-                                      )}
-                                    </div>
-                                  )
-                                }
-                                return null
-                              })()}
-
-                              <p className="text-xs text-gray-500 ml-8">
-                                Ya no es posible reservar ni modificar horarios. Puedes acceder a los materiales adjuntos si los hubiera.
-                              </p>
-                            </div>
-                          ) : (
-                            /* Only show reservation controls if NOT finalized */
-                            <>
-                              {estado === 'reservado' && (
-                                <div className="bg-[#FF7939]/10 rounded-xl p-4 border border-[#FF7939]/30">
-                                  <div className="flex justify-between items-center mb-2">
-                                    <h4 className="text-sm font-semibold text-[#FF7939]">Tu Reserva</h4>
-                                    <button onClick={(e) => { e.stopPropagation(); editarReservacion(tema.id); }} className="p-1 hover:bg-white/10 rounded text-gray-300 hover:text-white"><Edit2 className="w-4 h-4" /></button>
-                                  </div>
+                        {/* WORKSHOP MODE: Reservation Controls (if not finalized) */}
+                        {!isDocument && !isTemaFinalizado(tema.id) && (
+                          <div className="pt-2">
+                            {estado === 'reservado' ? (
+                              <div className="bg-[#FF7939]/10 rounded-xl p-3 border border-[#FF7939]/30 flex justify-between items-center">
+                                <div className="text-sm">
+                                  <div className="font-semibold text-[#FF7939]">Tu Reserva</div>
                                   {(() => {
-                                    const temaCubierto = temasCubiertos.find(t => t.tema_id === tema.id)
-                                    return temaCubierto ? (
-                                      <div className="text-sm text-gray-200">
-                                        <div className="font-medium">{formatDate(temaCubierto.fecha_seleccionada!)}</div>
-                                        <div className="text-gray-400">{temaCubierto.horario_seleccionado?.hora_inicio} - {temaCubierto.horario_seleccionado?.hora_fin}</div>
-                                      </div>
-                                    ) : null
+                                    const tc = temasCubiertos.find(t => t.tema_id === tema.id)
+                                    return tc ? <span className="text-gray-200 text-xs">{formatDate(tc.fecha_seleccionada!)} • {tc.horario_seleccionado?.hora_inicio}</span> : null
                                   })()}
                                 </div>
-                              )}
-                              {estado === 'pendiente' && (
-                                <div className="mt-4">
+                                <button onClick={(e) => { e.stopPropagation(); editarReservacion(tema.id); }} className="p-1.5 hover:bg-white/10 rounded-lg text-gray-400 hover:text-white transition-colors">
+                                  <Edit2 className="w-4 h-4" />
+                                </button>
+                              </div>
+                            ) : (
+                              estado === 'pendiente' && (
+                                <div className="mt-2">
+                                  {/* Horarios rendering logic kept similar but tighter */}
                                   {(() => {
-                                    // STRICT SOURCE OF TRUTH: temasPendientes (Execution Record)
                                     const temaPendiente = temasPendientes.find(t => t.tema_id === tema.id)
+                                    const horarios = (temaPendiente as any)?.snapshot_originales?.fechas_horarios || []
+                                    const filtered = horarios.filter((h: any) => !enrollment?.expiration_date || h.fecha <= enrollment.expiration_date.split('T')[0])
 
-                                    // Access snapshot from execution record
-                                    const snapshot = (temaPendiente as any)?.snapshot_originales
-
-                                    // Strict mode: if no snapshot is found on the execution record, we show NO schedules.
-                                    // This enforces that only the version captured at purchase time is valid.
-                                    let horarios = snapshot?.fechas_horarios || []
-
-                                    // Keep expiration filter as safety layer
-                                    const filteredHorarios = horarios.filter((h: any) => {
-                                      if (!enrollment?.expiration_date) return true
-                                      const expDate = enrollment.expiration_date.split('T')[0]
-                                      return h.fecha <= expDate
-                                    })
-
-                                    if (filteredHorarios.length === 0) {
-                                      return null // HIDDEN as requested: No "No hay horarios..." message
-                                    }
+                                    if (filtered.length === 0) return null
 
                                     return (
-                                      <>
-                                        <h4 className="text-sm font-semibold text-gray-400 mb-3">Horarios Disponibles</h4>
-                                        {filteredHorarios.map((horario: any, idx: number) => {
-                                          const cupoKey = `${temaData.id}-${horario.fecha}-${horario.hora_inicio}`
-                                          const ocupados = cuposOcupados[cupoKey] || 0
-                                          const disponibles = horario.cupo - ocupados
-                                          const isLleno = disponibles <= 0
-                                          return (
-                                            <div key={idx} onClick={() => !isLleno && handleSelectHorario(tema.id, temaData.nombre, horario.fecha, horario)}
-                                              className={`flex justify-between items-center p-3 rounded-xl border mb-2 cursor-pointer transition-all ${isLleno ? 'opacity-50 bg-gray-900 border-gray-800' : 'hover:border-[#FF7939] bg-black/20 border-white/5 hover:bg-[#FF7939]/5'}`}>
-                                              <div>
-                                                <div className="text-white text-sm font-medium">{formatDate(horario.fecha)}</div>
-                                                <div className="text-xs text-gray-400">{horario.hora_inicio} - {horario.hora_fin}</div>
+                                      <div className="space-y-2">
+                                        <h4 className="text-[10px] font-bold uppercase tracking-wider text-gray-500 mb-2">Horarios Disponibles</h4>
+                                        <div className="grid grid-cols-1 gap-2">
+                                          {filtered.map((horario: any, idx: number) => {
+                                            const disponibles = horario.cupo - (cuposOcupados[`${temaData.id}-${horario.fecha}-${horario.hora_inicio}`] || 0)
+                                            const isLleno = disponibles <= 0
+                                            return (
+                                              <div key={idx} onClick={() => !isLleno && handleSelectHorario(tema.id, temaData.nombre, horario.fecha, horario)}
+                                                className={`flex justify-between items-center p-2.5 rounded-xl border cursor-pointer transition-all ${isLleno ? 'opacity-50 bg-gray-900 border-gray-800' : 'hover:border-[#FF7939] bg-white/5 border-white/5 hover:bg-[#FF7939]/5'}`}>
+                                                <div className="flex flex-col">
+                                                  <span className="text-white text-xs font-semibold">{formatDate(horario.fecha)}</span>
+                                                  <span className="text-[10px] text-gray-500">{horario.hora_inicio} - {horario.hora_fin}</span>
+                                                </div>
+                                                <span className={`text-[10px] font-bold px-2 py-0.5 rounded-md ${isLleno ? 'bg-red-400/10 text-red-400' : 'bg-emerald-400/10 text-emerald-400'}`}>
+                                                  {disponibles} cupos
+                                                </span>
                                               </div>
-                                              <div className={`text-xs font-medium px-2 py-1 rounded-md ${isLleno ? 'bg-red-900/30 text-red-400' : 'bg-green-900/20 text-green-400'}`}>
-                                                {disponibles} cupos
-                                              </div>
-                                            </div>
-                                          )
-                                        })}
-                                      </>
+                                            )
+                                          })}
+                                        </div>
+                                      </div>
                                     )
                                   })()}
                                 </div>
-                              )}
-                            </>
-                          )}
+                              )
+                            )}
+                          </div>
+                        )}
 
-                          {/* PDF Resources - Show for both workshops and documents if available */}
-                          {temaData.pdf_url && (
-                            <div className="bg-white/5 rounded-xl p-4 border border-white/10 mt-4">
-                              <h4 className="text-xs font-bold uppercase tracking-wider text-gray-400 mb-3 flex items-center gap-2">
-                                Material del Tema
-                              </h4>
-                              <div className="flex items-center justify-between bg-black/40 p-3 rounded-lg border border-white/10 hover:border-[#FF7939]/50 transition-colors group/pdf">
-                                <div className="flex items-center gap-3 overflow-hidden">
-                                  <div className="bg-red-500/20 p-2 rounded-lg">
-                                    <FileText className="w-5 h-5 text-red-500" />
-                                  </div>
-                                  <span className="text-sm text-gray-200 truncate group-hover/pdf:text-white transition-colors">
-                                    {temaData.pdf_file_name || `${temaData.nombre}.pdf`}
-                                  </span>
-                                </div>
-                                <Button size="sm" className="bg-[#FF7939]/10 hover:bg-[#FF7939]/20 text-[#FF7939] border border-[#FF7939]/30 backdrop-blur-md shadow-[0_0_15px_rgba(255,121,57,0.1)] rounded-xl" onClick={() => handleDownloadPdf(temaData.pdf_url!)}>
-                                  <Download className="w-4 h-4 mr-2" /> PDF
-                                </Button>
+                        {/* Resources Section - Uniform & Compact */}
+                        {temaData.pdf_url && (
+                          <div className="pt-2">
+                            <div className="bg-white/5 rounded-xl px-3 py-2.5 border border-white/10 flex items-center justify-between hover:border-[#FF7939]/30 transition-colors group/pdf">
+                              <div className="flex items-center gap-2 overflow-hidden">
+                                <FileText className="w-4 h-4 text-red-500/80" />
+                                <span className="text-xs text-gray-400 truncate group-hover/pdf:text-gray-200 transition-colors">
+                                  {temaData.pdf_file_name || 'Material PDF'}
+                                </span>
                               </div>
+                              <button
+                                onClick={(e) => { e.stopPropagation(); handleDownloadPdf(temaData.pdf_url!); }}
+                                className="flex items-center gap-1.5 text-[10px] font-bold text-[#FF7939] hover:text-[#FF9F70] transition-colors bg-[#FF7939]/10 px-2 py-1 rounded-lg"
+                              >
+                                <Download className="w-3 h-3" />
+                                DESCARGAR
+                              </button>
                             </div>
-                          )}
-                        </div>
-                      )}
+                          </div>
+                        )}
+                      </div>
                     </div>
                   )}
                 </div>
@@ -958,20 +877,30 @@ export function WorkshopClientView({
         activityTitle={activityTitle}
         onComplete={async (activityRating, coachRating, feedback, wouldRepeat, omniaRating, omniaComments) => {
           try {
-            const { error } = await (supabase
-              .from('activity_enrollments') as any)
-              .update({
-                rating_activity: activityRating,
-                rating_coach: coachRating,
-                feedback: feedback,
+            // Updated rating logic to use activity_surveys table to avoid schema cache issues with activity_enrollments
+            const { error: surveyError } = await (supabase
+              .from('activity_surveys') as any)
+              .insert({
+                activity_id: activityId,
+                client_id: user!.id,
+                enrollment_id: enrollment?.id,
+                difficulty_rating: activityRating,
+                coach_method_rating: coachRating,
+                comments: feedback,
                 would_repeat: wouldRepeat,
-                rating_omnia: omniaRating,
-                omnia_comments: omniaComments,
-                status: 'finalizada' // Asegurar que esté marcada como finalizada
+                calificacion_omnia: omniaRating,
+                comentarios_omnia: omniaComments,
+                created_at: new Date().toISOString()
               })
+
+            if (surveyError) throw surveyError
+
+            // Mark as finished in enrollments separately
+            await (supabase
+              .from('activity_enrollments') as any)
+              .update({ status: 'finalizada' })
               .eq('id', enrollment.id)
 
-            if (error) throw error
             setIsRated(true)
             setIsRatingModalOpen(false)
           } catch (error) {

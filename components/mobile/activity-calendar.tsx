@@ -27,7 +27,8 @@ interface DayData {
 
 const ActivityCalendar = ({ userId }: ActivityCalendarProps) => {
   const [currentDate, setCurrentDate] = useState(new Date())
-  const { weeklyData, loading, refetch } = useClientMetrics(userId)
+  const [activityFilter, setActivityFilter] = useState<'fitness' | 'nutricion'>('fitness')
+  const { weeklyData, loading, refetch } = useClientMetrics(userId, activityFilter, currentDate)
   const [monthlyData, setMonthlyData] = useState<DayData[]>([])
 
   // Edit Mode States
@@ -48,20 +49,29 @@ const ActivityCalendar = ({ userId }: ActivityCalendarProps) => {
   const dayNames = ["D", "L", "M", "M", "J", "V", "S"]
 
   useEffect(() => {
-    if (weeklyData && weeklyData.length > 0) {
-      const currentMonth = currentDate.getMonth()
-      const currentYear = currentDate.getFullYear()
+    if (userId) {
+      const year = currentDate.getFullYear()
+      const month = currentDate.getMonth()
+      const firstDay = new Date(year, month, 1)
+      const lastDay = new Date(year, month + 1, 0)
 
-      const monthData = weeklyData.filter(day => {
-        const dayDate = new Date(day.date)
-        return dayDate.getMonth() === currentMonth && dayDate.getFullYear() === currentYear
-      })
+      const startStr = `${year}-${String(month + 1).padStart(2, '0')}-01`
+      const endStr = `${year}-${String(month + 1).padStart(2, '0')}-${String(lastDay.getDate()).padStart(2, '0')}`
 
-      const daysInMonth = new Date(currentYear, currentMonth + 1, 0).getDate()
-      const firstDayOfMonth = new Date(currentYear, currentMonth, 1).getDay()
+      refetch(startStr, endStr)
+    }
+  }, [userId, currentDate, activityFilter])
+
+  useEffect(() => {
+    if (weeklyData) {
+      const year = currentDate.getFullYear()
+      const month = currentDate.getMonth()
+      const daysInMonth = new Date(year, month + 1, 0).getDate()
+      const firstDayOfMonth = new Date(year, month, 1).getDay()
 
       const days: DayData[] = []
 
+      // Fill empty days at start
       for (let i = 0; i < firstDayOfMonth; i++) {
         days.push({
           date: "",
@@ -75,9 +85,10 @@ const ActivityCalendar = ({ userId }: ActivityCalendarProps) => {
         })
       }
 
+      // Map real data
       for (let day = 1; day <= daysInMonth; day++) {
-        const dateStr = `${currentYear}-${String(currentMonth + 1).padStart(2, '0')}-${String(day).padStart(2, '0')}`
-        const dayData = monthData.find(d => d.date === dateStr)
+        const dateStr = `${year}-${String(month + 1).padStart(2, '0')}-${String(day).padStart(2, '0')}`
+        const dayData = weeklyData.find(d => d.date === dateStr)
 
         days.push({
           date: dateStr,
@@ -85,9 +96,9 @@ const ActivityCalendar = ({ userId }: ActivityCalendarProps) => {
           kcal: dayData?.kcal || 0,
           minutes: dayData?.minutes || 0,
           exercises: dayData?.exercises || 0,
-          kcalTarget: 500,
-          minutesTarget: 60,
-          exercisesTarget: 3
+          kcalTarget: dayData?.kcalTarget || 500,
+          minutesTarget: dayData?.minutesTarget || 60,
+          exercisesTarget: dayData?.target || 3
         })
       }
 
@@ -141,14 +152,14 @@ const ActivityCalendar = ({ userId }: ActivityCalendarProps) => {
       const sourceStr = sourceDate.toISOString().split('T')[0]
       const targetStr = new Date(targetDate.getTime() - (targetDate.getTimezoneOffset() * 60000)).toISOString().split('T')[0]
 
-      const { error: errorProg } = await supabase
-        .from('progreso_cliente')
+      const { error: errorProg } = await (supabase
+        .from('progreso_cliente') as any)
         .update({ fecha: targetStr })
         .eq('cliente_id', userId)
         .eq('fecha', sourceStr)
 
-      const { error: errorNut } = await supabase
-        .from('progreso_cliente_nutricion')
+      const { error: errorNut } = await (supabase
+        .from('progreso_cliente_nutricion') as any)
         .update({ fecha: targetStr })
         .eq('cliente_id', userId)
         .eq('fecha', sourceStr)
@@ -167,11 +178,11 @@ const ActivityCalendar = ({ userId }: ActivityCalendarProps) => {
           const diffTime = targetDate.getTime() - sourceDate.getTime()
           const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24))
 
-          const updates = futureProgress.filter(item => {
+          const updates = futureProgress.filter((item: any) => {
             const d = new Date(item.fecha)
             const dLocal = new Date(d.getTime() + (d.getTimezoneOffset() * 60000))
             return dLocal.getDay() === dayOfWeek
-          }).map(item => {
+          }).map((item: any) => {
             const d = new Date(item.fecha)
             const newD = new Date(d.getTime() + (diffDays * 24 * 60 * 60 * 1000))
             return {
@@ -181,7 +192,7 @@ const ActivityCalendar = ({ userId }: ActivityCalendarProps) => {
           })
 
           if (updates.length > 0) {
-            await supabase.from('progreso_cliente').upsert(updates)
+            await (supabase.from('progreso_cliente') as any).upsert(updates)
 
             const { data: futureNut } = await supabase
               .from('progreso_cliente_nutricion')
@@ -190,11 +201,11 @@ const ActivityCalendar = ({ userId }: ActivityCalendarProps) => {
               .gt('fecha', sourceStr)
 
             if (futureNut && futureNut.length > 0) {
-              const nutUpdates = futureNut.filter(item => {
+              const nutUpdates = futureNut.filter((item: any) => {
                 const d = new Date(item.fecha)
                 const dLocal = new Date(d.getTime() + (d.getTimezoneOffset() * 60000))
                 return dLocal.getDay() === dayOfWeek
-              }).map(item => {
+              }).map((item: any) => {
                 const d = new Date(item.fecha)
                 const newD = new Date(d.getTime() + (diffDays * 24 * 60 * 60 * 1000))
                 return {
@@ -203,7 +214,7 @@ const ActivityCalendar = ({ userId }: ActivityCalendarProps) => {
                 }
               })
               if (nutUpdates.length > 0) {
-                await supabase.from('progreso_cliente_nutricion').upsert(nutUpdates)
+                await (supabase.from('progreso_cliente_nutricion') as any).upsert(nutUpdates)
               }
             }
           }
@@ -227,9 +238,9 @@ const ActivityCalendar = ({ userId }: ActivityCalendarProps) => {
     }
   }
 
-  const ActivityRing = ({ progress, color, size = 20 }: { progress: number, color: string, size?: number }) => {
+  const ActivityRing = ({ progress, color, size = 36 }: { progress: number, color: string, size?: number }) => {
     const safeProgress = isNaN(progress) || !isFinite(progress) ? 0 : Math.max(0, Math.min(100, progress))
-    const radius = (size - 4) / 2
+    const radius = (size - 8) / 2
     const circumference = 2 * Math.PI * radius
     const strokeDasharray = circumference
     const strokeDashoffset = circumference - (safeProgress / 100) * circumference
@@ -241,14 +252,16 @@ const ActivityCalendar = ({ userId }: ActivityCalendarProps) => {
           height={size}
           className="transform -rotate-90"
         >
+          {/* Background circle */}
           <circle
             cx={size / 2}
             cy={size / 2}
             r={radius}
-            stroke="rgba(75, 85, 99, 0.2)"
+            stroke="rgba(75, 85, 99, 0.3)"
             strokeWidth="2"
             fill="none"
           />
+          {/* Progress circle */}
           <circle
             cx={size / 2}
             cy={size / 2}
@@ -283,8 +296,30 @@ const ActivityCalendar = ({ userId }: ActivityCalendarProps) => {
   }
 
   return (
-    <>
-      <div className="space-y-4">
+    <div className="w-full max-w-full overflow-x-hidden">
+      <div className="space-y-4 max-w-full overflow-x-hidden">
+        {/* Filtros de Categoría */}
+        <div className="flex items-center justify-center gap-2 mb-2">
+          <button
+            onClick={() => setActivityFilter('fitness')}
+            className={`text-xs px-4 py-1.5 rounded-full font-medium transition-all ${activityFilter === 'fitness'
+              ? 'bg-black text-[#FF7939] ring-1 ring-[#FF7939]/30'
+              : 'bg-zinc-800 text-gray-400 hover:bg-zinc-700'
+              }`}
+          >
+            Fitness
+          </button>
+          <button
+            onClick={() => setActivityFilter('nutricion')}
+            className={`text-xs px-4 py-1.5 rounded-full font-medium transition-all ${activityFilter === 'nutricion'
+              ? 'bg-white text-[#FF7939]'
+              : 'bg-zinc-800 text-gray-400 hover:bg-zinc-700'
+              }`}
+          >
+            Nutrición
+          </button>
+        </div>
+
         <div className="flex items-center justify-between">
           <div className="flex items-center gap-2">
             <button
@@ -305,17 +340,6 @@ const ActivityCalendar = ({ userId }: ActivityCalendarProps) => {
               <ChevronRight className="w-5 h-5 text-gray-400" />
             </button>
           </div>
-
-          <button
-            onClick={toggleEditMode}
-            className={`flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-medium transition-all ${isEditing
-                ? 'bg-[#FF7939] text-white shadow-lg shadow-orange-500/20'
-                : 'bg-zinc-800 text-gray-300 hover:bg-zinc-700'
-              }`}
-          >
-            <RotateCcw className={`w-3.5 h-3.5 ${isEditing ? 'animate-pulse' : ''}`} />
-            {isEditing ? 'Cancelar' : 'Cambiar fecha'}
-          </button>
         </div>
 
         {isEditing && (
@@ -326,9 +350,9 @@ const ActivityCalendar = ({ userId }: ActivityCalendarProps) => {
           </div>
         )}
 
-        <div className="grid grid-cols-7 gap-1 mb-2">
+        <div className="grid grid-cols-7 gap-1 mb-2 w-full px-1">
           {dayNames.map((day, index) => (
-            <div key={index} className="text-center text-sm text-gray-400 font-medium py-2">
+            <div key={index} className="text-center text-[10px] sm:text-sm text-gray-400 font-medium py-2">
               {day}
             </div>
           ))}
@@ -340,9 +364,9 @@ const ActivityCalendar = ({ userId }: ActivityCalendarProps) => {
               return <div key={index} className="h-20"></div>
             }
 
-            const kcalProgress = Math.min((day.kcal / day.kcalTarget) * 100, 100)
-            const minutesProgress = Math.min((day.minutes / day.minutesTarget) * 100, 100)
-            const exercisesProgress = Math.min((day.exercises / day.exercisesTarget) * 100, 100)
+            const kcalProgress = day.kcalTarget > 0 ? (day.kcal / day.kcalTarget) * 100 : 0
+            const minutesProgress = day.minutesTarget > 0 ? (day.minutes / day.minutesTarget) * 100 : 0
+            const exercisesProgress = day.exercisesTarget > 0 ? (day.exercises / day.exercisesTarget) * 100 : 0
 
             const parsedDate = day.date ? new Date(parseInt(day.date.split('-')[0]), parseInt(day.date.split('-')[1]) - 1, parseInt(day.date.split('-')[2])) : null
 
@@ -364,32 +388,42 @@ const ActivityCalendar = ({ userId }: ActivityCalendarProps) => {
                 )}
 
                 <div className={`text-xs font-medium transition-colors ${isToday
-                    ? 'text-white bg-red-500 rounded-full w-6 h-6 flex items-center justify-center shadow-md'
-                    : isSource
-                      ? 'text-[#FF7939] font-bold'
-                      : 'text-gray-300'
+                  ? 'text-white bg-red-500 rounded-full w-6 h-6 flex items-center justify-center shadow-md'
+                  : isSource
+                    ? 'text-[#FF7939] font-bold'
+                    : 'text-gray-300'
                   }`}>
                   {day.day}
                 </div>
 
-                <div className={`flex justify-center relative transition-opacity ${isSource ? 'opacity-50' : 'opacity-100'}`} style={{ width: 40, height: 40 }}>
+                <div
+                  className="flex justify-center relative transition-opacity"
+                  style={{ width: 40, height: 40 }}
+                >
+                  {/* Anillo exterior - Kcal */}
                   <ActivityRing
                     progress={kcalProgress}
                     color="#FF6A00"
                     size={40}
                   />
-                  <div className="absolute top-1 left-1">
-                    <ActivityRing
-                      progress={minutesProgress}
-                      color="#00D4AA"
-                      size={32}
-                    />
-                  </div>
-                  <div className="absolute top-2 left-2">
+
+                  {/* Anillo medio - Minutos */}
+                  {day.minutesTarget > 0 && (
+                    <div className="absolute top-1 left-1">
+                      <ActivityRing
+                        progress={minutesProgress}
+                        color="#FF8C42"
+                        size={32}
+                      />
+                    </div>
+                  )}
+
+                  {/* Anillo interior - Ejercicios/Platos */}
+                  <div className={`absolute ${day.minutesTarget > 0 ? 'top-2 left-2' : 'top-1 left-1'}`}>
                     <ActivityRing
                       progress={exercisesProgress}
-                      color="#8B5CF6"
-                      size={24}
+                      color="#FFFFFF"
+                      size={day.minutesTarget > 0 ? 24 : 32}
                     />
                   </div>
                 </div>
@@ -460,7 +494,7 @@ const ActivityCalendar = ({ userId }: ActivityCalendarProps) => {
           </DialogFooter>
         </DialogContent>
       </Dialog>
-    </>
+    </div>
   )
 }
 
