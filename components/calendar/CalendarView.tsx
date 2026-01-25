@@ -937,12 +937,7 @@ export default function CalendarView({ activityIds, onActivityClick, scheduleMee
           .filter((x) => x.pendingMinutes > 0 || x.pendingCountLabel !== 'Sin pendientes')
           .sort((a, b) => b.pendingMinutes - a.pendingMinutes)
 
-        setSelectedDayActivityItems((prev) => {
-          const prevDayKey = selectedDayKeyRef.current
-          // Si estamos en el mismo día y el nuevo cálculo vino vacío, no pisar (evita que “desaparezcan”).
-          if (prevDayKey === dayKey && prev.length > 0 && list.length === 0) return prev
-          return list
-        })
+        setSelectedDayActivityItems(list)
       } catch (e) {
         console.error('Error loading selected day breakdown:', e)
         // No borrar el estado para evitar que desaparezcan pendientes por fallos transitorios.
@@ -1606,6 +1601,19 @@ export default function CalendarView({ activityIds, onActivityClick, scheduleMee
     setShowAddMenu(false)
   }
 
+  const handleClearCoachForMeet = () => {
+    try {
+      localStorage.removeItem('scheduleMeetContext')
+    } catch {
+      // ignore
+    }
+    onSetScheduleMeetContext?.(null)
+    // No cambiamos el meetViewMode para quedarnos en el flujo de meet
+    setSelectedMeetRequest(null)
+    setSelectedMeetEvent(null)
+    setMeetPurchasePaid(false)
+  }
+
   const monthStart = startOfMonth(currentDate)
   const monthEnd = endOfMonth(currentDate)
   const daysInMonth = eachDayOfInterval({ start: monthStart, end: monthEnd })
@@ -2002,14 +2010,12 @@ export default function CalendarView({ activityIds, onActivityClick, scheduleMee
         if (top < 0) return null
 
         const width = 100 / ev.totalCols
-        const left = (ev.colIndex * width) + (1) // +1 for slight offset from edge if needed, or 0. Using relative calculation.
-
         // Adjust styles
         const style = {
           top: `${top}%`,
           height: `${height}%`,
           width: `calc(${width}% - 4px)`, // -4px for gap
-          left: `calc(${ev.colIndex * width}% + 2px)`, // +2px for gap
+          left: `calc(${(ev.colIndex || 0) * width}% + 2px)`, // Centered within its calculated width
         }
 
         // Optimization for small events
@@ -2146,83 +2152,116 @@ export default function CalendarView({ activityIds, onActivityClick, scheduleMee
               {selectedCoachId ? 'Cargando coach...' : 'No tenés coaches asociados a compras.'}
             </div>
           ) : (
-            <div className="flex items-center gap-3 overflow-x-auto pb-1">
+            <div className="flex items-center gap-4 overflow-x-auto pb-4 px-1 scrollbar-hide">
               {coachProfiles.map((coach) => {
                 const isSelected = !!selectedCoachId && coach.id === selectedCoachId
                 const isDimmed = !!selectedCoachId && coach.id !== selectedCoachId
+                const availableMeets = meetCreditsByCoachId[coach.id] ?? 0
+
                 return (
-                  <div key={coach.id} className="flex items-center gap-3 flex-shrink-0">
+                  <div key={coach.id} className="flex items-center gap-4 flex-shrink-0 animate-in fade-in slide-in-from-left-4 duration-500">
                     <button
                       type="button"
-                      onClick={() => handlePickCoachForMeet(coach.id)}
+                      onClick={() => {
+                        if (isSelected) {
+                          handleClearCoachForMeet()
+                        } else {
+                          handlePickCoachForMeet(coach.id)
+                        }
+                      }}
                       className={
-                        `relative w-[180px] h-[120px] rounded-2xl overflow-hidden flex-shrink-0 border bg-black/30 transition-colors ` +
+                        `relative py-2.5 px-3 rounded-[20px] border backdrop-blur-md transition-all duration-300 flex flex-col items-center gap-2 active:scale-95 ` +
                         (isSelected
-                          ? 'border-[#FF7939]/60 shadow-[0_10px_30px_rgba(255,121,57,0.18)]'
-                          : 'border-white/10 hover:bg-white/5') +
-                        (isDimmed ? ' opacity-45' : '')
+                          ? 'bg-white/10 border-white/30 shadow-lg ring-1 ring-[#FF7939]/20'
+                          : 'bg-white/5 border-white/10 hover:bg-white/10 hover:border-white/20')
                       }
                     >
-                      <div className="absolute inset-0">
+                      {/* Coach Circular Photo */}
+                      <div className={
+                        `relative w-11 h-11 rounded-full transition-all duration-300 ` +
+                        (isSelected
+                          ? 'ring-1 ring-[#FF7939] ring-offset-1 ring-offset-zinc-900 scale-105'
+                          : 'ring-1 ring-white/10') +
+                        (isDimmed ? ' opacity-40 grayscale blur-[0.5px]' : '')
+                      }>
                         <Image
                           src={coach.avatar_url || '/placeholder.svg?height=160&width=160&query=coach'}
                           alt={coach.full_name}
                           fill
-                          className={(isDimmed ? 'object-cover grayscale' : 'object-cover')}
-                          sizes="180px"
+                          className="rounded-full object-cover"
+                          sizes="44px"
                         />
                       </div>
 
-                      <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-black/30 to-transparent" />
+                      <div className="flex flex-col items-center gap-1.5 leading-none">
+                        <div className="relative">
+                          {/* Video Icon Standalone Orange */}
+                          <div className={
+                            `flex items-center justify-center transition-all duration-300 ` +
+                            (isSelected ? 'opacity-100 scale-110' : 'opacity-40')
+                          }>
+                            <Video className="w-3.5 h-3.5 text-[#FF7939]" />
+                          </div>
 
-                      <div className="absolute left-3 right-3 bottom-3">
-                        <div className="text-white text-base font-semibold truncate">{coach.full_name}</div>
-                        <div className="mt-2 inline-flex items-center px-2.5 py-1 rounded-full border text-[11px] font-semibold backdrop-blur-md bg-white/10 border-[#FF7939]/40 text-white">
-                          {(meetCreditsByCoachId[coach.id] ?? 0)} meets disponibles
+                          {/* Notification-style Number Badge */}
+                          {availableMeets > 0 && (
+                            <div className="absolute -top-1.5 -right-2 bg-[#FF7939] text-black text-[9px] font-extrabold w-3.5 h-3.5 rounded-full flex items-center justify-center">
+                              {availableMeets}
+                            </div>
+                          )}
+                        </div>
+
+                        <div className={
+                          `text-[9px] font-medium leading-[1.1] text-center max-w-[60px] transition-colors ` +
+                          (isSelected ? 'text-white' : 'text-white/40')
+                        }>
+                          {coach.full_name.split(' ').map((part, i) => (
+                            <div key={i} className="capitalize">{part.toLowerCase()}</div>
+                          ))}
                         </div>
                       </div>
                     </button>
 
                     {isPaidMeetFlow && isSelected && (
-                      <div className="flex items-center gap-6 pr-2">
+                      <div className="flex items-center gap-5 px-4 py-3 rounded-2xl bg-white/5 border border-white/10 ml-1 animate-in fade-in slide-in-from-left-4 duration-500">
                         <button
                           type="button"
                           onClick={() => applyConsultationSelection('express')}
                           className={
                             `flex flex-col items-center transition-opacity ` +
-                            (selectedConsultationType === 'express' ? 'opacity-100' : 'opacity-70 hover:opacity-100')
+                            (selectedConsultationType === 'express' ? 'opacity-100' : 'opacity-60 hover:opacity-100')
                           }
                         >
-                          <Zap className="w-5 h-5 text-[#FF7939]" strokeWidth={2} fill="none" />
-                          <div className="mt-1 text-white text-xs font-semibold">Express</div>
-                          <div className="text-gray-400 text-[11px]">15 min</div>
-                          <div className="mt-0.5 text-[#FF7939] text-sm font-bold">${coachConsultations.express.price}</div>
+                          <Zap className="w-4 h-4 text-[#FF7939]" />
+                          <div className="mt-1 text-white text-[9px] font-bold uppercase tracking-wider">Express</div>
+                          <div className="text-gray-400 text-[8px]">15 min</div>
+                          <div className="mt-0.5 text-[#FF7939] text-[11px] font-bold">${coachConsultations.express.price}</div>
                         </button>
                         <button
                           type="button"
                           onClick={() => applyConsultationSelection('puntual')}
                           className={
                             `flex flex-col items-center transition-opacity ` +
-                            (selectedConsultationType === 'puntual' ? 'opacity-100' : 'opacity-70 hover:opacity-100')
+                            (selectedConsultationType === 'puntual' ? 'opacity-100' : 'opacity-60 hover:opacity-100')
                           }
                         >
-                          <Target className="w-5 h-5 text-[#FF7939]" strokeWidth={2} fill="none" />
-                          <div className="mt-1 text-white text-xs font-semibold">Consulta puntual</div>
-                          <div className="text-gray-400 text-[11px]">30 min</div>
-                          <div className="mt-0.5 text-[#FF7939] text-sm font-bold">${coachConsultations.puntual.price}</div>
+                          <Utensils className="w-4 h-4 text-[#FF7939]" />
+                          <div className="mt-1 text-white text-[9px] font-bold uppercase tracking-wider">Puntual</div>
+                          <div className="text-gray-400 text-[8px]">30 min</div>
+                          <div className="mt-0.5 text-[#FF7939] text-[11px] font-bold">${coachConsultations.puntual.price}</div>
                         </button>
                         <button
                           type="button"
                           onClick={() => applyConsultationSelection('profunda')}
                           className={
                             `flex flex-col items-center transition-opacity ` +
-                            (selectedConsultationType === 'profunda' ? 'opacity-100' : 'opacity-70 hover:opacity-100')
+                            (selectedConsultationType === 'profunda' ? 'opacity-100' : 'opacity-60 hover:opacity-100')
                           }
                         >
-                          <GraduationCap className="w-5 h-5 text-[#FF7939]" strokeWidth={2} fill="none" />
-                          <div className="mt-1 text-white text-xs font-semibold">Sesión profunda</div>
-                          <div className="text-gray-400 text-[11px]">60 min</div>
-                          <div className="mt-0.5 text-[#FF7939] text-sm font-bold">${coachConsultations.profunda.price}</div>
+                          <GraduationCap className="w-4 h-4 text-[#FF7939]" />
+                          <div className="mt-1 text-white text-[9px] font-bold uppercase tracking-wider">Profunda</div>
+                          <div className="text-gray-400 text-[8px]">60 min</div>
+                          <div className="mt-0.5 text-[#FF7939] text-[11px] font-bold">${coachConsultations.profunda.price}</div>
                         </button>
                       </div>
                     )}
@@ -2231,153 +2270,133 @@ export default function CalendarView({ activityIds, onActivityClick, scheduleMee
               })}
             </div>
           )}
-
-          {selectedCoachId && (
-            <div className="mt-2 flex items-start justify-between gap-3">
-              <button
-                type="button"
-                onClick={() => {
-                  try {
-                    localStorage.removeItem('scheduleMeetContext')
-                  } catch {
-                    // ignore
-                  }
-                  onSetScheduleMeetContext?.(null)
-                  setMeetViewMode('month')
-                  setSelectedMeetRequest(null)
-                  setMeetPurchasePaid(false)
-                }}
-                className="px-3 py-1.5 rounded-full border text-[11px] font-semibold backdrop-blur-md bg-white/10 border-white/20 text-white hover:bg-white/15 transition-colors"
-              >
-                Quitar coach
-              </button>
-            </div>
-          )}
         </div>
       )}
 
-      {rescheduleContext && reschedulePreview && (
-        <div
-          className="fixed inset-0 z-[75] bg-black/60 flex items-center justify-center p-4"
-          role="dialog"
-          aria-modal="true"
-          onClick={() => setReschedulePreview(null)}
-        >
+      {
+        rescheduleContext && reschedulePreview && (
           <div
-            className="w-full max-w-md bg-zinc-950 border border-zinc-800 rounded-2xl p-5"
-            onClick={(e) => e.stopPropagation()}
+            className="fixed inset-0 z-[75] bg-black/60 flex items-center justify-center p-4"
+            role="dialog"
+            aria-modal="true"
+            onClick={() => setReschedulePreview(null)}
           >
-            <div className="flex items-center justify-between">
-              <div className="text-white font-semibold text-xl">Confirmar reprogramación</div>
-              <button
-                type="button"
-                onClick={() => setReschedulePreview(null)}
-                className="w-8 h-8 rounded-full hover:bg-white/10 text-white flex items-center justify-center"
-                aria-label="Cerrar"
-              >
-                <span className="text-xl leading-none">×</span>
-              </button>
-            </div>
-
-            <div className="mt-3 text-sm text-white/70">
-              Revisá el nuevo horario antes de enviar la solicitud.
-            </div>
-
-            <div className="mt-4 flex flex-wrap items-center gap-2">
-              <div className="flex items-center gap-2 bg-black/30 border border-[#FF7939]/30 rounded-lg px-3 py-2 text-sm text-gray-200">
-                <CalendarIcon className="h-4 w-4 text-[#FFB366]" />
-                <span className="font-medium">{format(new Date(reschedulePreview.toStartIso), 'dd MMM yyyy', { locale: es })}</span>
-              </div>
-              <div className="flex items-center gap-2 bg-black/30 border border-[#FF7939]/30 rounded-lg px-3 py-2 text-sm text-gray-200">
-                <Clock className="h-4 w-4 text-[#FFB366]" />
-                <span className="font-medium">
-                  {(() => {
-                    const a = new Date(reschedulePreview.toStartIso)
-                    const b = new Date(reschedulePreview.toEndIso)
-                    return `${format(a, 'HH:mm')} – ${format(b, 'HH:mm')}`
-                  })()}
-                </span>
+            <div
+              className="w-full max-w-md bg-zinc-950 border border-zinc-800 rounded-2xl p-5"
+              onClick={(e) => e.stopPropagation()}
+            >
+              <div className="flex items-center justify-between">
+                <div className="text-white font-semibold text-xl">Confirmar reprogramación</div>
+                <button
+                  type="button"
+                  onClick={() => setReschedulePreview(null)}
+                  className="w-8 h-8 rounded-full hover:bg-white/10 text-white flex items-center justify-center"
+                  aria-label="Cerrar"
+                >
+                  <span className="text-xl leading-none">×</span>
+                </button>
               </div>
 
-              <div className="flex items-center gap-2 bg-black/30 border border-white/10 rounded-lg px-3 py-2 text-xs text-white/55">
-                <CalendarIcon className="h-4 w-4 text-white/45" />
-                <span className="line-through">{format(new Date(rescheduleContext.fromStart), 'dd MMM yyyy', { locale: es })}</span>
+              <div className="mt-3 text-sm text-white/70">
+                Revisá el nuevo horario antes de enviar la solicitud.
               </div>
-              <div className="flex items-center gap-2 bg-black/30 border border-white/10 rounded-lg px-3 py-2 text-xs text-white/55">
-                <Clock className="h-4 w-4 text-white/45" />
-                <span className="line-through">
-                  {(() => {
-                    const a = new Date(rescheduleContext.fromStart)
-                    const b = rescheduleContext.fromEnd ? new Date(rescheduleContext.fromEnd) : null
-                    return `${format(a, 'HH:mm')}${b && !Number.isNaN(b.getTime()) ? ` – ${format(b, 'HH:mm')}` : ''}`
-                  })()}
-                </span>
+
+              <div className="mt-4 flex flex-wrap items-center gap-2">
+                <div className="flex items-center gap-2 bg-black/30 border border-[#FF7939]/30 rounded-lg px-3 py-2 text-sm text-gray-200">
+                  <CalendarIcon className="h-4 w-4 text-[#FFB366]" />
+                  <span className="font-medium">{format(new Date(reschedulePreview.toStartIso), 'dd MMM yyyy', { locale: es })}</span>
+                </div>
+                <div className="flex items-center gap-2 bg-black/30 border border-[#FF7939]/30 rounded-lg px-3 py-2 text-sm text-gray-200">
+                  <Clock className="h-4 w-4 text-[#FFB366]" />
+                  <span className="font-medium">
+                    {(() => {
+                      const a = new Date(reschedulePreview.toStartIso)
+                      const b = new Date(reschedulePreview.toEndIso)
+                      return `${format(a, 'HH:mm')} – ${format(b, 'HH:mm')}`
+                    })()}
+                  </span>
+                </div>
+
+                <div className="flex items-center gap-2 bg-black/30 border border-white/10 rounded-lg px-3 py-2 text-xs text-white/55">
+                  <CalendarIcon className="h-4 w-4 text-white/45" />
+                  <span className="line-through">{format(new Date(rescheduleContext.fromStart), 'dd MMM yyyy', { locale: es })}</span>
+                </div>
+                <div className="flex items-center gap-2 bg-black/30 border border-white/10 rounded-lg px-3 py-2 text-xs text-white/55">
+                  <Clock className="h-4 w-4 text-white/45" />
+                  <span className="line-through">
+                    {(() => {
+                      const a = new Date(rescheduleContext.fromStart)
+                      const b = rescheduleContext.fromEnd ? new Date(rescheduleContext.fromEnd) : null
+                      return `${format(a, 'HH:mm')}${b && !Number.isNaN(b.getTime()) ? ` – ${format(b, 'HH:mm')}` : ''}`
+                    })()}
+                  </span>
+                </div>
               </div>
-            </div>
 
-            <div className="mt-4">
-              <div className="text-base font-semibold text-white">Nota (opcional)</div>
-              <textarea
-                value={reschedulePreview.note}
-                onChange={(e) => setReschedulePreview((p) => (p ? { ...p, note: e.target.value } : p))}
-                className="mt-2 w-full rounded-xl bg-zinc-900 border border-white/10 px-3 py-2 text-sm text-white outline-none focus:border-[#FF7939]/60"
-                rows={3}
-                placeholder="Dejá un mensaje para tu coach..."
-              />
-            </div>
+              <div className="mt-4">
+                <div className="text-base font-semibold text-white">Nota (opcional)</div>
+                <textarea
+                  value={reschedulePreview.note}
+                  onChange={(e) => setReschedulePreview((p) => (p ? { ...p, note: e.target.value } : p))}
+                  className="mt-2 w-full rounded-xl bg-zinc-900 border border-white/10 px-3 py-2 text-sm text-white outline-none focus:border-[#FF7939]/60"
+                  rows={3}
+                  placeholder="Dejá un mensaje para tu coach..."
+                />
+              </div>
 
-            <div className="mt-4 flex flex-col gap-2">
-              <button
-                type="button"
-                className="w-full px-4 py-2.5 rounded-xl bg-[#FF7939] text-black text-sm font-semibold hover:opacity-95 transition-opacity"
-                onClick={() => {
-                  const send = async () => {
-                    try {
-                      const { data: auth } = await supabase.auth.getUser()
-                      const user = auth?.user
-                      if (!user?.id) return
+              <div className="mt-4 flex flex-col gap-2">
+                <button
+                  type="button"
+                  className="w-full px-4 py-2.5 rounded-xl bg-[#FF7939] text-black text-sm font-semibold hover:opacity-95 transition-opacity"
+                  onClick={() => {
+                    const send = async () => {
+                      try {
+                        const { data: auth } = await supabase.auth.getUser()
+                        const user = auth?.user
+                        if (!user?.id) return
 
-                      const { error } = await (supabase
-                        .from('calendar_event_reschedule_requests') as any)
-                        .insert({
-                          event_id: rescheduleContext.eventId,
-                          requested_by_user_id: user.id,
-                          requested_by_role: 'client',
-                          from_start_time: rescheduleContext.fromStart,
-                          from_end_time: rescheduleContext.fromEnd,
-                          to_start_time: reschedulePreview.toStartIso,
-                          to_end_time: reschedulePreview.toEndIso,
-                          note: reschedulePreview.note?.trim() ? reschedulePreview.note.trim() : null,
-                          status: 'pending',
-                        })
+                        const { error } = await (supabase
+                          .from('calendar_event_reschedule_requests') as any)
+                          .insert({
+                            event_id: rescheduleContext.eventId,
+                            requested_by_user_id: user.id,
+                            requested_by_role: 'client',
+                            from_start_time: rescheduleContext.fromStart,
+                            from_end_time: rescheduleContext.fromEnd,
+                            to_start_time: reschedulePreview.toStartIso,
+                            to_end_time: reschedulePreview.toEndIso,
+                            note: reschedulePreview.note?.trim() ? reschedulePreview.note.trim() : null,
+                            status: 'pending',
+                          })
 
-                      if (error) return
+                        if (error) return
 
-                      setReschedulePreview(null)
-                      setRescheduleContext(null)
-                      setMeetViewMode('month')
-                      setSelectedMeetEvent(rescheduleContext.snapshot)
-                    } catch {
-                      // ignore
+                        setReschedulePreview(null)
+                        setRescheduleContext(null)
+                        setMeetViewMode('month')
+                        setSelectedMeetEvent(rescheduleContext.snapshot)
+                      } catch {
+                        // ignore
+                      }
                     }
-                  }
-                  send()
-                }}
-              >
-                Enviar solicitud
-              </button>
+                    send()
+                  }}
+                >
+                  Enviar solicitud
+                </button>
 
-              <button
-                type="button"
-                className="w-full px-4 py-2.5 rounded-xl bg-zinc-900 text-white text-sm border border-white/15 hover:bg-zinc-800 transition-colors"
-                onClick={() => setReschedulePreview(null)}
-              >
-                Volver
-              </button>
+                <button
+                  type="button"
+                  className="w-full px-4 py-2.5 rounded-xl bg-zinc-900 text-white text-sm border border-white/15 hover:bg-zinc-800 transition-colors"
+                  onClick={() => setReschedulePreview(null)}
+                >
+                  Volver
+                </button>
+              </div>
             </div>
           </div>
-        </div>
-      )}
+        )
+      }
 
       <Card className="bg-zinc-900 border-zinc-800">
         {meetViewMode === 'month' && (
@@ -2408,16 +2427,6 @@ export default function CalendarView({ activityIds, onActivityClick, scheduleMee
                 <ChevronRight className="h-4 w-4" />
               </Button>
 
-              <button
-                onClick={toggleEditMode}
-                className={`ml-2 flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-medium transition-all ${isEditing
-                  ? 'bg-[#FF7939] text-white shadow-lg shadow-orange-500/20'
-                  : 'bg-zinc-800 text-gray-300 hover:bg-zinc-700'
-                  }`}
-              >
-                <RotateCcw className={`w-3.5 h-3.5 ${isEditing ? 'animate-pulse' : ''}`} />
-                {isEditing ? 'Cancelar' : 'Cambiar'}
-              </button>
             </div>
           </CardHeader>
         )}
@@ -2433,18 +2442,20 @@ export default function CalendarView({ activityIds, onActivityClick, scheduleMee
           {meetViewMode === 'day_split' && selectedCoachId && selectedDate ? (
             <div>
               {/* Header: Back + Title */}
-              <div className="flex flex-col items-center justify-center mb-4 transition-all animate-in fade-in slide-in-from-top-2 relative z-[100] pointer-events-auto">
+              <div className="flex flex-col items-center justify-center mb-4 transition-all animate-in fade-in slide-in-from-top-2 relative z-10 pointer-events-auto">
                 <button
                   type="button"
                   onClick={(e) => {
                     e.preventDefault()
                     e.stopPropagation()
                     e.nativeEvent.stopImmediatePropagation()
+                    setSelectedMeetRequest(null)
+                    setSelectedMeetEvent(null)
                     setMeetViewMode('week')
                   }}
                   onMouseDown={(e) => e.stopPropagation()}
                   onMouseUp={(e) => e.stopPropagation()}
-                  className="flex items-center gap-2 px-4 py-2 rounded-full text-xs font-semibold text-white/50 hover:text-white transition-colors cursor-pointer relative z-[100] mb-4"
+                  className="flex items-center gap-2 px-4 py-2 rounded-full text-xs font-semibold text-white/50 hover:text-white transition-colors cursor-pointer relative z-10 mb-4"
                 >
                   <ChevronLeft className="h-3.5 w-3.5" />
                   Volver a semana
@@ -2474,11 +2485,11 @@ export default function CalendarView({ activityIds, onActivityClick, scheduleMee
               <div className="flex flex-col md:flex-row gap-6">
                 {/* LEFT PANEL: TIMELINE (Slots) */}
                 <div className="w-full md:w-1/2">
-                  <div className="bg-zinc-950/30 border border-white/5 rounded-2xl overflow-hidden flex flex-col relative">
+                  <div className="bg-transparent overflow-hidden flex flex-col relative">
                     {/* Header */}
-                    <div className="flex border-b border-white/10 bg-zinc-900/50">
-                      <div className="w-12 flex-shrink-0" />
-                      <div className="flex-1 text-center py-3 border-l border-white/5">
+                    <div className="flex bg-transparent">
+                      <div className="w-6 flex-shrink-0" />
+                      <div className="flex-1 text-center py-3">
                         {(() => {
                           const dayKey = format(selectedDate, 'yyyy-MM-dd')
                           const dayActs = activitiesByDate[dayKey] || []
@@ -2505,25 +2516,39 @@ export default function CalendarView({ activityIds, onActivityClick, scheduleMee
                               </div> */}
                               {/* Unified Total Hours Bubble (Matches Weekly/Monthly View) */}
                               <div className="flex flex-wrap justify-center gap-3">
-                                {(() => {
-                                  const totalActivities = (mins?.fitnessMinutesTotal || 0) + (mins?.nutritionMinutesTotal || 0)
-                                  const totalBusy = totalActivities + (mins?.meetsMinutes || 0)
-
-                                  if (totalBusy > 0) {
-                                    return (
-                                      <span
-                                        className={
-                                          `inline-flex items-center justify-center px-3 py-1 rounded-full border text-xs font-semibold ` +
-                                          `border-[#FF7939]/40 bg-[#FF7939]/10 text-[#FFB366]`
-                                        }
-                                      >
-                                        <Flame className="w-3 h-3 mr-1" />
-                                        {formatMinutes(totalBusy)}
-                                      </span>
-                                    )
-                                  }
-                                  return null
-                                })()}
+                                {mins?.fitnessMinutesTotal > 0 && (
+                                  <span
+                                    className={
+                                      `inline-flex items-center justify-center px-3 py-1 rounded-full border text-xs font-semibold ` +
+                                      `border-[#FF7939]/40 bg-[#FF7939]/10 text-[#FFB366]`
+                                    }
+                                  >
+                                    <Flame className="w-3.5 h-3.5 mr-1.5" />
+                                    {formatMinutes(mins.fitnessMinutesTotal)}
+                                  </span>
+                                )}
+                                {mins?.nutritionMinutesTotal > 0 && (
+                                  <span
+                                    className={
+                                      `inline-flex items-center justify-center px-3 py-1 rounded-full border text-xs font-semibold ` +
+                                      `border-[#FFB873]/40 bg-[#FFB873]/10 text-[#FFB366]`
+                                    }
+                                  >
+                                    <Utensils className="w-3.5 h-3.5 mr-1.5" />
+                                    {formatMinutes(mins.nutritionMinutesTotal)}
+                                  </span>
+                                )}
+                                {mins?.meetsMinutes > 0 && (
+                                  <span
+                                    className={
+                                      `inline-flex items-center justify-center px-3 py-1 rounded-full border text-xs font-semibold ` +
+                                      `border-[#FF7939]/30 bg-[#FF7939]/10 text-[#FFB366]`
+                                    }
+                                  >
+                                    <Video className="w-3.5 h-3.5 mr-1.5" />
+                                    {formatMinutes(mins.meetsMinutes)}
+                                  </span>
+                                )}
                               </div>
                             </div>
                           )
@@ -2536,11 +2561,11 @@ export default function CalendarView({ activityIds, onActivityClick, scheduleMee
                       <div className="flex min-h-[1000px] h-full relative">
                         {/* Time Axis */}
                         {/* Time Axis (Day View) */}
-                        <div className="w-6 flex-shrink-0 border-r border-white/10 bg-zinc-900/20 text-[10px] text-white/30 font-medium text-center relative">
+                        <div className="w-5 flex-shrink-0 bg-transparent text-[10px] text-white/40 font-bold text-left relative pl-1">
                           {Array.from({ length: END_HOUR - START_HOUR }).map((_, i) => {
                             const h = START_HOUR + i
                             return (
-                              <div key={h} className="absolute w-full border-t border-white/5" style={{ top: `${(i * 60 / TOTAL_MINS) * 100}%` }}>
+                              <div key={h} className="absolute w-full" style={{ top: `${(i * 60 / TOTAL_MINS) * 100}%` }}>
                                 <span className="relative -top-2">{h}</span>
                               </div>
                             )
@@ -2814,6 +2839,8 @@ export default function CalendarView({ activityIds, onActivityClick, scheduleMee
                   variant="ghost"
                   onClick={(e) => {
                     e.stopPropagation()
+                    setSelectedMeetRequest(null)
+                    setSelectedMeetEvent(null)
                     setMeetViewMode('month')
                   }}
                   className="gap-1 px-4 py-1 text-xs text-white/60 hover:text-white transition-colors h-7 flex items-center"
@@ -2913,7 +2940,7 @@ export default function CalendarView({ activityIds, onActivityClick, scheduleMee
                   <div className="relative overflow-hidden flex flex-col w-full h-full">
                     {/* Header Row */}
                     <div className="flex bg-transparent">
-                      <div className="w-6 flex-shrink-0" />
+                      <div className="w-6 flex-shrink-0 border-r border-transparent" />
                       <div className="flex flex-1">
                         {Array.from({ length: 7 }).map((_, idx) => {
                           const d = addDays(meetWeekStart, idx)
@@ -2931,27 +2958,26 @@ export default function CalendarView({ activityIds, onActivityClick, scheduleMee
                               <div className="text-xs text-white/50 uppercase font-semibold">{label}</div>
                               <div className={`text-sm font-bold ${isTodayDay ? 'text-[#FF7939]' : 'text-white'}`}>{dayNum}</div>
 
-                              {/* Activity Summary Bubbles - Unified (Total Hours) */}
-                              <div className="flex flex-wrap justify-center gap-1 mt-1.5 min-h-[22px]">
-                                {(() => {
-                                  // Use Total minutes instead of Pending for the summary bubble
-                                  const totalActivities = (mins?.fitnessMinutesTotal || 0) + (mins?.nutritionMinutesTotal || 0)
-                                  const totalBusy = totalActivities + (mins?.meetsMinutes || 0)
-
-                                  if (totalBusy > 0) {
-                                    return (
-                                      <span
-                                        className={
-                                          `inline-flex items-center justify-center px-2 py-0.5 rounded-full border text-[10px] font-semibold ` +
-                                          `border-[#FF7939]/40 bg-[#FF7939]/10 text-[#FFB366]`
-                                        }
-                                      >
-                                        {formatMinutes(totalBusy)}
-                                      </span>
-                                    )
-                                  }
-                                  return null
-                                })()}
+                              {/* Activity Summary Bubbles - Split by Category */}
+                              <div className="flex flex-col items-center gap-1 mt-1.5 min-h-[22px]">
+                                {mins?.fitnessMinutesTotal > 0 && (
+                                  <span className="inline-flex items-center justify-center px-1.5 py-0.5 rounded-full border text-[9px] font-semibold border-[#FF7939]/40 bg-[#FF7939]/10 text-[#FFB366] gap-0.5">
+                                    <Flame className="w-2.5 h-2.5" />
+                                    {formatMinutes(mins.fitnessMinutesTotal)}
+                                  </span>
+                                )}
+                                {mins?.nutritionMinutesTotal > 0 && (
+                                  <span className="inline-flex items-center justify-center px-1.5 py-0.5 rounded-full border text-[9px] font-semibold border-[#FFB873]/40 bg-[#FFB873]/10 text-[#FFD1B5] gap-0.5">
+                                    <Utensils className="w-2.5 h-2.5" />
+                                    {formatMinutes(mins.nutritionMinutesTotal)}
+                                  </span>
+                                )}
+                                {mins?.meetsMinutes > 0 && (
+                                  <span className="inline-flex items-center justify-center px-1.5 py-0.5 rounded-full border text-[9px] font-semibold border-white/20 bg-white/5 text-white/70 gap-0.5">
+                                    <Video className="w-2.5 h-2.5" />
+                                    {formatMinutes(mins.meetsMinutes)}
+                                  </span>
+                                )}
                               </div>
                             </div>
                           )
@@ -2963,11 +2989,11 @@ export default function CalendarView({ activityIds, onActivityClick, scheduleMee
                     <div className="flex-1 relative">
                       <div className="flex min-h-[1000px] h-full relative">
                         {/* Time Axis */}
-                        <div className="w-6 flex-shrink-0 border-r border-white/10 bg-zinc-900/20 text-[10px] text-white/30 font-medium text-center relative">
+                        <div className="w-5 flex-shrink-0 bg-transparent text-[10px] text-white/40 font-bold text-left relative pl-1">
                           {Array.from({ length: END_HOUR - START_HOUR }).map((_, i) => {
                             const h = START_HOUR + i
                             return (
-                              <div key={h} className="absolute w-full border-t border-white/5" style={{ top: `${(i * 60 / TOTAL_MINS) * 100}%` }}>
+                              <div key={h} className="absolute w-full" style={{ top: `${(i * 60 / TOTAL_MINS) * 100}%` }}>
                                 <span className="relative -top-2">{h}</span>
                               </div>
                             )
@@ -3013,10 +3039,18 @@ export default function CalendarView({ activityIds, onActivityClick, scheduleMee
                                         top: `${getTop(block.start)}%`,
                                         height: `${getHeight(duration)}%`
                                       }}
-                                      className="absolute inset-x-1 rounded-md bg-[#FFB366]/20 border border-[#FFB366]/30 hover:bg-[#FFB366]/30 hover:z-10 transition-colors flex flex-col justify-start items-start px-2 py-1 group cursor-pointer"
+                                      className="absolute inset-x-0.5 rounded-md bg-[#FFB366]/20 border border-[#FFB366]/30 hover:bg-[#FFB366]/30 hover:z-10 transition-colors flex flex-col justify-center items-center px-1 py-1 group cursor-pointer"
                                     >
-                                      <div className="text-[10px] font-bold text-[#FFB366] group-hover:text-white">
-                                        {block.start} - {block.end}
+                                      <div className="flex flex-col items-center justify-center leading-tight">
+                                        <span className="text-[10px] font-bold text-[#FFB366] group-hover:text-white truncate">
+                                          {block.start}
+                                        </span>
+                                        <span className="text-[8px] text-[#FFB366]/60 group-hover:text-white/60">
+                                          -
+                                        </span>
+                                        <span className="text-[10px] font-bold text-[#FFB366] group-hover:text-white truncate">
+                                          {block.end}
+                                        </span>
                                       </div>
                                     </button>
                                   )
@@ -3192,14 +3226,20 @@ export default function CalendarView({ activityIds, onActivityClick, scheduleMee
                   </div>
                   {summaryParts.length > 0 && (
                     <div className="mt-2 flex flex-wrap gap-2">
-                      {mins?.fitnessMinutesPending > 0 || mins?.nutritionMinutesPending > 0 ? (
+                      {mins?.fitnessMinutesPending > 0 && (
                         <div className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full border border-[#FF7939]/40 bg-[#FF7939]/10 text-[#FFB366] text-[10px] font-bold">
                           <Flame className="h-3 w-3" />
-                          Pendientes {formatMinutes((mins?.fitnessMinutesPending || 0) + (mins?.nutritionMinutesPending || 0))}
+                          Fitness {formatMinutes(mins.fitnessMinutesPending)}
                         </div>
-                      ) : null}
+                      )}
+                      {mins?.nutritionMinutesPending > 0 && (
+                        <div className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full border border-[#FFB873]/40 bg-[#FFB873]/10 text-[#FFB366] text-[10px] font-bold">
+                          <Utensils className="h-3 w-3" />
+                          Nutrición {formatMinutes(mins.nutritionMinutesPending)}
+                        </div>
+                      )}
                       {meetMinutes > 0 && (
-                        <div className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full border border-blue-500/30 bg-blue-500/10 text-blue-400 text-[10px] font-bold">
+                        <div className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full border border-[#FF7939]/30 bg-[#FF7939]/10 text-[#FFB366] text-[10px] font-bold">
                           <Video className="h-3 w-3" />
                           {formatMinutes(meetMinutes)} en vivo
                         </div>
@@ -3329,9 +3369,6 @@ export default function CalendarView({ activityIds, onActivityClick, scheduleMee
                                     {formatMinutes(activityStats[String(it.activityId)].minutes)}
                                   </span>
                                 )}
-                                {isNutri && coachNameForActivity ? (
-                                  <span className="text-white/45"> · {coachNameForActivity}</span>
-                                ) : null}
                               </div>
                             </div>
                           </div>

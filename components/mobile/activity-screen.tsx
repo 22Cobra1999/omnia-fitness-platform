@@ -1730,8 +1730,13 @@ export function ActivityScreen() {
           const myCoaches = coaches.filter((c) => purchasedCoachIds.has(c.id))
           return (
             <div className="mb-2">
-              <div className="flex justify-between items-center mb-3 pt-2">
-                <h2 className="text-lg font-bold text-white">Mis coaches</h2>
+              <div className="flex justify-between items-center mb-4 pt-2">
+                <div className="flex items-center gap-2">
+                  <div className="w-8 h-8 rounded-full bg-white/5 border border-white/10 flex items-center justify-center">
+                    <Users className="w-4 h-4 text-[#FF7939]" />
+                  </div>
+                  <h2 className="text-base font-bold text-white/90 tracking-tight">Mis coaches</h2>
+                </div>
               </div>
 
               {loadingCoaches ? (

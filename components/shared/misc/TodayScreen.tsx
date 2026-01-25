@@ -2268,7 +2268,7 @@ export default function TodayScreen({ activityId, onBack }: { activityId: string
   }, [user?.id, activityId, currentMonth, enrollment?.start_date]);
 
   // Snap points para Framer Motion
-  const EXPANDED = Math.max(Math.round(vh * 0.92), 600); // Mínimo 600px para evitar problemas en móvil
+  const EXPANDED = Math.max(Math.round(vh * 0.95), 620); // Mínimo 620px y sube al 95% para llenar espacio
   const MID = Math.max(Math.round(vh * 0.70), 500);
   const COLLAPSED = Math.max(Math.round(vh * 0.16), 120); // Ligeramente extendido - solo muestra el header con título - 16% del viewport
   const SNAP_THRESHOLD = 0.5;
@@ -2301,7 +2301,7 @@ export default function TodayScreen({ activityId, onBack }: { activityId: string
     const current = y.get();
     const projected = current + info.velocity.y * 0.25;
 
-    const points = [0, midY, collapsedY];
+    const points = [40, midY, collapsedY]; // Usamos 40 para ocupar más espacio arriba
     const nearest = points.reduce((best, p) => {
       return Math.abs(p - projected) < Math.abs(best - projected) ? p : best;
     }, points[0]);
@@ -2373,8 +2373,8 @@ export default function TodayScreen({ activityId, onBack }: { activityId: string
     <div style={{ height: '100vh', background: '#0F1012', color: '#fff', position: 'relative', overflow: 'hidden', zIndex: 1 }}>
       {/* Header de Omnia */}
       <div
-        className="fixed top-0 left-0 right-0 z-50 bg-black rounded-b-[32px] px-5 py-3 flex justify-between items-center"
-        style={{ zIndex: 1000 }}
+        className="fixed top-0 left-0 right-0 z-[9999] bg-black rounded-b-[32px] px-5 py-3 flex justify-between items-center"
+        style={{ zIndex: 9999 }}
       >
         {/* Settings Icon */}
         <div className="flex items-center">
@@ -2399,10 +2399,10 @@ export default function TodayScreen({ activityId, onBack }: { activityId: string
           overflowY: 'auto',
           overflowX: 'hidden',
           paddingTop: '56px',
-          paddingBottom: calendarExpanded ? '120px' : '60px',
+          paddingBottom: '240px', // Aumentado significativamente para permitir scroll completo en móvil
           WebkitOverflowScrolling: 'touch',
           position: 'relative',
-          background: '#0F1012' // Fondo sólido para evitar que se vea contenido detrás
+          background: '#0F1012'
         }}>
         {/* HERO DE PROGRESO */}
         <motion.div
@@ -2427,9 +2427,9 @@ export default function TodayScreen({ activityId, onBack }: { activityId: string
           {/* FRAME DEL TÍTULO DEL PROGRAMA - Más ancho, con flecha y descripción dentro */}
           <div style={{
             background: 'rgba(255, 255, 255, 0.04)',
-            backdropFilter: 'blur(5px) saturate(150%)',
-            WebkitBackdropFilter: 'blur(5px) saturate(150%)',
-            border: '1px solid rgba(255, 255, 255, 0.15)',
+            backdropFilter: 'blur(10px) saturate(150%)',
+            WebkitBackdropFilter: 'blur(10px) saturate(150%)',
+            border: '1px solid rgba(255, 255, 255, 0.12)',
             borderTopLeftRadius: 0,
             borderTopRightRadius: 0,
             borderBottomLeftRadius: 24,
@@ -2441,7 +2441,7 @@ export default function TodayScreen({ activityId, onBack }: { activityId: string
             marginRight: '-24px',
             width: 'calc(100% + 48px)',
             position: 'relative',
-            boxShadow: '0 12px 40px rgba(0, 0, 0, 0.4), inset 0 1px 0 rgba(255, 255, 255, 0.1), 0 0 0 1px rgba(255, 255, 255, 0.05)'
+            boxShadow: '0 12px 40px rgba(0, 0, 0, 0.4), inset 0 1px 0 rgba(255, 255, 255, 0.05)'
           }}>
             {/* Flecha de retorno y botón de calificación al mismo nivel */}
             <div style={{
@@ -2451,40 +2451,7 @@ export default function TodayScreen({ activityId, onBack }: { activityId: string
               justifyContent: 'space-between',
               width: '100%'
             }}>
-              {/* Flecha de retorno más al costado */}
-              <button
-                onClick={() => {
-                  if (onBack) {
-                    onBack();
-                  } else {
-                    window.history.back();
-                  }
-                }}
-                style={{
-                  width: 44,
-                  height: 44,
-                  display: 'flex',
-                  alignItems: 'center',
-                  justifyContent: 'center',
-                  background: 'transparent',
-                  border: 'none',
-                  borderRadius: 12,
-                  color: '#FFFFFF',
-                  fontSize: 24,
-                  fontWeight: 'bold',
-                  cursor: 'pointer',
-                  transition: 'all 0.2s ease',
-                  marginLeft: -8
-                }}
-                onMouseEnter={(e) => {
-                  e.currentTarget.style.transform = 'scale(1.1)';
-                }}
-                onMouseLeave={(e) => {
-                  e.currentTarget.style.transform = 'scale(1)';
-                }}
-              >
-                ←
-              </button>
+              <div /> {/* Espaciador para centrar si es necesario, ya que quitamos la flecha */}
 
               <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
                 <button
@@ -2603,26 +2570,39 @@ export default function TodayScreen({ activityId, onBack }: { activityId: string
                 flexWrap: 'wrap'
               }}>
                 <span style={{
-                  padding: '4px 8px',
-                  background: 'rgba(255, 106, 0, 0.15)',
-                  borderRadius: 8,
-                  border: '1px solid rgba(255, 106, 0, 0.3)',
-                  color: '#FF6A00',
-                  fontSize: 12
+                  padding: '3px 8px',
+                  background: programInfo?.categoria === 'nutricion' ? 'rgba(255, 230, 150, 0.08)' : 'rgba(255, 180, 130, 0.08)',
+                  borderRadius: 20,
+                  border: programInfo?.categoria === 'nutricion' ? '1px solid rgba(255, 230, 150, 0.15)' : '1px solid rgba(255, 180, 130, 0.15)',
+                  color: programInfo?.categoria === 'nutricion' ? '#FFE4B5' : '#FFDAB9',
+                  fontSize: 9, // Aún más pequeño
+                  fontWeight: 600,
+                  backdropFilter: 'blur(8px)',
+                  WebkitBackdropFilter: 'blur(8px)',
+                  textTransform: 'uppercase',
+                  letterSpacing: '0.05em'
                 }}>
                   {programInfo?.categoria === 'fitness' ? 'Fitness' : programInfo?.categoria === 'nutricion' ? 'Nutrición' : 'Programa'}
                 </span>
                 <span style={{
-                  padding: '4px 8px',
-                  background: 'rgba(255, 106, 0, 0.15)',
-                  borderRadius: 8,
-                  border: '1px solid rgba(255, 106, 0, 0.3)',
-                  color: '#FF6A00',
-                  fontSize: 12
+                  padding: '3px 8px',
+                  background: (programInfo?.difficulty || enrollment?.activity?.difficulty || '').toLowerCase().includes('adv') ? 'rgba(255, 80, 80, 0.12)' : 'rgba(255, 180, 130, 0.08)',
+                  borderRadius: 20,
+                  border: (programInfo?.difficulty || enrollment?.activity?.difficulty || '').toLowerCase().includes('adv') ? '1px solid rgba(255, 80, 80, 0.3)' : '1px solid rgba(255, 180, 130, 0.15)',
+                  color: (programInfo?.difficulty || enrollment?.activity?.difficulty || '').toLowerCase().includes('adv') ? '#FF5050' : '#FFDAB9', // Más colorado
+                  fontSize: 9, // Aún más pequeño
+                  fontWeight: 600,
+                  backdropFilter: 'blur(8px)',
+                  WebkitBackdropFilter: 'blur(8px)',
+                  textTransform: 'uppercase',
+                  letterSpacing: '0.05em'
                 }}>
                   {(() => {
                     const difficulty = programInfo?.difficulty || enrollment?.activity?.difficulty || 'Principiante';
-                    return difficulty.charAt(0).toUpperCase() + difficulty.slice(1).toLowerCase();
+                    const diffLower = difficulty.toLowerCase();
+                    if (diffLower.includes('adv')) return 'Avanzado';
+                    if (diffLower.includes('int')) return 'Intermedio';
+                    return 'Principiante';
                   })()}
                 </span>
               </div>
@@ -2691,18 +2671,20 @@ export default function TodayScreen({ activityId, onBack }: { activityId: string
                   overflowX: 'auto',
                   width: '100%',
                   paddingBottom: 2,
+                  justifyContent: 'center',
+                  flexWrap: 'wrap'
                 }}
               >
                 {objetivos.map((objetivo: string, idx: number) => (
                   <span
                     key={`${objetivo}-${idx}`}
                     style={{
-                      background: 'rgba(255, 106, 0, 0.18)',
-                      border: '1px solid rgba(255, 106, 0, 0.28)',
-                      color: '#FF6A00',
+                      background: 'rgba(255, 255, 255, 0.05)',
+                      border: '1px solid rgba(255, 255, 255, 0.12)',
+                      color: 'rgba(255, 255, 255, 0.7)',
                       fontSize: 11,
-                      fontWeight: 600,
-                      padding: '4px 8px',
+                      fontWeight: 500,
+                      padding: '4px 10px',
                       borderRadius: 999,
                       whiteSpace: 'nowrap',
                       flexShrink: 0,
@@ -2762,9 +2744,9 @@ export default function TodayScreen({ activityId, onBack }: { activityId: string
           {/* FRAME DE PROGRESO DEL PROGRAMA */}
           <div style={{
             background: 'rgba(255, 255, 255, 0.04)',
-            backdropFilter: 'blur(5px) saturate(150%)',
-            WebkitBackdropFilter: 'blur(5px) saturate(150%)',
-            border: '1px solid rgba(255, 255, 255, 0.15)',
+            backdropFilter: 'blur(10px) saturate(150%)',
+            WebkitBackdropFilter: 'blur(10px) saturate(150%)',
+            border: '1px solid rgba(255, 255, 255, 0.12)',
             borderRadius: 24,
             padding: '12px 20px',
             paddingTop: '12px',
@@ -2774,7 +2756,7 @@ export default function TodayScreen({ activityId, onBack }: { activityId: string
             marginRight: '-24px',
             width: 'calc(100% + 48px)',
             position: 'relative',
-            boxShadow: '0 12px 40px rgba(0, 0, 0, 0.4), inset 0 1px 0 rgba(255, 255, 255, 0.1), 0 0 0 1px rgba(255, 255, 255, 0.05)'
+            boxShadow: '0 12px 40px rgba(0, 0, 0, 0.4), inset 0 1px 0 rgba(255, 255, 255, 0.05)'
           }}>
             {/* Calendario expandible */}
             <div style={{ marginBottom: 0 }}>
@@ -3769,7 +3751,7 @@ export default function TodayScreen({ activityId, onBack }: { activityId: string
             overflow: 'hidden',
             pointerEvents: 'auto'
           }}
-          dragConstraints={{ top: 0, bottom: collapsedY }}
+          dragConstraints={{ top: 40, bottom: collapsedY }}
           dragElastic={0.08}
           onDragEnd={onDragEnd}
         >
@@ -3782,10 +3764,11 @@ export default function TodayScreen({ activityId, onBack }: { activityId: string
             }}
             onClick={() => {
               const current = y.get();
-              const distToExpanded = Math.abs(current - 0);
+              const TOP_OFFSET = 40; // Offset menor para aprovechar más espacio arriba
+              const distToExpanded = Math.abs(current - TOP_OFFSET);
               const distToCollapsed = Math.abs(current - collapsedY);
               const isCurrentlyExpanded = distToExpanded < distToCollapsed;
-              snapTo(isCurrentlyExpanded ? collapsedY : 0);
+              snapTo(isCurrentlyExpanded ? collapsedY : TOP_OFFSET);
             }}
             style={{
               display: 'grid',
@@ -5292,34 +5275,36 @@ export default function TodayScreen({ activityId, onBack }: { activityId: string
                           </p>
 
                           {/* Botón OK que dispara la calificación automáticamente si aún no se calificó */}
-                          {!hasUserSubmittedSurvey && (
-                            <button
-                              onClick={handleOpenSurveyModal}
-                              style={{
-                                marginTop: 8,
-                                background: 'linear-gradient(135deg, #FF6A00 0%, #FF7939 100%)',
-                                color: '#000',
-                                border: 'none',
-                                padding: '12px 28px',
-                                borderRadius: 999,
-                                fontSize: 14,
-                                fontWeight: 600,
-                                cursor: 'pointer',
-                                transition: 'all 0.2s ease',
-                                boxShadow: '0 4px 12px rgba(255, 106, 0, 0.3)'
-                              }}
-                              onMouseOver={(e) => {
-                                e.currentTarget.style.transform = 'translateY(-2px)';
-                                e.currentTarget.style.boxShadow = '0 6px 16px rgba(255, 106, 0, 0.4)';
-                              }}
-                              onMouseOut={(e) => {
-                                e.currentTarget.style.transform = 'translateY(0)';
-                                e.currentTarget.style.boxShadow = '0 4px 12px rgba(255, 106, 0, 0.3)';
-                              }}
-                            >
-                              OK
-                            </button>
-                          )}
+                          <button
+                            onClick={() => {
+                              snapTo(collapsedY);
+                              handleOpenSurveyModal();
+                            }}
+                            style={{
+                              marginTop: 8,
+                              background: 'linear-gradient(135deg, #FF6A00 0%, #FF7939 100%)',
+                              color: '#000',
+                              border: 'none',
+                              padding: '12px 32px',
+                              borderRadius: 999,
+                              fontSize: 14,
+                              fontWeight: 700,
+                              cursor: 'pointer',
+                              transition: 'all 0.2s ease',
+                              boxShadow: '0 8px 20px rgba(255, 106, 0, 0.4)',
+                              letterSpacing: '0.5px'
+                            }}
+                            onMouseOver={(e) => {
+                              e.currentTarget.style.transform = 'translateY(-2px) scale(1.02)';
+                              e.currentTarget.style.boxShadow = '0 12px 24px rgba(255, 106, 0, 0.5)';
+                            }}
+                            onMouseOut={(e) => {
+                              e.currentTarget.style.transform = 'translateY(0) scale(1)';
+                              e.currentTarget.style.boxShadow = '0 8px 20px rgba(255, 106, 0, 0.4)';
+                            }}
+                          >
+                            Calificar
+                          </button>
                         </>
                       );
                     })()}

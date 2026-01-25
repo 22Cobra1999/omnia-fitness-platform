@@ -679,7 +679,7 @@ const ActivityCard: React.FC<ActivityCardProps> = ({
             {/* Para productos de nutrición, usar tipo de dieta como "objetivo" principal */}
             {((activity.categoria === 'nutricion' || activity.categoria === 'nutrition') && (activity as any).dieta) ? (
               <span
-                className="bg-[#FF7939]/20 text-[#FF7939] text-[10px] px-1.5 py-0.5 rounded-full font-medium border border-[#FF7939]/30 whitespace-nowrap flex-shrink-0"
+                className="bg-gray-600/20 text-gray-400 text-[10px] px-1.5 py-0.5 rounded-full font-medium border border-gray-600/30 whitespace-nowrap flex-shrink-0"
                 title={getFriendlyDietName((activity as any).dieta as string)}
               >
                 {getFriendlyDietName((activity as any).dieta as string)}
@@ -706,7 +706,7 @@ const ActivityCard: React.FC<ActivityCardProps> = ({
                     {objetivosValidos.map((objetivo: string, index: number) => (
                       <span
                         key={index}
-                        className="bg-[#FF7939]/20 text-[#FF7939] text-[10px] px-1.5 py-0.5 rounded-full font-medium border border-[#FF7939]/30 whitespace-nowrap flex-shrink-0"
+                        className="bg-gray-600/20 text-gray-400 text-[10px] px-1.5 py-0.5 rounded-full font-medium border border-gray-600/30 whitespace-nowrap flex-shrink-0"
                         title={objetivo}
                       >
                         {objetivo}

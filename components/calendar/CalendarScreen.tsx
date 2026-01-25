@@ -89,13 +89,13 @@ export function CalendarScreen({ onTabChange }: CalendarScreenProps) {
         sessionStorage.removeItem('scheduleMeetIntent')
       }
 
-      // Robustez: si existe contexto en localStorage, lo tomamos.
-      // Esto evita el caso donde el CalendarScreen ya estaba montado o el intent se perdió.
-      const ctx = readScheduleMeetContextFromStorage()
-      setScheduleMeetContext(ctx)
-
-      // En refresh / navegación directa sin intención y sin contexto, abrir modo normal.
-      if (!hasIntent && !ctx) {
+      // Solo cargar el contexto si hay una intención explícita (hasIntent === true)
+      // de lo contrario, limpiar para que no persista al navegar directamente al calendario.
+      if (hasIntent) {
+        const ctx = readScheduleMeetContextFromStorage()
+        setScheduleMeetContext(ctx)
+      } else {
+        setScheduleMeetContext(null)
         try {
           localStorage.removeItem('scheduleMeetContext')
         } catch {
