@@ -1427,6 +1427,7 @@ export function ProfileScreen() {
       <ProfileEditModal
         isOpen={isEditModalOpen}
         onClose={() => {
+          setIsEditModalOpen(false)
           setShowInjuriesModal(false)
           setEditingSection(null)
         }}

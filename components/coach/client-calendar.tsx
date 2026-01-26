@@ -5,6 +5,7 @@ import { ChevronLeft, ChevronRight, Calendar, Clock, Flame, Edit, RotateCcw, Che
 import { Switch } from '@/components/ui/switch'
 import { useRouter } from 'next/navigation'
 import { createClient } from '@/lib/supabase/supabase-client'
+import { OmniaLoader } from "@/components/shared/ui/omnia-loader"
 
 interface ClientCalendarProps {
   clientId: string
@@ -3413,8 +3414,7 @@ export function ClientCalendar({ clientId, onLastWorkoutUpdate, onDaySelected, e
   if (loading) {
     return (
       <div className="flex items-center justify-center py-8">
-        <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-[#FF7939]"></div>
-        <span className="ml-2 text-sm text-gray-400">Cargando calendario...</span>
+        <OmniaLoader size="sm" message="Cargando calendario..." />
       </div>
     )
   }

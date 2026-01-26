@@ -8,10 +8,10 @@ import { createRouteHandlerClient } from '@/lib/supabase/supabase-server';
 export async function GET(request: NextRequest) {
   try {
     const supabase = await createRouteHandlerClient();
-    
+
     // Verificar autenticación
     const { data: { user }, error: authError } = await supabase.auth.getUser();
-    
+
     if (authError || !user) {
       return NextResponse.json(
         { error: 'No autenticado' },
@@ -34,28 +34,10 @@ export async function GET(request: NextRequest) {
     const clamp01 = (n: number) => Math.max(0, Math.min(1, n));
     const safeDiv = (a: number, b: number) => (b > 0 ? a / b : 0);
 
+    // Consultar la tabla optimizada 'progreso_diario_actividad'
     const { data: rows, error: summaryError } = await supabase
-      .from('progreso_cliente_daily_summary')
-      .select(
-        [
-          'fecha',
-          'cliente_id',
-          'platos_objetivo',
-          'platos_completados',
-          'platos_pendientes',
-          'nutri_kcal',
-          'nutri_kcal_objetivo',
-          'nutri_mins',
-          'nutri_mins_objetivo',
-          'ejercicios_objetivo',
-          'ejercicios_completados',
-          'ejercicios_pendientes',
-          'fitness_kcal',
-          'fitness_kcal_objetivo',
-          'fitness_mins',
-          'fitness_mins_objetivo'
-        ].join(',')
-      )
+      .from('progreso_diario_actividad')
+      .select('fecha, tipo, area, items_objetivo, items_completados, calorias, minutos')
       .eq('cliente_id', clienteId)
       .gte('fecha', startDate)
       .lte('fecha', endDate)
@@ -69,62 +51,97 @@ export async function GET(request: NextRequest) {
       );
     }
 
+    // Agrupar por fecha
     const byDate: Record<string, any> = {}
-    ;(rows || []).forEach((r: any) => {
-      byDate[String(r.fecha).slice(0, 10)] = r
-    })
+
+    // Inicializar estructura base
+    const getBaseStats = () => ({
+      platos_objetivo: 0,
+      platos_completados: 0,
+      platos_pendientes: 0,
+      nutri_kcal: 0,
+      nutri_kcal_objetivo: 0, // Nota: La tabla actual no guarda objetivo de kcal explícito, asumimos 0 o requeriría lógica extra
+      nutri_mins: 0,
+      nutri_mins_objetivo: 0,
+
+      ejercicios_objetivo: 0,
+      ejercicios_completados: 0,
+      ejercicios_pendientes: 0,
+      fitness_kcal: 0,
+      fitness_kcal_objetivo: 0,
+      fitness_mins: 0,
+      fitness_mins_objetivo: 0
+    });
+
+    (rows || []).forEach((r: any) => {
+      const dateKey = String(r.fecha).slice(0, 10);
+      if (!byDate[dateKey]) {
+        byDate[dateKey] = getBaseStats();
+      }
+
+      const stats = byDate[dateKey];
+      const itemsObj = Number(r.items_objetivo) || 0;
+      const itemsComp = Number(r.items_completados) || 0;
+      const itemsPend = Math.max(0, itemsObj - itemsComp);
+      const cals = Number(r.calorias) || 0;
+      const mins = Number(r.minutos) || 0;
+
+      if (r.area === 'nutricion') {
+        stats.platos_objetivo += itemsObj;
+        stats.platos_completados += itemsComp;
+        stats.platos_pendientes += itemsPend;
+        stats.nutri_kcal += cals;
+        stats.nutri_mins += mins;
+      } else if (r.area === 'fitness') {
+        stats.ejercicios_objetivo += itemsObj;
+        stats.ejercicios_completados += itemsComp;
+        stats.ejercicios_pendientes += itemsPend;
+        stats.fitness_kcal += cals;
+        stats.fitness_mins += mins;
+      }
+      // Ignoramos 'general' / 'taller' para este resumen específico si solo muestra fitness/nutrición
+    });
 
     const start = new Date(`${startDate}T00:00:00`)
     const end = new Date(`${endDate}T00:00:00`)
     const out: any[] = []
+
     for (let d = new Date(start); d <= end; d.setDate(d.getDate() + 1)) {
       const y = d.getFullYear()
       const m = String(d.getMonth() + 1).padStart(2, '0')
       const day = String(d.getDate()).padStart(2, '0')
       const key = `${y}-${m}-${day}`
-      const r = byDate[key] || { fecha: key, cliente_id: clienteId }
 
-      const nutriKcal = Number(r.nutri_kcal) || 0
-      const nutriKcalObj = Number(r.nutri_kcal_objetivo) || 0
-      const nutriMins = Number(r.nutri_mins) || 0
-      const nutriMinsObj = Number(r.nutri_mins_objetivo) || 0
-      const platosComp = Number(r.platos_completados) || 0
-      const platosObj = Number(r.platos_objetivo) || 0
+      const r = byDate[key] || getBaseStats();
 
-      const fitKcal = Number(r.fitness_kcal) || 0
-      const fitKcalObj = Number(r.fitness_kcal_objetivo) || 0
-      const fitMins = Number(r.fitness_mins) || 0
-      const fitMinsObj = Number(r.fitness_mins_objetivo) || 0
-      const ejComp = Number(r.ejercicios_completados) || 0
-      const ejObj = Number(r.ejercicios_objetivo) || 0
-
+      // Completar campos derivados y cálculo de progreso
       out.push({
         fecha: key,
         cliente_id: clienteId,
 
-        platos_objetivo: platosObj,
-        platos_completados: platosComp,
-        platos_pendientes: Number(r.platos_pendientes) || 0,
-        nutri_kcal: nutriKcal,
-        nutri_kcal_objetivo: nutriKcalObj,
-        nutri_mins: nutriMins,
-        nutri_mins_objetivo: nutriMinsObj,
+        platos_objetivo: r.platos_objetivo,
+        platos_completados: r.platos_completados,
+        platos_pendientes: r.platos_pendientes,
+        nutri_kcal: r.nutri_kcal,
+        nutri_kcal_objetivo: r.nutri_kcal_objetivo,
+        nutri_mins: r.nutri_mins,
+        nutri_mins_objetivo: r.nutri_mins_objetivo,
 
-        ejercicios_objetivo: ejObj,
-        ejercicios_completados: ejComp,
-        ejercicios_pendientes: Number(r.ejercicios_pendientes) || 0,
-        fitness_kcal: fitKcal,
-        fitness_kcal_objetivo: fitKcalObj,
-        fitness_mins: fitMins,
-        fitness_mins_objetivo: fitMinsObj,
+        ejercicios_objetivo: r.ejercicios_objetivo,
+        ejercicios_completados: r.ejercicios_completados,
+        ejercicios_pendientes: r.ejercicios_pendientes,
+        fitness_kcal: r.fitness_kcal,
+        fitness_kcal_objetivo: r.fitness_kcal_objetivo,
+        fitness_mins: r.fitness_mins,
+        fitness_mins_objetivo: r.fitness_mins_objetivo,
 
-        nutri_kcal_progress: clamp01(safeDiv(nutriKcal, nutriKcalObj)),
-        nutri_mins_progress: clamp01(safeDiv(nutriMins, nutriMinsObj)),
-        platos_progress: clamp01(safeDiv(platosComp, platosObj)),
+        nutri_kcal_progress: clamp01(safeDiv(r.nutri_kcal, r.nutri_kcal_objetivo)),
+        nutri_mins_progress: clamp01(safeDiv(r.nutri_mins, r.nutri_mins_objetivo)),
+        platos_progress: clamp01(safeDiv(r.platos_completados, r.platos_objetivo)),
 
-        fitness_kcal_progress: clamp01(safeDiv(fitKcal, fitKcalObj)),
-        fitness_mins_progress: clamp01(safeDiv(fitMins, fitMinsObj)),
-        ejercicios_progress: clamp01(safeDiv(ejComp, ejObj))
+        fitness_kcal_progress: clamp01(safeDiv(r.fitness_kcal, r.fitness_kcal_objetivo)),
+        fitness_mins_progress: clamp01(safeDiv(r.fitness_mins, r.fitness_mins_objetivo)),
+        ejercicios_progress: clamp01(safeDiv(r.ejercicios_completados, r.ejercicios_objetivo))
       })
     }
 

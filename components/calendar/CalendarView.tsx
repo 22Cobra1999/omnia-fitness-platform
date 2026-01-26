@@ -13,6 +13,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import Image from "next/image"
 import { MeetNotificationsModal } from "@/components/shared/meet-notifications-modal"
 import { createCheckoutProPreference, redirectToMercadoPagoCheckout } from '@/lib/mercadopago/checkout-pro'
+import { OmniaLoader } from "@/components/shared/ui/omnia-loader"
 
 interface CalendarViewProps {
   activityIds: string[]
@@ -2055,7 +2056,9 @@ export default function CalendarView({ activityIds, onActivityClick, scheduleMee
   if (loading) {
     return (
       <div className="flex items-center justify-center h-full">
-        <div className="text-white">Cargando calendario...</div>
+        <div className="flex-1 flex items-center justify-center min-h-[400px]">
+          <OmniaLoader message="Cargando calendario..." />
+        </div>
       </div>
     )
   }

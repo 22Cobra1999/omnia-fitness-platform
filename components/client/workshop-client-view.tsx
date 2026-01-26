@@ -76,8 +76,13 @@ export function WorkshopClientView({
 
   useEffect(() => {
     if (user?.id) {
-      loadEnrollment()
-      loadWorkshopData()
+      const init = async () => {
+        const enr = await loadEnrollment()
+        if (enr) {
+          loadWorkshopData(enr.id)
+        }
+      }
+      init()
     }
   }, [user?.id, activityId])
 
@@ -87,12 +92,16 @@ export function WorkshopClientView({
       .select('*')
       .eq('client_id', user!.id)
       .eq('activity_id', activityId)
+      .order('created_at', { ascending: false }) // Get latest
+      .limit(1)
       .maybeSingle()
+
     if (data) {
       setEnrollment(data)
       // Check if already rated (using feedback column or similar flag as program does)
       setIsRated((data as any).status === 'finalizada' && (((data as any).rating_activity !== null && (data as any).rating_activity !== undefined) || ((data as any).feedback !== null && (data as any).feedback !== undefined)))
     }
+    return data
   }
 
   const parseSpanishDate = (dateStr: string | null | undefined): Date | null => {
@@ -108,7 +117,7 @@ export function WorkshopClientView({
     return isNaN(d.getTime()) ? null : d
   }
 
-  const loadWorkshopData = async () => {
+  const loadWorkshopData = async (enrollmentId?: number) => {
     try {
       setLoading(true)
 
@@ -135,11 +144,17 @@ export function WorkshopClientView({
         }))
 
         // Load document progress
-        const { data: progressData } = await supabase
+        let progressQuery = supabase
           .from('client_document_progress')
           .select('topic_id, completed')
           .eq('client_id', user!.id)
           .eq('activity_id', activityId)
+
+        if (enrollmentId) {
+          progressQuery = progressQuery.eq('enrollment_id', enrollmentId)
+        }
+
+        const { data: progressData } = await progressQuery
 
         if (progressData) {
           const progressMap: Record<number, boolean> = {}
@@ -174,13 +189,18 @@ export function WorkshopClientView({
         // For documents, we don't need ejecucion_id, skip to loading progress
         setEjecucionId(0) // Not used for documents
       } else {
-        // WORKSHOP: Check if progress records exist for this client+activity
-        const { data: progressData } = await supabase
+        // WORKSHOP: Check if progress records exist for this client+activity AND enrollment
+        let progressQuery = supabase
           .from('taller_progreso_temas')
           .select('ejecucion_id, created_at')
           .eq('cliente_id', user!.id)
           .eq('actividad_id', activityId)
-          .limit(1)
+
+        if (enrollmentId) {
+          progressQuery = progressQuery.eq('enrollment_id', enrollmentId)
+        }
+
+        const { data: progressData } = await progressQuery.limit(1)
 
         existingProgress = progressData
 
@@ -203,6 +223,7 @@ export function WorkshopClientView({
               ejecucion_id: ejecucionId,
               cliente_id: user!.id,
               actividad_id: activityId,
+              enrollment_id: enrollmentId, // IMPORTANT: Save enrollment_id
               tema_id: t.id,
               snapshot_originales: t.originales || null,
               estado: 'pendiente'
@@ -390,7 +411,7 @@ export function WorkshopClientView({
       if (error) { alert('Error al confirmar'); return; }
 
       // Reload data to refresh lists from DB
-      await loadWorkshopData()
+      await loadWorkshopData(enrollment?.id)
 
       const cupoKey = `${temaId}-${fecha}-${horario.hora_inicio}`
       setCuposOcupados(prev => ({ ...prev, [cupoKey]: (prev[cupoKey] || 0) + 1 }))
@@ -432,7 +453,7 @@ export function WorkshopClientView({
       // Need to re-add to pendientes with cleared data, reusing snapshot logic if possible
       // Easiest is to reload or manually move.
       // Let's reload for safety with this complex state
-      loadWorkshopData()
+      loadWorkshopData(enrollment?.id)
       setExpandedTema(temaId)
     }
   }
@@ -733,7 +754,28 @@ export function WorkshopClientView({
                                   </div>
                                 )
                               }
-                              if (isTemaFinalizado(tema.id) && cubierto?.fecha_seleccionada) {
+                              // NEW: Logic for "Ausente" / "No Asistió"
+                              // If reservation passed OR no reservation but session passed
+                              if (isTemaFinalizado(tema.id)) {
+                                if (cubierto?.fecha_seleccionada) {
+                                  // Reservó pero no tiene asistio=true y fecha pasó
+                                  return (
+                                    <div className="flex items-center gap-1.5 mt-1">
+                                      <X className="w-3.5 h-3.5 text-red-400" />
+                                      <p className="text-red-400 text-[11px] font-semibold">No asististe ({formatDate(cubierto.fecha_seleccionada)})</p>
+                                    </div>
+                                  )
+                                }
+                                // No reservó, pero fecha pasó (si tenía horarios)
+                                return (
+                                  <div className="flex items-center gap-1.5 mt-1">
+                                    <X className="w-3.5 h-3.5 text-gray-400" />
+                                    <p className="text-gray-400 text-[11px]">Clase finalizada - Ausente</p>
+                                  </div>
+                                )
+                              }
+
+                              if (estado === 'reservado' && cubierto?.fecha_seleccionada) {
                                 return (
                                   <div className="flex items-center gap-1.5 mt-1">
                                     <Calendar className="w-3.5 h-3.5 text-gray-500" />

@@ -8,6 +8,7 @@ import { format, startOfMonth, endOfMonth, eachDayOfInterval, isSameDay, isToday
 import { es } from "date-fns/locale"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
+import { OmniaLoader } from "@/components/shared/ui/omnia-loader"
 import { Badge } from "@/components/ui/badge"
 import { toast } from 'sonner'
 // Google components removed - functionality to be reimplemented if needed
@@ -1393,7 +1394,9 @@ export default function CoachCalendarScreen() {
   if (loading) {
     return (
       <div className="flex items-center justify-center h-screen bg-[#121212]">
-        <div className="text-white">Cargando calendario...</div>
+        <div className="flex-1 flex items-center justify-center min-h-[400px]">
+          <OmniaLoader message="Cargando calendario..." />
+        </div>
       </div>
     )
   }

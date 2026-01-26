@@ -24,6 +24,7 @@ export async function GET(request: NextRequest) {
 
   // Usar el cliente autenticado (con cookies) para respetar RLS y evitar depender de service role.
   const supabase = authSupabase
+
   try {
 
     const countKeys = (raw: any): number => {
@@ -237,57 +238,120 @@ export async function GET(request: NextRequest) {
 
     // Progreso agregado + última ejercitación (se toma de tablas progreso_cliente / progreso_cliente_nutricion)
     const todayIso = new Date().toISOString().slice(0, 10)
-    const progressCache = new Map<string, { completedSum: number; totalSum: number; lastCompletedDate: string | null }>()
-    const computeProgressAggForActivity = async (clientId: string, activityId: number, activityType: string) => {
-      const cacheKey = `${clientId}:${activityId}:${activityType}`
+    const progressCache = new Map<string, { progressPercent: number; diasAtraso: number; itemsPendientes: number; diasCompletados: number; itemsCompletados: number; diasTotales: number }>()
+    const computeProgressAggForActivity = async (clientId: string, activityId: number, activityType: string, enrollmentId?: number) => {
+      const cacheKey = `${clientId}:${activityId}:${activityType}:${enrollmentId || 'all'}`
       const cached = progressCache.get(cacheKey)
       if (cached) return cached
 
-      const actType = String(activityType || '')
-      const isNutrition = actType.includes('nutri')
-      const table = isNutrition ? 'progreso_cliente_nutricion' : 'progreso_cliente'
-
-      const { data: progressRows } = await supabase
-        .from(table)
-        .select('fecha, ejercicios_completados, ejercicios_pendientes')
+      // 1. Obtener Estadísticas Diarias (Fitness, Nutrición, Talleres)
+      // Usamos la tabla optimizada 'progreso_diario_actividad'
+      let query = supabase
+        .from('progreso_diario_actividad')
+        .select('fecha, items_objetivo, items_completados')
         .eq('cliente_id', clientId)
         .eq('actividad_id', activityId)
-        .lte('fecha', todayIso)
-        .order('fecha', { ascending: false })
-        .limit(120)
 
-      let completedSum = 0
-      let totalSum = 0
-      let lastCompletedDate: string | null = null
-
-      for (const r of progressRows || []) {
-        const c = countKeys((r as any)?.ejercicios_completados)
-        const p = countKeys((r as any)?.ejercicios_pendientes)
-        const fecha = String((r as any)?.fecha || '')
-        completedSum += c
-        totalSum += c + p
-        if (c > 0 && fecha) {
-          if (!lastCompletedDate || fecha > lastCompletedDate) {
-            lastCompletedDate = fecha
-          }
-        }
+      if (enrollmentId) {
+        query = query.eq('enrollment_id', enrollmentId)
       }
 
-      const result = { completedSum, totalSum, lastCompletedDate }
+      const { data: dailyStats, error: dailyError } = await query
+
+      let diasCompletados = 0
+      let diasTotales = 0
+      let itemsCompletados = 0
+      let itemsTotalesObjetivo = 0
+      let diasAtraso = 0
+      let itemsPendientes = 0
+
+      if (!dailyError && dailyStats) {
+        const uniqueDays = new Map()
+        dailyStats.forEach((d: any) => uniqueDays.set(d.fecha, d))
+        diasTotales = uniqueDays.size
+
+        uniqueDays.forEach((d: any) => {
+          const objetivo = d.items_objetivo || 0
+          const completado = d.items_completados || 0
+          const isPast = d.fecha < todayIso
+
+          itemsCompletados += completado
+          itemsTotalesObjetivo += objetivo
+
+          // Día Completado: Completó TODO lo del día
+          // (Para talleres, objetivo=1, completado=1 si asistió)
+          if (objetivo > 0 && completado >= objetivo) {
+            diasCompletados++
+          } else if (isPast && objetivo > 0 && completado < objetivo) {
+            // Día Atrasado: Pasado e incompleto
+            diasAtraso++
+            itemsPendientes += (objetivo - completado)
+          } else if (!isPast && objetivo > 0 && completado < objetivo) {
+            // Día corriente incompleto (se suma a pendientes item-level, aunque no cuente "día" atrasado aún)
+            itemsPendientes += (objetivo - completado)
+          }
+        })
+      }
+
+      // 2. Obtener Progreso de Documentos (si aplica)
+      // client_document_progress no está en la tabla diaria porque no tiene fecha
+      let docQuery = supabase
+        .from('client_document_progress')
+        .select('completed', { count: 'exact' })
+        .eq('client_id', clientId)
+        .eq('activity_id', activityId)
+
+      if (enrollmentId) {
+        docQuery = docQuery.eq('enrollment_id', enrollmentId)
+      }
+
+      const { data: docData } = await docQuery
+      if (docData && docData.length > 0) {
+        const docTotal = docData.length
+        const docCompleted = docData.filter((d: any) => d.completed).length
+
+        itemsTotalesObjetivo += docTotal
+        itemsCompletados += docCompleted
+        itemsPendientes += (docTotal - docCompleted)
+        // Documentos no suman "días"
+      }
+
+      // El progreso real es % de DÍAS completados sobre total de días registrados (o esperados)
+      // Si queremos ser estrictos: Días Completados / Días Totales Registrados * 100
+      let progressPercent = 0
+
+      // Lógica Híbrida:
+      // Si hay DÍAS (Fitness/Nutri/Workshop), el % se basa en días.
+      // Si NO hay días (Solo Docs), el % se basa en Items.
+      if (diasTotales > 0) {
+        progressPercent = Math.round((diasCompletados / diasTotales) * 100)
+      } else if (itemsTotalesObjetivo > 0) {
+        progressPercent = Math.round((itemsCompletados / itemsTotalesObjetivo) * 100)
+      }
+
+      const result = {
+        progressPercent,
+        diasAtraso,
+        itemsPendientes,
+        diasCompletados,
+        itemsCompletados,
+        diasTotales
+      }
+
       progressCache.set(cacheKey, result)
       return result
     }
 
     // Agrupar por cliente
     const clientsMap = new Map()
-    
+
     for (const enrollment of enrollments || []) {
       const clientId = enrollment.client_id
       const user = users?.find((u: any) => u.id === clientId)
       const activity = activities?.find((a: any) => String(a.id) === String(enrollment.activity_id))
-      
+
       if (!user || !activity) continue
-      
+
       if (!clientsMap.has(clientId)) {
         clientsMap.set(clientId, {
           id: clientId,
@@ -298,7 +362,7 @@ export async function GET(request: NextRequest) {
           enrollments: []
         })
       }
-      
+
       const clientData = clientsMap.get(clientId)
       // Agregar precio al activity
       const activityWithPrice = {
@@ -344,24 +408,27 @@ export async function GET(request: NextRequest) {
         return sum + paid
       }, 0)
 
-      // Progreso total: agregado/ponderado por total de ejercicios (sumatoria de progreso tables)
-      let completedAgg = 0
-      let totalAgg = 0
+      // Progreso total: promedio de los porcentajes de cada actividad
+      let totalProgressPercentSum = 0
+      let totalActivitiesCount = 0
+      let totalItemsPendientes = 0
+
       let lastCompletedDateAgg: string | null = null
       for (const enrollment of client.enrollments || []) {
         const activity = activities?.find((a: any) => String(a.id) === String(enrollment.activity_id))
         const activityIdNum = Number(enrollment?.activity_id)
         if (!activity || !Number.isFinite(activityIdNum)) continue
-        const agg = await computeProgressAggForActivity(String(client.id), activityIdNum, String(activity?.type || ''))
-        completedAgg += agg.completedSum
-        totalAgg += agg.totalSum
-        if (agg.lastCompletedDate) {
-          if (!lastCompletedDateAgg || agg.lastCompletedDate > lastCompletedDateAgg) {
-            lastCompletedDateAgg = agg.lastCompletedDate
-          }
-        }
+
+        // Pass enrollmentId explicitly to separate progress
+        const agg = await computeProgressAggForActivity(String(client.id), activityIdNum, String(activity?.type || ''), enrollment.id)
+
+        totalProgressPercentSum += (agg.progressPercent || 0)
+        totalItemsPendientes += (agg.itemsPendientes || 0)
+        totalActivitiesCount++
+
+        // Nota: ya no tenemos lastCompletedDate en el nuevo agg, usar updated_at o similar si es crítico
       }
-      const progress = totalAgg > 0 ? Math.round((completedAgg / totalAgg) * 100) : 0
+      const progress = totalActivitiesCount > 0 ? Math.round(totalProgressPercentSum / totalActivitiesCount) : 0
 
       return {
         id: client.id,
@@ -371,12 +438,13 @@ export async function GET(request: NextRequest) {
         meet_credits_available: meetCreditsAvailable,
         progress,
         status: clientStatus,
-        lastActive: formatLastActive(lastCompletedDateAgg),
+        lastActive: formatLastActive(client.updated_at), // Fallback a updated_at del cliente
         totalExercises: 0,
         completedExercises: 0,
         totalRevenue,
         activitiesCount: (client.activities || []).length,
         todoCount,
+        hasAlert: totalItemsPendientes > 0, // Alerta si hay items pendientes acumulados
         activities: (client.activities || []).map((a: any) => ({
           id: a.id,
           title: a.title,
@@ -417,7 +485,9 @@ export async function GET(request: NextRequest) {
       warning: 'Error interno',
       debug: {
         message: error?.message,
-        name: error?.name
+        name: error?.name,
+        totalActivitiesInTable: (await supabase.from('activities').select('*', { count: 'exact', head: true })).count,
+        totalEnrollmentsInTable: (await supabase.from('activity_enrollments').select('*', { count: 'exact', head: true })).count
       }
     })
   }

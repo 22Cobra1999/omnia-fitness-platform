@@ -20,13 +20,26 @@ interface PurchasedActivityCardProps {
   onActivityClick?: (activityId: string) => void
   onStartActivity?: (activityId: string, recommendedDay?: number) => void
   size?: "small" | "medium" | "large"
+  // New override props for Coach View
+  overridePendingCount?: number
+  overrideNextSessionDate?: string | null
 }
 
-export function PurchasedActivityCard({ enrollment, nextActivity, realProgress, onActivityClick, size = "medium" }: PurchasedActivityCardProps) {
+export function PurchasedActivityCard({
+  enrollment,
+  nextActivity,
+  realProgress,
+  onActivityClick,
+  size = "medium",
+  overridePendingCount,
+  overrideNextSessionDate
+}: PurchasedActivityCardProps) {
   const { activity } = enrollment
   const [isNavigating, setIsNavigating] = useState(false)
-  const [pendingCount, setPendingCount] = useState<number | null>(null)
-  const [nextSessionDate, setNextSessionDate] = useState<string | null>(null)
+
+  // Initialize state with overrides if available
+  const [pendingCount, setPendingCount] = useState<number | null>(overridePendingCount !== undefined ? overridePendingCount : null)
+  const [nextSessionDate, setNextSessionDate] = useState<string | null>(overrideNextSessionDate !== undefined ? overrideNextSessionDate : null)
   const [isFinished, setIsFinished] = useState(false)
 
   // Usar el progreso real calculado
@@ -71,6 +84,15 @@ export function PurchasedActivityCard({ enrollment, nextActivity, realProgress, 
 
   // Obtener ejercicios/platos pendientes del día de hoy y próxima sesión
   useEffect(() => {
+    // If overrides are provided, skip internal fetching and just sync state
+    if (overridePendingCount !== undefined || overrideNextSessionDate !== undefined) {
+      if (overridePendingCount !== undefined) setPendingCount(overridePendingCount)
+      if (overrideNextSessionDate !== undefined) setNextSessionDate(overrideNextSessionDate)
+      // Determine finished state loosely based on progress if overrides are used
+      if (progress >= 100 && overridePendingCount === 0) setIsFinished(true)
+      return
+    }
+
     const fetchProgressData = async () => {
       if (!hasStarted) {
         setPendingCount(null)
@@ -95,8 +117,9 @@ export function PurchasedActivityCard({ enrollment, nextActivity, realProgress, 
           .maybeSingle()
 
         if (!pendingError && record) {
-          const total = record.items_objetivo || 0
-          const done = record.items_completados || 0
+          const r = record as any
+          const total = r.items_objetivo || 0
+          const done = r.items_completados || 0
           setPendingCount(Math.max(0, total - done))
         } else {
           setPendingCount(null)
@@ -115,8 +138,9 @@ export function PurchasedActivityCard({ enrollment, nextActivity, realProgress, 
             .limit(1)
             .maybeSingle()
 
-          if (upcoming?.fecha_seleccionada) {
-            setNextSessionDate(upcoming.fecha_seleccionada)
+          const u = upcoming as any
+          if (u?.fecha_seleccionada) {
+            setNextSessionDate(u.fecha_seleccionada)
             setIsFinished(false)
           } else {
             setNextSessionDate(null)
@@ -135,8 +159,9 @@ export function PurchasedActivityCard({ enrollment, nextActivity, realProgress, 
             .limit(1)
             .maybeSingle()
 
-          if (upcoming?.fecha) {
-            setNextSessionDate(upcoming.fecha)
+          const u = upcoming as any
+          if (u?.fecha) {
+            setNextSessionDate(u.fecha)
             setIsFinished(false)
           } else {
             setNextSessionDate(null)
@@ -149,7 +174,7 @@ export function PurchasedActivityCard({ enrollment, nextActivity, realProgress, 
     }
 
     fetchProgressData()
-  }, [hasStarted, enrollment.client_id, activity.id, progress])
+  }, [hasStarted, enrollment.client_id, activity.id, progress, overridePendingCount, overrideNextSessionDate])
 
   const handleCardClick = async (e: React.MouseEvent) => {
     e.preventDefault()
@@ -324,12 +349,12 @@ export function PurchasedActivityCard({ enrollment, nextActivity, realProgress, 
                   {enrollment.program_end_date ? (
                     <div className="flex items-center gap-1.5 text-[#FF7939]">
                       <Clock className="w-3.5 h-3.5" />
-                      <span className="text-xs font-medium">Vence: <span className="text-white">{formatDate(enrollment.program_end_date)}</span></span>
+                      <span className="text-xs font-medium">Vence: <span className="text-white">{formatDate(enrollment.program_end_date || '')}</span></span>
                     </div>
                   ) : enrollment.expiration_date && (
                     <div className="flex items-center gap-1.5 text-gray-400">
                       <Clock className="w-3.5 h-3.5" />
-                      <span className="text-xs">Expira: <span className="text-white">{formatDate(enrollment.expiration_date)}</span></span>
+                      <span className="text-xs">Expira: <span className="text-white">{formatDate(enrollment.expiration_date || '')}</span></span>
                     </div>
                   )}
                 </>

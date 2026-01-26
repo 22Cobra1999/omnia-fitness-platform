@@ -4,6 +4,7 @@ import { useState, useEffect, useRef } from "react"
 import { useRouter } from 'next/navigation'
 import { Search, Filter, Calendar as CalendarIcon, ChevronRight, MessageCircle, MoreVertical, X, Phone, Mail, MapPin, Target, AlertTriangle, FileText, ArrowUp, ArrowDown, Activity, Users, Weight, Ruler, Plus, Check, Bell, Droplets, Bone, Flame, Dumbbell } from 'lucide-react'
 import { ExerciseProgressList } from './exercise-progress-list'
+import { PurchasedActivityCard } from "@/components/activities/purchased-activity-card"
 import { format } from 'date-fns'
 import { es } from 'date-fns/locale'
 import { ClientCalendar } from "@/components/coach/client-calendar"
@@ -28,6 +29,7 @@ interface Client {
     type: string
     amountPaid: number
   }>
+  hasAlert?: boolean
 }
 
 const calculateAge = (birthDate: string | null) => {
@@ -65,6 +67,7 @@ export function ClientsScreen() {
   const [activeClientPanel, setActiveClientPanel] = useState<'activities' | 'todo' | 'progress' | 'revenue' | null>(null)
   const [showTodoInput, setShowTodoInput] = useState(false)
   const [hiddenActivities, setHiddenActivities] = useState<Set<number>>(new Set())
+  const [activitySubTab, setActivitySubTab] = useState<'en-curso' | 'por-empezar' | 'finalizadas'>('en-curso')
   const [scrollPositions, setScrollPositions] = useState<{ calendar: number; info: number }>({ calendar: 0, info: 0 })
   const calendarScrollRef = useRef<HTMLDivElement>(null)
   const calendarContainerRef = useRef<HTMLDivElement>(null)
@@ -366,7 +369,7 @@ export function ClientsScreen() {
       </div>
 
       {/* Client list */}
-      <div className="space-y-4">
+      <div className="space-y-3">
         {filteredClients.length === 0 ? (
           <div className="text-center py-12">
             <Users className="h-12 w-12 text-gray-500 mx-auto mb-4" />
@@ -381,10 +384,11 @@ export function ClientsScreen() {
           filteredClients.map((client) => (
             <div
               key={client.id}
-              className="bg-[#141414] rounded-3xl p-4 border border-zinc-800/60 shadow-sm cursor-pointer hover:bg-[#181818] transition-colors flex flex-col items-center"
+              className="bg-[#141414] rounded-2xl p-3 border border-zinc-800/60 shadow-sm cursor-pointer hover:bg-[#181818] transition-colors flex items-center gap-4"
               onClick={() => openClientModal(client)}
             >
-              <div className="relative w-16 h-16 rounded-full overflow-hidden border-2 border-zinc-800 shadow-xl mb-2">
+              {/* Avatar más pequeño y compacto */}
+              <div className="relative w-12 h-12 rounded-full overflow-hidden border border-zinc-800 shrink-0">
                 <img
                   src={client.avatar_url || "/placeholder.svg"}
                   alt={client.name}
@@ -392,38 +396,47 @@ export function ClientsScreen() {
                 />
               </div>
 
-              <div className="flex flex-col items-center mb-0">
-                <h3 className="font-semibold text-base text-white mb-0.5 text-center leading-tight">{client.name}</h3>
-                <div className="flex items-center justify-center gap-2 text-[10px] text-gray-400">
+              {/* Info principal: Nombre y última conexión */}
+              <div className="flex-1 min-w-0">
+                <h3 className="font-semibold text-sm text-white mb-0.5 truncate leading-tight">{client.name}</h3>
+                <div className="flex items-center gap-1.5 text-[10px] text-gray-400">
                   <span className={`inline-block w-1.5 h-1.5 rounded-full ${client.status === "active" ? "bg-green-500" : client.status === "pending" ? "bg-yellow-500" : "bg-gray-500"}`}></span>
                   <span className="truncate">Última: {client.lastActive}</span>
                 </div>
               </div>
 
-              <div className="w-full grid grid-cols-4 gap-1 items-start mt-2">
-                {/* Progreso - Elevado (Col 1) */}
-                <div className="flex flex-col items-center justify-start pt-0">
-                  <div className="text-base font-bold text-[#FF7939] leading-tight">{client.progress}%</div>
-                  <div className="text-[9px] text-gray-400 uppercase tracking-wide scale-90">Progreso</div>
+              {/* Stats compactas a la derecha */}
+              <div className="flex items-center gap-3 pr-1">
+                <div className="flex flex-col items-center min-w-[30px]">
+                  <div className="text-sm font-bold text-[#FF7939] leading-tight">{client.progress}%</div>
+                  <div className="text-[8px] text-gray-500 uppercase tracking-wide">PROG</div>
                 </div>
 
-                {/* Actividades - Bajo (Col 2) */}
-                <div className="flex flex-col items-center justify-start pt-3 border-l border-zinc-800/50 h-full">
-                  <div className="text-base font-bold text-white leading-tight">{client.activitiesCount}</div>
-                  <div className="text-[9px] text-gray-400 uppercase tracking-wide scale-90">Actividades</div>
+                <div className="flex flex-col items-center min-w-[30px] border-l border-zinc-800/50 pl-3 relative">
+                  <div className="text-sm font-bold text-white leading-tight flex items-center gap-0.5">
+                    {client.activitiesCount}
+                    {/* Alerta de actividad basada en hasAlert real */}
+                    {client.hasAlert && (
+                      <div className="h-2 w-2 bg-red-500 rounded-full" title="Tiene actividades pendientes" />
+                    )}
+                  </div>
+                  <div className="text-[8px] text-gray-500 uppercase tracking-wide">ACT</div>
                 </div>
 
-                {/* To Do - Bajo (Col 3) */}
-                <div className="flex flex-col items-center justify-start pt-3 border-l border-zinc-800/50 h-full">
-                  <div className="text-base font-bold text-white leading-tight">{client.todoCount || 0}</div>
-                  <div className="text-[9px] text-gray-400 uppercase tracking-wide scale-90">To Do</div>
+                <div className="flex flex-col items-center min-w-[30px] border-l border-zinc-800/50 pl-3">
+                  <div className={`flex items-center justify-center h-6 w-6 rounded-full ${(client.todoCount || 0) > 0 ? 'bg-[#FF7939]/20 text-[#FF7939]' : 'bg-zinc-800/50 text-zinc-600'}`}>
+                    <Flame className={`h-3.5 w-3.5 ${(client.todoCount || 0) > 0 ? 'fill-[#FF7939]' : 'fill-none'}`} />
+                  </div>
+                  <div className="text-[8px] mt-0.5 text-gray-500 uppercase tracking-wide">
+                    {client.todoCount || 0}
+                  </div>
                 </div>
 
-                {/* Ingresos - Elevado (Col 4) */}
-                <div className="flex flex-col items-center justify-start pt-0 border-l border-zinc-800/50">
-                  <div className="text-xs font-bold text-white leading-tight mt-0.5">${client.totalRevenue}</div>
-                  <div className="text-[9px] text-gray-400 uppercase tracking-wide scale-90 mt-0.5">Ingresos</div>
+                <div className="flex flex-col items-center min-w-[40px] border-l border-zinc-800/50 pl-3">
+                  <div className="text-sm font-bold text-white leading-tight">${Math.round(client.totalRevenue)}</div>
+                  <div className="text-[8px] text-gray-500 uppercase tracking-wide">INGR</div>
                 </div>
+                <ChevronRight className="h-4 w-4 text-zinc-600 shrink-0" />
               </div>
             </div>
           ))
@@ -640,8 +653,8 @@ export function ClientsScreen() {
                           className="text-zinc-400 text-4xl leading-none font-black drop-shadow-lg tracking-tighter"
                         >
                           ${(() => {
-                            const val = clientDetail?.client?.totalRevenue || selectedClient.totalRevenue || 0;
-                            return val >= 1000 ? (val / 1000).toFixed(1) + 'k' : val;
+                            const val = Math.round(clientDetail?.client?.totalRevenue || selectedClient.totalRevenue || 0);
+                            return val >= 1000 ? (val / 1000).toFixed(0) + 'k' : val;
                           })()}
                         </span>
                         <span className="text-[8px] text-zinc-500 uppercase tracking-[0.2em] font-medium mt-2">Ingresos</span>
@@ -905,161 +918,93 @@ export function ClientsScreen() {
                 </div>
 
                 {/* --- TAB: ACTIVIDADES --- */}
-                {/* --- TAB: ACTIVIDADES --- */}
                 <div className={!loadingDetail && activeModalTab === 'activities' ? 'block' : 'hidden'}>
-                  <div className="space-y-3 px-2">
-                    <div className="text-xs text-gray-400 uppercase tracking-wider font-medium">
-                      {clientDetail?.client?.physicalData?.meet_credits || 0} Créditos de Meet
+                  <div className="space-y-4 px-2">
+                    {/* Sub-tabs for activities */}
+                    <div className="flex gap-1 p-1 bg-[#1A1A1A] rounded-xl border border-zinc-800/50">
+                      {(['en-curso', 'por-empezar', 'finalizadas'] as const).map((tab) => (
+                        <button
+                          key={tab}
+                          onClick={() => setActivitySubTab(tab as any)}
+                          className={`flex-1 py-2 text-[10px] font-bold uppercase tracking-wider rounded-lg transition-all ${activitySubTab === tab ? 'bg-zinc-800 text-white shadow-lg' : 'text-zinc-500 hover:text-zinc-300'}`}
+                        >
+                          {tab === 'en-curso' ? 'En Curso' : tab === 'por-empezar' ? 'Por Empezar' : 'Finalizadas'}
+                        </button>
+                      ))}
                     </div>
-                    {(clientDetail?.client?.activities || []).length === 0 ? (
-                      <div className="text-sm text-gray-300 italic">Sin actividades activas</div>
-                    ) : (
-                      <div className="space-y-3">
-                        {(clientDetail?.client?.activities || []).map((a: any, index: number) => {
-                          const progressPercent = Number(a?.progressPercent ?? 0) || 0
-                          const upToDate = !!a?.upToDate
-                          const daysBehind = Number(a?.daysBehind ?? 0) || 0
-                          const pendingItems = Number(a?.pendingItems ?? 0) || 0
-                          const daysWithPending = Number(a?.daysWithPending ?? 0) || 0
 
-                          return (
-                            <div key={`act-${a.id}-idx-${index}`} className="group relative bg-zinc-900 border border-zinc-800 rounded-xl py-2.5 px-3 pl-4 shadow-sm overflow-hidden">
-                              {/* Status Vertical Line Indicator */}
-                              <div className={`absolute left-0 top-0 bottom-0 w-1 ${(() => {
-                                const now = new Date();
-                                const start = a?.enrollmentStartDate ? new Date(a.enrollmentStartDate) : null;
-                                const end = a?.enrollmentExpirationDate ? new Date(a.enrollmentExpirationDate) : null;
-                                const isCompleted = progressPercent >= 100 || a?.status === 'finalizada'; // Check status too
-                                const isNotStarted = start && start > now;
-                                const isExpired = end && end < now && !isCompleted;
+                    <div className="text-[10px] text-gray-500 uppercase tracking-widest font-bold pl-1 mt-1">
+                      {clientDetail?.client?.physicalData?.meet_credits || 0} Créditos de Meet Disponibles
+                    </div>
 
-                                if (isCompleted) return 'bg-[#FF7939]'; // Orange for Finalizado (Requested change)
-                                if (isNotStarted) return 'bg-yellow-500';
-                                if (upToDate) return 'bg-[#FF7939]'; // Orange for 'Al día'
-                                if (isExpired) return 'bg-zinc-600';
-                                return 'bg-red-500'; // Red for Alert/Pending
-                              })()
-                                }`} />
+                    {(() => {
+                      const allActivities = clientDetail?.client?.activities || []
+                      const filteredByTab = allActivities.filter((a: any) => {
+                        const progressPercent = Number(a?.progressPercent ?? 0) || 0
+                        const isCompleted = progressPercent >= 100 ||
+                          a?.status === 'finalizada' ||
+                          a?.status === 'finished' ||
+                          a?.status === 'expirada' ||
+                          a?.status === 'expired'
 
-                              <div className="flex items-start justify-between gap-3 mb-2">
-                                <div className="min-w-0">
-                                  <div className="text-sm font-medium text-white leading-tight mb-1">{a?.title || 'Actividad'}</div>
-                                  <div className="text-xs text-gray-400 capitalize">
-                                    {a?.enrollmentStartDate && (
-                                      <span className="text-gray-500 text-[10px] leading-none block mt-0.5">
-                                        {format(new Date(a.enrollmentStartDate), "d MMM", { locale: es })}
-                                        {a?.enrollmentExpirationDate ? ` - ${format(new Date(a.enrollmentExpirationDate), "d MMM", { locale: es })}` : ''}
-                                      </span>
-                                    )}
-                                  </div>
-                                </div>
-                                <div className="text-sm font-medium text-gray-500/80">
-                                  ${Number(a?.paidAmount || a?.amountPaid || 0)}
-                                </div>
+                        const hasStarted = !!(a?.start_date || a?.enrollmentStartDate)
+
+                        if (activitySubTab === 'finalizadas') return isCompleted
+                        if (activitySubTab === 'por-empezar') return !isCompleted && !hasStarted
+                        return !isCompleted && hasStarted // 'en-curso'
+                      })
+
+                      if (filteredByTab.length === 0) {
+                        return (
+                          <div className="flex flex-col items-center justify-center py-12 px-4 text-center border border-zinc-800/50 rounded-2xl bg-zinc-900/20">
+                            <Activity className="h-8 w-8 text-zinc-700 mb-2" />
+                            <p className="text-xs text-zinc-500 font-medium">No hay actividades {activitySubTab}</p>
+                          </div>
+                        )
+                      }
+
+                      return (
+                        <div className="flex gap-4 overflow-x-auto pb-6 snap-x scrollbar-hide -mx-2 px-2">
+                          {filteredByTab.map((a: any, index: number) => {
+                            // Construct Enrollment object compatible with PurchasedActivityCard
+                            const enrollmentMock = {
+                              id: a.enrollment_id,
+                              created_at: a.created_at || new Date().toISOString(),
+                              start_date: a.start_date || a.enrollmentStartDate,
+                              expiration_date: a.enrollmentExpirationDate,
+                              program_end_date: null,
+                              status: a.status,
+                              client_id: selectedClient.id,
+                              activity_id: a.id,
+                              activity: {
+                                id: a.id,
+                                title: a.title,
+                                type: a.type,
+                                image_url: a.image_url,
+                                coach_name: a.coach_name || 'Coach',
+                                coach_avatar_url: a.coach_avatar_url,
+                                categoria: a.categoria,
+                                dias_acceso: a.dias_acceso
+                              }
+                            }
+
+                            const progressPercent = Number(a?.progressPercent ?? 0) || 0
+
+                            return (
+                              <div key={`act-${a.id}-idx-${index}`} className="snap-center flex-shrink-0">
+                                <PurchasedActivityCard
+                                  enrollment={enrollmentMock as any}
+                                  realProgress={progressPercent}
+                                  overridePendingCount={a.pendingItems}
+                                  overrideNextSessionDate={null}
+                                  size="small"
+                                />
                               </div>
-
-                              {/* Progress Section */}
-                              {!(() => {
-                                const isCompleted = progressPercent >= 100 || a?.status === 'finalizada';
-                                return isCompleted;
-                              })() ? (
-                                <div className="mt-2 flex items-center gap-3">
-                                  <div className="flex-1 h-1.5 bg-zinc-800 rounded-full overflow-hidden">
-                                    <div
-                                      className={`h-full rounded-full transition-all duration-500 ${(() => {
-                                        // Match bar color to vertical line
-                                        const now = new Date();
-                                        const start = a?.enrollmentStartDate ? new Date(a.enrollmentStartDate) : null;
-                                        const end = a?.enrollmentExpirationDate ? new Date(a.enrollmentExpirationDate) : null;
-                                        const isCompleted = progressPercent >= 100 || a?.status === 'finalizada';
-                                        const isNotStarted = start && start > now;
-                                        const isExpired = end && end < now && !isCompleted;
-
-                                        if (isCompleted) return 'bg-[#FF7939]';
-                                        if (isNotStarted) return 'bg-yellow-500';
-                                        if (upToDate) return 'bg-[#FF7939]';
-                                        if (isExpired) return 'bg-zinc-600';
-                                        return 'bg-red-500';
-                                      })()
-                                        }`}
-                                      style={{ width: `${progressPercent}%` }}
-                                    />
-                                  </div>
-                                  <span className="text-xs font-medium text-zinc-400">{progressPercent}%</span>
-                                </div>
-                              ) : (
-                                <div className="mt-2 flex items-center justify-between">
-                                  <div className="inline-flex items-center px-2.5 py-0.5 rounded-full border bg-orange-500/10 border-orange-500/20">
-                                    <span className="text-[10px] uppercase tracking-wide font-semibold text-orange-300">Finalizado</span>
-                                  </div>
-                                  <span className="text-xs font-bold text-[#FF7939]">{progressPercent}%</span>
-                                </div>
-                              )}
-
-                              {(() => {
-                                // Status Logic
-                                let badgeBg = 'bg-zinc-800 border-zinc-700'
-                                let badgeText = 'text-gray-300'
-                                let icon = null
-                                let statusLabel = ''
-
-                                const now = new Date();
-                                const start = a?.enrollmentStartDate ? new Date(a.enrollmentStartDate) : null;
-                                const end = a?.enrollmentExpirationDate ? new Date(a.enrollmentExpirationDate) : null;
-
-                                const isCompleted = progressPercent >= 100 || a?.status === 'finalizada';
-                                const isNotStarted = start && start > now;
-                                const isExpired = end && end < now && !isCompleted;
-
-                                if (isCompleted) {
-                                  // Already handled in the progress block above
-                                  return null;
-                                }
-
-                                if (isNotStarted) {
-                                  statusLabel = 'No iniciado';
-                                  badgeBg = 'bg-yellow-500/10 border-yellow-500/20';
-                                  badgeText = 'text-yellow-500';
-                                } else if (upToDate) {
-                                  statusLabel = 'Al día';
-                                  badgeBg = 'bg-orange-500/10 border-orange-500/20';
-                                  badgeText = 'text-orange-300';
-                                  // Removed Icon as requested
-                                } else if (isExpired) {
-                                  statusLabel = 'Expirada';
-                                  badgeBg = 'bg-zinc-800 border-zinc-700';
-                                  badgeText = 'text-zinc-500';
-                                  icon = (
-                                    <svg className="w-3.5 h-3.5 mr-1.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
-                                    </svg>
-                                  );
-                                } else {
-                                  // Pending / Warning State
-                                  statusLabel = `${daysWithPending || daysBehind} días pendientes • ${pendingItems} items`;
-                                  badgeBg = 'bg-red-500/10 border-red-900/50';
-                                  badgeText = 'text-red-500';
-                                  icon = (
-                                    <svg className="w-3.5 h-3.5 mr-1.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
-                                    </svg>
-                                  );
-                                }
-
-                                return (
-                                  <div className={`mt-2 inline-flex items-center px-2.5 py-0.5 rounded-full border ${badgeBg}`}>
-                                    {icon}
-                                    <span className={`text-[10px] uppercase tracking-wide font-semibold ${badgeText}`}>
-                                      {statusLabel}
-                                    </span>
-                                  </div>
-                                )
-                              })()}
-                            </div>
-                          )
-                        })}
-                      </div>
-                    )}
+                            )
+                          })}
+                        </div>
+                      )
+                    })()}
                   </div>
                 </div>
 
