@@ -20,16 +20,18 @@ BEGIN
         LOOP
             INSERT INTO client_document_progress (
                 client_id,
+                enrollment_id,
                 activity_id,
                 topic_id,
                 completed
             ) VALUES (
                 NEW.client_id,
+                NEW.id,
                 NEW.activity_id,
                 topic_record.id,
                 false
             )
-            ON CONFLICT (client_id, activity_id, topic_id) 
+            ON CONFLICT (client_id, enrollment_id, topic_id) 
             DO NOTHING;
         END LOOP;
     END IF;

@@ -92,10 +92,6 @@ export interface Activity extends ActivityBase {
   program_duration_weeks_months?: number | null
   is_popular?: boolean
 
-  // Coach info (derived from coaches table)
-  coach_name?: string | null
-  coach_avatar_url?: string | null
-  coach_rating?: number | null
   total_coach_reviews?: number | null
 
   // Category for filtering in UI
@@ -143,9 +139,7 @@ export interface Activity extends ActivityBase {
   specialization?: string | null
   availability?: any | null
 
-  // Additional coach properties from coaches table
   coach_experience_years?: number | null
-  coach_rating?: number | null
   coach_total_reviews?: number | null
   coach_instagram?: string | null
 
@@ -157,6 +151,7 @@ export interface Activity extends ActivityBase {
   // Location properties for presencial activities
   location_url?: string | null
   location_name?: string | null
+  objetivos?: string[] | null
 }
 
 // Interface for ActivityEnrollment, including the joined Activity data

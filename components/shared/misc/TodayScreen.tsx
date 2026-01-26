@@ -60,7 +60,7 @@ type Activity = {
   block?: number;
 };
 
-export default function TodayScreen({ activityId, onBack }: { activityId: string, onBack?: () => void }) {
+export default function TodayScreen({ activityId, enrollmentId, onBack }: { activityId: string, enrollmentId?: string | null, onBack?: () => void }) {
   const [vh, setVh] = React.useState<number>(typeof window !== 'undefined' ? window.innerHeight : 800);
   const [activities, setActivities] = React.useState<Activity[]>([]);
   const [blockNames, setBlockNames] = React.useState<Record<string, string>>({});
@@ -408,6 +408,7 @@ export default function TodayScreen({ activityId, onBack }: { activityId: string
 
       console.log('🔍 [findNextAvailableActivity] Parámetros de búsqueda:', {
         activityId,
+        enrollmentId,
         categoria,
         tablaProgreso,
         cliente_id: user.id,
@@ -416,15 +417,22 @@ export default function TodayScreen({ activityId, onBack }: { activityId: string
         selectedDate_objeto: selectedDate
       });
 
-      // Buscar registros desde la fecha seleccionada (no desde la fecha de inicio)
-      const { data: progresoRecords, error } = await supabase
+      // Buscar registros vinculados al enrollment_id si está disponible
+      let query = supabase
         .from(tablaProgreso)
         .select('fecha, ejercicios_pendientes, ejercicios_completados')
         .eq('cliente_id', user.id)
-        .eq('actividad_id', activityId)
         .gte('fecha', selectedDateString)
         .lte('fecha', endDateString)
         .order('fecha', { ascending: true });
+
+      if (enrollmentId) {
+        query = query.eq('enrollment_id', enrollmentId);
+      } else {
+        query = query.eq('actividad_id', activityId);
+      }
+
+      const { data: progresoRecords, error } = await query;
 
       console.log('🔍 [findNextAvailableActivity] Registros de progreso encontrados:', {
         cantidad: progresoRecords?.length || 0,
@@ -501,21 +509,21 @@ export default function TodayScreen({ activityId, onBack }: { activityId: string
           hasPendingExercises,
           pendientesKeysCount,
           cumple_condicion: cumpleCondicion,
-          ejercicios_pendientes_raw: typeof record.ejercicios_pendientes === 'string'
-            ? record.ejercicios_pendientes.substring(0, 100)
-            : JSON.stringify(record.ejercicios_pendientes).substring(0, 100)
+          ejercicios_pendientes_raw: typeof (record as any).ejercicios_pendientes === 'string'
+            ? (record as any).ejercicios_pendientes.substring(0, 100)
+            : JSON.stringify((record as any).ejercicios_pendientes).substring(0, 100)
         });
 
         return cumpleCondicion;
       });
 
       if (nextExecution) {
-        const nextDate = new Date(nextExecution.fecha + 'T00:00:00-03:00'); // Buenos Aires timezone
+        const nextDate = new Date((nextExecution as any).fecha + 'T00:00:00-03:00'); // Buenos Aires timezone
         const weekNumber = getWeekNumber(nextDate);
         const dayName = getDayName(nextDate);
 
         console.log('✅ [findNextAvailableActivity] Próxima actividad encontrada:', {
-          fecha: nextExecution.fecha,
+          fecha: (nextExecution as any).fecha,
           dia_calculado: dayName,
           semana: weekNumber,
           nextDate: nextDate.toISOString()
@@ -524,7 +532,7 @@ export default function TodayScreen({ activityId, onBack }: { activityId: string
         return {
           week: weekNumber,
           day: dayName,
-          date: nextExecution.fecha
+          date: (nextExecution as any).fecha
         };
       }
 
@@ -1309,13 +1317,20 @@ export default function TodayScreen({ activityId, onBack }: { activityId: string
       const categoria = actividadData?.categoria || 'fitness';
       const tablaProgreso = categoria === 'nutricion' ? 'progreso_cliente_nutricion' : 'progreso_cliente';
 
-      // Obtener registros de progreso_cliente o progreso_cliente_nutricion según corresponda
-      const { data: progresoRecords, error } = await supabase
+      // Obtener registros vinculados al enrollment_id si está disponible
+      let query = supabase
         .from(tablaProgreso)
         .select('*')
-        .eq('actividad_id', activityId)
         .eq('cliente_id', user.id)
         .not('fecha', 'is', null);
+
+      if (enrollmentId) {
+        query = query.eq('enrollment_id', enrollmentId);
+      } else {
+        query = query.eq('actividad_id', activityId);
+      }
+
+      const { data: progresoRecords, error } = await query;
 
       if (error) {
         console.error('Error cargando estados de días:', error);
@@ -1672,8 +1687,9 @@ export default function TodayScreen({ activityId, onBack }: { activityId: string
           bloque,
           orden,
           fecha: currentDate,
-          categoria: programInfo?.categoria || enrollment?.activity?.categoria,
-          activityId: Number(activityId)
+          categoria: (programInfo as any)?.categoria || (enrollment as any)?.activity?.categoria,
+          activityId: Number(activityId),
+          enrollmentId: enrollmentId || enrollment?.id // Usar id de enrollment para separar progreso
         })
       });
 

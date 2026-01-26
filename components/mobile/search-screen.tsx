@@ -13,6 +13,10 @@ import {
   Search,
   Filter,
   ChevronDown,
+  ArrowLeft,
+  ChefHat,
+  Dumbbell,
+  Zap, // Using Zap instead of Yoga if not found, or Activity
 } from "lucide-react"
 import Image from "next/image"
 import { trackComponent, trackAPI } from '@/lib/logging/usage-tracker'
@@ -33,6 +37,9 @@ type Coach = {
   total_sessions?: number
   experience_years?: number
   certifications?: string[]
+  specialization?: string
+  location?: string
+  full_name?: string
 }
 import { extractVimeoId } from "@/utils/vimeo-utils"
 import { VimeoPlayer } from '@/components/shared/video/vimeo-player'
@@ -78,11 +85,17 @@ export function SearchScreen({ onTabChange }: SearchScreenProps) {
   // Estados para búsqueda y filtros
   const [searchTerm, setSearchTerm] = useState("")
   const [showFilters, setShowFilters] = useState(false)
-  const [selectedProgramType, setSelectedProgramType] = useState<string>("all") // "programa", "taller", "documento"
-  const [selectedCategory, setSelectedCategory] = useState<string>("all") // "nutricion", "fitness"
-  const [selectedFitnessType, setSelectedFitnessType] = useState<string>("all") // "fuerza", "aerobico", "deporte"
+  const [selectedProgramType, setSelectedProgramType] = useState<string>("all")
+  const [selectedCategory, setSelectedCategory] = useState<string>("all")
+  const [selectedFitnessType, setSelectedFitnessType] = useState<string>("all")
   const [isSearching, setIsSearching] = useState(false)
   const [expandedSection, setExpandedSection] = useState<'coaches' | 'activities' | null>(null)
+
+  // Nuevos estados para el flujo de búsqueda refinado
+  const [searchStage, setSearchStage] = useState<'initial' | 'expanded' | 'categorySelected'>('initial')
+  const [selectedObjectives, setSelectedObjectives] = useState<string[]>([])
+  const [searchSuggestions, setSearchSuggestions] = useState<string[]>([])
+  const [showSuggestions, setShowSuggestions] = useState(false)
 
   const [selectedActivity, setSelectedActivity] = useState<Activity | null>(null)
 
@@ -91,7 +104,6 @@ export function SearchScreen({ onTabChange }: SearchScreenProps) {
     const handleResetToOrigin = (event: CustomEvent) => {
       const { tab } = event.detail
       if (tab === 'search') {
-        // Resetear estado interno: limpiar búsqueda, filtros, modales
         setSearchTerm("")
         setSelectedProgramType("all")
         setSelectedCategory("all")
@@ -102,10 +114,13 @@ export function SearchScreen({ onTabChange }: SearchScreenProps) {
         setShowAllActivities(false)
         setShowAllCoaches(false)
         setExpandedSection(null)
+        setSearchStage('initial')
+        setSelectedObjectives([])
+        setSearchSuggestions([])
+        setShowSuggestions(false)
         setPurchaseModalOpen(false)
         setIsPreviewModalOpen(false)
 
-        // Scroll al inicio
         setTimeout(() => {
           window.scrollTo({ top: 0, behavior: 'smooth' })
         }, 100)
@@ -117,28 +132,31 @@ export function SearchScreen({ onTabChange }: SearchScreenProps) {
       window.removeEventListener('reset-tab-to-origin', handleResetToOrigin as EventListener)
     }
   }, [])
+
+  const [allActivities, setAllActivities] = useState<Activity[]>([])
   const [activities, setActivities] = useState<Activity[]>([])
   const [isLoadingActivities, setIsLoadingActivities] = useState(false)
   const [activitiesError, setActivitiesError] = useState<Error | null>(null)
-  // Cache de actividades para evitar recargas innecesarias
   const activitiesCacheRef = useRef<{ data: Activity[]; timestamp: number } | null>(null)
-  const CACHE_DURATION = 5 * 60 * 1000 // 5 minutos
+  const CACHE_DURATION = 5 * 60 * 1000
+
+  const [allCoaches, setAllCoaches] = useState<Coach[]>([])
   const [displayedCoaches, setDisplayedCoaches] = useState<Coach[]>([])
   const [isLoading, setIsLoading] = useState(false)
   const [error, setError] = useState<Error | null>(null)
 
   const { toast } = useToast()
   const router = useRouter()
-  const [purchasedActivity, setPurchasedActivity] = useState<Activity | null>(null)
   const [purchaseModalOpen, setPurchaseModalOpen] = useState(false)
   const [selectedPurchaseActivity, setSelectedPurchaseActivity] = useState<Activity | null>(null)
   const [isPreviewModalOpen, setIsPreviewModalOpen] = useState(false)
   const [isCoachProfileModalOpen, setIsCoachProfileModalOpen] = useState(false)
   const [selectedCoachForProfile, setSelectedCoachForProfile] = useState<Coach | null>(null)
   const [navigationContext, setNavigationContext] = useState<{
-    fromCoachProfile?: boolean
     coachId?: string
-  } | null>(null)
+    onReturnToCoach?: () => void
+    fromCoachProfile?: boolean
+  } | undefined>(undefined)
 
   // Pila de navegación para manejar el flujo correcto
   const [navigationStack, setNavigationStack] = useState<Array<{
@@ -222,8 +240,8 @@ export function SearchScreen({ onTabChange }: SearchScreenProps) {
 
   // Hook para cache inteligente de coaches - reemplazado con funciones vacías
   const { preloadCoach, cacheCoach, getCacheStats } = {
-    preloadCoach: () => { },
-    cacheCoach: () => { },
+    preloadCoach: (id: string, coach: any) => { },
+    cacheCoach: (id: string, coach: any, activities: any[]) => { },
     getCacheStats: () => ({})
   }
 
@@ -316,16 +334,39 @@ export function SearchScreen({ onTabChange }: SearchScreenProps) {
     online: true,
   }
 
-  // Efecto para mostrar toast de error si hay problemas
-  useEffect(() => {
-    if (error) {
-      toast({
-        title: "Error al cargar coaches",
-        description: "Intentando usar datos en caché o fallback...",
-        variant: "destructive",
-      })
+  // Sugerencias de búsqueda predefinidas
+  const SUGGESTIONS_MAP: Record<string, string[]> = {
+    fitness: ["fuerza", "futbol", "aerobico", "funcional", "crossfit", "yoga", "pilates", "running", "masa muscular"],
+    nutricion: ["mediterranea", "mejorar fisico", "keto", "paleo", "vegano", "vegetariano", "proteinas", "deficit calorico"],
+    all: ["fuerza", "nutricion", "fitness", "yoga", "futbol", "masa muscular"]
+  }
+
+  // Manejar cambio en término de búsqueda y generar sugerencias
+  const handleSearchChange = (value: string) => {
+    setSearchTerm(value)
+    if (value.length >= 1) {
+      const currentCat = selectedCategory === 'all' ? 'all' : selectedCategory
+      const relevantSuggestions = SUGGESTIONS_MAP[currentCat] || SUGGESTIONS_MAP.all
+      const filtered = relevantSuggestions.filter(s =>
+        s.toLowerCase().includes(value.toLowerCase())
+      )
+      setSearchSuggestions(filtered)
+      setShowSuggestions(filtered.length > 0)
+    } else {
+      setSearchSuggestions([])
+      setShowSuggestions(false)
     }
-  }, [error, toast])
+  }
+
+  const handleSuggestionClick = (suggestion: string) => {
+    setSearchTerm(suggestion)
+    setShowSuggestions(false)
+  }
+
+  // Objetivos comunes
+  const COMMON_OBJECTIVES = [
+    "pérdida de peso", "masa muscular", "resistencia", "flexibilidad", "salud mental", "bienestar", "rendimiento"
+  ]
 
   // Function to render specialty icon
   const renderSpecialtyIcon = (specialty: string) => {
@@ -336,38 +377,51 @@ export function SearchScreen({ onTabChange }: SearchScreenProps) {
         return <Dumbbell className="h-6 w-6 text-white" />
       case "fitness":
       default:
-        return <Yoga className="h-6 w-6 text-white" />
+        return <Zap className="h-6 w-6 text-white" />
     }
   }
 
 
-  // Estados para datos originales (sin filtrar)
-  const [allCoaches, setAllCoaches] = useState<Coach[]>([])
-  const [allActivities, setAllActivities] = useState<Activity[]>([])
+  // Estados para datos originales (sin filtrar) - eliminados duplicados
 
   // Función para filtrar coaches localmente
   const filterCoaches = (coaches: Coach[]) => {
     return coaches.filter(coach => {
-      // Filtro por búsqueda de texto
+      // Filtro por objetivo (nuevo)
+      if (selectedObjectives.length > 0) {
+        const coachSpecialties = (coach.specialization || "").toLowerCase()
+        const coachBio = (coach.bio || "").toLowerCase()
+        const hasMatch = selectedObjectives.some(obj =>
+          coachSpecialties.includes(obj.toLowerCase()) ||
+          coachBio.includes(obj.toLowerCase())
+        )
+        if (!hasMatch) return false
+      }
+
+      // Deep search in objectives (nuevo)
       if (searchTerm.trim()) {
         const searchLower = searchTerm.toLowerCase()
-        const matchesName = coach.name?.toLowerCase().includes(searchLower) || false
-        const matchesSpecialization = coach.specialization?.toLowerCase().includes(searchLower) || false
-        if (!matchesName && !matchesSpecialization) return false
+        const coachSpecialties = (coach.specialization || "").toLowerCase()
+        const coachBio = (coach.bio || "").toLowerCase()
+        const matchesText = coach.name?.toLowerCase().includes(searchLower) ||
+          coachSpecialties.includes(searchLower) ||
+          coachBio.includes(searchLower)
+        if (!matchesText) return false
       }
 
       // Filtro por categoría
       if (selectedCategory !== "all") {
         if (selectedCategory === "fitness") {
-          if (!coach.specialization?.toLowerCase().includes("fitness") &&
-            !coach.specialization?.toLowerCase().includes("gym") &&
-            !coach.specialization?.toLowerCase().includes("deporte")) {
-            return false
-          }
+          const isFitness = coach.specialization?.toLowerCase().includes("fitness") ||
+            coach.specialization?.toLowerCase().includes("gym") ||
+            coach.specialization?.toLowerCase().includes("deporte") || false
+          if (!isFitness) return false
         } else if (selectedCategory === "nutricion") {
-          if (!coach.specialization?.toLowerCase().includes("nutricion")) {
-            return false
-          }
+          if (!coach.specialization?.toLowerCase().includes("nutricion")) return false
+        } else if (selectedCategory === "general") {
+          const isFitness = coach.specialization?.toLowerCase().includes("fitness") || false
+          const isNutricion = coach.specialization?.toLowerCase().includes("nutricion") || false
+          if (isFitness || isNutricion) return false
         }
       }
 
@@ -386,56 +440,25 @@ export function SearchScreen({ onTabChange }: SearchScreenProps) {
   // Función para filtrar actividades localmente
   const filterActivities = (activities: Activity[]) => {
     return activities.filter(activity => {
-      // Filtro por búsqueda de texto
+      // Filtro por objetivo (corregido)
+      if (selectedObjectives.length > 0) {
+        const activityObjectives = (activity as any).objetivos || []
+        const hasMatch = selectedObjectives.some(obj =>
+          activityObjectives.some((aObj: any) => aObj.toLowerCase().includes(obj.toLowerCase()))
+        )
+        if (!hasMatch) return false
+      }
+
+      // Deep search in objectives (nuevo)
       if (searchTerm.trim()) {
         const searchLower = searchTerm.toLowerCase()
-        const matchesTitle = activity.title?.toLowerCase().includes(searchLower) || false
-        const matchesCoach = activity.coach_name?.toLowerCase().includes(searchLower) || false
-        if (!matchesTitle && !matchesCoach) return false
-      }
-
-      // Filtro por tipo de programa (program, workshop, document)
-      if (selectedProgramType !== "all") {
-        const activityType = activity.type?.toLowerCase() || ''
-        if (selectedProgramType === "programa") {
-          if (activityType !== 'program' && activityType !== 'programa') {
-            return false
-          }
-        } else if (selectedProgramType === "taller") {
-          if (activityType !== 'workshop' && activityType !== 'taller') {
-            return false
-          }
-        } else if (selectedProgramType === "documento") {
-          if (activityType !== 'document' && activityType !== 'documento') {
-            return false
-          }
-        }
-      }
-
-      // Filtro por categoría (fitness o nutricion)
-      if (selectedCategory !== "all") {
-        const activityType = activity.type?.toLowerCase() || ''
-        if (selectedCategory === "fitness") {
-          if (activityType !== "fitness") {
-            return false
-          }
-        } else if (selectedCategory === "nutricion") {
-          if (activityType !== "nutricion" && activityType !== "nutrition") {
-            return false
-          }
-        }
-      }
-
-      // Filtro por tipo de fitness (fuerza, aerobico, deporte, funcional)
-      if (selectedCategory === "fitness" && selectedFitnessType !== "all") {
         const title = activity.title?.toLowerCase() || ''
-        const description = activity.description?.toLowerCase() || ''
-        const fitnessLower = selectedFitnessType.toLowerCase()
-
-        // Buscar el tipo de fitness en el título o descripción
-        if (!title.includes(fitnessLower) && !description.includes(fitnessLower)) {
-          return false
-        }
+        const coach = activity.coach_name?.toLowerCase() || ''
+        const objectives = (activity as any).objetivos || []
+        const matchesText = title.includes(searchLower) ||
+          coach.includes(searchLower) ||
+          objectives.some((obj: string) => obj.toLowerCase().includes(searchLower))
+        if (!matchesText) return false
       }
 
       return true
@@ -448,14 +471,14 @@ export function SearchScreen({ onTabChange }: SearchScreenProps) {
       return displayedCoaches || []
     }
     return filterCoaches(allCoaches)
-  }, [allCoaches, searchTerm, selectedCategory, selectedFitnessType, expandedSection])
+  }, [allCoaches, searchTerm, selectedCategory, selectedFitnessType, selectedObjectives, expandedSection])
 
   const filteredActivities = useMemo(() => {
     if (expandedSection !== 'activities') {
       return activities || []
     }
     return filterActivities(allActivities)
-  }, [allActivities, searchTerm, selectedProgramType, selectedCategory, selectedFitnessType, expandedSection])
+  }, [allActivities, searchTerm, selectedProgramType, selectedCategory, selectedFitnessType, selectedObjectives, expandedSection])
 
   // Efecto para aplicar filtros cuando cambian los valores
   useEffect(() => {
@@ -528,7 +551,7 @@ export function SearchScreen({ onTabChange }: SearchScreenProps) {
       // Cerrar temporalmente el modal del coach para mostrar el modal de actividad
       setIsCoachProfileModalOpen(false)
     } else {
-      setNavigationContext(null)
+      setNavigationContext(undefined)
     }
 
     setIsPreviewModalOpen(true)
@@ -538,7 +561,7 @@ export function SearchScreen({ onTabChange }: SearchScreenProps) {
   const handleReturnToCoach = () => {
     setIsPreviewModalOpen(false)
     setSelectedActivity(null)
-    setNavigationContext(null)
+    setNavigationContext(undefined)
 
     // Reabrir el modal del perfil del coach
     if (selectedCoachForProfile) {
@@ -555,7 +578,7 @@ export function SearchScreen({ onTabChange }: SearchScreenProps) {
       setIsCoachProfileModalOpen(false)
       setSelectedActivity(null)
       setSelectedCoachForProfile(null)
-      setNavigationContext(null)
+      setNavigationContext(undefined)
       setNavigationStack([])
       return
     }
@@ -583,7 +606,7 @@ export function SearchScreen({ onTabChange }: SearchScreenProps) {
         setIsCoachProfileModalOpen(false)
         setSelectedActivity(null)
         setSelectedCoachForProfile(null)
-        setNavigationContext(null)
+        setNavigationContext(undefined)
       }
     } else if (lastItem.type === 'coach') {
       // Si cerramos un coach, verificar si hay una actividad anterior
@@ -602,7 +625,7 @@ export function SearchScreen({ onTabChange }: SearchScreenProps) {
         setIsCoachProfileModalOpen(false)
         setSelectedActivity(null)
         setSelectedCoachForProfile(null)
-        setNavigationContext(null)
+        setNavigationContext(undefined)
       }
     }
   }, [navigationStack])
@@ -615,22 +638,13 @@ export function SearchScreen({ onTabChange }: SearchScreenProps) {
       const coach = displayedCoaches?.find(c => c.id === coachId)
 
       if (coach) {
-        // Agregar coach a la pila de navegación
         setNavigationStack(prev => {
-          const newStack = [...prev, {
-            type: 'coach',
+          const newTypedStack: Array<{ type: 'activity' | 'coach'; data: any; context?: any }> = [...prev, {
+            type: 'coach' as const,
             data: coach,
             context: { fromActivity: true, activityId: selectedActivity?.id }
           }]
-
-          console.log('👨‍💼 SearchScreen: Navegando a coach', {
-            coachId: coach.id,
-            coachName: coach.name || coach.full_name,
-            fromActivity: true,
-            newStackLength: newStack.length,
-            stack: newStack.map(item => ({ type: item.type, id: item.data?.id || item.data?.title }))
-          })
-          return newStack
+          return newTypedStack
         })
 
         // Pre-cargar el coach para navegación futura
@@ -649,20 +663,12 @@ export function SearchScreen({ onTabChange }: SearchScreenProps) {
           if (foundCoach) {
             // Agregar coach a la pila de navegación
             setNavigationStack(prev => {
-              const newStack = [...prev, {
-                type: 'coach',
+              const newTypedStack: Array<{ type: 'activity' | 'coach'; data: any; context?: any }> = [...prev, {
+                type: 'coach' as const,
                 data: foundCoach,
                 context: { fromActivity: true, activityId: selectedActivity?.id }
               }]
-
-              console.log('👨‍💼 SearchScreen: Navegando a coach encontrado', {
-                coachId: foundCoach.id,
-                coachName: foundCoach.name || foundCoach.full_name,
-                fromActivity: true,
-                newStackLength: newStack.length,
-                stack: newStack.map(item => ({ type: item.type, id: item.data?.id || item.data?.title }))
-              })
-              return newStack
+              return newTypedStack
             })
 
             // Pre-cargar el coach para navegación futura
@@ -690,7 +696,7 @@ export function SearchScreen({ onTabChange }: SearchScreenProps) {
       full_name: activity.full_name,
       specialization: activity.specialization,
       coach_name: activity.coach_name,
-      coach_experience_years: activity.coach_experience_years,
+      coach_experience_years: activity.coach_experience_years || 0,
       coach_avg_rating: activity.coach_rating,
       media: activity.media
     }
@@ -741,449 +747,295 @@ export function SearchScreen({ onTabChange }: SearchScreenProps) {
 
       {/* Main content */}
       <div className="px-4 pt-4">
-        <div className="flex items-center justify-between mb-4">
-          <h2 className="text-md font-medium flex items-center">
-            <User className="h-5 w-5 mr-2 text-[#FF7939]" />
-            Coaches
-          </h2>
-          <button
-            onClick={() => {
-              const newExpanded = expandedSection === 'coaches' ? null : 'coaches'
-              setExpandedSection(newExpanded)
-              setShowAllCoaches(newExpanded === 'coaches')
-              if (newExpanded !== 'coaches') {
-                // Limpiar filtros cuando se colapsa
-                setSearchTerm("")
-                setSelectedCategory("all")
-                setSelectedFitnessType("all")
-                setShowFilters(false)
-              }
-            }}
-            className="text-[#FF7939] flex items-center hover:text-[#FF6B00] transition-colors"
-          >
-            <span>{expandedSection === 'coaches' ? 'Ver menos' : 'Ver más'}</span>
-            <ChevronRight
-              size={20}
-              className={`ml-1 transition-transform ${expandedSection === 'coaches' ? 'rotate-90' : ''}`}
-            />
-          </button>
-        </div>
-
-        {/* Barra de búsqueda y filtros para coaches */}
-        {expandedSection === 'coaches' && (
-          <div className="mb-4">
-            <div className="relative">
-              <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-gray-400" />
-              <input
-                type="text"
-                placeholder="Buscar coaches por nombre o especialización..."
-                value={searchTerm}
-                onChange={(e) => setSearchTerm(e.target.value)}
-                className="w-full pl-10 pr-12 py-3 bg-[#2A2A2A] border border-[#3A3A3A] rounded-lg text-white placeholder:text-gray-400 focus:outline-none focus:border-[#FF7939] focus:ring-1 focus:ring-[#FF7939]"
-              />
+        {/* Header integrado cuando está expandido */}
+        {expandedSection && (
+          <div className="space-y-4 mb-6">
+            <div className="flex items-center gap-3">
               <button
-                onClick={() => setShowFilters(!showFilters)}
-                className="absolute right-3 top-1/2 transform -translate-y-1/2 text-gray-400 hover:text-[#FF7939] transition-colors"
+                onClick={() => {
+                  setExpandedSection(null)
+                  setShowAllCoaches(false)
+                  setShowAllActivities(false)
+                }}
+                className="flex items-center justify-center w-10 h-10 rounded-full bg-white/5 border border-white/10 text-[#FF7939] hover:bg-white/10 transition-all"
               >
-                <Filter className="h-4 w-4" />
+                <ArrowLeft className="h-5 w-5" />
               </button>
-            </div>
 
-            {/* Filtros */}
-            {showFilters && (
-              <div className="mt-4 bg-[#1E1E1E] rounded-lg p-4 space-y-4">
-                {/* Filtro de categoría */}
-                <div>
-                  <label className="block text-sm font-medium text-gray-300 mb-2">
-                    Especialización
-                  </label>
-                  <div className="flex gap-2 flex-wrap">
-                    {[
-                      { value: "all", label: "Todos" },
-                      { value: "nutricion", label: "Nutrición" },
-                      { value: "fitness", label: "Fitness" }
-                    ].map((option) => (
-                      <button
-                        key={option.value}
-                        onClick={() => {
-                          setSelectedCategory(option.value)
-                          if (option.value !== "fitness") {
-                            setSelectedFitnessType("all")
-                          }
-                        }}
-                        className={`px-3 py-1 rounded-full text-sm transition-colors ${selectedCategory === option.value
-                          ? "bg-[#FF7939] text-white"
-                          : "bg-[#3A3A3A] text-gray-300 hover:bg-[#4A4A4A]"
-                          }`}
-                      >
-                        {option.label}
-                      </button>
-                    ))}
-                  </div>
+              <div className="flex flex-1 items-center gap-2 overflow-hidden">
+                <div className="flex gap-1.5 overflow-x-auto no-scrollbar py-1">
+                  {[
+                    { id: 'fitness', label: 'Fitness', icon: <Dumbbell className="w-3 h-3" /> },
+                    { id: 'nutricion', label: 'Nutrición', icon: <ChefHat className="w-3 h-3" /> },
+                    ...(expandedSection === 'coaches' ? [{ id: 'general', label: 'General', icon: <Zap className="w-3 h-3" /> }] : [])
+                  ].map(cat => (
+                    <button
+                      key={cat.id}
+                      onClick={() => {
+                        setSelectedCategory(prev => prev === cat.id ? 'all' : cat.id)
+                      }}
+                      className={`flex items-center gap-1.5 px-3 py-1.5 rounded-full border transition-all ${selectedCategory === cat.id
+                        ? 'bg-[#FF7939] border-[#FF7939] text-white shadow-[0_0_10px_rgba(255,121,57,0.2)]'
+                        : 'bg-white/5 border-white/10 text-white/50 hover:bg-white/10'
+                        }`}
+                    >
+                      {cat.icon}
+                      <span className="text-[11px] font-bold whitespace-nowrap">{cat.label}</span>
+                    </button>
+                  ))}
                 </div>
 
-                {/* Filtro de tipo de fitness (solo si fitness está seleccionado) */}
-                {selectedCategory === "fitness" && (
-                  <div>
-                    <label className="block text-sm font-medium text-gray-300 mb-2">
-                      Tipo de fitness
-                    </label>
-                    <div className="flex gap-2 flex-wrap">
-                      {[
-                        { value: "all", label: "Todos" },
-                        { value: "fuerza", label: "Fuerza" },
-                        { value: "aerobico", label: "Aeróbico" },
-                        { value: "deporte", label: "Deporte" },
-                        { value: "funcional", label: "Funcional" }
-                      ].map((option) => (
-                        <button
-                          key={option.value}
-                          onClick={() => setSelectedFitnessType(option.value)}
-                          className={`px-3 py-1 rounded-full text-sm transition-colors ${selectedFitnessType === option.value
-                            ? "bg-[#FF7939] text-white"
-                            : "bg-[#3A3A3A] text-gray-300 hover:bg-[#4A4A4A]"
-                            }`}
-                        >
-                          {option.label}
-                        </button>
-                      ))}
-                    </div>
-                  </div>
-                )}
-
-                {/* Botón para limpiar filtros */}
-                <div className="flex justify-end">
-                  <button
-                    onClick={() => {
-                      setSearchTerm("")
-                      setSelectedCategory("all")
-                      setSelectedFitnessType("all")
+                <div className="relative flex-1 min-w-[120px]">
+                  <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-white/20" />
+                  <input
+                    type="text"
+                    value={searchTerm}
+                    onChange={(e) => handleSearchChange(e.target.value)}
+                    onKeyDown={(e) => {
+                      if (e.key === 'Enter') {
+                        setShowSuggestions(false)
+                      }
                     }}
-                    className="px-4 py-2 text-sm text-gray-400 hover:text-white transition-colors"
-                  >
-                    Limpiar filtros
-                  </button>
-                </div>
-              </div>
-            )}
-
-            {/* Indicador de filtros activos */}
-            {(searchTerm.trim() || selectedCategory !== "all" || selectedFitnessType !== "all") && (
-              <div className="mt-2 flex items-center gap-2 text-xs text-[#FF7939]">
-                <Filter className="h-3 w-3" />
-                <span>Filtros activos:</span>
-                {searchTerm.trim() && <span className="bg-[#FF7939]/20 px-2 py-1 rounded">"{searchTerm}"</span>}
-                {selectedCategory !== "all" && <span className="bg-[#FF7939]/20 px-2 py-1 rounded">{selectedCategory}</span>}
-                {selectedCategory === "fitness" && selectedFitnessType !== "all" && <span className="bg-[#FF7939]/20 px-2 py-1 rounded">{selectedFitnessType}</span>}
-              </div>
-            )}
-          </div>
-        )}
-
-        {/* Loading state - Optimizado */}
-        {isLoading && !filteredCoaches.length && (
-          <div className="flex flex-col items-center justify-center py-10">
-            <Loader2 className="h-8 w-8 text-[#FF7939] animate-spin mb-2" />
-            <p className="text-gray-400 animate-pulse">Cargando coaches...</p>
-          </div>
-        )}
-
-
-        {/* Empty state */}
-        {/* Estados de carga y error */}
-        {isLoading && (
-          <div className="overflow-x-auto">
-            <div className="flex gap-1" style={{ minWidth: "min-content" }}>
-              {Array.from({ length: 3 }).map((_, index) => (
-                <CoachCardSkeleton key={index} />
-              ))}
-            </div>
-          </div>
-        )}
-
-        {/* Estado de error */}
-        {!isLoading && error && (
-          <div className="text-center py-10">
-            <p className="text-red-400 mb-4">Error al cargar coaches</p>
-            <button
-              onClick={handleRetry}
-              className="bg-[#FF7939] hover:bg-[#FF6B00] text-white px-4 py-2 rounded-lg transition-colors"
-            >
-              Intentar de nuevo
-            </button>
-          </div>
-        )}
-
-        {/* Estado vacío */}
-        {!isLoading && !error && filteredCoaches.length === 0 && (
-          <NoCoachesFallback onRetry={handleRetry} />
-        )}
-
-        {/* Coach cards - Vista expandible */}
-        {!isLoading && !error && filteredCoaches.length > 0 && (
-          <div className={showAllCoaches ? "grid grid-cols-2 gap-4" : "overflow-x-auto"}>
-            <div className={showAllCoaches ? "contents" : "flex gap-4"} style={!showAllCoaches ? { minWidth: "min-content" } : undefined}>
-              {filteredCoaches.map((coach) => {
-                return (
-                  <CoachProfileCard
-                    key={coach.id}
-                    coach={coach}
-                    size={showAllCoaches ? "medium" : "small"}
-                    onClick={() => {
-                      console.log("🖱️ [SearchScreen] Clicked coach card:", coach.id, {
-                        name: coach.name,
-                        avatar: coach.avatar_url,
-                        location: coach.location
-                      });
-                      // Agregar coach a la pila de navegación (desde search)
-                      setNavigationStack(prev => [...prev, {
-                        type: 'coach',
-                        data: coach,
-                        context: { fromSearch: true }
-                      }])
-
-                      // Pre-cargar el coach para navegación futura
-                      preloadCoach(coach.id, coach)
-
-                      setSelectedCoachForProfile(coach)
-                      setIsCoachProfileModalOpen(true)
-                    }}
+                    placeholder="Buscar..."
+                    className="w-full bg-white/5 border border-white/10 rounded-xl pl-9 pr-3 py-2 text-sm text-white placeholder:text-white/20 focus:outline-none focus:ring-1 focus:ring-[#FF7939]/50 transition-all"
+                    onFocus={() => setShowSuggestions(searchSuggestions.length > 0)}
                   />
-                )
-              })}
-            </div>
-          </div>
-        )}
-      </div>
-
-      <div className="px-4 pt-4">
-        {/* Sección de Rutinas Destacadas */}
-        <div className="mb-8">
-          <div className="flex justify-between items-center mb-4">
-            <h2 className="text-md font-medium flex items-center">
-              <ShoppingCart className="h-5 w-5 mr-2 text-[#FF7939]" />
-              Actividades
-            </h2>
-            <button
-              onClick={() => {
-                const newExpanded = expandedSection === 'activities' ? null : 'activities'
-                setExpandedSection(newExpanded)
-                setShowAllActivities(newExpanded === 'activities')
-                if (newExpanded !== 'activities') {
-                  // Limpiar filtros cuando se colapsa
-                  setSearchTerm("")
-                  setSelectedProgramType("all")
-                  setSelectedCategory("all")
-                  setSelectedFitnessType("all")
-                  setShowFilters(false)
-                }
-              }}
-              className="text-[#FF7939] flex items-center hover:text-[#FF6B00] transition-colors"
-            >
-              <span>{expandedSection === 'activities' ? 'Ver menos' : 'Ver más'}</span>
-              <ChevronRight
-                size={20}
-                className={`ml-1 transition-transform ${expandedSection === 'activities' ? 'rotate-90' : ''}`}
-              />
-            </button>
-          </div>
-
-          {/* Barra de búsqueda y filtros para actividades */}
-          {expandedSection === 'activities' && (
-            <div className="mb-4">
-              <div className="relative">
-                <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-gray-400" />
-                <input
-                  type="text"
-                  placeholder="Buscar actividades por nombre o coach..."
-                  value={searchTerm}
-                  onChange={(e) => setSearchTerm(e.target.value)}
-                  className="w-full pl-10 pr-12 py-3 bg-[#2A2A2A] border border-[#3A3A3A] rounded-lg text-white placeholder:text-gray-400 focus:outline-none focus:border-[#FF7939] focus:ring-1 focus:ring-[#FF7939]"
-                />
-                <button
-                  onClick={() => setShowFilters(!showFilters)}
-                  className="absolute right-3 top-1/2 transform -translate-y-1/2 text-gray-400 hover:text-[#FF7939] transition-colors"
-                >
-                  <Filter className="h-4 w-4" />
-                </button>
-              </div>
-
-              {/* Filtros */}
-              {showFilters && (
-                <div className="mt-4 bg-[#1E1E1E] rounded-lg p-4 space-y-4">
-                  {/* Filtro de tipo de programa */}
-                  <div>
-                    <label className="block text-sm font-medium text-gray-300 mb-2">
-                      Tipo de programa
-                    </label>
-                    <div className="flex gap-2 flex-wrap">
-                      {[
-                        { value: "all", label: "Todos" },
-                        { value: "programa", label: "Programa" },
-                        { value: "taller", label: "Taller" },
-                        { value: "documento", label: "Documento" }
-                      ].map((option) => (
+                  {showSuggestions && (
+                    <div className="absolute top-full left-0 right-0 mt-2 bg-[#1A1A1A] border border-white/10 rounded-xl overflow-hidden z-50 shadow-2xl">
+                      {searchSuggestions.map((suggestion, i) => (
                         <button
-                          key={option.value}
-                          onClick={() => setSelectedProgramType(option.value)}
-                          className={`px-3 py-1 rounded-full text-sm transition-colors ${selectedProgramType === option.value
-                            ? "bg-[#FF7939] text-white"
-                            : "bg-[#3A3A3A] text-gray-300 hover:bg-[#4A4A4A]"
-                            }`}
+                          key={i}
+                          onClick={() => handleSuggestionClick(suggestion)}
+                          className="w-full text-left px-4 py-2 hover:bg-white/10 text-xs text-white/80 transition-colors border-b border-white/5 last:border-0"
                         >
-                          {option.label}
+                          {suggestion}
                         </button>
                       ))}
-                    </div>
-                  </div>
-
-                  {/* Filtro de categoría */}
-                  <div>
-                    <label className="block text-sm font-medium text-gray-300 mb-2">
-                      Categoría
-                    </label>
-                    <div className="flex gap-2 flex-wrap">
-                      {[
-                        { value: "all", label: "Todos" },
-                        { value: "nutricion", label: "Nutrición" },
-                        { value: "fitness", label: "Fitness" }
-                      ].map((option) => (
-                        <button
-                          key={option.value}
-                          onClick={() => {
-                            setSelectedCategory(option.value)
-                            if (option.value !== "fitness") {
-                              setSelectedFitnessType("all")
-                            }
-                          }}
-                          className={`px-3 py-1 rounded-full text-sm transition-colors ${selectedCategory === option.value
-                            ? "bg-[#FF7939] text-white"
-                            : "bg-[#3A3A3A] text-gray-300 hover:bg-[#4A4A4A]"
-                            }`}
-                        >
-                          {option.label}
-                        </button>
-                      ))}
-                    </div>
-                  </div>
-
-                  {/* Filtro de tipo de fitness (solo si fitness está seleccionado) */}
-                  {selectedCategory === "fitness" && (
-                    <div>
-                      <label className="block text-sm font-medium text-gray-300 mb-2">
-                        Tipo de fitness
-                      </label>
-                      <div className="flex gap-2 flex-wrap">
-                        {[
-                          { value: "all", label: "Todos" },
-                          { value: "fuerza", label: "Fuerza" },
-                          { value: "aerobico", label: "Aeróbico" },
-                          { value: "deporte", label: "Deporte" },
-                          { value: "funcional", label: "Funcional" }
-                        ].map((option) => (
-                          <button
-                            key={option.value}
-                            onClick={() => setSelectedFitnessType(option.value)}
-                            className={`px-3 py-1 rounded-full text-sm transition-colors ${selectedFitnessType === option.value
-                              ? "bg-[#FF7939] text-white"
-                              : "bg-[#3A3A3A] text-gray-300 hover:bg-[#4A4A4A]"
-                              }`}
-                          >
-                            {option.label}
-                          </button>
-                        ))}
-                      </div>
                     </div>
                   )}
-
-                  {/* Botón para limpiar filtros */}
-                  <div className="flex justify-end">
-                    <button
-                      onClick={() => {
-                        setSearchTerm("")
-                        setSelectedProgramType("all")
-                        setSelectedCategory("all")
-                        setSelectedFitnessType("all")
-                      }}
-                      className="px-4 py-2 text-sm text-gray-400 hover:text-white transition-colors"
-                    >
-                      Limpiar filtros
-                    </button>
-                  </div>
                 </div>
-              )}
-
-              {/* Indicador de filtros activos */}
-              {(searchTerm.trim() || selectedProgramType !== "all" || selectedCategory !== "all" || selectedFitnessType !== "all") && (
-                <div className="mt-2 flex items-center gap-2 text-xs text-[#FF7939]">
-                  <Filter className="h-3 w-3" />
-                  <span>Filtros activos:</span>
-                  {searchTerm.trim() && <span className="bg-[#FF7939]/20 px-2 py-1 rounded">"{searchTerm}"</span>}
-                  {selectedProgramType !== "all" && <span className="bg-[#FF7939]/20 px-2 py-1 rounded">{selectedProgramType}</span>}
-                  {selectedCategory !== "all" && <span className="bg-[#FF7939]/20 px-2 py-1 rounded">{selectedCategory}</span>}
-                  {selectedCategory === "fitness" && selectedFitnessType !== "all" && <span className="bg-[#FF7939]/20 px-2 py-1 rounded">{selectedFitnessType}</span>}
-                </div>
-              )}
+              </div>
             </div>
-          )}
 
-          {isLoadingActivities || !activities ? (
-            <div className="flex justify-center py-8">
-              <Loader2 className="h-8 w-8 text-[#FF7939] animate-spin" />
-            </div>
-          ) : (
-            <div className={showAllActivities ? "grid grid-cols-2 gap-4" : "overflow-x-auto"}>
-              <div className={showAllActivities ? "contents" : "flex gap-4"} style={{ minWidth: "min-content" }}>
-                {(activities || []).map((activity) => (
-                  <ActivityCard
-                    key={activity.id}
-                    activity={activity}
-                    size={showAllActivities ? "medium" : "small"}
-                    onClick={(selectedActivity) => {
-                      handleActivityClick(selectedActivity)
+            {/* Objetivos en una sola fila con scroll horizontal */}
+            <div className="space-y-2">
+              <div className="text-[10px] font-black text-white/30 uppercase tracking-[0.2em] pl-1">Filtrar por Objetivos</div>
+              <div className="flex gap-2 overflow-x-auto no-scrollbar pb-2 px-0.5">
+                {COMMON_OBJECTIVES.map(obj => (
+                  <button
+                    key={obj}
+                    onClick={() => {
+                      setSelectedObjectives(prev =>
+                        prev.includes(obj) ? prev.filter(o => o !== obj) : [...prev, obj]
+                      )
                     }}
-                  />
+                    className={`flex-shrink-0 px-4 py-1.5 rounded-full text-xs font-bold transition-all border ${selectedObjectives.includes(obj)
+                      ? 'bg-[#FF7939]/20 border-[#FF7939] text-[#FF7939]'
+                      : 'bg-white/5 border-white/5 text-white/30 hover:bg-white/10'
+                      }`}
+                  >
+                    {obj}
+                  </button>
                 ))}
               </div>
             </div>
-          )}
-        </div>
-      </div>
+
+            {/* Contador, Search Tag y Borrar Filtros */}
+            <div className="flex items-center gap-3 pl-1 overflow-x-auto no-scrollbar">
+              <div className="text-xs text-white/40 whitespace-nowrap">
+                Encontramos <span className="text-[#FF7939] font-black">
+                  {expandedSection === 'coaches' ? filteredCoaches.length : filteredActivities.length}
+                </span> resultados
+              </div>
+
+              {/* Tag de término de búsqueda borrable */}
+              {searchTerm && (
+                <div className="flex items-center gap-2 bg-[#FF7939]/10 border border-[#FF7939]/20 px-3 py-1 rounded-full flex-shrink-0">
+                  <span className="text-[11px] font-bold text-[#FF7939]">{searchTerm}</span>
+                  <button
+                    onClick={() => setSearchTerm("")}
+                    className="p-0.5 hover:bg-[#FF7939]/20 rounded-full text-[#FF7939] transition-colors"
+                  >
+                    <X className="w-3 h-3" />
+                  </button>
+                </div>
+              )}
+
+              {(searchTerm || selectedCategory !== 'all' || selectedObjectives.length > 0) && (
+                <button
+                  onClick={() => {
+                    setSearchTerm("")
+                    setSelectedCategory("all")
+                    setSelectedObjectives([])
+                    setSelectedFitnessType("all")
+                    setSelectedProgramType("all")
+                  }}
+                  className="text-[11px] text-[#FF7939] hover:underline font-black uppercase tracking-wider flex-shrink-0"
+                >
+                  Borrar todo
+                </button>
+              )}
+            </div>
+          </div>
+        )}
+
+        {(expandedSection === null || expandedSection === 'coaches') && (
+          <div className="mb-8">
+            <div className="flex items-center justify-between mb-4">
+              <h2 className="text-md font-medium flex items-center">
+                <User className="h-5 w-5 mr-2 text-[#FF7939]" />
+                Coaches
+              </h2>
+            </div>
+
+            {/* Barra de búsqueda y filtros para coaches eliminada para evitar duplicidad con la barra superior de flujo */}
+
+            {/* Loading state - Optimizado */}
+            {isLoading && !filteredCoaches.length && (
+              <div className="flex flex-col items-center justify-center py-10">
+                <Loader2 className="h-8 w-8 text-[#FF7939] animate-spin mb-2" />
+                <p className="text-gray-400 animate-pulse">Cargando coaches...</p>
+              </div>
+            )}
 
 
-      {/* Activity Preview Modal */}
-      {selectedActivity && (
-        <>
-          <ClientProductModal
-            product={selectedActivity}
-            isOpen={isPreviewModalOpen}
-            onClose={handleModalClose}
-            navigationContext={navigationContext}
-            onTabChange={onTabChange}
-            onCoachClick={(coachId) => {
-              const coach = displayedCoaches?.find(c => c.id === coachId)
-              if (coach) {
-                setSelectedCoachForProfile(coach)
-                setIsCoachProfileModalOpen(true)
-              }
+            {/* Empty state */}
+            {/* Estados de carga y error */}
+            {isLoading && (
+              <div className="overflow-x-auto">
+                <div className="flex gap-1" style={{ minWidth: "min-content" }}>
+                  {Array.from({ length: 3 }).map((_, index) => (
+                    <CoachCardSkeleton key={index} />
+                  ))}
+                </div>
+              </div>
+            )}
+
+            {/* Estado de error */}
+            {!isLoading && error && (
+              <div className="text-center py-10">
+                <p className="text-red-400 mb-4">Error al cargar coaches</p>
+                <button
+                  onClick={handleRetry}
+                  className="bg-[#FF7939] hover:bg-[#FF6B00] text-white px-4 py-2 rounded-lg transition-colors"
+                >
+                  Intentar de nuevo
+                </button>
+              </div>
+            )}
+
+            {/* Estado vacío */}
+            {!isLoading && !error && filteredCoaches.length === 0 && (
+              <NoCoachesFallback onRetry={handleRetry} />
+            )}
+
+            {/* Coach cards - Restaurado scroll horizontal */}
+            {!isLoading && !error && filteredCoaches.length > 0 && (
+              <div className="overflow-x-auto no-scrollbar">
+                <div className="flex gap-4 pb-4 px-1" style={{ minWidth: "min-content" }}>
+                  {filteredCoaches.map((coach) => {
+                    return (
+                      <CoachProfileCard
+                        key={coach.id}
+                        coach={coach}
+                        size="small"
+                        onClick={() => {
+                          console.log("🖱️ [SearchScreen] Clicked coach card:", coach.id, {
+                            name: coach.name,
+                            avatar: coach.avatar_url,
+                            location: coach.location
+                          });
+                          // Agregar coach a la pila de navegación (desde search)
+                          setNavigationStack(prev => [...prev, {
+                            type: 'coach',
+                            data: coach,
+                            context: { fromSearch: true }
+                          }])
+
+                          // Pre-cargar el coach para navegación futura
+                          preloadCoach(coach.id, coach)
+
+                          setSelectedCoachForProfile(coach)
+                          setIsCoachProfileModalOpen(true)
+                        }}
+                      />
+                    )
+                  })}
+                </div>
+              </div>
+            )}
+          </div>
+        )}
+
+        {(expandedSection === null || expandedSection === 'activities') && (
+          <div className="px-4 pt-4">
+            {/* Sección de Rutinas Destacadas */}
+            <div className="mb-8">
+              <div className="flex justify-between items-center mb-4">
+                <h2 className="text-md font-medium flex items-center">
+                  <ShoppingCart className="h-5 w-5 mr-2 text-[#FF7939]" />
+                  Actividades
+                </h2>
+              </div>
+
+              {/* Barra de búsqueda y filtros para actividades eliminada para evitar duplicidad */}
+
+              {isLoadingActivities || !activities ? (
+                <div className="flex justify-center py-8">
+                  <Loader2 className="h-8 w-8 text-[#FF7939] animate-spin" />
+                </div>
+              ) : (
+                <div className="overflow-x-auto no-scrollbar">
+                  <div className="flex gap-4 pb-4 px-1" style={{ minWidth: "min-content" }}>
+                    {(activities || []).map((activity) => (
+                      <ActivityCard
+                        key={activity.id}
+                        activity={activity}
+                        size="small"
+                        onClick={handleActivityClick}
+                      />
+                    ))}
+                  </div>
+                </div>
+              )}
+            </div>
+          </div>
+        )}
+
+
+        {/* Activity Preview Modal */}
+        {selectedActivity && (
+          <>
+            <ClientProductModal
+              product={selectedActivity}
+              isOpen={isPreviewModalOpen}
+              onClose={handleModalClose}
+              navigationContext={navigationContext}
+              onCoachClick={(coachId) => {
+                const coach = displayedCoaches?.find(c => c.id === coachId)
+                if (coach) {
+                  setSelectedCoachForProfile(coach)
+                  setIsCoachProfileModalOpen(true)
+                }
+              }}
+            />
+          </>
+        )}
+
+        {/* Coach Profile Modal */}
+        {selectedCoachForProfile && (
+          <CoachProfileModal
+            coach={selectedCoachForProfile}
+            isOpen={isCoachProfileModalOpen}
+            onClose={() => {
+              setIsCoachProfileModalOpen(false)
+              setSelectedCoachForProfile(null)
             }}
+            onActivityClick={handleActivityClick}
+            preloadedActivities={allActivities} // Pasar todas las actividades ya cargadas (sin filtrar)
           />
-        </>
-      )}
-
-      {/* Coach Profile Modal */}
-      {selectedCoachForProfile && (
-        <CoachProfileModal
-          coach={selectedCoachForProfile}
-          isOpen={isCoachProfileModalOpen}
-          onClose={() => {
-            handleModalClose()
-          }}
-          onActivityClick={handleActivityClick}
-          preloadedActivities={allActivities} // Pasar todas las actividades ya cargadas (sin filtrar)
-        />
-      )}
-
+        )}
+      </div>
     </div>
   )
 }

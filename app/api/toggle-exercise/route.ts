@@ -126,20 +126,30 @@ async function recalcAndUpsertDailySummary(opts: {
   supabase: any
   clienteId: string
   fecha: string
+  enrollmentId?: string | number
 }) {
-  const { supabase, clienteId, fecha } = opts
+  const { supabase, clienteId, fecha, enrollmentId } = opts
+
+  let fitQuery = supabase
+    .from('progreso_cliente')
+    .select('fecha, ejercicios_completados, ejercicios_pendientes, minutos_json, calorias_json')
+    .eq('cliente_id', clienteId)
+    .eq('fecha', fecha)
+
+  let nutriQuery = supabase
+    .from('progreso_cliente_nutricion')
+    .select('fecha, ejercicios_completados, ejercicios_pendientes, macros')
+    .eq('cliente_id', clienteId)
+    .eq('fecha', fecha)
+
+  if (enrollmentId) {
+    fitQuery = fitQuery.eq('enrollment_id', enrollmentId)
+    nutriQuery = nutriQuery.eq('enrollment_id', enrollmentId)
+  }
 
   const [{ data: fitRows, error: fitErr }, { data: nutriRows, error: nutriErr }] = await Promise.all([
-    supabase
-      .from('progreso_cliente')
-      .select('fecha, ejercicios_completados, ejercicios_pendientes, minutos_json, calorias_json')
-      .eq('cliente_id', clienteId)
-      .eq('fecha', fecha),
-    supabase
-      .from('progreso_cliente_nutricion')
-      .select('fecha, ejercicios_completados, ejercicios_pendientes, macros')
-      .eq('cliente_id', clienteId)
-      .eq('fecha', fecha)
+    fitQuery,
+    nutriQuery
   ])
 
   if (fitErr) console.error('❌ [toggle-exercise] daily summary: error leyendo progreso_cliente', fitErr)
@@ -279,8 +289,8 @@ async function recalcAndUpsertDailySummary(opts: {
 
 export async function POST(request: NextRequest) {
   try {
-    const { executionId, bloque, orden, fecha, categoria, activityId } = await request.json()
-    
+    const { executionId, bloque, orden, fecha, categoria, activityId, enrollmentId } = await request.json()
+
     if (!executionId) {
       return NextResponse.json({ error: 'executionId requerido' }, { status: 400 })
     }
@@ -291,7 +301,7 @@ export async function POST(request: NextRequest) {
 
     const supabase = await createRouteHandlerClient()
     const { data: { session }, error: sessionError } = await supabase.auth.getSession()
-    
+
     if (sessionError || !session) {
       return NextResponse.json({ error: 'No autorizado' }, { status: 401 })
     }
@@ -346,12 +356,18 @@ export async function POST(request: NextRequest) {
     let progressError: any = null
 
     for (const table of candidateTables) {
-      let { data, error } = await supabase
+      let query = supabase
         .from(table)
         .select(getSelectFieldsForTable(table))
         .eq('cliente_id', user.id)
         .eq('actividad_id', Number(activityId))
         .eq('fecha', targetDate)
+
+      if (enrollmentId) {
+        query = query.eq('enrollment_id', enrollmentId)
+      }
+
+      let { data, error } = await query
         .order('id', { ascending: false })
         .limit(1)
 
@@ -542,47 +558,47 @@ export async function POST(request: NextRequest) {
 
     // Parsear objetos de ejercicios según el tipo de tabla
     let completados: any = {}, pendientes: any = {}, detallesSeries: any = {}
-    
+
     if (progressTable === 'progreso_cliente_nutricion') {
       // Nutrición: ejercicios_pendientes es un objeto con estructura de array
-      completados = progressRecord.ejercicios_completados 
-        ? (typeof progressRecord.ejercicios_completados === 'string' 
-            ? JSON.parse(progressRecord.ejercicios_completados) 
-            : progressRecord.ejercicios_completados)
+      completados = progressRecord.ejercicios_completados
+        ? (typeof progressRecord.ejercicios_completados === 'string'
+          ? JSON.parse(progressRecord.ejercicios_completados)
+          : progressRecord.ejercicios_completados)
         : {}
-      pendientes = progressRecord.ejercicios_pendientes 
-        ? (typeof progressRecord.ejercicios_pendientes === 'string' 
-            ? JSON.parse(progressRecord.ejercicios_pendientes) 
-            : progressRecord.ejercicios_pendientes)
+      pendientes = progressRecord.ejercicios_pendientes
+        ? (typeof progressRecord.ejercicios_pendientes === 'string'
+          ? JSON.parse(progressRecord.ejercicios_pendientes)
+          : progressRecord.ejercicios_pendientes)
         : {}
       // En nutrición no hay detalles_series, usamos el array de ejercicios_pendientes
     } else {
       // Fitness: estructura tradicional
-      completados = progressRecord.ejercicios_completados 
-        ? (typeof progressRecord.ejercicios_completados === 'string' 
-            ? JSON.parse(progressRecord.ejercicios_completados) 
-            : progressRecord.ejercicios_completados)
+      completados = progressRecord.ejercicios_completados
+        ? (typeof progressRecord.ejercicios_completados === 'string'
+          ? JSON.parse(progressRecord.ejercicios_completados)
+          : progressRecord.ejercicios_completados)
         : {}
-      pendientes = progressRecord.ejercicios_pendientes 
-        ? (typeof progressRecord.ejercicios_pendientes === 'string' 
-            ? JSON.parse(progressRecord.ejercicios_pendientes) 
-            : progressRecord.ejercicios_pendientes)
+      pendientes = progressRecord.ejercicios_pendientes
+        ? (typeof progressRecord.ejercicios_pendientes === 'string'
+          ? JSON.parse(progressRecord.ejercicios_pendientes)
+          : progressRecord.ejercicios_pendientes)
         : {}
-      detallesSeries = progressRecord.detalles_series 
-        ? (typeof progressRecord.detalles_series === 'string' 
-            ? JSON.parse(progressRecord.detalles_series) 
-            : progressRecord.detalles_series)
+      detallesSeries = progressRecord.detalles_series
+        ? (typeof progressRecord.detalles_series === 'string'
+          ? JSON.parse(progressRecord.detalles_series)
+          : progressRecord.detalles_series)
         : {}
     }
 
     const ejercicioId = parseInt(executionId)
-    
+
     let ejercicioKey = null
-    
+
     if (progressTable === 'progreso_cliente_nutricion') {
       // Nutrición: buscar en el array de ejercicios_pendientes
       if (pendientes.ejercicios && Array.isArray(pendientes.ejercicios)) {
-        const ejercicio = (pendientes.ejercicios as any[]).find((e: any) => 
+        const ejercicio = (pendientes.ejercicios as any[]).find((e: any) =>
           Number(e.id) === ejercicioId && Number(e.bloque) === bloqueNum && Number(e.orden) === ordenNum
         )
         if (ejercicio) {
@@ -602,10 +618,10 @@ export async function POST(request: NextRequest) {
       // Fitness: buscar en detalles_series
       for (const key of Object.keys(detallesSeries)) {
         const detalle = detallesSeries[key]
-        if (detalle && 
-            detalle.ejercicio_id === ejercicioId && 
-            detalle.bloque === bloqueNum &&
-            detalle.orden === ordenNum) {
+        if (detalle &&
+          detalle.ejercicio_id === ejercicioId &&
+          detalle.bloque === bloqueNum &&
+          detalle.orden === ordenNum) {
           ejercicioKey = key
           break
         }
@@ -619,7 +635,7 @@ export async function POST(request: NextRequest) {
       console.error('🔍 Detalles_series completo:', detallesSeries)
       return NextResponse.json({ error: 'Ejercicio no encontrado' }, { status: 404 })
     }
-    
+
     let newCompletados = { ...completados }
     let newPendientes = { ...pendientes }
     let toggledToCompleted = false
@@ -628,24 +644,24 @@ export async function POST(request: NextRequest) {
       // Nutrición: manejar arrays en ejercicios_pendientes/ejercicios_completados
       if (!newCompletados.ejercicios) newCompletados.ejercicios = []
       if (!newPendientes.ejercicios) newPendientes.ejercicios = []
-      
-      const ejercicioIndex = (newPendientes.ejercicios as any[]).findIndex((e: any) => 
+
+      const ejercicioIndex = (newPendientes.ejercicios as any[]).findIndex((e: any) =>
         e.id === ejercicioId && e.bloque === bloqueNum && e.orden === ordenNum
       )
-      
+
       if (ejercicioIndex !== -1) {
         // Mover de pendientes a completados
         const ejercicio = (newPendientes.ejercicios as any[]).splice(ejercicioIndex, 1)[0]
-        ;(newCompletados.ejercicios as any[]).push(ejercicio)
+          ; (newCompletados.ejercicios as any[]).push(ejercicio)
         toggledToCompleted = true
       } else {
         // Buscar en completados para mover a pendientes
-        const completadoIndex = (newCompletados.ejercicios as any[]).findIndex((e: any) => 
+        const completadoIndex = (newCompletados.ejercicios as any[]).findIndex((e: any) =>
           e.id === ejercicioId && e.bloque === bloqueNum && e.orden === ordenNum
         )
         if (completadoIndex !== -1) {
           const ejercicio = (newCompletados.ejercicios as any[]).splice(completadoIndex, 1)[0]
-          ;(newPendientes.ejercicios as any[]).push(ejercicio)
+            ; (newPendientes.ejercicios as any[]).push(ejercicio)
           toggledToCompleted = false
         }
       }
@@ -738,15 +754,16 @@ export async function POST(request: NextRequest) {
       const r = await recalcAndUpsertDailySummary({
         supabase,
         clienteId: user.id,
-        fecha: targetDate
+        fecha: targetDate,
+        enrollmentId
       })
       dailySummaryUpdated = !!r?.ok
     } catch (e) {
       console.error('❌ [toggle-exercise] daily summary recalc failed', e)
     }
 
-    return NextResponse.json({ 
-      success: true, 
+    return NextResponse.json({
+      success: true,
       message: 'Ejercicio actualizado exitosamente',
       ejercicioId,
       bloque,

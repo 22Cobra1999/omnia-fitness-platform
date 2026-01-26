@@ -92,19 +92,24 @@ export function ActivityScreen() {
   const [isSilentlyUpdating, setIsSilentlyUpdating] = useState(false)
   const [coaches, setCoaches] = useState<Coach[]>([])
   const [loadingCoaches, setLoadingCoaches] = useState(true)
-  const [enrollmentProgresses, setEnrollmentProgresses] = useState<Record<number, number>>({})
+  const [enrollmentProgresses, setEnrollmentProgresses] = useState<Record<string, number>>({})
   const [selectedActivityId, setSelectedActivityId] = useState<string | null>(null)
+  const [selectedEnrollmentId, setSelectedEnrollmentId] = useState<string | null>(null)
   const [showTodayScreen, setShowTodayScreen] = useState(false)
   const [searchTerm, setSearchTerm] = useState("")
+  const [showSearch, setShowSearch] = useState(false)
   const [selectedCoachForProfile, setSelectedCoachForProfile] = useState<Coach | null>(null)
   const [isCoachProfileModalOpen, setIsCoachProfileModalOpen] = useState(false)
   const [meetCredits, setMeetCredits] = useState<Record<string, number>>({})
   const [nextActivities, setNextActivities] = useState<Record<number, any>>({})
 
   // Función para manejar el click en una actividad
-  const handleActivityClick = (activityId: string) => {
+  const handleActivityClick = (activityId: string, enrollmentId?: string) => {
     // usage.onClick(activityId, { where: "PurchasedActivityCard" }) // Removido - variable no definida
     setSelectedActivityId(activityId)
+    if (enrollmentId) {
+      setSelectedEnrollmentId(enrollmentId)
+    }
     setShowTodayScreen(true)
   }
 
@@ -208,8 +213,8 @@ export function ActivityScreen() {
       const startDateString = startDate ? startDate.toISOString().split('T')[0] : new Date().toISOString().split('T')[0];
 
       // Actualizar start_date en activity_enrollments
-      const { error } = await supabase
-        .from('activity_enrollments')
+      const { error } = await (supabase
+        .from('activity_enrollments') as any)
         .update({
           start_date: startDateString,
           updated_at: new Date().toISOString()
@@ -229,7 +234,9 @@ export function ActivityScreen() {
       // Si es hoy, abrir la actividad automáticamente
       const today = new Date().toISOString().split('T')[0];
       if (startDateString === today) {
-        handleActivityClick(activityId);
+        // Encontrar el enrollment_id correspondiente para pasarlo a handleActivityClick
+        const enrollment = enrollments.find(e => e.activity_id.toString() === activityId);
+        handleActivityClick(activityId, enrollment?.id?.toString());
       }
 
     } catch (error) {
@@ -241,6 +248,7 @@ export function ActivityScreen() {
   const handleBackToActivities = useCallback(() => {
     setShowTodayScreen(false)
     setSelectedActivityId(null)
+    setSelectedEnrollmentId(null)
   }, [])
 
   // Función simple para calcular el progreso: completados / total
@@ -251,11 +259,11 @@ export function ActivityScreen() {
 
       // DOCUMENT: Calculate from client_document_progress
       if (activityType === 'document' || activityType === 'documento') {
-        const { data: progressData, error: progressError } = await supabase
-          .from('client_document_progress')
+        const { data: progressData, error: progressError } = await (supabase
+          .from('client_document_progress') as any)
           .select('completed')
           .eq('client_id', enrollment.client_id)
-          .eq('activity_id', activityId)
+          .eq('enrollment_id', enrollment.id)
 
         if (progressError) {
           console.error('❌ Error getting document progress:', progressError)
@@ -275,7 +283,7 @@ export function ActivityScreen() {
           .from('taller_progreso_temas')
           .select('asistio, fecha_seleccionada')
           .eq('cliente_id', enrollment.client_id)
-          .eq('actividad_id', activityId)
+          .eq('enrollment_id', enrollment.id)
 
         if (progressError) {
           console.error('❌ Error getting workshop progress:', progressError)
@@ -312,7 +320,7 @@ export function ActivityScreen() {
       const { data: progressRecords, error: progressError } = await supabase
         .from(tableName)
         .select("ejercicios_completados, ejercicios_pendientes")
-        .eq("actividad_id", activityId)
+        .eq("enrollment_id", enrollment.id)
         .eq("cliente_id", enrollment.client_id)
 
       if (progressError) {
@@ -326,15 +334,15 @@ export function ActivityScreen() {
 
       progressRecords?.forEach(record => {
         try {
-          const completados = record.ejercicios_completados
-            ? (typeof record.ejercicios_completados === 'string'
-              ? JSON.parse(record.ejercicios_completados)
-              : record.ejercicios_completados)
+          const completados = (record as any).ejercicios_completados
+            ? (typeof (record as any).ejercicios_completados === 'string'
+              ? JSON.parse((record as any).ejercicios_completados)
+              : (record as any).ejercicios_completados)
             : {};
-          const pendientes = record.ejercicios_pendientes
-            ? (typeof record.ejercicios_pendientes === 'string'
-              ? JSON.parse(record.ejercicios_pendientes)
-              : record.ejercicios_pendientes)
+          const pendientes = (record as any).ejercicios_pendientes
+            ? (typeof (record as any).ejercicios_pendientes === 'string'
+              ? JSON.parse((record as any).ejercicios_pendientes)
+              : (record as any).ejercicios_pendientes)
             : {};
 
           totalCompleted += Object.keys(completados).length
@@ -770,7 +778,7 @@ export function ActivityScreen() {
         // Formatted enrollments - log removido para optimización
       }
 
-      setEnrollments(formattedEnrollments)
+      setEnrollments(formattedEnrollments as any)
 
       // Obtener información completa de coaches desde user_profiles
       const coachIds = [...new Set(formattedEnrollments.map(e => e.activity.coach_id))]
@@ -1700,7 +1708,11 @@ export function ActivityScreen() {
 
     return (
       <div className="fixed inset-0 z-50" style={{ backgroundColor: '#0F1012' }}>
-        <TodayScreen activityId={selectedActivityId} onBack={handleBackToActivities} />
+        <TodayScreen
+          activityId={selectedActivityId}
+          enrollmentId={selectedEnrollmentId}
+          onBack={handleBackToActivities}
+        />
       </div>
     )
   }
@@ -1727,7 +1739,15 @@ export function ActivityScreen() {
           const purchasedCoachIds = new Set(
             enrollments.map((e) => e.activity.coach_id).filter(Boolean) as string[]
           )
-          const myCoaches = coaches.filter((c) => purchasedCoachIds.has(c.id))
+          const myCoaches = coaches.filter((c) => {
+            const isPurchased = purchasedCoachIds.has(c.id)
+            if (!isPurchased) return false
+            if (!searchTerm.trim()) return true
+            return (
+              c.full_name.toLowerCase().includes(searchTerm.toLowerCase()) ||
+              c.specialization?.toLowerCase().includes(searchTerm.toLowerCase())
+            )
+          })
           return (
             <div className="mb-2">
               <div className="flex justify-between items-center mb-4 pt-2">
@@ -1737,7 +1757,41 @@ export function ActivityScreen() {
                   </div>
                   <h2 className="text-base font-bold text-white/90 tracking-tight">Mis coaches</h2>
                 </div>
+                <Button
+                  variant="ghost"
+                  size="icon"
+                  className={`h-8 w-8 rounded-lg transition-colors ${showSearch ? 'bg-[#FF7939]/20 text-[#FF7939]' : 'text-gray-400 hover:text-white hover:bg-white/5'}`}
+                  onClick={() => {
+                    setShowSearch(!showSearch)
+                    if (showSearch) setSearchTerm("")
+                  }}
+                >
+                  {showSearch ? <X className="w-4 h-4" /> : <Search className="w-4 h-4" />}
+                </Button>
               </div>
+
+              {showSearch && (
+                <div className="mb-4 animate-in fade-in slide-in-from-top-2 duration-200">
+                  <div className="relative">
+                    <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-500" />
+                    <Input
+                      autoFocus
+                      placeholder="Buscar coaches o actividades..."
+                      value={searchTerm}
+                      onChange={(e) => setSearchTerm(e.target.value)}
+                      className="w-full bg-[#1A1B1E] border-white/5 pl-10 h-10 text-sm focus:border-[#FF7939]/50 transition-colors"
+                    />
+                    {searchTerm && (
+                      <button
+                        onClick={() => setSearchTerm("")}
+                        className="absolute right-3 top-1/2 -translate-y-1/2 p-1 text-gray-500 hover:text-gray-300 transition-colors"
+                      >
+                        <X className="w-3 h-3" />
+                      </button>
+                    )}
+                  </div>
+                </div>
+              )}
 
               {loadingCoaches ? (
                 <CoachSkeletonLoader />
