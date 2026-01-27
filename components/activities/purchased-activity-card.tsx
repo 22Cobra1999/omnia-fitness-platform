@@ -374,12 +374,8 @@ export function PurchasedActivityCard({
                         </div>
                         <div className="flex flex-col text-[11px] text-zinc-400 gap-1.5 px-1">
                           <div className="flex justify-between items-center text-orange-200">
-                            <span>Terminados:</span>
+                            <span>Completados:</span>
                             <span className="font-bold text-orange-300">{itemsCompletedTotal ?? 0}</span>
-                          </div>
-                          <div className="flex justify-between items-center opacity-80 text-red-400/60">
-                            <span>No logrados:</span>
-                            <span className="font-medium">{itemsDebtPast ?? 0}</span>
                           </div>
                           <div className="flex justify-between items-center opacity-70">
                             <span>Restantes:</span>
@@ -424,7 +420,7 @@ export function PurchasedActivityCard({
                         </div>
                         <div className="flex flex-col text-[11px] text-zinc-400 gap-1.5 px-1">
                           <div className="flex justify-between items-center text-orange-200">
-                            <span>Terminados:</span>
+                            <span>Completados:</span>
                             <span className="font-bold text-orange-300">{itemsCompletedTotal ?? 0}</span>
                           </div>
                           <div className="flex justify-between items-center opacity-80 text-red-400/60">

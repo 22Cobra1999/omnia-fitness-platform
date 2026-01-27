@@ -116,68 +116,86 @@ export function ExerciseProgressList({ userId }: ExerciseProgressListProps) {
   const saveChanges = async () => {
     setLoading(true)
     try {
-      // Guardar cada ejercicio modificado
-      const savePromises = Object.entries(editData).map(async ([exerciseId, data]) => {
-        const exercise = exercises.find(e => e.id === exerciseId)
-        if (!exercise) return
+      if (userId) {
+        // Use coach specific API for batch update
+        const objectives = Object.entries(editData).map(([id, data]) => {
+          const exercise = exercises.find(e => e.id === id)
 
-        // Convertir tiempo a segundos si es necesario
-        let currentValue = data.current
-        let objectiveValue = data.objective
+          let currentValue = data.current
+          let objectiveValue = data.objective
 
-        if (exercise.unit === "tiempo") {
-          if (data.current && data.current.includes(':')) {
-            const [hours, minutes, seconds] = data.current.split(':').map(Number)
-            currentValue = (hours * 3600 + minutes * 60 + seconds).toString()
+          if (exercise?.unit === "tiempo") {
+            if (data.current && data.current.includes(':')) {
+              const [h, m, s] = data.current.split(':').map(Number)
+              currentValue = (h * 3600 + m * 60 + s).toString()
+            }
+            if (data.objective && data.objective.includes(':')) {
+              const [h, m, s] = data.objective.split(':').map(Number)
+              objectiveValue = (h * 3600 + m * 60 + s).toString()
+            }
           }
-          if (data.objective && data.objective.includes(':')) {
-            const [hours, minutes, seconds] = data.objective.split(':').map(Number)
-            objectiveValue = (hours * 3600 + minutes * 60 + seconds).toString()
+
+          return {
+            id,
+            exercise_title: data.title,
+            current_value: parseFloat(currentValue || '0'),
+            objective: parseFloat(objectiveValue || '0'),
+            unit: exercise?.unit
           }
-        }
+        })
 
-        // Actualizar título del ejercicio
-        if (data.title !== exercise.exercise_title) {
-          await fetch('/api/profile/exercise-progress', {
-            method: 'PUT',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({
-              id: exerciseId,
-              exercise_title: data.title
+        await fetch(`/api/coach/clients/${userId}/objectives`, {
+          method: 'PUT',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ objectives })
+        })
+      } else {
+        // Individual profile updates (Existing logic)
+        const savePromises = Object.entries(editData).map(async ([exerciseId, data]) => {
+          const exercise = exercises.find(e => e.id === exerciseId)
+          if (!exercise) return
+
+          let currentValue = data.current
+          let objectiveValue = data.objective
+
+          if (exercise.unit === "tiempo") {
+            if (data.current && data.current.includes(':')) {
+              const [hours, minutes, seconds] = data.current.split(':').map(Number)
+              currentValue = (hours * 3600 + minutes * 60 + seconds).toString()
+            }
+            if (data.objective && data.objective.includes(':')) {
+              const [hours, minutes, seconds] = data.objective.split(':').map(Number)
+              objectiveValue = (hours * 3600 + minutes * 60 + seconds).toString()
+            }
+          }
+
+          if (data.title !== exercise.exercise_title) {
+            await fetch('/api/profile/exercise-progress', {
+              method: 'PUT',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({ id: exerciseId, exercise_title: data.title })
             })
-          })
-        }
-
-        if (data.current && currentValue !== exercise.current_value?.toString()) {
-          await fetch('/api/profile/exercise-progress', {
-            method: 'PUT',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({
-              id: exerciseId,
-              current_value: parseFloat(currentValue)
+          }
+          if (data.current && currentValue !== exercise.current_value?.toString()) {
+            await fetch('/api/profile/exercise-progress', {
+              method: 'PUT',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({ id: exerciseId, current_value: parseFloat(currentValue) })
             })
-          })
-        }
-
-        // Actualizar objetivo
-        if (data.objective && objectiveValue !== exercise.objective?.toString()) {
-          await fetch('/api/profile/exercise-progress', {
-            method: 'PUT',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({
-              id: exerciseId,
-              objective: parseFloat(objectiveValue)
+          }
+          if (data.objective && objectiveValue !== exercise.objective?.toString()) {
+            await fetch('/api/profile/exercise-progress', {
+              method: 'PUT',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({ id: exerciseId, objective: parseFloat(objectiveValue) })
             })
-          })
-        }
-      })
+          }
+        })
+        await Promise.all(savePromises)
+      }
 
-      await Promise.all(savePromises)
-
-      // Recargar los datos
       await fetchExercises()
       setIsEditing(false)
-
     } catch (error) {
       console.error('Error saving changes:', error)
     } finally {
@@ -234,84 +252,123 @@ export function ExerciseProgressList({ userId }: ExerciseProgressListProps) {
   }
 
   return (
-    <div className="overflow-x-auto pb-4 -mx-1 px-1 custom-scrollbar hide-scrollbar-mobile" style={{ scrollbarWidth: 'none' }}>
-      <div className="flex gap-3 min-w-max">
-        {exercises.map((exercise) => {
-          return (
-            <div key={exercise.id} className="bg-white/5 rounded-2xl p-3 relative flex flex-col justify-between border-l-2 border-transparent hover:border-l-[#FF6A00] hover:bg-white/10 transition-all w-[140px] h-[100px] group">
-              {isEditing && (
-                <button
-                  onClick={() => deleteExercise(exercise.id)}
-                  className="absolute top-1 right-1 text-gray-400 hover:text-[#FF7939] transition-colors bg-black/50 rounded-full p-0.5"
-                  style={{ zIndex: 10 }}
-                  title="Eliminar objetivo"
-                >
-                  <Minus className="h-3 w-3" strokeWidth={3} />
-                </button>
-              )}
+    <div className="flex flex-col gap-2">
+      {!isEditing && userId && (
+        <div className="flex justify-end px-2">
+          <Button
+            variant="ghost"
+            size="sm"
+            onClick={startEditing}
+            className="h-6 text-[10px] text-gray-400 hover:text-white gap-1"
+          >
+            <Edit className="h-3 w-3" />
+            Editar Objetivos
+          </Button>
+        </div>
+      )}
 
-              {/* Título */}
-              <div className="mb-1 w-full">
-                {isEditing ? (
-                  <Input
-                    value={editData[exercise.id]?.title || ""}
-                    onChange={(e) => updateEditData(exercise.id, 'title', e.target.value)}
-                    className="bg-transparent border-0 border-b border-gray-600/30 text-white text-[10px] font-bold h-5 px-0 w-full"
-                    placeholder="Nombre"
-                  />
-                ) : (
-                  <div className="flex items-center gap-1.5">
-                    <div className="h-1.5 w-1.5 rounded-full bg-[#FF6A00] opacity-70 group-hover:opacity-100 transition-opacity"></div>
-                    <span className="text-[10px] uppercase text-gray-400 font-bold block leading-tight truncate w-full">{exercise.exercise_title || exercise.exercise_title}</span>
-                  </div>
+      {isEditing && (
+        <div className="flex justify-end gap-2 px-2">
+          <Button
+            variant="ghost"
+            size="sm"
+            onClick={cancelEditing}
+            className="h-6 text-[10px] text-gray-400 hover:text-red-400"
+          >
+            <X className="h-3 w-3 mr-1" />
+            Cancelar
+          </Button>
+          <Button
+            size="sm"
+            onClick={saveChanges}
+            disabled={loading}
+            className="h-6 bg-orange-500 hover:bg-orange-600 text-[10px] text-white"
+          >
+            <Save className="h-3 w-3 mr-1" />
+            {loading ? 'Guardando...' : 'Guardar'}
+          </Button>
+        </div>
+      )}
+
+      <div className="overflow-x-auto pb-4 -mx-1 px-1 custom-scrollbar">
+        <div className="flex gap-3 min-w-max">
+          {exercises.map((exercise) => {
+            return (
+              <div key={exercise.id} className="bg-white/5 rounded-2xl p-3 relative flex flex-col justify-between border-l-2 border-transparent hover:border-l-[#FF6A00] hover:bg-white/10 transition-all w-[140px] h-[100px] group">
+                {isEditing && (
+                  <button
+                    onClick={() => deleteExercise(exercise.id)}
+                    className="absolute top-1 right-1 text-gray-400 hover:text-[#FF7939] transition-colors bg-black/50 rounded-full p-0.5"
+                    style={{ zIndex: 10 }}
+                    title="Eliminar objetivo"
+                  >
+                    <Minus className="h-3 w-3" strokeWidth={3} />
+                  </button>
                 )}
-              </div>
 
-              {/* Valores */}
-              <div className="mt-auto">
-                <div className="flex flex-col items-start gap-0.5">
+                {/* Título */}
+                <div className="mb-1 w-full">
                   {isEditing ? (
-                    <div className="flex gap-1 items-center">
-                      <Input
-                        value={editData[exercise.id]?.current || ""}
-                        onChange={(e) => updateEditData(exercise.id, 'current', e.target.value)}
-                        className="w-10 h-5 bg-transparent border-0 border-b border-gray-600/30 text-sm font-bold text-white px-0 text-center"
-                      />
-                      <span className="text-[10px] text-gray-600">/</span>
-                      <Input
-                        value={editData[exercise.id]?.objective || ""}
-                        onChange={(e) => updateEditData(exercise.id, 'objective', e.target.value)}
-                        className="w-10 h-5 bg-transparent border-0 border-b border-gray-600/30 text-[10px] text-gray-400 px-0 text-center"
-                      />
-                    </div>
+                    <Input
+                      value={editData[exercise.id]?.title || ""}
+                      onChange={(e) => updateEditData(exercise.id, 'title', e.target.value)}
+                      className="bg-transparent border-0 border-b border-gray-600/30 text-white text-[10px] font-bold h-5 px-0 w-full"
+                      placeholder="Nombre"
+                    />
                   ) : (
-                    <>
-                      {/* Meta (Grande) */}
-                      <div className="flex items-baseline gap-1">
-                        <span className="text-xl font-bold text-white leading-none">
-                          {exercise.objective ? formatValueForDisplay(exercise.objective, exercise.unit) : "-"}
-                          <span className="text-[10px] font-normal text-gray-500 ml-0.5">
-                            {exercise.unit === 'kg' ? <Weight className="h-3 w-3 inline" /> : (exercise.unit === 'min' || exercise.unit === 'tiempo') ? <Clock className="h-3 w-3 inline" /> : exercise.unit}
-                          </span>
-                        </span>
-                      </div>
-
-                      {/* Actual (Pequeño Naranja) */}
-                      <div className="text-[10px] text-[#FF6A00] font-medium flex items-center gap-1 mt-0.5">
-                        <span className="opacity-80">Actual:</span>
-                        <span className="font-bold flex items-center gap-0.5">
-                          {formatValueForDisplay(exercise.current_value || 0, exercise.unit)}
-                        </span>
-                      </div>
-                    </>
+                    <div className="flex items-center gap-1.5">
+                      <div className="h-1.5 w-1.5 rounded-full bg-[#FF6A00] opacity-70 group-hover:opacity-100 transition-opacity"></div>
+                      <span className="text-[10px] uppercase text-gray-400 font-bold block leading-tight truncate w-full">{exercise.exercise_title || exercise.exercise_title}</span>
+                    </div>
                   )}
+                </div>
 
+                {/* Valores */}
+                <div className="mt-auto">
+                  <div className="flex flex-col items-start gap-0.5">
+                    {isEditing ? (
+                      <div className="flex gap-1 items-center">
+                        <Input
+                          value={editData[exercise.id]?.current || ""}
+                          onChange={(e) => updateEditData(exercise.id, 'current', e.target.value)}
+                          className="w-10 h-5 bg-transparent border-0 border-b border-gray-600/30 text-sm font-bold text-white px-0 text-center"
+                        />
+                        <span className="text-[10px] text-gray-600">/</span>
+                        <Input
+                          value={editData[exercise.id]?.objective || ""}
+                          onChange={(e) => updateEditData(exercise.id, 'objective', e.target.value)}
+                          className="w-10 h-5 bg-transparent border-0 border-b border-gray-600/30 text-[10px] text-gray-400 px-0 text-center"
+                        />
+                      </div>
+                    ) : (
+                      <>
+                        {/* Meta (Grande) */}
+                        <div className="flex items-baseline gap-1">
+                          <span className="text-xl font-bold text-white leading-none">
+                            {exercise.objective ? formatValueForDisplay(exercise.objective, exercise.unit) : "-"}
+                            <span className="text-[10px] font-normal text-gray-500 ml-0.5">
+                              {exercise.unit === 'kg' ? <Weight className="h-3 w-3 inline" /> : (exercise.unit === 'min' || exercise.unit === 'tiempo') ? <Clock className="h-3 w-3 inline" /> : exercise.unit}
+                            </span>
+                          </span>
+                        </div>
+
+                        {/* Actual (Pequeño Naranja) */}
+                        <div className="text-[10px] text-[#FF6A00] font-medium flex items-center gap-1 mt-0.5">
+                          <span className="opacity-80">Actual:</span>
+                          <span className="font-bold flex items-center gap-0.5">
+                            {formatValueForDisplay(exercise.current_value || 0, exercise.unit)}
+                          </span>
+                        </div>
+                      </>
+                    )}
+
+                  </div>
                 </div>
               </div>
-            </div>
-          )
-        })}
+            )
+          })}
+        </div>
       </div>
-    </div >
+    </div>
   )
 }

@@ -99,7 +99,8 @@ export async function GET(request: NextRequest) {
         status,
         todo_list,
         activity_id,
-        meet_credits_total
+        meet_credits_total,
+        start_date
       `)
       .in('status', ['activa', 'active', 'pendiente', 'pending', 'finalizada', 'finished', 'expirada', 'expired'])
       .in('activity_id', coachActivityIds)
@@ -264,7 +265,7 @@ export async function GET(request: NextRequest) {
 
     // Progreso agregado + última ejercitación (se toma de tablas progreso_cliente / progreso_cliente_nutricion)
     const todayIso = new Date().toISOString().slice(0, 10)
-    const progressCache = new Map<string, { progressPercent: number; diasAtraso: number; itemsPendientes: number; diasCompletados: number; itemsCompletados: number; diasTotales: number }>()
+    const progressCache = new Map<string, { progressPercent: number; diasAtraso: number; itemsPendientes: number; diasCompletados: number; itemsCompletados: number; diasTotales: number; alertLevel: number; alertLabel: string }>()
     const computeProgressAggForActivity = async (clientId: string, activityId: number, activityType: string, enrollmentId?: number) => {
       const cacheKey = `${clientId}:${activityId}:${activityType}:${enrollmentId || 'all'}`
       const cached = progressCache.get(cacheKey)
@@ -361,7 +362,28 @@ export async function GET(request: NextRequest) {
         itemsPendientes,
         diasCompletados,
         itemsCompletados,
-        diasTotales
+        diasTotales,
+        alertLevel: 0,
+        alertLabel: ''
+      }
+
+      // Calculate alert based on delay percent (past missing items/days)
+      let delayPercent = 0
+      if (activityType?.toLowerCase() === 'documento' || activityType?.toLowerCase() === 'document') {
+        delayPercent = itemsTotalesObjetivo > 0 ? (itemsPendientes / itemsTotalesObjetivo) * 100 : 0
+      } else {
+        delayPercent = diasTotales > 0 ? (diasAtraso / diasTotales) * 100 : 0
+      }
+
+      if (delayPercent > 50) {
+        result.alertLevel = 3
+        result.alertLabel = 'Crítico'
+      } else if (delayPercent > 20) {
+        result.alertLevel = 2
+        result.alertLabel = 'Moderado'
+      } else if (delayPercent > 0) {
+        result.alertLevel = 1
+        result.alertLabel = 'Leve'
       }
 
       progressCache.set(cacheKey, result)
@@ -438,6 +460,8 @@ export async function GET(request: NextRequest) {
       // Progreso total: promedio de los porcentajes de CADA ACTIVIDAD ÚNICA
       const activeProgressByActivity = new Map<number, number>()
       let totalItemsPendientes = 0
+      let maxAlertLevel = 0
+      let maxAlertLabel = ''
       let lastCompletedDateAgg: string | null = null
 
       for (const enrollment of client.enrollments || []) {
@@ -450,12 +474,18 @@ export async function GET(request: NextRequest) {
         const progPerc = agg.progressPercent || 0
         const isCompleted = progPerc >= 100 ||
           ['finalizada', 'finished', 'expirada', 'expired'].includes(enrollment.status?.toLowerCase())
-        const hasStarted = !!enrollment.start_date
+        const hasStarted = !!enrollment.start_date || !!agg.itemsCompletados
 
         if (!isCompleted && hasStarted) {
           // Si hay duplicados, tomamos el mayor progreso (probablemente el más actual/relevante)
           const currentMax = activeProgressByActivity.get(activityIdNum) || 0
           activeProgressByActivity.set(activityIdNum, Math.max(currentMax, progPerc))
+
+          // Aggregate Alert
+          if (agg.alertLevel > maxAlertLevel) {
+            maxAlertLevel = agg.alertLevel
+            maxAlertLabel = agg.alertLabel
+          }
         }
         totalItemsPendientes += (agg.itemsPendientes || 0)
       }
@@ -478,7 +508,9 @@ export async function GET(request: NextRequest) {
         lastActive: formatLastActive(lastActiveMap.get(client.id) || client.updated_at || ''),
         activitiesCount: (client.activities || []).length,
         todoCount,
-        hasAlert: totalItemsPendientes > 0, // Alerta si hay items pendientes acumulados
+        hasAlert: maxAlertLevel > 0,
+        alertLabel: maxAlertLabel,
+        alertLevel: maxAlertLevel,
         activities: (client.activities || []).map((a: any) => ({
           id: a.id,
           title: a.title,

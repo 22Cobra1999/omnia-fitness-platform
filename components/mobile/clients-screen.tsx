@@ -2,7 +2,7 @@
 
 import { useState, useEffect, useRef } from "react"
 import { useRouter } from 'next/navigation'
-import { Search, Filter, Calendar as CalendarIcon, ChevronRight, MessageCircle, MoreVertical, X, Phone, Mail, MapPin, Target, AlertTriangle, FileText, ArrowUp, ArrowDown, Activity, Users, Weight, Ruler, Plus, Check, Bell, Droplets, Bone, Flame, Dumbbell } from 'lucide-react'
+import { Search, Filter, Calendar as CalendarIcon, ChevronRight, MessageCircle, MoreVertical, X, Phone, Mail, MapPin, Target, AlertTriangle, FileText, ArrowUp, ArrowDown, Activity, Users, Weight, Ruler, Plus, Check, Bell, Droplets, Bone, Flame, Dumbbell, Edit2 } from 'lucide-react'
 import { ExerciseProgressList } from './exercise-progress-list'
 import { PurchasedActivityCard } from "@/components/activities/purchased-activity-card"
 import { format } from 'date-fns'
@@ -30,6 +30,8 @@ interface Client {
     amountPaid: number
   }>
   hasAlert?: boolean
+  alertLevel?: number
+  alertLabel?: string
   age?: number
 }
 
@@ -66,6 +68,13 @@ export function ClientsScreen() {
   const [activeTab, setActiveTab] = useState<'calendar' | 'info'>('info')
   const [activeModalTab, setActiveModalTab] = useState<'calendar' | 'info' | 'activities'>('activities')
   const [activeClientPanel, setActiveClientPanel] = useState<'activities' | 'todo' | 'progress' | 'revenue' | null>(null)
+
+  // Coach editing states
+  const [isEditingBio, setIsEditingBio] = useState(false)
+  const [isEditingObjectives, setIsEditingObjectives] = useState(false)
+  const [tempBioData, setTempBioData] = useState<any>({ weight: '', height: '', biometrics: [] })
+  const [savingBio, setSavingBio] = useState(false)
+  const [savingObjectives, setSavingObjectives] = useState(false)
   const [showTodoInput, setShowTodoInput] = useState(false)
   const [hiddenActivities, setHiddenActivities] = useState<Set<number>>(new Set())
   const [activitySubTab, setActivitySubTab] = useState<'en-curso' | 'por-empezar' | 'finalizadas'>('en-curso')
@@ -204,6 +213,38 @@ export function ClientsScreen() {
       document.body.style.overflow = 'unset'
     }
   }, [selectedClient])
+
+  // Función para guardar biometría
+  const handleSaveBio = async () => {
+    if (!selectedClient) return
+    setSavingBio(true)
+    try {
+      const resp = await fetch(`/api/coach/clients/${selectedClient.id}/biometrics`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(tempBioData)
+      })
+      if (resp.ok) {
+        setClientDetail((prev: any) => ({
+          ...prev,
+          client: {
+            ...prev.client,
+            physicalData: {
+              ...prev.client.physicalData,
+              weight: tempBioData.weight,
+              height: tempBioData.height
+            },
+            biometrics: tempBioData.biometrics
+          }
+        }))
+        setIsEditingBio(false)
+      }
+    } catch (err) {
+      console.error(err)
+    } finally {
+      setSavingBio(false)
+    }
+  }
 
   // Función para abrir modal del cliente
   const openClientModal = (client: Client) => {
@@ -378,8 +419,8 @@ export function ClientsScreen() {
         </button>
       </div>
 
-      {/* Client list - Redesigned as a vertical grid (Narrower) */}
-      <div className="grid grid-cols-2 gap-3 max-w-sm mx-auto">
+      {/* Client list - Redesigned as a vertical grid (Aligned Left) */}
+      <div className="grid grid-cols-2 gap-3 w-full">
         {filteredClients.length === 0 ? (
           <div className="text-center py-12">
             <Users className="h-12 w-12 text-gray-500 mx-auto mb-4" />
@@ -400,6 +441,29 @@ export function ClientsScreen() {
               {/* Card Header/Hero area */}
               <div className="relative h-24 bg-zinc-900 flex items-center justify-center overflow-hidden">
                 <div className="absolute inset-0 bg-gradient-to-b from-zinc-800/20 to-black/40"></div>
+
+                {/* Alert Badge (Top Left) */}
+                {client.hasAlert && (
+                  <div className="absolute top-2 left-2 z-20">
+                    <div className={`px-1.5 py-0.5 rounded-md text-[7px] font-black uppercase tracking-tighter border shadow-lg ${client.alertLevel === 3 ? "bg-red-500/20 text-red-500 border-red-500/30" :
+                      client.alertLevel === 2 ? "bg-orange-500/20 text-orange-400 border-orange-500/30" :
+                        "bg-yellow-500/20 text-yellow-500 border-yellow-500/30"
+                      }`}>
+                      {client.alertLabel || 'Alerta'}
+                    </div>
+                  </div>
+                )}
+
+                {/* Status Badge (Top Right) */}
+                <div className="absolute top-2 right-2 z-20">
+                  <div className={`px-1.5 py-0.5 rounded-md text-[7px] font-black uppercase tracking-tighter border shadow-lg ${client.status === "active" ? "bg-orange-500/20 text-orange-400 border-orange-500/30" :
+                    client.status === "pending" ? "bg-yellow-500/20 text-yellow-500 border-yellow-500/20" :
+                      "bg-gray-500/20 text-gray-400 border-gray-500/20"
+                    }`}>
+                    {client.status === "active" ? "Activo" : client.status === "pending" ? "Pendiente" : "Inactivo"}
+                  </div>
+                </div>
+
                 {/* Large Avatar */}
                 <div className="relative z-10 w-16 h-16 rounded-full overflow-hidden border-2 border-zinc-800 shadow-xl group-hover:scale-105 transition-transform duration-300">
                   <img
@@ -407,20 +471,6 @@ export function ClientsScreen() {
                     alt={client.name}
                     className="w-full h-full object-cover"
                   />
-                  {client.hasAlert && (
-                    <div className="absolute top-0 right-0 h-4 w-4 bg-red-500 rounded-full border-2 border-[#141414] shadow-sm flex items-center justify-center animate-pulse">
-                      <div className="h-1.5 w-1.5 bg-white rounded-full"></div>
-                    </div>
-                  )}
-                </div>
-                {/* Status indicator badge */}
-                <div className="absolute bottom-2 right-2">
-                  <div className={`px-2 py-0.5 rounded-full text-[8px] font-bold uppercase tracking-wider border ${client.status === "active" ? "bg-orange-500/10 text-orange-400 border-orange-500/20" :
-                    client.status === "pending" ? "bg-yellow-500/10 text-yellow-500 border-yellow-500/20" :
-                      "bg-gray-500/10 text-gray-500 border-gray-500/20"
-                    }`}>
-                    {client.status === "active" ? "Activo" : client.status === "pending" ? "Pendiente" : "Inactivo"}
-                  </div>
                 </div>
               </div>
 
@@ -440,10 +490,10 @@ export function ClientsScreen() {
                 </div>
 
                 {/* Progress Section */}
-                <div className="mt-auto space-y-2">
+                <div className="mt-4 mb-2 space-y-1.5">
                   <div className="flex items-center justify-between text-[10px]">
-                    <span className="text-orange-400 font-bold uppercase tracking-tighter">Progreso</span>
-                    <span className="text-white font-black text-xs">{client.progress}%</span>
+                    <span className="text-orange-400 font-bold uppercase tracking-tighter text-[7px] opacity-80">Progreso</span>
+                    <span className="text-orange-400 font-black text-xs">{client.progress}%</span>
                   </div>
                   <div className="w-full h-1.5 bg-zinc-800 rounded-full overflow-hidden">
                     <div
@@ -464,7 +514,7 @@ export function ClientsScreen() {
                     <span className="text-[7px] text-gray-500 uppercase font-medium">Tareas</span>
                   </div>
                   <div className="flex flex-col items-center border-l border-zinc-800/40">
-                    <span className="text-[11px] font-bold text-orange-400">${(() => {
+                    <span className="text-[11px] font-bold text-white">${(() => {
                       const val = Math.round(client.totalRevenue);
                       return val >= 1000 ? (val / 1000).toFixed(1) + 'k' : val;
                     })()}</span>
@@ -769,9 +819,46 @@ export function ClientsScreen() {
                               <Activity className="h-4 w-4 text-[#FF6A00]" />
                               <h2 className="text-sm font-semibold text-gray-200">Biometría</h2>
                             </div>
+                            {isEditingBio ? (
+                              <div className="flex items-center gap-2">
+                                <button
+                                  disabled={savingBio}
+                                  onClick={() => setIsEditingBio(false)}
+                                  className="p-1 px-2 rounded-lg bg-zinc-800 text-[10px] font-bold text-gray-400 hover:text-white"
+                                >
+                                  Cancelar
+                                </button>
+                                <button
+                                  disabled={savingBio}
+                                  onClick={handleSaveBio}
+                                  className="p-1 px-2 rounded-lg bg-orange-500/20 text-[10px] font-bold text-orange-400 hover:bg-orange-500/30 flex items-center gap-1"
+                                >
+                                  {savingBio ? '...' : (
+                                    <>
+                                      <Check className="h-3 w-3" />
+                                      Guardar
+                                    </>
+                                  )}
+                                </button>
+                              </div>
+                            ) : (
+                              <button
+                                onClick={() => {
+                                  setTempBioData({
+                                    weight: clientDetail.client.physicalData?.weight || '',
+                                    height: clientDetail.client.physicalData?.height || '',
+                                    biometrics: clientDetail.client.biometrics || []
+                                  })
+                                  setIsEditingBio(true)
+                                }}
+                                className="p-1 rounded-full hover:bg-white/5 text-gray-400 transition-colors"
+                              >
+                                <Edit2 className="h-3.5 w-3.5" />
+                              </button>
+                            )}
                           </div>
 
-                          <div className="w-full overflow-x-auto pb-1 px-2 hide-scrollbar-mobile" style={{ scrollbarWidth: 'none' }}>
+                          <div className="w-full overflow-x-auto pb-2 px-2 custom-scrollbar">
                             <div className="flex gap-2 min-w-max">
                               {/* Helper to pick icon */}
                               {(() => {
@@ -799,8 +886,20 @@ export function ClientsScreen() {
                                         </span>
                                       </div>
                                       <div className="flex items-baseline gap-1 mt-auto">
-                                        <span className="text-lg font-bold text-white shrink-0">{clientDetail.client.physicalData?.weight || '-'}</span>
-                                        <span className="text-[10px] text-gray-500 font-medium shrink-0">kg</span>
+                                        {isEditingBio ? (
+                                          <input
+                                            type="number"
+                                            value={tempBioData.weight || ''}
+                                            onChange={(e) => setTempBioData({ ...tempBioData, weight: e.target.value })}
+                                            className="bg-transparent border-b border-orange-500/30 text-lg font-bold text-white w-full focus:outline-none"
+                                            onClick={(e) => e.stopPropagation()}
+                                          />
+                                        ) : (
+                                          <>
+                                            <span className="text-lg font-bold text-white shrink-0">{clientDetail.client.physicalData?.weight || '-'}</span>
+                                            <span className="text-[10px] text-gray-500 font-medium shrink-0">kg</span>
+                                          </>
+                                        )}
                                       </div>
                                     </div>
 
@@ -815,14 +914,26 @@ export function ClientsScreen() {
                                         </span>
                                       </div>
                                       <div className="flex items-baseline gap-1 mt-auto">
-                                        <span className="text-lg font-bold text-white shrink-0">{clientDetail.client.physicalData?.height || '-'}</span>
-                                        <span className="text-[10px] text-gray-500 font-medium shrink-0">cm</span>
+                                        {isEditingBio ? (
+                                          <input
+                                            type="number"
+                                            value={tempBioData.height || ''}
+                                            onChange={(e) => setTempBioData({ ...tempBioData, height: e.target.value })}
+                                            className="bg-transparent border-b border-orange-500/30 text-lg font-bold text-white w-full focus:outline-none"
+                                            onClick={(e) => e.stopPropagation()}
+                                          />
+                                        ) : (
+                                          <>
+                                            <span className="text-lg font-bold text-white shrink-0">{clientDetail.client.physicalData?.height || '-'}</span>
+                                            <span className="text-[10px] text-gray-500 font-medium shrink-0">cm</span>
+                                          </>
+                                        )}
                                       </div>
                                     </div>
 
                                     {/* Dynamic Biometrics */}
                                     {clientDetail.client.biometrics && clientDetail.client.biometrics.length > 0 && (
-                                      clientDetail.client.biometrics.map((bio: any) => (
+                                      clientDetail.client.biometrics.map((bio: any, bioIndex: number) => (
                                         <div key={bio.id} className="bg-white/5 rounded-2xl p-2.5 cursor-pointer hover:bg-white/10 transition-all duration-300 ease-out border-l-2 border-transparent hover:border-l-[#FF6A00] w-[140px] flex flex-col justify-between group overflow-hidden">
                                           <div className="flex items-center gap-1.5 mb-1 w-full">
                                             <div className="p-1.5 bg-zinc-800/80 rounded-lg group-hover:bg-[#FF7939]/20 group-hover:text-[#FF7939] transition-colors shrink-0">
@@ -834,8 +945,24 @@ export function ClientsScreen() {
                                           </div>
                                           <div className="mt-auto">
                                             <div className="flex items-baseline gap-1">
-                                              <span className="text-lg font-bold text-white truncate max-w-[80px]" title={bio.value}>{bio.value}</span>
-                                              <span className="text-[10px] text-gray-500 font-medium">{bio.unit}</span>
+                                              {isEditingBio ? (
+                                                <input
+                                                  type="number"
+                                                  value={tempBioData.biometrics[bioIndex]?.value || ''}
+                                                  onChange={(e) => {
+                                                    const newBio = [...tempBioData.biometrics]
+                                                    newBio[bioIndex].value = e.target.value
+                                                    setTempBioData({ ...tempBioData, biometrics: newBio })
+                                                  }}
+                                                  className="bg-transparent border-b border-orange-500/30 text-lg font-bold text-white w-full focus:outline-none"
+                                                  onClick={(e) => e.stopPropagation()}
+                                                />
+                                              ) : (
+                                                <>
+                                                  <span className="text-lg font-bold text-white truncate max-w-[80px]" title={bio.value}>{bio.value}</span>
+                                                  <span className="text-[10px] text-gray-500 font-medium">{bio.unit}</span>
+                                                </>
+                                              )}
                                             </div>
                                           </div>
                                         </div>
@@ -859,7 +986,7 @@ export function ClientsScreen() {
                           </div>
 
                           {/* Exercise List Horizontal */}
-                          <div className="h-[120px] w-full px-2">
+                          <div className="h-[120px] w-full px-2 overflow-x-auto custom-scrollbar">
                             <ExerciseProgressList userId={selectedClient.id} />
                           </div>
                         </div>
@@ -875,7 +1002,7 @@ export function ClientsScreen() {
                           </div>
 
                           <div className="bg-transparent h-[120px] w-full">
-                            <div className="overflow-x-auto pb-2 px-2 custom-scrollbar hide-scrollbar-mobile" style={{ scrollbarWidth: 'none' }}>
+                            <div className="overflow-x-auto pb-2 px-2 custom-scrollbar">
                               <div className="flex gap-3 min-w-max">
                                 {clientDetail.client.injuries && clientDetail.client.injuries.length > 0 ? (
                                   clientDetail.client.injuries.map((injury: any, index: number) => (
