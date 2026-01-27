@@ -196,6 +196,32 @@ export async function GET(request: NextRequest) {
       return NextResponse.json({ success: false, error: usersError.message }, { status: 500 })
     }
 
+    const { data: clientsTable } = await supabase
+      .from('clients')
+      .select('id, birth_date')
+      .in('id', clientIds)
+
+    const birthDateMap = new Map<string, string | null>()
+    if (clientsTable) {
+      clientsTable.forEach((c: any) => birthDateMap.set(c.id, c.birth_date))
+    }
+
+    // NEW: Fetch last active date from progress tables
+    const { data: lastProgress } = await supabase
+      .from('progreso_diario_actividad')
+      .select('cliente_id, fecha')
+      .in('cliente_id', clientIds)
+      .order('fecha', { ascending: false })
+
+    const lastActiveMap = new Map<string, string>()
+    if (lastProgress) {
+      lastProgress.forEach((p: any) => {
+        if (!lastActiveMap.has(p.cliente_id)) {
+          lastActiveMap.set(p.cliente_id, p.fecha)
+        }
+      })
+    }
+
     // Buscar pagos reales en banco (prefer seller_amount, fallback amount_paid)
     const enrollmentIdsAll = (enrollments || [])
       .map((e: any) => e?.id)
@@ -358,6 +384,7 @@ export async function GET(request: NextRequest) {
           name: user.full_name || 'Cliente',
           email: user.email || '',
           avatar_url: user.avatar_url || null,
+          birth_date: birthDateMap.get(clientId) || null,
           activities: [],
           enrollments: []
         })
@@ -408,27 +435,35 @@ export async function GET(request: NextRequest) {
         return sum + paid
       }, 0)
 
-      // Progreso total: promedio de los porcentajes de cada actividad
-      let totalProgressPercentSum = 0
-      let totalActivitiesCount = 0
+      // Progreso total: promedio de los porcentajes de CADA ACTIVIDAD ÚNICA
+      const activeProgressByActivity = new Map<number, number>()
       let totalItemsPendientes = 0
-
       let lastCompletedDateAgg: string | null = null
+
       for (const enrollment of client.enrollments || []) {
-        const activity = activities?.find((a: any) => String(a.id) === String(enrollment.activity_id))
         const activityIdNum = Number(enrollment?.activity_id)
+        const activity = activities?.find((a: any) => String(a.id) === String(activityIdNum))
         if (!activity || !Number.isFinite(activityIdNum)) continue
 
-        // Pass enrollmentId explicitly to separate progress
         const agg = await computeProgressAggForActivity(String(client.id), activityIdNum, String(activity?.type || ''), enrollment.id)
 
-        totalProgressPercentSum += (agg.progressPercent || 0)
-        totalItemsPendientes += (agg.itemsPendientes || 0)
-        totalActivitiesCount++
+        const progPerc = agg.progressPercent || 0
+        const isCompleted = progPerc >= 100 ||
+          ['finalizada', 'finished', 'expirada', 'expired'].includes(enrollment.status?.toLowerCase())
+        const hasStarted = !!enrollment.start_date
 
-        // Nota: ya no tenemos lastCompletedDate en el nuevo agg, usar updated_at o similar si es crítico
+        if (!isCompleted && hasStarted) {
+          // Si hay duplicados, tomamos el mayor progreso (probablemente el más actual/relevante)
+          const currentMax = activeProgressByActivity.get(activityIdNum) || 0
+          activeProgressByActivity.set(activityIdNum, Math.max(currentMax, progPerc))
+        }
+        totalItemsPendientes += (agg.itemsPendientes || 0)
       }
-      const progress = totalActivitiesCount > 0 ? Math.round(totalProgressPercentSum / totalActivitiesCount) : 0
+
+      const uniqueActiveActivitiesCount = activeProgressByActivity.size
+      const totalProgressPercentSum = Array.from(activeProgressByActivity.values()).reduce((a, b) => a + b, 0)
+      const progress = uniqueActiveActivitiesCount > 0 ? Math.round(totalProgressPercentSum / uniqueActiveActivitiesCount) : 0
+      const age = client.birth_date ? (new Date().getFullYear() - new Date(client.birth_date).getFullYear()) : 0
 
       return {
         id: client.id,
@@ -437,11 +472,10 @@ export async function GET(request: NextRequest) {
         avatar_url: client.avatar_url,
         meet_credits_available: meetCreditsAvailable,
         progress,
+        age,
         status: clientStatus,
-        lastActive: formatLastActive(client.updated_at), // Fallback a updated_at del cliente
-        totalExercises: 0,
-        completedExercises: 0,
         totalRevenue,
+        lastActive: formatLastActive(lastActiveMap.get(client.id) || client.updated_at || ''),
         activitiesCount: (client.activities || []).length,
         todoCount,
         hasAlert: totalItemsPendientes > 0, // Alerta si hay items pendientes acumulados

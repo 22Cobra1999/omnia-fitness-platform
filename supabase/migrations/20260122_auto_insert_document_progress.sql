@@ -10,7 +10,7 @@ BEGIN
     IF EXISTS (
         SELECT 1 FROM activities 
         WHERE id = NEW.activity_id 
-        AND type = 'document'
+        AND (type = 'document' OR type = 'documento')
     ) THEN
         -- Insert all topics for this document
         FOR topic_record IN 

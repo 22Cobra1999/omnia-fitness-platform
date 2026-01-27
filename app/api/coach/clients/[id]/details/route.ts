@@ -60,7 +60,7 @@ export async function GET(
     })
 
     // 4. PARALLEL DATA FETCH
-    const [profileRes, injuriesRes, biometricsRes, objectivesRes, meetRes, progressRes, fitnessRes, nutriRes, docsRes, tallerRes] = await Promise.all([
+    const [profileRes, injuriesRes, biometricsRes, objectivesRes, meetRes, progressRes, fitnessRes, nutriRes, docsRes, tallerRes, clientTableRes] = await Promise.all([
       adminSupabase.from('user_profiles').select('*').eq('id', clientId).single(),
       adminSupabase.from('user_injuries').select('*').eq('user_id', clientId),
       adminSupabase.from('user_biometrics').select('*').eq('user_id', clientId),
@@ -70,7 +70,8 @@ export async function GET(
       adminSupabase.from('progreso_cliente').select('*').eq('cliente_id', clientId),
       adminSupabase.from('progreso_cliente_nutricion').select('*').eq('cliente_id', clientId),
       adminSupabase.from('client_document_progress').select('*').eq('client_id', clientId),
-      adminSupabase.from('taller_progreso_temas').select('*').eq('cliente_id', clientId)
+      adminSupabase.from('taller_progreso_temas').select('*').eq('cliente_id', clientId),
+      adminSupabase.from('clients').select('*').eq('id', clientId).maybeSingle()
     ])
 
     const workshopFutureMap = new Map<number, number>()
@@ -84,7 +85,9 @@ export async function GET(
       if (!statsMap.has(eid)) {
         statsMap.set(eid, {
           total_days: 0, completed_days: 0, late_days: 0,
-          items_ok: 0, items_total: 0, pending_atrasados: 0, pending_hoy: 0,
+          items_ok: 0, items_total: 0,
+          doc_items_ok: 0, doc_items_total: 0,
+          pending_atrasados: 0, pending_hoy: 0,
           dates_seen: new Set()
         })
       }
@@ -161,8 +164,8 @@ export async function GET(
         const eid = Number(r.enrollment_id); if (!eid) return
         const curr = getStats(eid)
         const ok = r.completed ? 1 : 0
-        curr.items_ok += ok
-        curr.items_total += 1
+        curr.doc_items_ok += ok
+        curr.doc_items_total += 1
       })
     }
 
@@ -187,57 +190,79 @@ export async function GET(
       const type = act.type?.toLowerCase() || ''
       const cat = act.categoria?.toLowerCase() || ''
       const isWorkshop = type.includes('workshop') || type.includes('taller') || cat.includes('yoga')
-      const isDocument = cat.includes('documento') || cat.includes('proceso')
+      const isDocument = type.includes('document') || type.includes('documento') || cat.includes('documento')
+
+      const todayStr = new Date().toISOString().slice(0, 10)
+      const enrollmentRows = progressRes.data?.filter((r: any) => Number(r.enrollment_id) === eidNum) || []
+
+      let diasCompletados = 0
+      let diasEnCurso = 0
+      let diasAusentes = 0
+      let diasProximos = 0
+
+      let itemsPasadosCompletados = 0
+      let itemsPasadosNoLogrados = 0
+      let itemsRestantesTotal = 0
+
+      if (!isDocument) {
+        // Programs and Workshops logic (date-based)
+        enrollmentRows.forEach((r: any) => {
+          const itemsObj = r.items_objetivo || 0
+          const itemsComp = r.items_completados || 0
+          const fecha = r.fecha
+
+          if (fecha < todayStr) {
+            if (itemsObj > 0) {
+              if (itemsComp >= itemsObj) diasCompletados++
+              else if (itemsComp > 0) diasEnCurso++
+              else diasAusentes++
+            }
+            itemsPasadosCompletados += itemsComp
+            itemsPasadosNoLogrados += Math.max(0, itemsObj - itemsComp)
+          } else if (fecha === todayStr) {
+            itemsRestantesTotal += Math.max(0, itemsObj - itemsComp)
+          } else {
+            if (itemsObj > 0) diasProximos++
+            itemsRestantesTotal += itemsObj
+          }
+        })
+      } else {
+        // DOCUMENT Logic
+        const end = e.program_end_date ? new Date(e.program_end_date) : null
+        const today = new Date(); today.setHours(0, 0, 0, 0)
+        const hasFinished = end && today > end
+
+        itemsPasadosCompletados = s?.doc_items_ok || 0
+        const itemsTotal = s?.doc_items_total || 0
+        const pending = Math.max(0, itemsTotal - itemsPasadosCompletados)
+
+        if (hasFinished) {
+          itemsPasadosNoLogrados = pending
+          itemsRestantesTotal = 0
+        } else {
+          itemsPasadosNoLogrados = 0
+          itemsRestantesTotal = pending
+        }
+
+        diasCompletados = 0
+        diasAusentes = 0
+        diasProximos = 0
+      }
+
+      // Workshop specific overrides
+      if (isWorkshop) {
+        diasCompletados = workshopAttendanceMap.get(eidNum) || 0
+        diasAusentes = workshopAbsenceMap.get(eidNum) || 0
+        diasProximos = workshopFutureMap.get(eidNum) || 0
+      }
 
       let progressPercent = 0
-      if (s?.total_days > 0) progressPercent = Math.round((s.completed_days / s.total_days) * 100)
-      else if (s?.items_total > 0) progressPercent = Math.round((s.items_ok / s.items_total) * 100)
-
-      let daysPassed = 0
-      let daysRemainingFuture = 0
-      const start = e.start_date ? new Date(e.start_date) : null
-      const end = e.program_end_date ? new Date(e.program_end_date) : null
-      const today = new Date(); today.setHours(0, 0, 0, 0)
-
       if (isDocument) {
-        // Documents don't have days
-        daysPassed = 0
-        daysRemainingFuture = 0
-      } else if (isWorkshop) {
-        // Workshops use actual scheduled dates
-        daysPassed = (workshopAttendanceMap.get(eidNum) || 0) + (workshopAbsenceMap.get(eidNum) || 0) > 0 ? 1 : 0
-        daysRemainingFuture = workshopFutureMap.get(eidNum) || 0
-      } else if (start) {
-        // Programs (Fitness/Nutrition) use day-by-day logic
-        const isTodayActive = today >= start && (!end || today <= end);
-        const hasFinished = end && today > end;
-        daysPassed = isTodayActive ? 1 : 0;
-        if (end) {
-          const diffDays = Math.floor((end.getTime() - today.getTime()) / (1000 * 60 * 60 * 24));
-          daysRemainingFuture = Math.max(0, diffDays);
-          if (hasFinished) {
-            daysPassed = 0;
-            daysRemainingFuture = 0;
-          }
-        }
-      }
-
-      // Expiration logic (Client must start within X days)
-      const diasAcceso = act.dias_acceso || 30
-      const purchaseDate = new Date(e.created_at)
-      let limitDate: Date
-      if (e.expiration_date) {
-        limitDate = new Date(e.expiration_date)
+        if (s?.doc_items_total > 0) progressPercent = Math.round((s.doc_items_ok / s.doc_items_total) * 100)
       } else {
-        limitDate = new Date(purchaseDate)
-        limitDate.setDate(purchaseDate.getDate() + diasAcceso)
+        if (s?.items_total > 0) progressPercent = Math.round((s.items_ok / s.items_total) * 100)
+        else if (s?.total_days > 0) progressPercent = Math.round((s.completed_days / s.total_days) * 100)
       }
-      limitDate.setHours(23, 59, 59, 999)
-      const isExpiredStart = !start && new Date() > limitDate
-
-      // Calibration for Workshops specific fields
-      const daysCompletedValue = isWorkshop ? (workshopAttendanceMap.get(eidNum) || 0) : (s?.completed_days || 0)
-      const daysMissedValue = isWorkshop ? (workshopAbsenceMap.get(eidNum) || 0) : (s?.late_days || 0)
 
       return {
         ...act,
@@ -248,25 +273,39 @@ export async function GET(
         start_date: e.start_date,
         program_end_date: e.program_end_date,
         progressPercent,
-        upToDate: !(s?.pending_atrasados > 0 || s?.late_days > 0),
-        isExpiredStart: false, // already calculated in previous turn but let's keep it simple
+        upToDate: !((itemsPasadosNoLogrados > 0) || (s?.pending_atrasados > 0)),
 
         // --- ESTRUCTURA SOLICITADA ---
-        // DÍAS
-        daysCompleted: daysCompletedValue,
-        daysPassed: daysPassed || 0, // "En curso"
-        daysMissed: daysMissedValue, // "Ausente"
-        daysRemainingFuture: daysRemainingFuture || 0, // "Próximos"
+        daysCompleted: diasCompletados,
+        daysPassed: diasEnCurso, // "En curso"
+        daysMissed: diasAusentes, // "Ausente"
+        daysRemainingFuture: diasProximos, // "Próximos"
 
-        // ITEMS
-        itemsCompletedTotal: s?.items_ok || 0,
-        itemsDebtPast: s?.pending_atrasados || 0, // "No completados" (pasado)
-        itemsPendingToday: s?.pending_hoy || 0, // "Restantes" (hoy/adelante)
-
-        // Metadata extra
-        totalPendingItems: (s?.pending_atrasados || 0) + (s?.pending_hoy || 0)
+        itemsCompletedTotal: itemsPasadosCompletados, // "Terminados" (pasado)
+        itemsDebtPast: itemsPasadosNoLogrados, // "No logrados" (pasado)
+        itemsPendingToday: itemsRestantesTotal // "Restantes" (hoy + futuro)
       }
     }).filter(Boolean)
+
+    // Solo promediamos actividades "en curso", deduplicando por activity_id
+    // Coincidimos con la lógica del frontend para "En curso": empezadas y no completadas (< 100%)
+    const inProgressActivities = activitiesDetails.filter((a: any) => {
+      const progressPercent = a.progressPercent || 0
+      const isCompleted = progressPercent >= 100 ||
+        ['finalizada', 'finished', 'expirada', 'expired'].includes(a.status?.toLowerCase())
+      const hasStarted = !!a.start_date
+      return !isCompleted && hasStarted
+    })
+
+    const activeProgressByActivity = new Map<number, number>()
+    inProgressActivities.forEach((a: any) => {
+      const aid = Number(a.id)
+      const currentMax = activeProgressByActivity.get(aid) || 0
+      activeProgressByActivity.set(aid, Math.max(currentMax, a.progressPercent || 0))
+    })
+
+    const uniqueActiveCount = activeProgressByActivity.size
+    const totalProgSum = Array.from(activeProgressByActivity.values()).reduce((a, b) => a + b, 0)
 
     const client = {
       id: profileRes.data?.id || clientId,
@@ -275,7 +314,7 @@ export async function GET(
       avatar_url: profileRes.data?.avatar_url,
       activities: activitiesDetails,
       activitiesCount: activitiesDetails.length,
-      progress: activitiesDetails.length > 0 ? Math.round(activitiesDetails.reduce((acc: any, a: any) => acc + (a.progressPercent || 0), 0) / activitiesDetails.length) : 0,
+      progress: uniqueActiveCount > 0 ? Math.round(totalProgSum / uniqueActiveCount) : 0,
       injuries: injuriesRes.data || [],
       biometrics: biometricsRes.data || [],
       objectives: (objectivesRes.data || []).map((obj: any) => ({
@@ -284,11 +323,16 @@ export async function GET(
       })),
       totalRevenue: activitiesDetails.reduce((acc: any, a: any) => acc + (Number(a.amount_paid) || 0), 0),
       physicalData: {
-        height: profileRes.data?.Height || null,
-        weight: profileRes.data?.weight || null,
-        age: profileRes.data?.birth_date ? (new Date().getFullYear() - new Date(profileRes.data.birth_date).getFullYear()) : null,
-        phone: profileRes.data?.phone || null,
-        location: profileRes.data?.location || null,
+        height: clientTableRes.data?.Height || profileRes.data?.Height || null,
+        weight: clientTableRes.data?.weight || profileRes.data?.weight || null,
+        age: (() => {
+          const bd = clientTableRes.data?.birth_date || profileRes.data?.birth_date
+          if (bd) return (new Date().getFullYear() - new Date(bd).getFullYear())
+          return clientTableRes.data?.age || profileRes.data?.age || null
+        })(),
+        phone: clientTableRes.data?.phone || profileRes.data?.phone || null,
+        emergency_contact: clientTableRes.data?.emergency_contact || null,
+        location: clientTableRes.data?.location || profileRes.data?.location || null,
         meet_credits: meetRes.data?.meet_credits_available || 0
       }
     }

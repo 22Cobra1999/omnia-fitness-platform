@@ -4,7 +4,7 @@ import { useState, useEffect } from "react"
 import { Card } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
 import { Progress } from "@/components/ui/progress"
-import { Calendar, User, Play, Clock, Flame, Star, Zap, CheckCircle2, AlertCircle } from "lucide-react"
+import { Calendar, User, Play, Clock, Flame, Star, Zap, CheckCircle2, AlertTriangle } from "lucide-react"
 import Image from "next/image"
 import type { Enrollment } from "@/types/activity"
 import { createClient } from '@/lib/supabase/supabase-client'
@@ -364,53 +364,33 @@ export function PurchasedActivityCard({
                   const type = activity.type?.toLowerCase() || '';
                   const cat = activity.categoria?.toLowerCase() || '';
                   const isWorkshop = type.includes('workshop') || type.includes('taller') || cat.includes('yoga');
-                  const isDocument = cat.includes('documento') || cat.includes('proceso');
+                  const isDocument = type.includes('document') || type.includes('documento') || cat.includes('documento');
 
                   if (isDocument) {
                     return (
                       <div className="flex flex-col gap-1.5">
                         <div className="text-[9px] uppercase tracking-wider font-bold text-zinc-500 mb-0.5 px-0.5">
-                          Temas
+                          Items
                         </div>
                         <div className="flex flex-col text-[11px] text-zinc-400 gap-1.5 px-1">
-                          <div className="flex justify-between items-center">
-                            <span>Completados:</span>
-                            <span className="text-zinc-300 font-medium">{itemsCompletedTotal ?? 0}</span>
+                          <div className="flex justify-between items-center text-orange-200">
+                            <span>Terminados:</span>
+                            <span className="font-bold text-orange-300">{itemsCompletedTotal ?? 0}</span>
+                          </div>
+                          <div className="flex justify-between items-center opacity-80 text-red-400/60">
+                            <span>No logrados:</span>
+                            <span className="font-medium">{itemsDebtPast ?? 0}</span>
                           </div>
                           <div className="flex justify-between items-center opacity-70">
                             <span>Restantes:</span>
-                            <span className="text-zinc-400 font-medium">{itemsPendingToday ?? pendingCount ?? 0}</span>
+                            <span className="text-zinc-400 font-medium">{itemsPendingToday ?? 0}</span>
                           </div>
                         </div>
                       </div>
                     );
                   }
 
-                  if (isWorkshop) {
-                    return (
-                      <div className="flex flex-col gap-1.5">
-                        <div className="text-[9px] uppercase tracking-wider font-bold text-zinc-500 mb-0.5 px-0.5">
-                          Clases
-                        </div>
-                        <div className="flex flex-col text-[11px] text-zinc-400 gap-1.5 px-1">
-                          <div className="flex justify-between items-center">
-                            <span>Asistencias:</span>
-                            <span className="text-zinc-300 font-medium">{daysCompleted ?? 0}</span>
-                          </div>
-                          <div className="flex justify-between items-center opacity-80">
-                            <span>Ausencias:</span>
-                            <span className="text-zinc-400 font-medium">{daysMissed ?? 0}</span>
-                          </div>
-                          <div className="flex justify-between items-center opacity-60">
-                            <span>Próximas:</span>
-                            <span className="text-zinc-500 font-medium">{daysRemainingFuture ?? 0}</span>
-                          </div>
-                        </div>
-                      </div>
-                    );
-                  }
-
-                  // Default view for traditional activities (Training, Nutrition)
+                  // Default view for traditional activities and workshops (Training, Nutrition, Workshops)
                   return (
                     <div className="flex flex-col gap-3">
                       <div className="flex flex-col gap-1.5">
@@ -418,19 +398,19 @@ export function PurchasedActivityCard({
                           Días
                         </div>
                         <div className="flex flex-col text-[11px] text-zinc-400 gap-1.5 px-1">
-                          <div className="flex justify-between items-center">
+                          <div className="flex justify-between items-center text-orange-200">
                             <span>Completados:</span>
-                            <span className="text-zinc-300 font-medium">{daysCompleted ?? 0}</span>
+                            <span className="font-bold text-orange-300">{daysCompleted ?? 0}</span>
                           </div>
                           <div className="flex justify-between items-center">
                             <span>En curso:</span>
                             <span className="text-zinc-300 font-medium">{daysPassed ?? 0}</span>
                           </div>
-                          <div className="flex justify-between items-center opacity-80">
+                          <div className="flex justify-between items-center opacity-80 text-red-400/60">
                             <span>Ausente:</span>
-                            <span className="text-zinc-400 font-medium">{daysMissed ?? 0}</span>
+                            <span className="font-medium">{daysMissed ?? 0}</span>
                           </div>
-                          <div className="flex justify-between items-center opacity-60">
+                          <div className="flex justify-between items-center opacity-70">
                             <span>Próximos:</span>
                             <span className="text-zinc-500 font-medium">{daysRemainingFuture ?? 0}</span>
                           </div>
@@ -443,17 +423,17 @@ export function PurchasedActivityCard({
                           Items
                         </div>
                         <div className="flex flex-col text-[11px] text-zinc-400 gap-1.5 px-1">
-                          <div className="flex justify-between items-center">
+                          <div className="flex justify-between items-center text-orange-200">
                             <span>Terminados:</span>
-                            <span className="text-zinc-300 font-medium">{itemsCompletedTotal ?? 0}</span>
+                            <span className="font-bold text-orange-300">{itemsCompletedTotal ?? 0}</span>
                           </div>
-                          <div className="flex justify-between items-center opacity-80">
+                          <div className="flex justify-between items-center opacity-80 text-red-400/60">
                             <span>No logrados:</span>
-                            <span className="text-zinc-400 font-medium">{itemsDebtPast ?? 0}</span>
+                            <span className="font-medium">{itemsDebtPast ?? 0}</span>
                           </div>
                           <div className="flex justify-between items-center opacity-70">
                             <span>Restantes:</span>
-                            <span className="text-zinc-400 font-medium">{itemsPendingToday ?? pendingCount ?? 0}</span>
+                            <span className="text-zinc-400 font-medium">{itemsPendingToday ?? 0}</span>
                           </div>
                         </div>
                       </div>
@@ -537,21 +517,64 @@ export function PurchasedActivityCard({
           </div>
 
           {/* 5. Progreso (Abajo) */}
-          <div className="mt-auto pt-1.5 border-t border-zinc-800/20">
-            <div className="flex justify-between text-[9px] mb-0.5 text-zinc-500">
-              <span className="font-medium uppercase tracking-wider">Progreso</span>
-              <span className="text-zinc-300 font-bold">{progress}%</span>
+          <div className="mt-auto pt-1.5 border-t border-zinc-800/20 relative">
+
+            <div className="flex justify-between text-[11px] mb-1 text-[#FF7939]">
+              <span className="font-bold uppercase tracking-wider">Progreso</span>
+              <span className="font-black text-[12px]">{progress}%</span>
             </div>
-            <div className="h-0.5 bg-zinc-800/50 rounded-full overflow-hidden mb-0.5">
+            <div className="h-0.5 bg-zinc-800/50 rounded-full overflow-hidden mb-1">
               <div
-                className="h-full bg-zinc-400 rounded-full transition-all duration-500 shadow-[0_0_4px_rgba(255,255,255,0.1)]"
+                className="h-full bg-[#FF7939] rounded-full transition-all duration-500 shadow-[0_0_8px_rgba(255,121,57,0.3)]"
                 style={{ width: `${progress}%` }}
               />
             </div>
 
             {/* Price section - Centered & Simplified */}
-            <div className="flex justify-center items-center mt-0.5 pt-0.5 border-t border-zinc-900/30">
+            <div className="flex justify-center items-center mt-0.5 pt-0.5 border-t border-zinc-900/30 relative">
               <span className="text-xs font-black text-zinc-200">${Math.round(amountPaid ?? 0)}</span>
+
+              {/* Delay Alert Icon (Right Corner) */}
+              {isCoachView && (() => {
+                const itemsOK = itemsCompletedTotal || 0;
+                const itemsDebt = itemsDebtPast || 0;
+                const itemsRest = itemsPendingToday || 0;
+                const totalItems = itemsOK + itemsDebt + itemsRest;
+
+                const daysOK = daysCompleted || 0;
+                const daysPassing = daysPassed || 0;
+                const daysMiss = daysMissed || 0;
+                const totalDays = daysOK + daysPassing + daysMiss;
+
+                const isDocument = enrollment.activity.type?.toLowerCase().includes('document');
+                let delayPercent = 0;
+
+                if (isDocument) {
+                  delayPercent = totalItems > 0 ? (itemsDebt / totalItems) * 100 : 0;
+                } else {
+                  delayPercent = totalDays > 0 ? (daysMiss / totalDays) * 100 : 0;
+                }
+
+                if (delayPercent <= 0) return null;
+
+                let alertColor = "text-yellow-400";
+                let alertLabel = "Leve";
+                if (delayPercent > 50) {
+                  alertColor = "text-red-400";
+                  alertLabel = "Crítico";
+                } else if (delayPercent > 20) {
+                  alertColor = "text-orange-400";
+                  alertLabel = "Moderado";
+                }
+
+                return (
+                  <div className="absolute right-0 flex items-center justify-center">
+                    <span className={`text-[10px] font-bold uppercase tracking-wide ${alertColor}`}>
+                      {alertLabel}
+                    </span>
+                  </div>
+                );
+              })()}
             </div>
           </div>
 

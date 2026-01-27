@@ -30,6 +30,7 @@ interface Client {
     amountPaid: number
   }>
   hasAlert?: boolean
+  age?: number
 }
 
 const calculateAge = (birthDate: string | null) => {
@@ -377,8 +378,8 @@ export function ClientsScreen() {
         </button>
       </div>
 
-      {/* Client list */}
-      <div className="space-y-3">
+      {/* Client list - Redesigned as a vertical grid (Narrower) */}
+      <div className="grid grid-cols-2 gap-3 max-w-sm mx-auto">
         {filteredClients.length === 0 ? (
           <div className="text-center py-12">
             <Users className="h-12 w-12 text-gray-500 mx-auto mb-4" />
@@ -393,62 +394,83 @@ export function ClientsScreen() {
           filteredClients.map((client) => (
             <div
               key={client.id}
-              className="bg-[#141414] rounded-2xl p-3 border border-zinc-800/60 shadow-sm cursor-pointer hover:bg-[#181818] transition-colors flex items-center gap-4"
+              className="bg-[#141414] rounded-2xl overflow-hidden border border-zinc-800/80 shadow-lg cursor-pointer hover:bg-[#181818] transition-all hover:border-[#FF7939]/30 flex flex-col group"
               onClick={() => openClientModal(client)}
             >
-              {/* Avatar más pequeño y compacto */}
-              <div className="relative w-12 h-12 rounded-full overflow-hidden border border-zinc-800 shrink-0">
-                <img
-                  src={client.avatar_url || "/placeholder.svg"}
-                  alt={client.name}
-                  className="w-full h-full object-cover"
-                />
-              </div>
-
-              {/* Info principal: Nombre y última conexión */}
-              <div className="flex-1 min-w-0">
-                <h3 className="font-semibold text-sm text-white mb-0.5 truncate leading-tight">{client.name}</h3>
-                <div className="flex items-center gap-1.5 text-[10px] text-gray-400">
-                  <span className={`inline-block w-1.5 h-1.5 rounded-full ${client.status === "active" ? "bg-green-500" : client.status === "pending" ? "bg-yellow-500" : "bg-gray-500"}`}></span>
-                  <span className="truncate">Última: {client.lastActive}</span>
+              {/* Card Header/Hero area */}
+              <div className="relative h-24 bg-zinc-900 flex items-center justify-center overflow-hidden">
+                <div className="absolute inset-0 bg-gradient-to-b from-zinc-800/20 to-black/40"></div>
+                {/* Large Avatar */}
+                <div className="relative z-10 w-16 h-16 rounded-full overflow-hidden border-2 border-zinc-800 shadow-xl group-hover:scale-105 transition-transform duration-300">
+                  <img
+                    src={client.avatar_url || "/placeholder.svg"}
+                    alt={client.name}
+                    className="w-full h-full object-cover"
+                  />
+                  {client.hasAlert && (
+                    <div className="absolute top-0 right-0 h-4 w-4 bg-red-500 rounded-full border-2 border-[#141414] shadow-sm flex items-center justify-center animate-pulse">
+                      <div className="h-1.5 w-1.5 bg-white rounded-full"></div>
+                    </div>
+                  )}
+                </div>
+                {/* Status indicator badge */}
+                <div className="absolute bottom-2 right-2">
+                  <div className={`px-2 py-0.5 rounded-full text-[8px] font-bold uppercase tracking-wider border ${client.status === "active" ? "bg-orange-500/10 text-orange-400 border-orange-500/20" :
+                    client.status === "pending" ? "bg-yellow-500/10 text-yellow-500 border-yellow-500/20" :
+                      "bg-gray-500/10 text-gray-500 border-gray-500/20"
+                    }`}>
+                    {client.status === "active" ? "Activo" : client.status === "pending" ? "Pendiente" : "Inactivo"}
+                  </div>
                 </div>
               </div>
 
-              {/* Stats compactas a la derecha */}
-              <div className="flex items-center gap-1.5 pr-1">
-                <div className="flex flex-col items-center min-w-[24px]">
-                  <div className="text-[13px] font-bold text-[#FF7939] leading-tight">{client.progress}%</div>
-                  <div className="text-[7px] text-gray-500 uppercase tracking-tight">PROG</div>
-                </div>
-
-                <div className="flex flex-col items-center min-w-[30px] border-l border-zinc-800/50 pl-2 relative">
-                  <div className="text-sm font-bold text-white leading-tight flex items-center gap-0.5">
-                    {client.activitiesCount}
-                    {/* Alerta de actividad basada en hasAlert real */}
-                    {client.hasAlert && (
-                      <div className="h-2 w-2 bg-red-500 rounded-full" title="Tiene actividades pendientes" />
+              {/* Card Body */}
+              <div className="p-3 flex-1 flex flex-col">
+                <div className="text-center mb-3">
+                  <h3 className="font-bold text-sm text-white truncate leading-tight mb-1">{client.name}</h3>
+                  <div className="flex items-center justify-center gap-1.5 text-[9px] text-gray-400">
+                    <span className="truncate">Última: {client.lastActive}</span>
+                    {(client.age || 0) > 0 && (
+                      <>
+                        <span className="opacity-40">•</span>
+                        <span>{client.age} años</span>
+                      </>
                     )}
                   </div>
-                  <div className="text-[7px] text-gray-500 uppercase tracking-tight">ACT</div>
                 </div>
 
-                <div className="flex flex-col items-center min-w-[30px] border-l border-zinc-800/50 pl-2">
-                  <div className={`flex items-center justify-center h-5 w-5 rounded-full ${(client.todoCount || 0) > 0 ? 'bg-[#FF7939]/20 text-[#FF7939]' : 'bg-zinc-800/50 text-zinc-600'}`}>
-                    <Flame className={`h-3 w-3 ${(client.todoCount || 0) > 0 ? 'fill-[#FF7939]' : 'fill-none'}`} />
+                {/* Progress Section */}
+                <div className="mt-auto space-y-2">
+                  <div className="flex items-center justify-between text-[10px]">
+                    <span className="text-orange-400 font-bold uppercase tracking-tighter">Progreso</span>
+                    <span className="text-white font-black text-xs">{client.progress}%</span>
                   </div>
-                  <div className="text-[7px] mt-0.5 text-gray-500 uppercase tracking-tight">
-                    {client.todoCount || 0}
+                  <div className="w-full h-1.5 bg-zinc-800 rounded-full overflow-hidden">
+                    <div
+                      className="h-full bg-[#FF7939] rounded-full shadow-[0_0_8px_rgba(255,121,57,0.4)] transition-all duration-500"
+                      style={{ width: `${client.progress}%` }}
+                    />
                   </div>
                 </div>
 
-                <div className="flex flex-col items-center min-w-[36px] border-l border-zinc-800/50 pl-2">
-                  <div className="text-[13px] font-bold text-white leading-tight">${(() => {
-                    const val = Math.round(client.totalRevenue);
-                    return val >= 1000 ? (val / 1000).toFixed(1) + 'k' : val;
-                  })()}</div>
-                  <div className="text-[7px] text-gray-500 uppercase tracking-tight">INGR</div>
+                {/* Footer Stats Grid */}
+                <div className="grid grid-cols-3 gap-1 mt-4 pt-3 border-t border-zinc-800/60">
+                  <div className="flex flex-col items-center">
+                    <span className="text-[11px] font-bold text-white">{client.activitiesCount}</span>
+                    <span className="text-[7px] text-gray-500 uppercase font-medium">Acts</span>
+                  </div>
+                  <div className="flex flex-col items-center border-l border-zinc-800/40">
+                    <span className="text-[11px] font-bold text-white">{client.todoCount || 0}</span>
+                    <span className="text-[7px] text-gray-500 uppercase font-medium">Tareas</span>
+                  </div>
+                  <div className="flex flex-col items-center border-l border-zinc-800/40">
+                    <span className="text-[11px] font-bold text-orange-400">${(() => {
+                      const val = Math.round(client.totalRevenue);
+                      return val >= 1000 ? (val / 1000).toFixed(1) + 'k' : val;
+                    })()}</span>
+                    <span className="text-[7px] text-gray-400 uppercase font-bold">Ingr</span>
+                  </div>
                 </div>
-                <ChevronRight className="h-3.5 w-3.5 text-zinc-600 shrink-0" />
               </div>
             </div>
           ))
@@ -456,589 +478,603 @@ export function ClientsScreen() {
       </div>
 
       {/* Modal del cliente - Pantalla completa */}
-      {selectedClient && (
-        <div className="fixed inset-0 bg-black z-30 flex flex-col">
+      {
+        selectedClient && (
+          <div className="fixed inset-0 bg-black z-30 flex flex-col">
 
-          {/* --- FIXED HEADER BUTTONS (Pinned to Corners) --- */}
-          <div className="absolute top-20 left-2 z-[100]">
-            {/* Botón Notificaciones */}
-            <div className="relative">
-              <button
-                type="button"
-                className="p-2 rounded-full transition-colors border border-zinc-800 bg-[#1c1c1c] hover:bg-zinc-800 group"
-                onClick={() => {
-                  setShowTodoSection(prev => !prev)
-                  if (!showTodoSection && selectedClient) {
-                    loadTodoTasks(selectedClient.id)
-                  }
-                }}
-                title="Notificaciones / To Do"
-              >
-                <Bell className="h-4 w-4 text-[#FF7939] group-hover:text-white transition-colors" />
-                {clientDetail?.client?.todoCount && clientDetail.client.todoCount > 0 ? (
-                  <div className="absolute top-0.5 right-0.5 h-2 w-2 bg-[#FF7939] rounded-full border border-black">
-                  </div>
-                ) : null}
-              </button>
-
-              {/* Dropdown Notificaciones - Fixed position override for visibility */}
-              {showTodoSection && (
-                <div className="absolute top-12 left-0 w-80 bg-[#1c1c1c] border border-zinc-800 rounded-2xl shadow-2xl z-50 p-4 overflow-hidden">
-                  <div className="flex items-center justify-between mb-3">
-                    <span className="text-sm font-bold text-white font-[var(--font-anton)] tracking-wide">PENDIENTES</span>
-                    <button
-                      className="w-6 h-6 rounded-full bg-[#FF7939] text-black font-bold flex items-center justify-center text-sm hover:bg-[#ff8f5a] transition-colors"
-                      onClick={() => setShowTodoInput(v => !v)}
-                    >
-                      +
-                    </button>
-                  </div>
-                  {/* Rest of todo content logic... keeping simplified for move, assumed state handles render */}
-                  {showTodoInput && (
-                    <div className="flex gap-2 mb-3">
-                      <input
-                        value={newTask}
-                        onChange={(e) => setNewTask(e.target.value)}
-                        className="flex-1 bg-black/40 border border-zinc-700 rounded-lg px-3 py-1.5 text-sm text-white placeholder-zinc-500 focus:outline-none focus:border-[#FF7939]"
-                        placeholder="Nueva tarea..."
-                        onKeyDown={(e) => e.key === 'Enter' && addNewTask()}
-                        autoFocus
-                      />
+            {/* --- FIXED HEADER BUTTONS (Pinned to Corners) --- */}
+            <div className="absolute top-20 left-2 z-[100]">
+              {/* Botón Notificaciones */}
+              <div className="relative">
+                <button
+                  type="button"
+                  className="p-2 rounded-full transition-colors border border-zinc-800 bg-[#1c1c1c] hover:bg-zinc-800 group"
+                  onClick={() => {
+                    setShowTodoSection(prev => !prev)
+                    if (!showTodoSection && selectedClient) {
+                      loadTodoTasks(selectedClient.id)
+                    }
+                  }}
+                  title="Notificaciones / To Do"
+                >
+                  <Bell className="h-4 w-4 text-[#FF7939] group-hover:text-white transition-colors" />
+                  {clientDetail?.client?.todoCount && clientDetail.client.todoCount > 0 ? (
+                    <div className="absolute top-0.5 right-0.5 h-2 w-2 bg-[#FF7939] rounded-full border border-black">
                     </div>
-                  )}
-                  <div className="max-h-60 overflow-y-auto space-y-2 pr-1 custom-scrollbar">
-                    {loadingTodo ? (
-                      <div className="text-xs text-gray-400 text-center py-4">Cargando...</div>
-                    ) : todoTasks.length === 0 ? (
-                      <div className="text-xs text-zinc-500 text-center py-4 italic">No hay tareas pendientes</div>
-                    ) : (
-                      todoTasks.map((t, idx) => (
-                        <div key={idx} className="flex items-start justify-between bg-zinc-900/50 rounded-lg p-3 hover:bg-zinc-800 transition-colors group">
-                          <span className="text-sm text-gray-300 leading-snug">{t}</span>
-                          <button
-                            onClick={() => completeTask(idx)}
-                            className="w-4 h-4 mt-0.5 rounded-full border border-zinc-600 hover:border-[#FF7939] hover:bg-[#FF7939]/20 flex-shrink-0 ml-3 transition-all"
-                            title="Marcar como completado"
-                          />
-                        </div>
-                      ))
+                  ) : null}
+                </button>
+
+                {/* Dropdown Notificaciones - Fixed position override for visibility */}
+                {showTodoSection && (
+                  <div className="absolute top-12 left-0 w-80 bg-[#1c1c1c] border border-zinc-800 rounded-2xl shadow-2xl z-50 p-4 overflow-hidden">
+                    <div className="flex items-center justify-between mb-3">
+                      <span className="text-sm font-bold text-white font-[var(--font-anton)] tracking-wide">PENDIENTES</span>
+                      <button
+                        className="w-6 h-6 rounded-full bg-[#FF7939] text-black font-bold flex items-center justify-center text-sm hover:bg-[#ff8f5a] transition-colors"
+                        onClick={() => setShowTodoInput(v => !v)}
+                      >
+                        +
+                      </button>
+                    </div>
+                    {/* Rest of todo content logic... keeping simplified for move, assumed state handles render */}
+                    {showTodoInput && (
+                      <div className="flex gap-2 mb-3">
+                        <input
+                          value={newTask}
+                          onChange={(e) => setNewTask(e.target.value)}
+                          className="flex-1 bg-black/40 border border-zinc-700 rounded-lg px-3 py-1.5 text-sm text-white placeholder-zinc-500 focus:outline-none focus:border-[#FF7939]"
+                          placeholder="Nueva tarea..."
+                          onKeyDown={(e) => e.key === 'Enter' && addNewTask()}
+                          autoFocus
+                        />
+                      </div>
                     )}
+                    <div className="max-h-60 overflow-y-auto space-y-2 pr-1 custom-scrollbar">
+                      {loadingTodo ? (
+                        <div className="text-xs text-gray-400 text-center py-4">Cargando...</div>
+                      ) : todoTasks.length === 0 ? (
+                        <div className="text-xs text-zinc-500 text-center py-4 italic">No hay tareas pendientes</div>
+                      ) : (
+                        todoTasks.map((t, idx) => (
+                          <div key={idx} className="flex items-start justify-between bg-zinc-900/50 rounded-lg p-3 hover:bg-zinc-800 transition-colors group">
+                            <span className="text-sm text-gray-300 leading-snug">{t}</span>
+                            <button
+                              onClick={() => completeTask(idx)}
+                              className="w-4 h-4 mt-0.5 rounded-full border border-zinc-600 hover:border-[#FF7939] hover:bg-[#FF7939]/20 flex-shrink-0 ml-3 transition-all"
+                              title="Marcar como completado"
+                            />
+                          </div>
+                        ))
+                      )}
+                    </div>
                   </div>
-                </div>
-              )}
+                )}
+              </div>
             </div>
-          </div>
 
-          <div className="absolute top-20 right-2 z-[100]">
-            <button
-              onClick={closeClientModal}
-              className="p-2 hover:bg-white/10 rounded-full transition-colors"
-            >
-              <X className="h-5 w-5 text-zinc-400 hover:text-white" />
-            </button>
-          </div>
+            <div className="absolute top-20 right-2 z-[100]">
+              <button
+                onClick={closeClientModal}
+                className="p-2 hover:bg-white/10 rounded-full transition-colors"
+              >
+                <X className="h-5 w-5 text-zinc-400 hover:text-white" />
+              </button>
+            </div>
 
-          {/* Contenedor scrollable */}
-          <div className="flex-1 overflow-x-hidden overflow-y-auto" ref={calendarScrollRef}>
-            {/* Header con imagen centrada y blur de fondo */}
-            {/* Header con imagen centrada (sin fondo) */}
-            <div className="relative bg-black pt-12 pb-4 px-4 mt-0">
-              {/* Contenido */}
-              <div className="relative z-10 w-full">
-
+            {/* Contenedor scrollable */}
+            <div className="flex-1 overflow-x-hidden overflow-y-auto" ref={calendarScrollRef}>
+              {/* Header con imagen centrada y blur de fondo */}
+              {/* Header con imagen centrada (sin fondo) */}
+              <div className="relative bg-black pt-12 pb-4 px-4 mt-0">
+                {/* Contenido */}
+                <div className="relative z-10 w-full">
 
 
 
 
-                {/* --- CENTER: Avatar & Details --- */}
-                <div className="flex flex-col items-center w-full mt-12 sm:mt-16">
-                  {/* Name (Moved to Top) */}
-                  <h3 className="font-bold text-xl sm:text-2xl text-zinc-300 mb-1 text-center font-[var(--font-anton)] tracking-wide">{selectedClient.name}</h3>
 
-                  <div className="flex items-center justify-center gap-5 sm:gap-6 mb-2">
+                  {/* --- CENTER: Avatar & Details --- */}
+                  <div className="flex flex-col items-center w-full mt-12 sm:mt-16">
+                    {/* Name (Moved to Top) */}
+                    <h3 className="font-bold text-xl sm:text-2xl text-zinc-300 mb-1 text-center font-[var(--font-anton)] tracking-wide">{selectedClient.name}</h3>
 
-                    {/* Botón Calendar */}
-                    <button
-                      type="button"
-                      className="w-10 h-10 rounded-full bg-zinc-900/80 backdrop-blur-md border border-zinc-800 flex items-center justify-center shadow-sm hover:bg-zinc-800 transition-colors"
-                      title="Crear Meet"
-                      onClick={() => {
-                        try {
-                          const url = `/` + `?tab=calendar&clientId=${encodeURIComponent(selectedClient.id)}`
-                          router.push(url)
-                          navigateToTab('calendar')
-                        } catch {
-                          navigateToTab('calendar')
-                        }
-                      }}
-                    >
-                      <CalendarIcon className="h-5 w-5 text-white/70" />
-                    </button>
 
-                    {/* Foto de perfil Squircle con Borde Roto y Badge */}
-                    <div className="relative w-24 h-24 sm:w-32 sm:h-32 flex items-center justify-center">
-                      {/* Badge "5" (Orange Box) */}
-                      {/* Badge "5" (Flame) */}
-                      <div className="absolute -bottom-2 sm:-bottom-3 z-20 flex flex-col items-center justify-center">
-                        <div className="relative flex items-center justify-center">
-                          <Flame className="h-8 w-8 sm:h-10 sm:w-10 text-[#FF7939] drop-shadow-lg" fill="#FF7939" strokeWidth={1.5} />
-                          <span className="absolute text-black font-bold text-[10px] sm:text-xs font-[var(--font-anton)] pt-1">
-                            {selectedClient.activitiesCount || 0}
-                          </span>
+                    <div className="flex items-center justify-center gap-5 sm:gap-6 mb-2">
+
+                      {/* Botón Calendar */}
+                      <button
+                        type="button"
+                        className="w-10 h-10 rounded-full bg-zinc-900/80 backdrop-blur-md border border-zinc-800 flex items-center justify-center shadow-sm hover:bg-zinc-800 transition-colors"
+                        title="Crear Meet"
+                        onClick={() => {
+                          try {
+                            const url = `/` + `?tab=calendar&clientId=${encodeURIComponent(selectedClient.id)}`
+                            router.push(url)
+                            navigateToTab('calendar')
+                          } catch {
+                            navigateToTab('calendar')
+                          }
+                        }}
+                      >
+                        <CalendarIcon className="h-5 w-5 text-white/70" />
+                      </button>
+
+                      {/* Foto de perfil Squircle con Borde Roto y Badge */}
+                      <div className="relative w-24 h-24 sm:w-32 sm:h-32 flex items-center justify-center">
+                        {/* Badge "5" (Orange Box) */}
+                        {/* Badge "5" (Flame) */}
+                        <div className="absolute -bottom-2 sm:-bottom-3 z-20 flex flex-col items-center justify-center">
+                          <div className="relative flex items-center justify-center">
+                            <Flame className="h-8 w-8 sm:h-10 sm:w-10 text-[#FF7939] drop-shadow-lg" fill="#FF7939" strokeWidth={1.5} />
+                            <span className="absolute text-black font-bold text-[10px] sm:text-xs font-[var(--font-anton)] pt-1">
+                              {selectedClient.activitiesCount || 0}
+                            </span>
+                          </div>
+                        </div>
+
+                        {/* Image - Clean on Black Background */}
+                        <div className="w-full h-full bg-black rounded-[20%] overflow-hidden relative z-10 shadow-2xl">
+                          <img
+                            src={selectedClient.avatar_url || "/placeholder.svg"}
+                            alt={selectedClient.name}
+                            className="w-full h-full object-cover"
+                          />
                         </div>
                       </div>
 
-                      {/* Image - Clean on Black Background */}
-                      <div className="w-full h-full bg-black rounded-[20%] overflow-hidden relative z-10 shadow-2xl">
-                        <img
-                          src={selectedClient.avatar_url || "/placeholder.svg"}
-                          alt={selectedClient.name}
-                          className="w-full h-full object-cover"
+                      {/* Botón Messages */}
+                      <button
+                        type="button"
+                        className="w-10 h-10 rounded-full bg-zinc-900/80 backdrop-blur-md border border-zinc-800 flex items-center justify-center shadow-sm hover:bg-zinc-800 transition-colors"
+                        title="Mensajes"
+                        onClick={() => {
+                          try {
+                            const url = `/` + `?tab=messages&clientId=${encodeURIComponent(selectedClient.id)}`
+                            router.push(url)
+                            navigateToTab('messages')
+                          } catch {
+                            navigateToTab('messages')
+                          }
+                          closeClientModal()
+                        }}
+                      >
+                        <MessageCircle className="h-5 w-5 text-white/70" />
+                      </button>
+                    </div>
+
+                    {/* Nombre y Detalles debajo */}
+                    <div className="flex flex-col items-center w-full max-w-[300px]">
+
+
+                      {/* Descripción */}
+                      {(clientDetail?.client?.physicalData?.description || selectedClient.description) && (
+                        <p className="text-sm text-gray-400 text-center mb-2 line-clamp-2 px-4 italic leading-relaxed">
+                          {clientDetail?.client?.physicalData?.description || selectedClient.description}
+                        </p>
+                      )}
+
+                      {/* Edad y Actividad (Moved Below Description) */}
+                      <div className="flex items-center justify-center gap-3 mt-1 mb-4">
+                        <span className="text-sm text-gray-400 font-medium">
+                          {clientDetail?.client?.physicalData?.birth_date
+                            ? `${calculateAge(clientDetail.client.physicalData.birth_date)} años`
+                            : (clientDetail?.client?.physicalData?.age ? `${clientDetail.client.physicalData.age} años` : '-')}
+                        </span>
+                        <span className="text-zinc-600">•</span>
+                        <span className="text-sm text-[#FF7939] font-bold capitalize tracking-wide">
+                          {clientDetail?.client?.physicalData?.activityLevel || 'Avanzado'}
+                        </span>
+                      </div>
+
+
+
+                      {/* NEW: Inline Stats Row (Between Desc and Age) */}
+                      <div className="w-full flex justify-between items-center px-2 mb-8">
+                        {/* Progreso */}
+                        <div className="flex flex-col items-center">
+                          <span
+                            className="text-[#FF7939] text-4xl leading-none font-black drop-shadow-lg tracking-tighter"
+                          >
+                            {clientDetail?.client?.progress || selectedClient.progress}%
+                          </span>
+                          <span className="text-[8px] text-gray-400 uppercase tracking-[0.2em] font-medium mt-2">Progreso</span>
+                        </div>
+
+                        {/* Spacer / Center visual balance */}
+                        <div className="w-16"></div>
+
+                        {/* Ingresos */}
+                        <div className="flex flex-col items-center">
+                          <span
+                            className="text-zinc-400 text-4xl leading-none font-black drop-shadow-lg tracking-tighter"
+                          >
+                            ${(() => {
+                              const val = Math.round(clientDetail?.client?.totalRevenue || selectedClient.totalRevenue || 0);
+                              return val >= 1000 ? (val / 1000).toFixed(0) + 'k' : val;
+                            })()}
+                          </span>
+                          <span className="text-[8px] text-zinc-500 uppercase tracking-[0.2em] font-medium mt-2">Ingresos</span>
+                        </div>
+                      </div>
+
+                    </div>
+                  </div>
+                </div>
+
+                {/* --- TABS HEADER --- */}
+                <div className="bg-transparent px-4 pt-2 sticky top-0 z-20">
+                  <div className="flex relative border-b border-zinc-800 pb-0">
+                    {/* Tab: Estilo Base */}
+                    {['calendar', 'activities', 'info'].map((tab) => (
+                      <button
+                        key={tab}
+                        onClick={() => setActiveModalTab(tab as any)}
+                        className={`flex-1 pb-3 text-sm font-medium transition-colors relative ${activeModalTab === tab ? 'text-white' : 'text-zinc-500 hover:text-zinc-300'}`}
+                      >
+                        {tab === 'calendar' && 'Calendario'}
+                        {tab === 'info' && 'Información'}
+                        {tab === 'activities' && (
+                          <span>
+                            {clientDetail?.client?.activitiesCount || selectedClient.activitiesCount} Actividades
+                          </span>
+                        )}
+                      </button>
+                    ))}
+
+                    {/* Animated Line Indicator */}
+                    <div
+                      className="absolute bottom-0 h-[3px] bg-[#FF7939] transition-all duration-300 ease-out rounded-t-full"
+                      style={{
+                        left: activeModalTab === 'calendar' ? '12%' : activeModalTab === 'activities' ? '45%' : '78%',
+                        width: '10%', // Short line
+                        transform: 'translateX(-50%)'
+                      }}
+                    />
+                  </div>
+                </div>
+
+                {/* Panel de Contenido por Tabs */}
+                <div className="bg-transparent px-0 pt-3 pb-40 min-h-[300px]">
+
+                  {/* --- LOADING SPINNER --- */}
+                  {loadingDetail && (
+                    <div className="flex flex-col items-center justify-center py-20">
+                      <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-[#FF7939] mb-4"></div>
+                      <p className="text-zinc-500 text-xs uppercase tracking-wider">Cargando datos...</p>
+                    </div>
+                  )}
+
+                  {/* --- TAB: CALENDARIO --- */}
+                  <div className={!loadingDetail && activeModalTab === 'calendar' ? 'block' : 'hidden'}>
+                    <div className="p-2 bg-black text-white min-h-[400px]">
+                      <div className="mt-4 w-full overflow-hidden" ref={calendarContainerRef}>
+                        <ClientCalendar
+                          clientId={selectedClient.id}
+                          onDaySelected={() => { }}
+                          exercisesListRef={exercisesListRef}
                         />
                       </div>
                     </div>
-
-                    {/* Botón Messages */}
-                    <button
-                      type="button"
-                      className="w-10 h-10 rounded-full bg-zinc-900/80 backdrop-blur-md border border-zinc-800 flex items-center justify-center shadow-sm hover:bg-zinc-800 transition-colors"
-                      title="Mensajes"
-                      onClick={() => {
-                        try {
-                          const url = `/` + `?tab=messages&clientId=${encodeURIComponent(selectedClient.id)}`
-                          router.push(url)
-                          navigateToTab('messages')
-                        } catch {
-                          navigateToTab('messages')
-                        }
-                        closeClientModal()
-                      }}
-                    >
-                      <MessageCircle className="h-5 w-5 text-white/70" />
-                    </button>
                   </div>
 
-                  {/* Nombre y Detalles debajo */}
-                  <div className="flex flex-col items-center w-full max-w-[300px]">
+                  {/* --- TAB: INFORMACION --- */}
+                  {/* --- TAB: INFORMACION --- */}
+                  <div className={!loadingDetail && activeModalTab === 'info' ? 'block' : 'hidden'}>
+                    {clientDetail?.client && (
+                      <div className="pt-4 space-y-6 pb-32 bg-black">
+                        {/* 1. SECCIÓN BIOMETRÍA EXPANDIBLE */}
+                        <div className="flex flex-col space-y-3">
+                          <div className="flex items-center justify-between px-2">
+                            <div className="flex items-center gap-2">
+                              <Activity className="h-4 w-4 text-[#FF6A00]" />
+                              <h2 className="text-sm font-semibold text-gray-200">Biometría</h2>
+                            </div>
+                          </div>
 
+                          <div className="w-full overflow-x-auto pb-1 px-2 hide-scrollbar-mobile" style={{ scrollbarWidth: 'none' }}>
+                            <div className="flex gap-2 min-w-max">
+                              {/* Helper to pick icon */}
+                              {(() => {
+                                const getIcon = (name: string, unit: string) => {
+                                  const n = name.toLowerCase();
+                                  const u = unit.toLowerCase();
+                                  if (n.includes('grasa') || u.includes('%')) return <Droplets className="h-3.5 w-3.5 text-gray-400 group-hover:text-[#FF7939]" />;
+                                  if (n.includes('masa') || n.includes('hueso')) return <Bone className="h-3.5 w-3.5 text-gray-400 group-hover:text-[#FF7939]" />;
+                                  if (n.includes('metabolismo') || n.includes('cal')) return <Flame className="h-3.5 w-3.5 text-gray-400 group-hover:text-[#FF7939]" />;
+                                  if (n.includes('pecho') || n.includes('cintura') || u.includes('cm')) return <Ruler className="h-3.5 w-3.5 text-gray-400 group-hover:text-[#FF7939]" />;
+                                  if (n.includes('muscula')) return <Dumbbell className="h-3.5 w-3.5 text-gray-400 group-hover:text-[#FF7939]" />;
+                                  return <Activity className="h-3.5 w-3.5 text-gray-400 group-hover:text-[#FF7939]" />;
+                                };
 
-                    {/* Descripción */}
-                    {(clientDetail?.client?.physicalData?.description || selectedClient.description) && (
-                      <p className="text-sm text-gray-400 text-center mb-2 line-clamp-2 px-4 italic leading-relaxed">
-                        {clientDetail?.client?.physicalData?.description || selectedClient.description}
-                      </p>
-                    )}
+                                return (
+                                  <>
+                                    {/* Card Peso */}
+                                    <div className="bg-white/5 rounded-2xl p-2.5 cursor-pointer hover:bg-white/10 transition-all duration-300 ease-out border-l-2 border-transparent hover:border-l-[#FF6A00] w-[140px] flex flex-col justify-between group overflow-hidden">
+                                      <div className="flex justify-between items-start">
+                                        <div className="p-1.5 bg-zinc-800/80 rounded-lg group-hover:bg-[#FF7939]/20 group-hover:text-[#FF7939] transition-colors shrink-0">
+                                          <Weight className="h-3.5 w-3.5 text-gray-400 group-hover:text-[#FF7939]" />
+                                        </div>
+                                        <span className="text-[10px] uppercase text-gray-400 font-bold leading-tight tracking-wider ml-2 whitespace-nowrap opacity-100 group-hover:opacity-100 transition-opacity">
+                                          Peso
+                                        </span>
+                                      </div>
+                                      <div className="flex items-baseline gap-1 mt-auto">
+                                        <span className="text-lg font-bold text-white shrink-0">{clientDetail.client.physicalData?.weight || '-'}</span>
+                                        <span className="text-[10px] text-gray-500 font-medium shrink-0">kg</span>
+                                      </div>
+                                    </div>
 
-                    {/* Edad y Actividad (Moved Below Description) */}
-                    <div className="flex items-center justify-center gap-3 mt-1 mb-4">
-                      <span className="text-sm text-gray-400 font-medium">
-                        {clientDetail?.client?.physicalData?.birth_date
-                          ? `${calculateAge(clientDetail.client.physicalData.birth_date)} años`
-                          : (clientDetail?.client?.physicalData?.age ? `${clientDetail.client.physicalData.age} años` : '-')}
-                      </span>
-                      <span className="text-zinc-600">•</span>
-                      <span className="text-sm text-[#FF7939] font-bold capitalize tracking-wide">
-                        {clientDetail?.client?.physicalData?.activityLevel || 'Avanzado'}
-                      </span>
-                    </div>
+                                    {/* Card Altura */}
+                                    <div className="bg-white/5 rounded-2xl p-2.5 cursor-pointer hover:bg-white/10 transition-all duration-300 ease-out border-l-2 border-transparent hover:border-l-[#FF6A00] w-[140px] flex flex-col justify-between group overflow-hidden">
+                                      <div className="flex justify-between items-start">
+                                        <div className="p-1.5 bg-zinc-800/80 rounded-lg group-hover:bg-[#FF7939]/20 group-hover:text-[#FF7939] transition-colors shrink-0">
+                                          <Ruler className="h-3.5 w-3.5 text-gray-400 group-hover:text-[#FF7939]" />
+                                        </div>
+                                        <span className="text-[10px] uppercase text-gray-400 font-bold leading-tight tracking-wider ml-2 whitespace-nowrap">
+                                          Altura
+                                        </span>
+                                      </div>
+                                      <div className="flex items-baseline gap-1 mt-auto">
+                                        <span className="text-lg font-bold text-white shrink-0">{clientDetail.client.physicalData?.height || '-'}</span>
+                                        <span className="text-[10px] text-gray-500 font-medium shrink-0">cm</span>
+                                      </div>
+                                    </div>
 
-
-
-                    {/* NEW: Inline Stats Row (Between Desc and Age) */}
-                    <div className="w-full flex justify-between items-center px-2 mb-8">
-                      {/* Progreso */}
-                      <div className="flex flex-col items-center">
-                        <span
-                          className="text-[#FF7939] text-4xl leading-none font-black drop-shadow-lg tracking-tighter"
-                        >
-                          {clientDetail?.client?.progress || selectedClient.progress}%
-                        </span>
-                        <span className="text-[8px] text-gray-400 uppercase tracking-[0.2em] font-medium mt-2">Progreso</span>
-                      </div>
-
-                      {/* Spacer / Center visual balance */}
-                      <div className="w-16"></div>
-
-                      {/* Ingresos */}
-                      <div className="flex flex-col items-center">
-                        <span
-                          className="text-zinc-400 text-4xl leading-none font-black drop-shadow-lg tracking-tighter"
-                        >
-                          ${(() => {
-                            const val = Math.round(clientDetail?.client?.totalRevenue || selectedClient.totalRevenue || 0);
-                            return val >= 1000 ? (val / 1000).toFixed(0) + 'k' : val;
-                          })()}
-                        </span>
-                        <span className="text-[8px] text-zinc-500 uppercase tracking-[0.2em] font-medium mt-2">Ingresos</span>
-                      </div>
-                    </div>
-
-                  </div>
-                </div>
-              </div>
-
-              {/* --- TABS HEADER --- */}
-              <div className="bg-transparent px-4 pt-2 sticky top-0 z-20">
-                <div className="flex relative border-b border-zinc-800 pb-0">
-                  {/* Tab: Estilo Base */}
-                  {['calendar', 'activities', 'info'].map((tab) => (
-                    <button
-                      key={tab}
-                      onClick={() => setActiveModalTab(tab as any)}
-                      className={`flex-1 pb-3 text-sm font-medium transition-colors relative ${activeModalTab === tab ? 'text-white' : 'text-zinc-500 hover:text-zinc-300'}`}
-                    >
-                      {tab === 'calendar' && 'Calendario'}
-                      {tab === 'info' && 'Información'}
-                      {tab === 'activities' && (
-                        <span>
-                          {clientDetail?.client?.activitiesCount || selectedClient.activitiesCount} Actividades
-                        </span>
-                      )}
-                    </button>
-                  ))}
-
-                  {/* Animated Line Indicator */}
-                  <div
-                    className="absolute bottom-0 h-[3px] bg-[#FF7939] transition-all duration-300 ease-out rounded-t-full"
-                    style={{
-                      left: activeModalTab === 'calendar' ? '12%' : activeModalTab === 'activities' ? '45%' : '78%',
-                      width: '10%', // Short line
-                      transform: 'translateX(-50%)'
-                    }}
-                  />
-                </div>
-              </div>
-
-              {/* Panel de Contenido por Tabs */}
-              <div className="bg-transparent px-0 pt-3 pb-40 min-h-[300px]">
-
-                {/* --- LOADING SPINNER --- */}
-                {loadingDetail && (
-                  <div className="flex flex-col items-center justify-center py-20">
-                    <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-[#FF7939] mb-4"></div>
-                    <p className="text-zinc-500 text-xs uppercase tracking-wider">Cargando datos...</p>
-                  </div>
-                )}
-
-                {/* --- TAB: CALENDARIO --- */}
-                <div className={!loadingDetail && activeModalTab === 'calendar' ? 'block' : 'hidden'}>
-                  <div className="p-2 bg-black text-white min-h-[400px]">
-                    <div className="mt-4 w-full overflow-hidden" ref={calendarContainerRef}>
-                      <ClientCalendar
-                        clientId={selectedClient.id}
-                        onDaySelected={() => { }}
-                        exercisesListRef={exercisesListRef}
-                      />
-                    </div>
-                  </div>
-                </div>
-
-                {/* --- TAB: INFORMACION --- */}
-                {/* --- TAB: INFORMACION --- */}
-                <div className={!loadingDetail && activeModalTab === 'info' ? 'block' : 'hidden'}>
-                  {clientDetail?.client && (
-                    <div className="pt-4 space-y-6 pb-32 bg-black">
-                      {/* 1. SECCIÓN BIOMETRÍA EXPANDIBLE */}
-                      <div className="flex flex-col space-y-3">
-                        <div className="flex items-center justify-between px-2">
-                          <div className="flex items-center gap-2">
-                            <Activity className="h-4 w-4 text-[#FF6A00]" />
-                            <h2 className="text-sm font-semibold text-gray-200">Biometría</h2>
+                                    {/* Dynamic Biometrics */}
+                                    {clientDetail.client.biometrics && clientDetail.client.biometrics.length > 0 && (
+                                      clientDetail.client.biometrics.map((bio: any) => (
+                                        <div key={bio.id} className="bg-white/5 rounded-2xl p-2.5 cursor-pointer hover:bg-white/10 transition-all duration-300 ease-out border-l-2 border-transparent hover:border-l-[#FF6A00] w-[140px] flex flex-col justify-between group overflow-hidden">
+                                          <div className="flex items-center gap-1.5 mb-1 w-full">
+                                            <div className="p-1.5 bg-zinc-800/80 rounded-lg group-hover:bg-[#FF7939]/20 group-hover:text-[#FF7939] transition-colors shrink-0">
+                                              {getIcon(bio.name || '', bio.unit || '')}
+                                            </div>
+                                            <span className="text-[9px] uppercase text-gray-400 font-bold leading-tight tracking-wider ml-1 truncate group-hover:overflow-visible group-hover:whitespace-normal group-hover:text-clip transition-all">
+                                              {bio.name}
+                                            </span>
+                                          </div>
+                                          <div className="mt-auto">
+                                            <div className="flex items-baseline gap-1">
+                                              <span className="text-lg font-bold text-white truncate max-w-[80px]" title={bio.value}>{bio.value}</span>
+                                              <span className="text-[10px] text-gray-500 font-medium">{bio.unit}</span>
+                                            </div>
+                                          </div>
+                                        </div>
+                                      ))
+                                    )}
+                                  </>
+                                )
+                              })()}
+                            </div>
                           </div>
                         </div>
 
-                        <div className="w-full overflow-x-auto pb-1 px-2 hide-scrollbar-mobile" style={{ scrollbarWidth: 'none' }}>
-                          <div className="flex gap-2 min-w-max">
-                            {/* Helper to pick icon */}
-                            {(() => {
-                              const getIcon = (name: string, unit: string) => {
-                                const n = name.toLowerCase();
-                                const u = unit.toLowerCase();
-                                if (n.includes('grasa') || u.includes('%')) return <Droplets className="h-3.5 w-3.5 text-gray-400 group-hover:text-[#FF7939]" />;
-                                if (n.includes('masa') || n.includes('hueso')) return <Bone className="h-3.5 w-3.5 text-gray-400 group-hover:text-[#FF7939]" />;
-                                if (n.includes('metabolismo') || n.includes('cal')) return <Flame className="h-3.5 w-3.5 text-gray-400 group-hover:text-[#FF7939]" />;
-                                if (n.includes('pecho') || n.includes('cintura') || u.includes('cm')) return <Ruler className="h-3.5 w-3.5 text-gray-400 group-hover:text-[#FF7939]" />;
-                                if (n.includes('muscula')) return <Dumbbell className="h-3.5 w-3.5 text-gray-400 group-hover:text-[#FF7939]" />;
-                                return <Activity className="h-3.5 w-3.5 text-gray-400 group-hover:text-[#FF7939]" />;
-                              };
+
+                        {/* 2. SECCIÓN OBJETIVOS */}
+                        <div className="flex flex-col space-y-3">
+                          <div className="flex items-center justify-between px-2">
+                            <div className="flex items-center gap-2">
+                              <Target className="h-4 w-4 text-[#FF6A00]" />
+                              <h2 className="text-sm font-semibold text-gray-200">Objetivos</h2>
+                            </div>
+                          </div>
+
+                          {/* Exercise List Horizontal */}
+                          <div className="h-[120px] w-full px-2">
+                            <ExerciseProgressList userId={selectedClient.id} />
+                          </div>
+                        </div>
+
+
+                        {/* SECCIÓN LESIONES */}
+                        <div className="flex flex-col space-y-3">
+                          <div className="flex items-center justify-between px-2">
+                            <div className="flex items-center gap-2">
+                              <AlertTriangle className="h-4 w-4 text-[#FF6A00]" />
+                              <h2 className="text-sm font-semibold text-gray-200">Lesiones</h2>
+                            </div>
+                          </div>
+
+                          <div className="bg-transparent h-[120px] w-full">
+                            <div className="overflow-x-auto pb-2 px-2 custom-scrollbar hide-scrollbar-mobile" style={{ scrollbarWidth: 'none' }}>
+                              <div className="flex gap-3 min-w-max">
+                                {clientDetail.client.injuries && clientDetail.client.injuries.length > 0 ? (
+                                  clientDetail.client.injuries.map((injury: any, index: number) => (
+                                    <div
+                                      key={index}
+                                      className="bg-white/5 rounded-2xl p-4 cursor-pointer hover:bg-white/10 transition-all border-l-2 border-transparent hover:border-l-[#FF6A00] w-[140px] h-[100px] flex flex-col justify-between group"
+                                    >
+                                      <div className="flex justify-between items-start">
+                                        <span className="text-[10px] uppercase text-gray-400 font-bold leading-tight max-w-[85%]">{injury.name}</span>
+                                        <div className={`h-2 w-2 rounded-full ${injury.severity === 'high' ? 'bg-red-500' :
+                                          injury.severity === 'medium' ? 'bg-yellow-500' : 'bg-green-500'
+                                          }`}></div>
+                                      </div>
+
+                                      <div className="mt-auto">
+                                        <span className="text-white text-sm font-bold block truncate">{injury.name}</span>
+                                        <span className={`text-[10px] font-medium ${injury.severity === 'high' ? 'text-red-400' :
+                                          injury.severity === 'medium' ? 'text-yellow-400' : 'text-green-400'
+                                          }`}>
+                                          {injury.severity === 'high' ? 'Alta' : injury.severity === 'medium' ? 'Media' : 'Baja'}
+                                        </span>
+                                      </div>
+                                    </div>
+                                  ))
+                                ) : (
+                                  <div className="flex items-center justify-center w-full h-[100px] text-xs text-gray-500 border border-dashed border-white/10 rounded-2xl px-8">
+                                    Sin lesiones activas
+                                  </div>
+                                )}
+                              </div>
+                            </div>
+                          </div>
+                        </div>
+
+                        {/* Información Adicional (Bio, Contacto) */}
+                        <div>
+                          <h3 className="text-sm font-semibold text-gray-400 mb-3 uppercase tracking-wider flex items-center gap-2">
+                            <FileText className="h-4 w-4" />
+                            Más Detalles
+                          </h3>
+                          <div className="divide-y divide-zinc-800 bg-[#141414] rounded-xl border border-zinc-800 overflow-hidden">
+                            {/* Ubicación */}
+                            {clientDetail.client.physicalData?.location && (
+                              <div className="p-3 flex items-center justify-between">
+                                <div className="flex items-center gap-2 text-gray-400">
+                                  <MapPin className="h-4 w-4" />
+                                  <span className="text-xs">Ubicación</span>
+                                </div>
+                                <span className="text-sm text-white">{clientDetail.client.physicalData.location}</span>
+                              </div>
+                            )}
+
+                            {/* Email */}
+                            <div className="p-3 flex items-center justify-between">
+                              <div className="flex items-center gap-2 text-gray-400">
+                                <div className="w-4 flex justify-center font-bold">@</div>
+                                <span className="text-xs">Email</span>
+                              </div>
+                              <span className="text-sm text-white">{clientDetail.client.email}</span>
+                            </div>
+
+                            {/* Teléfono */}
+                            {clientDetail.client.physicalData?.phone && (
+                              <div className="p-3 flex items-center justify-between">
+                                <div className="flex items-center gap-2 text-gray-400">
+                                  <MessageCircle className="h-4 w-4" />
+                                  <span className="text-xs">Teléfono</span>
+                                </div>
+                                <span className="text-sm text-white">{clientDetail.client.physicalData.phone}</span>
+                              </div>
+                            )}
+
+                            {/* Emergencia */}
+                            {clientDetail.client.physicalData?.emergency_contact && (
+                              <div className="p-3 flex items-center justify-between bg-[#FF7939]/5">
+                                <div className="flex items-center gap-2 text-[#FF7939]">
+                                  <Phone className="h-4 w-4" />
+                                  <span className="text-xs">Emergencia</span>
+                                </div>
+                                <span className="text-sm text-white font-medium">{clientDetail.client.physicalData.emergency_contact}</span>
+                              </div>
+                            )}
+                          </div>
+                        </div>
+                      </div>
+                    )}
+                  </div>
+
+                  {/* --- TAB: ACTIVIDADES --- */}
+                  <div className={!loadingDetail && activeModalTab === 'activities' ? 'block' : 'hidden'}>
+                    <div className="space-y-4 px-2">
+                      {/* Sub-tabs for activities */}
+                      <div className="flex gap-1 p-1 bg-[#1A1A1A] rounded-xl border border-zinc-800/50">
+                        {(['en-curso', 'por-empezar', 'finalizadas'] as const).map((tab) => (
+                          <button
+                            key={tab}
+                            onClick={() => setActivitySubTab(tab as any)}
+                            className={`flex-1 py-2 text-[10px] font-bold uppercase tracking-wider rounded-lg transition-all ${activitySubTab === tab ? 'bg-zinc-800 text-white shadow-lg' : 'text-zinc-500 hover:text-zinc-300'}`}
+                          >
+                            {tab === 'en-curso' ? 'En Curso' : tab === 'por-empezar' ? 'Por Empezar' : 'Finalizadas'}
+                          </button>
+                        ))}
+                      </div>
+
+                      <div className="text-[10px] text-gray-500 uppercase tracking-widest font-bold pl-1 mt-1">
+                        {clientDetail?.client?.physicalData?.meet_credits || 0} Créditos de Meet Disponibles
+                      </div>
+
+                      {(() => {
+                        const allActivities = clientDetail?.client?.activities || []
+                        const filteredByTab = allActivities.filter((a: any) => {
+                          const progressPercent = Number(a?.progressPercent ?? 0) || 0
+                          const isExpiredStart = !!a?.isExpiredStart
+                          const isCompleted = progressPercent >= 100 ||
+                            a?.status === 'finalizada' ||
+                            a?.status === 'finished' ||
+                            a?.status === 'expirada' ||
+                            a?.status === 'expired' ||
+                            isExpiredStart
+
+                          const hasStarted = !!(a?.start_date || a?.enrollmentStartDate)
+
+                          if (activitySubTab === 'finalizadas') return isCompleted
+                          if (activitySubTab === 'por-empezar') return !isCompleted && !hasStarted
+                          return !isCompleted && hasStarted // 'en-curso'
+                        })
+
+                        if (filteredByTab.length === 0) {
+                          return (
+                            <div className="flex flex-col items-center justify-center py-12 px-4 text-center border border-zinc-800/50 rounded-2xl bg-zinc-900/20">
+                              <Activity className="h-8 w-8 text-zinc-700 mb-2" />
+                              <p className="text-xs text-zinc-500 font-medium">No hay actividades {activitySubTab}</p>
+                            </div>
+                          )
+                        }
+
+                        return (
+                          <div className="flex gap-4 overflow-x-auto pb-6 snap-x scrollbar-hide -mx-2 px-2">
+                            {filteredByTab.map((a: any, index: number) => {
+                              // Construct Enrollment object compatible with PurchasedActivityCard
+                              const enrollmentMock = {
+                                id: a.enrollment_id,
+                                created_at: a.created_at || new Date().toISOString(),
+                                start_date: a.start_date || a.enrollmentStartDate,
+                                expiration_date: a.enrollmentExpirationDate,
+                                program_end_date: a.program_end_date,
+                                status: a.status,
+                                client_id: selectedClient.id,
+                                activity_id: a.id,
+                                activity: {
+                                  id: a.id,
+                                  title: a.title,
+                                  type: a.type,
+                                  image_url: a.image_url,
+                                  coach_name: a.coach_name || 'Coach',
+                                  coach_avatar_url: a.coach_avatar_url,
+                                  categoria: a.categoria,
+                                  dias_acceso: a.dias_acceso
+                                }
+                              }
+
+                              const progressPercent = Number(a?.progressPercent ?? 0) || 0
 
                               return (
-                                <>
-                                  {/* Card Peso */}
-                                  <div className="bg-white/5 rounded-2xl p-2.5 cursor-pointer hover:bg-white/10 transition-all duration-300 ease-out border-l-2 border-transparent hover:border-l-[#FF6A00] w-[140px] flex flex-col justify-between group overflow-hidden">
-                                    <div className="flex justify-between items-start">
-                                      <div className="p-1.5 bg-zinc-800/80 rounded-lg group-hover:bg-[#FF7939]/20 group-hover:text-[#FF7939] transition-colors shrink-0">
-                                        <Weight className="h-3.5 w-3.5 text-gray-400 group-hover:text-[#FF7939]" />
-                                      </div>
-                                      <span className="text-[10px] uppercase text-gray-400 font-bold leading-tight tracking-wider ml-2 whitespace-nowrap opacity-100 group-hover:opacity-100 transition-opacity">
-                                        Peso
-                                      </span>
-                                    </div>
-                                    <div className="flex items-baseline gap-1 mt-auto">
-                                      <span className="text-lg font-bold text-white shrink-0">{clientDetail.client.physicalData?.weight || '-'}</span>
-                                      <span className="text-[10px] text-gray-500 font-medium shrink-0">kg</span>
-                                    </div>
-                                  </div>
-
-                                  {/* Card Altura */}
-                                  <div className="bg-white/5 rounded-2xl p-2.5 cursor-pointer hover:bg-white/10 transition-all duration-300 ease-out border-l-2 border-transparent hover:border-l-[#FF6A00] w-[140px] flex flex-col justify-between group overflow-hidden">
-                                    <div className="flex justify-between items-start">
-                                      <div className="p-1.5 bg-zinc-800/80 rounded-lg group-hover:bg-[#FF7939]/20 group-hover:text-[#FF7939] transition-colors shrink-0">
-                                        <Ruler className="h-3.5 w-3.5 text-gray-400 group-hover:text-[#FF7939]" />
-                                      </div>
-                                      <span className="text-[10px] uppercase text-gray-400 font-bold leading-tight tracking-wider ml-2 whitespace-nowrap">
-                                        Altura
-                                      </span>
-                                    </div>
-                                    <div className="flex items-baseline gap-1 mt-auto">
-                                      <span className="text-lg font-bold text-white shrink-0">{clientDetail.client.physicalData?.height || '-'}</span>
-                                      <span className="text-[10px] text-gray-500 font-medium shrink-0">cm</span>
-                                    </div>
-                                  </div>
-
-                                  {/* Dynamic Biometrics */}
-                                  {clientDetail.client.biometrics && clientDetail.client.biometrics.length > 0 && (
-                                    clientDetail.client.biometrics.map((bio: any) => (
-                                      <div key={bio.id} className="bg-white/5 rounded-2xl p-2.5 cursor-pointer hover:bg-white/10 transition-all duration-300 ease-out border-l-2 border-transparent hover:border-l-[#FF6A00] w-[140px] flex flex-col justify-between group overflow-hidden">
-                                        <div className="flex items-center gap-1.5 mb-1 w-full">
-                                          <div className="p-1.5 bg-zinc-800/80 rounded-lg group-hover:bg-[#FF7939]/20 group-hover:text-[#FF7939] transition-colors shrink-0">
-                                            {getIcon(bio.name || '', bio.unit || '')}
-                                          </div>
-                                          <span className="text-[9px] uppercase text-gray-400 font-bold leading-tight tracking-wider ml-1 truncate group-hover:overflow-visible group-hover:whitespace-normal group-hover:text-clip transition-all">
-                                            {bio.name}
-                                          </span>
-                                        </div>
-                                        <div className="mt-auto">
-                                          <div className="flex items-baseline gap-1">
-                                            <span className="text-lg font-bold text-white truncate max-w-[80px]" title={bio.value}>{bio.value}</span>
-                                            <span className="text-[10px] text-gray-500 font-medium">{bio.unit}</span>
-                                          </div>
-                                        </div>
-                                      </div>
-                                    ))
-                                  )}
-                                </>
-                              )
-                            })()}
-                          </div>
-                        </div>
-                      </div>
-
-
-                      {/* 2. SECCIÓN OBJETIVOS */}
-                      <div className="flex flex-col space-y-3">
-                        <div className="flex items-center justify-between px-2">
-                          <div className="flex items-center gap-2">
-                            <Target className="h-4 w-4 text-[#FF6A00]" />
-                            <h2 className="text-sm font-semibold text-gray-200">Objetivos</h2>
-                          </div>
-                        </div>
-
-                        {/* Exercise List Horizontal */}
-                        <div className="h-[120px] w-full px-2">
-                          <ExerciseProgressList userId={selectedClient.id} />
-                        </div>
-                      </div>
-
-
-                      {/* SECCIÓN LESIONES */}
-                      <div className="flex flex-col space-y-3">
-                        <div className="flex items-center justify-between px-2">
-                          <div className="flex items-center gap-2">
-                            <AlertTriangle className="h-4 w-4 text-[#FF6A00]" />
-                            <h2 className="text-sm font-semibold text-gray-200">Lesiones</h2>
-                          </div>
-                        </div>
-
-                        <div className="bg-transparent h-[120px] w-full">
-                          <div className="overflow-x-auto pb-2 px-2 custom-scrollbar hide-scrollbar-mobile" style={{ scrollbarWidth: 'none' }}>
-                            <div className="flex gap-3 min-w-max">
-                              {clientDetail.client.injuries && clientDetail.client.injuries.length > 0 ? (
-                                clientDetail.client.injuries.map((injury: any, index: number) => (
-                                  <div
-                                    key={index}
-                                    className="bg-white/5 rounded-2xl p-4 cursor-pointer hover:bg-white/10 transition-all border-l-2 border-transparent hover:border-l-[#FF6A00] w-[140px] h-[100px] flex flex-col justify-between group"
-                                  >
-                                    <div className="flex justify-between items-start">
-                                      <span className="text-[10px] uppercase text-gray-400 font-bold leading-tight max-w-[85%]">{injury.name}</span>
-                                      <div className={`h-2 w-2 rounded-full ${injury.severity === 'high' ? 'bg-red-500' :
-                                        injury.severity === 'medium' ? 'bg-yellow-500' : 'bg-green-500'
-                                        }`}></div>
-                                    </div>
-
-                                    <div className="mt-auto">
-                                      <span className="text-white text-sm font-bold block truncate">{injury.name}</span>
-                                      <span className={`text-[10px] font-medium ${injury.severity === 'high' ? 'text-red-400' :
-                                        injury.severity === 'medium' ? 'text-yellow-400' : 'text-green-400'
-                                        }`}>
-                                        {injury.severity === 'high' ? 'Alta' : injury.severity === 'medium' ? 'Media' : 'Baja'}
-                                      </span>
-                                    </div>
-                                  </div>
-                                ))
-                              ) : (
-                                <div className="flex items-center justify-center w-full h-[100px] text-xs text-gray-500 border border-dashed border-white/10 rounded-2xl px-8">
-                                  Sin lesiones activas
+                                <div key={`act-${a.id}-idx-${index}`} className="snap-center flex-shrink-0">
+                                  <PurchasedActivityCard
+                                    enrollment={enrollmentMock as any}
+                                    realProgress={progressPercent}
+                                    size="small"
+                                    isCoachView={true}
+                                    daysCompleted={a.daysCompleted}
+                                    daysPassed={a.daysPassed}
+                                    daysMissed={a.daysMissed}
+                                    daysRemainingFuture={a.daysRemainingFuture}
+                                    itemsCompletedTotal={a.itemsCompletedTotal}
+                                    itemsDebtPast={a.itemsDebtPast}
+                                    itemsPendingToday={a.itemsPendingToday}
+                                    amountPaid={a.amount_paid}
+                                  />
                                 </div>
-                              )}
-                            </div>
-                          </div>
-                        </div>
-                      </div>
-
-                      {/* Información Adicional (Bio, Contacto) */}
-                      <div>
-                        <h3 className="text-sm font-semibold text-gray-400 mb-3 uppercase tracking-wider flex items-center gap-2">
-                          <FileText className="h-4 w-4" />
-                          Más Detalles
-                        </h3>
-                        <div className="divide-y divide-zinc-800 bg-[#141414] rounded-xl border border-zinc-800 overflow-hidden">
-                          {/* Ubicación */}
-                          {clientDetail.client.physicalData?.location && (
-                            <div className="p-3 flex items-center justify-between">
-                              <div className="flex items-center gap-2 text-gray-400">
-                                <MapPin className="h-4 w-4" />
-                                <span className="text-xs">Ubicación</span>
-                              </div>
-                              <span className="text-sm text-white">{clientDetail.client.physicalData.location}</span>
-                            </div>
-                          )}
-
-                          {/* Email */}
-                          <div className="p-3 flex items-center justify-between">
-                            <div className="flex items-center gap-2 text-gray-400">
-                              <div className="w-4 flex justify-center font-bold">@</div>
-                              <span className="text-xs">Email</span>
-                            </div>
-                            <span className="text-sm text-white">{clientDetail.client.email}</span>
-                          </div>
-
-                          {/* Teléfono */}
-                          {clientDetail.client.physicalData?.phone && (
-                            <div className="p-3 flex items-center justify-between">
-                              <div className="flex items-center gap-2 text-gray-400">
-                                <MessageCircle className="h-4 w-4" />
-                                <span className="text-xs">Teléfono</span>
-                              </div>
-                              <span className="text-sm text-white">{clientDetail.client.physicalData.phone}</span>
-                            </div>
-                          )}
-                        </div>
-                      </div>
-                    </div>
-                  )}
-                </div>
-
-                {/* --- TAB: ACTIVIDADES --- */}
-                <div className={!loadingDetail && activeModalTab === 'activities' ? 'block' : 'hidden'}>
-                  <div className="space-y-4 px-2">
-                    {/* Sub-tabs for activities */}
-                    <div className="flex gap-1 p-1 bg-[#1A1A1A] rounded-xl border border-zinc-800/50">
-                      {(['en-curso', 'por-empezar', 'finalizadas'] as const).map((tab) => (
-                        <button
-                          key={tab}
-                          onClick={() => setActivitySubTab(tab as any)}
-                          className={`flex-1 py-2 text-[10px] font-bold uppercase tracking-wider rounded-lg transition-all ${activitySubTab === tab ? 'bg-zinc-800 text-white shadow-lg' : 'text-zinc-500 hover:text-zinc-300'}`}
-                        >
-                          {tab === 'en-curso' ? 'En Curso' : tab === 'por-empezar' ? 'Por Empezar' : 'Finalizadas'}
-                        </button>
-                      ))}
-                    </div>
-
-                    <div className="text-[10px] text-gray-500 uppercase tracking-widest font-bold pl-1 mt-1">
-                      {clientDetail?.client?.physicalData?.meet_credits || 0} Créditos de Meet Disponibles
-                    </div>
-
-                    {(() => {
-                      const allActivities = clientDetail?.client?.activities || []
-                      const filteredByTab = allActivities.filter((a: any) => {
-                        const progressPercent = Number(a?.progressPercent ?? 0) || 0
-                        const isExpiredStart = !!a?.isExpiredStart
-                        const isCompleted = progressPercent >= 100 ||
-                          a?.status === 'finalizada' ||
-                          a?.status === 'finished' ||
-                          a?.status === 'expirada' ||
-                          a?.status === 'expired' ||
-                          isExpiredStart
-
-                        const hasStarted = !!(a?.start_date || a?.enrollmentStartDate)
-
-                        if (activitySubTab === 'finalizadas') return isCompleted
-                        if (activitySubTab === 'por-empezar') return !isCompleted && !hasStarted
-                        return !isCompleted && hasStarted // 'en-curso'
-                      })
-
-                      if (filteredByTab.length === 0) {
-                        return (
-                          <div className="flex flex-col items-center justify-center py-12 px-4 text-center border border-zinc-800/50 rounded-2xl bg-zinc-900/20">
-                            <Activity className="h-8 w-8 text-zinc-700 mb-2" />
-                            <p className="text-xs text-zinc-500 font-medium">No hay actividades {activitySubTab}</p>
+                              )
+                            })}
                           </div>
                         )
-                      }
-
-                      return (
-                        <div className="flex gap-4 overflow-x-auto pb-6 snap-x scrollbar-hide -mx-2 px-2">
-                          {filteredByTab.map((a: any, index: number) => {
-                            // Construct Enrollment object compatible with PurchasedActivityCard
-                            const enrollmentMock = {
-                              id: a.enrollment_id,
-                              created_at: a.created_at || new Date().toISOString(),
-                              start_date: a.start_date || a.enrollmentStartDate,
-                              expiration_date: a.enrollmentExpirationDate,
-                              program_end_date: a.program_end_date,
-                              status: a.status,
-                              client_id: selectedClient.id,
-                              activity_id: a.id,
-                              activity: {
-                                id: a.id,
-                                title: a.title,
-                                type: a.type,
-                                image_url: a.image_url,
-                                coach_name: a.coach_name || 'Coach',
-                                coach_avatar_url: a.coach_avatar_url,
-                                categoria: a.categoria,
-                                dias_acceso: a.dias_acceso
-                              }
-                            }
-
-                            const progressPercent = Number(a?.progressPercent ?? 0) || 0
-
-                            return (
-                              <div key={`act-${a.id}-idx-${index}`} className="snap-center flex-shrink-0">
-                                <PurchasedActivityCard
-                                  enrollment={enrollmentMock as any}
-                                  realProgress={progressPercent}
-                                  size="small"
-                                  isCoachView={true}
-                                  daysCompleted={a.daysCompleted}
-                                  daysPassed={a.daysPassed}
-                                  daysMissed={a.daysMissed}
-                                  daysRemainingFuture={a.daysRemainingFuture}
-                                  itemsCompletedTotal={a.itemsCompletedTotal}
-                                  itemsDebtPast={a.itemsDebtPast}
-                                  itemsPendingToday={a.itemsPendingToday}
-                                  amountPaid={a.amount_paid}
-                                />
-                              </div>
-                            )
-                          })}
-                        </div>
-                      )
-                    })()}
+                      })()}
+                    </div>
                   </div>
+
+                  {/* End Tabs Content */}
                 </div>
-
-                {/* End Tabs Content */}
               </div>
+              {/* End Scrollable */}
             </div>
-            {/* End Scrollable */}
-          </div>
 
-          {/* End Fixed Modal */}
-        </div>
-      )}
+            {/* End Fixed Modal */}
+          </div>
+        )
+      }
       {/* End Root */}
-    </div>
+    </div >
   )
 }
