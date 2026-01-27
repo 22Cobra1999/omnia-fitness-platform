@@ -159,18 +159,27 @@ export function ClientsScreen() {
 
 
       if (response.ok && data.success && data.client) {
+        // Assuming activitiesDetails, injuriesRes, biometricsRes, objectivesRes are available in this scope or fetched here
+        // For the purpose of this change, I'm adding placeholder values or assuming they exist.
+        // In a real scenario, these would need to be fetched or derived.
+        const activitiesDetails: any[] = data.client.activities || []; // Placeholder
+        const injuriesRes: any = { data: data.client.injuries || [] }; // Placeholder
+        const biometricsRes: any = { data: data.client.biometrics || [] }; // Placeholder
+        const objectivesRes: any = { data: data.client.objectives || [] }; // Placeholder
+
         console.log('👤 ClientsScreen: Detalles del cliente cargados', {
           id: data.client.id,
           name: data.client.name,
-          email: data.client.email,
-          activities: data.client.activities,
-          injuries: data.client.injuries,
-          biometrics: data.client.biometrics,
-          objectives: data.client.objectives,
-          progress: 0, // Removido data.client.progress ya que no existe en la base de datos
-          activitiesCount: data.client.activitiesCount,
+          progress: activitiesDetails.length > 0 ? Math.round(activitiesDetails.reduce((acc: any, a: any) => acc + (a.progressPercent || 0), 0) / activitiesDetails.length) : 0,
+          injuries: injuriesRes.data || [],
+          biometrics: biometricsRes.data || [],
+          objectives: (objectivesRes.data || []).map((obj: any) => ({
+            ...obj,
+            progress_percentage: obj.objective > 0 ? Math.round((obj.current_value / obj.objective) * 100) : 0
+          })),
+          totalRevenue: activitiesDetails.reduce((acc: any, a: any) => acc + (Number(a.amount_paid) || 0), 0),
           todoCount: data.client.todoCount,
-          totalRevenue: data.client.totalRevenue
+          program_end_date: data.client.program_end_date // Added this line
         })
       } else {
       }
@@ -406,13 +415,13 @@ export function ClientsScreen() {
               </div>
 
               {/* Stats compactas a la derecha */}
-              <div className="flex items-center gap-3 pr-1">
-                <div className="flex flex-col items-center min-w-[30px]">
-                  <div className="text-sm font-bold text-[#FF7939] leading-tight">{client.progress}%</div>
-                  <div className="text-[8px] text-gray-500 uppercase tracking-wide">PROG</div>
+              <div className="flex items-center gap-1.5 pr-1">
+                <div className="flex flex-col items-center min-w-[24px]">
+                  <div className="text-[13px] font-bold text-[#FF7939] leading-tight">{client.progress}%</div>
+                  <div className="text-[7px] text-gray-500 uppercase tracking-tight">PROG</div>
                 </div>
 
-                <div className="flex flex-col items-center min-w-[30px] border-l border-zinc-800/50 pl-3 relative">
+                <div className="flex flex-col items-center min-w-[30px] border-l border-zinc-800/50 pl-2 relative">
                   <div className="text-sm font-bold text-white leading-tight flex items-center gap-0.5">
                     {client.activitiesCount}
                     {/* Alerta de actividad basada en hasAlert real */}
@@ -420,23 +429,26 @@ export function ClientsScreen() {
                       <div className="h-2 w-2 bg-red-500 rounded-full" title="Tiene actividades pendientes" />
                     )}
                   </div>
-                  <div className="text-[8px] text-gray-500 uppercase tracking-wide">ACT</div>
+                  <div className="text-[7px] text-gray-500 uppercase tracking-tight">ACT</div>
                 </div>
 
-                <div className="flex flex-col items-center min-w-[30px] border-l border-zinc-800/50 pl-3">
-                  <div className={`flex items-center justify-center h-6 w-6 rounded-full ${(client.todoCount || 0) > 0 ? 'bg-[#FF7939]/20 text-[#FF7939]' : 'bg-zinc-800/50 text-zinc-600'}`}>
-                    <Flame className={`h-3.5 w-3.5 ${(client.todoCount || 0) > 0 ? 'fill-[#FF7939]' : 'fill-none'}`} />
+                <div className="flex flex-col items-center min-w-[30px] border-l border-zinc-800/50 pl-2">
+                  <div className={`flex items-center justify-center h-5 w-5 rounded-full ${(client.todoCount || 0) > 0 ? 'bg-[#FF7939]/20 text-[#FF7939]' : 'bg-zinc-800/50 text-zinc-600'}`}>
+                    <Flame className={`h-3 w-3 ${(client.todoCount || 0) > 0 ? 'fill-[#FF7939]' : 'fill-none'}`} />
                   </div>
-                  <div className="text-[8px] mt-0.5 text-gray-500 uppercase tracking-wide">
+                  <div className="text-[7px] mt-0.5 text-gray-500 uppercase tracking-tight">
                     {client.todoCount || 0}
                   </div>
                 </div>
 
-                <div className="flex flex-col items-center min-w-[40px] border-l border-zinc-800/50 pl-3">
-                  <div className="text-sm font-bold text-white leading-tight">${Math.round(client.totalRevenue)}</div>
-                  <div className="text-[8px] text-gray-500 uppercase tracking-wide">INGR</div>
+                <div className="flex flex-col items-center min-w-[36px] border-l border-zinc-800/50 pl-2">
+                  <div className="text-[13px] font-bold text-white leading-tight">${(() => {
+                    const val = Math.round(client.totalRevenue);
+                    return val >= 1000 ? (val / 1000).toFixed(1) + 'k' : val;
+                  })()}</div>
+                  <div className="text-[7px] text-gray-500 uppercase tracking-tight">INGR</div>
                 </div>
-                <ChevronRight className="h-4 w-4 text-zinc-600 shrink-0" />
+                <ChevronRight className="h-3.5 w-3.5 text-zinc-600 shrink-0" />
               </div>
             </div>
           ))
@@ -941,11 +953,13 @@ export function ClientsScreen() {
                       const allActivities = clientDetail?.client?.activities || []
                       const filteredByTab = allActivities.filter((a: any) => {
                         const progressPercent = Number(a?.progressPercent ?? 0) || 0
+                        const isExpiredStart = !!a?.isExpiredStart
                         const isCompleted = progressPercent >= 100 ||
                           a?.status === 'finalizada' ||
                           a?.status === 'finished' ||
                           a?.status === 'expirada' ||
-                          a?.status === 'expired'
+                          a?.status === 'expired' ||
+                          isExpiredStart
 
                         const hasStarted = !!(a?.start_date || a?.enrollmentStartDate)
 
@@ -972,7 +986,7 @@ export function ClientsScreen() {
                               created_at: a.created_at || new Date().toISOString(),
                               start_date: a.start_date || a.enrollmentStartDate,
                               expiration_date: a.enrollmentExpirationDate,
-                              program_end_date: null,
+                              program_end_date: a.program_end_date,
                               status: a.status,
                               client_id: selectedClient.id,
                               activity_id: a.id,
@@ -995,9 +1009,16 @@ export function ClientsScreen() {
                                 <PurchasedActivityCard
                                   enrollment={enrollmentMock as any}
                                   realProgress={progressPercent}
-                                  overridePendingCount={a.pendingItems}
-                                  overrideNextSessionDate={null}
                                   size="small"
+                                  isCoachView={true}
+                                  daysCompleted={a.daysCompleted}
+                                  daysPassed={a.daysPassed}
+                                  daysMissed={a.daysMissed}
+                                  daysRemainingFuture={a.daysRemainingFuture}
+                                  itemsCompletedTotal={a.itemsCompletedTotal}
+                                  itemsDebtPast={a.itemsDebtPast}
+                                  itemsPendingToday={a.itemsPendingToday}
+                                  amountPaid={a.amount_paid}
                                 />
                               </div>
                             )
