@@ -274,7 +274,7 @@ export function PurchasedActivityCard({
   // Determine dimensions based on size (matching ActivityCard)
   const getSizeClasses = () => {
     switch (size) {
-      case "small": return "w-40 h-[28rem]" // Compact vertical
+      case "small": return "w-[130px] h-[30rem]" // Narrower and a bit taller for coach info
       case "large": return "w-80 h-[36rem]" // Featured
       default: return "w-64 h-[32rem]" // Standard medium
     }
@@ -443,16 +443,22 @@ export function PurchasedActivityCard({
             <div className="flex flex-col gap-1 pt-1.5">
               {hasStarted ? (
                 <>
-                  <div className="flex flex-col gap-1 text-[11px] text-gray-500">
-                    <div className="flex items-center gap-1.5">
-                      <Calendar className="w-3 h-3" />
-                      <span>Inicio: <span className="text-zinc-400">{formatDate(enrollment.start_date ?? '')}</span></span>
+                  <div className="flex flex-col gap-2 py-2 border-y border-zinc-800/40 my-1">
+                    <div className="flex items-center justify-between text-[10px]">
+                      <div className="flex items-center gap-1 text-gray-500 font-bold uppercase tracking-tighter">
+                        <Calendar className="w-2.5 h-2.5" />
+                        <span>Inicio</span>
+                      </div>
+                      <span className="text-zinc-300 font-medium">{formatDate(enrollment.start_date ?? '')}</span>
                     </div>
 
                     {enrollment.program_end_date && (
-                      <div className="flex items-center gap-1.5 opacity-80">
-                        <CheckCircle2 className="w-3 h-3" />
-                        <span>Fin: <span className="text-zinc-400">{formatDate(enrollment.program_end_date ?? '')}</span></span>
+                      <div className="flex items-center justify-between text-[10px]">
+                        <div className="flex items-center gap-1 text-gray-500 font-bold uppercase tracking-tighter">
+                          <CheckCircle2 className="w-2.5 h-2.5" />
+                          <span>Fin</span>
+                        </div>
+                        <span className="text-zinc-300 font-medium">{formatDate(enrollment.program_end_date ?? '')}</span>
                       </div>
                     )}
                   </div>

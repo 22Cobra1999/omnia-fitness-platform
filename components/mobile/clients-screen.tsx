@@ -986,7 +986,7 @@ export function ClientsScreen() {
                           </div>
 
                           {/* Exercise List Horizontal */}
-                          <div className="h-[120px] w-full px-2 overflow-x-auto custom-scrollbar">
+                          <div className="w-full px-2">
                             <ExerciseProgressList userId={selectedClient.id} />
                           </div>
                         </div>

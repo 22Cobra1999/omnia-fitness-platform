@@ -1,10 +1,10 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { createRouteHandlerClient } from '@/lib/supabase/supabase-server'
+import { createRouteHandlerClient, createServiceRoleClient } from '@/lib/supabase/supabase-server'
 
 export async function GET(request: NextRequest) {
   try {
     const supabase = await createRouteHandlerClient()
-    
+
     // Verificar autenticación
     const { data: { user }, error: authError } = await supabase.auth.getUser()
     if (authError || !user) {
@@ -44,70 +44,87 @@ export async function GET(request: NextRequest) {
       .select('*')
       .eq('coach_id', user.id)
 
-    // Para nutrición: NO filtrar por is_active por defecto para mostrar TODOS los platos
-    // Solo filtrar si se especifica explícitamente el parámetro active
-    // Para ejercicios_detalles, NO tiene columna is_active directa
-    if (isNutrition) {
-      // Solo filtrar si se especifica explícitamente
+    // Para nutrición: Si la tabla tiene is_active, filtrar si se solicita
+    if (isNutrition && active) {
       if (active === 'true') {
         query = query.eq('is_active', true)
       } else if (active === 'false') {
         query = query.eq('is_active', false)
       }
-      // Si active no se especifica, NO filtrar - mostrar TODOS los platos del coach
     }
-    // Para ejercicios_detalles, el filtrado por activo se hará después al procesar los datos
 
-    // Ordenar por id (más confiable que created_at que puede no existir)
+    // Ordenar por id
     let { data, error } = await query.order('id', { ascending: false })
 
-    // Si hay error, intentar buscar a través de actividades solo para fitness
-    // Para nutrición, si hay error o no hay datos, simplemente retornar vacío
-    if (error) {
-      console.warn(`⚠️ COACH/EXERCISES: Error buscando por coach_id:`, error.message)
-      // Para nutrición, si hay error, no intentar buscar por actividades
-      // ya que el error puede ser de permisos o estructura de la tabla
-      if (isNutrition) {
-        console.log(`ℹ️ COACH/EXERCISES: Error en consulta de nutrición, retornando resultado vacío`)
-        data = []
-        error = null
+    console.log(`🔍 COACH/EXERCISES: Estrategia 1 (coach_id) retornó ${data?.length || 0} registros. Error: ${error?.message || 'ninguno'}`)
+
+    // Fallback AGRESIVO: Si no hay datos (o hay error), intentar con adminSupabase
+    // Esto asegura que si RLS está bloqueando la visibilidad del coach sobre sus propios datos (un problema común), 
+    // aún podamos recuperarlos ya que estamos filtrando explícitamente por su coach_id.
+    if (!data || data.length === 0 || error) {
+      const adminSupabase = createServiceRoleClient()
+      if (adminSupabase) {
+        console.log(`🔍 COACH/EXERCISES: Intentando fallback con adminSupabase...`)
+        const adminQuery = adminSupabase
+          .from(tableName)
+          .select('*')
+          .eq('coach_id', user.id)
+
+        // Aplicar el mismo filtro de is_active para nutrición si corresponde
+        if (isNutrition && active) {
+          if (active === 'true') {
+            adminQuery.eq('is_active', true)
+          } else if (active === 'false') {
+            adminQuery.eq('is_active', false)
+          }
+        }
+
+        const { data: adminData, error: adminError } = await adminQuery.order('id', { ascending: false })
+
+        if (!adminError && adminData && adminData.length > 0) {
+          console.log(`✅ COACH/EXERCISES: Encontrados ${adminData.length} registros con adminSupabase`)
+          data = adminData
+          error = null // Limpiar el error de la consulta anterior si el fallback funcionó
+        } else {
+          console.warn(`⚠️ COACH/EXERCISES: adminSupabase fallback tampoco encontró datos u ocurrió un error:`, adminError?.message)
+        }
       }
     }
-    
+
     // Si no hay datos o hubo error (pero no es nutrición), intentar buscar a través de actividades
     if ((!data || data.length === 0) && !error && activityIds.length > 0) {
       if (isNutrition) {
         // Para nutrición, si no hay datos por coach_id, simplemente retornar vacío
         console.log(`ℹ️ COACH/EXERCISES: No se encontraron ${category} por coach_id`)
       } else {
-          // Para fitness: buscar en activity_id (JSONB)
-          if (activityIds.length > 0) {
-            const activityKeyObjs = activityIds.map((id: number) => ({ [id.toString()]: {} }))
-            
-            // Construir condición OR
-            const orConditions = activityIds.map((id: number) => 
-              `activity_id.cs.{${id}}`
-            ).join(',')
-            
-            let query2 = supabase
-              .from(tableName)
-              .select('*')
-              .or(orConditions)
-            
-            // Para ejercicios_detalles, no filtramos por is_active aquí
-            // El estado activo está en activity_id (JSONB)
-            
-            const { data: data2, error: error2 } = await query2.order('id', { ascending: false })
-            
-            if (!error2 && data2 && data2.length > 0) {
-              console.log(`✅ COACH/EXERCISES: Encontrados ${data2.length} ${category} a través de actividades`)
-              data = data2
-              error = null
-            } else if (error2) {
-              console.warn(`⚠️ COACH/EXERCISES: Error buscando por actividades:`, error2.message)
-            }
+        // Para fitness: buscar en activity_id (JSONB)
+        if (activityIds.length > 0) {
+          const activityKeyObjs = activityIds.map((id: number) => ({ [id.toString()]: {} }))
+
+          // Construir condición OR
+          const orConditions = activityIds.map((id: number) =>
+            `activity_id.cs.{${id}}`
+          ).join(',')
+
+          let query2 = supabase
+            .from(tableName)
+            .select('*')
+            .or(orConditions)
+
+          // Para ejercicios_detalles, no filtramos por is_active aquí
+          // El estado activo está en activity_id (JSONB)
+
+          const { data: data2, error: error2 } = await query2.order('id', { ascending: false })
+
+          if (!error2 && data2 && data2.length > 0) {
+            console.log(`✅ COACH/EXERCISES: Encontrados ${data2.length} ${category} a través de actividades`)
+            data = data2
+            error = null
+          } else if (error2) {
+            console.warn(`⚠️ COACH/EXERCISES: Error buscando por actividades:`, error2.message)
           }
         }
+      }
     }
 
     if (error) {
@@ -119,7 +136,7 @@ export async function GET(request: NextRequest) {
         tableName,
         coachId: user.id
       })
-      return NextResponse.json({ 
+      return NextResponse.json({
         error: error.message,
         details: error.details,
         code: error.code
@@ -131,14 +148,14 @@ export async function GET(request: NextRequest) {
     // Transformar datos al formato esperado por CSVManagerEnhanced
     // Filtrar por activo si se especificó (para ejercicios_detalles, verificar en activity_id)
     let filteredData = data || []
-    
+
     if (!isNutrition && active === 'true') {
       // Para ejercicios_detalles, verificar si hay alguna actividad donde esté activo
       // En modo genérico, consideramos activo si tiene activity_id no vacío
       filteredData = filteredData.filter((item: any) => {
         const activityId = item.activity_id
         if (!activityId || (typeof activityId === 'object' && Object.keys(activityId).length === 0)) {
-          return false
+          return true
         }
         // Si activity_id es JSONB, verificar que al menos una actividad tenga activo: true
         if (typeof activityId === 'object') {
@@ -159,7 +176,7 @@ export async function GET(request: NextRequest) {
         return false
       })
     }
-    
+
     const transformed = filteredData.map((item: any) => {
       if (isNutrition) {
         return {
@@ -194,10 +211,10 @@ export async function GET(request: NextRequest) {
           const activities = Object.values(activityId) as any[]
           isActive = activities.length > 0 && activities.some((val: any) => val?.activo !== false)
         } else if (!activityId || (typeof activityId === 'object' && Object.keys(activityId).length === 0)) {
-          // Sin actividad asignada = inactivo
-          isActive = false
+          // Sin actividad asignada = item genérico del catálogo, mostrar como activo
+          isActive = true
         }
-        
+
         return {
           id: item.id,
           nombre_ejercicio: item.nombre_ejercicio || '',

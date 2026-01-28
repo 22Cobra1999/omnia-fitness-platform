@@ -366,6 +366,13 @@ export function CSVManagerEnhanced({
 
   // Recargar datos cuando cambia productCategory (modo genérico)
   useEffect(() => {
+    // IMPORTANTE: Si no hay coachId, no podemos consultar las actividades ni el catálogo.
+    // Esto previene race conditions cuando el componente se monta mientras la sesión carga.
+    if (!coachId || coachId === '') {
+      // console.log('⏸️ CSVManagerEnhanced: Esperando coachId...')
+      return
+    }
+
     if (activityId === 0) {
       // Evitar llamadas múltiples simultáneas
       if (isLoadingDataRef.current) {
@@ -598,7 +605,7 @@ export function CSVManagerEnhanced({
         })
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [productCategory, activityId])
+  }, [productCategory, activityId, coachId])
 
   // Cargar datos existentes al montar el componente
   // IMPORTANTE: Solo cargar si NO hay datos persistentes del padre

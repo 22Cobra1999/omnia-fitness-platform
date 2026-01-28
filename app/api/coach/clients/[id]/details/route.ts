@@ -44,7 +44,7 @@ export async function GET(
       })
     }
 
-    const coachActivityIds = coachActivities.map(a => a.id)
+    const coachActivityIds = coachActivities.map((a: any) => a.id)
 
     // 2. ENROLLMENTS
     const { data: allEnrollments } = await adminSupabase
@@ -53,14 +53,14 @@ export async function GET(
       .eq('client_id', clientId)
 
     // 3. FILTER
-    const filteredEnrollments = (allEnrollments || []).filter(e => {
+    const filteredEnrollments = (allEnrollments || []).filter((e: any) => {
       const match = coachActivityIds.includes(Number(e.activity_id))
       const validStatus = ['activa', 'active', 'pendiente', 'pending', 'finalizada', 'finished', 'expirada', 'expired'].includes(e.status)
       return match && validStatus
     })
 
     // 4. PARALLEL DATA FETCH
-    const [profileRes, injuriesRes, biometricsRes, objectivesRes, meetRes, progressRes, fitnessRes, nutriRes, docsRes, tallerRes, clientTableRes] = await Promise.all([
+    const [profileRes, injuriesRes, biometricsRes, objectivesRes, meetRes, progressRes, fitnessRes, nutriRes, docsRes, tallerRes, clientTableRes, bancoRes] = await Promise.all([
       adminSupabase.from('user_profiles').select('*').eq('id', clientId).single(),
       adminSupabase.from('user_injuries').select('*').eq('user_id', clientId),
       adminSupabase.from('user_biometrics').select('*').eq('user_id', clientId),
@@ -71,7 +71,8 @@ export async function GET(
       adminSupabase.from('progreso_cliente_nutricion').select('*').eq('cliente_id', clientId),
       adminSupabase.from('client_document_progress').select('*').eq('client_id', clientId),
       adminSupabase.from('taller_progreso_temas').select('*').eq('cliente_id', clientId),
-      adminSupabase.from('clients').select('*').eq('id', clientId).maybeSingle()
+      adminSupabase.from('clients').select('*').eq('id', clientId).maybeSingle(),
+      adminSupabase.from('banco').select('*').eq('client_id', clientId)
     ])
 
     const workshopFutureMap = new Map<number, number>()
@@ -116,29 +117,72 @@ export async function GET(
       })
     }
 
-    if (fitnessRes.data) {
-      fitnessRes.data.forEach((r: any) => {
+    // Map banco data for pricing
+    const bancoRecords = bancoRes.data || []
+    const bancoByEnrollment = new Map<number, any>()
+    const bancoByActivity = new Map<number, any>()
+    bancoRecords.forEach((b: any) => {
+      if (b.enrollment_id) bancoByEnrollment.set(Number(b.enrollment_id), b)
+      if (b.activity_id) bancoByActivity.set(Number(b.activity_id), b)
+    })
+
+    // To avoid double counting, we will use a Map to keep track of items per enrollment and date
+    // We will prioritize progreso_diario_actividad as it's the unified source
+    const enrollmentDailyStats = new Map<number, Map<string, { ok: number, total: number }>>()
+
+    const addStat = (eid: number, date: string, ok: number, total: number) => {
+      if (!enrollmentDailyStats.has(eid)) enrollmentDailyStats.set(eid, new Map())
+      const dayMap = enrollmentDailyStats.get(eid)!
+      if (!dayMap.has(date)) {
+        dayMap.set(date, { ok, total })
+      } else {
+        // If we already have data for this date, only update if the new data is "better" or from a better source
+        // But for simplicity, let's just use the max values to avoid double counting if sources overlap
+        const existing = dayMap.get(date)!
+        dayMap.set(date, {
+          ok: Math.max(existing.ok, ok),
+          total: Math.max(existing.total, total)
+        })
+      }
+    }
+
+    if (progressRes.data) {
+      progressRes.data.forEach((r: any) => {
         const eid = Number(r.enrollment_id); if (!eid) return
+        const date = String(r.fecha).slice(0, 10)
+        addStat(eid, date, Number(r.items_completados) || 0, Number(r.items_objetivo) || 0)
+
+        // Update general stats for other fields (late_days, etc)
         const curr = getStats(eid)
-        const ok = Object.keys(r.ejercicios_completados || {}).length
-        const pen = Object.keys(r.ejercicios_pendientes || {}).length
-        const total = ok + pen
-        if (total > 0) {
+        if ((r.items_objetivo || 0) > 0) {
           if (!curr.dates_seen.has(r.fecha)) {
             curr.total_days++
             curr.dates_seen.add(r.fecha)
-            if (pen === 0) curr.completed_days++
+            if ((r.items_completados || 0) >= r.items_objetivo) curr.completed_days++
+            else if (r.fecha < todayIso) curr.late_days++
           }
-          curr.items_ok += ok
-          curr.items_total += total
+          if ((r.items_completados || 0) < r.items_objetivo) {
+            if (r.fecha < todayIso) curr.pending_atrasados += (r.items_objetivo - r.items_completados)
+            else if (r.fecha === todayIso) curr.pending_hoy += (r.items_objetivo - r.items_completados)
+          }
         }
+      })
+    }
+
+    if (fitnessRes.data) {
+      fitnessRes.data.forEach((r: any) => {
+        const eid = Number(r.enrollment_id); if (!eid) return
+        const date = String(r.fecha).slice(0, 10)
+        const ok = Object.keys(r.ejercicios_completados || {}).length
+        const pen = Object.keys(r.ejercicios_pendientes || {}).length
+        addStat(eid, date, ok, ok + pen)
       })
     }
 
     if (nutriRes.data) {
       nutriRes.data.forEach((r: any) => {
         const eid = Number(r.enrollment_id); if (!eid) return
-        const curr = getStats(eid)
+        const date = String(r.fecha).slice(0, 10)
         const getCount = (obj: any) => {
           if (!obj) return 0
           if (Array.isArray(obj?.ejercicios)) return obj.ejercicios.length
@@ -146,16 +190,7 @@ export async function GET(
         }
         const ok = getCount(r.ejercicios_completados)
         const pen = getCount(r.ejercicios_pendientes)
-        const total = ok + pen
-        if (total > 0) {
-          if (!curr.dates_seen.has(r.fecha)) {
-            curr.total_days++
-            curr.dates_seen.add(r.fecha)
-            if (pen === 0) curr.completed_days++
-          }
-          curr.items_ok += ok
-          curr.items_total += total
-        }
+        addStat(eid, date, ok, ok + pen)
       })
     }
 
@@ -182,10 +217,22 @@ export async function GET(
     }
 
     const activitiesDetails = filteredEnrollments.map((e: any) => {
-      const act = coachActivities.find(a => String(a.id) === String(e.activity_id))
+      const bidNum = Number(e.activity_id)
+      const eidNum = Number(e.id)
+      const act = coachActivities.find((a: any) => String(a.id) === String(e.activity_id))
       if (!act) return null
 
-      const eidNum = Number(e.id)
+      // Recalculate stats from the deduplicated enrollmentDailyStats
+      const dayMap = enrollmentDailyStats.get(eidNum)
+      let items_ok = 0
+      let items_total = 0
+      if (dayMap) {
+        dayMap.forEach(d => {
+          items_ok += d.ok
+          items_total += d.total
+        })
+      }
+
       const s = statsMap.get(eidNum)
       const type = act.type?.toLowerCase() || ''
       const cat = act.categoria?.toLowerCase() || ''
@@ -260,8 +307,17 @@ export async function GET(
       if (isDocument) {
         if (s?.doc_items_total > 0) progressPercent = Math.round((s.doc_items_ok / s.doc_items_total) * 100)
       } else {
-        if (s?.items_total > 0) progressPercent = Math.round((s.items_ok / s.items_total) * 100)
+        if (items_total > 0) progressPercent = Math.round((items_ok / items_total) * 100)
         else if (s?.total_days > 0) progressPercent = Math.round((s.completed_days / s.total_days) * 100)
+      }
+
+      // Use price from banco if available
+      const bancoRecord = bancoByEnrollment.get(eidNum) || bancoByActivity.get(bidNum)
+      let amountPaid = 0
+      if (bancoRecord) {
+        amountPaid = parseFloat(bancoRecord.amount_paid)
+      } else if (e.amount_paid) {
+        amountPaid = parseFloat(e.amount_paid)
       }
 
       return {
@@ -269,7 +325,7 @@ export async function GET(
         enrollment_id: e.id,
         created_at: e.created_at,
         status: e.status,
-        amount_paid: e.amount_paid || 0,
+        amount_paid: amountPaid,
         start_date: e.start_date,
         program_end_date: e.program_end_date,
         progressPercent,
