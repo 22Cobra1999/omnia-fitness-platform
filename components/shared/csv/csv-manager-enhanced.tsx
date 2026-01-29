@@ -8,6 +8,7 @@ import { Upload, Download, Trash2, CheckCircle, AlertCircle, Plus, Eye, X, Clock
 import { MediaSelectionModal } from '@/components/shared/ui/media-selection-modal'
 import { normalizeActivityMap } from '@/lib/utils/exercise-activity-map'
 import { UniversalVideoPlayer } from '@/components/shared/video/universal-video-player'
+import { motion } from 'framer-motion'
 import { ConditionalRulesPanel, ConditionalRule } from '@/components/shared/products/conditional-rules-panel'
 
 const normalizeCatalogText = (value: string) => (
@@ -93,6 +94,8 @@ export function CSVManagerEnhanced({
   const [limitWarning, setLimitWarning] = useState<string | null>(null)
   const videoInputRef = useRef<HTMLInputElement | null>(null)
   const [showVideoModal, setShowVideoModal] = useState(false)
+  const [showMediaSourceModal, setShowMediaSourceModal] = useState(false)
+  const videoFileInputRef = useRef<HTMLInputElement>(null)
   const [existingCatalog, setExistingCatalog] = useState<any[]>([])
   const [selectedExisting, setSelectedExisting] = useState('')
   const [planLimits, setPlanLimits] = useState<{ planType?: string, activitiesLimit?: number } | null>(planLimitsProp)
@@ -225,7 +228,11 @@ export function CSVManagerEnhanced({
     Caderas: ['cadera', 'caderas', 'hip', 'hips'],
     'Cuerpo Completo': ['cuerpo completo', 'full body', 'total body', 'todo el cuerpo']
   }), [])
-  const equipmentOptions = ['Barra', 'Mancuernas', 'Banco', 'Rack', 'Bandas', 'Kettlebell', 'Máquinas', 'Mat de yoga', 'Chaleco', 'Escalera de agilidad']
+  const equipmentOptions = [
+    'Barra', 'Mancuernas', 'Banco', 'Rack', 'Bandas', 'Kettlebell',
+    'Máquinas', 'Mat de yoga', 'Chaleco', 'Escalera de agilidad',
+    'Pelota', 'Campo', 'Pelota de fútbol', 'Cancha de fútbol'
+  ]
   const NONE_VALUES = useMemo(() => new Set([
     'ninguno', 'ninguna', 'ningun', 'ninguno/a', 'ninguna/o', 'ningun@', 'ningunx',
     'none', 'sin', 'sin equipo', 'sin equipamiento', 'n/a', 'na', 'no aplica', 'ning'
@@ -349,7 +356,10 @@ export function CSVManagerEnhanced({
           valid.push(match)
         }
       } else {
-        invalid.push(entry)
+        // Si no está en el catálogo oficial, pero tiene contenido, lo aceptamos como equipo personalizado
+        if (!valid.includes(entry)) {
+          valid.push(entry)
+        }
       }
     })
 
@@ -526,6 +536,14 @@ export function CSVManagerEnhanced({
               : items.map((item: any) => ({
                 ...item,
                 'Nombre de la Actividad': item.nombre_ejercicio || item.nombre || '',
+                'Equipo Necesario': item.equipo_necesario || item.equipo || '',
+                equipo_necesario: item.equipo_necesario || item.equipo || '',
+                'Nivel de Intensidad': item.nivel_intensidad || item.intensidad || '',
+                nivel_intensidad: item.nivel_intensidad || item.intensidad || '',
+                'Partes del Cuerpo': item.partes_cuerpo || item.body_parts || '',
+                partes_cuerpo: item.partes_cuerpo || item.body_parts || '',
+                'Descripción': item.descripcion || '',
+                descripcion: item.descripcion || '',
                 isExisting: true,
                 is_active: item.is_active !== false,
                 activo: item.is_active !== false
@@ -755,7 +773,7 @@ export function CSVManagerEnhanced({
 
   // Cargar límites del plan si no vinieron desde el padre
   useEffect(() => {
-    if (planLimitsProp) return
+    if (planLimitsProp || !coachId || coachId === '') return
     const loadPlanLimits = async () => {
       try {
         const response = await fetch('/api/coach/plan-limits')
@@ -775,7 +793,7 @@ export function CSVManagerEnhanced({
       }
     }
     loadPlanLimits()
-  }, [planLimitsProp])
+  }, [planLimitsProp, coachId])
 
   useEffect(() => {
     // Si acabamos de eliminar, no sincronizar para evitar recargas
@@ -2680,7 +2698,299 @@ Batido de Proteína,Desayuno,Batido con proteína en polvo plátano y leche,320,
       updateErrorState('Selecciona al menos una fila para asignar video')
       return
     }
-    setShowVideoModal(true)
+    setShowMediaSourceModal(true)
+  }
+
+  const handleVideoSelection = async (mediaUrl: string, _mediaType: 'image' | 'video' | 'pdf', mediaFile?: File, fileName?: string) => {
+    const videoUrl = mediaUrl
+    const videoFile = mediaFile || null
+    const derivedBunnyId = extractBunnyVideoIdFromUrl(videoUrl)
+    const bunnyVideoId = derivedBunnyId
+    const bunnyLibraryId = null
+    const thumbnailUrl = derivedBunnyId ? `${String(videoUrl).split(derivedBunnyId)[0]}${derivedBunnyId}/thumbnail.jpg` : null
+
+    // Si viene fileName del modal (galería), usar ese. Si no, inferir del archivo o Bunny ID.
+    const resolvedName = fileName || (videoFile?.name ?? '').trim() || (derivedBunnyId ? `video_${derivedBunnyId.slice(0, 12)}.mp4` : '')
+
+    console.log('🎥 Video seleccionado:', {
+      videoUrl,
+      resolvedName,
+      fileNameFromModal: fileName,
+      selectedRowsCount: selectedRows.size,
+      selectedRows: Array.from(selectedRows),
+      hasParentData: !!parentCsvData,
+      hasParentSetter: !!parentSetCsvData,
+      videoFileName: videoFile?.name,
+      hasVideoFile: !!videoFile,
+      bunnyVideoId
+    })
+
+    // Si hay un archivo de video, guardarlo inmediatamente
+    if (videoFile) {
+      const selectedIndices = Array.from(selectedRows)
+      const currentData = csvData.length > 0 ? csvData : (parentCsvData || [])
+
+      selectedIndices.forEach((idx) => {
+        const exercise = currentData[idx]
+        if (exercise && onVideoFileSelected) {
+          onVideoFileSelected(exercise, idx, videoFile)
+          console.log(`💾 Guardando archivo de video inmediatamente para ejercicio ${idx}:`, videoFile.name)
+        }
+      })
+    }
+
+    const selectedItems = Array.from(selectedRows)
+      .map((idx) => allData[idx])
+      .filter(Boolean)
+
+    const selectedExistingIds = selectedItems
+      .map((item: { id?: number | string }) => item?.id)
+      .filter((id: number | string | undefined): id is number | string => typeof id === 'number' || typeof id === 'string')
+      .map((id: number | string) => (typeof id === 'number' ? id : Number(id)))
+      .filter((id: number) => Number.isFinite(id) && id > 0)
+
+    const updateDataByIndex = (data: any[]) =>
+      data.map((row, idx) => {
+        if (!row || !selectedRows.has(idx)) return row
+        return {
+          ...row,
+          video_url: videoUrl,
+          video_file_name: resolvedName || (row as { video_file_name?: string }).video_file_name || '',
+          bunny_video_id: bunnyVideoId ?? (row as { bunny_video_id?: string }).bunny_video_id ?? null,
+          bunny_library_id: bunnyLibraryId ?? (row as { bunny_library_id?: number }).bunny_library_id ?? null,
+          video_thumbnail_url: thumbnailUrl ?? (row as { video_thumbnail_url?: string }).video_thumbnail_url ?? null,
+          video_source: videoUrl.startsWith('blob:') ? 'local' : 'library'
+        }
+      })
+
+    // Actualizar el estado correspondiente según lo que el componente esté mostrando
+    if (parentCsvData && parentSetCsvData) {
+      console.log('🔄 Actualizando parentCsvData por índice')
+      parentSetCsvData(updateDataByIndex(parentCsvData))
+    } else if (csvData.length > 0) {
+      console.log('🔄 Actualizando csvData por índice')
+      setCsvData(updateDataByIndex(csvData))
+    } else {
+      console.log('🔄 Actualizando existingData por índice')
+      setExistingData(updateDataByIndex(existingData))
+    }
+
+    const persistVideoToDb = async (payloadBase: any, ids: number[]) => {
+      const results = await Promise.all(
+        ids.map(async (id) => {
+          try {
+            const resp = await fetch('/api/coach/exercises', {
+              method: 'PATCH',
+              credentials: 'include',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({ ...payloadBase, id })
+            })
+
+            if (!resp.ok) {
+              console.warn('⚠️ Error persistiendo video (PATCH /api/coach/exercises):', {
+                id,
+                status: resp.status,
+                statusText: resp.statusText
+              })
+              return
+            }
+
+            const result = await resp.json()
+            if (!result?.success) {
+              console.warn('⚠️ PATCH /api/coach/exercises success=false:', { id, result })
+            }
+            return { id, ok: true }
+          } catch (e) {
+            console.warn('⚠️ Error de red persistiendo video (PATCH /api/coach/exercises):', { id, error: String(e) })
+            return { id, ok: false }
+          }
+        })
+      )
+
+      console.log('✅ Video persistido en BD (PATCH /api/coach/exercises):', {
+        count: results.length,
+        okCount: results.filter((r): r is { id: number; ok: true } => !!r && r.ok === true).length,
+        ids
+      })
+    }
+
+    const uploadVideoToBunnyStream = async (file: File, title?: string) => {
+      const formData = new FormData()
+      formData.append('file', file)
+      formData.append('title', title || file.name)
+
+      const resp = await fetch('/api/bunny/upload-video', {
+        method: 'POST',
+        credentials: 'include',
+        body: formData
+      })
+
+      const json = await resp.json().catch(() => null)
+
+      if (!resp.ok || !json?.success || !json?.streamUrl || !json?.videoId) {
+        const errMsg = json?.error || json?.message || resp.statusText
+        throw new Error(errMsg || 'Error subiendo video a Bunny')
+      }
+
+      return {
+        url: json.streamUrl as string,
+        fileName: (json.fileName as string) || file.name,
+        bunnyVideoId: json.videoId as string,
+        bunnyLibraryId: (json.libraryId as number) || null,
+        thumbnailUrl: (json.thumbnailUrl as string) || null
+      }
+    }
+
+    const uploadVideoToSupabaseStorage = async (file: File) => {
+      const formData = new FormData()
+      formData.append('file', file, file.name)
+      formData.append('mediaType', 'video')
+      formData.append('category', productCategory === 'nutricion' ? 'nutrition' : 'fitness')
+
+      const resp = await fetch('/api/upload-organized', {
+        method: 'POST',
+        credentials: 'include',
+        body: formData
+      })
+
+      const json = await resp.json().catch(() => null)
+
+      if (!resp.ok || !json?.success || !json?.url) {
+        const errMsg = json?.error || resp.statusText
+        const details = json?.details
+        throw new Error(details ? `${errMsg} (${details})` : errMsg)
+      }
+
+      return {
+        url: json.url as string,
+        fileName: (json.fileName as string) || file.name
+      }
+    }
+
+    // 3) Si es un archivo nuevo (blob), subirlo y persistirlo.
+    if (videoFile && videoUrl && videoUrl.startsWith('blob:') && selectedExistingIds.length > 0) {
+      try {
+        console.log('⬆️ Subiendo video nuevo para persistir...', {
+          selectedExistingIds,
+          productCategory,
+          fileName: videoFile.name,
+          fileSize: videoFile.size
+        })
+
+        const desiredTitle = resolvedName || videoFile.name
+
+        let uploaded:
+          | {
+            url: string
+            fileName: string
+            bunnyVideoId: string
+            bunnyLibraryId: number | null
+            thumbnailUrl: string | null
+          }
+          | {
+            url: string
+            fileName: string
+          }
+
+        try {
+          uploaded = await uploadVideoToBunnyStream(videoFile, desiredTitle)
+        } catch (e) {
+          console.warn('⚠️ Error subiendo video a Bunny, fallback a Supabase Storage:', {
+            error: String(e)
+          })
+          uploaded = await uploadVideoToSupabaseStorage(videoFile)
+        }
+
+        console.log('✅ Video subido:', {
+          url: uploaded.url,
+          fileName: uploaded.fileName,
+          selectedExistingIds
+        })
+
+        const payloadBase = {
+          category: productCategory === 'nutricion' ? 'nutricion' : 'fitness',
+          video_url: uploaded.url,
+          video_file_name: desiredTitle || uploaded.fileName,
+          bunny_video_id: (uploaded as { bunnyVideoId?: string }).bunnyVideoId ?? null,
+          bunny_library_id: (uploaded as { bunnyLibraryId?: number }).bunnyLibraryId ?? null,
+          video_thumbnail_url: (uploaded as { thumbnailUrl?: string }).thumbnailUrl ?? null
+        }
+
+        // Actualizar estado local al URL final (reemplaza blob)
+        const applyFinalUrlById = (rows: any[]) =>
+          rows.map((row) => {
+            if (!row) return row
+            const idRaw = (row as { id?: number | string })?.id
+            const rowId = typeof idRaw === 'number' ? idRaw : Number(idRaw)
+            if (!Number.isFinite(rowId) || !selectedExistingIds.includes(rowId)) return row
+            return {
+              ...row,
+              video_url: uploaded.url,
+              video_file_name: desiredTitle || uploaded.fileName || (row as { video_file_name?: string }).video_file_name || '',
+              bunny_video_id: (uploaded as { bunnyVideoId?: string }).bunnyVideoId ?? null,
+              bunny_library_id: (uploaded as { bunnyLibraryId?: number }).bunnyLibraryId ?? null,
+              video_thumbnail_url: (uploaded as { thumbnailUrl?: string }).thumbnailUrl ?? null,
+              video_source: 'local'
+            }
+          })
+
+        setExistingData((prev) => applyFinalUrlById(prev))
+        setCsvData((prev) => applyFinalUrlById(prev))
+        if (parentCsvData && parentSetCsvData) {
+          parentSetCsvData(applyFinalUrlById(parentCsvData))
+        }
+
+        await persistVideoToDb(payloadBase, selectedExistingIds)
+      } catch (e) {
+        console.warn('⚠️ Error subiendo/persistiendo video nuevo:', {
+          error: String(e),
+          productCategory,
+          selectedExistingIds
+        })
+      } finally {
+        setShowVideoModal(false)
+      }
+      return
+    }
+
+    // 3) Persistir a DB para filas existentes (solo cuando es un video existente, no blob)
+    if (!videoFile && videoUrl && !videoUrl.startsWith('blob:') && selectedExistingIds.length > 0) {
+      const payloadBase = {
+        category: productCategory === 'nutricion' ? 'nutricion' : 'fitness',
+        video_url: videoUrl,
+        video_file_name: resolvedName,
+        bunny_video_id: bunnyVideoId ?? null,
+        bunny_library_id: bunnyLibraryId ?? null,
+        video_thumbnail_url: thumbnailUrl ?? null
+      }
+
+      try {
+        await persistVideoToDb(payloadBase, selectedExistingIds)
+      } catch {
+        // ya logueado dentro
+      }
+    }
+
+    setShowVideoModal(false)
+  }
+
+  const handleVideoFileChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0]
+    if (!file) return
+
+    // Cerrar el modal de fuente
+    setShowMediaSourceModal(false)
+
+    // Crear URL local para preview
+    const localPreviewUrl = URL.createObjectURL(file)
+
+    // Usar la función compartida
+    handleVideoSelection(localPreviewUrl, 'video', file)
+
+    // Limpiar input
+    if (videoFileInputRef.current) {
+      videoFileInputRef.current.value = ''
+    }
   }
 
   const addManualExercise = () => {
@@ -2983,7 +3293,7 @@ Batido de Proteína,Desayuno,Batido con proteína en polvo plátano y leche,320,
   }
 
   useEffect(() => {
-    if (mode !== 'existentes') {
+    if (mode !== 'existentes' || !coachId || coachId === '') {
       if (selectedExisting !== '') {
         setSelectedExisting('')
       }
@@ -3070,7 +3380,7 @@ Batido de Proteína,Desayuno,Batido con proteína en polvo plátano y leche,320,
     }
 
     loadCatalog()
-  }, [mode, productCategory])
+  }, [mode, productCategory, coachId])
 
   // Combinar datos existentes y nuevos para mostrar
   // IMPORTANTE: Preservar existingData siempre, luego agregar csv y parent
@@ -3350,291 +3660,67 @@ Batido de Proteína,Desayuno,Batido con proteína en polvo plátano y leche,320,
         </div>
       )}
 
+      {/* Modal de selección de fuente para medios (Foto/Video) */}
+      {showMediaSourceModal && (
+        <div key="media-source-modal" className="fixed inset-0 z-[60] flex items-center justify-center p-4 bg-black/80 backdrop-blur-sm">
+          <motion.div
+            initial={{ opacity: 0, scale: 0.95 }}
+            animate={{ opacity: 1, scale: 1 }}
+            className="bg-[#0A0A0A] border border-white/10 rounded-lg p-6 max-w-md w-full shadow-2xl mx-4"
+            onClick={(e: React.MouseEvent) => e.stopPropagation()}
+          >
+            <h3 className="text-lg font-semibold text-white mb-4">Seleccionar fuente</h3>
+            <p className="text-sm text-gray-400 mb-6">
+              Elegí si querés usar un archivo existente o subir uno nuevo.
+            </p>
+
+            <div className="grid grid-cols-2 gap-3">
+              <button
+                type="button"
+                onClick={() => {
+                  setShowMediaSourceModal(false)
+                  setShowVideoModal(true)
+                }}
+                className="p-4 rounded-lg border border-white/10 bg-black hover:border-[#FF7939]/50 hover:bg-white/5 transition-all text-center group"
+              >
+                <Video className="h-6 w-6 mb-2 text-[#FF7939] mx-auto group-hover:scale-110 transition-transform" />
+                <div className="text-sm font-semibold text-white">Existentes</div>
+                <div className="text-xs text-gray-400 mt-1">De tu galería</div>
+              </button>
+
+              <div
+                className="relative p-4 rounded-lg border border-white/10 bg-black hover:border-[#FF7939]/50 hover:bg-white/5 transition-all text-center group overflow-hidden"
+              >
+                <input
+                  ref={videoFileInputRef}
+                  type="file"
+                  accept="video/*"
+                  onChange={handleVideoFileChange}
+                  className="absolute inset-0 w-full h-full opacity-0 cursor-pointer z-10"
+                />
+                <Upload className="h-6 w-6 mb-2 text-[#FF7939] mx-auto group-hover:scale-110 transition-transform" />
+                <div className="text-sm font-semibold text-white">Nuevo</div>
+                <div className="text-xs text-gray-400 mt-1">Subir archivo</div>
+              </div>
+            </div>
+
+            <button
+              type="button"
+              onClick={() => setShowMediaSourceModal(false)}
+              className="mt-6 w-full px-4 py-2 rounded-lg border border-white/10 bg-white/5 hover:bg-white/10 transition-all text-white text-sm"
+            >
+              Cancelar
+            </button>
+          </motion.div>
+        </div>
+      )}
+
       {/* Modal selección/subida de video del coach (mismo que portada) */}
       <MediaSelectionModal
         isOpen={showVideoModal}
         onClose={() => setShowVideoModal(false)}
         mediaType="video"
-        onMediaSelected={async (mediaUrl, _mediaType, mediaFile) => {
-          const videoUrl = mediaUrl
-          const videoFile = mediaFile || null
-          const derivedBunnyId = extractBunnyVideoIdFromUrl(videoUrl)
-          const bunnyVideoId = derivedBunnyId
-          const bunnyLibraryId = null
-          const thumbnailUrl = derivedBunnyId ? `${String(videoUrl).split(derivedBunnyId)[0]}${derivedBunnyId}/thumbnail.jpg` : null
-          const fileName = null
-
-          const resolvedName = (videoFile?.name ?? '').trim() || (derivedBunnyId ? `video_${derivedBunnyId.slice(0, 12)}.mp4` : '')
-
-          console.log('🎥 Video seleccionado:', {
-            videoUrl,
-            resolvedName,
-            selectedRowsCount: selectedRows.size,
-            selectedRows: Array.from(selectedRows),
-            hasParentData: !!parentCsvData,
-            hasParentSetter: !!parentSetCsvData,
-            videoFileName: videoFile?.name,
-            hasVideoFile: !!videoFile,
-            bunnyVideoId
-          })
-
-          // Si hay un archivo de video, guardarlo inmediatamente
-          if (videoFile) {
-            const selectedIndices = Array.from(selectedRows)
-            const currentData = csvData.length > 0 ? csvData : (parentCsvData || [])
-
-            selectedIndices.forEach((idx) => {
-              const exercise = currentData[idx]
-              if (exercise && onVideoFileSelected) {
-                onVideoFileSelected(exercise, idx, videoFile)
-                console.log(`💾 Guardando archivo de video inmediatamente para ejercicio ${idx}:`, videoFile.name)
-              }
-            })
-          }
-
-          const selectedItems = Array.from(selectedRows)
-            .map((idx) => allData[idx])
-            .filter(Boolean)
-
-          const selectedExistingIds = selectedItems
-            .map((item: any) => item?.id)
-            .filter((id: any) => typeof id === 'number' || typeof id === 'string')
-            .map((id: any) => (typeof id === 'number' ? id : Number(id)))
-            .filter((id: number) => Number.isFinite(id) && id > 0)
-
-          const applyUpdateById = (rows: any[]) =>
-            rows.map((row) => {
-              if (!row) return row
-              const idRaw = (row as any)?.id
-              const rowId = typeof idRaw === 'number' ? idRaw : Number(idRaw)
-              if (!Number.isFinite(rowId) || !selectedExistingIds.includes(rowId)) return row
-              return {
-                ...row,
-                video_url: videoUrl,
-                video_file_name: resolvedName || (row as any).video_file_name || '',
-                bunny_video_id: bunnyVideoId ?? (row as any).bunny_video_id ?? null,
-                bunny_library_id: bunnyLibraryId ?? (row as any).bunny_library_id ?? null,
-                video_thumbnail_url: thumbnailUrl ?? (row as any).video_thumbnail_url ?? null
-              }
-            })
-
-          // 1) Actualizar estado local (incluyendo existingData, que es la fuente real del catálogo)
-          setExistingData((prev) => applyUpdateById(prev))
-          setCsvData((prev) => applyUpdateById(prev))
-
-          // 2) Si el padre está usando estado persistente, mantenerlo sincronizado
-          if (parentCsvData && parentSetCsvData) {
-            parentSetCsvData(applyUpdateById(parentCsvData))
-          }
-
-          const persistVideoToDb = async (payloadBase: any, ids: number[]) => {
-            const results = await Promise.all(
-              ids.map(async (id) => {
-                try {
-                  const resp = await fetch('/api/coach/exercises', {
-                    method: 'PATCH',
-                    credentials: 'include',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ ...payloadBase, id })
-                  })
-
-                  if (!resp.ok) {
-                    let body: any = null
-                    try {
-                      body = await resp.json()
-                    } catch {
-                      try {
-                        body = await resp.text()
-                      } catch {
-                        body = null
-                      }
-                    }
-                    console.warn('⚠️ Error persistiendo video (PATCH /api/coach/exercises):', {
-                      id,
-                      status: resp.status,
-                      statusText: resp.statusText,
-                      body
-                    })
-                    return
-                  }
-
-                  const result = await resp.json()
-                  if (!result?.success) {
-                    console.warn('⚠️ PATCH /api/coach/exercises success=false:', { id, result })
-                  }
-                  return { id, ok: true }
-                } catch (e) {
-                  console.warn('⚠️ Error de red persistiendo video (PATCH /api/coach/exercises):', { id, error: String(e) })
-                  return { id, ok: false }
-                }
-              })
-            )
-
-            console.log('✅ Video persistido en BD (PATCH /api/coach/exercises):', {
-              count: results.length,
-              okCount: results.filter((r): r is { id: number; ok: true } => !!r && r.ok === true).length,
-              ids
-            })
-          }
-
-          const uploadVideoToBunnyStream = async (file: File, title?: string) => {
-            const formData = new FormData()
-            formData.append('file', file)
-            formData.append('title', title || file.name)
-
-            const resp = await fetch('/api/bunny/upload-video', {
-              method: 'POST',
-              credentials: 'include',
-              body: formData
-            })
-
-            const json = await resp.json().catch(() => null)
-
-            if (!resp.ok || !json?.success || !json?.streamUrl || !json?.videoId) {
-              const errMsg = json?.error || json?.message || resp.statusText
-              throw new Error(errMsg || 'Error subiendo video a Bunny')
-            }
-
-            return {
-              url: json.streamUrl as string,
-              fileName: (json.fileName as string) || file.name,
-              bunnyVideoId: json.videoId as string,
-              bunnyLibraryId: (json.libraryId as number) || null,
-              thumbnailUrl: (json.thumbnailUrl as string) || null
-            }
-          }
-
-          const uploadVideoToSupabaseStorage = async (file: File) => {
-            const formData = new FormData()
-            formData.append('file', file, file.name)
-            formData.append('mediaType', 'video')
-            formData.append('category', productCategory === 'nutricion' ? 'nutrition' : 'fitness')
-
-            const resp = await fetch('/api/upload-organized', {
-              method: 'POST',
-              credentials: 'include',
-              body: formData
-            })
-
-            const json = await resp.json().catch(() => null)
-
-            if (!resp.ok || !json?.success || !json?.url) {
-              const errMsg = json?.error || resp.statusText
-              const details = json?.details
-              throw new Error(details ? `${errMsg} (${details})` : errMsg)
-            }
-
-            return {
-              url: json.url as string,
-              fileName: (json.fileName as string) || file.name
-            }
-          }
-
-          // 3) Si es un archivo nuevo (blob), subirlo y persistirlo.
-          if (videoFile && videoUrl && videoUrl.startsWith('blob:') && selectedExistingIds.length > 0) {
-            try {
-              console.log('⬆️ Subiendo video nuevo para persistir...', {
-                selectedExistingIds,
-                productCategory,
-                fileName: videoFile.name,
-                fileSize: videoFile.size
-              })
-
-              const desiredTitle = resolvedName || videoFile.name
-
-              let uploaded:
-                | {
-                  url: string
-                  fileName: string
-                  bunnyVideoId: string
-                  bunnyLibraryId: number | null
-                  thumbnailUrl: string | null
-                }
-                | {
-                  url: string
-                  fileName: string
-                }
-
-              try {
-                uploaded = await uploadVideoToBunnyStream(videoFile, desiredTitle)
-              } catch (e) {
-                console.warn('⚠️ Error subiendo video a Bunny, fallback a Supabase Storage:', {
-                  error: String(e)
-                })
-                uploaded = await uploadVideoToSupabaseStorage(videoFile)
-              }
-
-              console.log('✅ Video subido:', {
-                url: uploaded.url,
-                fileName: uploaded.fileName,
-                selectedExistingIds
-              })
-
-              const payloadBase = {
-                category: productCategory === 'nutricion' ? 'nutricion' : 'fitness',
-                video_url: uploaded.url,
-                video_file_name: desiredTitle || uploaded.fileName,
-                bunny_video_id: (uploaded as any).bunnyVideoId ?? null,
-                bunny_library_id: (uploaded as any).bunnyLibraryId ?? null,
-                video_thumbnail_url: (uploaded as any).thumbnailUrl ?? null
-              }
-
-              // Actualizar estado local al URL final (reemplaza blob)
-              const applyFinalUrlById = (rows: any[]) =>
-                rows.map((row) => {
-                  if (!row) return row
-                  const idRaw = (row as any)?.id
-                  const rowId = typeof idRaw === 'number' ? idRaw : Number(idRaw)
-                  if (!Number.isFinite(rowId) || !selectedExistingIds.includes(rowId)) return row
-                  return {
-                    ...row,
-                    video_url: uploaded.url,
-                    video_file_name: desiredTitle || uploaded.fileName || (row as any).video_file_name || '',
-                    bunny_video_id: (uploaded as any).bunnyVideoId ?? null,
-                    bunny_library_id: (uploaded as any).bunnyLibraryId ?? null,
-                    video_thumbnail_url: (uploaded as any).thumbnailUrl ?? null
-                  }
-                })
-
-              setExistingData((prev) => applyFinalUrlById(prev))
-              setCsvData((prev) => applyFinalUrlById(prev))
-              if (parentCsvData && parentSetCsvData) {
-                parentSetCsvData(applyFinalUrlById(parentCsvData))
-              }
-
-              await persistVideoToDb(payloadBase, selectedExistingIds)
-            } catch (e) {
-              console.warn('⚠️ Error subiendo/persistiendo video nuevo:', {
-                error: String(e),
-                productCategory,
-                selectedExistingIds
-              })
-            } finally {
-              setShowVideoModal(false)
-            }
-            return
-          }
-
-          // 3) Persistir a DB para filas existentes (solo cuando es un video existente, no blob)
-          if (!videoFile && videoUrl && !videoUrl.startsWith('blob:') && selectedExistingIds.length > 0) {
-            const payloadBase = {
-              category: productCategory === 'nutricion' ? 'nutricion' : 'fitness',
-              video_url: videoUrl,
-              video_file_name: resolvedName,
-              bunny_video_id: bunnyVideoId ?? null,
-              bunny_library_id: bunnyLibraryId ?? null,
-              video_thumbnail_url: thumbnailUrl ?? null
-            }
-
-            try {
-              await persistVideoToDb(payloadBase, selectedExistingIds)
-            } catch {
-              // ya logueado dentro
-            }
-          }
-
-          setShowVideoModal(false)
-        }}
+        onMediaSelected={handleVideoSelection}
       />
 
       {/* Bloque Manual */}
@@ -4272,7 +4358,7 @@ Batido de Proteína,Desayuno,Batido con proteína en polvo plátano y leche,320,
                 updateErrorState('Selecciona al menos una fila para agregar video')
                 return
               }
-              setShowVideoModal(true)
+              setShowMediaSourceModal(true)
             }}
             disabled={selectedRows.size === 0}
             className={`transition-colors ${selectedRows.size === 0

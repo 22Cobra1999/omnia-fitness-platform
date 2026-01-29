@@ -71,7 +71,7 @@ export async function GET(request: NextRequest) {
 
     if (activitiesError) {
       console.error('Error obteniendo actividades del coach:', activitiesError)
-      return NextResponse.json({ 
+      return NextResponse.json({
         success: true,
         exercises: [],
         warning: activitiesError.message
@@ -111,7 +111,7 @@ export async function GET(request: NextRequest) {
       // como base para "Agregar existentes" (independiente del programa concreto).
       const { data: dishes, error: dishesError } = await supabase
         .from('nutrition_program_details')
-        .select('id, coach_id, nombre, receta_id, calorias, proteinas, carbohidratos, grasas, ingredientes, porciones, minutos, video_url, recetas(receta)')
+        .select('id, coach_id, nombre, receta_id, calorias, proteinas, carbohidratos, grasas, ingredientes, porciones, minutos, video_url, recetas(id, receta)')
         .eq('coach_id', coach.id)
 
       if (dishesError) {
@@ -134,7 +134,7 @@ export async function GET(request: NextRequest) {
           id: dish.id,
           name,
           descripcion: dish.descripcion ?? '',
-          receta: dish.recetas?.receta ?? '',
+          receta: Array.isArray(dish.recetas) ? (dish.recetas[0]?.receta ?? '') : (dish.recetas?.receta ?? ''),
           calorias: dish.calorias ?? '',
           proteinas: dish.proteinas ?? '',
           carbohidratos: dish.carbohidratos ?? '',
@@ -164,7 +164,7 @@ export async function GET(request: NextRequest) {
 
     const { data: exercises, error: exercisesError } = await supabase
       .from('ejercicios_detalles')
-      .select('id, activity_id, coach_id, nombre_ejercicio, tipo, descripcion, calorias, intensidad, nivel_intensidad, equipo, body_parts, detalle_series, duracion_min, video_url')
+      .select('id, activity_id, coach_id, nombre_ejercicio, tipo, descripcion, calorias, intensidad, equipo, body_parts, detalle_series, duracion_min, video_url')
       .eq('coach_id', coach.id)
 
     if (exercisesError) {
@@ -181,34 +181,34 @@ export async function GET(request: NextRequest) {
     exercises
       ?.filter((exercise: any) => activityIds.some(id => hasActivity(exercise.activity_id, id)))
       .forEach((exercise: any) => {
-      const name = exercise?.nombre_ejercicio || ''
-      const key = normalizeName(name)
-      if (!key) return
+        const name = exercise?.nombre_ejercicio || ''
+        const key = normalizeName(name)
+        if (!key) return
 
-      const candidate = {
-        id: exercise.id,
-        name,
-        descripcion: exercise.descripcion ?? '',
-        duracion_min: exercise.duracion_min ?? '',
-        tipo_ejercicio: exercise.tipo ?? '',
-        nivel_intensidad: exercise.nivel_intensidad ?? exercise.intensidad ?? '',
-        equipo_necesario: exercise.equipo ?? '',
-        detalle_series: exercise.detalle_series ?? '',
-        partes_cuerpo: exercise.body_parts ?? '',
-        calorias: exercise.calorias ?? '',
-        video_url: exercise.video_url ?? ''
-      }
+        const candidate = {
+          id: exercise.id,
+          name,
+          descripcion: exercise.descripcion ?? '',
+          duracion_min: exercise.duracion_min ?? '',
+          tipo_ejercicio: exercise.tipo ?? '',
+          nivel_intensidad: exercise.intensidad ?? '',
+          equipo_necesario: exercise.equipo ?? '',
+          detalle_series: exercise.detalle_series ?? '',
+          partes_cuerpo: exercise.body_parts ?? '',
+          calorias: exercise.calorias ?? '',
+          video_url: exercise.video_url ?? ''
+        }
 
-      const existing = uniqueExercisesMap.get(key)
-      if (!existing) {
-        uniqueExercisesMap.set(key, candidate)
-        return
-      }
+        const existing = uniqueExercisesMap.get(key)
+        if (!existing) {
+          uniqueExercisesMap.set(key, candidate)
+          return
+        }
 
-      if (scoreFitnessExercise(candidate) > scoreFitnessExercise(existing)) {
-        uniqueExercisesMap.set(key, candidate)
-      }
-    })
+        if (scoreFitnessExercise(candidate) > scoreFitnessExercise(existing)) {
+          uniqueExercisesMap.set(key, candidate)
+        }
+      })
 
     return NextResponse.json({
       success: true,
@@ -216,10 +216,10 @@ export async function GET(request: NextRequest) {
     })
   } catch (error: any) {
     console.error('Error en /api/existing-exercises:', error)
-    return NextResponse.json({ 
+    return NextResponse.json({
       success: true,
       exercises: [],
-      warning: error.message 
+      warning: error.message
     })
   }
 }

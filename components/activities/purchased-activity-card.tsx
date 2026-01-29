@@ -1,7 +1,6 @@
 "use client"
 
 import { useState, useEffect } from "react"
-import { Card } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
 import { Progress } from "@/components/ui/progress"
 import { Calendar, User, Play, Clock, Flame, Star, Zap, CheckCircle2, AlertTriangle } from "lucide-react"
@@ -274,9 +273,9 @@ export function PurchasedActivityCard({
   // Determine dimensions based on size (matching ActivityCard)
   const getSizeClasses = () => {
     switch (size) {
-      case "small": return "w-[130px] h-[30rem]" // Narrower and a bit taller for coach info
-      case "large": return "w-80 h-[36rem]" // Featured
-      default: return "w-64 h-[32rem]" // Standard medium
+      case "small": return "w-[165px] h-[30rem]" // Matched to Search Card size (w-40 approx 160px, h-30rem)
+      case "large": return "w-[360px] h-[36rem]" // Featured
+      default: return "w-[340px] h-[32rem]" // Wider than previous w-80 (320px) -> 340px
     }
   }
 
@@ -486,18 +485,19 @@ export function PurchasedActivityCard({
             {/* Actividades Pendientes Hoy / Next Session */}
             {hasStarted && !isCoachView && (
               <div className="flex flex-col gap-0.5 mt-0.5">
-                {((pendingCount !== null && pendingCount > 0) || isFinished || progress >= 100) && (
-                  <div className="flex items-center gap-1.5">
-                    <Zap className={`w-3.5 h-3.5 ${pendingCount ? 'text-[#FF7939]' : 'text-gray-500'}`} />
-                    <span className="text-[11px]">
-                      {pendingCount !== null && pendingCount > 0
-                        ? <span className="text-white font-medium">{pendingCount} pendientes</span>
-                        : <span className="text-gray-500 font-medium">Finalizado</span>
-                      }
-                    </span>
-                  </div>
+                {/* Logic specific for Programs: Show pending items today */}
+                {(activity.type?.toLowerCase() === 'program' || activity.type?.toLowerCase() === 'programa') && (
+                  (pendingCount !== null && pendingCount > 0) ? (
+                    <div className="flex items-center gap-1.5">
+                      <Zap className="w-3.5 h-3.5 text-[#FF7939]" />
+                      <span className="text-[11px] text-white font-medium">
+                        {pendingCount} ejercicios/platos hoy
+                      </span>
+                    </div>
+                  ) : null
                 )}
 
+                {/* For Documents/Workshops: Only show Next Session if exists (and not finished) */}
                 {nextSessionDate && (
                   <div className="flex items-center gap-1.5 text-[10px] text-gray-400">
                     <Calendar className="w-3 h-3" />
@@ -520,23 +520,49 @@ export function PurchasedActivityCard({
 
           {/* 5. Progreso (Abajo) */}
           <div className="mt-auto pt-1.5 border-t border-zinc-800/20 relative">
+            {(() => {
+              const isDocOrWorkshop = activity.type?.toLowerCase().includes('document') ||
+                activity.type?.toLowerCase().includes('taller') ||
+                activity.type?.toLowerCase().includes('workshop');
 
-            <div className="flex justify-between text-[11px] mb-1 text-[#FF7939]">
-              <span className="font-bold uppercase tracking-wider">Progreso</span>
-              <span className="font-black text-[12px]">{progress}%</span>
-            </div>
-            <div className="h-0.5 bg-zinc-800/50 rounded-full overflow-hidden mb-1">
-              <div
-                className="h-full bg-[#FF7939] rounded-full transition-all duration-500 shadow-[0_0_8px_rgba(255,121,57,0.3)]"
-                style={{ width: `${progress}%` }}
-              />
-            </div>
+              // Si es Doc/Workshop y está finalizado (o 100% progreso)
+              if (isDocOrWorkshop && (isFinished || progress >= 100)) {
+                return (
+                  <div className="flex flex-col gap-1">
+                    <div className="h-0.5 bg-zinc-800/50 rounded-full overflow-hidden">
+                      <div className="h-full bg-[#FF7939] rounded-full" style={{ width: '100%' }} />
+                    </div>
+                    <div className="flex justify-between items-center text-[11px]">
+                      <span className="text-white font-medium">Finalizado</span>
+                      <span className="text-[#FF7939] font-bold">{progress}%</span>
+                    </div>
+                  </div>
+                );
+              }
+
+              // Default standard progress view
+              return (
+                <>
+                  <div className="flex justify-between text-[11px] mb-1 text-[#FF7939]">
+                    <span className="text-[9px] font-bold uppercase tracking-wider">Progreso</span>
+                    <span className="font-black text-[12px]">{progress}%</span>
+                  </div>
+                  <div className="h-0.5 bg-zinc-800/50 rounded-full overflow-hidden mb-1">
+                    <div
+                      className="h-full bg-[#FF7939] rounded-full transition-all duration-500 shadow-[0_0_8px_rgba(255,121,57,0.3)]"
+                      style={{ width: `${progress}%` }}
+                    />
+                  </div>
+                </>
+              );
+            })()}
 
             {/* Price section - Centered & Simplified */}
-            <div className="flex justify-center items-center mt-0.5 pt-0.5 border-t border-zinc-900/30 relative">
+            {/* Price section - Centered & Simplified - Removed as per user request */}
+            {/* <div className="flex justify-center items-center mt-0.5 pt-0.5 border-t border-zinc-900/30 relative">
               <span className="text-xs font-black text-zinc-200">${Math.round(amountPaid ?? 0)}</span>
 
-              {/* Delay Alert Icon (Right Corner) */}
+              // Delay Alert Icon (Right Corner)
               {isCoachView && (() => {
                 const itemsOK = itemsCompletedTotal || 0;
                 const itemsDebt = itemsDebtPast || 0;
@@ -577,7 +603,7 @@ export function PurchasedActivityCard({
                   </div>
                 );
               })()}
-            </div>
+            </div> */}
           </div>
 
         </div>

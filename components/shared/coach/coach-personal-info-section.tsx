@@ -153,7 +153,7 @@ export function CoachPersonalInfoSection({
                 {specs.map((spec, idx) => (
                   <span
                     key={`${spec}-${idx}`}
-                    className="bg-[#FF7939]/20 text-[#FF7939] text-[10px] px-1.5 py-0.5 rounded-full font-medium border border-[#FF7939]/30 whitespace-nowrap"
+                    className="bg-[#FF7939]/10 text-[#FF7939] text-[10px] px-1.5 py-0.5 rounded-full font-medium border border-[#FF7939]/20 whitespace-nowrap"
                   >
                     {spec}
                   </span>
@@ -290,7 +290,7 @@ export function CoachPersonalInfoSection({
             {specs.map((spec, idx) => (
               <span
                 key={`${spec}-${idx}`}
-                className="bg-[#FF7939]/20 text-[#FF7939] text-xs px-3 py-1 rounded-full"
+                className="bg-[#FF7939]/10 text-[#FF7939] text-xs px-3 py-1 rounded-full border border-[#FF7939]/20"
               >
                 {spec}
               </span>

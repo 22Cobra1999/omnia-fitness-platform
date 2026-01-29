@@ -53,16 +53,27 @@ export function useProfileManagement() {
   const [loading, setLoading] = useState(false)
   const [profile, setProfile] = useState<ProfileData | null>(() => {
     try {
-      // 1) Hidratar desde cache si existe y no está vencido
-      if (typeof window === 'undefined') return null
-      const cached = window.localStorage.getItem('profile_cache')
-      if (cached) {
-        const parsed = JSON.parse(cached)
-        const isFresh = Date.now() - (parsed.timestamp || 0) < 1000 * 60 * 60 // 1h
-        // Verificar si tiene los campos nuevos, si no, invalidar
-        const hasNewFields = Array.isArray(parsed.profile?.fitness_goals) && Array.isArray(parsed.profile?.sports)
-        if (isFresh && parsed.profile && hasNewFields) return parsed.profile as ProfileData
-      }
+      // 1) CACHE DISABLED FOR DEBUGGING
+      // if (typeof window === 'undefined') return null
+      // const cached = window.localStorage.getItem('profile_cache')
+      // if (cached) {
+      //   const parsed = JSON.parse(cached)
+      //   const isFresh = Date.now() - (parsed.timestamp || 0) < 1000 * 60 * 60 // 1h
+      //   // Verificar si tiene los campos nuevos, si no, invalidar
+      //   const hasNewFields = Array.isArray(parsed.profile?.fitness_goals) && Array.isArray(parsed.profile?.sports)
+      //   const hasBirthDate = parsed.profile?.birth_date !== undefined
+
+      //   // Specially invalidate for debugging user if data is missing despite being "fresh"
+      //   const isDebugUser = parsed.profile?.id === '00dedc23-0b17-4e50-b84e-b2e8100dc93c' || parsed.profile?.email === 'pomatifranco@gmail.com'
+      //   const isMissingData = (!parsed.profile?.fitness_goals?.length) || (!parsed.profile?.sports?.length)
+
+      //   if (isDebugUser && isMissingData) {
+      //     return null // Force refresh for this user if data is missing
+      //   }
+
+      //   if (isFresh && parsed.profile && hasNewFields && hasBirthDate) return parsed.profile as ProfileData
+      // }
+      return null
     } catch { }
     // 2) Prefill rápido con datos del usuario autenticado
     if (!user) return null
@@ -81,32 +92,13 @@ export function useProfileManagement() {
   const loadProfile = async (useCache = true) => {
     if (!user?.id) return
 
-    // Verificar cache primero si está habilitado
-    if (useCache && typeof window !== 'undefined') {
-      try {
-        const cachedProfile = sessionStorage.getItem("cached_profile_data")
-        const profileTimestamp = Number.parseInt(sessionStorage.getItem("profile_cache_timestamp") || "0")
-
-        // Usar cache si existe y tiene menos de 5 minutos
-        if (cachedProfile && Date.now() - profileTimestamp < 5 * 60 * 1000) {
-          const parsedProfile = JSON.parse(cachedProfile)
-          if (parsedProfile && Object.keys(parsedProfile).length > 0) {
-            console.log("✅ [PROFILE] Usando perfil en caché:", {
-              hasAvatar: !!parsedProfile?.avatar_url,
-              avatarUrl: parsedProfile?.avatar_url,
-              profile: parsedProfile
-            })
-            setProfile(parsedProfile)
-            setLoading(false)
-            // Cargar datos frescos en background después de un delay
-            setTimeout(() => loadProfile(false), 3000)
-            return
-          }
-        }
-      } catch (e) {
-        console.error("Error al cargar perfil desde cache:", e)
-      }
-    }
+    // 3) CACHE CHECK DISABLED TO FIX STALE DATA
+    // if (useCache && typeof window !== 'undefined') {
+    //   try {
+    //     const cachedProfile = sessionStorage.getItem("cached_profile_data")
+    // ... (disabled)
+    //   } catch (e) { }
+    // }
 
     try {
       if (!profile) setLoading(true)
@@ -114,8 +106,11 @@ export function useProfileManagement() {
       if (Date.now() - lastProfileLoadAt < 1500) return
       setLastProfileLoadAt(Date.now())
 
-      // Llamar a la API para obtener el perfil
-      const response = await fetch('/api/profile/combined')
+      // Llamar a la API para obtener el perfil (NO CACHE)
+      const response = await fetch('/api/profile/combined', {
+        cache: 'no-store',
+        headers: { 'Pragma': 'no-cache', 'Cache-Control': 'no-cache' }
+      })
       const result = await response.json()
 
       if (!response.ok || !result.success) {

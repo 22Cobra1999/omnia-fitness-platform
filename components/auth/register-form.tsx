@@ -4,7 +4,7 @@ import { useState } from "react"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
-import { createClient } from "@/lib/supabase/supabase-client"
+import { useAuth } from "@/contexts/auth-context"
 import { useRouter } from "next/navigation"
 
 interface RegisterFormProps {
@@ -20,7 +20,7 @@ export function RegisterForm({ onSuccess, onLoginClick }: RegisterFormProps) {
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const router = useRouter()
-  const supabase = createClient()
+  const { signUp } = useAuth()
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
@@ -34,18 +34,10 @@ export function RegisterForm({ onSuccess, onLoginClick }: RegisterFormProps) {
     }
 
     try {
-      const { error: signUpError } = await supabase.auth.signUp({
-        email,
-        password,
-        options: {
-          data: {
-            full_name: fullName,
-          },
-        },
-      })
+      const { error: signUpError } = await signUp(email, password, fullName)
 
       if (signUpError) {
-        setError(signUpError.message)
+        setError(typeof signUpError === 'string' ? signUpError : (signUpError as any).message)
         return
       }
 
@@ -54,8 +46,8 @@ export function RegisterForm({ onSuccess, onLoginClick }: RegisterFormProps) {
       } else {
         router.push("/auth/login")
       }
-    } catch (err) {
-      setError("Error al crear la cuenta")
+    } catch (err: any) {
+      setError(err?.message || "Error al crear la cuenta")
     } finally {
       setLoading(false)
     }
@@ -68,7 +60,7 @@ export function RegisterForm({ onSuccess, onLoginClick }: RegisterFormProps) {
           {error}
         </div>
       )}
-      
+
       <div className="space-y-2">
         <Label htmlFor="fullName">Nombre completo</Label>
         <Input

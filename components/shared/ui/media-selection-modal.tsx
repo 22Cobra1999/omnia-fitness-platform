@@ -27,7 +27,7 @@ import { UniversalVideoPlayer } from '@/components/shared/video/universal-video-
 interface MediaSelectionModalProps {
   isOpen: boolean
   onClose: () => void
-  onMediaSelected: (mediaUrl: string, mediaType: 'image' | 'video' | 'pdf', mediaFile?: File) => void
+  onMediaSelected: (mediaUrl: string, mediaType: 'image' | 'video' | 'pdf', mediaFile?: File, fileName?: string) => void
   mediaType: 'image' | 'video' | 'pdf'
 }
 
@@ -400,11 +400,12 @@ export function MediaSelectionModal({
     // Encontrar el item seleccionado
     const selectedItem = media.find(m => m.id === mediaId)
 
-    // Si ya está seleccionado, deseleccionarlo
+    // Si ya está seleccionado, reproducir en lugar de deseleccionar
     if (selectedMedia === mediaId) {
-      console.log('❌ Deseleccionando media actual')
-      setSelectedMedia(null)
-      // Mantener la preview actual
+      console.log('▶️ Media ya seleccionada, iniciando reproducción')
+      if (mediaType === 'video') {
+        setIsPreviewPlaying(true)
+      }
     } else {
       // Seleccionar solo este elemento (deselecciona automáticamente otros)
       console.log('✅ Seleccionando nuevo media, deseleccionando otros')
@@ -595,7 +596,7 @@ export function MediaSelectionModal({
       console.log('🎯 MediaSelectionModal: URL temporal creada para video (archivo en memoria):', temporaryUrl)
       console.log('⏳ MediaSelectionModal: El video se subirá cuando se actualice el producto')
 
-      onMediaSelected(temporaryUrl, mediaType, newMediaFile)
+      onMediaSelected(temporaryUrl, mediaType, newMediaFile, newMediaFile.name)
       onClose()
       return
     }
@@ -623,7 +624,7 @@ export function MediaSelectionModal({
         : null
 
       if (mediaUrl) {
-        onMediaSelected(mediaUrl, mediaType)
+        onMediaSelected(mediaUrl, mediaType, undefined, selectedItem?.filename)
         onClose()
       } else {
         console.error('❌ No se pudo encontrar la URL para el ID seleccionado', {
@@ -650,7 +651,7 @@ export function MediaSelectionModal({
       console.log('⏳ MediaSelectionModal: El archivo se subirá cuando se actualice el producto')
 
       // Pasar el archivo Y la URL temporal al padre
-      onMediaSelected(temporaryUrl, mediaType, newMediaFile)
+      onMediaSelected(temporaryUrl, mediaType, newMediaFile, newMediaFile.name)
       onClose()
     }
   }
@@ -898,10 +899,13 @@ export function MediaSelectionModal({
                                     setIsPreviewPlaying((prev) => !prev)
                                   }
                                 }}
-                                className="w-9 h-9 rounded-full bg-black/60 border border-white/10 flex items-center justify-center"
+                                className={`w-9 h-9 rounded-full flex items-center justify-center transition-all ${isSelected
+                                  ? 'bg-[#FF7939] border-[#FF7939] shadow-[0_0_15px_rgba(255,121,57,0.4)]'
+                                  : 'bg-black/60 border border-white/10'
+                                  }`}
                                 aria-label="Reproducir"
                               >
-                                <Play className="h-4 w-4 text-white ml-0.5" />
+                                <Play className={`h-4 w-4 ml-0.5 transition-colors ${isSelected ? 'text-white' : 'text-white'}`} />
                               </div>
                             </div>
                           )}

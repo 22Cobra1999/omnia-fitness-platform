@@ -1842,7 +1842,14 @@ export default function CreateProductModal({ isOpen, onClose, editingProduct, in
     inlineFileInputRef.current.click()
   }
 
-  const handleMediaSelection = (mediaUrl: string, mediaType: 'image' | 'video' | 'pdf', mediaFile?: File) => {
+  const handleMediaSelection = (mediaUrl: string, mediaType: 'image' | 'video' | 'pdf', mediaFile?: File, fileName?: string) => {
+    console.log('🎯 [handleMediaSelection] Recibido:', { mediaUrl, mediaType, hasFile: !!mediaFile, fileName })
+    console.log('🎯 CREATE-PRODUCT-MODAL: Media seleccionada:', {
+      mediaUrl,
+      mediaType,
+      hasFile: !!mediaFile
+    })
+
     if (mediaType === 'pdf') {
       return
     }
@@ -1984,7 +1991,8 @@ export default function CreateProductModal({ isOpen, onClose, editingProduct, in
     setPendingPdfContext(null)
   }
 
-  const handlePdfSelected = (mediaUrl: string, _mediaType: 'image' | 'video' | 'pdf', mediaFile?: File) => {
+  const handlePdfSelected = (mediaUrl: string, _mediaType: 'image' | 'video' | 'pdf', mediaFile?: File, fileName?: string) => {
+    console.log('🎯 [handlePdfSelected] Recibido:', { mediaUrl, hasFile: !!mediaFile, fileName })
     if (!pdfModalContext) {
       setIsPdfModalOpen(false)
       return

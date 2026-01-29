@@ -372,7 +372,7 @@ export default function CoachCalendarScreen() {
           if (missingIds.length > 0) {
             // Fetch missing profiles async and update state
             supabase.from('user_profiles').select('id, full_name, avatar_url').in('id', missingIds)
-              .then(async ({ data }) => {
+              .then(async ({ data }: { data: any[] | null }) => {
                 if (data && data.length > 0) {
                   // Fetch credits separately from ledger
                   let creditsMap: Record<string, number> = {}
@@ -391,7 +391,7 @@ export default function CoachCalendarScreen() {
                   }
 
                   setClientsForMeet(prev => {
-                    const newClients = data.map(d => ({
+                    const newClients = data.map((d: any) => ({
                       id: d.id,
                       name: d.full_name || 'Cliente',
                       email: '',
@@ -401,8 +401,8 @@ export default function CoachCalendarScreen() {
                     }))
 
                     // Merge: Update existing clients with new data, add new ones
-                    const prevMap = new Map(prev.map(c => [c.id, c]))
-                    newClients.forEach(c => prevMap.set(c.id, c))
+                    const prevMap = new Map(prev.map((c: any) => [c.id, c]))
+                    newClients.forEach((c: any) => prevMap.set(c.id, c))
 
                     return Array.from(prevMap.values())
                   })
@@ -744,7 +744,7 @@ export default function CoachCalendarScreen() {
       // Solo usar cache si no estamos forzando recarga
       if (!force && cachedEvents.has(cacheKey)) {
         const cached = cachedEvents.get(cacheKey) || []
-        // Si el cache tiene eventos o es un array vacío válido, usarlo
+        // Si el cache tiene eventos o es un array válido, usarlo
         setEvents(cached)
         setLoading(false)
         // Cargar en background para meses adyacentes si no están en cache
@@ -765,7 +765,6 @@ export default function CoachCalendarScreen() {
       // 1. Obtener usuario actual
       const { data: { user }, error: userError } = await supabase.auth.getUser()
       if (userError || !user) {
-        // Ignorar error de sesión faltante (esperado al desloguearse)
         if (!userError?.message?.includes('Auth session missing')) {
           console.error('Error obteniendo usuario:', userError)
         }
@@ -788,58 +787,61 @@ export default function CoachCalendarScreen() {
         }
       }
 
-      // 2. Obtener eventos del calendario del coach para un rango amplio (3 meses)
-      // Cargar mes anterior, actual y siguiente para tener cache
-      const monthStart = startOfMonth(subMonths(currentDate, 1)) // Mes anterior
-      const monthEnd = endOfMonth(addMonths(currentDate, 1)) // Mes siguiente
+      // 2. Obtener eventos (Owned + Guest)
+      const monthStart = startOfMonth(subMonths(currentDate, 1))
+      const monthEnd = endOfMonth(addMonths(currentDate, 1))
       const monthNum = currentDate.getMonth()
       const year = currentDate.getFullYear()
-
-      // Asegurar que las fechas estén en formato ISO correcto
       const monthStartISO = monthStart.toISOString()
       const monthEndISO = monthEnd.toISOString()
 
-      // Obtener eventos de Omnia
       let calendarEvents: any[] = []
-      try {
-        const { data, error: eventsError } = await supabase
-          .from('calendar_events')
-          .select(`
-            id,
-            title,
-            start_time,
-            end_time,
-            event_type,
-            status,
-            activity_id,
-            meet_link,
 
-            google_event_id,
-            attendance_tracked,
-            description,
-            is_free,
-            price,
-            currency,
-            client_id
-          `)
-          .eq('coach_id', user.id)
-          .gte('start_time', monthStartISO)
-          .lte('start_time', monthEndISO)
-          .order('start_time', { ascending: true })
+      // Fetch events where coach is owner
+      const { data: ownedEvents, error: ownedError } = await supabase
+        .from('calendar_events')
+        .select(`
+          id, title, start_time, end_time, event_type, status,
+          activity_id, meet_link, google_event_id, attendance_tracked,
+          description, is_free, price, currency, coach_id, client_id
+        `)
+        .eq('coach_id', user.id)
+        .gte('start_time', monthStartISO)
+        .lte('start_time', monthEndISO)
 
-        if (eventsError) {
-          console.error("Error getting events from Supabase:", eventsError)
-          console.warn("⚠️ Continuando sin eventos de Omnia. Intentando cargar eventos de Google Calendar...")
-          calendarEvents = []
-        } else {
-          calendarEvents = data || []
+      // Fetch events where coach is participant (guest)
+      const { data: guestEventsRaw, error: guestError } = await supabase
+        .from('calendar_event_participants')
+        .select(`
+          event_id,
+          calendar_events!inner(
+            id, title, start_time, end_time, event_type, status,
+            activity_id, meet_link, google_event_id, attendance_tracked,
+            description, is_free, price, currency, coach_id, client_id
+          )
+        `)
+        .eq('client_id', user.id)
+        .gte('calendar_events.start_time', monthStartISO)
+        .lte('calendar_events.start_time', monthEndISO)
+
+      if (ownedError && guestError) {
+        console.error("Error getting events from Supabase:", ownedError, guestError)
+      } else {
+        const merged = [...(ownedEvents || [])]
+        const existingIds = new Set(merged.map(e => e.id))
+        if (guestEventsRaw) {
+          guestEventsRaw.forEach((row: any) => {
+            const ev = row.calendar_events
+            if (ev && !existingIds.has(ev.id)) {
+              merged.push(ev)
+              existingIds.add(ev.id)
+            }
+          })
         }
-      } catch (supabaseError: any) {
-        console.error("Error inesperado obteniendo eventos de Supabase:", supabaseError)
-        calendarEvents = []
+        calendarEvents = merged
       }
 
-      // Enriquecer participantes desde calendar_event_participants (solo para eventos Omnia)
+      // Enriquecer participantes
       try {
         const omniaEventIds = (calendarEvents || []).map((e: any) => e?.id).filter(Boolean)
         if (omniaEventIds.length > 0) {
@@ -855,7 +857,7 @@ export default function CoachCalendarScreen() {
               if (!eid) continue
               countByEvent.set(eid, (countByEvent.get(eid) || 0) + 1)
             }
-            calendarEvents = (calendarEvents || []).map((e: any) => {
+            calendarEvents = calendarEvents.map((e: any) => {
               const count = countByEvent.get(String(e?.id || '')) || 0
               return {
                 ...e,
@@ -865,265 +867,126 @@ export default function CoachCalendarScreen() {
             })
           }
         }
-      } catch {
-        // No bloquear
+      } catch (pErr) {
+        console.error("Error enriching participants:", pErr)
       }
 
-      // Obtener eventos de Google Calendar en paralelo
+      // 3. Google Calendar
       let googleEvents: CalendarEvent[] = []
       try {
-        // Usar timeout para evitar que la request se cuelgue
         const controller = new AbortController()
-        const timeoutId = setTimeout(() => controller.abort(), 8000) // 8 segundos timeout (reducido para producción)
-
-        // Construir URL absoluta para producción
-        const baseUrl = typeof window !== 'undefined'
-          ? window.location.origin
-          : process.env.NEXT_PUBLIC_APP_URL || 'http://localhost:3000'
+        const timeoutId = setTimeout(() => controller.abort(), 8000)
+        const baseUrl = typeof window !== 'undefined' ? window.location.origin : 'http://localhost:3000'
 
         const googleResponse = await fetch(
           `${baseUrl}/api/google/calendar/events?monthNum=${monthNum}&year=${year}`,
-          {
-            credentials: 'include',
-            signal: controller.signal,
-            headers: {
-              'Content-Type': 'application/json',
-            },
-            cache: 'no-store' // Evitar cache en producción
-          }
+          { credentials: 'include', signal: controller.signal }
         )
-
         clearTimeout(timeoutId)
 
-        if (!googleResponse.ok) {
-          // Si la respuesta no es exitosa, intentar leer el JSON para obtener el mensaje de error
-          try {
-            const errorData = await googleResponse.json()
-            console.warn("⚠️ Error en respuesta de Google Calendar:", {
-              status: googleResponse.status,
-              error: errorData.error,
-              needsReconnect: errorData.needsReconnect,
-              connected: errorData.connected
-            })
-            if (errorData.needsReconnect) {
-              setGoogleConnected(false)
-              console.warn("⚠️ Google Calendar requiere reconexión. Ve al perfil para reconectar.")
-            }
-          } catch (parseError) {
-            console.warn(`⚠️ Error HTTP ${googleResponse.status} obteniendo eventos de Google Calendar. El calendario continuará funcionando sin eventos de Google.`)
-          }
-          setGoogleConnected(false)
-        } else {
-          try {
-            const googleData = await googleResponse.json()
-
-            if (googleData.success && googleData.events) {
-              googleEvents = googleData.events.map((event: any) => ({
-                ...event,
-                is_google_event: true,
-                source: 'google_calendar',
-              }))
-              setGoogleConnected(true)
-              console.log(`📅 Eventos de Google Calendar obtenidos: ${googleEvents.length}`)
-            } else if (googleData.connected === false) {
-              setGoogleConnected(false)
-            } else if (googleData.needsReconnect) {
-              setGoogleConnected(false)
-              console.warn("⚠️ Google Calendar requiere reconexión:", googleData.error || 'Token expirado o inválido')
-              // Mostrar mensaje más específico al usuario
-              if (googleData.error) {
-                console.error("Detalle del error:", googleData.error)
-              }
-            }
-          } catch (jsonError) {
-            console.warn("⚠️ Error parseando respuesta de Google Calendar. Continuando sin eventos de Google.")
+        if (googleResponse.ok) {
+          const googleData = await googleResponse.json()
+          if (googleData.success && googleData.events) {
+            googleEvents = googleData.events.map((event: any) => ({
+              ...event,
+              is_google_event: true,
+              source: 'google_calendar',
+            }))
+            setGoogleConnected(true)
+          } else {
             setGoogleConnected(false)
           }
-        }
-      } catch (googleError: any) {
-        // Manejar diferentes tipos de errores
-        if (googleError.name === 'AbortError') {
-          console.warn("⏱️ Timeout obteniendo eventos de Google Calendar. El calendario continuará funcionando.")
-        } else if (googleError.message?.includes('fetch')) {
-          console.warn("⚠️ Error de red obteniendo eventos de Google Calendar. El calendario continuará funcionando con eventos de Omnia.")
         } else {
-          console.error("❌ Error obteniendo eventos de Google Calendar:", googleError.message || googleError)
+          setGoogleConnected(false)
         }
-        // No fallar si Google Calendar no está disponible - el calendario debe funcionar solo con eventos de Omnia
+      } catch (gErr) {
+        console.warn("Google Calendar error (ignoring):", gErr)
         setGoogleConnected(false)
       }
-
-      // Combinar eventos de Omnia y Google Calendar
+      // 4. Merge & Finalize enrichment
       let allEvents: CalendarEvent[] = []
-
-      // Procesar eventos de Omnia
-      if (calendarEvents && calendarEvents.length > 0) {
-        // Obtener nombres de clientes
+      if (calendarEvents.length > 0) {
+        // Enriquecer con nombres de clientes y actividades
         const clientIds = [...new Set(calendarEvents.map(e => e.client_id).filter(Boolean))]
         let clientNames: Record<string, string> = {}
-
         if (clientIds.length > 0) {
-          const { data: clients } = await supabase
-            .from('user_profiles')
-            .select('id, full_name')
-            .in('id', clientIds)
-
-          if (clients) {
-            clientNames = clients.reduce((acc: Record<string, string>, client: { id: string; full_name: string | null }) => {
-              acc[client.id] = client.full_name || 'Cliente'
-              return acc
-            }, {} as Record<string, string>)
-          }
+          const { data: clients } = await supabase.from('user_profiles').select('id, full_name').in('id', clientIds)
+          if (clients) clients.forEach((c: any) => { clientNames[c.id] = c.full_name || 'Cliente' })
         }
 
-        // Obtener nombres de actividades
         const activityIds = [...new Set(calendarEvents.map(e => e.activity_id).filter(Boolean))]
         let activityNames: Record<string, string> = {}
-
         if (activityIds.length > 0) {
-          const { data: activities } = await supabase
-            .from('activities')
-            .select('id, title')
-            .in('id', activityIds)
-
-          if (activities) {
-            activityNames = activities.reduce((acc: Record<string, string>, activity: { id: number; title: string | null }) => {
-              acc[activity.id] = activity.title || 'Actividad'
-              return acc
-            }, {} as Record<string, string>)
-          }
+          const { data: activities } = await supabase.from('activities').select('id, title').in('id', activityIds)
+          if (activities) activities.forEach((a: any) => { activityNames[a.id] = a.title || 'Actividad' })
         }
 
-        // Formatear eventos de Omnia con nombres de clientes y actividades
-        const formattedOmniaEvents = calendarEvents.map(event => ({
+        allEvents = calendarEvents.map(event => ({
           ...event,
           client_name: event.client_id ? clientNames[event.client_id] : undefined,
           product_name: event.activity_id ? activityNames[event.activity_id] : undefined,
           is_google_event: false,
           source: 'omnia',
         }))
-
-        allEvents = [...formattedOmniaEvents]
       }
 
-      // Agregar eventos de Google Calendar
       allEvents = [...allEvents, ...googleEvents]
+      allEvents.sort((a, b) => new Date(a.start_time).getTime() - new Date(b.start_time).getTime())
 
-      // Ordenar todos los eventos por fecha/hora
-      allEvents.sort((a, b) => {
-        const dateA = new Date(a.start_time).getTime()
-        const dateB = new Date(b.start_time).getTime()
-        return dateA - dateB
-      })
-
-      console.log(`📊 Total eventos: ${allEvents.length} (Omnia: ${calendarEvents?.length || 0}, Google: ${googleEvents.length})`)
-
-      // Guardar eventos en caché por mes
+      // Guardar en caché por mes (rango: mes anterior, actual, siguiente)
       const newCache = new Map(cachedEvents)
-      // Guardar eventos para cada mes del rango cargado (mes anterior, actual, siguiente)
       for (let i = -1; i <= 1; i++) {
-        const monthDate = addMonths(currentDate, i)
-        const monthKey = `${monthDate.getFullYear()}-${monthDate.getMonth()}`
-        const monthStart = startOfMonth(monthDate)
-        const monthEnd = endOfMonth(monthDate)
-
-        const monthEvents = allEvents.filter(event => {
-          const eventDate = new Date(event.start_time)
-          return eventDate >= monthStart && eventDate <= monthEnd
-        })
-        newCache.set(monthKey, monthEvents)
+        const d = addMonths(currentDate, i)
+        const k = `${d.getFullYear()}-${d.getMonth()}`
+        const mS = startOfMonth(d)
+        const mE = endOfMonth(d)
+        newCache.set(k, allEvents.filter(e => {
+          const dt = new Date(e.start_time)
+          return dt >= mS && dt <= mE
+        }))
       }
       setCachedEvents(newCache)
 
       // Filtrar eventos solo del mes actual para mostrar
-      const currentMonthStart = startOfMonth(currentDate)
-      const currentMonthEnd = endOfMonth(currentDate)
-      const currentMonthEvents = allEvents.filter(event => {
-        const eventDate = new Date(event.start_time)
-        return eventDate >= currentMonthStart && eventDate <= currentMonthEnd
+      const curStart = startOfMonth(currentDate)
+      const curEnd = endOfMonth(currentDate)
+      setEvents(allEvents.filter(e => {
+        const dt = new Date(e.start_time)
+        return dt >= curStart && dt <= curEnd
+      }))
+
+      // Actualizar evento seleccionado si existe
+      setSelectedEvent(prev => {
+        if (!prev) return null
+        return allEvents.find(e => e.id === prev.id) || prev
       })
 
-      setEvents(currentMonthEvents)
-
-      // Si hay un evento seleccionado, actualizarlo con los datos frescos
-      // Esto se hace después de que todos los eventos se hayan cargado
-      setSelectedEvent(prevEvent => {
-        if (!prevEvent) return null
-        const updatedEvent = allEvents.find(e => e.id === prevEvent.id)
-        return updatedEvent || prevEvent
-      })
-
-      // Crear Meets automáticamente para eventos de taller que no tienen Meet
-      // Solo si Google Calendar está conectado y estamos en el cliente (no durante build)
-      // Esto se desactiva durante el build para evitar timeouts
-      if (
-        typeof window !== 'undefined' &&
-        googleConnected &&
-        calendarEvents &&
-        calendarEvents.length > 0
-      ) {
-        const eventosSinMeet = calendarEvents.filter(
-          (e: any) =>
-            e.event_type === 'workshop' &&
-            !e.meet_link &&
-            !e.google_event_id
-        );
-
-        if (eventosSinMeet.length > 0) {
-          console.log(`🔗 Creando Meets automáticamente para ${eventosSinMeet.length} talleres...`);
-
-          // Crear Meets en paralelo (sin bloquear la UI)
-          // Usar Promise.all para evitar múltiples recargas
-          Promise.all(
-            eventosSinMeet.map(async (event: any) => {
-              try {
-                const response = await fetch('/api/google/calendar/auto-create-meet', {
-                  method: 'POST',
-                  headers: { 'Content-Type': 'application/json' },
-                  body: JSON.stringify({ eventId: event.id }),
-                });
-
-                const result = await response.json();
-                if (result.success) {
-                  console.log(`✅ Meet creado automáticamente para: ${event.title}`);
-                  return true;
-                } else {
-                  console.log(`⚠️  Meet no creado para: ${event.title} - ${result.message || 'Error desconocido'}`);
-                  return false;
-                }
-              } catch (error: any) {
-                console.error(`❌ Error creando Meet para: ${event.title}`, error);
-                return false;
-              }
-            })
-          ).then((results) => {
-            // Solo recargar si al menos uno fue exitoso
-            if (results.some(r => r === true)) {
-              setTimeout(() => {
-                getCoachEvents();
-              }, 2000); // Aumentado a 2 segundos para evitar loops
-            }
-          });
+      // Auto-Meet creation para talleres
+      if (typeof window !== 'undefined' && googleConnected && calendarEvents.length > 0) {
+        const workshops = calendarEvents.filter(e => e.event_type === 'workshop' && !e.meet_link && !e.google_event_id && e.coach_id === user.id)
+        if (workshops.length > 0) {
+          Promise.all(workshops.map(async (e) => {
+            try {
+              const res = await fetch('/api/google/calendar/auto-create-meet', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ eventId: e.id }),
+              })
+              return (await res.json()).success
+            } catch { return false }
+          })).then(results => {
+            if (results.some(r => r === true)) setTimeout(() => getCoachEvents(), 2000)
+          })
         }
       }
 
     } catch (err: any) {
       console.error("❌ Error in getCoachEvents:", err)
-      // Mostrar error al usuario solo si es crítico
-      if (err?.message?.includes('fetch') || err?.name === 'TypeError') {
-        console.error("❌ Error de red al cargar eventos del calendario")
-      }
-      // Asegurar que siempre tengamos un array de eventos, incluso si está vacío
-      // Esto previene errores de renderizado en producción
-      // IMPORTANTE: En producción, el calendario debe funcionar incluso con errores
       setEvents([])
     } finally {
-      // Siempre desactivar loading, incluso si hay errores
-      // Esto es crítico para que la UI no se quede en estado de carga
       setLoading(false)
-      console.log('✅ Loading desactivado en getCoachEvents')
     }
-  }, [supabase, googleConnected, cachedEvents])
+  }, [supabase, googleConnected, cachedEvents, currentDate, coachProfile, coachId])
 
   // Generar días del mes
   const daysInMonth = useMemo(() => {
@@ -1403,7 +1266,7 @@ export default function CoachCalendarScreen() {
 
   if (!coachId) {
     return (
-      <div className="flex items-center justify-center h-screen bg-[#121212]">
+      <div className="flex items-center justify-center min-h-screen bg-[#121212]">
         <div className="text-white">Por favor inicia sesión para ver tu calendario</div>
       </div>
     )
@@ -1668,8 +1531,8 @@ export default function CoachCalendarScreen() {
   }
 
   return (
-    <div className="h-screen bg-[#121212] overflow-y-auto pb-20">
-      <div className="p-4">
+    <div className="min-h-screen bg-[#121212] overflow-x-hidden max-w-full pb-20">
+      <div className="p-4 min-w-0">
         {/* Acciones arriba */}
         <div className="mb-3 relative flex items-center justify-between">
           {calendarMode === 'availability' ? (
@@ -2138,7 +2001,7 @@ export default function CoachCalendarScreen() {
                   {showMonthSelector && (
                     <div
                       data-month-selector
-                      className="absolute top-11 left-1/2 -translate-x-1/2 z-50 w-[320px] rounded-2xl border border-white/10 bg-zinc-950/95 backdrop-blur-md shadow-[0_12px_40px_rgba(0,0,0,0.6)] p-3"
+                      className="absolute top-11 left-1/2 -translate-x-1/2 z-50 w-[90vw] max-w-[320px] rounded-2xl border border-white/10 bg-zinc-950/95 backdrop-blur-md shadow-[0_12px_40px_rgba(0,0,0,0.6)] p-3"
                     >
                       <div className="grid grid-cols-[1fr_96px] gap-3">
                         {/* Meses */}
@@ -2234,7 +2097,7 @@ export default function CoachCalendarScreen() {
                   ))}
                 </div>
 
-                <div className="grid grid-cols-7 gap-1 sm:gap-2">
+                <div className="grid grid-cols-7 gap-1 sm:gap-2 w-full overflow-hidden">
                   {Array.from({ length: leadingEmptyDays }).map((_, idx) => (
                     <div key={`empty-${idx}`} className="aspect-square p-2" />
                   ))}
@@ -3270,19 +3133,19 @@ export default function CoachCalendarScreen() {
             </div>
           </div>
 
-          <DeleteConfirmationDialog
-            isOpen={showDeleteMeetDialog}
-            onClose={() => setShowDeleteMeetDialog(false)}
-            onConfirm={async () => {
-              setShowDeleteMeetDialog(false)
-              await deleteMeeting()
-            }}
-            title="Eliminar Meet"
-            description="¿Seguro que querés eliminar esta reunión? Esta acción no se puede deshacer."
-          />
         </div>
-      )
-      }
-    </div >
+      )}
+
+      <DeleteConfirmationDialog
+        isOpen={showDeleteMeetDialog}
+        onClose={() => setShowDeleteMeetDialog(false)}
+        onConfirm={async () => {
+          setShowDeleteMeetDialog(false)
+          await deleteMeeting()
+        }}
+        title="Eliminar Meet"
+        description="¿Seguro que querés eliminar esta reunión? Esta acción no se puede deshacer."
+      />
+    </div>
   )
 }

@@ -15,6 +15,19 @@ interface BiometricsModalProps {
   onDelete?: () => void
 }
 
+const measurementTypes = [
+  { value: "pecho", label: "Pecho", unit: "cm" },
+  { value: "cintura", label: "Cintura", unit: "cm" },
+  { value: "cadera", label: "Cadera", unit: "cm" },
+  { value: "brazo", label: "Brazo", unit: "cm" },
+  { value: "muslo", label: "Muslo", unit: "cm" },
+  { value: "peso", label: "Peso", unit: "kg" },
+  { value: "grasa_corporal", label: "Grasa Corporal", unit: "%" },
+  { value: "musculo", label: "Músculo", unit: "kg" },
+  { value: "agua", label: "Agua Corporal", unit: "%" },
+  { value: "hueso", label: "Masa Ósea", unit: "kg" }
+]
+
 export function BiometricsModal({ isOpen, onClose, mode, onSave, initialData, onDelete }: BiometricsModalProps) {
   const [measurementType, setMeasurementType] = useState("")
   const [measurementValue, setMeasurementValue] = useState("")
@@ -44,18 +57,7 @@ export function BiometricsModal({ isOpen, onClose, mode, onSave, initialData, on
     setMeasurementValue(initialData.value.toString())
   }
 
-  const measurementTypes = [
-    { value: "pecho", label: "Pecho", unit: "cm" },
-    { value: "cintura", label: "Cintura", unit: "cm" },
-    { value: "cadera", label: "Cadera", unit: "cm" },
-    { value: "brazo", label: "Brazo", unit: "cm" },
-    { value: "muslo", label: "Muslo", unit: "cm" },
-    { value: "peso", label: "Peso", unit: "kg" },
-    { value: "grasa_corporal", label: "Grasa Corporal", unit: "%" },
-    { value: "musculo", label: "Músculo", unit: "kg" },
-    { value: "agua", label: "Agua Corporal", unit: "%" },
-    { value: "hueso", label: "Masa Ósea", unit: "kg" }
-  ]
+  // measurementTypes moved to top level scope
 
   const handleSave = () => {
     const selectedType = measurementTypes.find(t => t.value === measurementType)

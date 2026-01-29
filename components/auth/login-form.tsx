@@ -4,7 +4,7 @@ import { useState } from "react"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
-import { createClient } from "@supabase/supabase-js"
+import { useAuth } from "@/contexts/auth-context"
 import { useRouter } from "next/navigation"
 
 interface LoginFormProps {
@@ -18,20 +18,7 @@ export function LoginForm({ onSuccess, onRegisterClick }: LoginFormProps) {
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const router = useRouter()
-
-  // DIRECT INJECTION OF SUPABASE CLIENT
-  const supabase = createClient(
-    'https://mgrfswrsvrzwtgilssad.supabase.co',
-    'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im1ncmZzd3JzdnJ6d3RnaWxzc2FkIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NDYxOTAzMDMsImV4cCI6MjA2MTc2NjMwM30.vuEgFbZGHO0OjJ8O9SjKaYKJcIdIh3mxV2wK7iNKaJs',
-    {
-      auth: {
-        persistSession: true,
-        autoRefreshToken: true,
-        detectSessionInUrl: true
-      }
-    }
-  )
-  console.log('💉 [LoginForm] Direct Supabase Client Injected')
+  const { signIn } = useAuth()
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
@@ -39,13 +26,10 @@ export function LoginForm({ onSuccess, onRegisterClick }: LoginFormProps) {
     setError(null)
 
     try {
-      const { error: signInError } = await supabase.auth.signInWithPassword({
-        email,
-        password,
-      })
+      const { error: signInError } = await signIn(email, password)
 
       if (signInError) {
-        setError(signInError.message)
+        setError(typeof signInError === 'string' ? signInError : (signInError as any).message)
         return
       }
 

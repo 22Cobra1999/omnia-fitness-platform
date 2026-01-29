@@ -175,10 +175,12 @@ export function ActivityScreen() {
       }
 
       if (data) {
+        console.log('🔍 [ActivityScreen] Meet Credits Fetched:', data)
         const creditsMap: Record<string, number> = {}
         data.forEach((item: any) => {
           creditsMap[item.coach_id] = item.meet_credits_available
         })
+        console.log('🔍 [ActivityScreen] Credits Map:', creditsMap)
         setMeetCredits(creditsMap)
       }
     }
@@ -198,7 +200,7 @@ export function ActivityScreen() {
   }
 
   // Función para manejar el inicio de una actividad - memoizada
-  const handleStartActivity = useCallback(async (activityId: string, startDate?: Date) => {
+  const handleStartActivity = useCallback(async (activityId: string, startDateOrDay?: Date | number) => {
 
     try {
       const supabase = getSupabaseClient();
@@ -210,7 +212,16 @@ export function ActivityScreen() {
       }
 
       // Usar la fecha calculada o la fecha actual
-      const startDateString = startDate ? startDate.toISOString().split('T')[0] : new Date().toISOString().split('T')[0];
+      let startDateString = new Date().toISOString().split('T')[0];
+
+      if (startDateOrDay instanceof Date) {
+        startDateString = startDateOrDay.toISOString().split('T')[0];
+      } else if (typeof startDateOrDay === 'number') {
+        // Handle number (offset?) - for now default to today or implement offset logic if needed
+        // Assuming recommendedDay is ignored for now or treated as today
+      }
+
+      // Actualizar start_date en activity_enrollments
 
       // Actualizar start_date en activity_enrollments
       const { error } = await (supabase
@@ -932,200 +943,18 @@ export function ActivityScreen() {
     }
   }
 
-  const loadComplementaryActivities = async () => {
-    setLoadingComplementary(true)
-
-    // Obtener el usuario actual
-    const { data: userData, error: userError } = await supabase.auth.getUser()
-
-    if (userError || !userData.user) {
-      console.error("Error al obtener usuario:", userError)
-      setLoadingComplementary(false)
-      return
-    }
-
-    const user = userData.user
-
-    // Primero verificar si hay actividades compradas para invalidar caché si es necesario
-    const { data: purchasedActivities, error: purchasedError } = await supabase
-      .from("activity_enrollments")
-      .select("activity_id")
-      .eq("client_id", user.id)
-
-    if (purchasedError) {
-      console.error("Error al obtener actividades compradas:", purchasedError)
-    }
-
-    const purchasedActivityIds = purchasedActivities?.map(a => a.activity_id) || []
-
-    // Si hay actividades compradas, invalidar caché para asegurar datos actualizados
-    if (purchasedActivityIds.length > 0) {
-      localStorage.removeItem(COMPLEMENTARY_CACHE_KEY)
-    } else {
-      // Solo usar caché si no hay actividades compradas
-      const cachedActivities = localStorage.getItem(COMPLEMENTARY_CACHE_KEY)
-
-      if (cachedActivities) {
-        try {
-          const { data, timestamp } = JSON.parse(cachedActivities)
-          const isExpired = Date.now() - timestamp > CACHE_EXPIRY
-
-          if (!isExpired && data.length > 0) {
-            // Usando datos en caché para actividades complementarias - log removido
-            setComplementaryActivities(data)
-            setLoadingComplementary(false)
-            return
-          }
-        } catch (e) {
-          console.error("Error al leer caché de actividades complementarias:", e)
-        }
-      }
-    }
-
+  // Función para refrescar datos (pull-to-refresh simplificado)
+  const handleRefresh = async () => {
+    setRefreshing(true)
     try {
-
-      // Construir la consulta excluyendo actividades ya compradas
-      let query = supabase
-        .from("activities")
-        .select(
-          `
-         id,
-         title,
-         description,
-         type,
-         difficulty,
-         price,
-         coach_id,
-         media:activity_media!activity_media_activity_id_fkey (image_url, video_url, vimeo_id),
-         program_info:activity_program_info!activity_program_info_activity_id_fkey (program_duration, duration, rich_description, calories, interactive_pauses),
-         consultation_info:activity_consultation_info!activity_consultation_info_activity_id_fkey (includes_videocall, includes_message),
-         tags:activity_tags!activity_tags_activity_id_fkey(tag_type, tag_value)
-       `,
-        )
-        .eq("is_public", true)
-        .order("created_at", { ascending: false })
-        .limit(10)
-
-      // Excluir actividades ya compradas si las hay
-      if (purchasedActivityIds.length > 0) {
-        query = query.not("id", "in", `(${purchasedActivityIds.join(",")})`)
-      }
-
-      const { data: activitiesData, error: activitiesError } = await query
-
-
-      if (activitiesError) {
-        console.error("Error al obtener actividades:", activitiesError)
-        setComplementaryActivities([])
-        setLoadingComplementary(false)
-        return
-      }
-
-      if (!activitiesData || activitiesData.length === 0) {
-        setComplementaryActivities([])
-        setLoadingComplementary(false)
-        return
-      }
-
-      // Fetch coach rating stats (from coach_stats_view)
-      const coachIds = [...new Set(activitiesData.map((a) => a.coach_id).filter(Boolean))] as string[]
-      const coachRatingsMap = new Map<string, number>()
-      const coachTotalReviewsMap = new Map<string, number>()
-      if (coachIds.length > 0) {
-        const { data: coachStatsData, error: coachStatsError } = await supabase
-          .from("coach_stats_view")
-          .select("coach_id, avg_rating, total_reviews")
-          .in("coach_id", coachIds)
-        if (coachStatsError) {
-          console.error("Error al obtener stats de coaches:", coachStatsError)
-        } else {
-          coachStatsData?.forEach((s) => {
-            coachRatingsMap.set(s.coach_id, s.avg_rating || 0)
-            coachTotalReviewsMap.set(s.coach_id, s.total_reviews || 0)
-          })
-        }
-      }
-
-      // Procesar las actividades y obtener información del coach por separado
-      const activitiesWithCoaches = await Promise.all(
-        activitiesData.map(async (activity) => {
-          try {
-            let coach = undefined
-
-            // Si hay coach_id, usar datos básicos del coach
-            if (activity.coach_id) {
-              coach = {
-                id: activity.coach_id,
-                full_name: activity.coach_name || "Coach",
-                avatar_url: activity.coach_avatar_url || null,
-                rating: coachRatingsMap.get(activity.coach_id) || null,
-                total_reviews: coachTotalReviewsMap.get(activity.coach_id) || null,
-              }
-            }
-
-            return {
-              id: activity.id,
-              title: activity.title || "Sin título",
-              description: activity.description || "",
-              type: activity.type || "other",
-              price: activity.price || 0,
-              coach_id: activity.coach_id,
-              is_public: true,
-              created_at: (activity as any).created_at,
-              updated_at: (activity as any).updated_at,
-              difficulty: activity.difficulty,
-              media: null,
-              program_info: null,
-              consultation_info: null,
-              coach_name: "Coach",
-              coach_avatar_url: null,
-              coach_rating: null,
-              total_coach_reviews: null,
-            } as any
-          } catch (error) {
-            console.error(`Error procesando actividad ${activity.id}:`, error)
-            return {
-              id: activity.id,
-              title: activity.title || "Sin título",
-              description: activity.description || "",
-              type: activity.type || "other",
-              price: activity.price || 0,
-              coach_id: activity.coach_id,
-              is_public: true,
-              created_at: (activity as any).created_at,
-              updated_at: (activity as any).updated_at,
-              difficulty: activity.difficulty,
-              media: null,
-              program_info: null,
-              consultation_info: null,
-              coach_name: "Coach",
-              coach_avatar_url: null,
-              coach_rating: null,
-              total_coach_reviews: null,
-            } as any
-          }
-        }),
-      )
-
-      setComplementaryActivities(activitiesWithCoaches)
-
-      // Guardar en caché
-      try {
-        localStorage.setItem(
-          COMPLEMENTARY_CACHE_KEY,
-          JSON.stringify({
-            data: activitiesWithCoaches,
-            timestamp: Date.now(),
-          }),
-        )
-      } catch (cacheError) {
-        console.warn("No se pudo guardar en caché:", cacheError)
-      }
+      await Promise.all([
+        fetchUserEnrollments(true),
+        loadCoaches()
+      ])
     } catch (error) {
-      console.error("Error al cargar actividades complementarias:", error)
-      setComplementaryActivities([])
+      console.error("Error refreshing:", error)
     } finally {
-      setLoadingComplementary(false)
+      setRefreshing(false)
     }
   }
 

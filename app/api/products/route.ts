@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createRouteHandlerClient } from '@/lib/supabase/supabase-server'
 import { createClient } from '@supabase/supabase-js'
+import { syncWorkshopToCalendar } from '@/lib/utils/workshop-sync'
 
 export const dynamic = 'force-dynamic'
 export const runtime = 'nodejs'
@@ -59,48 +60,66 @@ async function checkAndPauseProductsIfNeeded(coachId: string) {
 
     // Contar productos activos (no pausados)
     // Ordenar por created_at ASCENDENTE para mantener activos los más antiguos y pausar los más recientes
-    const { data: activeProducts, error: countError } = await supabaseService
+    let query = supabaseService
       .from('activities')
       .select('id, created_at')
       .eq('coach_id', coachId)
-      .eq('is_paused', false)
       .neq('type', 'consultation')
       .order('created_at', { ascending: true }) // ASCENDENTE: los más antiguos primero
 
+    // Intentar filtrar por is_paused solo si sabemos que existe o simplemente fallar con elegancia
+    const { data: activeProducts, error: countError } = await query.eq('is_paused', false)
+
     if (countError) {
-      console.error('Error contando productos activos:', countError)
+      console.warn('⚠️ Error contando productos activos (posible columna is_paused ausente):', countError.message)
+
+      // Reintentar sin el filtro is_paused si el error es de columna inexistente
+      if (countError.code === '42703' || countError.message.includes('is_paused')) {
+        const { data: retryProducts, error: retryError } = await supabaseService
+          .from('activities')
+          .select('id, created_at')
+          .eq('coach_id', coachId)
+          .neq('type', 'consultation')
+          .order('created_at', { ascending: true })
+
+        if (!retryError) {
+          // Si pudimos reintentar, usar esos datos
+          handlePausadoLogic(retryProducts, limit, planType, coachId, supabaseService)
+        }
+      }
       return
     }
 
-    const activeCount = activeProducts?.length || 0
-
-    // Si excede el límite, pausar los más recientes (los últimos en el array ordenado ascendente)
-    if (activeCount > limit) {
-      // Mantener activos los primeros 'limit' productos (más antiguos)
-      // Pausar los productos desde el índice 'limit' en adelante (más recientes)
-      const productsToPause = activeProducts.slice(limit)
-      const productIds = productsToPause.map(p => p.id)
-
-      console.log(`⚠️ Plan ${planType}: ${activeCount} productos activos, límite: ${limit}. Pausando ${productIds.length} productos más recientes:`, productIds)
-
-      if (productIds.length > 0) {
-        const { error: pauseError } = await supabaseService
-          .from('activities')
-          .update({
-            is_paused: true,
-            updated_at: new Date().toISOString()
-          })
-          .in('id', productIds)
-
-        if (pauseError) {
-          console.error('Error pausando productos automáticamente:', pauseError)
-        } else {
-          console.log(`✅ Pausados automáticamente ${productIds.length} productos que excedían el límite del plan ${planType}`)
-        }
-      }
-    }
+    handlePausadoLogic(activeProducts, limit, planType, coachId, supabaseService)
   } catch (error) {
     console.error('Error en checkAndPauseProductsIfNeeded:', error)
+  }
+}
+
+// Extraer lógica de pausa para reutilizarla
+async function handlePausadoLogic(activeProducts: any[] | null, limit: number, planType: string, coachId: string, supabaseService: any) {
+  const activeCount = activeProducts?.length || 0
+
+  if (activeCount > limit) {
+    const productsToPause = activeProducts!.slice(limit)
+    const productIds = productsToPause.map(p => p.id)
+
+    console.log(`⚠️ Plan ${planType}: ${activeCount} productos activos, límite: ${limit}. Pausando ${productIds.length} productos más recientes:`, productIds)
+
+    if (productIds.length > 0) {
+      // Intentar actualizar is_paused
+      const { error: pauseError } = await supabaseService
+        .from('activities')
+        .update({
+          is_paused: true,
+          updated_at: new Date().toISOString()
+        })
+        .in('id', productIds)
+
+      if (pauseError) {
+        console.warn('⚠️ Error pausando productos automáticamente (columna missing?):', pauseError.message)
+      }
+    }
   }
 }
 
@@ -1015,59 +1034,73 @@ export async function POST(request: NextRequest) {
 
         if (topicError) {
           console.error('❌ Error creando tema en taller_detalles:', topicError)
-        } else {
         }
       }
+
+      // ✅ SINCRONIZAR A CALENDAR_EVENTS
+      try {
+        await syncWorkshopToCalendar(newActivity.id, user.id)
+      } catch (syncError) {
+        console.error('⚠️ [API/Products] Error sincronizando taller al calendario:', syncError)
+      }
     }
+
+    // ✅ SINCRONIZAR A CALENDAR_EVENTS
+    try {
+      await syncWorkshopToCalendar(body.editingProductId, user.id)
+    } catch (syncError) {
+      console.error('⚠️ [API/Products] Error sincronizando taller al calendario:', syncError)
+    }
+  }
 
     // ✅ MANEJAR TEMAS Y PDFs DE DOCUMENTOS (NUEVO)
     if (body.modality === 'document' && body.documentMaterial) {
-      const material = body.documentMaterial
-      const topics = material.topics || []
-      const topicPdfs = material.topicPdfs || {}
+    const material = body.documentMaterial
+    const topics = material.topics || []
+    const topicPdfs = material.topicPdfs || {}
 
-      // 1. Guardar PDF general si existe
-      if (material.pdfType === 'general' && material.pdfUrl) {
-        await supabase
-          .from('activity_media')
-          .insert({
-            activity_id: newActivity.id,
-            pdf_url: material.pdfUrl
-          })
-      }
-
-      // 2. Guardar cada tema en document_topics
-      for (const topic of topics) {
-        if (!topic.title) continue
-
-        const topicInsert = {
+    // 1. Guardar PDF general si existe
+    if (material.pdfType === 'general' && material.pdfUrl) {
+      await supabase
+        .from('activity_media')
+        .insert({
           activity_id: newActivity.id,
-          title: topic.title,
-          description: topic.description || '',
-          pdf_url: topicPdfs[topic.id]?.url || null,
-          pdf_filename: topicPdfs[topic.id]?.fileName || null
-        }
-
-        const { error: topicError } = await supabase
-          .from('document_topics')
-          .insert(topicInsert)
-
-        if (topicError) {
-          console.error(`❌ Error insertando tema de documento "${topic.title}":`, topicError)
-        }
-      }
+          pdf_url: material.pdfUrl
+        })
     }
 
-    // Devolver formato esperado por el modal
-    return NextResponse.json({
-      success: true,
-      productId: newActivity.id,
-      product: newActivity
-    })
+    // 2. Guardar cada tema en document_topics
+    for (const topic of topics) {
+      if (!topic.title) continue
 
-  } catch (error) {
-    return NextResponse.json({ error: 'Error interno del servidor' }, { status: 500 })
+      const topicInsert = {
+        activity_id: newActivity.id,
+        title: topic.title,
+        description: topic.description || '',
+        pdf_url: topicPdfs[topic.id]?.url || null,
+        pdf_filename: topicPdfs[topic.id]?.fileName || null
+      }
+
+      const { error: topicError } = await supabase
+        .from('document_topics')
+        .insert(topicInsert)
+
+      if (topicError) {
+        console.error(`❌ Error insertando tema de documento "${topic.title}":`, topicError)
+      }
+    }
   }
+
+  // Devolver formato esperado por el modal
+  return NextResponse.json({
+    success: true,
+    productId: newActivity.id,
+    product: newActivity
+  })
+
+} catch (error) {
+  return NextResponse.json({ error: 'Error interno del servidor' }, { status: 500 })
+}
 }
 
 export async function PUT(request: NextRequest) {

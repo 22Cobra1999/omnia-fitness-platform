@@ -71,7 +71,7 @@ interface ProductsManagementScreenProps {
 }
 
 export default function ProductsManagementScreen({ onTabChange }: ProductsManagementScreenProps = {}) {
-  const { user } = useAuth()
+  const { user, loading: authLoading } = useAuth()
   const [isModalOpen, setIsModalOpen] = useState(false)
   const [editingProduct, setEditingProduct] = useState<Product | null>(null)
   const [activeSubTab, setActiveSubTab] = useState<'fitness' | 'nutrition'>('fitness')
@@ -169,6 +169,9 @@ export default function ProductsManagementScreen({ onTabChange }: ProductsManage
   // Cargar productos desde Supabase - Memoizado
   const fetchProducts = useCallback(async () => {
     try {
+      if (process.env.NODE_ENV === 'development') {
+        console.log('🔍 [products-management] fetchProducts calling API...')
+      }
       setLoading(true)
 
       const controller = new AbortController()
@@ -338,16 +341,34 @@ export default function ProductsManagementScreen({ onTabChange }: ProductsManage
   }, [fetchProducts, fetchCafeConsultation, fetchStats])
 
   useEffect(() => {
+    if (process.env.NODE_ENV === 'development') {
+      console.log('🏗️ [products-management] useEffect loadData', {
+        authLoading,
+        hasUser: !!user,
+        userId: user?.id
+      })
+    }
+
+    // Si la autenticación aún está cargando, esperar
+    if (authLoading) return
+
+    // Si no hay usuario, dejar de cargar pero no hacer peticiones
+    if (!user) {
+      setLoading(false)
+      return
+    }
+
     // Cargar datos de forma secuencial para evitar sobrecarga
     const loadData = async () => {
       try {
-        // Esperar un poco para que la autenticación se complete
-        await new Promise(resolve => setTimeout(resolve, 1000))
+        setLoading(true)
         await fetchProductsRef.current()
         await fetchCafeConsultationRef.current()
         await fetchStatsRef.current()
       } catch (error) {
         console.error('Error cargando datos iniciales:', error)
+      } finally {
+        setLoading(false)
       }
     }
 
@@ -397,7 +418,7 @@ export default function ProductsManagementScreen({ onTabChange }: ProductsManage
       window.removeEventListener('productUpdated', handleProductUpdated as EventListener)
       window.removeEventListener('productPauseChanged', handleProductPauseChanged as EventListener)
     }
-  }, []) // Solo se ejecuta una vez al montar el componente
+  }, [authLoading, user]) // Se ejecuta cuando cambia el estado de autenticación
 
   const handleOpenModal = useCallback(() => {
     setEditingProduct(null) // Limpiar cualquier producto en edición

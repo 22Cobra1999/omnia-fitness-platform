@@ -95,7 +95,8 @@ export interface Activity extends ActivityBase {
   total_coach_reviews?: number | null
 
   // Category for filtering in UI
-  categoria?: string | null // Assuming 'categoria' is a direct column in 'activities'
+  categoria?: string | null // assuming 'categoria' is a direct column in 'activities'
+  category?: string | null // Runtime mapped property
 
   // Diet type for nutrition products
   dieta?: string | null

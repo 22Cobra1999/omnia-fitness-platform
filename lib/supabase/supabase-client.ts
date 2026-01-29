@@ -1,7 +1,7 @@
-import { createClient } from "@supabase/supabase-js"
+import { createBrowserClient } from "@supabase/ssr"
 
 // Singleton pattern para el cliente de Supabase
-let supabaseClientInstance: ReturnType<typeof createClient> | null = null
+let supabaseClientInstance: ReturnType<typeof createBrowserClient> | null = null
 
 export const createSupabaseClient = () => {
   if (supabaseClientInstance) {
@@ -17,13 +17,7 @@ export const createSupabaseClient = () => {
 
   // Log removido para mantener la consola limpia
 
-  supabaseClientInstance = createClient(supabaseUrl, supabaseAnonKey, {
-    auth: {
-      persistSession: true,
-      autoRefreshToken: true,
-      detectSessionInUrl: true
-    }
-  })
+  supabaseClientInstance = createBrowserClient(supabaseUrl, supabaseAnonKey)
 
   return supabaseClientInstance
 }

@@ -1,9 +1,13 @@
 import { NextRequest, NextResponse } from "next/server"
 import { getSupabaseAdmin } from '@/lib/config/db'
+import { createRouteHandlerClient } from '@/lib/supabase/supabase-server'
 
 export async function GET(request: NextRequest) {
   try {
     const supabaseAdmin = await getSupabaseAdmin()
+    const supabase = await createRouteHandlerClient()
+    const { data: { session } } = await supabase.auth.getSession()
+    const currentUserId = session?.user?.id
 
     // Get all coaches
     const { data: coaches, error } = await supabaseAdmin
@@ -19,7 +23,7 @@ export async function GET(request: NextRequest) {
     const coachIds = coaches.map((coach) => coach.id)
     const { data: userProfiles, error: userProfilesError } = await supabaseAdmin
       .from("user_profiles")
-      .select("id, full_name, avatar_url")
+      .select("id, full_name, avatar_url, role")
       .in("id", coachIds)
 
     if (userProfilesError) {
@@ -105,53 +109,69 @@ export async function GET(request: NextRequest) {
       })
     }
 
-    const formattedCoaches = coaches.map((coach) => {
-      const userProfile = userProfileMap.get(coach.id)
-      const coachStat = statsMap.get(coach.id)
+    const formattedCoaches = coaches
+      .map((coach) => {
+        const userProfile = userProfileMap.get(coach.id)
+        const coachStat = statsMap.get(coach.id)
 
-      let specialty = "fitness"
-      let specialtyDetail = "General Fitness"
-      if (coach.specialization) {
-        if (coach.specialization.toLowerCase().includes("nutrition")) {
-          specialty = "nutrition"
-          specialtyDetail = "Nutrition Coach"
-        } else if (
-          coach.specialization.toLowerCase().includes("gym") ||
-          coach.specialization.toLowerCase().includes("strength")
-        ) {
-          specialty = "gym"
-          specialtyDetail = "Strength & Gym"
-        } else if (coach.specialization.toLowerCase().includes("yoga")) {
-          specialty = "yoga"
-          specialtyDetail = "Yoga Instructor"
+        // Only include if the user profile role is 'coach'
+        if (userProfile && (userProfile as any).role !== 'coach' && (userProfile as any).role !== undefined) {
+          // If role is explicitly something else, we might want to skip, 
+          // but wait, the API as it was didn't even have 'role' in the select.
+          // Let's add 'role' to the select first.
         }
-      }
 
-      return {
-        ...coach,
-        name: userProfile?.full_name || coach.full_name,
-        specialty: specialty,
-        specialty_detail: specialtyDetail,
-        full_name: userProfile?.full_name || coach.full_name,
-        avatar_url: userProfile?.avatar_url || null,
-        description: coach.bio || coach.specialization || "Fitness Coach",
-        rating: coachStat?.avg_rating || 0,
-        total_reviews: coachStat?.total_reviews || 0,
-        total_products: productCountMap.get(coach.id) || 0,
-        total_sessions: salesCountMap.get(coach.id) || 0, // Using total_sessions field for "Sales"
-        experienceYears: coach.experience_years || 0,
-        experience_years: coach.experience_years || 0,
-        certifications: certificationsMap.get(coach.id) || coach.certifications || [],
-        hourlyRate: coach.hourly_rate || 0,
-        bio: coach.bio || null,
+        let specialty = "fitness"
+        let specialtyDetail = "General Fitness"
+        if (coach.specialization) {
+          if (coach.specialization.toLowerCase().includes("nutrition")) {
+            specialty = "nutrition"
+            specialtyDetail = "Nutrition Coach"
+          } else if (
+            coach.specialization.toLowerCase().includes("gym") ||
+            coach.specialization.toLowerCase().includes("strength")
+          ) {
+            specialty = "gym"
+            specialtyDetail = "Strength & Gym"
+          } else if (coach.specialization.toLowerCase().includes("yoga")) {
+            specialty = "yoga"
+            specialtyDetail = "Yoga Instructor"
+          }
+        }
 
-      }
-    })
+        return {
+          ...coach,
+          name: userProfile?.full_name || coach.full_name,
+          specialty: specialty,
+          specialty_detail: specialtyDetail,
+          full_name: userProfile?.full_name || coach.full_name,
+          avatar_url: userProfile?.avatar_url || null,
+          role: (userProfile as any)?.role,
+          description: coach.bio || coach.specialization || "Fitness Coach",
+          rating: coachStat?.avg_rating || 0,
+          total_reviews: coachStat?.total_reviews || 0,
+          total_products: productCountMap.get(coach.id) || 0,
+          total_sessions: salesCountMap.get(coach.id) || 0, // Using total_sessions field for "Sales"
+          experienceYears: coach.experience_years || 0,
+          experience_years: coach.experience_years || 0,
+          certifications: certificationsMap.get(coach.id) || coach.certifications || [],
+          hourlyRate: coach.hourly_rate || 0,
+          bio: coach.bio || null,
 
-    return NextResponse.json(formattedCoaches || [])
+        }
+      })
+      .filter(coach => {
+        const userProfile = userProfileMap.get(coach.id)
+        // If we have a profile and it has a role, it must be 'coach'
+        // If it doesn't have a role, we assume it's a coach since it's in the coaches table
+        return !userProfile || (userProfile as any).role === 'coach'
+      })
+
+    const filteredCoaches = formattedCoaches.filter(coach => coach.id !== currentUserId)
+
+    return NextResponse.json(filteredCoaches || [])
   } catch (error) {
     console.error("Error fetching coaches:", error)
     return NextResponse.json({ error: "Failed to fetch coaches" }, { status: 500 })
   }
 }
-

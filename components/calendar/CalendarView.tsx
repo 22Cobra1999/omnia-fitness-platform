@@ -577,7 +577,7 @@ export default function CalendarView({ activityIds, onActivityClick, scheduleMee
         const { data: activityRows, error: activityError } = await (supabase
           .from('progreso_diario_actividad') as any)
           .select(
-            'fecha, area, minutos, items_objetivo, items_completados, cantidad_actividades_adeudadas, actividad_id'
+            'fecha, area, minutos, items_objetivo, items_completados, actividad_id'
           )
           .eq('cliente_id', user.id)
           .gte('fecha', startISO)
@@ -620,7 +620,7 @@ export default function CalendarView({ activityIds, onActivityClick, scheduleMee
             // Si no hay "cantidad_actividades_adeudadas" confiable, se puede calcular con items:
             // const pendingCount = Math.max(0, (row.items_objetivo || 0) - (row.items_completados || 0))
             // Pero la tabla tiene 'cantidad_actividades_adeudadas', probemos usar esa o sumar 1 si items_objetivo > items_completados
-            const pendingItems = row.cantidad_actividades_adeudadas || Math.max(0, (row.items_objetivo || 0) - (row.items_completados || 0))
+            const pendingItems = Math.max(0, (row.items_objetivo || 0) - (row.items_completados || 0))
 
             if (area === 'fitness') {
               agg[dayKey].fitnessMinutesTotal += mins

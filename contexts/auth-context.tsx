@@ -65,19 +65,27 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       try {
         setLoading(true)
 
-        // Usar getSession con timeout simple
-        const timeoutPromise = new Promise<{ data: { session: null }, error: null }>((resolve) => {
+        // Usar getSession con timeout más generoso
+        const timeoutPromise = new Promise<{ isTimeout: boolean, data: { session: null }, error: null }>((resolve) => {
           setTimeout(() => {
-            resolve({ data: { session: null }, error: null })
-          }, 2000)
+            resolve({ isTimeout: true, data: { session: null }, error: null })
+          }, 5000)
         })
 
         const sessionPromise = supabase.auth.getSession()
-        
+
         // Race entre la sesión y el timeout
         const result = await Promise.race([sessionPromise, timeoutPromise])
-        
+
         if (!mounted) return
+
+        // Verificar si el timeout ganó la carrera
+        const resultWithFlag = result as any
+        if (resultWithFlag?.isTimeout) {
+          if (process.env.NODE_ENV === 'development') {
+            console.warn("⏱️ [auth-context] Timeout real alcanzado esperando sesión - Continuando con sesión null")
+          }
+        }
 
         const { data, error } = result as any
 
@@ -90,12 +98,12 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
         if (data?.session?.user) {
           if (process.env.NODE_ENV === 'development') {
-            console.log("User found in session:", data.session.user.email)
+            console.log("✅ User found in session:", data.session.user.email)
           }
           setUser(formatUser(data.session.user))
         } else {
           if (process.env.NODE_ENV === 'development') {
-            console.log("No user found in session")
+            console.log("ℹ️ No user found in session (user is probably logged out)")
           }
           setUser(null)
         }
@@ -115,10 +123,10 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     } = supabase.auth.onAuthStateChange(async (event: string, session: any) => {
       if (!mounted) return
 
-              // Log optimizado - solo en desarrollo
-        if (process.env.NODE_ENV === 'development') {
-          console.log("Auth state change:", event)
-        }
+      // Log optimizado - solo en desarrollo
+      if (process.env.NODE_ENV === 'development') {
+        console.log("Auth state change:", event)
+      }
 
       if (event === "SIGNED_OUT") {
         setUser(null)
@@ -171,12 +179,12 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       // Verificar si las credenciales de Supabase están configuradas
       const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL
       const supabaseKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY
-      
+
       if (!supabaseUrl || !supabaseKey || supabaseUrl.includes('placeholder') || supabaseKey.includes('placeholder')) {
         console.warn("Supabase credentials not properly configured")
         setLoading(false)
-        return { 
-          error: "Configuración de Supabase incompleta. Por favor, configura las credenciales en el archivo .env.local" 
+        return {
+          error: "Configuración de Supabase incompleta. Por favor, configura las credenciales en el archivo .env.local"
         }
       }
 
@@ -237,12 +245,12 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     } catch (error: any) {
       console.error("Error signing in:", error)
       setLoading(false)
-      
+
       // Manejar errores de red específicos
       if (error.message.includes("Failed to fetch") || error.message.includes("NetworkError")) {
         return { error: "Error de conexión. Verifica tu conexión a internet." }
       }
-      
+
       return { error: error.message || "Ocurrió un error inesperado" }
     }
   }
@@ -255,12 +263,12 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       // Verificar si las credenciales de Supabase están configuradas
       const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL
       const supabaseKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY
-      
+
       if (!supabaseUrl || !supabaseKey || supabaseUrl.includes('placeholder') || supabaseKey.includes('placeholder')) {
         console.warn("Supabase credentials not properly configured")
         setLoading(false)
-        return { 
-          error: "Configuración de Supabase incompleta. Por favor, configura las credenciales en el archivo .env.local" 
+        return {
+          error: "Configuración de Supabase incompleta. Por favor, configura las credenciales en el archivo .env.local"
         }
       }
 
@@ -278,12 +286,12 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       if (error) {
         console.error("Error registering:", error)
         setLoading(false)
-        
+
         // Manejar errores específicos de conexión
         if (error.message.includes("Failed to fetch") || error.message.includes("NetworkError")) {
           return { error: "Error de conexión. Verifica tu conexión a internet." }
         }
-        
+
         return { error: error.message }
       }
 
@@ -294,12 +302,12 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     } catch (error: any) {
       console.error("Error registering:", error)
       setLoading(false)
-      
+
       // Manejar errores de red específicos
       if (error.message.includes("Failed to fetch") || error.message.includes("NetworkError")) {
         return { error: "Error de conexión. Verifica tu conexión a internet." }
       }
-      
+
       return { error: error.message || "Ocurrió un error inesperado" }
     }
   }
@@ -308,17 +316,17 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     try {
       console.log("Iniciando cierre de sesión...")
       setLoading(true)
-      
+
       // Limpiar estado local inmediatamente
       setUser(null)
       setShowWelcomeMessage(false)
-      
+
       // Limpiar localStorage y sessionStorage
       if (typeof window !== 'undefined') {
         localStorage.clear()
         sessionStorage.clear()
       }
-      
+
       // Llamar al endpoint de logout del servidor
       try {
         const response = await fetch('/api/auth/logout', {
@@ -327,7 +335,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
             'Content-Type': 'application/json',
           },
         })
-        
+
         if (response.ok) {
           console.log("Logout del servidor exitoso")
         } else {
@@ -336,7 +344,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       } catch (serverError) {
         console.warn("Error llamando al endpoint de logout:", serverError)
       }
-      
+
       // También llamar al endpoint para limpiar cookies del cliente
       try {
         const clearResponse = await fetch('/api/auth/clear-cookies', {
@@ -345,7 +353,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
             'Content-Type': 'application/json',
           },
         })
-        
+
         if (clearResponse.ok) {
           console.log("Limpieza de cookies del cliente exitosa")
         } else {
@@ -354,7 +362,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       } catch (clearError) {
         console.warn("Error limpiando cookies del cliente:", clearError)
       }
-      
+
       // También intentar cerrar sesión directamente en Supabase como respaldo
       try {
         await supabase.auth.signOut()
@@ -362,22 +370,22 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       } catch (supabaseError) {
         console.warn("Error cerrando sesión en Supabase:", supabaseError)
       }
-      
+
       console.log("Sesión cerrada completamente")
-      
+
       // Redirigir a la página principal
       if (typeof window !== 'undefined') {
         // Usar replace para evitar que el usuario pueda volver atrás
         window.location.replace('/?logout=success')
       }
-      
+
     } catch (error: any) {
       console.error("Error al cerrar sesión:", error)
-      
+
       // Limpiar todo de todos modos
       setUser(null)
       setShowWelcomeMessage(false)
-      
+
       if (typeof window !== 'undefined') {
         localStorage.clear()
         sessionStorage.clear()

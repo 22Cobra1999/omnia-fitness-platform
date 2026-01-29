@@ -21,9 +21,9 @@ export async function GET(
     const activityId = parseInt(params.id)
 
     if (!activityId || isNaN(activityId)) {
-      return NextResponse.json({ 
-        success: false, 
-        error: 'ID de actividad inválido' 
+      return NextResponse.json({
+        success: false,
+        error: 'ID de actividad inválido'
       }, { status: 400 })
     }
 
@@ -35,17 +35,17 @@ export async function GET(
       .single()
 
     if (activityError || !activity) {
-      return NextResponse.json({ 
-        success: false, 
-        error: 'Actividad no encontrada' 
+      return NextResponse.json({
+        success: false,
+        error: 'Actividad no encontrada'
       }, { status: 404 })
     }
 
     // Verificar acceso: el usuario debe ser el coach o estar inscrito
     const isCoach = activity.coach_id === user.id
-    
+
     let hasAccess = isCoach
-    
+
     if (!hasAccess) {
       // Verificar si el usuario está inscrito como cliente
       const { data: enrollment } = await supabase
@@ -54,14 +54,14 @@ export async function GET(
         .eq('activity_id', activityId)
         .eq('client_id', user.id)
         .maybeSingle()
-      
+
       hasAccess = !!enrollment
     }
 
     if (!hasAccess) {
-      return NextResponse.json({ 
-        success: false, 
-        error: 'No tienes acceso a esta actividad' 
+      return NextResponse.json({
+        success: false,
+        error: 'No tienes acceso a esta actividad'
       }, { status: 403 })
     }
 
@@ -77,10 +77,10 @@ export async function GET(
 
     if (exercisesError) {
       console.error('Error obteniendo ejercicios:', exercisesError)
-      return NextResponse.json({ 
-        success: false, 
+      return NextResponse.json({
+        success: false,
         error: 'Error al obtener ejercicios',
-        details: exercisesError.message 
+        details: exercisesError.message
       }, { status: 500 })
     }
 
@@ -104,6 +104,7 @@ export async function GET(
         intensidad: exercise.intensidad,
         video_url: exercise.video_url,
         equipo: exercise.equipo,
+        equipo_necesario: exercise.equipo,
         body_parts: exercise.body_parts,
         detalle_series: exercise.detalle_series,
         duracion_min: exercise.duracion_min,
@@ -121,10 +122,10 @@ export async function GET(
     })
   } catch (error: any) {
     console.error('Error en /api/activity-exercises/[id]:', error)
-    return NextResponse.json({ 
-      success: false, 
+    return NextResponse.json({
+      success: false,
       error: 'Error interno del servidor',
-      details: error.message 
+      details: error.message
     }, { status: 500 })
   }
 }

@@ -364,7 +364,16 @@ const ActivityCard: React.FC<ActivityCardProps> = ({
                   <div className="relative flex items-center justify-center text-white"><Users className="h-3 w-3" /></div>
                 )
               })()}
-              {activity.type !== 'workshop' && includedMeetCredits > 0 && <Video className="h-4 w-4 text-rose-100/90" />}
+              {activity.type !== 'workshop' && (
+                includedMeetCredits > 0 ? (
+                  <Video className="h-4 w-4 text-rose-100/90" />
+                ) : (
+                  <div className="flex items-center gap-1.5 opacity-40">
+                    <Video className="h-4 w-4 text-gray-400" />
+                    <span className="text-[10px] font-bold text-gray-500 whitespace-nowrap">sin créditos</span>
+                  </div>
+                )
+              )}
             </div>
             <div className="flex items-center">{getModalityIcon(activity.modality || 'online')}</div>
           </div>
@@ -392,9 +401,10 @@ const ActivityCard: React.FC<ActivityCardProps> = ({
             ) : <div className="h-6"></div>}
           </div>
 
-          <div className="border-t border-gray-700 text-center mt-auto pt-2">
+          {/* Price removed as per user request */}
+          {/* <div className="border-t border-gray-700 text-center mt-auto pt-2">
             <span className="text-orange-300 font-bold text-xl">{formatPrice(activity.price)}</span>
-          </div>
+          </div> */}
         </div>
 
         {isWorkshopInactive && (

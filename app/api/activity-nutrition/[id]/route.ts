@@ -31,9 +31,9 @@ export async function GET(
         rawFromPath,
         normalizedIdStr
       })
-      return NextResponse.json({ 
-        success: false, 
-        error: 'ID de actividad inválido' 
+      return NextResponse.json({
+        success: false,
+        error: 'ID de actividad inválido'
       }, { status: 400 })
     }
 
@@ -45,17 +45,17 @@ export async function GET(
       .single()
 
     if (activityError || !activity) {
-      return NextResponse.json({ 
-        success: false, 
-        error: 'Actividad no encontrada' 
+      return NextResponse.json({
+        success: false,
+        error: 'Actividad no encontrada'
       }, { status: 404 })
     }
 
     // Verificar acceso: el usuario debe ser el coach o estar inscrito
     const isCoach = activity.coach_id === user.id
-    
+
     let hasAccess = isCoach
-    
+
     if (!hasAccess) {
       // Verificar si el usuario está inscrito como cliente
       const { data: enrollment } = await supabase
@@ -64,14 +64,14 @@ export async function GET(
         .eq('activity_id', activityId)
         .eq('client_id', user.id)
         .maybeSingle()
-      
+
       hasAccess = !!enrollment
     }
 
     if (!hasAccess) {
-      return NextResponse.json({ 
-        success: false, 
-        error: 'No tienes acceso a esta actividad' 
+      return NextResponse.json({
+        success: false,
+        error: 'No tienes acceso a esta actividad'
       }, { status: 403 })
     }
 
@@ -79,9 +79,9 @@ export async function GET(
     // Manejar múltiples formatos: JSONB, integer, y activity_id_new
     let platos: any[] = []
     let platosError: any = null
-    
+
     console.log('🔍 Buscando platos para activityId:', activityId)
-    
+
     // Estrategia 1: Intentar con JSONB usando .contains() (nuevo formato)
     try {
       const activityKeyObj = { [activityId.toString()]: {} }
@@ -101,7 +101,7 @@ export async function GET(
     } catch (error: any) {
       console.log('⚠️ Excepción con JSONB, intentando otros formatos:', error.message)
     }
-    
+
     // Estrategia 1.5: Buscar también en activity_id_new si activity_id es null o no es JSONB
     if (platos.length === 0) {
       try {
@@ -112,14 +112,14 @@ export async function GET(
           .select('*, recetas(receta)')
           .eq('coach_id', user.id)
           .order('id', { ascending: true })
-        
+
         if (!errorNew && allPlatosForNew) {
           const platosFromNew = allPlatosForNew.filter((plato: any) => {
             // Si activity_id es null o no es objeto, verificar activity_id_new
             if (!plato.activity_id || typeof plato.activity_id !== 'object') {
               if (plato.activity_id_new) {
                 try {
-                  const activityMap = typeof plato.activity_id_new === 'string' 
+                  const activityMap = typeof plato.activity_id_new === 'string'
                     ? JSON.parse(plato.activity_id_new)
                     : plato.activity_id_new
                   return activityId.toString() in activityMap
@@ -130,13 +130,13 @@ export async function GET(
             }
             return false
           })
-          
+
           if (platosFromNew.length > 0) {
             console.log('✅ Platos encontrados en activity_id_new:', platosFromNew.length)
             // Convertir activity_id_new a activity_id para consistencia
             platos = platosFromNew.map((plato: any) => {
               if (plato.activity_id_new && (!plato.activity_id || typeof plato.activity_id !== 'object')) {
-                const activityMap = typeof plato.activity_id_new === 'string' 
+                const activityMap = typeof plato.activity_id_new === 'string'
                   ? JSON.parse(plato.activity_id_new)
                   : plato.activity_id_new
                 return {
@@ -152,7 +152,7 @@ export async function GET(
         console.log('⚠️ Excepción buscando en activity_id_new:', error.message)
       }
     }
-    
+
     // Estrategia 2: Si no hay resultados, intentar con integer (formato antiguo)
     if (platos.length === 0) {
       try {
@@ -163,14 +163,14 @@ export async function GET(
           .eq('activity_id', activityId)
           .eq('coach_id', user.id)
           .order('id', { ascending: true })
-        
+
         if (!errorInt && platosInt) {
           console.log('✅ Platos encontrados con formato integer:', platosInt.length)
           platos = platosInt || []
           // Convertir formato antiguo a nuevo formato JSONB para la respuesta
           platos = platos.map((plato: any) => ({
             ...plato,
-            activity_id: typeof plato.activity_id === 'number' 
+            activity_id: typeof plato.activity_id === 'number'
               ? { [plato.activity_id.toString()]: { activo: plato.is_active !== false } }
               : plato.activity_id
           }))
@@ -183,7 +183,7 @@ export async function GET(
         platosError = error
       }
     }
-    
+
     // Estrategia 3: Si aún no hay resultados, buscar todos los platos del coach y filtrar manualmente
     if (platos.length === 0) {
       try {
@@ -193,26 +193,26 @@ export async function GET(
           .select('*, recetas(receta)')
           .eq('coach_id', user.id)
           .order('id', { ascending: true })
-        
+
         if (!errorAll && allPlatos) {
           console.log('📋 Total platos del coach:', allPlatos.length)
-          
+
           // Filtrar manualmente los que pertenecen a esta actividad
           platos = allPlatos.filter((plato: any) => {
             // Verificar activity_id (puede ser integer, JSONB, o string)
             if (typeof plato.activity_id === 'number') {
               return plato.activity_id === activityId
             }
-            
+
             // Verificar activity_id como JSONB
             if (plato.activity_id && typeof plato.activity_id === 'object') {
               return activityId.toString() in plato.activity_id
             }
-            
+
             // Verificar activity_id_new si existe
             if (plato.activity_id_new) {
               try {
-                const activityMap = typeof plato.activity_id_new === 'string' 
+                const activityMap = typeof plato.activity_id_new === 'string'
                   ? JSON.parse(plato.activity_id_new)
                   : plato.activity_id_new
                 return activityId.toString() in activityMap
@@ -220,10 +220,10 @@ export async function GET(
                 return false
               }
             }
-            
+
             return false
           })
-          
+
           // Convertir formato antiguo a nuevo formato JSONB para la respuesta
           platos = platos.map((plato: any) => {
             if (typeof plato.activity_id === 'number') {
@@ -234,7 +234,7 @@ export async function GET(
             }
             if (plato.activity_id_new && !plato.activity_id) {
               try {
-                const activityMap = typeof plato.activity_id_new === 'string' 
+                const activityMap = typeof plato.activity_id_new === 'string'
                   ? JSON.parse(plato.activity_id_new)
                   : plato.activity_id_new
                 return {
@@ -247,7 +247,7 @@ export async function GET(
             }
             return plato
           })
-          
+
           console.log('✅ Platos encontrados con búsqueda amplia:', platos.length)
         } else if (errorAll) {
           console.error('❌ Error obteniendo todos los platos:', errorAll)
@@ -264,27 +264,27 @@ export async function GET(
       const activityKey = activityId.toString()
       platos = platos.filter((plato: any) => {
         const activityMap = normalizeActivityMap(plato.activity_id)
-        
+
         // Verificar si el plato está asociado a esta actividad
         const isAssociated = activityKey in activityMap
-        
+
         if (!isAssociated) {
           return false
         }
-        
+
         // El plato está asociado, lo incluimos (el frontend decidirá si mostrarlo según is_active)
         return true
       })
-      
+
       console.log('✅ Platos filtrados (asociados a actividad):', platos.length)
     }
 
     if (platosError && platos.length === 0) {
       console.error('❌ Error obteniendo platos (todos los formatos fallaron):', platosError)
-      return NextResponse.json({ 
-        success: false, 
+      return NextResponse.json({
+        success: false,
         error: 'Error al obtener platos',
-        details: platosError.message 
+        details: platosError.message
       }, { status: 500 })
     }
 
@@ -308,7 +308,7 @@ export async function GET(
         proteinas: plato.proteinas || 0,
         carbohidratos: plato.carbohidratos || 0,
         grasas: plato.grasas || 0,
-        receta: plato.receta || '',
+        receta: Array.isArray(plato.recetas) ? (plato.recetas[0]?.receta ?? '') : (plato.recetas?.receta ?? ''),
         video_url: plato.video_url || null,
         video_file_name: plato.video_file_name || null,
         is_active: isActive,
@@ -326,10 +326,10 @@ export async function GET(
     })
   } catch (error: any) {
     console.error('Error en /api/activity-nutrition/[id]:', error)
-    return NextResponse.json({ 
-      success: false, 
+    return NextResponse.json({
+      success: false,
       error: 'Error interno del servidor',
-      details: error.message 
+      details: error.message
     }, { status: 500 })
   }
 }

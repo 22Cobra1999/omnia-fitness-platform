@@ -2,7 +2,7 @@
 
 import React, { useState, useEffect } from 'react'
 import { Button } from '@/components/ui/button'
-import { X, Star, MapPin, Calendar as CalendarIcon, Award, Package, TrendingUp, MessageCircle, Coffee, Zap, MessageSquare, Target, GraduationCap } from 'lucide-react'
+import { X, Star, MapPin, Calendar as CalendarIcon, Award, Package, TrendingUp, MessageCircle, Coffee, Zap, MessageSquare, Target, GraduationCap, ChevronUp, ChevronDown, Clock, User } from 'lucide-react'
 import { motion, AnimatePresence } from 'framer-motion'
 import Image from 'next/image'
 import ActivityCard from '@/components/shared/activities/ActivityCard'
@@ -71,6 +71,7 @@ export default function CoachProfileModal({
   const [isPurchaseModalOpen, setIsPurchaseModalOpen] = useState(false)
   const [totalSales, setTotalSales] = useState<number | null>(null)
   const [coachCertifications, setCoachCertifications] = useState<string[]>([])
+  const [isStatsOpen, setIsStatsOpen] = useState(false)
 
   // Cargar productos del coach cuando se abre el modal
   useEffect(() => {
@@ -468,6 +469,53 @@ export default function CoachProfileModal({
                   }
                 />
 
+                {/* Statistics Section (Collapsible) */}
+                <div className="px-6 mb-6">
+                  <button
+                    onClick={() => setIsStatsOpen(!isStatsOpen)}
+                    className="w-full flex items-center justify-between py-2 px-3 rounded-xl bg-white/5 border border-white/5 hover:bg-white/10 transition-all"
+                  >
+                    <div className="flex items-center gap-2">
+                      <TrendingUp className="h-4 w-4 text-[#FF7939]" />
+                      <span className="text-xs font-bold text-white/80 uppercase tracking-wide">Estadísticas</span>
+                    </div>
+                    {isStatsOpen ? (
+                      <ChevronUp className="h-4 w-4 text-white/40" />
+                    ) : (
+                      <ChevronDown className="h-4 w-4 text-white/40" />
+                    )}
+                  </button>
+
+                  <AnimatePresence>
+                    {isStatsOpen && (
+                      <motion.div
+                        initial={{ height: 0, opacity: 0 }}
+                        animate={{ height: 'auto', opacity: 1 }}
+                        exit={{ height: 0, opacity: 0 }}
+                        className="overflow-hidden"
+                      >
+                        <div className="grid grid-cols-3 gap-2 pt-2">
+                          <div className="flex flex-col items-center justify-center p-2.5 rounded-xl bg-black/40 border border-white/5">
+                            <Clock className="h-3.5 w-3.5 text-[#FF7939] mb-1.5" />
+                            <span className="text-xs font-bold text-white">1hr</span>
+                            <span className="text-[9px] text-zinc-500 uppercase tracking-wider text-center">Resp.</span>
+                          </div>
+                          <div className="flex flex-col items-center justify-center p-2.5 rounded-xl bg-black/40 border border-white/5">
+                            <User className="h-3.5 w-3.5 text-[#FF7939] mb-1.5" />
+                            <span className="text-xs font-bold text-white">98%</span>
+                            <span className="text-[9px] text-zinc-500 uppercase tracking-wider text-center">Retención</span>
+                          </div>
+                          <div className="flex flex-col items-center justify-center p-2.5 rounded-xl bg-black/40 border border-white/5">
+                            <Star className="h-3.5 w-3.5 text-[#FF7939] mb-1.5" />
+                            <span className="text-xs font-bold text-white">4.9/5</span>
+                            <span className="text-[9px] text-zinc-500 uppercase tracking-wider text-center">Satisfac.</span>
+                          </div>
+                        </div>
+                      </motion.div>
+                    )}
+                  </AnimatePresence>
+                </div>
+
                 {coachCertifications && coachCertifications.length > 0 && (
                   <div className="text-center mb-8 px-4 pb-4">
                     <div className="flex items-center justify-center gap-2 flex-wrap">
@@ -478,7 +526,7 @@ export default function CoachProfileModal({
                         return (
                           <span
                             key={index}
-                            className="text-[#FF7939] bg-[#FF7939]/10 px-3 py-1 rounded-full text-sm font-medium border border-[#FF7939]/20"
+                            className="text-white/70 bg-white/5 backdrop-blur-md px-3 py-1 rounded-full text-xs font-medium border border-white/10"
                           >
                             {certName}
                           </span>

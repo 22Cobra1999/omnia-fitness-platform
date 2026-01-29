@@ -41,7 +41,7 @@ export async function GET(request: NextRequest) {
     // Estrategia 1: Buscar directamente por coach_id
     let query = supabase
       .from(tableName)
-      .select('*')
+      .select(isNutrition ? '*, recetas(id, receta)' : '*')
       .eq('coach_id', user.id)
 
     // Para nutrición: Si la tabla tiene is_active, filtrar si se solicita
@@ -67,7 +67,7 @@ export async function GET(request: NextRequest) {
         console.log(`🔍 COACH/EXERCISES: Intentando fallback con adminSupabase...`)
         const adminQuery = adminSupabase
           .from(tableName)
-          .select('*')
+          .select(isNutrition ? '*, recetas(id, receta)' : '*')
           .eq('coach_id', user.id)
 
         // Aplicar el mismo filtro de is_active para nutrición si corresponde
@@ -108,7 +108,7 @@ export async function GET(request: NextRequest) {
 
           let query2 = supabase
             .from(tableName)
-            .select('*')
+            .select(isNutrition ? '*, recetas(id, receta)' : '*')
             .or(orConditions)
 
           // Para ejercicios_detalles, no filtramos por is_active aquí
@@ -187,7 +187,7 @@ export async function GET(request: NextRequest) {
           proteinas: item.proteinas || 0,
           carbohidratos: item.carbohidratos || 0,
           grasas: item.grasas || 0,
-          receta: item.receta || '',
+          receta: Array.isArray(item.recetas) ? (item.recetas[0]?.receta ?? '') : (item.recetas?.receta ?? ''),
           ingredientes: item.ingredientes || '',
           porciones: item.porciones || '',
           minutos: item.minutos || 0,

@@ -8,7 +8,7 @@ import { useAuth } from "@/contexts/auth-context";
 import { ActivitySurveyModal } from "../activities/activity-survey-modal";
 import { StartActivityModal } from "../activities/StartActivityModal";
 import { StartActivityInfoModal } from "../activities/StartActivityInfoModal";
-import { Flame, Edit, X, Save, Clock, Zap, ChevronLeft, ChevronRight, ChevronDown, ChevronUp, CalendarClock, RotateCcw, ArrowRight, Calendar, AlertCircle, Info, Minus, AlertTriangle } from 'lucide-react';
+import { X, Play, Pause, Maximize2, Minimize2, ChevronLeft, ChevronRight, Volume2, VolumeX, Info, Clock, Flame, Dumbbell, ArrowLeft, ArrowRight, Share2, Download, Check, Plus, AlertCircle, ShoppingCart, Edit, Save, Zap, ChevronDown, ChevronUp, CalendarClock, RotateCcw, Calendar, Minus, AlertTriangle } from 'lucide-react';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter, DialogDescription } from "@/components/ui/dialog"
 import { Checkbox } from "@/components/ui/checkbox"
 import { Label } from "@/components/ui/label"
@@ -959,27 +959,11 @@ export default function TodayScreen({ activityId, enrollmentId, onBack }: { acti
   };
 
   // Reproducir video cuando se expande el panel
-  React.useEffect(() => {
-    if (isVideoPanelExpanded && selectedVideo?.url) {
-      console.log('🎬 Panel de video expandido, intentando reproducir:', selectedVideo.url);
-      // Delay más largo para asegurar que el componente de video se haya renderizado completamente
-      const timer = setTimeout(() => {
-        // Buscar el video dentro del contenedor específico del panel
-        const videoContainer = document.querySelector('[data-video-panel="true"]');
-        const videoElement = videoContainer?.querySelector('video') as HTMLVideoElement;
-        if (videoElement) {
-          console.log('✅ Video encontrado, intentando reproducir');
-          videoElement.play().catch((error) => {
-            console.log('⚠️ No se pudo reproducir automáticamente (puede requerir interacción del usuario):', error);
-          });
-        } else {
-          console.log('❌ Video no encontrado en el contenedor');
-        }
-      }, 500);
-
-      return () => clearTimeout(timer);
-    }
-  }, [isVideoPanelExpanded, selectedVideo?.url]);
+  // React.useEffect(() => {
+  //   if (isVideoPanelExpanded && selectedVideo?.url) {
+  // ... (manual play logic disabled)
+  //   }
+  // }, [isVideoPanelExpanded, selectedVideo?.url]);
 
   // Bloquear scroll del body cuando el video está expandido
   React.useEffect(() => {
@@ -3852,14 +3836,9 @@ export default function TodayScreen({ activityId, enrollmentId, onBack }: { acti
                       pointerEvents: 'none'
                     }}
                     muted
-                    preload="metadata"
+                    autoPlay
+                    loop
                     playsInline
-                    onLoadedMetadata={(e) => {
-                      // Pausar el video en el primer frame
-                      const video = e.currentTarget;
-                      video.currentTime = 0;
-                      video.pause();
-                    }}
                   />
                 </div>
               )}
@@ -4300,39 +4279,30 @@ export default function TodayScreen({ activityId, enrollmentId, onBack }: { acti
                                 margin: '0 20px 20px',
                                 padding: 0
                               }}>
-                                {/* Tab Headers */}
+                                {/* Tab Headers - Minimal Text Only */}
                                 <div style={{
                                   display: 'flex',
-                                  gap: 8,
-                                  marginBottom: 16
+                                  gap: 24,
+                                  marginBottom: 16,
+                                  borderBottom: '1px solid rgba(255, 255, 255, 0.1)',
+                                  paddingBottom: 0
                                 }}>
                                   {ingredientesList.length > 0 && (
                                     <button
                                       onClick={() => setActiveMealTab('Ingredientes')}
                                       style={{
-                                        flex: 1,
-                                        padding: '12px 16px',
-                                        background: activeMealTab === 'Ingredientes' ? 'rgba(255, 106, 26, 0.15)' : 'rgba(255, 255, 255, 0.04)',
-                                        backdropFilter: 'blur(8px)',
-                                        WebkitBackdropFilter: 'blur(8px)',
-                                        border: activeMealTab === 'Ingredientes' ? '1px solid rgba(255, 106, 26, 0.3)' : '1px solid rgba(255, 255, 255, 0.08)',
-                                        borderRadius: 12,
-                                        color: activeMealTab === 'Ingredientes' ? '#FF6A1A' : 'rgba(255, 255, 255, 0.6)',
-                                        fontSize: 14,
+                                        padding: '0 0 12px 0',
+                                        background: 'transparent',
+                                        border: 'none',
+                                        borderBottom: activeMealTab === 'Ingredientes' ? '2px solid #FF6A1A' : '2px solid transparent',
+                                        color: activeMealTab === 'Ingredientes' ? '#FF6A1A' : 'rgba(255, 255, 255, 0.5)',
+                                        fontSize: 15,
                                         fontWeight: 600,
                                         cursor: 'pointer',
                                         transition: 'all 0.2s ease',
-                                        outline: 'none'
-                                      }}
-                                      onMouseEnter={(e) => {
-                                        if (activeMealTab !== 'Ingredientes') {
-                                          e.currentTarget.style.background = 'rgba(255, 255, 255, 0.06)';
-                                        }
-                                      }}
-                                      onMouseLeave={(e) => {
-                                        if (activeMealTab !== 'Ingredientes') {
-                                          e.currentTarget.style.background = 'rgba(255, 255, 255, 0.04)';
-                                        }
+                                        outline: 'none',
+                                        position: 'relative',
+                                        top: 1
                                       }}
                                     >
                                       Ingredientes
@@ -4342,29 +4312,18 @@ export default function TodayScreen({ activityId, enrollmentId, onBack }: { acti
                                     <button
                                       onClick={() => setActiveMealTab('Instrucciones')}
                                       style={{
-                                        flex: 1,
-                                        padding: '12px 16px',
-                                        background: activeMealTab === 'Instrucciones' ? 'rgba(255, 106, 26, 0.15)' : 'rgba(255, 255, 255, 0.04)',
-                                        backdropFilter: 'blur(8px)',
-                                        WebkitBackdropFilter: 'blur(8px)',
-                                        border: activeMealTab === 'Instrucciones' ? '1px solid rgba(255, 106, 26, 0.3)' : '1px solid rgba(255, 255, 255, 0.08)',
-                                        borderRadius: 12,
-                                        color: activeMealTab === 'Instrucciones' ? '#FF6A1A' : 'rgba(255, 255, 255, 0.6)',
-                                        fontSize: 14,
+                                        padding: '0 0 12px 0',
+                                        background: 'transparent',
+                                        border: 'none',
+                                        borderBottom: activeMealTab === 'Instrucciones' ? '2px solid #FF6A1A' : '2px solid transparent',
+                                        color: activeMealTab === 'Instrucciones' ? '#FF6A1A' : 'rgba(255, 255, 255, 0.5)',
+                                        fontSize: 15,
                                         fontWeight: 600,
                                         cursor: 'pointer',
                                         transition: 'all 0.2s ease',
-                                        outline: 'none'
-                                      }}
-                                      onMouseEnter={(e) => {
-                                        if (activeMealTab !== 'Instrucciones') {
-                                          e.currentTarget.style.background = 'rgba(255, 255, 255, 0.06)';
-                                        }
-                                      }}
-                                      onMouseLeave={(e) => {
-                                        if (activeMealTab !== 'Instrucciones') {
-                                          e.currentTarget.style.background = 'rgba(255, 255, 255, 0.04)';
-                                        }
+                                        outline: 'none',
+                                        position: 'relative',
+                                        top: 1
                                       }}
                                     >
                                       Instrucciones
@@ -4372,45 +4331,33 @@ export default function TodayScreen({ activityId, enrollmentId, onBack }: { acti
                                   )}
                                 </div>
 
-                                {/* Tab Content */}
+                                {/* Tab Content - Clean, No Frames */}
                                 <div style={{
-                                  padding: '20px',
-                                  background: 'rgba(255, 255, 255, 0.04)',
-                                  backdropFilter: 'blur(20px)',
-                                  borderRadius: 18,
-                                  border: '1px solid rgba(255, 255, 255, 0.08)',
-                                  boxShadow: '0 4px 24px rgba(0, 0, 0, 0.3)',
+                                  padding: '10px 0',
                                   minHeight: 200
                                 }}>
                                   {activeMealTab === 'Ingredientes' && ingredientesList.length > 0 && (
                                     <div style={{
                                       display: 'flex',
                                       flexDirection: 'column',
-                                      gap: 8
+                                      gap: 12
                                     }}>
                                       {ingredientesList.map((ingrediente, index) => (
                                         <div
                                           key={index}
                                           style={{
                                             display: 'flex',
-                                            alignItems: 'flex-start',
+                                            alignItems: 'baseline',
                                             gap: 10,
-                                            padding: '6px 0'
+                                            padding: '4px 0'
                                           }}
                                         >
-                                          <div style={{
-                                            width: 4,
-                                            height: 4,
-                                            borderRadius: '50%',
-                                            background: '#FF6A1A',
-                                            marginTop: 6,
-                                            flexShrink: 0
-                                          }}></div>
+                                          <ShoppingCart size={14} className="text-[#FF6A1A] flex-shrink-0 relative top-[2px]" />
                                           <span style={{
-                                            color: 'rgba(255, 255, 255, 0.8)',
+                                            color: 'rgba(255, 255, 255, 0.85)',
                                             fontSize: 14,
                                             fontWeight: 400,
-                                            lineHeight: 1.4,
+                                            lineHeight: 1.5,
                                             flex: 1
                                           }}>
                                             {ingrediente}
@@ -4421,16 +4368,54 @@ export default function TodayScreen({ activityId, enrollmentId, onBack }: { acti
                                   )}
 
                                   {activeMealTab === 'Instrucciones' && selectedVideo.receta && (
-                                    <div>
-                                      <p style={{
-                                        color: 'rgba(255, 255, 255, 0.8)',
-                                        fontSize: 14,
-                                        lineHeight: 1.6,
-                                        margin: 0,
-                                        whiteSpace: 'pre-wrap'
-                                      }}>
-                                        {selectedVideo.receta}
-                                      </p>
+                                    <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
+                                      {selectedVideo.receta.split(/(?=\d+\.\s)/).map((part: string, i: number) => {
+                                        const trimmed = part.trim();
+                                        if (!trimmed) return null;
+                                        const match = trimmed.match(/^(\d+)\.\s+([\s\S]*)/);
+
+                                        if (match) {
+                                          return (
+                                            <div key={i} style={{ display: 'flex', gap: 14, alignItems: 'flex-start' }}>
+                                              <div style={{
+                                                flexShrink: 0,
+                                                width: 24,
+                                                height: 24,
+                                                borderRadius: '50%',
+                                                // background: 'rgba(255, 106, 26, 0.15)',
+                                                color: '#FF6A1A',
+                                                display: 'flex',
+                                                alignItems: 'center',
+                                                justifyContent: 'center',
+                                                fontSize: 14, // Slightly bigger
+                                                fontWeight: 800,
+                                                border: '1px solid rgba(255, 106, 26, 0.4)',
+                                                marginTop: 0
+                                              }}>{match[1]}</div>
+                                              <p style={{
+                                                color: 'rgba(255, 255, 255, 0.85)',
+                                                fontSize: 14,
+                                                lineHeight: 1.6,
+                                                margin: 0,
+                                                flex: 1
+                                              }}>{match[2]}</p>
+                                            </div>
+                                          );
+                                        }
+
+                                        // Fallback for non-numbered text
+                                        return (
+                                          <p key={i} style={{
+                                            color: 'rgba(255, 255, 255, 0.85)',
+                                            fontSize: 14,
+                                            lineHeight: 1.6,
+                                            margin: 0,
+                                            whiteSpace: 'pre-wrap'
+                                          }}>
+                                            {trimmed}
+                                          </p>
+                                        );
+                                      })}
                                     </div>
                                   )}
                                 </div>

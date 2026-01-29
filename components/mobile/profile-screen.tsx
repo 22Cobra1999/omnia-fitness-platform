@@ -32,7 +32,8 @@ import {
   Loader2,
   ArrowUp,
   ArrowDown,
-  Edit2
+  Edit2,
+  Phone
 } from "lucide-react"
 import { useProfileManagement } from '@/hooks/client/use-profile-management'
 import { useClientMetrics } from '@/hooks/client/use-client-metrics'
@@ -217,6 +218,16 @@ export function ProfileScreen() {
   const { user } = useAuth()
   const { toast } = useToast()
   const [activityFilter, setActivityFilter] = useState<'fitness' | 'nutricion'>('fitness')
+
+  useEffect(() => {
+    if (managedProfile) {
+      console.log("🔍 [ProfileScreen] managedProfile:", managedProfile)
+      console.log("🔍 [ProfileScreen] Goals:", managedProfile.fitness_goals)
+      console.log("🔍 [ProfileScreen] Sports:", managedProfile.sports)
+      console.log("🔍 [ProfileScreen] Age:", managedProfile.age, "BirthDate:", managedProfile.birth_date)
+    }
+  }, [managedProfile])
+
   const [selectedBiometric, setSelectedBiometric] = useState<any>(null)
   const [bioMode, setBioMode] = useState<'register' | 'edit'>('register')
   const [ringsWeek, setRingsWeek] = useState(new Date())
@@ -766,10 +777,24 @@ export function ProfileScreen() {
                 </div>
                 <div className="flex items-center space-x-1">
                   <span className="text-sm text-gray-300">
-                    {managedProfile?.age || calculateAge(managedProfile?.birth_date) || "N/A"} años
+                    {managedProfile?.age || (managedProfile?.birth_date ? new Date().getFullYear() - new Date(managedProfile.birth_date).getFullYear() : "?")} años
                   </span>
                 </div>
               </div>
+
+              {/* Emergency Contact */}
+              {(managedProfile?.emergency_contact || managedProfile?.phone) && (
+                <div className="flex items-center justify-center space-x-4">
+                  {managedProfile?.emergency_contact && (
+                    <div className="flex items-center space-x-1 text-red-400/80">
+                      <AlertTriangle className="h-3 w-3" />
+                      <span className="text-xs">{managedProfile.emergency_contact}</span>
+                    </div>
+                  )}
+                  {/* Phone (optional backup if no emergency contact, or show both) */}
+                  {/* Actually let's just show Emergency Contact if available, as requested */}
+                </div>
+              )}
 
               {/* Peso y altura para clientes */}
               <div className="flex items-center justify-center space-x-4">
@@ -787,7 +812,7 @@ export function ProfileScreen() {
               <div className="w-full flex flex-col gap-2 items-center mt-2">
 
                 {/* Goals Row */}
-                {managedProfile?.fitness_goals && managedProfile.fitness_goals.length > 0 && (
+                {managedProfile?.fitness_goals && Array.isArray(managedProfile.fitness_goals) && managedProfile.fitness_goals.length > 0 && (
                   <div className="w-full overflow-x-auto scrollbar-hide flex justify-center">
                     <div className="flex items-center gap-2 px-4 whitespace-nowrap">
                       {managedProfile.fitness_goals.map((g: string, i: number) => (

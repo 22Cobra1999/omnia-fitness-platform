@@ -308,7 +308,7 @@ function MobileAppContent() {
           </div>
         </div>
 
-        <div className="flex-1 overflow-auto pt-14 pb-16">{renderScreen()}</div>
+        <div className="flex-1 overflow-y-auto overflow-x-hidden pt-14 pb-16">{renderScreen()}</div>
         <BottomNavigation activeTab={activeTab} setActiveTab={setActiveTab} />
 
         {/* Auth Popup */}

@@ -71,7 +71,7 @@ interface StorageUsageWidgetProps {
 
 export function StorageUsageWidget(props: StorageUsageWidgetProps = {}) {
   const { plan: planProp } = props
-  const { user } = useAuth()
+  const { user, loading: authLoading } = useAuth()
   const [storageData, setStorageData] = useState<StorageUsageData | null>(null)
   const [storageFiles, setStorageFiles] = useState<StorageFile[]>([])
   const [loading, setLoading] = useState(false)
@@ -91,6 +91,8 @@ export function StorageUsageWidget(props: StorageUsageWidgetProps = {}) {
 
   // Obtener el plan desde la API si no se proporciona como prop
   useEffect(() => {
+    if (authLoading || !user) return
+
     if (!planProp) {
       fetch('/api/coach/plan', {
         credentials: 'include'
@@ -116,7 +118,7 @@ export function StorageUsageWidget(props: StorageUsageWidgetProps = {}) {
     } else {
       setCurrentPlan(planProp)
     }
-  }, [planProp])
+  }, [planProp, authLoading, user])
 
   // Obtener límite de almacenamiento según el plan
   const planType = currentPlan || planProp || DEFAULT_PLAN
@@ -231,8 +233,9 @@ export function StorageUsageWidget(props: StorageUsageWidgetProps = {}) {
   }
 
   useEffect(() => {
+    if (authLoading || !user) return
     loadStorageUsage()
-  }, [])
+  }, [authLoading, user])
 
   const formatMB = (gb: number) => {
     const mb = gb * 1024
@@ -569,8 +572,8 @@ export function StorageUsageWidget(props: StorageUsageWidgetProps = {}) {
               <button
                 onClick={() => setViewMode('activity')}
                 className={`flex-1 py-2 px-2 text-xs font-medium transition-colors ${viewMode === 'activity'
-                    ? 'text-[#FF7939] border-b-2 border-[#FF7939]'
-                    : 'text-gray-400 hover:text-gray-300'
+                  ? 'text-[#FF7939] border-b-2 border-[#FF7939]'
+                  : 'text-gray-400 hover:text-gray-300'
                   }`}
               >
                 <div className="flex items-center justify-center gap-1">
@@ -581,8 +584,8 @@ export function StorageUsageWidget(props: StorageUsageWidgetProps = {}) {
               <button
                 onClick={() => setViewMode('usage')}
                 className={`flex-1 py-2 px-2 text-xs font-medium transition-colors ${viewMode === 'usage'
-                    ? 'text-[#FF7939] border-b-2 border-[#FF7939]'
-                    : 'text-gray-400 hover:text-gray-300'
+                  ? 'text-[#FF7939] border-b-2 border-[#FF7939]'
+                  : 'text-gray-400 hover:text-gray-300'
                   }`}
               >
                 <div className="flex items-center justify-center gap-1">
@@ -601,8 +604,8 @@ export function StorageUsageWidget(props: StorageUsageWidgetProps = {}) {
                 <button
                   onClick={() => setConceptFilter('image')}
                   className={`p-2 rounded-lg border transition-colors ${conceptFilter === 'image'
-                      ? 'bg-[#FF7939]/20 border-[#FF7939]/40 text-[#FF7939]'
-                      : 'bg-transparent border-gray-800 text-gray-400 hover:text-white hover:border-gray-700'
+                    ? 'bg-[#FF7939]/20 border-[#FF7939]/40 text-[#FF7939]'
+                    : 'bg-transparent border-gray-800 text-gray-400 hover:text-white hover:border-gray-700'
                     }`}
                   title="Filtrar: imágenes"
                 >
@@ -611,8 +614,8 @@ export function StorageUsageWidget(props: StorageUsageWidgetProps = {}) {
                 <button
                   onClick={() => setConceptFilter('video')}
                   className={`p-2 rounded-lg border transition-colors ${conceptFilter === 'video'
-                      ? 'bg-[#FF7939]/20 border-[#FF7939]/40 text-[#FF7939]'
-                      : 'bg-transparent border-gray-800 text-gray-400 hover:text-white hover:border-gray-700'
+                    ? 'bg-[#FF7939]/20 border-[#FF7939]/40 text-[#FF7939]'
+                    : 'bg-transparent border-gray-800 text-gray-400 hover:text-white hover:border-gray-700'
                     }`}
                   title="Filtrar: videos"
                 >
@@ -621,8 +624,8 @@ export function StorageUsageWidget(props: StorageUsageWidgetProps = {}) {
                 <button
                   onClick={() => setConceptFilter('pdf')}
                   className={`p-2 rounded-lg border transition-colors ${conceptFilter === 'pdf'
-                      ? 'bg-[#FF7939]/20 border-[#FF7939]/40 text-[#FF7939]'
-                      : 'bg-transparent border-gray-800 text-gray-400 hover:text-white hover:border-gray-700'
+                    ? 'bg-[#FF7939]/20 border-[#FF7939]/40 text-[#FF7939]'
+                    : 'bg-transparent border-gray-800 text-gray-400 hover:text-white hover:border-gray-700'
                     }`}
                   title="Filtrar: PDFs"
                 >
@@ -631,8 +634,8 @@ export function StorageUsageWidget(props: StorageUsageWidgetProps = {}) {
                 <button
                   onClick={() => setConceptFilter('all')}
                   className={`ml-2 px-2 py-1 rounded-lg border text-[11px] transition-colors ${conceptFilter === 'all'
-                      ? 'bg-gray-800 border-gray-700 text-white'
-                      : 'bg-transparent border-gray-800 text-gray-400 hover:text-white hover:border-gray-700'
+                    ? 'bg-gray-800 border-gray-700 text-white'
+                    : 'bg-transparent border-gray-800 text-gray-400 hover:text-white hover:border-gray-700'
                     }`}
                   title="Quitar filtro"
                   type="button"
