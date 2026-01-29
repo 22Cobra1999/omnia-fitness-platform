@@ -34,9 +34,15 @@ export default function CoachProfileCard({ coach, onClick, size = 'small', varia
     }
 
     const standardBase = 'rounded-[20px] border border-[#2A2A2A] bg-[#0F0F0F]/85 backdrop-blur-[12px]'
-    const sizing = size === 'medium' ? 'w-full h-[95px]' : 'w-[260px] h-[95px]'
-    return `${base} ${standardBase} ${sizing}`
+    // If variant is 'meet', allow auto height to fit all rows
+    const heightClass = variant === 'meet' ? 'w-[260px] h-auto min-h-[95px]' : (size === 'medium' ? 'w-full h-[95px]' : 'w-[260px] h-[95px]')
+    return `${base} ${standardBase} ${heightClass}`
   })()
+
+  // Debug logging
+  if (variant === 'meet') {
+    console.log(`🔍 [CoachProfileCard] ${coach.name} (ID: ${coach.id}) - Variant: meet, Available: ${coach.available_meets}, Valid: ${(Number(coach.available_meets) || 0) > 0}`)
+  }
 
   const ratingValue = typeof coach.rating === 'number' ? coach.rating : 0
   const showRating = ratingValue > 0
@@ -127,20 +133,22 @@ export default function CoachProfileCard({ coach, onClick, size = 'small', varia
               <div className="flex-shrink-0 text-[9px] font-bold text-[#FF7939]/70 uppercase tracking-widest">{specialization.split(',')[0]}</div>
             </div>
 
-            <div className="flex items-center gap-2.5">
+            <div className="flex items-center gap-2.5 min-h-[20px]">
               {variant === 'meet' ? (
                 <div className="flex items-center gap-2">
-                  <div className="relative flex items-center justify-center">
-                    <Video className={`w-3.5 h-3.5 ${(coach.available_meets || 0) > 0 ? 'text-[#FF7939]' : 'text-zinc-600'} opacity-80`} />
-                    {coach.available_meets && coach.available_meets > 0 ? (
-                      <div className="absolute -top-1.5 -right-2 bg-[#FF7939] text-black text-[9px] font-black w-3.5 h-3.5 rounded-full flex items-center justify-center">
-                        {coach.available_meets}
+                  {(Number(coach.available_meets) || 0) > 0 && (
+                    <>
+                      <div className="relative flex items-center justify-center">
+                        <Video className="w-4 h-4 text-[#FF7939]" />
+                        <div className="absolute -top-1.5 -right-2 bg-[#FF7939] text-black text-[9px] font-black w-3.5 h-3.5 rounded-full flex items-center justify-center border border-[#1A1A1A]">
+                          {coach.available_meets}
+                        </div>
                       </div>
-                    ) : null}
-                  </div>
-                  <span className={`text-[10px] font-bold ${(coach.available_meets || 0) > 0 ? 'text-white/30' : 'text-zinc-600'} tracking-wider uppercase`}>
-                    {(coach.available_meets || 0) > 0 ? 'Meets' : 'Sin créditos'}
-                  </span>
+                      <span className="text-[10px] font-bold text-white/60 tracking-wider uppercase">
+                        Meets
+                      </span>
+                    </>
+                  )}
                 </div>
               ) : (
                 <div className="flex items-center gap-3 text-[11px] text-white/40">
@@ -169,36 +177,38 @@ export default function CoachProfileCard({ coach, onClick, size = 'small', varia
           </div>
         </div>
 
-        {/* Statistics Toggler & Section */}
-        <div className="px-3 pb-2">
-          <button
-            onClick={(e) => { e.stopPropagation(); setIsStatsOpen(!isStatsOpen); }}
-            className="w-full flex items-center justify-between py-1 px-2 rounded-lg bg-white/5 hover:bg-white/10 transition-colors"
-          >
-            <span className="text-[10px] font-bold text-white/60 uppercase tracking-wider">Estadísticas</span>
-            {isStatsOpen ? <TrendingUp className="h-3 w-3 text-[#FF7939]" /> : <TrendingUp className="h-3 w-3 text-white/30" />}
-          </button>
+        {/* Statistics Toggler & Section - Hide for 'meet' variant */}
+        {variant !== 'meet' && (
+          <div className="px-3 pb-2">
+            <button
+              onClick={(e) => { e.stopPropagation(); setIsStatsOpen(!isStatsOpen); }}
+              className="w-full flex items-center justify-between py-1 px-2 rounded-lg bg-white/5 hover:bg-white/10 transition-colors"
+            >
+              <span className="text-[10px] font-bold text-white/60 uppercase tracking-wider">Estadísticas</span>
+              {isStatsOpen ? <TrendingUp className="h-3 w-3 text-[#FF7939]" /> : <TrendingUp className="h-3 w-3 text-white/30" />}
+            </button>
 
-          {isStatsOpen && (
-            <div className="mt-2 grid grid-cols-3 gap-2 animate-in fade-in slide-in-from-top-2 duration-200">
-              <div className="flex flex-col items-center p-2 rounded-xl bg-black/40 border border-white/5">
-                <Clock className="h-3 w-3 text-[#FF7939] mb-1" />
-                <span className="text-[10px] font-bold text-white">1hr</span>
-                <span className="text-[8px] text-zinc-500">Resp.</span>
+            {isStatsOpen && (
+              <div className="mt-2 grid grid-cols-3 gap-2 animate-in fade-in slide-in-from-top-2 duration-200">
+                <div className="flex flex-col items-center p-2 rounded-xl bg-black/40 border border-white/5">
+                  <Clock className="h-3 w-3 text-[#FF7939] mb-1" />
+                  <span className="text-[10px] font-bold text-white">1hr</span>
+                  <span className="text-[8px] text-zinc-500">Resp.</span>
+                </div>
+                <div className="flex flex-col items-center p-2 rounded-xl bg-black/40 border border-white/5">
+                  <User className="h-3 w-3 text-[#FF7939] mb-1" />
+                  <span className="text-[10px] font-bold text-white">98%</span>
+                  <span className="text-[8px] text-zinc-500">Retención</span>
+                </div>
+                <div className="flex flex-col items-center p-2 rounded-xl bg-black/40 border border-white/5">
+                  <Star className="h-3 w-3 text-[#FF7939] mb-1" />
+                  <span className="text-[10px] font-bold text-white">4.9</span>
+                  <span className="text-[8px] text-zinc-500">Calif.</span>
+                </div>
               </div>
-              <div className="flex flex-col items-center p-2 rounded-xl bg-black/40 border border-white/5">
-                <User className="h-3 w-3 text-[#FF7939] mb-1" />
-                <span className="text-[10px] font-bold text-white">98%</span>
-                <span className="text-[8px] text-zinc-500">Retención</span>
-              </div>
-              <div className="flex flex-col items-center p-2 rounded-xl bg-black/40 border border-white/5">
-                <Star className="h-3 w-3 text-[#FF7939] mb-1" />
-                <span className="text-[10px] font-bold text-white">4.9</span>
-                <span className="text-[8px] text-zinc-500">Calif.</span>
-              </div>
-            </div>
-          )}
-        </div>
+            )}
+          </div>
+        )}
       </div>
     </div>
   )

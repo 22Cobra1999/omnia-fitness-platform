@@ -2,7 +2,7 @@
 
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { Button } from '@/components/ui/button'
-import { X, Clock, Calendar, Users, Globe, MapPin, Star, ShoppingCart, Edit, ChevronRight, Trash2, Zap, UtensilsCrossed, Flame, Video } from 'lucide-react'
+import { X, Clock, Calendar, Users, Globe, MapPin, Star, ShoppingCart, Edit, ChevronRight, Trash2, Zap, UtensilsCrossed, Flame, Video, Dumbbell } from 'lucide-react'
 import { toast } from 'sonner'
 import { Switch } from '@/components/ui/switch'
 import { motion, AnimatePresence } from 'framer-motion'
@@ -1445,18 +1445,15 @@ export default function ClientProductModal({
                       </div>
                     </div>
 
-                    {product.type !== 'workshop' && includedMeetCredits > 0 ? (
-                      <div className="flex flex-col items-center gap-1 text-center">
-                        <div className="flex items-center gap-2">
-                          <Video className="h-5 w-5 text-rose-100/90" />
-                          <span className="text-gray-300">
-                            {includedMeetCredits} <span className="text-xs">meets</span>
-                          </span>
-                        </div>
+                    <div className="flex flex-col items-center gap-1 text-center">
+                      <div className="flex items-center gap-2">
+                        <Dumbbell className="h-5 w-5 text-[#FF7939]" />
+                        <span className="text-white/60 font-medium">Ejercicios</span>
                       </div>
-                    ) : (
-                      <div />
-                    )}
+                      <div className="text-white font-semibold">
+                        {exercisesCount || (product.items_unicos || 0)}
+                      </div>
+                    </div>
 
                     <div className="flex flex-col items-center gap-1 text-center w-full min-w-0">
                       <div className="flex items-center justify-center gap-2 w-full min-w-0">
@@ -1508,6 +1505,20 @@ export default function ClientProductModal({
                         })()}
                       </div>
                     </div>
+
+                    {/* Fila 3: Meets (centrado) */}
+                    {product.type !== 'workshop' && includedMeetCredits > 0 && (
+                      <div className="col-span-3 flex justify-center mt-2">
+                        <div className="flex flex-col items-center gap-1 text-center">
+                          <div className="flex items-center gap-2">
+                            <Video className="h-5 w-5 text-rose-100/90" />
+                            <span className="text-gray-300">
+                              {includedMeetCredits} <span className="text-xs">meets</span>
+                            </span>
+                          </div>
+                        </div>
+                      </div>
+                    )}
 
                     {/* Botón Upgrade de Plan - Solo si hay excesos, debajo de todas las variables */}
                     {(exceedsActivities || exceedsWeeks || exceedsStock) && (

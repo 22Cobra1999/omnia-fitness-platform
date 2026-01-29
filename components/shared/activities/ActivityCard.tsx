@@ -401,10 +401,9 @@ const ActivityCard: React.FC<ActivityCardProps> = ({
             ) : <div className="h-6"></div>}
           </div>
 
-          {/* Price removed as per user request */}
-          {/* <div className="border-t border-gray-700 text-center mt-auto pt-2">
+          <div className="border-t border-gray-700 text-center mt-auto pt-2">
             <span className="text-orange-300 font-bold text-xl">{formatPrice(activity.price)}</span>
-          </div> */}
+          </div>
         </div>
 
         {isWorkshopInactive && (
