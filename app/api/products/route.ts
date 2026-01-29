@@ -1045,62 +1045,56 @@ export async function POST(request: NextRequest) {
       }
     }
 
-    // ✅ SINCRONIZAR A CALENDAR_EVENTS
-    try {
-      await syncWorkshopToCalendar(body.editingProductId, user.id)
-    } catch (syncError) {
-      console.error('⚠️ [API/Products] Error sincronizando taller al calendario:', syncError)
-    }
-  }
+
 
     // ✅ MANEJAR TEMAS Y PDFs DE DOCUMENTOS (NUEVO)
     if (body.modality === 'document' && body.documentMaterial) {
-    const material = body.documentMaterial
-    const topics = material.topics || []
-    const topicPdfs = material.topicPdfs || {}
+      const material = body.documentMaterial
+      const topics = material.topics || []
+      const topicPdfs = material.topicPdfs || {}
 
-    // 1. Guardar PDF general si existe
-    if (material.pdfType === 'general' && material.pdfUrl) {
-      await supabase
-        .from('activity_media')
-        .insert({
+      // 1. Guardar PDF general si existe
+      if (material.pdfType === 'general' && material.pdfUrl) {
+        await supabase
+          .from('activity_media')
+          .insert({
+            activity_id: newActivity.id,
+            pdf_url: material.pdfUrl
+          })
+      }
+
+      // 2. Guardar cada tema en document_topics
+      for (const topic of topics) {
+        if (!topic.title) continue
+
+        const topicInsert = {
           activity_id: newActivity.id,
-          pdf_url: material.pdfUrl
-        })
-    }
+          title: topic.title,
+          description: topic.description || '',
+          pdf_url: topicPdfs[topic.id]?.url || null,
+          pdf_filename: topicPdfs[topic.id]?.fileName || null
+        }
 
-    // 2. Guardar cada tema en document_topics
-    for (const topic of topics) {
-      if (!topic.title) continue
+        const { error: topicError } = await supabase
+          .from('document_topics')
+          .insert(topicInsert)
 
-      const topicInsert = {
-        activity_id: newActivity.id,
-        title: topic.title,
-        description: topic.description || '',
-        pdf_url: topicPdfs[topic.id]?.url || null,
-        pdf_filename: topicPdfs[topic.id]?.fileName || null
-      }
-
-      const { error: topicError } = await supabase
-        .from('document_topics')
-        .insert(topicInsert)
-
-      if (topicError) {
-        console.error(`❌ Error insertando tema de documento "${topic.title}":`, topicError)
+        if (topicError) {
+          console.error(`❌ Error insertando tema de documento "${topic.title}":`, topicError)
+        }
       }
     }
+
+    // Devolver formato esperado por el modal
+    return NextResponse.json({
+      success: true,
+      productId: newActivity.id,
+      product: newActivity
+    })
+
+  } catch (error) {
+    return NextResponse.json({ error: 'Error interno del servidor' }, { status: 500 })
   }
-
-  // Devolver formato esperado por el modal
-  return NextResponse.json({
-    success: true,
-    productId: newActivity.id,
-    product: newActivity
-  })
-
-} catch (error) {
-  return NextResponse.json({ error: 'Error interno del servidor' }, { status: 500 })
-}
 }
 
 export async function PUT(request: NextRequest) {
