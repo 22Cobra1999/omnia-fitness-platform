@@ -1,7 +1,7 @@
 "use client"
 
 import { useState, useEffect, useRef } from "react"
-import { ChevronLeft, ChevronRight, Calendar, Clock, Flame, Edit, RotateCcw, ChevronDown, Check, X, Trash2, Save, List } from "lucide-react"
+import { ChevronLeft, ChevronRight, Calendar, Clock, Flame, Edit, RotateCcw, ChevronDown, Check, X, Trash2, Save, List, Video } from "lucide-react"
 import { Switch } from '@/components/ui/switch'
 import { useRouter } from 'next/navigation'
 import { createClient } from '@/lib/supabase/supabase-client'
@@ -124,8 +124,7 @@ export function ClientCalendar({ clientId, onLastWorkoutUpdate, onDaySelected, e
   const [showIngredientsModal, setShowIngredientsModal] = useState(false)
   const [editingIngredientsList, setEditingIngredientsList] = useState<any[]>([])
   const [editingNutritionExercise, setEditingNutritionExercise] = useState<ExerciseExecution | null>(null)
-
-
+  const [monthlyProgress, setMonthlyProgress] = useState<any[]>([])
 
   // Cascade Modal State
   const [cascadeModal, setCascadeModal] = useState<{
@@ -167,6 +166,14 @@ export function ClientCalendar({ clientId, onLastWorkoutUpdate, onDaySelected, e
       mounted = false
     }
   }, [supabase])
+
+  useEffect(() => {
+    if (selectedDate && dayDetailRef.current) {
+      setTimeout(() => {
+        dayDetailRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' })
+      }, 100)
+    }
+  }, [selectedDate, dayDetailRef])
 
   const loadEventDetails = async (eventId: string) => {
     if (!eventId || eventDetailsByKey[eventId]) return
@@ -229,6 +236,33 @@ export function ClientCalendar({ clientId, onLastWorkoutUpdate, onDaySelected, e
         console.warn('⚠️ [CLIENT CALENDAR] Error cargando view client_day_activity_summary_v:', summaryErr)
       }
 
+      // NEW: Fetch Progress for Stats & Coloring
+      let progressForCoach: any[] = []
+
+      if (currentCoachId) {
+        // Get Coach's Activities
+        const { data: coachActivities } = await supabase
+          .from('activities')
+          .select('id')
+          .eq('coach_id', currentCoachId)
+
+        const coachActivityIds = coachActivities?.map(a => a.id) || []
+
+        if (coachActivityIds.length > 0) {
+          // Get Progress
+          const { data: progressData } = await supabase
+            .from('progreso_diario_actividad')
+            .select('*')
+            .eq('cliente_id', clientId)
+            .gte('fecha', monthStartStr)
+            .lte('fecha', monthEndStr)
+            .in('actividad_id', coachActivityIds)
+
+          progressForCoach = progressData || []
+        }
+      }
+      setMonthlyProgress(progressForCoach)
+
       const rows = (Array.isArray(summaryRows) ? summaryRows : []) as ClientDaySummaryRow[]
       const byDate: Record<string, ClientDaySummaryRow[]> = {}
       const processed: { [key: string]: DayData } = {}
@@ -267,10 +301,18 @@ export function ClientCalendar({ clientId, onLastWorkoutUpdate, onDaySelected, e
       console.warn('⚠️ [CLIENT CALENDAR] Error general cargando resumen del calendario:', e)
       setSummaryRowsByDate({})
       setDayData({})
+      setMonthlyProgress([])
     } finally {
       setLoading(false)
     }
   }
+
+  useEffect(() => {
+    if (clientId) {
+      fetchClientCalendarSummary()
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [clientId, currentDate, currentCoachId]) // Re-fetch when Coach ID resolves to ensure progress data/colors are correct
 
   const loadDayActivityDetails = async (dayStr: string, activityId: number) => {
     const cacheKey = `${dayStr}::${String(activityId)}`
@@ -442,6 +484,30 @@ export function ClientCalendar({ clientId, onLastWorkoutUpdate, onDaySelected, e
           recetasData = null
         }
 
+        let completadosNutri: string[] = []
+        try {
+          const raw = typeof (nutriRecord as any).ejercicios_completados === 'string'
+            ? JSON.parse((nutriRecord as any).ejercicios_completados || '[]')
+            : (nutriRecord as any).ejercicios_completados
+
+          if (Array.isArray(raw)) {
+            completadosNutri = raw.map(String)
+          } else if (raw && typeof raw === 'object') {
+            // Handle complex structure with "ejercicios" key
+            if (raw.ejercicios && typeof raw.ejercicios === 'object') {
+              const innerValues = Object.values(raw.ejercicios)
+              completadosNutri = innerValues.map((v: any) => {
+                return String(v?.id || v?.ejercicio_id || '')
+              }).filter(Boolean)
+            } else {
+              // Fallback to keys (simple map where keys are IDs)
+              completadosNutri = Object.keys(raw).map(k => String(k).split('_')[0])
+            }
+          }
+        } catch {
+          completadosNutri = []
+        }
+
         const keys = macrosData && typeof macrosData === 'object' ? Object.keys(macrosData) : []
 
         for (const key of keys) {
@@ -450,6 +516,7 @@ export function ClientCalendar({ clientId, onLastWorkoutUpdate, onDaySelected, e
           const nombre = ingredientesData?.[key]?.nombre
           const minutos = macrosData?.[key]?.minutos
           const kcal = macrosData?.[key]?.calorias
+          const isCompleted = completadosNutri.includes(baseId)
 
           // Fallback to defaults or empty if null
           const ingVal = ingredientesData?.[key]
@@ -457,7 +524,7 @@ export function ClientCalendar({ clientId, onLastWorkoutUpdate, onDaySelected, e
           details.push({
             id: `nut-${String((nutriRecord as any).id)}-${key}`,
             ejercicio_id: baseId,
-            completado: false,
+            completado: isCompleted,
             fecha_ejercicio: dayStr,
             duracion: minutos !== undefined && minutos !== null ? Number(minutos) : undefined,
             calorias_estimadas: kcal !== undefined && kcal !== null ? Number(kcal) : undefined,
@@ -2764,37 +2831,37 @@ export function ClientCalendar({ clientId, onLastWorkoutUpdate, onDaySelected, e
         const currentYear = currentDate.getFullYear()
         const monthStart = new Date(currentYear, currentMonth, 1)
         const monthEnd = new Date(currentYear, currentMonth + 1, 0)
-
+  
         for (const enrollment of enrollments) {
           if (!enrollment.start_date || !enrollment.activity_id) continue
-
+  
           const startDate = new Date(enrollment.start_date)
           const actividadId = enrollment.activity_id
-
+  
           // ✅ Obtener planificación semanal para esta actividad
           const { data: planificacion, error: planError } = await supabase
             .from('planificacion_ejercicios')
             .select('*')
             .eq('actividad_id', actividadId)
             .order('numero_semana', { ascending: true })
-
+  
           if (planError) {
             console.warn(`⚠️ [CLIENT CALENDAR] Error obteniendo planificación para actividad ${actividadId}:`, planError)
             continue
           }
-
+  
           if (!planificacion || planificacion.length === 0) {
             console.log(`ℹ️ [CLIENT CALENDAR] No hay planificación para actividad ${actividadId}`)
             continue
           }
-
+  
           // ✅ Recopilar IDs de la planificación
           planificacion.forEach((semana: any) => {
             const diasSemana = ['lunes', 'martes', 'miercoles', 'jueves', 'viernes', 'sabado', 'domingo']
             diasSemana.forEach((dia: string) => {
               const diaData = semana[dia]
               if (!diaData) return
-
+  
               let ejerciciosDelDia: any[] = []
               try {
                 if (typeof diaData === 'string') {
@@ -2807,24 +2874,24 @@ export function ClientCalendar({ clientId, onLastWorkoutUpdate, onDaySelected, e
               } catch (err) {
                 // Ignorar errores de parsing
               }
-
+  
               ejerciciosDelDia.forEach((ej: any) => {
                 const ejId = String(ej.id || ej.ejercicioId || ej.ejercicio_id)
                 if (ejId) planificacionIds.add(ejId)
               })
             })
           })
-
+  
           // ✅ Obtener períodos para calcular semanas totales
           const { data: periodosData } = await supabase
             .from('periodos')
             .select('cantidad_periodos')
             .eq('actividad_id', actividadId)
             .single()
-
+  
           const cantidadPeriodos = periodosData?.cantidad_periodos || 1
           const maxSemanasPlanificacion = Math.max(...planificacion.map((p: any) => p.numero_semana))
-
+  
           // ✅ Obtener tipo de actividad
           const actividadType = actividadTypes.get(actividadId)
           
@@ -2840,20 +2907,20 @@ export function ClientCalendar({ clientId, onLastWorkoutUpdate, onDaySelected, e
               actividadTypes.set(actividadId, actData.type)
             }
           }
-
+  
           // ✅ Procesar cada día del mes actual
           for (let day = 1; day <= monthEnd.getDate(); day++) {
             const fecha = new Date(currentYear, currentMonth, day)
             const fechaStr = fecha.toISOString().split('T')[0]
-
+  
             // Solo procesar fechas futuras o iguales a start_date
             if (fecha < startDate) continue
-
+  
             // Calcular semana del ciclo
             const diffDays = Math.floor((fecha.getTime() - startDate.getTime()) / (1000 * 60 * 60 * 24))
             const totalWeekNumber = Math.floor(diffDays / 7) + 1
             const weekInCycle = ((totalWeekNumber - 1) % maxSemanasPlanificacion) + 1
-
+  
             // Obtener día de la semana (0 = domingo, 1 = lunes, ..., 6 = sábado)
             const dayOfWeek = fecha.getDay()
             const diasMap: Record<number, string> = {
@@ -2866,11 +2933,11 @@ export function ClientCalendar({ clientId, onLastWorkoutUpdate, onDaySelected, e
               6: 'sabado'
             }
             const diaColumna = diasMap[dayOfWeek]
-
+  
             // ✅ Obtener planificación para esta semana y día
             const semanaPlanificacion = planificacion.find(p => p.numero_semana === weekInCycle)
             if (!semanaPlanificacion || !semanaPlanificacion[diaColumna]) continue
-
+  
             let ejerciciosDelDia: any[] = []
             try {
               const diaData = semanaPlanificacion[diaColumna]
@@ -2886,9 +2953,9 @@ export function ClientCalendar({ clientId, onLastWorkoutUpdate, onDaySelected, e
               console.warn(`⚠️ Error parseando planificación para ${fechaStr}:`, err)
               continue
             }
-
+  
             if (!Array.isArray(ejerciciosDelDia) || ejerciciosDelDia.length === 0) continue
-
+  
             // ✅ Inicializar día si no existe
             if (!processedData[fechaStr]) {
               processedData[fechaStr] = {
@@ -2899,29 +2966,29 @@ export function ClientCalendar({ clientId, onLastWorkoutUpdate, onDaySelected, e
                 activities: []
               }
             }
-
+  
             // ✅ Agregar ejercicios/platos planificados
             ejerciciosDelDia.forEach((ej: any) => {
               const ejId = String(ej.id || ej.ejercicioId || ej.ejercicio_id)
               if (!ejId) return
-
+  
               // Verificar si ya existe en processedData (desde progreso_cliente)
               const existe = processedData[fechaStr].exercises.some(
                 ex => String(ex.ejercicio_id) === ejId
               )
-
+  
               if (!existe) {
                 const nombre = nombresMap.get(ejId)
                 const defaultNombre = actividadType === 'nutricion' || actividadType === 'nutrition_program'
                   ? `Plato ${ejId}`
                   : `Ejercicio ${ejId}`
-
+  
                 // ✅ Obtener enrollment_id y versión para esta actividad
                 const enrollmentForActivity = enrollments.find(e => e.activity_id === actividadId)
                 const enrollmentId = enrollmentForActivity?.id
                 const version = enrollmentId ? enrollmentVersions.get(enrollmentId) : undefined
                 const actividadTitulo = actividadTitulos.get(actividadId)
-
+  
                 const exerciseData: ExerciseExecution = {
                   id: `plan-${actividadId}-${fechaStr}-${ejId}`,
                   ejercicio_id: ejId,
@@ -2937,7 +3004,7 @@ export function ClientCalendar({ clientId, onLastWorkoutUpdate, onDaySelected, e
                   version: version,
                   detalle_series: null
                 }
-
+  
                 processedData[fechaStr].exercises.push(exerciseData)
                 processedData[fechaStr].exerciseCount += 1
               }
@@ -2945,7 +3012,7 @@ export function ClientCalendar({ clientId, onLastWorkoutUpdate, onDaySelected, e
           }
         }
       }
-
+  
       */
 
   // Obtener datos de ejercicios del cliente
@@ -3422,22 +3489,42 @@ export function ClientCalendar({ clientId, onLastWorkoutUpdate, onDaySelected, e
   return (
     <div className="w-full space-y-6">
       {/* Navegación del mes y resumen lado a lado */}
-      <div className="flex items-center gap-4">
-        {/* Navegación del mes - 50% */}
-        <div className="flex-1 flex items-center justify-center gap-2">
+      <div className="flex flex-col gap-3 py-2">
+        {/* 1. Legend (Centered) */}
+
+        {/* 1. Legend (Centered) */}
+        <div className="flex items-center justify-center gap-4">
+          <div className="flex items-center gap-1.5">
+            <div className="w-2.5 h-2.5 rounded bg-[#FF7939]/20 border border-[#FF7939]/30 backdrop-blur-[2px]"></div>
+            <span className="text-[10px] uppercase font-bold text-gray-400">Completado</span>
+          </div>
+          <div className="flex items-center gap-1.5">
+            <div className="w-2.5 h-2.5 rounded bg-red-500/10 border border-red-500/20 backdrop-blur-[2px]"></div>
+            <span className="text-[10px] uppercase font-bold text-gray-400">Ausente</span>
+          </div>
+          <div className="flex items-center gap-1.5">
+            <div className="w-2.5 h-2.5 rounded bg-yellow-500/20 border border-yellow-500/30 backdrop-blur-[2px]"></div>
+            <span className="text-[10px] uppercase font-bold text-gray-400">Pendiente</span>
+          </div>
+        </div>
+
+        {/* 2. Month Navigation (Centered) */}
+        <div className="flex items-center justify-center gap-4">
           <button
             onClick={showMonthPicker ? () => setMonthPickerYear((y) => y - 1) : goToPreviousMonth}
             className="p-1.5 hover:bg-[#FF7939]/20 rounded-lg transition-all duration-200 group"
           >
             <ChevronLeft className="h-4 w-4 text-gray-400 group-hover:text-[#FF7939]" />
           </button>
+
           <button
             type="button"
             onClick={toggleMonthPicker}
-            className="text-sm font-semibold text-white min-w-[120px] text-center hover:bg-[#FF7939]/10 rounded-lg px-2 py-1 transition-colors"
+            className="text-lg font-bold text-white min-w-[140px] text-center hover:bg-[#FF7939]/10 rounded-lg px-2 py-1 transition-colors font-[var(--font-anton)] tracking-wide"
           >
             {showMonthPicker ? monthPickerYear : `${monthNames[currentDate.getMonth()]} ${currentDate.getFullYear()}`}
           </button>
+
           <button
             onClick={showMonthPicker ? () => setMonthPickerYear((y) => y + 1) : goToNextMonth}
             className="p-1.5 hover:bg-[#FF7939]/20 rounded-lg transition-all duration-200 group"
@@ -3446,43 +3533,49 @@ export function ClientCalendar({ clientId, onLastWorkoutUpdate, onDaySelected, e
           </button>
         </div>
 
-        {/* Resumen minimalista - 50% */}
-        <div className="flex-1 flex items-center justify-center gap-3">
-          {Object.keys(dayData).length > 0 ? (
-            <>
-              <div className="text-center">
-                <div className="text-sm font-bold">
-                  <span className="text-white">
-                    {Object.values(dayData).reduce((sum, day) => sum + day.completedCount, 0)}
-                  </span>
-                  <span className="text-[#FF7939]">
-                    /{Object.values(dayData).reduce((sum, day) => sum + day.exerciseCount, 0)}
-                  </span>
-                </div>
-                <div className="text-xs text-gray-500">Ejercicios</div>
-              </div>
-              <div className="text-center">
-                <div className="text-sm font-bold">
-                  <span className="text-white">
-                    {Object.values(dayData).filter(day => day.completedCount === day.exerciseCount && day.exerciseCount > 0).length}
-                  </span>
-                  <span className="text-[#FF7939]">
-                    /{Object.keys(dayData).length}
-                  </span>
-                </div>
-                <div className="text-xs text-gray-500">Días</div>
-              </div>
-            </>
-          ) : (
-            <div className="text-center">
-              <div className="text-xs text-gray-500">Sin ejercicios</div>
+        {/* 3. Stats (Centered) */}
+        <div className="flex items-center justify-center gap-8">
+          {/* Actividades Stats */}
+          <div className="text-center">
+            <div className="text-sm font-bold flex items-baseline justify-center gap-0.5">
+              <span className="text-[#FF7939]">
+                {monthlyProgress.filter(p => (Number(p.items_completados) || 0) >= (Number(p.items_objetivo) || 1)).length}
+              </span>
+              <span className="text-gray-500 text-xs">/</span>
+              <span className="text-white">
+                {monthlyProgress.length}
+              </span>
             </div>
-          )}
+            <div className="text-[9px] uppercase font-bold text-gray-500 tracking-wider">Actividades</div>
+          </div>
+
+          {/* Días Stats */}
+          <div className="text-center">
+            <div className="text-sm font-bold flex items-baseline justify-center gap-0.5">
+              <span className="text-[#FF7939]">
+                {(() => {
+                  const daysMap: Record<string, any[]> = {}
+                  monthlyProgress.forEach(p => {
+                    if (!daysMap[p.fecha]) daysMap[p.fecha] = []
+                    daysMap[p.fecha].push(p)
+                  })
+                  return Object.values(daysMap).filter(items =>
+                    items.every(p => (Number(p.items_completados) || 0) >= (Number(p.items_objetivo) || 1))
+                  ).length
+                })()}
+              </span>
+              <span className="text-gray-500 text-xs">/</span>
+              <span className="text-white">
+                {new Set(monthlyProgress.map(p => p.fecha)).size}
+              </span>
+            </div>
+            <div className="text-[9px] uppercase font-bold text-gray-500 tracking-wider">Días</div>
+          </div>
         </div>
       </div>
 
       {showMonthPicker && (
-        <div className="w-full">
+        <div className="w-full mb-4">
           <div className="w-full overflow-x-auto">
             <div className="flex gap-2 whitespace-nowrap pb-1">
               {monthNames.map((m, idx) => {
@@ -3506,7 +3599,7 @@ export function ClientCalendar({ clientId, onLastWorkoutUpdate, onDaySelected, e
 
       {/* Calendario sin frame */}
       <div className="w-full">
-        {/* Días de la semana sin fondo */}
+        {/* Días de la semana */}
         <div className="grid grid-cols-7 gap-1 mb-2">
           {dayNames.map(day => (
             <div key={day} className="text-center text-xs font-semibold text-gray-400 py-2">
@@ -3515,20 +3608,88 @@ export function ClientCalendar({ clientId, onLastWorkoutUpdate, onDaySelected, e
           ))}
         </div>
 
-        {/* Días del mes compactos */}
+        {/* Días del mes */}
         <div className="grid grid-cols-7 gap-1">
           {generateCalendarDays().map((date, index) => {
+            const dateStr = date.toISOString().split('T')[0]
             const isCurrentMonth = date.getMonth() === currentDate.getMonth()
             const isToday = date.toDateString() === new Date().toDateString()
             const isSelected = selectedDate && date.toDateString() === selectedDate.toDateString()
             const dayData = getDayData(date)
-            const hasExercises = dayData && dayData.exerciseCount > 0
-            const isCompleted = dayData && dayData.completedCount === dayData.exerciseCount
+            // Just for checking if OTHER exercises exist
+            const hasAnyExercises = dayData && dayData.exerciseCount > 0
+
+            // Logic using summaryRowsByDate (Source of Truth for Assignments)
+            const summaryEvents = summaryRowsByDate[dateStr] || []
+            const ownedEvents = summaryEvents.filter(e => {
+              if (!currentCoachId) return false
+              if (e.calendar_event_id) {
+                const isDirect = String(e.coach_id) === String(currentCoachId)
+                const isClientMatches = e.coach_id && String(e.coach_id) === String(clientId)
+                return isDirect || isClientMatches
+              }
+              return String(e.coach_id) === String(currentCoachId)
+            })
+
+            const hasOwnedMeet = ownedEvents.some(e => !!e.calendar_event_id)
+
+            const hasOwned = ownedEvents.length > 0
+
+            // Check status against monthlyProgress
+            const ownedCompletedCount = ownedEvents.filter(e => {
+              const prog = monthlyProgress.find(p => p.fecha === dateStr && String(p.actividad_id) === String(e.activity_id))
+              if (!prog) return false
+              return (Number(prog.items_completados) || 0) >= (Number(prog.items_objetivo) || 1)
+            }).length
+
+            const ownedStartedCount = ownedEvents.filter(e => {
+              const prog = monthlyProgress.find(p => p.fecha === dateStr && String(p.actividad_id) === String(e.activity_id))
+              return prog && (Number(prog.items_completados) || 0) > 0
+            }).length
+
+            // [MOD] Split Acts vs Meets
+            const ownedActs = ownedEvents.filter(e => !e.calendar_event_id)
+            const ownedMeets = ownedEvents.filter(e => !!e.calendar_event_id)
+            const actsMins = ownedActs.reduce((acc, e) => acc + (Number(e.total_mins) || 0), 0)
+            const meetsMins = ownedMeets.reduce((acc, e) => acc + (Number(e.total_mins) || 0), 0)
+            const hasActs = ownedActs.length > 0
+            const hasMeets = ownedMeets.length > 0
+
+            const isAllOwnedCompleted = hasOwned && ownedCompletedCount === ownedEvents.length
+            const isPast = date < new Date(new Date().setHours(0, 0, 0, 0))
+
+            // Red (Absent): Past AND nothing started.
+            const isAbsent = hasOwned && isPast && ownedStartedCount === 0
+
+            // Yellow (Pending/Partial): (Past AND Started but not all completed) OR (Today/Future).
+            // Actually, if Today/Future and nothing started -> Pending (Yellow).
+            // So default for hasOwned is Yellow, unless Completed (Orange) or Absent (Red).
 
             // Estados de selección para edición de fechas
             const isSelectedForEdit = selectedDayForEdit && date.toDateString() === selectedDayForEdit.toDateString()
             const isTargetForEdit = targetDayForEdit && date.toDateString() === targetDayForEdit.toDateString()
-            const isTargetHasExercises = targetDayForEdit && getDayData(targetDayForEdit) && getDayData(targetDayForEdit)!.exerciseCount > 0
+
+            // Conditional Background Class (Glassmorphism)
+            let bgClass = "bg-transparent/5"
+            if (hasOwned) {
+              if (isAllOwnedCompleted) {
+                bgClass = "bg-[#FF7939]/20 backdrop-blur-[2px] border border-[#FF7939]/30 text-white" // Completed
+              } else if (isAbsent) {
+                bgClass = "bg-red-500/10 backdrop-blur-[2px] border border-red-500/20 text-white" // Absent
+              } else {
+                bgClass = "bg-yellow-500/10 backdrop-blur-[2px] border border-yellow-500/20 text-yellow-100" // Pending / Partial
+              }
+            } else if (hasAnyExercises) {
+              // Not owned but has exercises
+              bgClass = "bg-zinc-900/40 border border-zinc-800 text-gray-500 opacity-70"
+            }
+
+            // Selection Override
+            const selectionClass = isSelected
+              ? "ring-1 ring-white shadow-[0_0_10px_rgba(255,255,255,0.1)] z-10 scale-[1.02] bg-opacity-40"
+              : ""
+
+            const finalClass = `${bgClass} ${selectionClass}`
 
             return (
               <button
@@ -3536,51 +3697,64 @@ export function ClientCalendar({ clientId, onLastWorkoutUpdate, onDaySelected, e
                 onClick={() => handleDayClick(date)}
                 className={`
                   relative p-2 text-sm rounded-lg transition-all duration-300 min-h-[50px] flex flex-col items-center justify-start group
-                  ${!isCurrentMonth ? 'text-gray-600 bg-transparent' : 'text-white'}
-                  ${isSelected && !isSelectedForEdit && !isTargetForEdit ? 'bg-[#FF7939]/20 backdrop-blur-md border border-[#FF7939]/50 text-white shadow-[0_0_15px_rgba(255,121,57,0.3)]' : ''}
-                  ${isSelectedForEdit ? 'bg-[#FF7939]/30 border-2 border-[#FF7939] text-white' : ''}
-                  ${isTargetForEdit ? 'bg-white text-black border-2 border-white' : ''}
-                  ${hasExercises && !isToday && !isSelectedForEdit && !isTargetForEdit ? 'bg-zinc-800/50 hover:bg-zinc-700/70 cursor-pointer border border-zinc-600/30' : ''}
-                  ${!hasExercises && !isToday && !isSelectedForEdit && !isTargetForEdit && isCurrentMonth ? 'hover:bg-zinc-800/30 cursor-pointer' : ''}
+                  ${!isCurrentMonth ? 'opacity-20' : ''}
+                  ${isSelectedForEdit
+                    ? 'bg-[#FF7939]/30 border-2 border-[#FF7939] text-white'
+                    : (isTargetForEdit
+                      ? 'bg-white text-black border-2 border-white'
+                      : finalClass
+                    )
+                  }
                 `}
               >
-                {/* Indicador HOY: círculo naranja con H */}
+                {/* Indicador HOY */}
                 {isToday && (
-                  <div className="absolute top-1 right-1 w-5 h-5 rounded-full bg-[#FF7939] text-white text-[10px] font-bold flex items-center justify-center">
+                  <div className={`absolute top-1 right-1 w-5 h-5 rounded-full text-[10px] font-bold flex items-center justify-center ${isAllOwnedCompleted ? 'bg-white text-[#FF7939]' :
+                    (hasOwned && !isAbsent && !isAllOwnedCompleted) ? 'bg-yellow-500 text-black' : // Pending Today -> Yellow
+                      'bg-[#FF7939] text-white'
+                    }`}>
                     H
                   </div>
                 )}
-
-                {/* Número del día siempre en la misma posición */}
-                <div className={`text-center font-semibold text-sm leading-none pt-1 ${isSelected ? 'text-white' :
-                  isTargetForEdit ? 'text-black' :
-                    isSelectedForEdit ? 'text-white' :
-                      isCurrentMonth ? 'text-white' : 'text-gray-600'
-                  }`}>
+                {/* Número del día */}
+                <div className="text-center font-semibold text-sm leading-none pt-1">
                   {date.getDate()}
                 </div>
 
-                {/* Tiempo total siempre en la misma posición */}
-                <div className="mt-1 h-5 flex items-center justify-center">
-                  {hasExercises ? (
+                {/* Tiempo total */}
+                <div className="mt-1 min-h-[20px] w-full flex flex-col items-center justify-start gap-px">
+                  {/* 1. Activities Pill */}
+                  {hasActs && (
                     <div className={`
-                      text-xs font-bold px-1.5 py-0.5 rounded-full transition-all duration-200 leading-none
-                      ${isTargetForEdit
-                        ? 'bg-black text-white shadow-sm'
-                        : isCompleted
-                          ? 'bg-[#FF7939] text-white shadow-sm'
-                          : 'bg-zinc-700 text-gray-300 group-hover:bg-zinc-600'
+                      text-[9px] font-bold px-1.5 py-0.5 rounded-full transition-all duration-200 leading-none
+                      ${isTargetForEdit ? 'bg-black text-white' :
+                        (isAllOwnedCompleted) ? 'bg-[#FF7939] text-white' :
+                          (isAbsent) ? 'bg-red-500/40 text-white' :
+                            'bg-yellow-500/20 text-yellow-200'
                       }
                     `}>
+                      {formatMinutesCompact(actsMins) || `${ownedActs.length} Act`}
+                    </div>
+                  )}
+
+                  {/* 2. Meets Row */}
+                  {hasMeets && (
+                    <div className="flex items-center gap-0.5 mt-0.5">
+                      <Video className="w-2.5 h-2.5 text-[#FF7939]" />
+                      <span className="text-[9px] font-bold text-[#FF7939] leading-none">{formatMinutesCompact(meetsMins)}</span>
+                    </div>
+                  )}
+
+                  {/* 3. Non-Owned Fallback */}
+                  {!hasOwned && hasAnyExercises && (
+                    <div className="text-[9px] bg-zinc-700/50 text-gray-400 px-1.5 py-0.5 rounded-full">
                       {formatMinutesCompact(dayData.totalMinutes) || dayData.exerciseCount}
                     </div>
-                  ) : (
-                    <div className="h-4"></div>
                   )}
                 </div>
 
                 {/* Indicador de hover */}
-                {hasExercises && (
+                {hasAnyExercises && (
                   <div className="absolute inset-0 rounded-lg border-2 border-transparent group-hover:border-[#FF7939]/30 transition-all duration-200 pointer-events-none"></div>
                 )}
               </button>
@@ -3637,10 +3811,21 @@ export function ClientCalendar({ clientId, onLastWorkoutUpdate, onDaySelected, e
               <h4 className="font-semibold text-sm text-white">{formatDate(selectedDate)}</h4>
             </div>
             <button
-              onClick={() => handleEditDate(selectedDate)}
-              className={`flex items-center gap-1 px-2 py-1 text-sm font-medium rounded-lg transition-colors ${isSelectingNewDate
-                ? 'bg-[#FF7939] text-white'
-                : 'text-[#FF7939] hover:bg-[#FF7939]/10'
+              onClick={() => {
+                const today = new Date()
+                today.setHours(0, 0, 0, 0)
+                if (selectedDate < today) {
+                  // Mensaje de error/alerta
+                  alert('No puedes modificar la fecha de días pasados.')
+                  return
+                }
+                handleEditDate(selectedDate)
+              }}
+              className={`flex items-center gap-1 px-2 py-1 text-sm font-medium rounded-lg transition-colors ${selectedDate < new Date(new Date().setHours(0, 0, 0, 0))
+                ? 'text-gray-500 cursor-not-allowed opacity-50'
+                : isSelectingNewDate
+                  ? 'bg-[#FF7939] text-white'
+                  : 'text-[#FF7939] hover:bg-[#FF7939]/10'
                 }`}
             >
               <RotateCcw className="h-4 w-4" />
@@ -3669,10 +3854,12 @@ export function ClientCalendar({ clientId, onLastWorkoutUpdate, onDaySelected, e
 
             const ownedActivityRows = rows.filter((r) => {
               const isActivityRow = r.activity_id !== null && r.activity_id !== undefined
-              // [MOD] Incluir meets/eventos en "Tus programas" SOLO si coincide el coach
+              // [MOD] Incluir meets/eventos en "Tus programas" SOLO si coincide el coach O si coincide con el cliente (workaround)
               if (r.calendar_event_id) {
-                if (!currentCoachId) return true // Show all if context is ambiguous (or change to false if strict)
-                return r.coach_id && String(r.coach_id) === String(currentCoachId)
+                if (!currentCoachId) return true
+                const isDirectMatch = r.coach_id && String(r.coach_id) === String(currentCoachId)
+                const isClientMatch = r.coach_id && String(r.coach_id) === String(clientId)
+                return isDirectMatch || isClientMatch
               }
 
               if (!isActivityRow) return false
@@ -3685,7 +3872,9 @@ export function ClientCalendar({ clientId, onLastWorkoutUpdate, onDaySelected, e
               // [MOD] Excluir meets de Otras Actividades SI son del coach actual (ya estan en owned)
               if (r.calendar_event_id) {
                 if (!currentCoachId) return false
-                return !(r.coach_id && String(r.coach_id) === String(currentCoachId))
+                const isDirectMatch = r.coach_id && String(r.coach_id) === String(currentCoachId)
+                const isClientMatch = r.coach_id && String(r.coach_id) === String(clientId)
+                return !(isDirectMatch || isClientMatch)
               }
 
               if (!isActivityRow) return true // calendar event (meet/other) without owning logic match
@@ -3697,7 +3886,23 @@ export function ClientCalendar({ clientId, onLastWorkoutUpdate, onDaySelected, e
 
             const renderSummaryRow = (row: ClientDaySummaryRow, allowExpand: boolean) => {
               const minutes = Number(row.total_mins ?? 0) || 0
-              const title = row.activity_title || (row.activity_id ? `Actividad ${row.activity_id}` : 'Evento')
+
+              const isDirectOwner = currentCoachId && row.coach_id && String(row.coach_id) === String(currentCoachId)
+              const isClientOwner = row.coach_id && String(row.coach_id) === String(clientId)
+              // Consider 'Owned' if direct match OR if it's a Meet with ClientID (workaround for data issue)
+              const isOwned = isDirectOwner || (!!row.calendar_event_id && isClientOwner)
+
+              const isMeet = !!row.calendar_event_id
+
+              let displayTitle = row.activity_title || (row.activity_id ? `Actividad ${row.activity_id}` : 'Evento')
+              let extraLabel: string | null = null
+
+              if (!isOwned) {
+                displayTitle = isMeet ? "Otro" : "Actividad"
+              } else if (isMeet) {
+                extraLabel = "Con vos"
+              }
+              const title = displayTitle
 
               const activityId = row.activity_id !== null && row.activity_id !== undefined ? Number(row.activity_id) : null
               const eventId = row.calendar_event_id
@@ -3729,8 +3934,12 @@ export function ClientCalendar({ clientId, onLastWorkoutUpdate, onDaySelected, e
                       {/* Línea vertical naranja */}
                       <div className={`w-1 h-8 rounded-full transition-colors ${expanded ? 'bg-[#FF7939]' : 'bg-zinc-700 group-hover:bg-[#FF7939]/50'}`}></div>
 
-                      <div className="text-sm font-semibold text-gray-200 text-left">
-                        {title}
+                      <div className="text-sm font-semibold text-gray-200 text-left flex flex-col">
+                        <div className="flex items-center gap-1.5">
+                          {isMeet && <Video className={`h-3.5 w-3.5 ${isOwned ? 'text-[#FF7939]' : 'text-zinc-500'}`} />}
+                          <span>{title}</span>
+                        </div>
+                        {extraLabel && <span className="text-[10px] text-[#FF7939] leading-none">{extraLabel}</span>}
                       </div>
 
                       {/* Flecha naranja simple */}
@@ -3803,7 +4012,10 @@ export function ClientCalendar({ clientId, onLastWorkoutUpdate, onDaySelected, e
                                   className="w-full flex items-start gap-3 py-3 border-b border-zinc-700/30 last:border-b-0 group"
                                 >
                                   <div className="flex items-center justify-center w-10 pt-1 shrink-0">
-                                    <Flame className={`h-5 w-5 ${isCompleted ? 'text-[#FF7939]' : 'text-gray-600'}`} />
+                                    <Flame
+                                      className={`h-5 w-5 ${isCompleted ? 'text-[#FF7939]' : 'text-gray-600'}`}
+                                      fill={isCompleted ? "#FF7939" : "transparent"}
+                                    />
                                   </div>
 
                                   <div className="flex-1 min-w-0">

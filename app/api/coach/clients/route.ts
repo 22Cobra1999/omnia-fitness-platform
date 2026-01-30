@@ -350,10 +350,10 @@ export async function GET(request: NextRequest) {
       // Lógica Híbrida:
       // Si hay DÍAS (Fitness/Nutri/Workshop), el % se basa en días.
       // Si NO hay días (Solo Docs), el % se basa en Items.
-      if (diasTotales > 0) {
-        progressPercent = Math.round((diasCompletados / diasTotales) * 100)
-      } else if (itemsTotalesObjetivo > 0) {
+      if (itemsTotalesObjetivo > 0) {
         progressPercent = Math.round((itemsCompletados / itemsTotalesObjetivo) * 100)
+      } else if (diasTotales > 0) {
+        progressPercent = Math.round((diasCompletados / diasTotales) * 100)
       }
 
       const result = {
@@ -422,6 +422,20 @@ export async function GET(request: NextRequest) {
       clientData.enrollments.push(enrollment)
     }
 
+    // Fetch real pending tasks counts from coach_client_pendings
+    const { data: allPendingTasks } = await supabase
+      .from('coach_client_pendings')
+      .select('client_id')
+      .eq('coach_id', user.id)
+
+    const pendingTasksCountByClient = new Map<string, number>()
+    if (allPendingTasks) {
+      allPendingTasks.forEach((p: any) => {
+        const cid = String(p.client_id)
+        pendingTasksCountByClient.set(cid, (pendingTasksCountByClient.get(cid) || 0) + 1)
+      })
+    }
+
     // Fallback básico si por algún motivo el procesamiento avanzado falla
     const basicClients = await Promise.all(Array.from(clientsMap.values()).map(async (client: any) => {
       const statuses = new Set<string>((client.enrollments || []).map((e: any) => String(e?.status || '').toLowerCase()))
@@ -434,21 +448,8 @@ export async function GET(request: NextRequest) {
         0
       )
 
-      // To Do: total de tasks por enrollment.todo_list
-      const todoCount = (client.enrollments || []).reduce((sum: number, enrollment: any) => {
-        const raw = enrollment?.todo_list
-        if (!raw) return sum
-        if (Array.isArray(raw)) return sum + raw.length
-        if (typeof raw === 'string') {
-          try {
-            const parsed = JSON.parse(raw)
-            return sum + (Array.isArray(parsed) ? parsed.length : 0)
-          } catch {
-            return sum
-          }
-        }
-        return sum
-      }, 0)
+      // To Do: Usar conteo real de coach_client_pendings
+      const todoCount = pendingTasksCountByClient.get(String(client.id)) || 0
 
       // Ingresos reales (solo compras de actividades del coach)
       const totalRevenue = (client.enrollments || []).reduce((sum: number, enrollment: any) => {

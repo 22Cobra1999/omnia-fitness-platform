@@ -1,6 +1,4 @@
-"use client"
-
-import { useState, useEffect } from 'react'
+import { useState, useEffect, forwardRef, useImperativeHandle } from 'react'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Edit, Check, X, Minus, Save, Weight, Clock } from 'lucide-react'
@@ -17,13 +15,39 @@ interface Exercise {
 
 interface ExerciseProgressListProps {
   userId?: string
+  isEditing?: boolean
 }
 
-export function ExerciseProgressList({ userId }: ExerciseProgressListProps) {
+export interface ExerciseProgressListRef {
+  saveChanges: () => Promise<void>
+  cancelEditing: () => void
+}
+
+export const ExerciseProgressList = forwardRef<ExerciseProgressListRef, ExerciseProgressListProps>(({ userId, isEditing: externalIsEditing }, ref) => {
   const [exercises, setExercises] = useState<Exercise[]>([])
   const [loading, setLoading] = useState(false)
-  const [isEditing, setIsEditing] = useState(false)
+  const [internalIsEditing, setInternalIsEditing] = useState(false)
   const [editData, setEditData] = useState<{ [key: string]: { title: string, current: string, objective: string } }>({})
+
+  const isEditing = externalIsEditing !== undefined ? externalIsEditing : internalIsEditing
+
+  useImperativeHandle(ref, () => ({
+    saveChanges: async () => {
+      await saveChanges()
+    },
+    cancelEditing: () => {
+      cancelEditing()
+    }
+  }))
+
+  useEffect(() => {
+    if (externalIsEditing === true && !internalIsEditing) {
+      startEditing() // Initialize edit data
+      setInternalIsEditing(true)
+    } else if (externalIsEditing === false && internalIsEditing) {
+      cancelEditing()
+    }
+  }, [externalIsEditing])
 
   useEffect(() => {
     if (userId) {
@@ -110,7 +134,8 @@ export function ExerciseProgressList({ userId }: ExerciseProgressListProps) {
     })
 
     setEditData(newEditData)
-    setIsEditing(true)
+    // Only set internal state if not controlled or if sync needed
+    setInternalIsEditing(true)
   }
 
   const saveChanges = async () => {
@@ -195,7 +220,7 @@ export function ExerciseProgressList({ userId }: ExerciseProgressListProps) {
       }
 
       await fetchExercises()
-      setIsEditing(false)
+      setInternalIsEditing(false)
     } catch (error) {
       console.error('Error saving changes:', error)
     } finally {
@@ -204,7 +229,7 @@ export function ExerciseProgressList({ userId }: ExerciseProgressListProps) {
   }
 
   const cancelEditing = () => {
-    setIsEditing(false)
+    setInternalIsEditing(false)
     setEditData({})
   }
 
@@ -241,8 +266,6 @@ export function ExerciseProgressList({ userId }: ExerciseProgressListProps) {
     }))
   }
 
-
-
   if (loading && exercises.length === 0) {
     return (
       <div className="text-center py-4 text-gray-400">
@@ -253,7 +276,7 @@ export function ExerciseProgressList({ userId }: ExerciseProgressListProps) {
 
   return (
     <div className="flex flex-col gap-2">
-      {!isEditing && userId && (
+      {!isEditing && userId && externalIsEditing === undefined && (
         <div className="flex justify-end px-2">
           <Button
             variant="ghost"
@@ -267,7 +290,7 @@ export function ExerciseProgressList({ userId }: ExerciseProgressListProps) {
         </div>
       )}
 
-      {isEditing && (
+      {isEditing && externalIsEditing === undefined && (
         <div className="flex justify-end gap-2 px-2">
           <Button
             variant="ghost"
@@ -371,4 +394,4 @@ export function ExerciseProgressList({ userId }: ExerciseProgressListProps) {
       </div>
     </div>
   )
-}
+})

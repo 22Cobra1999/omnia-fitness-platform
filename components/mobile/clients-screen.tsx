@@ -72,9 +72,10 @@ export function ClientsScreen() {
   // Coach editing states
   const [isEditingBio, setIsEditingBio] = useState(false)
   const [isEditingObjectives, setIsEditingObjectives] = useState(false)
+  const [savingObjectives, setSavingObjectives] = useState(false)
+  const objectivesListRef = useRef<any>(null)
   const [tempBioData, setTempBioData] = useState<any>({ weight: '', height: '', biometrics: [] })
   const [savingBio, setSavingBio] = useState(false)
-  const [savingObjectives, setSavingObjectives] = useState(false)
   const [showTodoInput, setShowTodoInput] = useState(false)
   const [hiddenActivities, setHiddenActivities] = useState<Set<number>>(new Set())
   const [activitySubTab, setActivitySubTab] = useState<'en-curso' | 'por-empezar' | 'finalizadas'>('en-curso')
@@ -420,7 +421,7 @@ export function ClientsScreen() {
       </div>
 
       {/* Client list - Redesigned as a vertical grid (Aligned Left) */}
-      <div className="grid grid-cols-2 gap-3 w-full">
+      <div className="grid grid-cols-3 gap-3 w-full">
         {filteredClients.length === 0 ? (
           <div className="text-center py-12">
             <Users className="h-12 w-12 text-gray-500 mx-auto mb-4" />
@@ -548,8 +549,11 @@ export function ClientsScreen() {
                   title="Notificaciones / To Do"
                 >
                   <Bell className="h-4 w-4 text-[#FF7939] group-hover:text-white transition-colors" />
-                  {clientDetail?.client?.todoCount && clientDetail.client.todoCount > 0 ? (
-                    <div className="absolute top-0.5 right-0.5 h-2 w-2 bg-[#FF7939] rounded-full border border-black">
+                  {selectedClient?.todoCount && selectedClient.todoCount > 0 ? (
+                    <div className="absolute -top-1 -right-1 h-3.5 w-3.5 bg-[#FF7939] rounded-full border border-black flex items-center justify-center">
+                      <span className="text-[9px] font-bold text-black leading-none">
+                        {selectedClient.todoCount > 9 ? '9+' : selectedClient.todoCount}
+                      </span>
                     </div>
                   ) : null}
                 </button>
@@ -752,13 +756,19 @@ export function ClientsScreen() {
                 </div>
 
                 {/* --- TABS HEADER --- */}
-                <div className="bg-transparent px-4 pt-2 sticky top-0 z-20">
+                <div className="bg-transparent px-4 pt-2">
                   <div className="flex relative border-b border-zinc-800 pb-0">
                     {/* Tab: Estilo Base */}
                     {['calendar', 'activities', 'info'].map((tab) => (
                       <button
                         key={tab}
-                        onClick={() => setActiveModalTab(tab as any)}
+                        onClick={() => {
+                          setActiveModalTab(tab as any)
+                          if (calendarScrollRef.current) {
+                            // Scroll to hide profile header (approx 380px)
+                            calendarScrollRef.current.scrollTo({ top: 450, behavior: 'smooth' })
+                          }
+                        }}
                         className={`flex-1 pb-3 text-sm font-medium transition-colors relative ${activeModalTab === tab ? 'text-white' : 'text-zinc-500 hover:text-zinc-300'}`}
                       >
                         {tab === 'calendar' && 'Calendario'}
@@ -983,11 +993,49 @@ export function ClientsScreen() {
                               <Target className="h-4 w-4 text-[#FF6A00]" />
                               <h2 className="text-sm font-semibold text-gray-200">Objetivos</h2>
                             </div>
+                            {isEditingObjectives ? (
+                              <div className="flex items-center gap-2">
+                                <button
+                                  disabled={savingObjectives}
+                                  onClick={() => {
+                                    setIsEditingObjectives(false)
+                                    objectivesListRef.current?.cancelEditing()
+                                  }}
+                                  className="p-1 px-2 rounded-lg bg-zinc-800 text-[10px] font-bold text-gray-400 hover:text-white"
+                                >
+                                  Cancelar
+                                </button>
+                                <button
+                                  disabled={savingObjectives}
+                                  onClick={async () => {
+                                    setSavingObjectives(true)
+                                    await objectivesListRef.current?.saveChanges()
+                                    setSavingObjectives(false)
+                                    setIsEditingObjectives(false)
+                                  }}
+                                  className="p-1 px-2 rounded-lg bg-orange-500/20 text-[10px] font-bold text-orange-400 hover:bg-orange-500/30 flex items-center gap-1"
+                                >
+                                  {savingObjectives ? '...' : (
+                                    <>
+                                      <Check className="h-3 w-3" />
+                                      Guardar
+                                    </>
+                                  )}
+                                </button>
+                              </div>
+                            ) : (
+                              <button
+                                onClick={() => setIsEditingObjectives(true)}
+                                className="p-1 rounded-full hover:bg-white/5 text-gray-400 transition-colors"
+                              >
+                                <Edit2 className="h-3.5 w-3.5" />
+                              </button>
+                            )}
                           </div>
 
                           {/* Exercise List Horizontal */}
                           <div className="w-full px-2">
-                            <ExerciseProgressList userId={selectedClient.id} />
+                            <ExerciseProgressList ref={objectivesListRef} userId={selectedClient.id} isEditing={isEditingObjectives} />
                           </div>
                         </div>
 

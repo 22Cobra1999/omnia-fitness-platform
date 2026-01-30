@@ -240,7 +240,7 @@ export async function GET(request: NextRequest) {
             const orden = Number(x?.orden)
             const bloque = Number(x?.bloque)
             if (!Number.isFinite(id) || !Number.isFinite(orden) || !Number.isFinite(bloque)) return
-            const key = `${id}_${orden}`
+            const key = `${id}_${bloque}_${orden}`
             map[key] = { ejercicio_id: id, orden, bloque }
           })
         return map
@@ -255,7 +255,7 @@ export async function GET(request: NextRequest) {
           const bloque = Number(x?.bloque)
           // Permitir id=0 si es válido en tu lógica, si no cambiar filtro
           if (!Number.isFinite(id) || !Number.isFinite(orden) || !Number.isFinite(bloque)) return
-          const key = `${id}_${orden}`
+          const key = `${id}_${bloque}_${orden}`
           map[key] = { ejercicio_id: id, orden, bloque }
         })
         return map
@@ -265,11 +265,15 @@ export async function GET(request: NextRequest) {
         const map: Record<string, { ejercicio_id: number; orden: number; bloque: number }> = {}
         raw.forEach((k: any) => {
           const key = String(k)
-          const [idStr, ordenStr] = key.split('_')
-          const id = Number(idStr)
-          const orden = Number(ordenStr)
-          if (!Number.isFinite(id) || !Number.isFinite(orden)) return
-          map[key] = { ejercicio_id: id, orden, bloque: 1 }
+          const parts = key.split('_')
+          if (parts.length >= 2) {
+            const id = Number(parts[0])
+            const bloque = parts.length >= 3 ? Number(parts[1]) : 1
+            const orden = parts.length >= 3 ? Number(parts[2]) : Number(parts[1])
+            if (Number.isFinite(id) && Number.isFinite(bloque) && Number.isFinite(orden)) {
+              map[key] = { ejercicio_id: id, orden, bloque }
+            }
+          }
         })
         return map
       }
@@ -277,22 +281,26 @@ export async function GET(request: NextRequest) {
       if (raw && typeof raw === 'object') {
         const map: Record<string, { ejercicio_id: number; orden: number; bloque: number }> = {}
         Object.keys(raw).forEach((key) => {
-          // Ignorar keys que no sean parte de la estructura de mapa plano si estamos en fallback
           if (key === 'blockCount' || key === 'blockNames' || key === 'ejercicios') return
 
           const v = (raw as any)[key]
           if (v && typeof v === 'object') {
-            const ejercicio_id = Number(v?.ejercicio_id ?? v?.id)
-            const orden = Number(v?.orden ?? key.split('_')[1])
-            const bloque = Number(v?.bloque ?? 1)
+            const ejercicio_id = Number(v?.ejercicio_id ?? v?.id ?? key.split('_')[0])
+            const parts = key.split('_')
+            const bloque = Number(v?.bloque ?? (parts.length >= 3 ? parts[1] : 1))
+            const orden = Number(v?.orden ?? (parts.length >= 3 ? parts[2] : (parts.length === 2 ? parts[1] : 1)))
             if (!Number.isFinite(ejercicio_id) || !Number.isFinite(orden) || !Number.isFinite(bloque)) return
             map[String(key)] = { ejercicio_id, orden, bloque }
           } else {
-            const [idStr, ordenStr] = String(key).split('_')
-            const ejercicio_id = Number(idStr)
-            const orden = Number(ordenStr)
-            if (!Number.isFinite(ejercicio_id) || !Number.isFinite(orden)) return
-            map[String(key)] = { ejercicio_id, orden, bloque: 1 }
+            const parts = String(key).split('_')
+            if (parts.length >= 2) {
+              const id = Number(parts[0])
+              const bloque = parts.length >= 3 ? Number(parts[1]) : 1
+              const orden = parts.length >= 3 ? Number(parts[2]) : Number(parts[1])
+              if (Number.isFinite(id) && Number.isFinite(bloque) && Number.isFinite(orden)) {
+                map[String(key)] = { ejercicio_id: id, orden, bloque }
+              }
+            }
           }
         })
         return map
@@ -319,7 +327,7 @@ export async function GET(request: NextRequest) {
             const orden = Number(x?.orden)
             const bloque = Number(x?.bloque)
             if (!Number.isFinite(id) || !Number.isFinite(orden) || !Number.isFinite(bloque)) return
-            set.add(`${id}_${orden}_${bloque}`)
+            set.add(`${id}_${bloque}_${orden}`)
           })
         return set
       }
@@ -332,7 +340,7 @@ export async function GET(request: NextRequest) {
           const orden = Number(x?.orden)
           const bloque = Number(x?.bloque)
           if (!Number.isFinite(id) || !Number.isFinite(orden) || !Number.isFinite(bloque)) return
-          set.add(`${id}_${orden}_${bloque}`)
+          set.add(`${id}_${bloque}_${orden}`)
         })
         return set
       }
@@ -341,11 +349,15 @@ export async function GET(request: NextRequest) {
         const set = new Set<string>()
         raw.forEach((k: any) => {
           const key = String(k)
-          const [idStr, ordenStr] = key.split('_')
-          const id = Number(idStr)
-          const orden = Number(ordenStr)
-          if (!Number.isFinite(id) || !Number.isFinite(orden)) return
-          set.add(`${id}_${orden}_1`)
+          const parts = key.split('_')
+          if (parts.length >= 2) {
+            const id = Number(parts[0])
+            const bloque = parts.length >= 3 ? Number(parts[1]) : 1
+            const orden = parts.length >= 3 ? Number(parts[2]) : Number(parts[1])
+            if (Number.isFinite(id) && Number.isFinite(bloque) && Number.isFinite(orden)) {
+              set.add(`${id}_${bloque}_${orden}`)
+            }
+          }
         })
         return set
       }
@@ -357,17 +369,22 @@ export async function GET(request: NextRequest) {
 
           const v = (raw as any)[key]
           if (v && typeof v === 'object') {
-            const id = Number(v?.ejercicio_id ?? v?.id)
-            const orden = Number(v?.orden ?? key.split('_')[1])
-            const bloque = Number(v?.bloque ?? 1)
+            const id = Number(v?.ejercicio_id ?? v?.id ?? key.split('_')[0])
+            const parts = key.split('_')
+            const bloque = Number(v?.bloque ?? (parts.length >= 3 ? parts[1] : 1))
+            const orden = Number(v?.orden ?? (parts.length >= 3 ? parts[2] : (parts.length === 2 ? parts[1] : 1)))
             if (!Number.isFinite(id) || !Number.isFinite(orden) || !Number.isFinite(bloque)) return
-            set.add(`${id}_${orden}_${bloque}`)
+            set.add(`${id}_${bloque}_${orden}`)
           } else {
-            const [idStr, ordenStr] = String(key).split('_')
-            const id = Number(idStr)
-            const orden = Number(ordenStr)
-            if (!Number.isFinite(id) || !Number.isFinite(orden)) return
-            set.add(`${id}_${orden}_1`)
+            const parts = String(key).split('_')
+            if (parts.length >= 2) {
+              const id = Number(parts[0])
+              const bloque = parts.length >= 3 ? Number(parts[1]) : 1
+              const orden = parts.length >= 3 ? Number(parts[2]) : Number(parts[1])
+              if (Number.isFinite(id) && Number.isFinite(bloque) && Number.isFinite(orden)) {
+                set.add(`${id}_${bloque}_${orden}`)
+              }
+            }
           }
         })
         return set
@@ -803,7 +820,7 @@ export async function GET(request: NextRequest) {
 
       // Verificar si está completado usando el key único
       const isCompleted = categoria === 'nutricion'
-        ? (nutritionCompletionKeySet ? nutritionCompletionKeySet.has(`${detalle.ejercicio_id}_${detalle.orden}_${detalle.bloque}`) : false)
+        ? (nutritionCompletionKeySet ? nutritionCompletionKeySet.has(`${detalle.ejercicio_id}_${detalle.bloque}_${detalle.orden}`) : false)
         : (completados && typeof completados === 'object' && key in completados);
 
       // Para nutrición: obtener datos directamente de macrosParsed, recetaParsed e ingredientesParsed usando la key

@@ -364,15 +364,8 @@ const ActivityCard: React.FC<ActivityCardProps> = ({
                   <div className="relative flex items-center justify-center text-white"><Users className="h-3 w-3" /></div>
                 )
               })()}
-              {activity.type !== 'workshop' && (
-                includedMeetCredits > 0 ? (
-                  <Video className="h-4 w-4 text-rose-100/90" />
-                ) : (
-                  <div className="flex items-center gap-1.5 opacity-40">
-                    <Video className="h-4 w-4 text-gray-400" />
-                    <span className="text-[10px] font-bold text-gray-500 whitespace-nowrap">sin créditos</span>
-                  </div>
-                )
+              {activity.type !== 'workshop' && includedMeetCredits > 0 && (
+                <Video className="h-4 w-4 text-rose-100/90" />
               )}
             </div>
             <div className="flex items-center">{getModalityIcon(activity.modality || 'online')}</div>
@@ -381,7 +374,7 @@ const ActivityCard: React.FC<ActivityCardProps> = ({
           <div className="flex items-center justify-between text-gray-300 mb-2">
             <div className="flex items-center gap-1">
               <Calendar className="w-4 h-4 text-[#FF7939]" />
-              <span className="text-sm font-medium">{activity.type === 'document' ? (activity.semanas_totales || 0) : (activity.sesiones_dias_totales || totalSessions || 0)}<span className="text-[#FF7939] text-[10px]">{activity.type === 'document' ? ' s' : ' d'}</span></span>
+              <span className="text-sm font-medium">{sessionsToShow}<span className="text-[#FF7939] text-[10px]">{activity.type === 'document' ? ' s' : ' d'}</span></span>
             </div>
             <div className="flex items-center gap-1">
               {activity.categoria === 'nutricion' ? <UtensilsCrossed className="w-4 h-4 text-[#FF7939]" /> : <Zap className="w-4 h-4 text-[#FF7939]" />}

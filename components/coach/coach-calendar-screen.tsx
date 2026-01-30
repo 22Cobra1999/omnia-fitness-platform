@@ -3,7 +3,7 @@
 import { useState, useEffect, useCallback, useMemo, useRef } from "react"
 import { useSearchParams } from "next/navigation"
 import { createClient } from "@/lib/supabase/supabase-client"
-import { Bell, Calendar, Clock, Video, ExternalLink, Users, RefreshCw, Plus, Minus, Search, Pencil, ChevronDown, Trash2 } from "lucide-react"
+import { Bell, Calendar, Clock, Video, ExternalLink, Users, RefreshCw, Plus, Minus, Search, Pencil, ChevronDown, Trash2, Lock, Globe, Flame } from "lucide-react"
 import { format, startOfMonth, endOfMonth, eachDayOfInterval, isSameDay, isToday, addMonths, subMonths, addDays, subDays, addYears, subYears, differenceInMinutes } from "date-fns"
 import { es } from "date-fns/locale"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
@@ -141,6 +141,7 @@ export default function CoachCalendarScreen() {
   const [newEventPrice, setNewEventPrice] = useState<string>('')
   const [showClientPicker, setShowClientPicker] = useState(false)
   const [clientSearch, setClientSearch] = useState('')
+  const [newEventStatus, setNewEventStatus] = useState<'scheduled' | 'completed' | 'cancelled' | 'rescheduled'>('scheduled')
 
   const meetDateInputRef = useRef<HTMLInputElement | null>(null)
   const dayEventsRef = useRef<HTMLDivElement | null>(null)
@@ -312,6 +313,20 @@ export default function CoachCalendarScreen() {
       setNewEventEndTime(format(end, 'HH:mm'))
       setNewEventTitle(event.title || '')
       setNewEventNotes(String(event.description || ''))
+      setNewEventStatus(event.status || 'scheduled')
+
+      // Detect if it was rescheduled via requests table
+      supabase
+        .from('calendar_event_reschedule_requests')
+        .select('id')
+        .eq('event_id', event.id)
+        .eq('status', 'accepted')
+        .limit(1)
+        .then(({ data }) => {
+          if (data && data.length > 0) {
+            setNewEventStatus('rescheduled')
+          }
+        })
 
       // Cargar invitados desde calendar_event_participants (source of truth)
       try {
@@ -1256,9 +1271,22 @@ export default function CoachCalendarScreen() {
 
   if (loading) {
     return (
-      <div className="flex items-center justify-center h-screen bg-[#121212]">
-        <div className="flex-1 flex items-center justify-center min-h-[400px]">
-          <OmniaLoader message="Cargando calendario..." />
+      <div className="flex flex-col items-center justify-center min-h-screen bg-[#0F1012] gap-4" style={{ zIndex: 9999 }}>
+        {/* Fuego difuminado naranja */}
+        <div className="relative flex items-center justify-center w-[120px] h-[120px]">
+          {/* Fuego con blur/difuminado */}
+          <div className="absolute opacity-60 scale-[1.5] blur-[20px]">
+            <Flame size={80} color="#FF7939" fill="#FF7939" />
+          </div>
+          {/* Fuego principal (más nítido) */}
+          <div className="relative z-10 animate-pulse">
+            <Flame size={80} color="#FF7939" fill="#FF7939" />
+          </div>
+        </div>
+
+        {/* Texto "Cargando" */}
+        <div className="text-[18px] font-semibold text-[#FF7939] text-center">
+          Cargando
         </div>
       </div>
     )
@@ -2250,6 +2278,7 @@ export default function CoachCalendarScreen() {
                                   <h3 className="font-semibold text-white text-sm leading-tight">
                                     {event.title}
                                   </h3>
+                                  {/* Removed payment sub-labels in view mode as requested */}
                                   {event.location && isGoogleEvent && (
                                     <div className="text-xs text-gray-400">{event.location}</div>
                                   )}
@@ -2615,45 +2644,62 @@ export default function CoachCalendarScreen() {
             }
           }}
         >
-          <div className="w-full max-w-md bg-zinc-950 border border-zinc-800 rounded-2xl p-5">
+          <div className="w-full max-w-md bg-zinc-950 border border-zinc-800 rounded-2xl p-5 overflow-y-auto max-h-[90vh]">
             <div className="flex items-start justify-between gap-3 mb-2">
               <div className="flex-1 min-w-0 pt-1">
-                {meetModalMode === 'edit' ? (
-                  isMeetEditing ? (
-                    <textarea
-                      value={newEventTitle}
-                      onChange={(e) => setNewEventTitle(e.target.value)}
-                      rows={2}
-                      className="w-full bg-transparent text-white font-semibold text-xl leading-snug focus:outline-none resize-none"
-                      placeholder="Reunión"
-                    />
-                  ) : (
-                    <div className="text-white font-semibold text-xl leading-snug break-words whitespace-normal pr-2">
+                {meetModalMode === 'edit' && !isMeetEditing ? (
+                  <div className="flex-1">
+                    <h2 className="text-xl font-bold text-white mb-0.5 leading-tight">
                       {newEventTitle || 'Reunión'}
+                    </h2>
+                    <div className="flex items-center gap-1.5 mt-1">
+                      <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[10px] font-bold uppercase tracking-wider bg-white text-black">
+                        Meet
+                      </span>
+                      <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[10px] font-bold uppercase tracking-wider bg-[#FF7939] text-black">
+                        <Globe className="h-2.5 w-2.5" />
+                        Online
+                      </span>
+                      {newEventStatus === 'cancelled' && (
+                        <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[10px] font-bold uppercase tracking-wider bg-red-500 text-white">
+                          Cancelada
+                        </span>
+                      )}
+                      {newEventStatus === 'rescheduled' && (
+                        <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[10px] font-bold uppercase tracking-wider bg-zinc-700 text-white">
+                          Reprogramada
+                        </span>
+                      )}
                     </div>
-                  )
+                  </div>
                 ) : (
                   <textarea
                     value={newEventTitle}
                     onChange={(e) => setNewEventTitle(e.target.value)}
                     rows={2}
                     className="w-full bg-transparent text-white font-semibold text-xl leading-snug focus:outline-none resize-none placeholder:text-gray-500"
-                    placeholder="Escribí nombre de la meet"
+                    placeholder={meetModalMode === 'edit' ? 'Reunión' : 'Escribí nombre de la meet'}
                   />
                 )}
               </div>
 
               <div className="flex items-center gap-1 flex-shrink-0 -mt-1 -mr-1">
                 {meetModalMode === 'edit' && !isMeetEditing && (
-                  <button
-                    type="button"
-                    onClick={() => setIsMeetEditing(true)}
-                    className="w-8 h-8 rounded-full hover:bg-white/10 text-white flex items-center justify-center transition-colors"
-                    title="Editar"
-                    aria-label="Editar"
-                  >
-                    <Pencil className="h-4 w-4" />
-                  </button>
+                  (() => {
+                    const isEventPast = newEventDate && newEventEndTime && new Date(`${newEventDate}T${newEventEndTime}`) < new Date()
+                    if (isEventPast) return null
+                    return (
+                      <button
+                        type="button"
+                        onClick={() => setIsMeetEditing(true)}
+                        className="w-8 h-8 rounded-full hover:bg-white/10 text-white flex items-center justify-center transition-colors"
+                        title="Editar"
+                        aria-label="Editar"
+                      >
+                        <Pencil className="h-4 w-4" />
+                      </button>
+                    )
+                  })()
                 )}
 
                 <button
@@ -2667,33 +2713,34 @@ export default function CoachCalendarScreen() {
               </div>
             </div>
 
-            <div className="space-y-2">
-              {meetModalMode === 'edit' && !isMeetEditing && (
-                <div className="flex items-center gap-2">
-                  <div className="flex items-center gap-2 bg-black/30 border border-white/10 rounded-lg px-3 py-2 text-sm text-gray-200">
-                    <Calendar className="h-4 w-4 text-gray-300" />
-                    <span className="font-medium">
-                      {newEventDate ? format(new Date(`${newEventDate}T00:00:00`), 'dd MMM yyyy', { locale: es }) : '—'}
+            <div className="space-y-4">
+              {meetModalMode === 'edit' && !isMeetEditing ? (
+                <div className="flex items-center gap-3 px-1 py-1">
+                  <div className="w-8 h-8 rounded-full bg-zinc-900 flex items-center justify-center text-[#FF7939] flex-shrink-0">
+                    <Calendar className="h-4 w-4" />
+                  </div>
+                  <div className="flex flex-col">
+                    <span className="text-sm font-medium text-white leading-tight">
+                      {newEventDate ? format(new Date(`${newEventDate}T00:00:00`), "EEEE d 'de' MMMM", { locale: es }) : '—'}
+                    </span>
+                    <span className="text-xs text-gray-400">
+                      {(newEventStartTime && newEventEndTime) ? `${newEventStartTime} – ${newEventEndTime} (GMT-3)` : '—'}
                     </span>
                   </div>
+                </div>
+              ) : null}
 
-                  <div className="flex items-center gap-2 bg-black/30 border border-white/10 rounded-lg px-3 py-2 text-sm text-gray-200">
-                    <Clock className="h-4 w-4 text-gray-300" />
-                    <span className="font-medium">
-                      {(newEventStartTime && newEventEndTime) ? `${newEventStartTime} – ${newEventEndTime}` : '—'}
-                    </span>
-                  </div>
-
-                  <div
-                    className={
-                      `ml-auto px-3 py-2 rounded-lg text-sm font-semibold ` +
-                      (newEventIsFree
-                        ? 'bg-emerald-900/40 text-emerald-200 border border-emerald-800/40'
-                        : 'bg-orange-900/40 text-orange-200 border border-orange-800/40')
-                    }
-                  >
-                    {newEventIsFree ? 'Gratis' : `$${formatArs(newEventPrice || '0')}`}
-                  </div>
+              {/* Price/Free badge hidden in view mode as requested */}
+              {!(meetModalMode === 'edit' && !isMeetEditing) && (
+                <div
+                  className={
+                    `ml-auto px-3 py-2 rounded-lg text-sm font-semibold ` +
+                    (newEventIsFree
+                      ? 'bg-emerald-900/40 text-emerald-200 border border-emerald-800/40'
+                      : 'bg-orange-900/40 text-orange-200 border border-orange-800/40')
+                  }
+                >
+                  {newEventIsFree ? 'Gratis' : `$${formatArs(newEventPrice || '0')}`}
                 </div>
               )}
 
@@ -2778,10 +2825,8 @@ export default function CoachCalendarScreen() {
                           setNewEventIsFree((prev) => {
                             const nextIsFree = !prev
                             if (!nextIsFree) {
-                              // Activado (con precio): default $0 si está vacío
                               setNewEventPrice((p) => (String(p || '').trim() ? p : '0'))
                             } else {
-                              // Gratis
                               setNewEventPrice('')
                             }
                             return nextIsFree
@@ -2817,12 +2862,12 @@ export default function CoachCalendarScreen() {
 
               <div className="pt-1">
                 <div className="text-white font-semibold mb-2">
-                  Participantes del evento
+                  Participantes ({selectedClientIds.length > 0 ? selectedClientIds.length : 0})
                 </div>
 
                 <div className={meetModalMode === 'edit' && !isMeetEditing ? "space-y-2" : "border border-white/10 rounded-xl overflow-hidden bg-black/20"}>
                   <div className={meetModalMode === 'edit' && !isMeetEditing ? "" : "border-b border-white/10"}>
-                    {/* COACH ROW */}
+                    {/* COACH ROW - Always visible as it is the host */}
                     {coachProfile && (
                       <div className={
                         meetModalMode === 'edit' && !isMeetEditing
@@ -2830,7 +2875,6 @@ export default function CoachCalendarScreen() {
                           : 'px-3 py-3 flex items-center gap-3 border-b border-white/10'
                       }>
                         <div className="relative">
-                          {/* Avatar Coach (puede ser custom si tenemos avatar_url) */}
                           {coachProfile.avatar_url ? (
                             <img src={coachProfile.avatar_url} className="w-10 h-10 rounded-full object-cover bg-zinc-800" alt="Coach" />
                           ) : (
@@ -2844,138 +2888,106 @@ export default function CoachCalendarScreen() {
                           <div className="text-white text-sm font-medium leading-tight truncate">
                             {coachProfile.name} (Tú)
                           </div>
+                          <div className="text-[10px] text-gray-400 uppercase tracking-wider font-bold">Organizador</div>
                         </div>
                       </div>
                     )}
-                    {selectedClientIds
-                      .map((id) => clientsForMeet.find((c) => c.id === id) || ({ id, name: 'Cliente' } as any))
-                      .filter(Boolean)
-                      .map((c: any) => {
-                        const credits = Number(c.meet_credits_available ?? 0)
-                        const dotColor = c.status === 'active' ? 'bg-emerald-500' : 'bg-orange-500'
-                        const participant = meetParticipants.find((p) => p.client_id === c.id)
-                        const rsvp = String(participant?.rsvp_status || 'pending')
-                        const pay = String(participant?.payment_status || '')
-                        const badge =
-                          rsvp === 'confirmed'
-                            ? { text: 'Confirmado', cls: 'text-emerald-400' } // Sin bg/border
-                            : rsvp === 'declined' || rsvp === 'cancelled'
-                              ? { text: 'Rechazado', cls: 'text-red-400' }
-                              : { text: 'Pendiente', cls: 'text-[#FF7939]' }
+                    {selectedClientIds.length > 0 ? (
+                      selectedClientIds
+                        .map((id) => clientsForMeet.find((c) => c.id === id) || ({ id, name: 'Cliente' } as any))
+                        .filter(Boolean)
+                        .map((c: any) => {
+                          const credits = Number(c.meet_credits_available ?? 0)
+                          const dotColor = c.status === 'active' ? 'bg-emerald-500' : 'bg-orange-500'
+                          const participant = meetParticipants.find((p) => p.client_id === c.id)
+                          const rsvp = String(participant?.rsvp_status || 'pending')
+                          const badge =
+                            rsvp === 'confirmed'
+                              ? { text: 'Confirmado', cls: 'text-[#FF7939]' }
+                              : rsvp === 'declined' || rsvp === 'cancelled'
+                                ? { text: 'Rechazado', cls: 'text-red-400' }
+                                : { text: 'Pendiente', cls: 'text-gray-500' }
 
-                        // Calcular costo estimado en UI
-                        let cost = 0
-                        if (newEventStartTime && newEventEndTime) {
-                          const [sh, sm] = newEventStartTime.split(':').map(Number)
-                          const [eh, em] = newEventEndTime.split(':').map(Number)
-                          if (!isNaN(sh) && !isNaN(eh)) {
-                            const s = new Date(); s.setHours(sh, sm, 0, 0)
-                            const e = new Date(); e.setHours(eh, em, 0, 0)
-                            if (e < s) e.setDate(e.getDate() + 1) // asume crossing midnight
-                            const mins = differenceInMinutes(e, s)
-                            cost = Math.ceil(mins / 15)
-                          }
-                        }
-
-                        const creditsLine = `${credits} créditos disponibles`
-                        return (
-                          <div
-                            key={c.id}
-                            className={
-                              meetModalMode === 'edit' && !isMeetEditing
-                                ? 'px-3 py-3 flex items-center justify-between gap-3 bg-black/20 border border-white/10 rounded-xl'
-                                : 'px-3 py-3 flex items-center gap-3 border-b border-white/10 last:border-b-0'
+                          let cost = 0
+                          if (newEventStartTime && newEventEndTime) {
+                            const [sh, sm] = newEventStartTime.split(':').map(Number)
+                            const [eh, em] = newEventEndTime.split(':').map(Number)
+                            if (!isNaN(sh) && !isNaN(eh)) {
+                              const s = new Date(); s.setHours(sh, sm, 0, 0)
+                              const e = new Date(); e.setHours(eh, em, 0, 0)
+                              if (e < s) e.setDate(e.getDate() + 1)
+                              const mins = differenceInMinutes(e, s)
+                              cost = Math.ceil(mins / 15)
                             }
-                          >
-                            <div className="relative">
-                              <div className="w-10 h-10 rounded-full bg-zinc-800 overflow-hidden">
-                                {c.avatar_url ? (
-                                  <img src={c.avatar_url} alt={c.name} className="w-full h-full object-cover" />
-                                ) : (
-                                  <div className="w-full h-full flex items-center justify-center text-xs font-bold text-gray-500 uppercase">
-                                    {c.name.substring(0, 2)}
-                                  </div>
-                                )}
-                              </div>
-                              <div
-                                className={`absolute -bottom-0.5 -right-0.5 w-3 h-3 rounded-full ${dotColor} border-2 border-zinc-950`}
-                              />
-                            </div>
+                          }
 
-                            <div className="flex-1 min-w-0">
-                              <div className="text-white text-sm font-medium leading-tight truncate">{c.name}</div>
-                              <div className="text-xs text-gray-400">{creditsLine}</div>
-                            </div>
-
-                            {meetModalMode === 'edit' && !isMeetEditing ? (
-                              <div className="flex flex-col items-end gap-1">
-                                <div className={`px-3 py-1 rounded-lg text-xs font-semibold ${badge.cls}`}>{badge.text}</div>
-
-                                {/* Mostrar estado de pago en modo lectura */}
-                                {pay === 'credit_deduction' && (
-                                  <div className="text-xs text-emerald-400 font-medium">Pagado con 1 crédito</div>
-                                )}
-                                {pay === 'free' && (
-                                  <div className="text-xs text-[#FF7939] font-medium">Gratis</div>
-                                )}
-                                {(pay === 'unpaid' || !pay) && !newEventIsFree && (
-                                  credits >= (cost || 1) ? (
-                                    <div className="text-xs text-[#FF7939] font-medium">Pago Pendiente</div>
+                          return (
+                            <div
+                              key={c.id}
+                              className={
+                                meetModalMode === 'edit' && !isMeetEditing
+                                  ? 'px-3 py-3 flex items-center justify-between gap-3 bg-black/20 border border-white/10 rounded-xl'
+                                  : 'px-3 py-3 flex items-center gap-3 border-b border-white/10 last:border-b-0'
+                              }
+                            >
+                              <div className="relative">
+                                <div className="w-10 h-10 rounded-full bg-zinc-800 overflow-hidden">
+                                  {c.avatar_url ? (
+                                    <img src={c.avatar_url} alt={c.name} className="w-full h-full object-cover" />
                                   ) : (
-                                    <div className="text-xs text-red-400 font-medium">Saldo Insuficiente</div>
-                                  )
-                                )}
-                              </div>
-                            ) : (
-                              <div className="flex flex-col items-end">
-                                {/* Right Side: Consumption Logic */}
-                                <div className={`text-xs font-medium whitespace-nowrap ${credits >= cost ? 'text-[#FF7939]' : (newEventIsFree && credits > 0 ? 'text-[#FF7939]' : 'text-red-400')}`}>
-                                  {/* 
-                                      Lógica de visualización:
-                                      1. Tiene créditos suficientes (>= cost): "Consumirá X créditos" (Orange)
-                                      2. Es Gratis:
-                                         - Si tiene parciales: "Gratis (+ usa X créditos)" 
-                                         - Si no tiene: "Gratis"
-                                      3. No es Gratis y no alcanza: "Saldo insuficiente" + Detalles cobro
-                                    */}
-                                  {credits >= cost
-                                    ? `Consumirá ${cost} créditos`
-                                    : (newEventIsFree
-                                      ? (credits > 0 ? `Gratis (+ usa ${credits} créd.)` : 'Gratis')
-                                      : (cost > 0 ? `Saldo insuficiente (${credits})` : 'Calculando...')
-                                    )
-                                  }
+                                    <div className="w-full h-full flex items-center justify-center text-xs font-bold text-gray-500 uppercase">
+                                      {c.name.substring(0, 2)}
+                                    </div>
+                                  )}
                                 </div>
-                                {!newEventIsFree && cost > credits && (
-                                  <div className="flex flex-col items-end mt-0.5">
-                                    <div className="text-[11px] text-red-300 font-semibold">
-                                      Cobrar ${formatArs(((Number(newEventPrice) || 0) / (cost || 1)) * (cost - credits))}
-                                    </div>
-                                    <div className="text-[10px] text-orange-300/80">
-                                      + usa {credits} créditos
-                                    </div>
-                                  </div>
+                                <div
+                                  className={`absolute -bottom-0.5 -right-0.5 w-3 h-3 rounded-full ${dotColor} border-2 border-zinc-950`}
+                                />
+                              </div>
+
+                              <div className="flex-1 min-w-0">
+                                <div className="text-white text-sm font-medium leading-tight truncate">{c.name}</div>
+                                {!(meetModalMode === 'edit' && !isMeetEditing) && (
+                                  <div className="text-xs text-gray-400">{credits} créditos disponibles</div>
                                 )}
                               </div>
-                            )}
 
-                            {!(meetModalMode === 'edit' && !isMeetEditing) && (
-                              <button
-                                type="button"
-                                onClick={() =>
-                                  setSelectedClientIds((prev) => prev.filter((x) => x !== c.id))
-                                }
-                                className="ml-2 w-7 h-7 rounded-md hover:bg-white/10 text-gray-300 flex items-center justify-center"
-                                aria-label="Quitar cliente"
-                              >
-                                ×
-                              </button>
-                            )}
-                          </div>
-                        )
-                      })}
+                              {meetModalMode === 'edit' && !isMeetEditing ? (
+                                <div className="flex flex-col items-end gap-1">
+                                  <div className={`text-xs font-bold uppercase tracking-wider ${badge.cls}`}>{badge.text}</div>
+                                </div>
+                              ) : (
+                                <div className="flex flex-col items-end">
+                                  <div className={`text-xs font-medium whitespace-nowrap ${credits >= cost ? 'text-[#FF7939]' : (newEventIsFree && credits > 0 ? 'text-[#FF7939]' : 'text-red-400')}`}>
+                                    {credits >= cost
+                                      ? `Consumirá ${cost} créditos`
+                                      : (newEventIsFree
+                                        ? (credits > 0 ? `Gratis (+ usa ${credits} créd.)` : 'Gratis')
+                                        : (cost > 0 ? `Saldo insuficiente (${credits})` : 'Calculando...')
+                                      )
+                                    }
+                                  </div>
+                                </div>
+                              )}
+
+                              {!(meetModalMode === 'edit' && !isMeetEditing) && (
+                                <button
+                                  type="button"
+                                  onClick={() => setSelectedClientIds((prev) => prev.filter((x) => x !== c.id))}
+                                  className="ml-2 w-7 h-7 rounded-md hover:bg-white/10 text-gray-300 flex items-center justify-center"
+                                >
+                                  ×
+                                </button>
+                              )}
+                            </div>
+                          )
+                        })
+                    ) : (
+                      <div className="px-3 py-4 text-center border border-white/10 rounded-xl bg-black/20">
+                        <p className="text-sm text-gray-500 font-medium">No hay participantes registrados</p>
+                      </div>
+                    )}
                   </div>
-
 
                   {!(meetModalMode === 'edit' && !isMeetEditing) && (
                     <button
@@ -3008,48 +3020,30 @@ export default function CoachCalendarScreen() {
                               .includes(String(clientSearch || '').trim().toLowerCase())
                           )
                           .filter((c) => !selectedClientIds.includes(c.id))
-                          .map((c) => {
-                            const selected = selectedClientIds.includes(c.id)
-                            const credits = Number(c.meet_credits_available ?? 0)
-                            const dotColor = c.status === 'active' ? 'bg-emerald-500' : 'bg-orange-500'
-
-                            return (
-                              <button
-                                key={c.id}
-                                type="button"
-                                onClick={() => {
-                                  setSelectedClientIds((prev) =>
-                                    prev.includes(c.id) ? prev.filter((x) => x !== c.id) : [...prev, c.id]
-                                  )
-                                }}
-                                className={`w-full text-left px-3 py-3 flex items-center gap-3 border-b border-white/10 last:border-b-0 hover:bg-white/5 transition-colors ${selected ? 'bg-white/5' : ''
-                                  }`}
-                              >
-                                <div className="relative">
-                                  <div className="w-10 h-10 rounded-full bg-zinc-800 overflow-hidden">
-                                    {c.avatar_url ? (
-                                      <img src={c.avatar_url} alt={c.name} className="w-full h-full object-cover" />
-                                    ) : (
-                                      <div className="w-full h-full flex items-center justify-center text-xs font-bold text-gray-500 uppercase">
-                                        {c.name.substring(0, 2)}
-                                      </div>
-                                    )}
+                          .map((c) => (
+                            <button
+                              key={c.id}
+                              type="button"
+                              onClick={() => setSelectedClientIds((prev) => [...prev, c.id])}
+                              className="w-full text-left px-3 py-3 flex items-center gap-3 border-b border-white/10 last:border-b-0 hover:bg-white/5 transition-colors"
+                            >
+                              <div className="w-10 h-10 rounded-full bg-zinc-800 overflow-hidden">
+                                {c.avatar_url ? (
+                                  <img src={c.avatar_url} alt={c.name} className="w-full h-full object-cover" />
+                                ) : (
+                                  <div className="w-full h-full flex items-center justify-center text-xs font-bold text-gray-500 uppercase">
+                                    {c.name.substring(0, 2)}
                                   </div>
-                                  <div
-                                    className={`absolute -bottom-0.5 -right-0.5 w-3 h-3 rounded-full ${dotColor} border-2 border-zinc-950`}
-                                  />
-                                </div>
-
-                                <div className="flex-1 min-w-0">
-                                  <div className="text-white text-sm font-medium leading-tight truncate">{c.name}</div>
-                                </div>
-
-                                <div className="text-[#FF7939] text-xs font-medium whitespace-nowrap">
-                                  {credits} créditos disponibles
-                                </div>
-                              </button>
-                            )
-                          })}
+                                )}
+                              </div>
+                              <div className="flex-1 min-w-0">
+                                <div className="text-white text-sm font-medium leading-tight truncate">{c.name}</div>
+                              </div>
+                              <div className="text-[#FF7939] text-xs font-medium whitespace-nowrap">
+                                {Number(c.meet_credits_available || 0)} créditos
+                              </div>
+                            </button>
+                          ))}
                       </div>
                     </div>
                   )}
@@ -3062,12 +3056,12 @@ export default function CoachCalendarScreen() {
                     <button
                       type="button"
                       onClick={() => window.open(editingEventMeetLink, '_blank')}
-                      className="flex-1 px-4 py-2.5 rounded-xl bg-zinc-800 text-white text-sm hover:bg-zinc-700 transition-colors flex items-center justify-center gap-2"
+                      className="flex-1 h-7 px-3 rounded-lg bg-[#FF7939] text-black text-[10px] font-bold uppercase tracking-wider hover:bg-[#ff8a55] transition-colors flex items-center justify-center gap-1.5"
                       disabled={createEventLoading}
                       title="Abrir enlace de Meet"
                     >
-                      <Video className="h-4 w-4" />
-                      Ir a la meet
+                      <Globe className="h-3 w-3" />
+                      Unirse a la reunión
                     </button>
                   ) : (
                     <div className="flex-1" />
@@ -3080,8 +3074,6 @@ export default function CoachCalendarScreen() {
                         onClick={() => setShowDeleteMeetDialog(true)}
                         className="px-4 py-2.5 rounded-xl bg-zinc-900 border border-red-500/30 text-red-400 text-sm hover:bg-red-500/10 transition-colors flex items-center gap-2"
                         disabled={createEventLoading}
-                        title="Eliminar"
-                        aria-label="Eliminar"
                       >
                         <Trash2 className="h-4 w-4" />
                         Eliminar
@@ -3102,7 +3094,7 @@ export default function CoachCalendarScreen() {
                           className="px-5 py-2.5 rounded-xl bg-[#FF7939] text-black text-sm font-medium hover:bg-[#ff8a55] transition-colors"
                           disabled={createEventLoading}
                         >
-                          Guardar cambios
+                          Guardar
                         </button>
                       </div>
                     </div>
@@ -3124,7 +3116,7 @@ export default function CoachCalendarScreen() {
                         className="px-5 py-2.5 rounded-xl bg-[#FF7939] text-black text-sm font-medium hover:bg-[#ff8a55] transition-colors"
                         disabled={createEventLoading}
                       >
-                        {createEventLoading ? 'Creando…' : 'Crear'}
+                        Crear
                       </button>
                     </div>
                   )}
@@ -3132,7 +3124,6 @@ export default function CoachCalendarScreen() {
               )}
             </div>
           </div>
-
         </div>
       )}
 

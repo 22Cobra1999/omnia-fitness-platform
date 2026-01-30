@@ -1289,6 +1289,12 @@ export function ActivityScreen() {
     const hasStarted = enrollment.start_date !== null
     const dbStatus = enrollment.status?.toLowerCase() || ''
 
+    // 0. FINALIZADA POR PROGRESO: Si el progreso es 100%, considerarla finalizada
+    const progress = enrollmentProgresses[enrollment.id] || 0
+    if (progress >= 99.9) {
+      return 'finalizada'
+    }
+
     // 1. EXPIRADA: status explícito en BD o expiration_date pasó (solo si NO empezó)
     if (dbStatus === 'expirada') {
       return 'expirada'
