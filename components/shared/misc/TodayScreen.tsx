@@ -5351,7 +5351,7 @@ export default function TodayScreen({ activityId, enrollmentId, onBack }: { acti
                                 fontSize: 12,
                                 color: isActiveBlock ? 'rgba(255, 107, 53, 0.8)' : 'rgba(255, 255, 255, 0.6)'
                               }}>
-                                {blockActivities.length} {blockActivities[0]?.proteinas !== undefined && blockActivities[0]?.proteinas !== null ? 'platos' : 'ejercicios'}
+                                {blockActivities.length} {(programInfo?.categoria === 'nutricion' || enrollment?.activity?.categoria === 'nutricion' || enrollment?.activity?.type?.toLowerCase().includes('nutrition')) ? (blockActivities.length === 1 ? 'plato' : 'platos') : (blockActivities.length === 1 ? 'ejercicio' : 'ejercicios')}
                               </span>
                             </div>
 

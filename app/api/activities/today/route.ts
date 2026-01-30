@@ -823,40 +823,47 @@ export async function GET(request: NextRequest) {
         ? (nutritionCompletionKeySet ? nutritionCompletionKeySet.has(`${detalle.ejercicio_id}_${detalle.bloque}_${detalle.orden}`) : false)
         : (completados && typeof completados === 'object' && key in completados);
 
-      // Para nutrición: obtener datos directamente de macrosParsed, recetaParsed e ingredientesParsed usando la key
+      // Para nutrición: obtener datos directamente de macrosParsed, recetaParsed e ingredientesParsed usando la key de forma robusta
       let macrosData: any = null;
       let ingredientesData: any = null;
+      let recetaData: any = null;
+
       if (categoria === 'nutricion') {
-        macrosData = macrosParsed[key] || null;
-        const detalleIdStr = String(detalle.ejercicio_id)
-        const recetaLookup = recetasByEjercicioId[detalleIdStr]
-        const recetaText = recetaLookup?.receta || null
-        const recetaData: any = {
+        const key3 = `${detalle.ejercicio_id}_${detalle.bloque}_${detalle.orden}`;
+        const key2 = `${detalle.ejercicio_id}_${detalle.bloque}`;
+        const key1 = `${detalle.ejercicio_id}`;
+
+        macrosData = macrosParsed[key3] || macrosParsed[key2] || macrosParsed[key1] || null;
+        ingredientesData = ingredientesParsed[key3] || ingredientesParsed[key2] || ingredientesParsed[key1] || null;
+
+        const detalleIdStr = String(detalle.ejercicio_id);
+        const recetaLookup = recetasByEjercicioId[detalleIdStr];
+        recetaData = {
           nombre: recetaLookup?.nombre || null,
-          receta: recetaText,
-          minutos: null
-        }
-        ingredientesData = ingredientesParsed[key] || null;
+          receta: recetaLookup?.receta || null,
+          minutos: macrosData?.minutos || null
+        };
 
         console.log(`🍽️ [API] Datos para key ${key}:`, {
           key,
           ejercicio_id: detalle.ejercicio_id,
           bloque: detalle.bloque,
           orden: detalle.orden,
-          macrosData: macrosData ? {
-            proteinas: macrosData.proteinas,
-            carbohidratos: macrosData.carbohidratos,
-            grasas: macrosData.grasas,
-            calorias: macrosData.calorias,
-            minutos: macrosData.minutos
-          } : null,
-          recetaData: recetaData ? {
-            nombre: recetaData.nombre,
-            receta: recetaData.receta ? recetaData.receta.substring(0, 50) + '...' : null,
-            minutos: recetaData.minutos
-          } : null,
-          ingredientesData: ingredientesData ? (typeof ingredientesData === 'string' ? ingredientesData.substring(0, 100) + '...' : 'presente') : null
+          found_macros: !!macrosData,
+          found_ingredientes: !!ingredientesData,
+          macrosData_calorias: macrosData?.calorias
         });
+      }
+
+      // Si es fitness y no tiene detalle_series, intentar construirlo desde campos individuales si existen
+      if (categoria !== 'nutricion' && !detalle.detalle_series) {
+        if (detalle.peso !== undefined || detalle.series !== undefined || detalle.repeticiones !== undefined) {
+          detalle.detalle_series = [{
+            peso: detalle.peso || 0,
+            series: detalle.series || 0,
+            repeticiones: detalle.repeticiones || 0
+          }];
+        }
       }
 
       // Obtener nombre

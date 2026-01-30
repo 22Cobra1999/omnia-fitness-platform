@@ -552,6 +552,10 @@ export function ActivityScreen() {
       try {
         sessionStorage.setItem("cached_enrollments", JSON.stringify(enrollments))
         sessionStorage.setItem("enrollments_cache_timestamp", Date.now().toString())
+        // También guardar progresos si existen
+        if (Object.keys(enrollmentProgresses).length > 0) {
+          sessionStorage.setItem("cached_enrollment_progresses", JSON.stringify(enrollmentProgresses))
+        }
       } catch (e) {
         console.error("Error al guardar enrollments en sessionStorage:", e)
       }
@@ -580,6 +584,7 @@ export function ActivityScreen() {
     // Cargar enrollments desde caché
     try {
       const cachedEnrollments = sessionStorage.getItem("cached_enrollments")
+      const cachedProgresses = sessionStorage.getItem("cached_enrollment_progresses")
       const enrollmentsTimestamp = Number.parseInt(sessionStorage.getItem("enrollments_cache_timestamp") || "0")
 
       // Usar caché solo si existe y tiene menos de 10 minutos
@@ -587,6 +592,9 @@ export function ActivityScreen() {
         const parsedEnrollments = JSON.parse(cachedEnrollments)
         if (parsedEnrollments && parsedEnrollments.length > 0) {
           const cacheLoadTime = Date.now() - dataLoadStartTime
+          if (cachedProgresses) {
+            setEnrollmentProgresses(JSON.parse(cachedProgresses))
+          }
           setEnrollments(parsedEnrollments)
           hasCachedData = true
         }
@@ -789,34 +797,9 @@ export function ActivityScreen() {
         // Formatted enrollments - log removido para optimización
       }
 
-      setEnrollments(formattedEnrollments as any)
 
-      // Obtener información completa de coaches desde user_profiles
-      const coachIds = [...new Set(formattedEnrollments.map(e => e.activity.coach_id))]
-      if (coachIds.length > 0) {
-        const { data: coachProfiles, error: profileError } = await supabase
-          .from("user_profiles")
-          .select("id, full_name, avatar_url")
-          .in("id", coachIds)
-
-        if (!profileError && coachProfiles) {
-          const profileMap = new Map(coachProfiles.map(profile => [profile.id, profile]))
-
-          // Actualizar enrollments con información completa del coach
-          const updatedEnrollments = formattedEnrollments.map(enrollment => ({
-            ...enrollment,
-            activity: {
-              ...enrollment.activity,
-              coach_name: profileMap.get(enrollment.activity.coach_id)?.full_name || "Coach",
-              coach_avatar_url: profileMap.get(enrollment.activity.coach_id)?.avatar_url || null
-            }
-          }))
-
-          setEnrollments(updatedEnrollments)
-        }
-      }
-
-      // Calcular progresos reales para cada enrollment
+      // Calcular progresos reales para cada enrollment ANTES de setear el estado
+      // para evitar el flicker de que aparezcan en 'en-curso' y luego se muevan a 'finalizadas'
       const progressPromises = formattedEnrollments.map(async (enrollment) => {
         const realProgress = await calculateRealProgress(enrollment)
         return { enrollmentId: enrollment.id, progress: realProgress }
@@ -829,6 +812,32 @@ export function ActivityScreen() {
       }, {} as Record<number, number>)
 
       setEnrollmentProgresses(progressMap)
+
+      // Actualizar enrollments con información completa del coach Y progresos listos
+      const coachIds = [...new Set(formattedEnrollments.map(e => e.activity.coach_id))]
+      let updatedEnrollments = formattedEnrollments;
+
+      if (coachIds.length > 0) {
+        const { data: coachProfiles, error: profileError } = await supabase
+          .from("user_profiles")
+          .select("id, full_name, avatar_url")
+          .in("id", coachIds)
+
+        if (!profileError && coachProfiles) {
+          const profileMap = new Map(coachProfiles.map(profile => [profile.id, profile]))
+
+          updatedEnrollments = formattedEnrollments.map(enrollment => ({
+            ...enrollment,
+            activity: {
+              ...enrollment.activity,
+              coach_name: profileMap.get(enrollment.activity.coach_id)?.full_name || "Coach",
+              coach_avatar_url: profileMap.get(enrollment.activity.coach_id)?.avatar_url || null
+            }
+          }))
+        }
+      }
+
+      setEnrollments(updatedEnrollments)
 
       // Calcular próximas actividades
       const nextActivityPromises = formattedEnrollments.map(async (enrollment) => {
