@@ -16,7 +16,7 @@ import { MessagesScreen } from "@/components/mobile/messages-screen"
 import { useAuth } from "@/contexts/auth-context"
 import { usePopup } from "@/contexts/popup-context"
 import { SignInPopup } from "@/components/auth/sign-in-popup"
-import { WelcomePopup } from '@/components/shared/misc/welcome-popup'
+// Eliminado WelcomePopup
 import { SettingsIcon } from '@/components/shared/ui/settings-icon'
 import { MessagesIcon } from '@/components/shared/ui/messages-icon'
 import ProductsManagementScreen from "@/components/mobile/products-management-screen"
@@ -315,7 +315,7 @@ function MobileAppContent() {
         <SignInPopup isOpen={isAuthPopupOpen} onClose={hideAuthPopup} defaultTab={authPopupDefaultTab} />
 
         {/* Welcome Popup */}
-        <WelcomePopup isOpen={showWelcomeMessage} onClose={hideWelcomeMessage} />
+        {/* Welcome Popup Eliminado */}
 
         {/* Usage Report Button - Solo en desarrollo */}
         {false && process.env.NODE_ENV === 'development' && <UsageReportButton />}
