@@ -580,8 +580,8 @@ export function WorkshopClientView({
     <div className="relative min-h-screen text-white bg-black">
       {activityImageUrl && (
         <div className="fixed inset-0 bg-cover bg-center" style={{ backgroundImage: `url(${activityImageUrl})` }}>
-          {/* Dark gradient overlay for readability */}
-          <div className="absolute inset-0 bg-gradient-to-b from-black/80 via-black/70 to-black/90 backdrop-blur-[2px]" />
+          {/* Dark gradient overlay for readability with premium blur */}
+          <div className="absolute inset-0 bg-gradient-to-b from-black/90 via-black/80 to-black/95 backdrop-blur-[30px]" />
         </div>
       )}
 

@@ -396,6 +396,9 @@ export function ProfileScreen() {
 
   // Estados para modal de confirmación de biometría
   const [showBiometricDeleteConfirmation, setShowBiometricDeleteConfirmation] = useState(false)
+  const [isEditingObjectives, setIsEditingObjectives] = useState(false)
+  const [isSavingObjectives, setIsSavingObjectives] = useState(false)
+  const objectivesRef = useRef<any>(null)
   const [biometricToDelete, setBiometricToDelete] = useState<{
     id: string
     name: string
@@ -477,7 +480,7 @@ export function ProfileScreen() {
 
   const handleEditSection = useCallback((section: string) => {
     if (section === "goals") {
-      setShowQuickAdd(true)
+      setIsEditingObjectives(prev => !prev)
     } else if (section === "biometrics") {
       setBiometricsModalMode('register')
       setIsBiometricsModalOpen(true)
@@ -1281,12 +1284,40 @@ export function ProfileScreen() {
                 <Target className="h-4 w-4 text-[#FF6A00]" />
                 <h2 className="text-sm font-semibold text-gray-200">Objetivos</h2>
               </div>
-              <div className="flex gap-1">
+              <div className="flex gap-1 items-center">
+                {isEditingObjectives && (
+                  <div className="flex gap-1 mr-2">
+                    <Button
+                      onClick={() => {
+                        setIsEditingObjectives(false)
+                        objectivesRef.current?.cancelEditing()
+                      }}
+                      variant="ghost"
+                      size="sm"
+                      className="text-gray-500 hover:text-red-400 h-6 px-2 py-0 text-[10px] font-bold"
+                    >
+                      Cancelar
+                    </Button>
+                    <Button
+                      onClick={async () => {
+                        setIsSavingObjectives(true)
+                        await objectivesRef.current?.saveChanges()
+                        setIsSavingObjectives(false)
+                        setIsEditingObjectives(false)
+                      }}
+                      variant="ghost"
+                      size="sm"
+                      className="bg-orange-500/10 text-[#FF6A00] hover:bg-orange-500/20 h-6 px-2 py-0 text-[10px] font-bold"
+                    >
+                      {isSavingObjectives ? '...' : 'Guardar'}
+                    </Button>
+                  </div>
+                )}
                 <Button
                   onClick={() => handleEditSection("goals")}
                   variant="ghost"
                   size="sm"
-                  className="text-gray-500 hover:text-white h-6 w-6 p-0 rounded-full"
+                  className={`${isEditingObjectives ? 'text-white bg-white/10' : 'text-gray-500'} hover:text-white h-6 w-6 p-0 rounded-full`}
                 >
                   <Edit2 className="h-3 w-3" />
                 </Button>
@@ -1312,7 +1343,7 @@ export function ProfileScreen() {
 
             {/* Exercise List is now inherently Horizontal & Compact */}
             <div className="h-[120px] w-full">
-              <ExerciseProgressList userId={user?.id} />
+              <ExerciseProgressList ref={objectivesRef} userId={user?.id} isEditing={isEditingObjectives} />
             </div>
           </div>
         )}

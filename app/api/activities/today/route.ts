@@ -829,12 +829,13 @@ export async function GET(request: NextRequest) {
       let recetaData: any = null;
 
       if (categoria === 'nutricion') {
-        const key3 = `${detalle.ejercicio_id}_${detalle.bloque}_${detalle.orden}`;
-        const key2 = `${detalle.ejercicio_id}_${detalle.bloque}`;
-        const key1 = `${detalle.ejercicio_id}`;
+        const key_ibo = `${detalle.ejercicio_id}_${detalle.bloque}_${detalle.orden}`;
+        const key_io = `${detalle.ejercicio_id}_${detalle.orden}`;
+        const key_ib = `${detalle.ejercicio_id}_${detalle.bloque}`;
+        const key_i = `${detalle.ejercicio_id}`;
 
-        macrosData = macrosParsed[key3] || macrosParsed[key2] || macrosParsed[key1] || null;
-        ingredientesData = ingredientesParsed[key3] || ingredientesParsed[key2] || ingredientesParsed[key1] || null;
+        macrosData = macrosParsed[key_ibo] || macrosParsed[key_io] || macrosParsed[key_ib] || macrosParsed[key_i] || null;
+        ingredientesData = ingredientesParsed[key_ibo] || ingredientesParsed[key_io] || ingredientesParsed[key_ib] || ingredientesParsed[key_i] || null;
 
         const detalleIdStr = String(detalle.ejercicio_id);
         const recetaLookup = recetasByEjercicioId[detalleIdStr];
@@ -849,9 +850,9 @@ export async function GET(request: NextRequest) {
           ejercicio_id: detalle.ejercicio_id,
           bloque: detalle.bloque,
           orden: detalle.orden,
+          found_macros_key: [key_ibo, key_io, key_ib, key_i].find(k => macrosParsed[k]),
           found_macros: !!macrosData,
-          found_ingredientes: !!ingredientesData,
-          macrosData_calorias: macrosData?.calorias
+          calorias: macrosData?.calorias
         });
       }
 
@@ -888,9 +889,9 @@ export async function GET(request: NextRequest) {
           ? Number(macrosData.minutos)
           : null;
       } else {
-        // Para fitness: usar minutosJson o ejercicio.duracion_min
-        const minutosKey = `${detalle.ejercicio_id}_${detalle.orden}`;
-        minutosFinal = minutosJson[minutosKey] || minutosJson[detalle.ejercicio_id] || (ejercicio as any)?.duracion_min || null;
+        // Para fitness: usar key actual (id_bloque_orden o id_orden), id_orden explícito o ejercicio.duracion_min
+        const key_io = `${detalle.ejercicio_id}_${detalle.orden}`;
+        minutosFinal = minutosJson[key] || minutosJson[key_io] || minutosJson[detalle.ejercicio_id] || (ejercicio as any)?.duracion_min || null;
       }
 
       // Obtener calorías
@@ -901,9 +902,9 @@ export async function GET(request: NextRequest) {
           ? Number(macrosData.calorias)
           : null;
       } else {
-        // Para fitness: usar caloriasJson o ejercicio.calorias
-        const caloriasKey = `${detalle.ejercicio_id}_${detalle.orden}`;
-        caloriasFinal = caloriasJson[caloriasKey] || caloriasJson[detalle.ejercicio_id] || (ejercicio as any)?.calorias || null;
+        // Para fitness: usar key actual, id_orden explícito o ejercicio.calorias
+        const key_io = `${detalle.ejercicio_id}_${detalle.orden}`;
+        caloriasFinal = caloriasJson[key] || caloriasJson[key_io] || caloriasJson[detalle.ejercicio_id] || (ejercicio as any)?.calorias || null;
       }
 
       // Construir objeto transformado

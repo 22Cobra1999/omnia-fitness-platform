@@ -276,42 +276,7 @@ export const ExerciseProgressList = forwardRef<ExerciseProgressListRef, Exercise
 
   return (
     <div className="flex flex-col gap-2">
-      {!isEditing && userId && externalIsEditing === undefined && (
-        <div className="flex justify-end px-2">
-          <Button
-            variant="ghost"
-            size="sm"
-            onClick={startEditing}
-            className="h-6 text-[10px] text-gray-400 hover:text-white gap-1"
-          >
-            <Edit className="h-3 w-3" />
-            Editar Objetivos
-          </Button>
-        </div>
-      )}
-
-      {isEditing && externalIsEditing === undefined && (
-        <div className="flex justify-end gap-2 px-2">
-          <Button
-            variant="ghost"
-            size="sm"
-            onClick={cancelEditing}
-            className="h-6 text-[10px] text-gray-400 hover:text-red-400"
-          >
-            <X className="h-3 w-3 mr-1" />
-            Cancelar
-          </Button>
-          <Button
-            size="sm"
-            onClick={saveChanges}
-            disabled={loading}
-            className="h-6 bg-orange-500 hover:bg-orange-600 text-[10px] text-white"
-          >
-            <Save className="h-3 w-3 mr-1" />
-            {loading ? 'Guardando...' : 'Guardar'}
-          </Button>
-        </div>
-      )}
+      {/* Eliminado botón redundante 'Editar Objetivos' que aparecía internamente */}
 
       <div className="overflow-x-auto pb-4 -mx-1 px-1 custom-scrollbar">
         <div className="flex gap-3 min-w-max">

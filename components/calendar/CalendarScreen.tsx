@@ -3,6 +3,7 @@
 import { useState, useEffect, useCallback, useMemo } from "react"
 import { createClient } from '@/lib/supabase/supabase-client'
 import CalendarView from "./CalendarView"
+import { OmniaLoader } from "@/components/shared/ui/omnia-loader"
 
 interface CalendarScreenProps {
   onTabChange?: (tab: string) => void;
@@ -189,11 +190,7 @@ export function CalendarScreen({ onTabChange }: CalendarScreenProps) {
   }, [getUserAndActivities])
 
   if (loading) {
-    return (
-      <div className="flex items-center justify-center h-screen bg-[#121212]">
-        <div className="text-white">Cargando...</div>
-      </div>
-    )
+    return <OmniaLoader />
   }
 
   if (!clientId) {

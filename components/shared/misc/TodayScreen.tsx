@@ -17,6 +17,7 @@ import { Button } from "@/components/ui/button"
 import { SettingsIcon } from '@/components/shared/ui/settings-icon';
 import { MessagesIcon } from '@/components/shared/ui/messages-icon';
 import { OmniaLogoText } from '@/components/shared/ui/omnia-logo';
+import { OmniaLoader } from '@/components/shared/ui/omnia-loader';
 import {
   createBuenosAiresDate,
   getBuenosAiresDateString,
@@ -85,7 +86,7 @@ export default function TodayScreen({ activityId, enrollmentId, onBack }: { acti
   const [isVideoExpanded, setIsVideoExpanded] = React.useState(false);
   const [isVideoPanelExpanded, setIsVideoPanelExpanded] = React.useState(false); // Panel expandible dentro del detalle
   const [isIngredientesExpanded, setIsIngredientesExpanded] = React.useState(false); // Ingredientes colapsados por defecto
-  const [activeExerciseTab, setActiveExerciseTab] = React.useState<'Técnica' | 'Equipamiento' | 'Músculos'>('Técnica'); // Tab activo para las secciones colapsables del ejercicio
+  const [activeExerciseTab, setActiveExerciseTab] = React.useState<'Técnica' | 'Equipamiento' | 'Músculos' | 'Series'>('Técnica'); // Tab activo para las secciones colapsables del ejercicio
   const [activeMealTab, setActiveMealTab] = React.useState<'Ingredientes' | 'Instrucciones'>('Ingredientes'); // Tab activo para platos/comidas
   const [selectedVideo, setSelectedVideo] = React.useState<{
     url: string;
@@ -2310,67 +2311,30 @@ export default function TodayScreen({ activityId, enrollmentId, onBack }: { acti
   }
 
   if (loading) {
-    return (
-      <div style={{
-        minHeight: '100vh',
-        background: '#0F1012',
-        display: 'flex',
-        alignItems: 'center',
-        justifyContent: 'center',
-        color: '#fff',
-        flexDirection: 'column',
-        gap: 16
-      }}>
-        {/* Fuego difuminado naranja */}
-        <div style={{
-          position: 'relative',
-          display: 'flex',
-          alignItems: 'center',
-          justifyContent: 'center',
-          width: 120,
-          height: 120
-        }}>
-          {/* Fuego con blur/difuminado */}
-          <div style={{
-            position: 'absolute',
-            filter: 'blur(20px)',
-            opacity: 0.6,
-            transform: 'scale(1.5)'
-          }}>
-            <Flame
-              size={80}
-              color="#FF7939"
-              fill="#FF7939"
-            />
-          </div>
-          {/* Fuego principal (más nítido) */}
-          <div style={{
-            position: 'relative',
-            zIndex: 1
-          }}>
-            <Flame
-              size={80}
-              color="#FF7939"
-              fill="#FF7939"
-            />
-          </div>
-        </div>
-
-        {/* Texto "Cargando" */}
-        <div style={{
-          fontSize: 18,
-          fontWeight: 600,
-          color: '#FF7939',
-          textAlign: 'center'
-        }}>
-          Cargando
-        </div>
-      </div>
-    );
+    return <OmniaLoader />;
   }
 
   return (
     <div style={{ height: '100vh', background: '#0F1012', color: '#fff', position: 'relative', overflow: 'hidden', zIndex: 1 }}>
+      {/* Fondo blureado premium - Imagen de portada del programa */}
+      {backgroundImage && backgroundImage.trim() !== '' && (
+        <div style={{
+          position: 'fixed',
+          top: 0,
+          left: 0,
+          right: 0,
+          bottom: 0,
+          backgroundImage: `url(${backgroundImage})`,
+          backgroundSize: 'cover',
+          backgroundPosition: 'center',
+          opacity: 0.15,
+          filter: 'blur(80px)',
+          WebkitFilter: 'blur(80px)',
+          zIndex: 0,
+          transform: 'scale(1.2)',
+          pointerEvents: 'none'
+        }} />
+      )}
       {/* Header de Omnia */}
       <div
         className="fixed top-0 left-0 right-0 z-[9999] bg-black rounded-b-[32px] px-5 py-3 flex justify-between items-center"
@@ -2409,12 +2373,7 @@ export default function TodayScreen({ activityId, enrollmentId, onBack }: { acti
           style={{
             padding: calendarExpanded ? '0px 24px 20px' : '0px 24px 20px',
             minHeight: 'calc(100vh - 120px)',
-            backgroundImage: backgroundImage && backgroundImage.trim() !== ''
-              ? `linear-gradient(180deg, rgba(15, 16, 18, 0.85) 0%, rgba(15, 16, 18, 0.95) 100%), url(${backgroundImage})`
-              : 'radial-gradient(120% 140% at 20% -20%, #1c1f23 0%, #111418 55%, #0b0c0e 100%)',
-            backgroundSize: 'cover',
-            backgroundPosition: 'center',
-            backgroundAttachment: 'fixed',
+            background: 'transparent',
             borderBottom: '1px solid #1f2328',
             scale: heroScale,
             opacity: heroOpacity,
@@ -3812,66 +3771,37 @@ export default function TodayScreen({ activityId, enrollmentId, onBack }: { acti
                 flexDirection: 'column'
               }}
             >
-              {/* Fondo con primer frame del video pausado - Hasta los títulos de Técnica/Equipamiento/Músculos */}
-              {selectedVideo.url && typeof selectedVideo.url === 'string' && selectedVideo.url.trim() !== '' && (
-                <div style={{
-                  position: 'absolute',
-                  top: 0,
-                  left: 0,
-                  right: 0,
-                  height: '35vh',
-                  overflow: 'hidden',
-                  zIndex: 0
-                }}>
-                  <video
-                    src={selectedVideo.url}
-                    style={{
-                      width: '100%',
-                      height: '100%',
-                      objectFit: 'cover',
-                      opacity: 0.75,
-                      filter: 'blur(8px)',
-                      WebkitFilter: 'blur(8px)',
-                      transform: 'scale(1.1)',
-                      pointerEvents: 'none'
-                    }}
-                    muted
-                    autoPlay
-                    loop
-                    playsInline
-                  />
-                </div>
-              )}
-              {/* Fallback: usar imagen de portada si no hay video */}
-              {(!selectedVideo.url || selectedVideo.url.trim() === '') && (selectedVideo.coverImageUrl || backgroundImage) && (
-                <div style={{
-                  position: 'absolute',
-                  top: 0,
-                  left: 0,
-                  right: 0,
-                  height: '35vh',
-                  backgroundImage: `url(${selectedVideo.coverImageUrl || backgroundImage})`,
-                  backgroundSize: 'cover',
-                  backgroundPosition: 'center',
-                  opacity: 0.75,
-                  filter: 'blur(8px)',
-                  WebkitFilter: 'blur(8px)',
-                  zIndex: 0
-                }}></div>
-              )}
+              {/* Fondo blureado premium - Imagen de portada o primer frame */}
+              <div style={{
+                position: 'absolute',
+                top: 0,
+                left: 0,
+                right: 0,
+                bottom: 0,
+                backgroundImage: `url(${selectedVideo.coverImageUrl || backgroundImage})`,
+                backgroundSize: 'cover',
+                backgroundPosition: 'center',
+                opacity: 0.55,
+                filter: 'blur(12px) brightness(0.85)',
+                WebkitFilter: 'blur(12px) brightness(0.85)',
+                zIndex: 0,
+                transform: 'scale(1.1)',
+                pointerEvents: 'none'
+              }} />
 
-              {/* Overlay oscuro en la parte superior - Solo cuando el video NO está expandido */}
-              {!isVideoPanelExpanded && (
-                <div style={{
-                  position: 'absolute',
-                  top: 0,
-                  left: 0,
-                  right: 0,
-                  height: '35vh',
-                  background: 'linear-gradient(180deg, rgba(0, 0, 0, 0.3) 0%, rgba(0, 0, 0, 0.5) 100%)',
-                  zIndex: 1
-                }}></div>
-              )}
+              {/* Overlay de degradado para profundidad y legibilidad */}
+              <div style={{
+                position: 'absolute',
+                top: 0,
+                left: 0,
+                right: 0,
+                bottom: 0,
+                background: isVideoPanelExpanded
+                  ? 'linear-gradient(180deg, rgba(0, 0, 0, 0.7) 0%, rgba(0, 0, 0, 0.85) 100%)'
+                  : 'linear-gradient(180deg, rgba(0, 0, 0, 0.1) 0%, rgba(0, 0, 0, 0.4) 40%, rgba(0, 0, 0, 0.8) 100%)',
+                zIndex: 1,
+                pointerEvents: 'none'
+              }} />
 
               {/* Header con botón de retroceso */}
               <div style={{
@@ -4055,6 +3985,7 @@ export default function TodayScreen({ activityId, enrollmentId, onBack }: { acti
                         key={`video-${selectedVideo.url}-${isVideoPanelExpanded}`}
                         videoUrl={selectedVideo.url}
                         bunnyVideoId={(selectedVideo as any).bunnyVideoId || undefined}
+                        thumbnailUrl={selectedVideo.coverImageUrl}
                         autoPlay={true}
                         controls={true}
                         className="w-full h-full"
@@ -4262,15 +4193,29 @@ export default function TodayScreen({ activityId, enrollmentId, onBack }: { acti
                                   if (typeof firstItem === 'string') {
                                     ingredientesList = firstItem.split(';').map((i: string) => i.trim()).filter((i: string) => i.length > 0);
                                   } else {
-                                    ingredientesList = (selectedVideo.ingredientes as any[]).map((i: any) => String(i).trim()).filter((i: string) => i.length > 0);
+                                    ingredientesList = (selectedVideo.ingredientes as any[]).map((i: any) => {
+                                      if (typeof i === 'object' && i !== null) {
+                                        return `${i.nombre || ''} ${i.cantidad || ''} ${i.unidad || ''}`.trim();
+                                      }
+                                      return String(i).trim();
+                                    }).filter((i: string) => i.length > 0);
                                   }
+                                } else if (typeof selectedVideo.ingredientes === 'object' && selectedVideo.ingredientes !== null) {
+                                  // Manejar objeto de objetos (formato legacy/migración)
+                                  ingredientesList = Object.values(selectedVideo.ingredientes).map((ing: any) => {
+                                    if (typeof ing === 'object' && ing !== null) {
+                                      return `${ing.nombre || ''} ${ing.cantidad || ''} ${ing.unidad || ''}`.trim();
+                                    }
+                                    return String(ing).trim();
+                                  }).filter((i: string) => i.length > 4); // Filtro mínimo para evitar "null null null"
                                 } else if (typeof selectedVideo.ingredientes === 'string') {
                                   ingredientesList = selectedVideo.ingredientes.split(';').map((i: string) => i.trim()).filter((i: string) => i.length > 0);
                                 }
                               }
                             } catch (e) {
-                              if (selectedVideo?.ingredientes) {
-                                ingredientesList = [String(selectedVideo.ingredientes)];
+                              console.error('Error parsing ingredients:', e);
+                              if (selectedVideo?.ingredientes && typeof selectedVideo.ingredientes === 'string') {
+                                ingredientesList = [selectedVideo.ingredientes];
                               }
                             }
 
@@ -4382,12 +4327,11 @@ export default function TodayScreen({ activityId, enrollmentId, onBack }: { acti
                                                 width: 24,
                                                 height: 24,
                                                 borderRadius: '50%',
-                                                // background: 'rgba(255, 106, 26, 0.15)',
                                                 color: '#FF6A1A',
                                                 display: 'flex',
                                                 alignItems: 'center',
                                                 justifyContent: 'center',
-                                                fontSize: 14, // Slightly bigger
+                                                fontSize: 14,
                                                 fontWeight: 800,
                                                 border: '1px solid rgba(255, 106, 26, 0.4)',
                                                 marginTop: 0
@@ -4403,7 +4347,6 @@ export default function TodayScreen({ activityId, enrollmentId, onBack }: { acti
                                           );
                                         }
 
-                                        // Fallback for non-numbered text
                                         return (
                                           <p key={i} style={{
                                             color: 'rgba(255, 255, 255, 0.85)',
@@ -4495,26 +4438,33 @@ export default function TodayScreen({ activityId, enrollmentId, onBack }: { acti
                             borderBottom: '1px solid rgba(255, 255, 255, 0.1)',
                             marginBottom: 12
                           }}>
-                            {(['Técnica', 'Equipamiento', 'Músculos'] as const).map((tab) => (
-                              <button
-                                key={tab}
-                                onClick={() => setActiveExerciseTab(tab)}
-                                style={{
-                                  flex: 1,
-                                  padding: '12px 16px',
-                                  background: 'transparent',
-                                  border: 'none',
-                                  borderBottom: activeExerciseTab === tab ? '2px solid #FF6A1A' : '2px solid transparent',
-                                  color: activeExerciseTab === tab ? '#FFFFFF' : 'rgba(255, 255, 255, 0.6)',
-                                  fontSize: 14,
-                                  fontWeight: activeExerciseTab === tab ? 600 : 500,
-                                  cursor: 'pointer',
-                                  transition: 'all 0.2s ease'
-                                }}
-                              >
-                                {tab}
-                              </button>
-                            ))}
+                            {(() => {
+                              const tabs = ['Técnica', 'Equipamiento', 'Músculos'] as any[];
+                              const hasSeries = selectedVideo.detalle_series || selectedVideo.series;
+                              if (hasSeries && hasSeries !== 'Sin especificar') {
+                                tabs.unshift('Series');
+                              }
+                              return tabs.map((tab) => (
+                                <button
+                                  key={tab}
+                                  onClick={() => setActiveExerciseTab(tab)}
+                                  style={{
+                                    flex: 1,
+                                    padding: '12px 16px',
+                                    background: 'transparent',
+                                    border: 'none',
+                                    borderBottom: activeExerciseTab === tab ? '2px solid #FF6A1A' : '2px solid transparent',
+                                    color: activeExerciseTab === tab ? '#FFFFFF' : 'rgba(255, 255, 255, 0.6)',
+                                    fontSize: 14,
+                                    fontWeight: activeExerciseTab === tab ? 600 : 500,
+                                    cursor: 'pointer',
+                                    transition: 'all 0.2s ease'
+                                  }}
+                                >
+                                  {tab}
+                                </button>
+                              ));
+                            })()}
                           </div>
 
                           {/* Contenido de cada tab */}
@@ -4526,6 +4476,60 @@ export default function TodayScreen({ activityId, enrollmentId, onBack }: { acti
                             transition={{ duration: 0.2 }}
                             style={{ overflow: 'hidden' }}
                           >
+                            {activeExerciseTab === 'Series' && (selectedVideo.detalle_series || selectedVideo.series) && (
+                              <div style={{ padding: '12px 0' }}>
+                                {(() => {
+                                  const parsed = parseSeries(selectedVideo.detalle_series || selectedVideo.series);
+                                  if (parsed.length === 0) return <p style={{ color: 'rgba(255, 255, 255, 0.4)', fontSize: 13 }}>Sin series especificadas</p>;
+
+                                  return (
+                                    <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+                                      {parsed.map((s: any, idx: number) => (
+                                        <div key={idx} style={{
+                                          display: 'flex',
+                                          alignItems: 'center',
+                                          justifyContent: 'space-between',
+                                          padding: '10px 14px',
+                                          background: 'rgba(255, 255, 255, 0.05)',
+                                          borderRadius: 12,
+                                          border: '1px solid rgba(255, 255, 255, 0.05)'
+                                        }}>
+                                          <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+                                            <div style={{
+                                              width: 24,
+                                              height: 24,
+                                              borderRadius: '50%',
+                                              background: 'rgba(255, 106, 26, 0.15)',
+                                              color: '#FF6A1A',
+                                              display: 'flex',
+                                              alignItems: 'center',
+                                              justifyContent: 'center',
+                                              fontSize: 12,
+                                              fontWeight: 700
+                                            }}>{idx + 1}</div>
+                                            <span style={{ color: '#FFFFFF', fontSize: 14, fontWeight: 500 }}>
+                                              {s.sets} {Number(s.sets) === 1 ? 'Serie' : 'Series'}
+                                            </span>
+                                          </div>
+                                          <div style={{ display: 'flex', gap: 12 }}>
+                                            <div style={{ textAlign: 'right' }}>
+                                              <div style={{ color: 'rgba(255, 255, 255, 0.4)', fontSize: 10, textTransform: 'uppercase' }}>Reps</div>
+                                              <div style={{ color: '#FFFFFF', fontSize: 15, fontWeight: 700 }}>{s.reps}</div>
+                                            </div>
+                                            <div style={{ width: 1, height: 24, background: 'rgba(255, 255, 255, 0.1)', alignSelf: 'center' }}></div>
+                                            <div style={{ textAlign: 'right', minWidth: 40 }}>
+                                              <div style={{ color: 'rgba(255, 255, 255, 0.4)', fontSize: 10, textTransform: 'uppercase' }}>Peso</div>
+                                              <div style={{ color: '#FF6A1A', fontSize: 15, fontWeight: 700 }}>{s.kg}kg</div>
+                                            </div>
+                                          </div>
+                                        </div>
+                                      ))}
+                                    </div>
+                                  );
+                                })()}
+                              </div>
+                            )}
+
                             {activeExerciseTab === 'Técnica' && selectedVideo.description && (
                               <div style={{ padding: '12px 0' }}>
                                 <p style={{
@@ -5633,6 +5637,31 @@ export default function TodayScreen({ activityId, enrollmentId, onBack }: { acti
                                                   }}>
                                                     {activity.title}
                                                   </div>
+
+                                                  {/* PRS para fitness */}
+                                                  {!(programInfo?.categoria === 'nutricion' || enrollment?.activity?.categoria === 'nutricion' || enrollment?.activity?.type?.toLowerCase().includes('nutrition')) && (
+                                                    (() => {
+                                                      const seriesData = activity.detalle_series || activity.series;
+                                                      if (!seriesData || seriesData === 'Sin especificar') return null;
+                                                      const parsed = parseSeries(seriesData);
+                                                      if (parsed.length === 0) return null;
+                                                      const firstBlock = parsed[0];
+                                                      if (!firstBlock || (firstBlock.kg === undefined && firstBlock.reps === undefined)) return null;
+
+                                                      return (
+                                                        <div style={{
+                                                          fontSize: 11,
+                                                          color: '#FF7939',
+                                                          fontWeight: 600,
+                                                          fontFamily: 'monospace',
+                                                          marginTop: 2,
+                                                          letterSpacing: '0.3px'
+                                                        }}>
+                                                          P:{firstBlock.kg}kg | R:{firstBlock.reps} | S:{firstBlock.sets}
+                                                        </div>
+                                                      );
+                                                    })()
+                                                  )}
 
                                                   {/* Macros para nutrición */}
                                                   {(programInfo?.categoria === 'nutricion' || enrollment?.activity?.categoria === 'nutricion') && (

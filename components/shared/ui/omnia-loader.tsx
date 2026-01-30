@@ -1,44 +1,41 @@
-"use client"
-
 import React from "react"
-import { FlameIcon } from "./flame-icon"
-import { OmniaLogoText } from "./omnia-logo"
+import { Flame } from "lucide-react"
 
 interface OmniaLoaderProps {
     className?: string
     message?: string
-    showText?: boolean
-    size?: "sm" | "md" | "lg"
 }
 
 export function OmniaLoader({
     className = "",
-    message = "Cargando...",
-    showText = true,
-    size = "md"
+    message = "Cargando"
 }: OmniaLoaderProps) {
-    const flameSize = size === "sm" ? "w-8 h-8" : size === "lg" ? "w-16 h-16" : "w-12 h-12"
-    const textSize = size === "sm" ? "text-lg" : size === "lg" ? "text-4xl" : "text-2xl"
-
     return (
-        <div className={`flex flex-col items-center justify-center space-y-4 p-8 animate-in fade-in duration-500 ${className}`}>
-            <div className="relative">
-                <div className="absolute inset-0 bg-[#FF7939]/20 blur-xl rounded-full scale-150 animate-pulse" />
-                <FlameIcon
-                    primaryColor="#FF7939"
-                    secondaryColor="#FF6A1A"
-                    centerColor="#FFFFFF"
-                    className={`${flameSize} relative animate-bounce`}
-                />
+        <div className={`flex flex-col items-center justify-center min-h-screen bg-[#0F1012] ${className}`}>
+            {/* Fuego difuminado naranja */}
+            <div className="relative flex items-center justify-center w-[120px] h-[120px]">
+                {/* Fuego con blur/difuminado */}
+                <div className="absolute blur-[20px] opacity-60 scale-[1.5]">
+                    <Flame
+                        size={80}
+                        color="#FF7939"
+                        fill="#FF7939"
+                    />
+                </div>
+                {/* Fuego principal (más nítido) */}
+                <div className="relative z-10">
+                    <Flame
+                        size={120}
+                        color="#FF7939"
+                        fill="#FF7939"
+                        className="animate-pulse"
+                    />
+                </div>
             </div>
 
-            <div className="flex flex-col items-center space-y-1">
-                <OmniaLogoText size={textSize} />
-                {showText && message && (
-                    <p className="text-gray-400 text-sm font-medium animate-pulse">
-                        {message}
-                    </p>
-                )}
+            {/* Texto "Cargando" */}
+            <div className="text-[18px] font-semibold color-[#FF7939] text-center mt-[-10px]" style={{ color: '#FF7939' }}>
+                {message}
             </div>
         </div>
     )
