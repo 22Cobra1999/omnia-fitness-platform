@@ -16,12 +16,13 @@ interface BiometricsModalProps {
 }
 
 const measurementTypes = [
+  { value: "peso", label: "Peso", unit: "kg" },
+  { value: "altura", label: "Altura", unit: "cm" },
   { value: "pecho", label: "Pecho", unit: "cm" },
   { value: "cintura", label: "Cintura", unit: "cm" },
   { value: "cadera", label: "Cadera", unit: "cm" },
   { value: "brazo", label: "Brazo", unit: "cm" },
   { value: "muslo", label: "Muslo", unit: "cm" },
-  { value: "peso", label: "Peso", unit: "kg" },
   { value: "grasa_corporal", label: "Grasa Corporal", unit: "%" },
   { value: "musculo", label: "Músculo", unit: "kg" },
   { value: "agua", label: "Agua Corporal", unit: "%" },
@@ -81,6 +82,12 @@ export function BiometricsModal({ isOpen, onClose, mode, onSave, initialData, on
             <Heart className="h-4 w-4 text-[#FF6A00]" />
             {mode === 'edit' ? 'Editar biometría' : 'Registrar'}
           </DialogTitle>
+          <button
+            onClick={onClose}
+            className="p-1.5 rounded-lg text-gray-500 hover:text-white hover:bg-white/10 transition-colors"
+          >
+            <X className="w-4 h-4" />
+          </button>
         </DialogHeader>
 
         <div className="p-4 space-y-5">

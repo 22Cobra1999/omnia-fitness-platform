@@ -409,8 +409,19 @@ export function ProfileEditModal({ isOpen, onClose, editingSection }: ProfileEdi
                   </div>
                 </div>
               </div>
+            </div>
 
-              {/* Datos físicos (2 Columnas) */}
+            {/* Separator & Header for Physical Data */}
+            <div className="flex items-center gap-2 mb-2 mt-2">
+              <div className="h-px flex-1 bg-gradient-to-r from-transparent via-white/10 to-transparent" />
+              <div className="p-2 rounded-full bg-white/5 border border-white/10 text-[#FF7939]">
+                <User className="h-4 w-4" />
+              </div>
+              <div className="h-px flex-1 bg-gradient-to-r from-transparent via-white/10 to-transparent" />
+            </div>
+
+            {/* Datos físicos (2 Columnas) */}
+            <div className="grid grid-cols-2 gap-x-6 gap-y-4">
               <div className="group">
                 <Label htmlFor="birth_date" className="text-[10px] uppercase tracking-widest text-gray-500 group-focus-within:text-[#FF7939] transition-colors">Fecha nacimiento</Label>
                 <Input
@@ -493,7 +504,7 @@ export function ProfileEditModal({ isOpen, onClose, editingSection }: ProfileEdi
             <div className="space-y-6">
               <div ref={goalsSectionRef}>
                 <div className="flex items-center justify-between mb-3">
-                  <Label className="text-[10px] uppercase tracking-widest text-[#FF7939]">Objetivos</Label>
+                  <Label className="text-[10px] uppercase tracking-widest text-[#FF7939]">Metas de Rendimiento</Label>
                   <button
                     type="button"
                     onClick={() => setIsGoalsPopoverOpen(!isGoalsPopoverOpen)}

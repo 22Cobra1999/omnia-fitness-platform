@@ -1,0 +1,612 @@
+<!DOCTYPE html>
+<html xmlns="http://www.w3.org/1999/xhtml" lang="" xml:lang="">
+
+<head>
+  <meta charset="utf-8" />
+  <meta name="generator" content="pandoc" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=yes" />
+  <title>Biblia Omnia</title>
+  <style>
+    html {
+      line-height: 1.5;
+      font-family: Georgia, serif;
+      font-size: 20px;
+      color: #1a1a1a;
+      background-color: #fdfdfd;
+    }
+
+    body {
+      margin: 0 auto;
+      max-width: 36em;
+      padding-left: 50px;
+      padding-right: 50px;
+      padding-top: 50px;
+      padding-bottom: 50px;
+      hyphens: auto;
+      word-wrap: break-word;
+      text-rendering: optimizeLegibility;
+      font-kerning: normal;
+    }
+
+    @media (max-width: 600px) {
+      body {
+        font-size: 0.9em;
+        padding: 1em;
+      }
+    }
+
+    @media print {
+      body {
+        background-color: transparent;
+        color: black;
+        font-size: 12pt;
+      }
+
+      p,
+      h2,
+      h3 {
+        orphans: 3;
+        widows: 3;
+      }
+
+      h2,
+      h3,
+      h4 {
+        page-break-after: avoid;
+      }
+    }
+
+    p {
+      margin: 1em 0;
+    }
+
+    a {
+      color: #1a1a1a;
+    }
+
+    a:visited {
+      color: #1a1a1a;
+    }
+
+    img {
+      max-width: 100%;
+    }
+
+    h1,
+    h2,
+    h3,
+    h4,
+    h5,
+    h6 {
+      margin-top: 1.4em;
+    }
+
+    h5,
+    h6 {
+      font-size: 1em;
+      font-style: italic;
+    }
+
+    h6 {
+      font-weight: normal;
+    }
+
+    ol,
+    ul {
+      padding-left: 1.7em;
+      margin-top: 1em;
+    }
+
+    li>ol,
+    li>ul {
+      margin-top: 0;
+    }
+
+    blockquote {
+      margin: 1em 0 1em 1.7em;
+      padding-left: 1em;
+      border-left: 2px solid #e6e6e6;
+      color: #606060;
+    }
+
+    code {
+      font-family: Menlo, Monaco, 'Lucida Console', Consolas, monospace;
+      font-size: 85%;
+      margin: 0;
+    }
+
+    pre {
+      margin: 1em 0;
+      overflow: auto;
+    }
+
+    pre code {
+      padding: 0;
+      overflow: visible;
+    }
+
+    .sourceCode {
+      background-color: transparent;
+      overflow: visible;
+    }
+
+    hr {
+      background-color: #1a1a1a;
+      border: none;
+      height: 1px;
+      margin: 1em 0;
+    }
+
+    table {
+      margin: 1em 0;
+      border-collapse: collapse;
+      width: 100%;
+      overflow-x: auto;
+      display: block;
+      font-variant-numeric: lining-nums tabular-nums;
+    }
+
+    table caption {
+      margin-bottom: 0.75em;
+    }
+
+    tbody {
+      margin-top: 0.5em;
+      border-top: 1px solid #1a1a1a;
+      border-bottom: 1px solid #1a1a1a;
+    }
+
+    th {
+      border-top: 1px solid #1a1a1a;
+      padding: 0.25em 0.5em 0.25em 0.5em;
+    }
+
+    td {
+      padding: 0.125em 0.5em 0.25em 0.5em;
+    }
+
+    header {
+      margin-bottom: 4em;
+      text-align: center;
+    }
+
+    #TOC li {
+      list-style: none;
+    }
+
+    #TOC a:not(:hover) {
+      text-decoration: none;
+    }
+
+    code {
+      white-space: pre-wrap;
+    }
+
+    span.smallcaps {
+      font-variant: small-caps;
+    }
+
+    span.underline {
+      text-decoration: underline;
+    }
+
+    div.column {
+      display: inline-block;
+      vertical-align: top;
+      width: 50%;
+    }
+
+    div.hanging-indent {
+      margin-left: 1.5em;
+      text-indent: -1.5em;
+    }
+
+    ul.task-list {
+      list-style: none;
+    }
+
+    .display.math {
+      display: block;
+      text-align: center;
+      margin: 0.5rem auto;
+    }
+  </style>
+  <!--[if lt IE 9]>
+    <script src="//cdnjs.cloudflare.com/ajax/libs/html5shiv/3.7.3/html5shiv-printshiv.min.js"></script>
+  <![endif]-->
+</head>
+
+<body>
+  <header id="title-block-header">
+    <h1 class="title">Biblia Omnia</h1>
+  </header>
+  <h1 id="omnia-la-biblia-completa-del-sistema">📖 OMNIA: La Biblia Completa del Sistema</h1>
+  <p>Bienvenido al repositorio central de conocimiento técnico de Omnia. Este documento consolida todos los flujos de
+    datos, consultas críticas y procesos de carga tanto para el Cliente como para el Coach.</p>
+  <hr />
+  <h2 id="índice-de-navegación">📑 Índice de Navegación</h2>
+  <h3 id="aplicación-del-cliente-client-app">👤 Aplicación del Cliente (Client App)</h3>
+  <ol type="1">
+    <li><a href="#explorar-marketplace"><strong>Explorar / Marketplace</strong></a>: Descubrimiento y compra de
+      productos.</li>
+    <li><a href="#mis-actividades"><strong>Mis Actividades</strong></a>: Seguimiento de progreso y consumo.</li>
+    <li><a href="#calendario-cliente"><strong>Calendario del Cliente</strong></a>: Gestión de turnos y eMeets.</li>
+    <li><a href="#perfil-cliente"><strong>Perfil del Cliente</strong></a>: Datos personales, biometría y metas.</li>
+    <li><a href="#comunidad-cliente"><strong>Comunidad</strong></a>: Feed social e interacciones.</li>
+    <li><a href="#mensajeria-cliente"><strong>Mensajería</strong></a>: Chat directo con coaches.</li>
+  </ol>
+  <h3 id="panel-del-coach-coach-dashboard">👨‍🏫 Panel del Coach (Coach Dashboard)</h3>
+  <ol start="7" type="1">
+    <li><a href="#gestion-clientes-coach"><strong>Gestión de Clientes</strong></a>: Cartera y detalle de evolución.</li>
+    <li><a href="#gestion-productos-coach"><strong>Gestión de Productos</strong></a>: Creación de ejercicios y
+      nutrición.</li>
+    <li><a href="#calendario-coach"><strong>Calendario del Coach</strong></a>: Disponibilidad y sincronización eMeet.
+    </li>
+    <li><a href="#gestion-video-coach"><strong>Gestión de Videos (Bunny.net)</strong></a>: Subida y streaming.</li>
+    <li><a href="#gestion-documentos-coach"><strong>Gestión de Documentos</strong></a>: Estructura de PDFs y temas.</li>
+    <li><a href="#perfil-coach"><strong>Perfil del Coach</strong></a>: Configuración y marca personal.</li>
+  </ol>
+  <h3 id="lógica-y-arquitectura-técnica">🧠 Lógica y Arquitectura Técnica</h3>
+  <ol start="13" type="1">
+    <li><a href="#onboarding-logic"><strong>Formulario de Onboarding</strong></a>: Lógica de admisión.</li>
+    <li><a href="#progreso-logic"><strong>Generación de Progreso</strong></a>: El “Motor de Instanciación”.</li>
+    <li><a href="#script-audit"><strong>Auditoría de Scripts y QA</strong></a>: Dashboard de eficiencia y deuda técnica.
+    </li>
+  </ol>
+  <hr />
+  <p><a name="explorar-marketplace"></a> ## 1. 🔍 Explorar / Marketplace (Client) Ventana para descubrir nuevos
+    productos, coaches y servicios.</p>
+  <h3 id="esquema-de-la-pantalla">📐 Esquema de la Pantalla</h3>
+  <ul>
+    <li><strong>[SEARCH_HEADER]</strong>: Barra de búsqueda por texto + Chips de categorías (Fitness, Nutrición, etc.) +
+      Botón de filtros avanzados.</li>
+    <li><strong>[CONTENT_SECTIONS]</strong>: Carruseles de “Coaches Destacados”, “Nuevas Actividades” y “Categorías
+      Populares”.</li>
+    <li><strong>[ITEM_DETAILS]</strong>: <strong>Activity Card</strong> (Muestra imagen, título, coach,
+      precio/suscripción, rating y badge de modalidad).</li>
+  </ul>
+  <h3 id="datos-y-tablas">📊 Datos y Tablas</h3>
+  <ul>
+    <li><strong>Tabla <code>activities</code></strong>: Fuente principal para títulos, precios, ratings e imágenes.
+      (Filtro: <code>status = 'published'</code>).</li>
+    <li><strong>Tabla <code>user_profiles</code></strong>: Datos del coach (nombre, avatar) vinculados a la actividad.
+    </li>
+  </ul>
+  <h3 id="componentes-reutilizables">🧩 Componentes Reutilizables</h3>
+  <ul>
+    <li><strong><code>ActivityCard</code></strong>: Se usa en marketplace y listas de búsqueda.</li>
+    <li><strong><code>CoachCard</code></strong>: Tarjeta estándar de perfil de coach.</li>
+  </ul>
+  <p><a href="#indice-de-navegacion">Volver al índice</a></p>
+  <hr />
+  <p><a name="mis-actividades"></a> ## 2. 🏃 Mis Actividades (Client) Pestaña central donde el cliente consume sus
+    productos adquiridos.</p>
+  <h3 id="esquema-de-la-pantalla-1">📐 Esquema de la Pantalla</h3>
+  <ul>
+    <li><strong>[FILTER_TABS]</strong>: Selector de estado (En curso, Por empezar, Finalizadas).</li>
+    <li><strong>[ACTIVITY_LIST]</strong>: Scroll de <strong>Purchased Activity Cards</strong>.</li>
+    <li><strong>[ACTIVITY_CARD]</strong>: Muestra progreso %, status badge y flecha de acceso al detalle.</li>
+  </ul>
+  <h3 id="datos-y-tablas-1">📊 Datos y Tablas</h3>
+  <ul>
+    <li><strong>Tabla <code>activity_enrollments</code></strong>: Gestiona el <code>status</code> y
+      <code>progress_percentage</code>.
+    </li>
+    <li><strong>Tabla <code>activities</code></strong>: Información base del producto (imágenes, títulos).</li>
+  </ul>
+  <h3 id="componentes-reutilizables-1">🧩 Componentes Reutilizables</h3>
+  <ul>
+    <li><strong><code>PurchasedActivityCard</code></strong>: Usado aquí y en la vista que el coach tiene de su cliente.
+    </li>
+  </ul>
+  <p><a href="#indice-de-navegacion">Volver al índice</a></p>
+  <hr />
+  <p><a name="calendario-cliente"></a> ## 3. 📅 Calendario del Cliente (Client) Gestión de sesiones individuales (Meets)
+    y clases grupales.</p>
+  <h3 id="esquema-de-la-pantalla-2">📐 Esquema de la Pantalla</h3>
+  <ul>
+    <li><strong>[CALENDAR_VIEW]</strong>: Vista mes/semana con puntos indicadores de eventos.</li>
+    <li><strong>[SESSIONS_LIST]</strong>: Agenda diaria con hora, título, coach y botón <strong>Unirse (Join)</strong>.
+    </li>
+  </ul>
+  <h3 id="datos-y-tablas-2">📊 Datos y Tablas</h3>
+  <ul>
+    <li><strong>Tabla <code>activity_sessions</code></strong>: Almacena horarios y links de reunión.</li>
+    <li><strong>Tabla <code>user_meet_credits</code></strong>: Control de créditos disponibles para agendar.</li>
+  </ul>
+  <p><a href="#indice-de-navegacion">Volver al índice</a></p>
+  <hr />
+  <p><a name="perfil-cliente"></a> ## 4. 👤 Perfil del Cliente (Client) Gestión de información personal y métricas
+    físicas.</p>
+  <h3 id="esquema-de-la-pantalla-3">📐 Esquema de la Pantalla</h3>
+  <ul>
+    <li><strong>[HEADER]</strong>: Avatar con edición, Botón Cuestionario (Onboarding), Botón Edición Inline. Muestra
+      nombre, edad y ubicación.</li>
+    <li><strong>[ACTIVITY_STATS]</strong>: Dashboard con <strong>Daily Activity Rings</strong> (Kcal, Minutos,
+      Ejercicios).</li>
+    <li><strong>[BIOMETRICS_SECTION]</strong>: Carrusel horizontal de métricas (Peso, Altura, % Grasa).</li>
+    <li><strong>[PERFORMANCE_GOALS]</strong>: Lista interactiva con objetivos de rendimiento
+      (<strong>ExerciseProgressList</strong>).</li>
+    <li><strong>[INJURIES_SECTION]</strong>: Listado de lesiones y severidad.</li>
+  </ul>
+  <h3 id="datos-y-tablas-3">📊 Datos y Tablas</h3>
+  <ul>
+    <li><strong>Tablas <code>user_profiles</code> / <code>clients</code></strong>: Datos personales y fecha de
+      nacimiento.</li>
+    <li><strong>Tabla <code>user_biometrics</code></strong>: Histórico de mediciones (agrupado por nombre).</li>
+    <li><strong>Tabla <code>user_exercise_objectives</code></strong>: Metas técnicas de ejercicios.</li>
+    <li><strong>Tabla <code>user_injuries</code></strong>: Registro de salud.</li>
+  </ul>
+  <p><a href="#indice-de-navegacion">Volver al índice</a></p>
+  <hr />
+  <p><a name="comunidad-cliente"></a> ## 5. 🤝 Comunidad (Client) Espacio social para compartir logros y contenido.</p>
+  <h3 id="esquema-de-la-pantalla-4">📐 Esquema de la Pantalla</h3>
+  <ul>
+    <li><strong>[FEED_HEADER]</strong>: Input para nuevas publicaciones con adjuntos.</li>
+    <li><strong>[SOCIAL_FEED]</strong>: Muro infinito de <strong>Post Cards</strong> con acciones de Like y Comentar.
+    </li>
+  </ul>
+  <h3 id="datos-y-tablas-4">📊 Datos y Tablas</h3>
+  <ul>
+    <li><strong>Tabla <code>community_posts</code></strong>: Contenido y multimedia del feed.</li>
+    <li><strong>Tablas <code>community_likes</code> / <code>community_comments</code></strong>: Interacciones sociales.
+    </li>
+  </ul>
+  <p><a href="#indice-de-navegacion">Volver al índice</a></p>
+  <hr />
+  <p><a name="mensajeria-cliente"></a> ## 6. 💬 Mensajería (Client) Comunicación directa Cliente-Coach.</p>
+  <h3 id="esquema-de-la-pantalla-5">📐 Esquema de la Pantalla</h3>
+  <ul>
+    <li><strong>[CHAT_LIST]</strong>: Bandeja de entrada con avatares e indicadores de no leídos.</li>
+    <li><strong>[CHAT_WINDOW]</strong>: Historia de mensajes en burbujas de colores (Naranja/Gris).</li>
+  </ul>
+  <h3 id="datos-y-tablas-5">📊 Datos y Tablas</h3>
+  <ul>
+    <li><strong>Tabla <code>messages</code></strong>: Contenido y estado de lectura.</li>
+    <li><strong>Tabla <code>chats</code></strong>: Metadatos de la conversación.</li>
+  </ul>
+  <p><a href="#indice-de-navegacion">Volver al índice</a></p>
+  <hr />
+  <p><a name="gestion-clientes-coach"></a> ## 7. 👥 Gestión de Clientes (Coach) Panel de control para que el coach
+    supervise a su clientela.</p>
+  <h3 id="esquema-de-la-pantalla-6">📐 Esquema de la Pantalla</h3>
+  <ul>
+    <li><strong>[CLIENT_LIST]</strong>: Lista de clientes con barra de búsqueda y filtros por estado (Activo/Inactivo).
+    </li>
+    <li><strong>[CLIENT_DETAIL]</strong>: Panel expansible con pestañas:
+      <ul>
+        <li><strong>Progreso</strong>: Gráficas y evolución.</li>
+        <li><strong>Actividades</strong>: Qué productos tiene comprados.</li>
+        <li><strong>To Do</strong>: Tareas asignadas para hoy.</li>
+        <li><strong>Ingresos</strong>: Historial de pagos realizados por ese cliente.</li>
+      </ul>
+    </li>
+  </ul>
+  <h3 id="datos-y-tablas-6">📊 Datos y Tablas</h3>
+  <ul>
+    <li><strong>Tabla <code>clients</code></strong>: Perfil físico del cliente.</li>
+    <li><strong>Tabla <code>progreso_diario_actividad</code></strong>: Fuente para el cálculo de cumplimiento y racha.
+    </li>
+  </ul>
+  <p><a href="#indice-de-navegacion">Volver al índice</a></p>
+  <hr />
+  <p><a name="gestion-productos-coach"></a> ## 8. 🛒 Gestión de Productos (Coach) Creación y edición masiva de
+    planificaciones.</p>
+  <h3 id="esquema-de-la-pantalla-7">📐 Esquema de la Pantalla</h3>
+  <ul>
+    <li><strong>[CSV_MANAGER]</strong>: Herramienta de carga masiva de ejercicios y nutrición.</li>
+    <li><strong>[PRODUCT_WIZARD]</strong>: Pasos para crear Actividades (Título, Precio, Modalidad, Temas).</li>
+  </ul>
+  <h3 id="datos-y-tablas-7">📊 Datos y Tablas</h3>
+  <ul>
+    <li><strong>Tabla <code>ejercicios_detalles</code></strong>: Librería de ejercicios fitness.</li>
+    <li><strong>Tabla <code>nutrition_program_details</code></strong>: Librería de platos y recetas.</li>
+    <li><strong>Tabla <code>activities</code></strong>: Entidad maestra del producto.</li>
+  </ul>
+  <p><a href="#indice-de-navegacion">Volver al índice</a></p>
+  <hr />
+  <p><a name="calendario-coach"></a> ## 9. 📅 Calendario del Coach (Coach) Sincronización de eMeets y gestión de
+    disponibilidad.</p>
+  <h3 id="esquema-de-la-pantalla-8">📐 Esquema de la Pantalla</h3>
+  <ul>
+    <li><strong>Vista de Agenda</strong>: Muestra eventos generados automáticamente por inscripciones o agendas
+      manuales.</li>
+    <li><strong>Integración Meet</strong>: Generación automática de links de Google Meet vinculados a los turnos.</li>
+  </ul>
+  <h3 id="automatización-emeet">⚙️ Automatización (eMeet)</h3>
+  <ul>
+    <li><strong>Triggers</strong>: <code>trigger_sync_calendar_on_ejecucion</code> y
+      <code>trigger_sync_calendar_on_schedule</code> crean los eventos automáticamente al haber una acción del cliente.
+    </li>
+  </ul>
+  <p><a href="#indice-de-navegacion">Volver al índice</a></p>
+  <hr />
+  <p><a name="gestion-video-coach"></a> ## 10. 🎥 Gestión de Videos (Bunny.net) Sistema de almacenamiento y streaming
+    optimizado.</p>
+  <h3 id="flujo-técnico">⚙️ Flujo Técnico</h3>
+  <ol type="1">
+    <li><strong>Subida</strong>: A través de <code>/api/bunny/upload-video</code>.</li>
+    <li><strong>Duplicados</strong>: El sistema chequea el nombre del archivo original para reutilizar
+      <code>video_id</code> existentes.
+    </li>
+    <li><strong>Persistencia</strong>: Se guardan los IDs de Bunny en <code>ejercicios_detalles</code> o
+      <code>activity_media</code>.
+    </li>
+  </ol>
+  <p><a href="#indice-de-navegacion">Volver al índice</a></p>
+  <hr />
+  <p><a name="gestion-documentos-coach"></a> ## 11. 📄 Gestión de Documentos (Coach) Estructura para productos de tipo
+    “Documento/PDF”.</p>
+  <h3 id="estructura">📊 Estructura</h3>
+  <ul>
+    <li><strong>Tabla <code>document_topics</code></strong>: Define temas individuales dentro de un documento.</li>
+    <li><strong>Variables</strong>: <code>title</code>, <code>description</code>, <code>pdf_url</code>,
+      <code>activity_id</code>.
+    </li>
+  </ul>
+  <p><a href="#indice-de-navegacion">Volver al índice</a></p>
+  <hr />
+  <p><a name="perfil-coach"></a> ## 12. 👤 Perfil del Coach (Coach) Personalización de marca y perfil profesional.</p>
+  <h3 id="datos">📊 Datos</h3>
+  <ul>
+    <li><strong>Tabla <code>user_profiles</code></strong>: Gestiona la biografía, especialidades y foto de perfil.</li>
+    <li><strong>Tabla <code>coach_reviews</code></strong>: Almacena el feedback y ratings de los clientes.</li>
+  </ul>
+  <p><a href="#indice-de-navegacion">Volver al índice</a></p>
+  <hr />
+  <p><a name="onboarding-logic"></a> ## 13. 🧠 Formulario de Onboarding (Lógica) Diseño conversacional para capturar el
+    perfil psicológico y físico del cliente.</p>
+  <h3 id="secciones-7-pasos">🟠 Secciones (7 Pasos)</h3>
+  <ol type="1">
+    <li><strong>Exigencia</strong>: 🌱 Tranquilo vs 🚀 A fondo.</li>
+    <li><strong>Deseo de Cambio</strong>: Desde cero vs Mejora.</li>
+    <li><strong>Horizonte</strong>: Ansiedad vs Sostenibilidad.</li>
+    <li><strong>Constancia</strong>: Nivel de disciplina percibida.</li>
+    <li><strong>Relación Coach</strong>: Independiente vs Guiado.</li>
+    <li><strong>Modalidad</strong>: Online, Híbrido, Presencial.</li>
+    <li><strong>Hard Data</strong>: Lesiones, Fecha de Nacimiento, Peso, Altura.</li>
+  </ol>
+  <h3 id="persistencia">📊 Persistencia</h3>
+  <p>Las respuestas se guardan en <code>profiles.onboarding_answers</code> (JSONB) y alimentan el motor de generación de
+    progreso.</p>
+  <p><a href="#indice-de-navegacion">Volver al índice</a></p>
+  <hr />
+  <p><a name="progreso-logic"></a> ## 14. ⚙️ Generación de Progreso (Technical) El proceso que convierte una Actividad
+    en un Plan Diario personalizado. <strong>Este es un proceso “One-Shot” que ocurre en el momento de la activación por
+      el cliente.</strong></p>
+  <h3 id="arquitectura-definición-vs-instancia">🏗️ Arquitectura: Definición vs Instancia</h3>
+  <ul>
+    <li><strong>Definición</strong>: La tabla del Coach (<code>planificacion_ejercicios</code> — <strong>nota: se usa la
+        misma tabla para Fitness y Nutrición</strong>) es el “molde”.</li>
+    <li><strong>Instancia</strong>: La tabla <code>progreso_cliente</code> es el resultado final bloqueado para el
+      cliente.</li>
+  </ul>
+  <h3 id="motor-de-instanciación-initialize-progress">🚀 Motor de Instanciación (<code>initialize-progress</code>)</h3>
+  <ol type="1">
+    <li><strong>Punto de Inflexión</strong>: Se ejecuta <strong>solo una vez</strong> al confirmar la compra/inicio.
+    </li>
+    <li><strong>Insumos Iniciales</strong>:
+      <ul>
+        <li><strong>Perfil Físico</strong>: Peso, altura, edad iniciales.</li>
+        <li><strong>Formulario de Preguntas</strong>: Respuestas del Onboarding (Nivel, lesiones, objetivos).</li>
+      </ul>
+    </li>
+    <li><strong>Persistencia y Bloqueo</strong>:
+      <ul>
+        <li>La información usada para la generación es la <strong>info inicial</strong> del momento de compra.</li>
+        <li><strong>Importante</strong>: Si el cliente modifica su peso o perfil después en su Perfil, el progreso YA
+          GENERADO no cambia. Los condicionales no son retroactivos para evitar romper la planificación del coach.</li>
+      </ul>
+    </li>
+    <li><strong>Modificaciones Manuales</strong>:
+      <ul>
+        <li>Una vez generado, tanto el cliente como el coach pueden hacer ajustes manuales en el día a día
+          (<code>progreso_cliente</code>), pero esto no dispara nuevos cálculos del motor condicional.</li>
+      </ul>
+    </li>
+  </ol>
+  <hr />
+  <p><a name="script-audit"></a> ## 15. 🧪 Auditoría de Scripts y Eficiencia (QA Dashboard) Análisis de los archivos
+    críticos del sistema para evaluación de rendimiento, deuda técnica y estabilidad.</p>
+  <table>
+    <colgroup>
+      <col style="width: 14%" />
+      <col style="width: 17%" />
+      <col style="width: 17%" />
+      <col style="width: 17%" />
+      <col style="width: 17%" />
+      <col style="width: 14%" />
+    </colgroup>
+    <thead>
+      <tr class="header">
+        <th style="text-align: left;">Script / Componente</th>
+        <th style="text-align: center;">Líneas</th>
+        <th style="text-align: center;">Importancia</th>
+        <th style="text-align: center;">Redundancia</th>
+        <th style="text-align: center;">Calificación QA</th>
+        <th style="text-align: left;">Observaciones del QA Tester</th>
+      </tr>
+    </thead>
+    <tbody>
+      <tr class="odd">
+        <td style="text-align: left;"><code>TodayScreen.tsx</code></td>
+        <td style="text-align: center;">6027</td>
+        <td style="text-align: center;">CRÍTICA</td>
+        <td style="text-align: center;">ALTA</td>
+        <td style="text-align: center;">🔴 4/10</td>
+        <td style="text-align: left;">La pantalla principal de cliente hoy. Demasiada lógica de negocio mezclada con UI.
+        </td>
+      </tr>
+      <tr class="even">
+        <td style="text-align: left;"><code>create-product-modal-refactored.tsx</code></td>
+        <td style="text-align: center;">5682</td>
+        <td style="text-align: center;">ALTA</td>
+        <td style="text-align: center;">CRÍTICA</td>
+        <td style="text-align: center;">🔴 4/10</td>
+        <td style="text-align: left;"><strong>EL NUEVO MONSTRUO (EN PROCESO DE REDUCCIÓN).</strong> Archivo masivo que
+          maneja toda la creación de
+          productos. Se ha reducido de ~6350 a ~5680 líneas mediante extracción de componentes. Requiere continuar
+          refactorización.</td>
+      </tr>
+      <tr class="odd">
+        <td style="text-align: left;"><code>csv-manager-enhanced.tsx</code></td>
+        <td style="text-align: center;">5037</td>
+        <td style="text-align: center;">MEDIA</td>
+        <td style="text-align: center;">MEDIA</td>
+        <td style="text-align: center;">🟡 5/10</td>
+        <td style="text-align: left;">Gestor de CSV excesivamente largo. Probablemente contiene lógica de parseo que
+          debería ser utilidad pura.</td>
+      </tr>
+      <tr class="even">
+        <td style="text-align: left;"><code>weekly-exercise-planner.tsx</code></td>
+        <td style="text-align: center;">4620</td>
+        <td style="text-align: center;">ALTA</td>
+        <td style="text-align: center;">MEDIA</td>
+        <td style="text-align: center;">🟡 6/10</td>
+        <td style="text-align: left;">Planificador semanal complejo. Buen candidato para separar en sub-componentes por
+          día o ejercicio.</td>
+      </tr>
+      <tr class="odd">
+        <td style="text-align: left;"><code>CalendarView.tsx</code></td>
+        <td style="text-align: center;">3727</td>
+        <td style="text-align: center;">CRÍTICA</td>
+        <td style="text-align: center;">MEDIA</td>
+        <td style="text-align: center;">🟢 8/10</td>
+        <td style="text-align: left;">Optimizado recientemente (Lazy load + extracción de Modal). Bajó de ~4200 a ~3700
+          líneas. Aún grande pero manejable.</td>
+      </tr>
+      <tr class="even">
+        <td style="text-align: left;"><code>product-form-modal.tsx</code></td>
+        <td style="text-align: center;">3174</td>
+        <td style="text-align: center;">ALTA</td>
+        <td style="text-align: center;">ALTA</td>
+        <td style="text-align: center;">🟡 5/10</td>
+        <td style="text-align: left;">Parece duplicar lógica de <code>create-product-modal</code>. Investigar posible
+          fusión o refactor.</td>
+      </tr>
+      <tr class="odd">
+        <td style="text-align: left;"><code>coach-calendar-screen.tsx</code></td>
+        <td style="text-align: center;">3141</td>
+        <td style="text-align: center;">ALTA</td>
+        <td style="text-align: center;">MEDIA</td>
+        <td style="text-align: center;">🟢 7/10</td>
+        <td style="text-align: left;">Manejo de estados de eMeet funcional pero complejo.</td>
+      </tr>
+      <tr class="even">
+        <td style="text-align: left;"><code>products-management-screen.tsx</code></td>
+        <td style="text-align: center;">2351</td>
+        <td style="text-align: center;">ALTA</td>
+        <td style="text-align: center;">BAJA</td>
+        <td style="text-align: center;">🟢 8/10</td>
+        <td style="text-align: left;">Pesado para mobile. La lógica gestión de productos es robusta.</td>
+      </tr>
+    </tbody>
+  </table>
+  <p><strong>Leyenda de Calificación:</strong> - 🔵 <strong>9-10</strong>: Excelente arquitectura, fácil de mantener. -
+    🟢 <strong>7-8</strong>: Estable, pero con margen de optimización en rendimiento. - 🟡 <strong>5-6</strong>: Deuda
+    técnica acumulada. Difícil de leer/testear. Requiere refactorización. - 🔴 <strong>&lt;5</strong>: Código peligroso,
+    propenso a errores y muy ineficiente.</p>
+  <p><a href="#indice-de-navegacion">Volver al índice</a></p>
+</body>
+
+</html>

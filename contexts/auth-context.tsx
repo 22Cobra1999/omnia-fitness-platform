@@ -19,7 +19,13 @@ type AuthContextType = {
   loading: boolean
   isAuthenticated: boolean
   signIn: (email: string, password: string, role?: string) => Promise<{ error: any | null }>
-  signUp: (email: string, password: string, name: string, role?: string) => Promise<{ error: any | null }>
+  signUp: (
+    email: string,
+    password: string,
+    name: string,
+    physicalData?: { age: number; height: number; weight: number; birthDate?: string },
+    role?: string
+  ) => Promise<{ error: any | null }>
   signOut: () => Promise<void>
   showWelcomeMessage: boolean
   setShowWelcomeMessage: (show: boolean) => void
@@ -255,7 +261,13 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     }
   }
 
-  const signUp = async (email: string, password: string, name: string, role = "client") => {
+  const signUp = async (
+    email: string,
+    password: string,
+    name: string,
+    physicalData?: { age: number; height: number; weight: number; birthDate?: string },
+    role = "client"
+  ) => {
     try {
       console.log("Registering user:", email)
       setLoading(true)
@@ -293,6 +305,35 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         }
 
         return { error: error.message }
+      }
+
+      // Si tenemos datos físicos y el usuario se creó exitosamente, guardarlos en clients
+      if (physicalData && data.user) {
+        try {
+          // Usar birthDate si se proporcionó, si no calcular desde la edad
+          let birthDateToSave = physicalData.birthDate
+          if (!birthDateToSave) {
+            const birthYear = new Date().getFullYear() - physicalData.age
+            birthDateToSave = new Date(birthYear, 0, 1).toISOString().split('T')[0]
+          }
+
+          const { error: clientError } = await supabase
+            .from('clients')
+            .update({
+              Height: physicalData.height,
+              weight: physicalData.weight,
+              birth_date: birthDateToSave
+            })
+            .eq('user_id', data.user.id)
+
+          if (clientError) {
+            console.error("Error saving physical data:", clientError)
+            // No retornamos error aquí porque el usuario ya se creó exitosamente
+          }
+        } catch (physicalError) {
+          console.error("Error processing physical data:", physicalError)
+          // No retornamos error aquí porque el usuario ya se creó exitosamente
+        }
       }
 
       console.log("Registration successful")

@@ -27,17 +27,17 @@ export async function POST(request: NextRequest) {
   // Log inicial para verificar que el endpoint se está ejecutando
   console.log('🚀 ========== INICIO CREATE PREFERENCE ==========');
   console.log('🚀 Timestamp:', new Date().toISOString());
-  
+
   try {
     // 1. Validar autenticación (usar getUser() en lugar de getSession() para mayor seguridad)
     const supabase = await createRouteHandlerClient();
     const { data: { user }, error: userError } = await supabase.auth.getUser();
-    
+
     console.log('🔐 Autenticación:', user ? `Usuario ${user.id}` : 'No autenticado');
 
     if (userError || !user) {
       return NextResponse.json(
-        { 
+        {
           error: 'No autorizado',
           code: 'UNAUTHORIZED'
         },
@@ -50,7 +50,7 @@ export async function POST(request: NextRequest) {
 
     if (!clientEmail) {
       return NextResponse.json(
-        { 
+        {
           error: 'Email del usuario no encontrado',
           code: 'MISSING_EMAIL'
         },
@@ -64,7 +64,7 @@ export async function POST(request: NextRequest) {
       body = await request.json();
     } catch (error) {
       return NextResponse.json(
-        { 
+        {
           error: 'Body inválido',
           code: 'INVALID_BODY'
         },
@@ -76,7 +76,7 @@ export async function POST(request: NextRequest) {
 
     if (!activityId) {
       return NextResponse.json(
-        { 
+        {
           error: 'activityId es requerido',
           code: 'MISSING_ACTIVITY_ID'
         },
@@ -93,7 +93,7 @@ export async function POST(request: NextRequest) {
 
     if (activityError || !activity) {
       return NextResponse.json(
-        { 
+        {
           error: 'Actividad no encontrada',
           code: 'ACTIVITY_NOT_FOUND'
         },
@@ -107,7 +107,7 @@ export async function POST(request: NextRequest) {
     // 4. Validar monto
     if (isNaN(totalAmount) || totalAmount <= 0) {
       return NextResponse.json(
-        { 
+        {
           error: 'El precio de la actividad debe ser mayor a 0',
           code: 'INVALID_AMOUNT',
           details: `Precio recibido: ${activity.price}`
@@ -124,7 +124,7 @@ export async function POST(request: NextRequest) {
     // 5. Obtener credenciales del coach
     const { getSupabaseAdmin } = await import('@/lib/config/db');
     const adminSupabase = await getSupabaseAdmin();
-    
+
     const { data: coachCredentials, error: credsError } = await adminSupabase
       .from('coach_mercadopago_credentials')
       .select('*')
@@ -135,7 +135,7 @@ export async function POST(request: NextRequest) {
     if (credsError) {
       console.error('Error consultando credenciales del coach:', credsError);
       return NextResponse.json(
-        { 
+        {
           error: 'Error al verificar credenciales del coach',
           code: 'COACH_CREDENTIALS_ERROR',
           details: credsError.message
@@ -146,7 +146,7 @@ export async function POST(request: NextRequest) {
 
     if (!coachCredentials) {
       return NextResponse.json(
-        { 
+        {
           error: 'El coach de esta actividad no ha configurado Mercado Pago. Por favor, contacta al coach para que configure su cuenta de Mercado Pago antes de realizar la compra.',
           code: 'COACH_NOT_CONFIGURED',
           requiresCoachSetup: true
@@ -157,14 +157,14 @@ export async function POST(request: NextRequest) {
 
     // 6. Calcular comisión de OMNIA
     const { data: commissionResult, error: commissionError } = await supabase
-      .rpc('calculate_marketplace_commission', { 
-        amount: totalAmount 
+      .rpc('calculate_marketplace_commission', {
+        amount: totalAmount
       });
 
     if (commissionError) {
       console.error('Error calculando comisión:', commissionError);
       return NextResponse.json(
-        { 
+        {
           error: 'Error calculando comisión',
           code: 'COMMISSION_CALCULATION_ERROR'
         },
@@ -178,7 +178,7 @@ export async function POST(request: NextRequest) {
     // Validar que la comisión no sea mayor que el monto total
     if (marketplaceFee >= totalAmount) {
       return NextResponse.json(
-        { 
+        {
           error: 'Error en el cálculo de comisión',
           code: 'INVALID_COMMISSION',
           details: `Comisión: ${marketplaceFee}, Monto total: ${totalAmount}`
@@ -194,7 +194,7 @@ export async function POST(request: NextRequest) {
       if (!process.env.ENCRYPTION_KEY) {
         console.error('❌ ENCRYPTION_KEY no está configurada en las variables de entorno');
         return NextResponse.json(
-          { 
+          {
             error: 'Error de configuración: ENCRYPTION_KEY no está configurada',
             code: 'TOKEN_DECRYPTION_ERROR',
             details: 'La variable de entorno ENCRYPTION_KEY es requerida para desencriptar los tokens del coach'
@@ -207,7 +207,7 @@ export async function POST(request: NextRequest) {
       if (!coachCredentials.access_token_encrypted || coachCredentials.access_token_encrypted.trim().length === 0) {
         console.error('❌ Token encriptado vacío o inválido');
         return NextResponse.json(
-          { 
+          {
             error: 'Token del coach no encontrado o inválido',
             code: 'TOKEN_DECRYPTION_ERROR',
             details: 'El coach no tiene un token válido almacenado. Debe reconectar su cuenta de Mercado Pago.'
@@ -217,12 +217,12 @@ export async function POST(request: NextRequest) {
       }
 
       coachAccessToken = decrypt(coachCredentials.access_token_encrypted);
-      
+
       // Verificar que el token desencriptado sea válido
       if (!coachAccessToken || coachAccessToken.trim().length === 0) {
         console.error('❌ Token desencriptado vacío');
         return NextResponse.json(
-          { 
+          {
             error: 'Token del coach inválido después de desencriptar',
             code: 'TOKEN_DECRYPTION_ERROR',
             details: 'El token desencriptado está vacío. El coach debe reconectar su cuenta de Mercado Pago.'
@@ -235,17 +235,17 @@ export async function POST(request: NextRequest) {
       console.error('❌ Tipo de error:', error?.constructor?.name);
       console.error('❌ Mensaje:', error?.message);
       console.error('❌ Stack:', error?.stack);
-      
+
       // Detectar si el error es por clave de encriptación incorrecta
-      const isEncryptionKeyMismatch = 
+      const isEncryptionKeyMismatch =
         error?.message?.includes('unable to authenticate') ||
         error?.message?.includes('Unsupported state') ||
         error?.message?.includes('bad decrypt') ||
         error?.code === 'ERR_OSSL_BAD_DECRYPT';
-      
+
       if (isEncryptionKeyMismatch) {
         return NextResponse.json(
-          { 
+          {
             error: 'El token del coach fue encriptado con una clave diferente',
             code: 'TOKEN_DECRYPTION_ERROR',
             details: 'El token fue encriptado con una ENCRYPTION_KEY diferente. El coach debe reconectar su cuenta de Mercado Pago para generar un nuevo token.',
@@ -254,9 +254,9 @@ export async function POST(request: NextRequest) {
           { status: 400 }
         );
       }
-      
+
       return NextResponse.json(
-        { 
+        {
           error: 'Error procesando credenciales del coach',
           code: 'TOKEN_DECRYPTION_ERROR',
           details: error?.message || 'Error desconocido al desencriptar el token. Verifica que ENCRYPTION_KEY esté configurada correctamente.'
@@ -271,14 +271,14 @@ export async function POST(request: NextRequest) {
     // Para distinguirlos, verificamos si contienen user IDs de prueba conocidos
     const isTestToken = (token: string) => token.startsWith('TEST-');
     const isProductionToken = (token: string) => token.startsWith('APP_USR-');
-    
+
     // 7.2. Lista de user IDs de cuentas de prueba conocidas
     const TEST_USER_IDS = [
       '2995219181', // ronaldinho (coach/vendedor de prueba)
       '2992707264', // totti1 (cliente/comprador de prueba)
       '2995219179'  // omniav1 (marketplace/integrador de prueba)
     ];
-    
+
     // 7.3. Verificar si un token APP_USR- es de prueba basándose en el user ID
     // Los tokens de prueba suelen contener el user ID en el token
     const isTestTokenByUserId = (token: string, userId: string | null): boolean => {
@@ -286,24 +286,24 @@ export async function POST(request: NextRequest) {
       // Verificar si el token contiene el user ID de prueba
       return token.includes(userId) && TEST_USER_IDS.includes(userId);
     };
-    
+
     // 7.4. Verificar tokens disponibles
     const marketplaceToken = process.env.MERCADOPAGO_ACCESS_TOKEN?.trim() || '';
     const coachUserId = coachCredentials.mercadopago_user_id?.toString();
     const isTestUser = coachUserId && TEST_USER_IDS.includes(coachUserId);
-    
+
     // Verificar tipo de tokens
     const coachTokenIsTest = isTestToken(coachAccessToken) || isTestTokenByUserId(coachAccessToken, coachUserId);
     const coachTokenIsProduction = isProductionToken(coachAccessToken) && !coachTokenIsTest;
-    
+
     // Para el marketplace, verificar si el token es de prueba
     // El marketplace token de prueba conocido: APP_USR-8497664518687621-112020-...
     // Contiene el user ID 2995219181 al final
-    const marketplaceTokenIsTest = isTestToken(marketplaceToken) || 
-                                   marketplaceToken.includes('2995219179') || // omniav1
-                                   marketplaceToken.includes('2995219181') || // ronaldinho (coach)
-                                   marketplaceToken.includes('8497664518687621'); // Parte del token de prueba conocido
-    
+    const marketplaceTokenIsTest = isTestToken(marketplaceToken) ||
+      marketplaceToken.includes('2995219179') || // omniav1
+      marketplaceToken.includes('2995219181') || // ronaldinho (coach)
+      marketplaceToken.includes('8497664518687621'); // Parte del token de prueba conocido
+
     console.log('🔍 ========== ANÁLISIS DE TOKENS ==========');
     console.log('🔍 Coach User ID:', coachUserId);
     console.log('🔍 Es cuenta de prueba conocida:', isTestUser);
@@ -312,19 +312,19 @@ export async function POST(request: NextRequest) {
     console.log('🔍 Marketplace Token es TEST:', marketplaceTokenIsTest);
     console.log('🔍 Marketplace Token disponible:', !!marketplaceToken);
     console.log('🔍 Marketplace Token empieza con:', marketplaceToken.substring(0, 20) + '...');
-    
+
     // 7.5. ESTRATEGIA: En sandbox, SIEMPRE priorizar token de prueba del marketplace
     // Esto garantiza que las cuentas de prueba funcionen correctamente
     let tokenToUseForPreference = coachAccessToken;
     let tokenSource = 'coach';
-    
+
     // PRIORIDAD 1: Si el marketplace tiene token de prueba, usarlo SIEMPRE
     // Esto permite que las cuentas de prueba funcionen incluso si el coach tiene token de producción
     if (marketplaceTokenIsTest && marketplaceToken) {
       console.log('✅ Marketplace tiene token de prueba. Usando token del marketplace para permitir cuentas de prueba.');
       tokenToUseForPreference = marketplaceToken;
       tokenSource = 'marketplace (test)';
-    } 
+    }
     // PRIORIDAD 2: Si el coach tiene token de prueba, usarlo
     else if (coachTokenIsTest) {
       console.log('✅ Coach tiene token de prueba. Usando token del coach.');
@@ -342,7 +342,7 @@ export async function POST(request: NextRequest) {
       console.log('✅ Usando Access Token del coach (producción).');
       tokenSource = 'coach (production)';
     }
-    
+
     console.log('🔍 Token seleccionado:', tokenSource);
     console.log('🔍 Token usado empieza con:', tokenToUseForPreference.substring(0, 20) + '...');
     console.log('🔍 ========== FIN ANÁLISIS ==========');
@@ -356,7 +356,7 @@ export async function POST(request: NextRequest) {
 
     // 9. Configurar URLs
     const appUrl = (process.env.NEXT_PUBLIC_APP_URL?.trim() || 'http://localhost:3000').replace(/\/$/, '');
-    
+
     const backUrls = {
       success: `${appUrl}/payment/success`,
       failure: `${appUrl}/payment/failure`,
@@ -371,11 +371,11 @@ export async function POST(request: NextRequest) {
       accessToken: tokenToUseForPreference,
       options: { timeout: 5000 }
     });
-    
-    console.log('🔑 Token usado para crear preferencia:', 
-      isTestToken(tokenToUseForPreference) ? 'PRUEBA (TEST-...)' : 
-      isProductionToken(tokenToUseForPreference) ? 'PRODUCCIÓN (APP_USR-...)' : 
-      'DESCONOCIDO'
+
+    console.log('🔑 Token usado para crear preferencia:',
+      isTestToken(tokenToUseForPreference) ? 'PRUEBA (TEST-...)' :
+        isProductionToken(tokenToUseForPreference) ? 'PRODUCCIÓN (APP_USR-...)' :
+          'DESCONOCIDO'
     );
 
     const preference = new Preference(client);
@@ -384,9 +384,9 @@ export async function POST(request: NextRequest) {
     // Si el marketplace tiene token de prueba, crear preferencia SIN marketplace_fee
     // El marketplace_fee puede causar problemas con cuentas de prueba
     const useSimplePreference = marketplaceTokenIsTest;
-    
+
     console.log('🔍 Usando preferencia simple (sin marketplace_fee):', useSimplePreference);
-    
+
     const preferenceData = {
       items: [
         {
@@ -467,7 +467,7 @@ export async function POST(request: NextRequest) {
     console.log('📋 Has Marketplace Fee:', !!(marketplaceFee > 0 && sellerAmount > 0));
     console.log('📋 External Reference:', preferenceData.external_reference);
     console.log('📋 Notification URL:', preferenceData.notification_url);
-    
+
     // Log completo de la preferencia (para debugging)
     console.log('🔍 ========== PREFERENCIA COMPLETA (JSON) ==========');
     console.log(JSON.stringify(preferenceData, null, 2));
@@ -481,9 +481,9 @@ export async function POST(request: NextRequest) {
       console.log('🚀 Coach User ID:', coachCredentials.mercadopago_user_id);
       console.log('🚀 Marketplace Token es TEST:', marketplaceTokenIsTest);
       console.log('🚀 Usando preferencia simple (sin marketplace_fee):', useSimplePreference);
-      
+
       preferenceResponse = await preference.create({ body: preferenceData });
-      
+
       console.log('✅ ========== PREFERENCIA CREADA EXITOSAMENTE ==========');
       console.log('✅ Preference ID:', preferenceResponse.id);
       console.log('✅ Init Point:', preferenceResponse.init_point || preferenceResponse.sandbox_init_point);
@@ -510,7 +510,7 @@ export async function POST(request: NextRequest) {
       console.error('❌ Preferencia que intentamos crear:', JSON.stringify(preferenceData, null, 2));
       console.error('❌ ========== FIN ERROR ==========');
       return NextResponse.json(
-        { 
+        {
           error: 'Error creando preferencia de pago',
           code: 'PREFERENCE_CREATION_ERROR',
           details: error.message || 'Error desconocido'
@@ -533,7 +533,8 @@ export async function POST(request: NextRequest) {
       seller_amount: sellerAmount,
       coach_mercadopago_user_id: coachCredentials.mercadopago_user_id,
       coach_access_token_encrypted: coachCredentials.access_token_encrypted,
-      external_reference: externalReference
+      external_reference: externalReference,
+      concept: activity.title
     });
 
     if (bancoError) {
@@ -555,7 +556,7 @@ export async function POST(request: NextRequest) {
       console.error('❌ ERROR: No se recibió init_point de Mercado Pago');
       console.error('❌ Response completa:', JSON.stringify(preferenceResponse, null, 2));
       return NextResponse.json(
-        { 
+        {
           error: 'No se recibió init_point de Mercado Pago',
           code: 'MISSING_INIT_POINT',
           details: 'La respuesta de Mercado Pago no incluyó init_point ni sandbox_init_point'
@@ -567,7 +568,7 @@ export async function POST(request: NextRequest) {
     // Agregar locale a la URL si no está presente
     // IMPORTANTE: El locale debe estar en la URL para que el checkout de Mercado Pago lo use
     let finalInitPoint = initPoint;
-    
+
     // Verificar si ya tiene locale
     if (!finalInitPoint.includes('locale=')) {
       // Agregar locale a la URL
@@ -577,7 +578,7 @@ export async function POST(request: NextRequest) {
       // Si ya tiene locale, asegurarse de que sea es-AR
       finalInitPoint = finalInitPoint.replace(/locale=[^&]*/, 'locale=es-AR');
     }
-    
+
     console.log('🔗 Init Point Original:', initPoint);
     console.log('🔗 Init Point Final (con locale=es-AR):', finalInitPoint);
     console.log('🔗 Tiene locale en URL:', finalInitPoint.includes('locale='));
@@ -614,9 +615,9 @@ export async function POST(request: NextRequest) {
     console.error('❌ Error Stack:', error.stack);
     console.error('❌ Error Complete:', JSON.stringify(error, Object.getOwnPropertyNames(error), 2));
     console.error('❌ ========== FIN ERROR INESPERADO ==========');
-    
+
     return NextResponse.json(
-      { 
+      {
         error: 'Error interno del servidor',
         code: 'INTERNAL_SERVER_ERROR',
         details: error.message,

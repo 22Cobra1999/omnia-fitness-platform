@@ -17,6 +17,10 @@ export function RegisterForm({ onSuccess, onLoginClick }: RegisterFormProps) {
   const [password, setPassword] = useState("")
   const [confirmPassword, setConfirmPassword] = useState("")
   const [fullName, setFullName] = useState("")
+  const [age, setAge] = useState("")
+  const [height, setHeight] = useState("")
+  const [weight, setWeight] = useState("")
+  const [birthDate, setBirthDate] = useState("")
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const router = useRouter()
@@ -33,8 +37,42 @@ export function RegisterForm({ onSuccess, onLoginClick }: RegisterFormProps) {
       return
     }
 
+    // Validar campos físicos
+    if (!age || !height || !weight || !birthDate) {
+      setError("Por favor completá todos los campos")
+      setLoading(false)
+      return
+    }
+
+    const ageNum = parseInt(age)
+    const heightNum = parseInt(height)
+    const weightNum = parseFloat(weight)
+
+    if (ageNum < 13 || ageNum > 120) {
+      setError("La edad debe estar entre 13 y 120 años")
+      setLoading(false)
+      return
+    }
+
+    if (heightNum < 100 || heightNum > 250) {
+      setError("La altura debe estar entre 100 y 250 cm")
+      setLoading(false)
+      return
+    }
+
+    if (weightNum < 30 || weightNum > 300) {
+      setError("El peso debe estar entre 30 y 300 kg")
+      setLoading(false)
+      return
+    }
+
     try {
-      const { error: signUpError } = await signUp(email, password, fullName)
+      const { error: signUpError } = await signUp(email, password, fullName, {
+        age: ageNum,
+        height: heightNum,
+        weight: weightNum,
+        birthDate: birthDate
+      })
 
       if (signUpError) {
         setError(typeof signUpError === 'string' ? signUpError : (signUpError as any).message)
@@ -69,6 +107,67 @@ export function RegisterForm({ onSuccess, onLoginClick }: RegisterFormProps) {
           placeholder="Juan Pérez"
           value={fullName}
           onChange={(e) => setFullName(e.target.value)}
+          required
+          className="bg-[#252525] border-gray-700 text-white"
+        />
+      </div>
+
+      {/* Datos físicos en grid */}
+      <div className="grid grid-cols-3 gap-3">
+        <div className="space-y-2">
+          <Label htmlFor="age" className="text-xs">Edad</Label>
+          <Input
+            id="age"
+            type="number"
+            placeholder="25"
+            value={age}
+            onChange={(e) => setAge(e.target.value)}
+            required
+            min="13"
+            max="120"
+            className="bg-[#252525] border-gray-700 text-white"
+          />
+        </div>
+
+        <div className="space-y-2">
+          <Label htmlFor="height" className="text-xs">Altura (cm)</Label>
+          <Input
+            id="height"
+            type="number"
+            placeholder="170"
+            value={height}
+            onChange={(e) => setHeight(e.target.value)}
+            required
+            min="100"
+            max="250"
+            className="bg-[#252525] border-gray-700 text-white"
+          />
+        </div>
+
+        <div className="space-y-2">
+          <Label htmlFor="weight" className="text-xs">Peso (kg)</Label>
+          <Input
+            id="weight"
+            type="number"
+            step="0.1"
+            placeholder="70"
+            value={weight}
+            onChange={(e) => setWeight(e.target.value)}
+            required
+            min="30"
+            max="300"
+            className="bg-[#252525] border-gray-700 text-white"
+          />
+        </div>
+      </div>
+
+      <div className="space-y-2">
+        <Label htmlFor="birthDate">Fecha de nacimiento</Label>
+        <Input
+          id="birthDate"
+          type="date"
+          value={birthDate}
+          onChange={(e) => setBirthDate(e.target.value)}
           required
           className="bg-[#252525] border-gray-700 text-white"
         />

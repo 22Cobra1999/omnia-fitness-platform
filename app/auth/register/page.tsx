@@ -1,9 +1,12 @@
 "use client"
 
+import { useState } from "react"
 import { useSearchParams } from "next/navigation"
 import { useRouter } from "next/navigation"
 import { RegisterForm } from "@/components/auth/register-form"
 import { AuthWrapper } from "@/components/auth/auth-wrapper"
+import { OnboardingPromptModal } from "@/components/mobile/onboarding-prompt-modal"
+import { OnboardingModal } from "@/components/mobile/onboarding-modal"
 import { motion } from "framer-motion"
 import { ArrowLeft } from "lucide-react"
 import { Button } from "@/components/ui/button"
@@ -14,13 +17,31 @@ export default function RegisterPage() {
   const searchParams = useSearchParams()
   const router = useRouter()
   const type = (searchParams.get("type") as "client" | "coach") || "client"
+  const [showOnboardingPrompt, setShowOnboardingPrompt] = useState(false)
+  const [showOnboarding, setShowOnboarding] = useState(false)
 
   const handleBackToHome = () => {
     router.push("/")
   }
 
   const handleRegisterSuccess = () => {
-    router.push("/auth/login")
+    // Mostrar modal de prompt en lugar de redirigir directamente
+    setShowOnboardingPrompt(true)
+  }
+
+  const handleCompleteOnboarding = () => {
+    setShowOnboardingPrompt(false)
+    setShowOnboarding(true) // Abrir cuestionario completo
+  }
+
+  const handleSkipOnboarding = () => {
+    setShowOnboardingPrompt(false)
+    router.push("/")
+  }
+
+  const handleOnboardingClose = () => {
+    setShowOnboarding(false)
+    router.push("/")
   }
 
   return (
@@ -77,15 +98,15 @@ export default function RegisterPage() {
 
             <Tabs defaultValue={type} className="w-full">
               <TabsList className="grid w-full grid-cols-2 mb-6 bg-[#252525] border border-[#333]">
-                <TabsTrigger 
-                  value="client" 
+                <TabsTrigger
+                  value="client"
                   asChild
                   className="data-[state=active]:bg-[#FF7939] data-[state=active]:text-white"
                 >
                   <Link href="/auth/register?type=client">Cliente</Link>
                 </TabsTrigger>
-                <TabsTrigger 
-                  value="coach" 
+                <TabsTrigger
+                  value="coach"
                   asChild
                   className="data-[state=active]:bg-[#FF7939] data-[state=active]:text-white"
                 >
@@ -103,7 +124,7 @@ export default function RegisterPage() {
                   <h2 className="text-xl font-semibold text-white">Registro de Cliente</h2>
                   <p className="text-sm text-gray-400">Comienza tu viaje fitness hoy</p>
                 </motion.div>
-                <RegisterForm />
+                <RegisterForm onSuccess={handleRegisterSuccess} />
               </TabsContent>
 
               <TabsContent value="coach" className="space-y-6">
@@ -116,7 +137,7 @@ export default function RegisterPage() {
                   <h2 className="text-xl font-semibold text-white">Registro de Coach</h2>
                   <p className="text-sm text-gray-400">Comienza tu viaje como coach</p>
                 </motion.div>
-                <RegisterForm />
+                <RegisterForm onSuccess={handleRegisterSuccess} />
               </TabsContent>
             </Tabs>
 
@@ -138,6 +159,20 @@ export default function RegisterPage() {
           </motion.div>
         </motion.div>
       </div>
+
+      {/* Onboarding Prompt Modal */}
+      <OnboardingPromptModal
+        isOpen={showOnboardingPrompt}
+        onComplete={handleCompleteOnboarding}
+        onSkip={handleSkipOnboarding}
+      />
+
+      {/* Onboarding Modal (Full Questionnaire) */}
+      <OnboardingModal
+        isOpen={showOnboarding}
+        onClose={handleOnboardingClose}
+        fromRegistration={true}
+      />
     </AuthWrapper>
   )
 }

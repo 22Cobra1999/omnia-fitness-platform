@@ -50,8 +50,13 @@ export const ExerciseProgressList = forwardRef<ExerciseProgressListRef, Exercise
   }, [externalIsEditing])
 
   useEffect(() => {
-    if (userId) {
-      fetchExercises()
+    fetchExercises()
+    // Expose for external access (Quick Add)
+    // @ts-ignore
+    window.refreshExercises = fetchExercises
+    return () => {
+      // @ts-ignore
+      delete window.refreshExercises
     }
   }, [userId])
 
@@ -101,6 +106,9 @@ export const ExerciseProgressList = forwardRef<ExerciseProgressListRef, Exercise
   }
 
   const startEditing = () => {
+    if (exercises.length === 0) {
+      fetchExercises()
+    }
     const newEditData: { [key: string]: { title: string, current: string, objective: string } } = {}
 
     exercises.forEach(exercise => {
@@ -175,7 +183,7 @@ export const ExerciseProgressList = forwardRef<ExerciseProgressListRef, Exercise
           body: JSON.stringify({ objectives })
         })
       } else {
-        // Individual profile updates (Existing logic)
+        // Individual profile updates (Optimized to single request per exercise)
         const savePromises = Object.entries(editData).map(async ([exerciseId, data]) => {
           const exercise = exercises.find(e => e.id === exerciseId)
           if (!exercise) return
@@ -194,26 +202,26 @@ export const ExerciseProgressList = forwardRef<ExerciseProgressListRef, Exercise
             }
           }
 
-          if (data.title !== exercise.exercise_title) {
-            await fetch('/api/profile/exercise-progress', {
+          const hasTitleChanged = data.title !== exercise.exercise_title
+          const hasCurrentChanged = data.current && currentValue !== exercise.current_value?.toString()
+          const hasObjectiveChanged = data.objective && objectiveValue !== exercise.objective?.toString()
+
+          if (hasTitleChanged || hasCurrentChanged || hasObjectiveChanged) {
+            const updateBody: any = { id: exerciseId }
+            if (hasTitleChanged) updateBody.exercise_title = data.title
+            if (hasCurrentChanged) updateBody.current_value = parseFloat(currentValue)
+            if (hasObjectiveChanged) updateBody.objective = parseFloat(objectiveValue)
+
+            console.log(`Updating exercise ${exerciseId}:`, updateBody)
+            const res = await fetch('/api/profile/exercise-progress', {
               method: 'PUT',
               headers: { 'Content-Type': 'application/json' },
-              body: JSON.stringify({ id: exerciseId, exercise_title: data.title })
+              body: JSON.stringify(updateBody)
             })
-          }
-          if (data.current && currentValue !== exercise.current_value?.toString()) {
-            await fetch('/api/profile/exercise-progress', {
-              method: 'PUT',
-              headers: { 'Content-Type': 'application/json' },
-              body: JSON.stringify({ id: exerciseId, current_value: parseFloat(currentValue) })
-            })
-          }
-          if (data.objective && objectiveValue !== exercise.objective?.toString()) {
-            await fetch('/api/profile/exercise-progress', {
-              method: 'PUT',
-              headers: { 'Content-Type': 'application/json' },
-              body: JSON.stringify({ id: exerciseId, objective: parseFloat(objectiveValue) })
-            })
+            if (!res.ok) {
+              const err = await res.json()
+              console.error(`Failed to update exercise ${exerciseId}:`, err)
+            }
           }
         })
         await Promise.all(savePromises)
@@ -288,7 +296,7 @@ export const ExerciseProgressList = forwardRef<ExerciseProgressListRef, Exercise
                     onClick={() => deleteExercise(exercise.id)}
                     className="absolute top-1 right-1 text-gray-400 hover:text-[#FF7939] transition-colors bg-black/50 rounded-full p-0.5"
                     style={{ zIndex: 10 }}
-                    title="Eliminar objetivo"
+                    title="Eliminar meta de rendimiento"
                   >
                     <Minus className="h-3 w-3" strokeWidth={3} />
                   </button>

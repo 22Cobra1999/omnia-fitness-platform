@@ -1528,10 +1528,10 @@ export default function ClientProductModal({
                     )}
                   </div>
 
-                  {/* Objetivos Section - Horizontal scrollable */}
+                  {/* Metas de Rendimiento Section - Horizontal scrollable */}
                   {product.objetivos && Array.isArray(product.objetivos) && product.objetivos.length > 0 && (
                     <div>
-                      <h4 className="text-white font-semibold mb-3">Objetivos</h4>
+                      <h4 className="text-white font-semibold mb-3">Metas de Rendimiento</h4>
                       <div className="flex gap-2 overflow-x-auto hide-scrollbar pb-2">
                         {product.objetivos.map((objetivo: string, index: number) => (
                           <span

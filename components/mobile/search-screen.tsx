@@ -817,9 +817,9 @@ export function SearchScreen({ onTabChange }: SearchScreenProps) {
               </div>
             </div>
 
-            {/* Objetivos en una sola fila con scroll horizontal */}
+            {/* Metas en una sola fila con scroll horizontal */}
             <div className="space-y-2">
-              <div className="text-[10px] font-black text-white/30 uppercase tracking-[0.2em] pl-1">Filtrar por Objetivos</div>
+              <div className="text-[10px] font-black text-white/30 uppercase tracking-[0.2em] pl-1">Filtrar por Metas</div>
               <div className="flex gap-2 overflow-x-auto no-scrollbar pb-2 px-0.5">
                 {COMMON_OBJECTIVES.map(obj => (
                   <button

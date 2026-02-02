@@ -8,10 +8,10 @@ import { createRouteHandlerClient } from '@/lib/supabase/supabase-server';
 export async function GET(request: NextRequest) {
   try {
     const supabase = await createRouteHandlerClient();
-    
+
     // Verificar autenticación
     const { data: { user }, error: authError } = await supabase.auth.getUser();
-    
+
     if (authError || !user) {
       return NextResponse.json(
         { error: 'No autenticado' },
@@ -22,7 +22,7 @@ export async function GET(request: NextRequest) {
     // Consultar lesiones del usuario
     const { data: injuries, error } = await supabase
       .from('user_injuries')
-      .select('id, name, description, severity, restrictions, created_at, updated_at')
+      .select('id, name, description, severity, restrictions, muscle_id, muscle_name, muscle_group, pain_level, pain_description, created_at, updated_at')
       .eq('user_id', user.id)
       .order('created_at', { ascending: false });
 
@@ -34,10 +34,10 @@ export async function GET(request: NextRequest) {
           injuries: []
         });
       }
-      
+
       console.error('Error consultando lesiones:', error);
       return NextResponse.json(
-        { 
+        {
           error: 'Error al consultar lesiones',
           details: error.message,
           code: error.code
@@ -70,10 +70,10 @@ export async function GET(request: NextRequest) {
 export async function POST(request: NextRequest) {
   try {
     const supabase = await createRouteHandlerClient();
-    
+
     // Verificar autenticación
     const { data: { user }, error: authError } = await supabase.auth.getUser();
-    
+
     if (authError || !user) {
       return NextResponse.json(
         { error: 'No autenticado' },
@@ -82,7 +82,10 @@ export async function POST(request: NextRequest) {
     }
 
     const body = await request.json();
-    const { name, description, severity, restrictions } = body;
+    const {
+      name, description, severity, restrictions,
+      muscle_id, muscle_name, muscle_group, pain_level, pain_description
+    } = body;
 
     if (!name || !severity) {
       return NextResponse.json(
@@ -107,7 +110,12 @@ export async function POST(request: NextRequest) {
         name,
         description: description || null,
         severity,
-        restrictions: restrictions || null
+        restrictions: restrictions || null,
+        muscle_id: muscle_id || null,
+        muscle_name: muscle_name || null,
+        muscle_group: muscle_group || null,
+        pain_level: pain_level !== undefined ? pain_level : null,
+        pain_description: pain_description || null
       })
       .select()
       .single();
@@ -144,10 +152,10 @@ export async function POST(request: NextRequest) {
 export async function PUT(request: NextRequest) {
   try {
     const supabase = await createRouteHandlerClient();
-    
+
     // Verificar autenticación
     const { data: { user }, error: authError } = await supabase.auth.getUser();
-    
+
     if (authError || !user) {
       return NextResponse.json(
         { error: 'No autenticado' },
@@ -156,7 +164,10 @@ export async function PUT(request: NextRequest) {
     }
 
     const body = await request.json();
-    const { id, name, description, severity, restrictions } = body;
+    const {
+      id, name, description, severity, restrictions,
+      muscle_id, muscle_name, muscle_group, pain_level, pain_description
+    } = body;
 
     if (!id) {
       return NextResponse.json(
@@ -192,11 +203,16 @@ export async function PUT(request: NextRequest) {
     const updateData: any = {
       updated_at: new Date().toISOString()
     };
-    
+
     if (name !== undefined) updateData.name = name;
     if (description !== undefined) updateData.description = description;
     if (severity !== undefined) updateData.severity = severity;
     if (restrictions !== undefined) updateData.restrictions = restrictions;
+    if (muscle_id !== undefined) updateData.muscle_id = muscle_id;
+    if (muscle_name !== undefined) updateData.muscle_name = muscle_name;
+    if (muscle_group !== undefined) updateData.muscle_group = muscle_group;
+    if (pain_level !== undefined) updateData.pain_level = pain_level;
+    if (pain_description !== undefined) updateData.pain_description = pain_description;
 
     const { data: updated, error: updateError } = await supabase
       .from('user_injuries')
@@ -238,10 +254,10 @@ export async function PUT(request: NextRequest) {
 export async function DELETE(request: NextRequest) {
   try {
     const supabase = await createRouteHandlerClient();
-    
+
     // Verificar autenticación
     const { data: { user }, error: authError } = await supabase.auth.getUser();
-    
+
     if (authError || !user) {
       return NextResponse.json(
         { error: 'No autenticado' },

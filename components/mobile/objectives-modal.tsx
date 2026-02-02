@@ -249,7 +249,7 @@ export function ObjectivesModal({ isOpen, onClose }: ObjectivesModalProps) {
         <DialogHeader className="p-5 border-b border-white/5 bg-white/5 flex flex-row items-center justify-between space-y-0">
           <DialogTitle className="text-xl font-bold text-white tracking-tight flex items-center gap-2">
             <Target className="h-5 w-5 text-[#FF6A00]" />
-            Objetivos
+            Metas de Rendimiento
           </DialogTitle>
           <Button
             variant="ghost"
@@ -269,7 +269,7 @@ export function ObjectivesModal({ isOpen, onClose }: ObjectivesModalProps) {
               className="w-full bg-[#FF6A00] hover:bg-[#FF6A00]/90 text-white h-12 rounded-xl font-semibold shadow-lg shadow-[#FF6A00]/20 flex items-center justify-center gap-2"
             >
               <Plus className="h-5 w-5" />
-              Nuevo Objetivo
+              Nueva Meta
             </Button>
           )}
 
@@ -277,7 +277,7 @@ export function ObjectivesModal({ isOpen, onClose }: ObjectivesModalProps) {
           {showAddForm && (
             <div className="bg-white/5 border border-white/10 p-5 rounded-2xl space-y-4 animate-in fade-in slide-in-from-top-2">
               <div className="flex items-center justify-between mb-2">
-                <h3 className="text-lg font-bold text-white">Nuevo Objetivo</h3>
+                <h3 className="text-lg font-bold text-white">Nueva Meta de Rendimiento</h3>
                 <Button variant="ghost" size="sm" onClick={() => setShowAddForm(false)} className="h-8 w-8 p-0 rounded-full hover:bg-white/10">
                   <X className="h-4 w-4 text-gray-400" />
                 </Button>
@@ -520,7 +520,7 @@ export function ObjectivesModal({ isOpen, onClose }: ObjectivesModalProps) {
               <div className="w-16 h-16 rounded-full bg-white/5 flex items-center justify-center mx-auto mb-4">
                 <Target className="w-8 h-8 text-gray-400" />
               </div>
-              <p className="text-white font-medium mb-1">Sin objetivos activos</p>
+              <p className="text-white font-medium mb-1">Sin metas de rendimiento activas</p>
               <p className="text-sm text-gray-500">Define tus metas para realizar un seguimiento efectivo.</p>
             </div>
           )}

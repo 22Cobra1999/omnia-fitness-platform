@@ -13,8 +13,15 @@ Bienvenido al repositorio central de conocimiento técnico de Omnia. Aquí docum
 *   **[Perfil](coach/profile/index.md)**: Datos personales y configuración del coach.
 
 ### 👤 Aplicación del Cliente (Client Section)
-*   **[Mis Actividades](client/activities/index.md)**: Seguimiento de progreso y visualización de planes.
-*   **[Explorar](client/explore/index.md)**: Proceso de compra y suscripción a productos.
+*   **[Explorar / Marketplace](client/explore/index.md)**: Proceso de descubrimiento, búsqueda y compra.
+*   **[Mis Actividades](client/activities/index.md)**: Seguimiento de progreso y consumo de productos.
+*   **[Calendario](client/calendar/index.md)**: Gestión de turnos, eMeets y agenda.
+*   **[Perfil](client/profile/index.md)**: Datos personales, biometría, metas y lesiones.
+*   **[Comunidad](client/community/index.md)**: Feed social e interacciones.
+*   **[Mensajes](client/messages/index.md)**: Chat directo con coaches.
+
+### 🧠 Lógica y Flujos (Logic & Flows)
+*   **[Formulario Onboarding](logic/FORMULARIO_ONBOARDING_CLIENTE.md)**: Diseño y lógica del formulario de admisión de clientes.
 
 ---
 > [!TIP]

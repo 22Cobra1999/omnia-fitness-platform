@@ -21,6 +21,7 @@ interface Client {
   completedExercises: number
   totalRevenue: number
   activitiesCount: number
+  itemsPending?: number
   todoCount?: number
   description?: string
   activities: Array<{
@@ -507,8 +508,8 @@ export function ClientsScreen() {
                 {/* Footer Stats Grid */}
                 <div className="grid grid-cols-3 gap-1 mt-4 pt-3 border-t border-zinc-800/60">
                   <div className="flex flex-col items-center">
-                    <span className="text-[11px] font-bold text-white">{client.activitiesCount}</span>
-                    <span className="text-[7px] text-gray-500 uppercase font-medium">Acts</span>
+                    <span className="text-[11px] font-bold text-white">{client.itemsPending ?? 0}</span>
+                    <span className="text-[7px] text-gray-400 uppercase font-black tracking-tighter">Pend</span>
                   </div>
                   <div className="flex flex-col items-center border-l border-zinc-800/40">
                     <span className="text-[11px] font-bold text-white">{client.todoCount || 0}</span>
@@ -661,7 +662,7 @@ export function ClientsScreen() {
                           <div className="relative flex items-center justify-center">
                             <Flame className="h-8 w-8 sm:h-10 sm:w-10 text-[#FF7939] drop-shadow-lg" fill="#FF7939" strokeWidth={1.5} />
                             <span className="absolute text-black font-bold text-[10px] sm:text-xs font-[var(--font-anton)] pt-1">
-                              {selectedClient.activitiesCount || 0}
+                              {(selectedClient.itemsPending ?? 0) + (selectedClient.todoCount ?? 0)}
                             </span>
                           </div>
                         </div>
@@ -991,7 +992,7 @@ export function ClientsScreen() {
                           <div className="flex items-center justify-between px-2">
                             <div className="flex items-center gap-2">
                               <Target className="h-4 w-4 text-[#FF6A00]" />
-                              <h2 className="text-sm font-semibold text-gray-200">Objetivos</h2>
+                              <h2 className="text-sm font-semibold text-gray-200">Metas de Rendimiento</h2>
                             </div>
                             {isEditingObjectives ? (
                               <div className="flex items-center gap-2">

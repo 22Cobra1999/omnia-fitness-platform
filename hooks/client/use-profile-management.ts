@@ -18,6 +18,13 @@ interface ProfileData {
   specialization?: string
   fitness_goals?: string[]
   sports?: string[]
+  physical_data?: {
+    height?: number
+    weight?: number
+    birth_date?: string
+    gender?: string
+    onboarding_completed_at?: string
+  }
 }
 
 
@@ -29,6 +36,10 @@ interface Biometric {
   notes?: string
   created_at: string
   updated_at?: string
+  // Campos calculados para UI
+  trend?: 'up' | 'down' | 'neutral'
+  diff?: number
+  previousValue?: number
 }
 
 interface Injury {
@@ -238,12 +249,20 @@ export function useProfileManagement() {
       }
 
       if (result.success && result.injuries) {
-        setInjuries(result.injuries)
+        const mappedInjuries = result.injuries.map((injury: any) => ({
+          ...injury,
+          muscleId: injury.muscle_id,
+          muscleName: injury.muscle_name,
+          muscleGroup: injury.muscle_group,
+          painLevel: injury.pain_level,
+          painDescription: injury.pain_description
+        }));
+        setInjuries(mappedInjuries)
 
         // Guardar en caché
         if (typeof window !== 'undefined') {
           try {
-            sessionStorage.setItem("cached_injuries_data", JSON.stringify(result.injuries))
+            sessionStorage.setItem("cached_injuries_data", JSON.stringify(mappedInjuries))
             sessionStorage.setItem("injuries_cache_timestamp", Date.now().toString())
           } catch (e) {
             console.error('Error guardando lesiones en caché:', e)
@@ -525,10 +544,22 @@ export function useProfileManagement() {
     if (!user?.id) return
 
     try {
+      const mappedData = {
+        name: injuryData.name,
+        description: injuryData.description,
+        severity: injuryData.severity,
+        restrictions: injuryData.restrictions,
+        muscle_id: injuryData.muscleId,
+        muscle_name: injuryData.muscleName,
+        muscle_group: injuryData.muscleGroup,
+        pain_level: injuryData.painLevel,
+        pain_description: injuryData.painDescription
+      };
+
       const response = await fetch('/api/profile/injuries', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(injuryData)
+        body: JSON.stringify(mappedData)
       })
 
       const result = await response.json()
@@ -538,7 +569,15 @@ export function useProfileManagement() {
       }
 
       if (result.success && result.injury) {
-        setInjuries(prev => [result.injury, ...prev])
+        const mappedInjury = {
+          ...result.injury,
+          muscleId: result.injury.muscle_id,
+          muscleName: result.injury.muscle_name,
+          muscleGroup: result.injury.muscle_group,
+          painLevel: result.injury.pain_level,
+          painDescription: result.injury.pain_description
+        };
+        setInjuries(prev => [mappedInjury, ...prev])
 
         // Limpiar caché para forzar recarga
         if (typeof window !== 'undefined') {
@@ -570,10 +609,23 @@ export function useProfileManagement() {
     if (!user?.id) return
 
     try {
+      const mappedUpdates = {
+        id: injuryId,
+        name: updates.name,
+        description: updates.description,
+        severity: updates.severity,
+        restrictions: updates.restrictions,
+        muscle_id: updates.muscleId,
+        muscle_name: updates.muscleName,
+        muscle_group: updates.muscleGroup,
+        pain_level: updates.painLevel,
+        pain_description: updates.painDescription
+      };
+
       const response = await fetch('/api/profile/injuries', {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ id: injuryId, ...updates })
+        body: JSON.stringify(mappedUpdates)
       })
 
       const result = await response.json()
@@ -583,8 +635,16 @@ export function useProfileManagement() {
       }
 
       if (result.success && result.injury) {
+        const mappedInjury = {
+          ...result.injury,
+          muscleId: result.injury.muscle_id,
+          muscleName: result.injury.muscle_name,
+          muscleGroup: result.injury.muscle_group,
+          painLevel: result.injury.pain_level,
+          painDescription: result.injury.pain_description
+        };
         setInjuries(prev => prev.map(injury =>
-          injury.id === injuryId ? result.injury : injury
+          injury.id === injuryId ? mappedInjury : injury
         ))
 
         // Limpiar caché para forzar recarga

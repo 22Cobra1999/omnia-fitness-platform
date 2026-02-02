@@ -28,15 +28,25 @@ export function OmniaLoader({
                         size={120}
                         color="#FF7939"
                         fill="#FF7939"
-                        className="animate-pulse"
+                        className="animate-soft-pulse"
                     />
                 </div>
             </div>
 
             {/* Texto "Cargando" */}
-            <div className="text-[18px] font-semibold color-[#FF7939] text-center mt-[-10px]" style={{ color: '#FF7939' }}>
+            <div className="text-[18px] font-semibold text-center mt-[-10px]" style={{ color: '#FF7939' }}>
                 {message}
             </div>
+
+            <style jsx global>{`
+                @keyframes soft-pulse {
+                    0%, 100% { opacity: 0.8; transform: scale(1); }
+                    50% { opacity: 0.6; transform: scale(0.98); }
+                }
+                .animate-soft-pulse {
+                    animation: soft-pulse 3s ease-in-out infinite;
+                }
+            `}</style>
         </div>
     )
 }

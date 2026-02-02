@@ -489,7 +489,7 @@ export function PurchasedActivityCard({
                 {(activity.type?.toLowerCase() === 'program' || activity.type?.toLowerCase() === 'programa') && (
                   (pendingCount !== null && pendingCount > 0) ? (
                     <div className="flex items-center gap-1.5">
-                      <Zap className="w-3.5 h-3.5 text-[#FF7939]" />
+                      <Flame className="w-3.5 h-3.5 text-[#FF7939]" fill="#FF7939" />
                       <span className="text-[11px] text-white font-medium">
                         {pendingCount} ejercicios/platos hoy
                       </span>

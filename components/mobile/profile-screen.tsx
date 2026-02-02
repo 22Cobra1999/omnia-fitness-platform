@@ -2,6 +2,7 @@
 
 import { useState, useEffect, useCallback, useMemo, useRef } from "react"
 import { Button } from "@/components/ui/button"
+import { Input } from "@/components/ui/input"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import {
   User,
@@ -33,18 +34,30 @@ import {
   ArrowUp,
   ArrowDown,
   Edit2,
-  Phone
+  Phone,
+  UtensilsCrossed,
+  Video
 } from "lucide-react"
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogDescription,
+  DialogFooter,
+} from "@/components/ui/dialog"
 import { useProfileManagement } from '@/hooks/client/use-profile-management'
 import { useClientMetrics } from '@/hooks/client/use-client-metrics'
 import { useCoachProfile } from '@/hooks/coach/use-coach-profile'
 import { useAuth } from "@/contexts/auth-context"
 import { useToast } from "@/components/ui/use-toast"
+import { getSupabaseClient } from "@/lib/supabase/supabase-client"
 import { ProfileEditModal } from "@/components/mobile/profile-edit-modal"
 import { ObjectivesModal } from "@/components/mobile/objectives-modal"
 import { BiometricsModal } from "@/components/mobile/biometrics-modal"
 import { QuickExerciseAdd } from "@/components/mobile/quick-exercise-add"
 import { ExerciseProgressList } from "@/components/mobile/exercise-progress-list"
+import { OnboardingModal } from "@/components/mobile/onboarding-modal"
 import { DailyActivityRings } from "@/components/mobile/daily-activity-rings"
 import ActivityCalendar from "@/components/mobile/activity-calendar"
 import InjuriesModal from "@/components/mobile/injuries-modal"
@@ -111,77 +124,111 @@ function RecentPurchasesList({ userId }: { userId?: string }) {
 
   if (purchases.length === 0) {
     return (
-      <div className="text-center py-4">
-        <p className="text-gray-400 text-sm">No hay compras recientes</p>
+      <div className="text-center py-8">
+        <ShoppingCart className="h-12 w-12 text-gray-400 mx-auto mb-4" />
+        <p className="text-gray-400">No hay compras recientes</p>
       </div>
     );
   }
 
-  const getStatusColor = (status: string) => {
-    switch (status) {
-      case 'completed':
-      case 'approved':
-        return 'bg-green-400';
-      case 'pending':
-        return 'bg-yellow-400';
-      case 'failed':
-      case 'rejected':
-      case 'cancelled':
-        return 'bg-red-400';
-      default:
-        return 'bg-gray-400';
-    }
-  };
-
-  const getStatusText = (status: string) => {
-    switch (status) {
-      case 'completed':
-      case 'approved':
-        return 'Completado';
-      case 'pending':
-        return 'Pendiente';
-      case 'failed':
-      case 'rejected':
-        return 'Rechazado';
-      case 'cancelled':
-        return 'Cancelado';
-      default:
-        return status;
-    }
-  };
-
   const formatDate = (dateString: string) => {
     if (!dateString) return '';
     const date = new Date(dateString);
+    const now = new Date();
+    const diffMs = now.getTime() - date.getTime();
+    const diffMins = Math.floor(diffMs / 60000);
+    const diffHours = Math.floor(diffMs / 3600000);
+    const diffDays = Math.floor(diffMs / 86400000);
+
+    if (diffMins < 60) return `Hace ${diffMins} min`;
+    if (diffHours < 24) return `Hace ${diffHours}h`;
+    if (diffDays < 7) return `Hace ${diffDays}d`;
+
     return date.toLocaleDateString('es-AR', {
       day: 'numeric',
-      month: 'short',
-      year: 'numeric'
+      month: 'short'
     });
   };
 
+  const getActivityTypeLabel = (purchase: any) => {
+    const type = purchase.activity?.type;
+    const category = purchase.activity?.category;
+    const title = (purchase.activity?.title || purchase.concept || '').toLowerCase();
+    let label = '';
+
+    if (type === 'workshop' || title.includes('taller') || title.includes('yoga') || title.includes('clase')) label = 'Taller';
+    else if (type === 'document' || title.includes('documento') || title.includes('doc') || title.includes('guía') || title.includes('pdf')) label = 'Documento';
+    else if (type === 'consultation' || title.includes('consulta') || title.includes('asesor') || title.includes('café') || title.includes('coffee')) label = 'Consulta';
+    else if (category === 'nutricion' || type === 'nutrition' || title.includes('nutrición') || title.includes('dieta') || title.includes('comida') || title.includes('plan alimentario')) label = 'Plan Nutricional';
+    else if (title.includes('meet') || title.includes('crédito') || title.includes('llamada') || title.includes('sesión') || title.includes('videollamada') || title.includes('turno')) label = 'Créditos Meet';
+    else if (type === 'program' || type === 'fitness' || title.includes('programa') || title.includes('entrenamiento') || title.includes('rutina') || title.includes('bomb') || title.includes('pliométricos') || title.includes('fuerza') || title.includes('estética')) label = 'Programa';
+    else if (category === 'fitness') label = 'Fitness';
+
+    const categoryLabel = category === 'nutricion' || category === 'nutrition' ? 'Nutrición' :
+      category === 'fitness' ? 'Fitness' : null;
+
+    if (label && categoryLabel && !label.toLowerCase().includes(categoryLabel.toLowerCase())) {
+      return `${label} • ${categoryLabel}`;
+    }
+
+    return label || 'Actividad';
+  };
+
+  const getActivityIcon = (purchase: any) => {
+    const type = purchase.activity?.type;
+    const category = purchase.activity?.category;
+    const title = purchase.activity?.title?.toLowerCase() || '';
+
+    if (type === 'workshop') return <Activity className="h-4 w-4 text-[#FF7939]" />;
+    if (type === 'document') return <FileText className="h-4 w-4 text-[#FF7939]" />;
+    if (type === 'consultation') return <MessageCircle className="h-4 w-4 text-[#FF7939]" />;
+    if (category === 'nutricion' || type === 'nutrition') return <UtensilsCrossed className="h-4 w-4 text-[#FF7939]" />;
+    if (title.includes('meet') || title.includes('crédito')) return <Video className="h-4 w-4 text-[#FF7939]" />;
+
+    return <ShoppingCart className="h-4 w-4 text-[#FF7939]" />;
+  };
+
   return (
-    <div className="space-y-2">
-      {purchases.map((purchase) => (
-        <div
-          key={purchase.id}
-          className="flex items-center justify-between py-2 border-b border-white/5 last:border-0"
-        >
-          <div className="flex-1 min-w-0">
-            <p className="text-sm text-white truncate">
-              {purchase.activity?.title || purchase.concept || 'Actividad'}
-            </p>
-            <p className="text-xs text-gray-500 mt-0.5">
-              {purchase.paymentDate ? formatDate(purchase.paymentDate) : 'Sin fecha'}
-            </p>
+    <div className="space-y-3 max-h-80 overflow-y-auto">
+      {purchases.map((purchase) => {
+        const typeLabel = getActivityTypeLabel(purchase);
+        console.log('🛒 [PURCHASE ROW]', {
+          id: purchase.id,
+          title: purchase.concept || purchase.activity?.title,
+          type: purchase.activity?.type,
+          category: purchase.activity?.category,
+          calculatedLabel: typeLabel
+        });
+        return (
+          <div key={purchase.id} className="flex items-start space-x-3 p-3 bg-white/5 rounded-xl hover:bg-white/10 transition-colors">
+            {/* Icono según tipo */}
+            <div className="flex-shrink-0 mt-1">
+              {getActivityIcon(purchase)}
+            </div>
+
+            {/* Contenido */}
+            <div className="flex-1 min-w-0">
+              <p className="text-sm font-medium text-white truncate">
+                {purchase.concept || (isNaN(Number(purchase.activity?.title)) ? purchase.activity?.title : 'Compra #' + purchase.activity?.title) || 'Compra'}
+              </p>
+              <p className="text-xs text-gray-400 mt-1">
+                {getActivityTypeLabel(purchase)}
+              </p>
+              <p className="text-xs text-[#FF7939] font-medium mt-1">
+                ${purchase.amount?.toLocaleString('es-AR') || '0'}
+              </p>
+            </div>
+
+            {/* Timestamp */}
+            <div className="flex-shrink-0 flex flex-col items-end">
+              <Clock className="h-3 w-3 text-gray-500 mb-1" />
+              <p className="text-xs text-gray-500">
+                {purchase.paymentDate ? formatDate(purchase.paymentDate) : ''}
+              </p>
+            </div>
           </div>
-          <div className="text-right flex-shrink-0 ml-4">
-            <p className="text-sm font-medium text-white">
-              ${purchase.amount?.toLocaleString('es-AR') || '0'}
-            </p>
-          </div>
-        </div>
-      ))}
+        );
+      })}
     </div>
   );
 }
@@ -208,6 +255,7 @@ export function ProfileScreen() {
     loadInjuries,
     deleteBiometric,
     createBiometric,
+    updateBiometric,
     createInjury,
     updateInjury,
     deleteInjury
@@ -394,6 +442,17 @@ export function ProfileScreen() {
   const [showCalendar, setShowCalendar] = useState(false)
   const [showInjuriesModal, setShowInjuriesModal] = useState(false)
 
+  // Estados para edición inline del perfil
+  const [isEditingProfile, setIsEditingProfile] = useState(false)
+  const [editName, setEditName] = useState('')
+  const [editLocation, setEditLocation] = useState('')
+  const [editBirthDate, setEditBirthDate] = useState('')
+  const [editGoals, setEditGoals] = useState<string[]>([])
+  const [editSports, setEditSports] = useState<string[]>([])
+  const [isUploadingAvatar, setIsUploadingAvatar] = useState(false)
+  const [showGoalsSelect, setShowGoalsSelect] = useState(false)
+  const [showSportsSelect, setShowSportsSelect] = useState(false)
+
   // Estados para modal de confirmación de biometría
   const [showBiometricDeleteConfirmation, setShowBiometricDeleteConfirmation] = useState(false)
   const [isEditingObjectives, setIsEditingObjectives] = useState(false)
@@ -405,6 +464,7 @@ export function ProfileScreen() {
     value: string
     unit: string
   } | null>(null)
+  const [showOnboardingForm, setShowOnboardingForm] = useState(false)
 
   // Anillos de actividad con datos reales - memoizados
   const source = useMemo(() => {
@@ -486,11 +546,21 @@ export function ProfileScreen() {
       setIsBiometricsModalOpen(true)
     } else if (section === "injuries") {
       setShowInjuriesModal(true)
+    } else if (section === "profile") {
+      // Activar modo edición inline
+      if (!isEditingProfile) {
+        setEditName(managedProfile?.full_name || '')
+        setEditLocation(managedProfile?.location || '')
+        setEditBirthDate(managedProfile?.birth_date || '')
+        setEditGoals(managedProfile?.fitness_goals || [])
+        setEditSports(managedProfile?.sports || [])
+      }
+      setIsEditingProfile(prev => !prev)
     } else {
       setEditingSection(section)
       setIsEditModalOpen(true)
     }
-  }, [setBiometricsModalMode, setIsBiometricsModalOpen, setShowInjuriesModal, setEditingSection, setIsEditModalOpen, setShowQuickAdd])
+  }, [isEditingProfile, managedProfile, setBiometricsModalMode, setIsBiometricsModalOpen, setShowInjuriesModal, setEditingSection, setIsEditModalOpen])
 
   const handleQuickAddExercise = useCallback(async (exercise: { title: string; unit: string; value: string }) => {
     try {
@@ -524,6 +594,63 @@ export function ProfileScreen() {
       console.error('Error adding exercise:', error)
     }
   }, [setShowQuickAdd])
+
+  const handleSaveProfile = useCallback(async () => {
+    try {
+      const supabase = getSupabaseClient()
+
+      // Actualizar perfil
+      const { error: profileError } = await supabase
+        .from('user_profiles')
+        .update({
+          full_name: editName,
+          location: editLocation
+        })
+        .eq('id', user?.id)
+
+      if (profileError) throw profileError
+
+      // Actualizar datos del cliente
+      const { error: clientError } = await supabase
+        .from('clients')
+        .update({
+          birth_date: editBirthDate,
+          fitness_goals: editGoals,
+          sports: editSports
+        })
+        .eq('id', user?.id)
+
+      if (clientError) throw clientError
+
+      // Recargar perfil
+      await loadProfile()
+
+      setIsEditingProfile(false)
+
+      toast({
+        title: "Perfil actualizado",
+        description: "Tus cambios se guardaron correctamente"
+      })
+    } catch (error) {
+      console.error('Error saving profile:', error)
+      toast({
+        title: "Error",
+        description: "No se pudo guardar el perfil",
+        variant: "destructive"
+      })
+    }
+  }, [editName, editLocation, editBirthDate, editGoals, editSports, user, loadProfile, toast])
+
+  const handleCancelProfileEdit = useCallback(() => {
+    setIsEditingProfile(false)
+    setEditName('')
+    setEditLocation('')
+    setEditBirthDate('')
+    setEditGoals([])
+    setEditSports([])
+    setShowGoalsSelect(false)
+    setShowSportsSelect(false)
+  }, [])
 
   const handleSaveInjuries = useCallback(async (updatedInjuries: any[]) => {
     try {
@@ -622,20 +749,30 @@ export function ProfileScreen() {
   const handleSaveBiometric = useCallback(async (data: { name: string, value: number, unit: string }) => {
     try {
       if (biometricsModalMode === 'edit' && selectedBiometric) {
-        // En modo edición, NO eliminamos el anterior para mantener historial
-        // createBiometric creará una nueva entrada
+        // En modo edición, actualizamos la entrada existente
+        await updateBiometric(selectedBiometric.id, {
+          name: data.name,
+          value: data.value,
+          unit: data.unit
+        })
+
+        toast({
+          title: "Medición actualizada",
+          description: `${data.name}: ${data.value} ${data.unit}`,
+        })
+      } else {
+        // En modo registro, creamos una nueva
+        await createBiometric({
+          name: data.name,
+          value: data.value,
+          unit: data.unit
+        })
+
+        toast({
+          title: "Medición registrada",
+          description: `${data.name}: ${data.value} ${data.unit}`,
+        })
       }
-
-      await createBiometric({
-        name: data.name,
-        value: data.value,
-        unit: data.unit
-      })
-
-      toast({
-        title: biometricsModalMode === 'edit' ? "Medición actualizada" : "Medición registrada",
-        description: `${data.name}: ${data.value} ${data.unit}`,
-      })
 
       await loadBiometrics()
       setIsBiometricsModalOpen(false)
@@ -649,7 +786,56 @@ export function ProfileScreen() {
         description: "No se pudo guardar la medición"
       })
     }
-  }, [biometricsModalMode, selectedBiometric, createBiometric, deleteBiometric, loadBiometrics, setIsBiometricsModalOpen, setBiometricsModalMode, toast])
+  }, [biometricsModalMode, selectedBiometric, createBiometric, loadBiometrics, setIsBiometricsModalOpen, setBiometricsModalMode])
+
+  // Combinar biometrías del perfil con las registradas para visualización prioritaria
+  const displayBiometrics = useMemo(() => {
+    // 1. Crear copia de las biometrías existentes
+    const bioList = biometrics ? [...biometrics] : []
+
+    // 2. Definir biometrías "fijas" del perfil que queremos asegurar que estén
+    const profileMetrics = [
+      { name: 'Peso', value: managedProfile?.weight, unit: 'kg', id: 'profile-weight' },
+      { name: 'Altura', value: managedProfile?.height, unit: 'cm', id: 'profile-height' }
+    ]
+
+    // 3. Iterar sobre las fixed metrics
+    profileMetrics.forEach(metric => {
+      if (!metric.value) return // Si no hay dato en perfil, no forzamos nada (o podríamos poner 0/-)
+
+      // Buscar si ya existe en la lista de biometrics cargada de DB
+      const existingIndex = bioList.findIndex(b => b.name.toLowerCase() === metric.name.toLowerCase())
+
+      if (existingIndex !== -1) {
+        // Si existe, la sacamos de su posición actual para moverla al principio
+        const existing = bioList[existingIndex]
+        bioList.splice(existingIndex, 1)
+        bioList.unshift(existing) // Poner al principio
+      } else {
+        // Si no existe como biometric normal, la creamos visualmente (dummy)
+        bioList.unshift({
+          id: metric.id,
+          name: metric.name,
+          value: Number(metric.value), // Asegurar número
+          unit: metric.unit,
+          date: new Date().toISOString(),
+          trend: 'neutral'
+        } as any)
+      }
+    })
+
+    // 4. Asegurar el orden específico: Peso primero, luego Altura
+
+    return bioList.sort((a, b) => {
+      const nameA = a.name.toLowerCase()
+      const nameB = b.name.toLowerCase()
+      if (nameA === 'peso') return -1
+      if (nameB === 'peso') return 1
+      if (nameA === 'altura') return -1
+      if (nameB === 'altura') return 1
+      return 0
+    })
+  }, [biometrics, managedProfile])
 
   const handleDeleteBiometricFromModal = useCallback(async () => {
     if (selectedBiometric) {
@@ -694,12 +880,11 @@ export function ProfileScreen() {
       {/* Header del perfil reorganizado */}
       {isCoach ? (
         <CoachPersonalInfoSection
-          coach={{
+          coach={coachProfile ? {
             ...coachProfile,
             rating: coachProfile?.rating,
-            // total_sales viene del billing endpoint (totalSales) y representa cantidad de ventas
             total_sales: Number.isFinite(Number(coachProfile?.total_sales)) ? Number(coachProfile?.total_sales) : 0
-          } || {}}
+          } : {} as any}
           variant="profile"
           showEditButton={true}
           onEditClick={() => handleEditSection("profile")}
@@ -718,6 +903,10 @@ export function ProfileScreen() {
             backgroundRepeat: 'no-repeat'
           }}
         >
+          <OnboardingModal
+            isOpen={showOnboardingForm}
+            onClose={() => setShowOnboardingForm(false)}
+          />
           {/* Fondo difuminado adicional */}
           {managedProfile?.avatar_url && (
             <div
@@ -734,21 +923,42 @@ export function ProfileScreen() {
 
           {/* Contenido del perfil con z-index para estar encima del fondo */}
           <div className="relative z-10">
-            {/* Botón de editar en esquina superior derecha */}
+            {/* Botón de onboarding en esquina superior izquierda */}
+            <div className="absolute top-4 left-4">
+              <div className="relative">
+                <Button
+                  onClick={() => setShowOnboardingForm(true)}
+                  variant="ghost"
+                  size="sm"
+                  className="rounded-full w-9 h-9 p-0 bg-white/10 backdrop-blur-md border border-white/20 text-[#FF6A00] hover:bg-white/20 transition-all shadow-lg"
+                >
+                  <BookOpen className="h-4 w-4" />
+                </Button>
+
+                {/* Indicador de pendiente (!) */}
+                {(!managedProfile?.physical_data?.onboarding_completed_at) && (
+                  <div className="absolute -top-1 -right-1 w-4 h-4 rounded-full bg-[#FF6A00] flex items-center justify-center border border-black shadow-sm pointer-events-none">
+                    <span className="text-[10px] font-bold text-white">!</span>
+                  </div>
+                )}
+              </div>
+            </div>
+
+            {/* Botón de editar/cancelar en esquina superior derecha */}
             <div className="absolute top-4 right-4">
               <Button
-                onClick={() => handleEditSection("profile")}
+                onClick={() => isEditingProfile ? handleCancelProfileEdit() : handleEditSection("profile")}
                 variant="ghost"
                 size="sm"
-                className="text-[#FF6A00] hover:bg-[#FF6A00]/10 rounded-xl p-2"
+                className={isEditingProfile ? "text-red-400 hover:bg-red-400/10 rounded-xl p-2" : "text-[#FF6A00] hover:bg-[#FF6A00]/10 rounded-xl p-2"}
               >
-                <Edit3 className="h-4 w-4" />
+                {isEditingProfile ? <X className="h-4 w-4" /> : <Edit3 className="h-4 w-4" />}
               </Button>
             </div>
 
             {/* Imagen centrada */}
             <div className="flex justify-center mb-2 pt-2">
-              <div className="w-20 h-20 bg-gradient-to-br from-[#FF6A00] to-[#FF8C42] rounded-full flex items-center justify-center overflow-hidden">
+              <div className="relative w-20 h-20 bg-gradient-to-br from-[#FF6A00] to-[#FF8C42] rounded-full flex items-center justify-center overflow-hidden">
                 {managedProfile?.avatar_url ? (
                   <img
                     src={managedProfile.avatar_url}
@@ -758,31 +968,139 @@ export function ProfileScreen() {
                 ) : (
                   <User className="h-10 w-10 text-white" />
                 )}
+                {/* Botón para cambiar foto (solo cuando está editando) */}
+                {isEditingProfile && (
+                  <label className="absolute inset-0 flex items-center justify-center bg-black/50 cursor-pointer hover:bg-black/60 transition-colors">
+                    <input
+                      type="file"
+                      accept="image/*"
+                      className="hidden"
+                      onChange={async (e) => {
+                        const file = e.target.files?.[0]
+                        if (!file) return
+
+                        setIsUploadingAvatar(true)
+                        try {
+                          const supabase = getSupabaseClient()
+
+                          // Eliminar foto anterior si existe
+                          if (managedProfile?.avatar_url) {
+                            const oldPath = managedProfile.avatar_url.split('/').pop()
+                            if (oldPath) {
+                              await supabase.storage.from('avatars').remove([oldPath])
+                            }
+                          }
+
+                          // Subir nueva foto
+                          const fileExt = file.name.split('.').pop()
+                          const fileName = `${user?.id}-${Date.now()}.${fileExt}`
+                          const { error: uploadError } = await supabase.storage
+                            .from('avatars')
+                            .upload(fileName, file)
+
+                          if (uploadError) throw uploadError
+
+                          // Obtener URL pública
+                          const { data: { publicUrl } } = supabase.storage
+                            .from('avatars')
+                            .getPublicUrl(fileName)
+
+                          // Actualizar perfil
+                          const { error: updateError } = await supabase
+                            .from('user_profiles')
+                            .update({ avatar_url: publicUrl })
+                            .eq('id', user?.id)
+
+                          if (updateError) throw updateError
+
+                          await loadProfile()
+
+                          toast({
+                            title: "Foto actualizada",
+                            description: "Tu foto de perfil se actualizó correctamente"
+                          })
+                        } catch (error) {
+                          console.error('Error uploading avatar:', error)
+                          toast({
+                            title: "Error",
+                            description: "No se pudo actualizar la foto",
+                            variant: "destructive"
+                          })
+                        } finally {
+                          setIsUploadingAvatar(false)
+                        }
+                      }}
+                    />
+                    {isUploadingAvatar ? (
+                      <div className="w-6 h-6 border-2 border-white border-t-transparent rounded-full animate-spin" />
+                    ) : (
+                      <Plus className="h-6 w-6 text-white" />
+                    )}
+                  </label>
+                )}
               </div>
             </div>
 
             {/* Nombre centrado */}
             <div className="text-center mb-2">
-              <h1 className="text-lg font-semibold">
-                {managedProfile?.full_name || "Usuario"}
-              </h1>
+              {isEditingProfile ? (
+                <Input
+                  value={editName}
+                  onChange={(e) => setEditName(e.target.value)}
+                  className="text-center bg-white/5 border-white/10 text-white max-w-[200px] mx-auto"
+                  placeholder="Nombre completo"
+                />
+              ) : (
+                <h1 className="text-lg font-semibold">
+                  {managedProfile?.full_name || "Usuario"}
+                </h1>
+              )}
             </div>
 
             {/* Información organizada en filas */}
             <div className="space-y-4">
               {/* Ubicación y edad */}
               <div className="flex items-center justify-center space-x-4">
-                <div className="flex items-center space-x-1">
-                  <MapPin className="h-4 w-4 text-gray-400" />
-                  <span className="text-sm text-gray-300">
-                    {managedProfile?.location || "No especificada"}
-                  </span>
-                </div>
-                <div className="flex items-center space-x-1">
-                  <span className="text-sm text-gray-300">
-                    {managedProfile?.age || (managedProfile?.birth_date ? new Date().getFullYear() - new Date(managedProfile.birth_date).getFullYear() : "?")} años
-                  </span>
-                </div>
+                {isEditingProfile ? (
+                  <>
+                    <div className="flex items-center space-x-1">
+                      <MapPin className="h-4 w-4 text-gray-400" />
+                      <Input
+                        value={editLocation}
+                        onChange={(e) => setEditLocation(e.target.value)}
+                        className="bg-white/5 border-white/10 text-white h-8 w-32 text-sm"
+                        placeholder="Ubicación"
+                      />
+                    </div>
+                    <Input
+                      type="date"
+                      value={editBirthDate}
+                      onChange={(e) => setEditBirthDate(e.target.value)}
+                      className="bg-white/5 border-white/10 text-white h-8 w-36 text-sm"
+                      placeholder="Fecha de nacimiento"
+                    />
+                  </>
+                ) : (
+                  <>
+                    <button
+                      onClick={() => handleEditSection("profile")}
+                      className="flex items-center space-x-1 group cursor-pointer hover:bg-white/5 px-2 py-1 rounded-lg transition-colors"
+                    >
+                      <MapPin className="h-4 w-4 text-gray-400 group-hover:text-[#FF7939] transition-colors" />
+                      <span className="text-sm text-gray-300 group-hover:text-white transition-colors">
+                        {managedProfile?.location || "No especificada"}
+                      </span>
+                    </button>
+                    <button
+                      onClick={() => handleEditSection("profile")}
+                      className="flex items-center space-x-1 group cursor-pointer hover:bg-white/5 px-2 py-1 rounded-lg transition-colors"
+                    >
+                      <span className="text-sm text-gray-300 group-hover:text-white transition-colors">
+                        {calculateAge(managedProfile?.birth_date) || "?"} años
+                      </span>
+                    </button>
+                  </>
+                )}
               </div>
 
               {/* Emergency Contact */}
@@ -794,56 +1112,107 @@ export function ProfileScreen() {
                       <span className="text-xs">{managedProfile.emergency_contact}</span>
                     </div>
                   )}
-                  {/* Phone (optional backup if no emergency contact, or show both) */}
-                  {/* Actually let's just show Emergency Contact if available, as requested */}
                 </div>
               )}
-
-              {/* Peso y altura para clientes */}
-              <div className="flex items-center justify-center space-x-4">
-                <div className="flex items-center space-x-1">
-                  <Weight className="h-4 w-4 text-gray-400" />
-                  <span className="text-sm text-gray-300">{managedProfile?.weight || "-"} kg</span>
-                </div>
-                <div className="flex items-center space-x-1">
-                  <Ruler className="h-4 w-4 text-gray-400" />
-                  <span className="text-sm text-gray-300">{managedProfile?.height || "-"} cm</span>
-                </div>
-              </div>
 
               {/* Objetivos y Deportes (Stacked Rows) */}
               <div className="w-full flex flex-col gap-2 items-center mt-2">
 
                 {/* Goals Row */}
-                {managedProfile?.fitness_goals && Array.isArray(managedProfile.fitness_goals) && managedProfile.fitness_goals.length > 0 && (
+                {(isEditingProfile || (managedProfile?.fitness_goals && Array.isArray(managedProfile.fitness_goals) && managedProfile.fitness_goals.length > 0)) && (
                   <div className="w-full overflow-x-auto scrollbar-hide flex justify-center">
                     <div className="flex items-center gap-2 px-4 whitespace-nowrap">
-                      {managedProfile.fitness_goals.map((g: string, i: number) => (
-                        <div key={`g-${i}`} className="px-3 py-1 rounded-full bg-[#FF7939]/10 border border-[#FF7939]/30 text-[#FF7939] text-[10px] font-bold tracking-wider capitalize">
-                          {g}
-                        </div>
-                      ))}
+                      {isEditingProfile ? (
+                        <>
+                          {editGoals.map((g: string, i: number) => (
+                            <div key={`g-${i}`} className="relative px-3 py-1 pr-5 rounded-full bg-[#FF7939]/10 border border-[#FF7939]/30 text-[#FF7939] text-[10px] font-bold tracking-wider capitalize group">
+                              {g}
+                              <button
+                                onClick={() => setEditGoals(editGoals.filter((_, idx) => idx !== i))}
+                                className="absolute top-0 right-0 w-4 h-4 rounded-full bg-red-500 text-white flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity"
+                              >
+                                <Minus className="h-2.5 w-2.5" />
+                              </button>
+                            </div>
+                          ))}
+                          <button
+                            onClick={() => setShowGoalsSelect(true)}
+                            className="w-6 h-6 rounded-full bg-[#FF7939]/20 border border-[#FF7939]/50 text-[#FF7939] flex items-center justify-center hover:bg-[#FF7939]/30 transition-colors"
+                          >
+                            <Plus className="h-3 w-3" />
+                          </button>
+                        </>
+                      ) : (
+                        managedProfile?.fitness_goals?.map((g: string, i: number) => (
+                          <div key={`g-${i}`} className="px-3 py-1 rounded-full bg-[#FF7939]/10 border border-[#FF7939]/30 text-[#FF7939] text-[10px] font-bold tracking-wider capitalize">
+                            {g}
+                          </div>
+                        ))
+                      )}
                     </div>
                   </div>
                 )}
 
                 {/* Sports Row */}
-                {managedProfile?.sports && managedProfile.sports.length > 0 && (
+                {(isEditingProfile || (managedProfile?.sports && managedProfile.sports.length > 0)) && (
                   <div className="w-full overflow-x-auto scrollbar-hide flex justify-center">
                     <div className="flex items-center gap-2 px-4 whitespace-nowrap">
-                      {managedProfile.sports.map((s: string, i: number) => (
-                        <div key={`s-${i}`} className="px-3 py-1 rounded-full bg-orange-300/10 border border-orange-300/30 text-orange-300 text-[10px] font-bold tracking-wider capitalize">
-                          {s}
-                        </div>
-                      ))}
+                      {isEditingProfile ? (
+                        <>
+                          {editSports.map((s: string, i: number) => (
+                            <div key={`s-${i}`} className="relative px-3 py-1 pr-5 rounded-full bg-orange-300/10 border border-orange-300/30 text-orange-300 text-[10px] font-bold tracking-wider capitalize group">
+                              {s}
+                              <button
+                                onClick={() => setEditSports(editSports.filter((_, idx) => idx !== i))}
+                                className="absolute top-0 right-0 w-4 h-4 rounded-full bg-red-500 text-white flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity"
+                              >
+                                <Minus className="h-2.5 w-2.5" />
+                              </button>
+                            </div>
+                          ))}
+                          <button
+                            onClick={() => setShowSportsSelect(true)}
+                            className="w-6 h-6 rounded-full bg-orange-300/20 border border-orange-300/50 text-orange-300 flex items-center justify-center hover:bg-orange-300/30 transition-colors"
+                          >
+                            <Plus className="h-3 w-3" />
+                          </button>
+                        </>
+                      ) : (
+                        managedProfile?.sports?.map((s: string, i: number) => (
+                          <div key={`s-${i}`} className="px-3 py-1 rounded-full bg-orange-300/10 border border-orange-300/30 text-orange-300 text-[10px] font-bold tracking-wider capitalize">
+                            {s}
+                          </div>
+                        ))
+                      )}
                     </div>
                   </div>
                 )}
 
-                {(!managedProfile?.fitness_goals?.length && !managedProfile?.sports?.length) && (
-                  <span className="text-xs text-gray-500 italic text-center w-full">Sin objetivos definidos</span>
+                {(!isEditingProfile && !managedProfile?.fitness_goals?.length && !managedProfile?.sports?.length) && (
+                  <span className="text-xs text-gray-500 italic text-center w-full">Sin metas de rendimiento definidas</span>
                 )}
               </div>
+
+              {/* Botones de acción cuando está editando */}
+              {isEditingProfile && (
+                <div className="flex gap-2 justify-center pt-4">
+                  <Button
+                    onClick={handleCancelProfileEdit}
+                    variant="ghost"
+                    size="sm"
+                    className="text-gray-400 hover:text-white hover:bg-white/5"
+                  >
+                    Cancelar
+                  </Button>
+                  <Button
+                    onClick={handleSaveProfile}
+                    size="sm"
+                    className="bg-gradient-to-r from-[#FF7939] to-[#FF6A00] hover:from-[#FF6A00] hover:to-[#FF5500] text-white"
+                  >
+                    Guardar
+                  </Button>
+                </div>
+              )}
             </div>
           </div>
         </div>
@@ -1208,23 +1577,10 @@ export function ProfileScreen() {
           <div className="flex flex-col space-y-3">
             <div className="flex items-center justify-between px-2">
               <div className="flex items-center gap-2">
-                <Activity className="h-4 w-4 text-[#FF6A00]" />
+                <Ruler className="h-4 w-4 text-[#FF6A00]" />
                 <h2 className="text-sm font-semibold text-gray-200">Biometría</h2>
               </div>
               <div className="flex gap-1">
-                {/* Botón de editar visual (abre modal para editar values existentes al clickear card realmente) */}
-                <Button
-                  onClick={() => {
-                    setSelectedBiometric(null)
-                    setBiometricsModalMode('edit')
-                    setIsBiometricsModalOpen(true)
-                  }}
-                  variant="ghost"
-                  size="sm"
-                  className="text-gray-500 hover:text-white h-6 w-6 p-0 rounded-full"
-                >
-                  <Edit2 className="h-3 w-3" />
-                </Button>
                 <Button
                   onClick={() => {
                     setBiometricsModalMode('register')
@@ -1243,8 +1599,8 @@ export function ProfileScreen() {
             <div className="bg-transparent h-[120px] w-full">
               <div className="overflow-x-auto pb-2 -mx-2 px-2 custom-scrollbar hide-scrollbar-mobile" style={{ scrollbarWidth: 'none' }}>
                 <div className="flex gap-3 min-w-max">
-                  {processedBiometrics.length > 0 ? (
-                    processedBiometrics.map((bio) => (
+                  {displayBiometrics.length > 0 ? (
+                    displayBiometrics.map((bio) => (
                       <div
                         key={bio.id}
                         onClick={() => handleEditBiometric(bio)}
@@ -1276,13 +1632,13 @@ export function ProfileScreen() {
           </div>
         )}
 
-        {/* 2. SECCIÓN OBJETIVOS */}
+        {/* 2. SECCIÓN METAS DE RENDIMIENTO */}
         {!isCoach && (
           <div className="flex flex-col space-y-3">
             <div className="flex items-center justify-between px-2">
               <div className="flex items-center gap-2">
                 <Target className="h-4 w-4 text-[#FF6A00]" />
-                <h2 className="text-sm font-semibold text-gray-200">Objetivos</h2>
+                <h2 className="text-sm font-semibold text-gray-200">Metas de Rendimiento</h2>
               </div>
               <div className="flex gap-1 items-center">
                 {isEditingObjectives && (
@@ -1314,12 +1670,12 @@ export function ProfileScreen() {
                   </div>
                 )}
                 <Button
-                  onClick={() => handleEditSection("goals")}
+                  onClick={() => setIsEditingObjectives(!isEditingObjectives)}
                   variant="ghost"
                   size="sm"
-                  className={`${isEditingObjectives ? 'text-white bg-white/10' : 'text-gray-500'} hover:text-white h-6 w-6 p-0 rounded-full`}
+                  className={`h-6 px-2 py-0 text-[10px] font-bold rounded-full transition-all ${isEditingObjectives ? 'bg-orange-500/20 text-[#FF6A00]' : 'text-gray-400 hover:text-white hover:bg-white/5'}`}
                 >
-                  <Edit2 className="h-3 w-3" />
+                  {isEditingObjectives ? 'Terminar' : 'Editar'}
                 </Button>
                 <Button
                   onClick={() => setShowQuickAdd(true)}
@@ -1332,6 +1688,7 @@ export function ProfileScreen() {
               </div>
             </div>
 
+
             {showQuickAdd && (
               <div className="mb-2">
                 <QuickExerciseAdd
@@ -1342,8 +1699,13 @@ export function ProfileScreen() {
             )}
 
             {/* Exercise List is now inherently Horizontal & Compact */}
-            <div className="h-[120px] w-full">
-              <ExerciseProgressList ref={objectivesRef} userId={user?.id} isEditing={isEditingObjectives} />
+            <div
+              className={`h-[120px] w-full transition-all ${!isEditingObjectives ? 'cursor-pointer' : ''}`}
+              onClick={() => {
+                if (!isEditingObjectives) setIsEditingObjectives(true)
+              }}
+            >
+              <ExerciseProgressList ref={objectivesRef} isEditing={isEditingObjectives} />
             </div>
           </div>
         )}
@@ -1357,18 +1719,6 @@ export function ProfileScreen() {
                 <h2 className="text-sm font-semibold text-gray-200">Lesiones</h2>
               </div>
               <div className="flex gap-1">
-                {/* Botón editar lesiones (abre modal también) */}
-                <Button
-                  onClick={() => {
-                    // Logic to verify/edit existing? 
-                    setShowInjuriesModal(true)
-                  }}
-                  variant="ghost"
-                  size="sm"
-                  className="text-gray-500 hover:text-white h-6 w-6 p-0 rounded-full"
-                >
-                  <Edit2 className="h-3 w-3" />
-                </Button>
                 <Button
                   onClick={() => setShowInjuriesModal(true)}
                   variant="ghost"
@@ -1396,17 +1746,18 @@ export function ProfileScreen() {
                       >
                         <div className="flex justify-between items-start">
                           <span className="text-[10px] uppercase text-gray-400 font-bold leading-tight max-w-[85%]">{injury.muscleName || injury.name}</span>
-                          <div className={`h-2 w-2 rounded-full ${injury.painLevel! >= 7 ? 'bg-red-500' :
-                            injury.painLevel! >= 4 ? 'bg-yellow-500' : 'bg-green-500'
+                          <div className={`h-2 w-2 rounded-full ${(injury.painLevel === 3 || injury.severity === 'high' || (injury.painLevel || 0) >= 7) ? 'bg-red-500' :
+                            (injury.painLevel === 2 || injury.severity === 'medium' || (injury.painLevel || 0) >= 4) ? 'bg-yellow-500' : 'bg-green-500'
                             }`}></div>
                         </div>
 
                         <div className="mt-auto">
                           <span className="text-white text-sm font-bold block truncate">{injury.name}</span>
-                          <span className={`text-[10px] font-medium ${injury.painLevel! >= 7 ? 'text-red-400' :
-                            injury.painLevel! >= 4 ? 'text-yellow-400' : 'text-green-400'
+                          <span className={`text-[10px] font-medium ${(injury.painLevel === 3 || injury.severity === 'high' || (injury.painLevel || 0) >= 7) ? 'text-red-400' :
+                            (injury.painLevel === 2 || injury.severity === 'medium' || (injury.painLevel || 0) >= 4) ? 'text-yellow-400' : 'text-green-400'
                             }`}>
-                            {injury.painLevel! >= 7 ? 'Fuerte' : injury.painLevel! >= 4 ? 'Moderado' : 'Leve'}
+                            {(injury.painLevel === 3 || injury.severity === 'high' || (injury.painLevel || 0) >= 7) ? 'Fuerte' :
+                              (injury.painLevel === 2 || injury.severity === 'medium' || (injury.painLevel || 0) >= 4) ? 'Moderado' : 'Leve'}
                           </span>
                         </div>
                       </div>
@@ -1530,6 +1881,64 @@ export function ProfileScreen() {
         injuries={injuries}
         onSave={handleSaveInjuries}
       />
+
+      {/* Dialog de selección de metas */}
+      <Dialog open={showGoalsSelect} onOpenChange={setShowGoalsSelect}>
+        <DialogContent className="bg-[#1A1C1F] border-white/10 text-white max-w-md">
+          <DialogHeader>
+            <DialogTitle>Agregar Meta</DialogTitle>
+            <DialogDescription className="text-gray-400">
+              Selecciona una meta de la lista
+            </DialogDescription>
+          </DialogHeader>
+          <div className="grid grid-cols-2 gap-2 py-4">
+            {['Quemar Grasas', 'Ganar Masa Muscular', 'Mejorar Condición Física', 'Tonificar', 'Aumentar Fuerza', 'Mejorar Flexibilidad', 'Perder Peso', 'Mantener Forma'].map((goal) => (
+              <Button
+                key={goal}
+                onClick={() => {
+                  if (!editGoals.includes(goal)) {
+                    setEditGoals([...editGoals, goal])
+                  }
+                  setShowGoalsSelect(false)
+                }}
+                variant="outline"
+                className="border-[#FF7939]/30 text-white hover:bg-[#FF7939]/20 hover:border-[#FF7939] justify-start"
+              >
+                {goal}
+              </Button>
+            ))}
+          </div>
+        </DialogContent>
+      </Dialog>
+
+      {/* Dialog de selección de deportes */}
+      <Dialog open={showSportsSelect} onOpenChange={setShowSportsSelect}>
+        <DialogContent className="bg-[#1A1C1F] border-white/10 text-white max-w-md">
+          <DialogHeader>
+            <DialogTitle>Agregar Deporte</DialogTitle>
+            <DialogDescription className="text-gray-400">
+              Selecciona un deporte de la lista
+            </DialogDescription>
+          </DialogHeader>
+          <div className="grid grid-cols-2 gap-2 py-4">
+            {['Fútbol', 'Basketball', 'Tenis', 'Natación', 'Ciclismo', 'Running', 'Yoga', 'Pilates', 'CrossFit', 'Boxeo', 'Calistenia', 'Padel', 'Voley', 'Rugby'].map((sport) => (
+              <Button
+                key={sport}
+                onClick={() => {
+                  if (!editSports.includes(sport)) {
+                    setEditSports([...editSports, sport])
+                  }
+                  setShowSportsSelect(false)
+                }}
+                variant="outline"
+                className="border-orange-300/30 text-white hover:bg-orange-300/20 hover:border-orange-300 justify-start"
+              >
+                {sport}
+              </Button>
+            ))}
+          </div>
+        </DialogContent>
+      </Dialog>
 
     </div >
   )

@@ -59,10 +59,10 @@ const InjuriesModal = ({ isOpen, onClose, injuries, onSave }: InjuriesModalProps
             muscleId: foundMuscle?.id || '',
             muscleName: foundMuscle?.name || injury.name,
             muscleGroup: foundMuscle ? MUSCLE_GROUPS.find(g => g.id === foundMuscle.groupId)?.name || '' : '',
-            painLevel: injury.severity === 'low' ? 1 : injury.severity === 'medium' ? 2 : 3,
-            painDescription: injury.severity === 'low' ? 'Molestia leve' :
+            painLevel: injury.painLevel || (injury.severity === 'low' ? 1 : injury.severity === 'medium' ? 2 : 3),
+            painDescription: injury.painDescription || (injury.severity === 'low' ? 'Molestia leve' :
               injury.severity === 'medium' ? 'Dolor moderado' :
-                'Dolor fuerte'
+                'Dolor fuerte')
           }
         })
         setLocalInjuries(mappedInjuries)
@@ -160,7 +160,12 @@ const InjuriesModal = ({ isOpen, onClose, injuries, onSave }: InjuriesModalProps
               {localInjuries.length}
             </span>
           </div>
-
+          <button
+            onClick={onClose}
+            className="p-1.5 rounded-lg text-gray-500 hover:text-white hover:bg-white/10 transition-colors"
+          >
+            <X className="w-4 h-4" />
+          </button>
         </div>
 
         {/* Content */}
