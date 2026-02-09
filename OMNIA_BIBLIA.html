@@ -210,6 +210,228 @@
       text-align: center;
       margin: 0.5rem auto;
     }
+
+    /* Visual Logic Map Styles */
+    .logic-container {
+      background: #0a0b0d;
+      color: #e0e0e0;
+      padding: 25px;
+      border-radius: 16px;
+      font-family: 'Menlo', 'Monaco', monospace;
+      font-size: 13px;
+      margin: 2em 0;
+      border: 1px solid #1f2023;
+      box-shadow: 0 10px 30px rgba(0, 0, 0, 0.5);
+    }
+
+    .logic-title {
+      color: #FF7939;
+      font-weight: bold;
+      text-transform: uppercase;
+      letter-spacing: 1px;
+      margin-bottom: 15px;
+      border-bottom: 1px solid #333;
+      padding-bottom: 5px;
+    }
+
+    .logic-layer {
+      margin-bottom: 15px;
+      padding-left: 15px;
+      border-left: 2px solid #444;
+    }
+
+    .layer-label {
+      font-size: 10px;
+      color: #666;
+      text-transform: uppercase;
+      margin-bottom: 5px;
+      display: block;
+    }
+
+    .node {
+      display: inline-block;
+      padding: 4px 12px;
+      border-radius: 6px;
+      margin: 4px 0;
+    }
+
+    .ux-node {
+      background: rgba(255, 255, 255, 0.05);
+      border: 1px solid #444;
+    }
+
+    .hook-node {
+      background: rgba(0, 150, 255, 0.1);
+      border: 1px solid #0077ff;
+      color: #4faaff;
+    }
+
+    .api-node {
+      background: rgba(255, 165, 0, 0.1);
+      border: 1px solid #ffae00;
+      color: #ffae00;
+    }
+
+    .state-node {
+      background: rgba(76, 175, 80, 0.1);
+      border: 1px solid #4caf50;
+      color: #81c784;
+    }
+
+    .arrow {
+      color: #555;
+      margin: 0 5px;
+    }
+
+    .branch {
+      padding-left: 20px;
+      border-left: 1px dashed #333;
+      margin-top: 5px;
+    }
+
+    /* Tree Design Styles */
+    .tree-container {
+      background: #0d1117;
+      color: #c9d1d9;
+      padding: 40px;
+      border-radius: 12px;
+      font-family: 'JetBrains Mono', 'Fira Code', 'Courier New', monospace;
+      font-size: 13px;
+      line-height: 2;
+      border: 1px solid #30363d;
+      margin: 20px 0;
+      box-shadow: inset 0 0 30px rgba(0, 0, 0, 0.8);
+      position: relative;
+    }
+
+    .tree-title {
+      color: #58a6ff;
+      font-weight: bold;
+      font-size: 20px;
+      border-bottom: 2px solid #1f6feb;
+      margin-bottom: 30px;
+      padding-bottom: 10px;
+      display: flex;
+      align-items: center;
+      gap: 15px;
+      text-transform: uppercase;
+      letter-spacing: 2px;
+    }
+
+    .tree-division {
+      color: #ff7b72;
+      font-weight: bold;
+      font-size: 16px;
+      margin-top: 30px;
+      display: block;
+      padding: 5px 10px;
+      background: rgba(255, 123, 114, 0.1);
+      border-radius: 4px;
+      width: fit-content;
+    }
+
+    .tree-branch {
+      position: relative;
+      margin-left: 20px;
+      border-left: 1px solid #30363d;
+      padding-left: 20px;
+    }
+
+    .tree-tab {
+      color: #d2a8ff;
+      display: block;
+      position: relative;
+      font-weight: bold;
+    }
+
+    .tree-tab:before {
+      content: "";
+      position: absolute;
+      left: -20px;
+      top: 15px;
+      width: 15px;
+      border-top: 1px solid #30363d;
+    }
+
+    .tree-action {
+      color: #79c0ff;
+      margin-left: 20px;
+      display: block;
+      position: relative;
+    }
+
+    .tree-action:before {
+      content: "";
+      position: absolute;
+      left: -20px;
+      top: 15px;
+      width: 15px;
+      border-top: 1px solid #30363d;
+    }
+
+    .tree-detail {
+      margin-left: 40px;
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      color: #8b949e;
+      position: relative;
+    }
+
+    .tree-detail:before {
+      content: "";
+      position: absolute;
+      left: -20px;
+      top: 15px;
+      width: 15px;
+      border-top: 1px solid #30363d;
+    }
+
+    .status-pill {
+      font-size: 9px;
+      padding: 2px 8px;
+      border-radius: 4px;
+      font-weight: bold;
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
+    }
+
+    .pill-green {
+      background: #238636;
+      color: #fff;
+      box-shadow: 0 0 10px rgba(35, 134, 54, 0.3);
+    }
+
+    .pill-yellow {
+      background: #9e6a03;
+      color: #fff;
+      box-shadow: 0 0 10px rgba(158, 106, 3, 0.3);
+    }
+
+    .pill-red {
+      background: #da3633;
+      color: #fff;
+      box-shadow: 0 0 10px rgba(218, 54, 51, 0.3);
+    }
+
+    .pill-blue {
+      background: #1f6feb;
+      color: #fff;
+      box-shadow: 0 0 10px rgba(31, 111, 235, 0.3);
+    }
+
+    .line-count {
+      color: #484f58;
+      font-size: 11px;
+      background: #161b22;
+      padding: 0 6px;
+      border-radius: 3px;
+    }
+
+    code {
+      background: none !important;
+      color: #c9d1d9 !important;
+    }
   </style>
   <!--[if lt IE 9]>
     <script src="//cdnjs.cloudflare.com/ajax/libs/html5shiv/3.7.3/html5shiv-printshiv.min.js"></script>
@@ -223,6 +445,41 @@
   <h1 id="omnia-la-biblia-completa-del-sistema">📖 OMNIA: La Biblia Completa del Sistema</h1>
   <p>Bienvenido al repositorio central de conocimiento técnico de Omnia. Este documento consolida todos los flujos de
     datos, consultas críticas y procesos de carga tanto para el Cliente como para el Coach.</p>
+  <hr />
+
+  <h2 id="sala-de-trofeos">🏆 Sala de Trofeos (Monsters Hunted)</h2>
+  <div class="logic-container" style="background: #0f1218; border: 1px solid #30363d;">
+    <div class="logic-title" style="color: #e3b341; border-color: #e3b341;">💀 MONSTRUOS ABATIDOS</div>
+
+    <div class="logic-layer">
+      <span class="layer-label">EL LEVIATÁN (ORIGINAL)</span>
+      <div class="node" style="background: #da3633; color: white;">TodayScreen_OLD.tsx (ELIMINADO 🗑️)</div>
+      <div class="branch">
+        <span class="arrow">⬇️ REFACTORIZADO EN</span>
+        <div class="node pill-blue">Modules: Header, ActivityList, Hooks (~236 líneas core)</div>
+      </div>
+    </div>
+
+    <div class="logic-layer">
+      <span class="layer-label">EL LABERINTO DE PRODUCTOS</span>
+      <div class="node" style="background: #da3633; color: white;">products-management-screen_OLD.tsx (ELIMINADO 🗑️)
+      </div>
+      <div class="branch">
+        <span class="arrow">⬇️ DOMADO EN</span>
+        <div class="node pill-blue">Index (~89 líneas) + Logic Hooks (~570 líneas)</div>
+      </div>
+    </div>
+
+    <div class="logic-layer">
+      <span class="layer-label">EL PLANIFICADOR DEL CAOS</span>
+      <div class="node" style="background: #9e6a03; color: white;">DayExercisesModal.tsx (Complejidad Lógica
+        Exponencial)</div>
+      <div class="branch">
+        <span class="arrow">⬇️ OPTIMIZADO EN</span>
+        <div class="node pill-green">~430 líneas (Datos Blindados + UI Premium)</div>
+      </div>
+    </div>
+  </div>
   <hr />
   <h2 id="índice-de-navegación">📑 Índice de Navegación</h2>
   <h3 id="aplicación-del-cliente-client-app">👤 Aplicación del Cliente (Client App)</h3>
@@ -252,259 +509,408 @@
     <li><a href="#progreso-logic"><strong>Generación de Progreso</strong></a>: El “Motor de Instanciación”.</li>
     <li><a href="#script-audit"><strong>Auditoría de Scripts y QA</strong></a>: Dashboard de eficiencia y deuda técnica.
     </li>
-  </ol>
-  <hr />
-  <p><a name="explorar-marketplace"></a> ## 1. 🔍 Explorar / Marketplace (Client) Ventana para descubrir nuevos
-    productos, coaches y servicios.</p>
-  <h3 id="esquema-de-la-pantalla">📐 Esquema de la Pantalla</h3>
-  <ul>
-    <li><strong>[SEARCH_HEADER]</strong>: Barra de búsqueda por texto + Chips de categorías (Fitness, Nutrición, etc.) +
-      Botón de filtros avanzados.</li>
-    <li><strong>[CONTENT_SECTIONS]</strong>: Carruseles de “Coaches Destacados”, “Nuevas Actividades” y “Categorías
-      Populares”.</li>
-    <li><strong>[ITEM_DETAILS]</strong>: <strong>Activity Card</strong> (Muestra imagen, título, coach,
-      precio/suscripción, rating y badge de modalidad).</li>
-  </ul>
-  <h3 id="datos-y-tablas">📊 Datos y Tablas</h3>
-  <ul>
-    <li><strong>Tabla <code>activities</code></strong>: Fuente principal para títulos, precios, ratings e imágenes.
-      (Filtro: <code>status = 'published'</code>).</li>
-    <li><strong>Tabla <code>user_profiles</code></strong>: Datos del coach (nombre, avatar) vinculados a la actividad.
-    </li>
-  </ul>
-  <h3 id="componentes-reutilizables">🧩 Componentes Reutilizables</h3>
-  <ul>
-    <li><strong><code>ActivityCard</code></strong>: Se usa en marketplace y listas de búsqueda.</li>
-    <li><strong><code>CoachCard</code></strong>: Tarjeta estándar de perfil de coach.</li>
-  </ul>
-  <p><a href="#indice-de-navegacion">Volver al índice</a></p>
-  <hr />
-  <p><a name="mis-actividades"></a> ## 2. 🏃 Mis Actividades (Client) Pestaña central donde el cliente consume sus
-    productos adquiridos.</p>
-  <h3 id="esquema-de-la-pantalla-1">📐 Esquema de la Pantalla</h3>
-  <ul>
-    <li><strong>[FILTER_TABS]</strong>: Selector de estado (En curso, Por empezar, Finalizadas).</li>
-    <li><strong>[ACTIVITY_LIST]</strong>: Scroll de <strong>Purchased Activity Cards</strong>.</li>
-    <li><strong>[ACTIVITY_CARD]</strong>: Muestra progreso %, status badge y flecha de acceso al detalle.</li>
-  </ul>
-  <h3 id="datos-y-tablas-1">📊 Datos y Tablas</h3>
-  <ul>
-    <li><strong>Tabla <code>activity_enrollments</code></strong>: Gestiona el <code>status</code> y
-      <code>progress_percentage</code>.
-    </li>
-    <li><strong>Tabla <code>activities</code></strong>: Información base del producto (imágenes, títulos).</li>
-  </ul>
-  <h3 id="componentes-reutilizables-1">🧩 Componentes Reutilizables</h3>
-  <ul>
-    <li><strong><code>PurchasedActivityCard</code></strong>: Usado aquí y en la vista que el coach tiene de su cliente.
-    </li>
-  </ul>
-  <p><a href="#indice-de-navegacion">Volver al índice</a></p>
-  <hr />
-  <p><a name="calendario-cliente"></a> ## 3. 📅 Calendario del Cliente (Client) Gestión de sesiones individuales (Meets)
-    y clases grupales.</p>
-  <h3 id="esquema-de-la-pantalla-2">📐 Esquema de la Pantalla</h3>
-  <ul>
-    <li><strong>[CALENDAR_VIEW]</strong>: Vista mes/semana con puntos indicadores de eventos.</li>
-    <li><strong>[SESSIONS_LIST]</strong>: Agenda diaria con hora, título, coach y botón <strong>Unirse (Join)</strong>.
-    </li>
-  </ul>
-  <h3 id="datos-y-tablas-2">📊 Datos y Tablas</h3>
-  <ul>
-    <li><strong>Tabla <code>activity_sessions</code></strong>: Almacena horarios y links de reunión.</li>
-    <li><strong>Tabla <code>user_meet_credits</code></strong>: Control de créditos disponibles para agendar.</li>
-  </ul>
-  <p><a href="#indice-de-navegacion">Volver al índice</a></p>
-  <hr />
-  <p><a name="perfil-cliente"></a> ## 4. 👤 Perfil del Cliente (Client) Gestión de información personal y métricas
-    físicas.</p>
-  <h3 id="esquema-de-la-pantalla-3">📐 Esquema de la Pantalla</h3>
-  <ul>
-    <li><strong>[HEADER]</strong>: Avatar con edición, Botón Cuestionario (Onboarding), Botón Edición Inline. Muestra
-      nombre, edad y ubicación.</li>
-    <li><strong>[ACTIVITY_STATS]</strong>: Dashboard con <strong>Daily Activity Rings</strong> (Kcal, Minutos,
-      Ejercicios).</li>
-    <li><strong>[BIOMETRICS_SECTION]</strong>: Carrusel horizontal de métricas (Peso, Altura, % Grasa).</li>
-    <li><strong>[PERFORMANCE_GOALS]</strong>: Lista interactiva con objetivos de rendimiento
-      (<strong>ExerciseProgressList</strong>).</li>
-    <li><strong>[INJURIES_SECTION]</strong>: Listado de lesiones y severidad.</li>
-  </ul>
-  <h3 id="datos-y-tablas-3">📊 Datos y Tablas</h3>
-  <ul>
-    <li><strong>Tablas <code>user_profiles</code> / <code>clients</code></strong>: Datos personales y fecha de
-      nacimiento.</li>
-    <li><strong>Tabla <code>user_biometrics</code></strong>: Histórico de mediciones (agrupado por nombre).</li>
-    <li><strong>Tabla <code>user_exercise_objectives</code></strong>: Metas técnicas de ejercicios.</li>
-    <li><strong>Tabla <code>user_injuries</code></strong>: Registro de salud.</li>
-  </ul>
-  <p><a href="#indice-de-navegacion">Volver al índice</a></p>
-  <hr />
-  <p><a name="comunidad-cliente"></a> ## 5. 🤝 Comunidad (Client) Espacio social para compartir logros y contenido.</p>
-  <h3 id="esquema-de-la-pantalla-4">📐 Esquema de la Pantalla</h3>
-  <ul>
-    <li><strong>[FEED_HEADER]</strong>: Input para nuevas publicaciones con adjuntos.</li>
-    <li><strong>[SOCIAL_FEED]</strong>: Muro infinito de <strong>Post Cards</strong> con acciones de Like y Comentar.
-    </li>
-  </ul>
-  <h3 id="datos-y-tablas-4">📊 Datos y Tablas</h3>
-  <ul>
-    <li><strong>Tabla <code>community_posts</code></strong>: Contenido y multimedia del feed.</li>
-    <li><strong>Tablas <code>community_likes</code> / <code>community_comments</code></strong>: Interacciones sociales.
-    </li>
-  </ul>
-  <p><a href="#indice-de-navegacion">Volver al índice</a></p>
-  <hr />
-  <p><a name="mensajeria-cliente"></a> ## 6. 💬 Mensajería (Client) Comunicación directa Cliente-Coach.</p>
-  <h3 id="esquema-de-la-pantalla-5">📐 Esquema de la Pantalla</h3>
-  <ul>
-    <li><strong>[CHAT_LIST]</strong>: Bandeja de entrada con avatares e indicadores de no leídos.</li>
-    <li><strong>[CHAT_WINDOW]</strong>: Historia de mensajes en burbujas de colores (Naranja/Gris).</li>
-  </ul>
-  <h3 id="datos-y-tablas-5">📊 Datos y Tablas</h3>
-  <ul>
-    <li><strong>Tabla <code>messages</code></strong>: Contenido y estado de lectura.</li>
-    <li><strong>Tabla <code>chats</code></strong>: Metadatos de la conversación.</li>
-  </ul>
-  <p><a href="#indice-de-navegacion">Volver al índice</a></p>
-  <hr />
-  <p><a name="gestion-clientes-coach"></a> ## 7. 👥 Gestión de Clientes (Coach) Panel de control para que el coach
-    supervise a su clientela.</p>
-  <h3 id="esquema-de-la-pantalla-6">📐 Esquema de la Pantalla</h3>
-  <ul>
-    <li><strong>[CLIENT_LIST]</strong>: Lista de clientes con barra de búsqueda y filtros por estado (Activo/Inactivo).
-    </li>
-    <li><strong>[CLIENT_DETAIL]</strong>: Panel expansible con pestañas:
-      <ul>
-        <li><strong>Progreso</strong>: Gráficas y evolución.</li>
-        <li><strong>Actividades</strong>: Qué productos tiene comprados.</li>
-        <li><strong>To Do</strong>: Tareas asignadas para hoy.</li>
-        <li><strong>Ingresos</strong>: Historial de pagos realizados por ese cliente.</li>
-      </ul>
-    </li>
-  </ul>
-  <h3 id="datos-y-tablas-6">📊 Datos y Tablas</h3>
-  <ul>
-    <li><strong>Tabla <code>clients</code></strong>: Perfil físico del cliente.</li>
-    <li><strong>Tabla <code>progreso_diario_actividad</code></strong>: Fuente para el cálculo de cumplimiento y racha.
-    </li>
-  </ul>
-  <p><a href="#indice-de-navegacion">Volver al índice</a></p>
-  <hr />
-  <p><a name="gestion-productos-coach"></a> ## 8. 🛒 Gestión de Productos (Coach) Creación y edición masiva de
-    planificaciones.</p>
-  <h3 id="esquema-de-la-pantalla-7">📐 Esquema de la Pantalla</h3>
-  <ul>
-    <li><strong>[CSV_MANAGER]</strong>: Herramienta de carga masiva de ejercicios y nutrición.</li>
-    <li><strong>[PRODUCT_WIZARD]</strong>: Pasos para crear Actividades (Título, Precio, Modalidad, Temas).</li>
-  </ul>
-  <h3 id="datos-y-tablas-7">📊 Datos y Tablas</h3>
-  <ul>
-    <li><strong>Tabla <code>ejercicios_detalles</code></strong>: Librería de ejercicios fitness.</li>
-    <li><strong>Tabla <code>nutrition_program_details</code></strong>: Librería de platos y recetas.</li>
-    <li><strong>Tabla <code>activities</code></strong>: Entidad maestra del producto.</li>
-  </ul>
-  <p><a href="#indice-de-navegacion">Volver al índice</a></p>
-  <hr />
-  <p><a name="calendario-coach"></a> ## 9. 📅 Calendario del Coach (Coach) Sincronización de eMeets y gestión de
-    disponibilidad.</p>
-  <h3 id="esquema-de-la-pantalla-8">📐 Esquema de la Pantalla</h3>
-  <ul>
-    <li><strong>Vista de Agenda</strong>: Muestra eventos generados automáticamente por inscripciones o agendas
-      manuales.</li>
-    <li><strong>Integración Meet</strong>: Generación automática de links de Google Meet vinculados a los turnos.</li>
-  </ul>
-  <h3 id="automatización-emeet">⚙️ Automatización (eMeet)</h3>
-  <ul>
-    <li><strong>Triggers</strong>: <code>trigger_sync_calendar_on_ejecucion</code> y
-      <code>trigger_sync_calendar_on_schedule</code> crean los eventos automáticamente al haber una acción del cliente.
-    </li>
-  </ul>
-  <p><a href="#indice-de-navegacion">Volver al índice</a></p>
-  <hr />
-  <p><a name="gestion-video-coach"></a> ## 10. 🎥 Gestión de Videos (Bunny.net) Sistema de almacenamiento y streaming
-    optimizado.</p>
-  <h3 id="flujo-técnico">⚙️ Flujo Técnico</h3>
-  <ol type="1">
-    <li><strong>Subida</strong>: A través de <code>/api/bunny/upload-video</code>.</li>
-    <li><strong>Duplicados</strong>: El sistema chequea el nombre del archivo original para reutilizar
-      <code>video_id</code> existentes.
-    </li>
-    <li><strong>Persistencia</strong>: Se guardan los IDs de Bunny en <code>ejercicios_detalles</code> o
-      <code>activity_media</code>.
+    <li><a href="#logic-map"><strong>Mapa de Salud Operativa y Estructura</strong></a>: Arquitectura Visual de Omnia.
     </li>
   </ol>
+  <p><a name="explorar-marketplace"></a> ## 1. 🔍 Explorar / Marketplace (Client)</p>
+  <div class="logic-container">
+    <div class="logic-title">🌀 Workflow: Descubrimiento y Conversión</div>
+    <div class="logic-layer">
+      <span class="layer-label">UX → Trigger</span>
+      <div class="node ux-node">Client: Scroll Marketplace → Search "Running" → Click ActivityCard</div>
+    </div>
+    <div class="logic-layer">
+      <span class="layer-label">Frontend Logic → Hooks</span>
+      <div class="node hook-node">search-screen.tsx: handleSearchChange() → filterActivities()</div>
+      <div class="branch">
+        <span class="arrow">└──</span>
+        <div class="node hook-node">handleActivityClick() → setNavigationStack()</div>
+      </div>
+    </div>
+    <div class="logic-layer">
+      <span class="layer-label">Backend Logic → API/DB</span>
+      <div class="node api-node">GET /api/activities/search?q=running</div>
+      <div class="branch">
+        <span class="arrow">└──</span>
+        <div class="node api-node">View: activities_with_coaches (Pre-mapped)</div>
+      </div>
+    </div>
+    <div class="logic-layer">
+      <span class="layer-label">Data State → UI</span>
+      <div class="node state-node">state: isPreviewModalOpen = true → [ClientProductModal]</div>
+    </div>
+  </div>
+  <p><strong>⚠️ Scan de Vulnerabilidad:</strong> La búsqueda local `filterActivities` es rápida pero puede
+    desincronizarse si el coach cambia el precio mientras el cliente navega. <em>Optimización:</em> Implementar
+    validación de precio final en el último step del checkout.</p>
   <p><a href="#indice-de-navegacion">Volver al índice</a></p>
   <hr />
-  <p><a name="gestion-documentos-coach"></a> ## 11. 📄 Gestión de Documentos (Coach) Estructura para productos de tipo
-    “Documento/PDF”.</p>
-  <h3 id="estructura">📊 Estructura</h3>
-  <ul>
-    <li><strong>Tabla <code>document_topics</code></strong>: Define temas individuales dentro de un documento.</li>
-    <li><strong>Variables</strong>: <code>title</code>, <code>description</code>, <code>pdf_url</code>,
-      <code>activity_id</code>.
-    </li>
-  </ul>
+  <p><a name="mis-actividades"></a> ## 2. 🏃 Mis Actividades (Client)</p>
+  <div class="logic-container">
+    <div class="logic-title">🌀 Workflow: Consumo de Producto</div>
+    <div class="logic-layer">
+      <span class="layer-label">UX → Trigger</span>
+      <div class="node ux-node">Client: Click en "Actividades" Tab → Selecciona "En curso"</div>
+    </div>
+    <div class="logic-layer">
+      <span class="layer-label">Frontend Logic → Hooks</span>
+      <div class="node hook-node">TodayScreen: useTodayScreenLogic() → filterByStatus("in_progress")</div>
+    </div>
+    <div class="logic-layer">
+      <span class="layer-label">Backend Logic → API/DB</span>
+      <div class="node api-node">RPC: get_user_enrolled_activities(user_id)</div>
+    </div>
+    <div class="logic-layer">
+      <span class="layer-label">Data State → UI</span>
+      <div class="node state-node">state: enrolledActivitiesList → Render ActivityCard con % progreso</div>
+    </div>
+  </div>
+  <p><strong>⚠️ Scan de Vulnerabilidad:</strong> El cálculo de `% progreso` ocurre on-the-fly. <em>Optimización:</em>
+    Persistir el % en `activity_enrollments` cada vez que se marca un item como completado para evitar recalculadas
+    costosas.</p>
   <p><a href="#indice-de-navegacion">Volver al índice</a></p>
   <hr />
-  <p><a name="perfil-coach"></a> ## 12. 👤 Perfil del Coach (Coach) Personalización de marca y perfil profesional.</p>
-  <h3 id="datos">📊 Datos</h3>
-  <ul>
-    <li><strong>Tabla <code>user_profiles</code></strong>: Gestiona la biografía, especialidades y foto de perfil.</li>
-    <li><strong>Tabla <code>coach_reviews</code></strong>: Almacena el feedback y ratings de los clientes.</li>
-  </ul>
+  <p><a name="calendario-cliente"></a> ## 3. 📅 Calendario del Cliente (Client)</p>
+  <div class="logic-container">
+    <div class="logic-title">🌀 Workflow: Agenda de eMeet</div>
+    <div class="logic-layer">
+      <span class="layer-label">UX → Trigger</span>
+      <div class="node ux-node">Client: Selecciona fecha → Click en "Agendar Slot"</div>
+    </div>
+    <div class="logic-layer">
+      <span class="layer-label">Frontend Logic → Hooks</span>
+      <div class="node hook-node">activity-calendar.tsx: handleReserveSlot()</div>
+    </div>
+    <div class="logic-layer">
+      <span class="layer-label">Backend Logic → API/DB</span>
+      <div class="node api-node">POST /api/calendar/reserve-slot { slotId, userId }</div>
+      <div class="branch">
+        <span class="arrow">└──</span>
+        <div class="node api-node">DB Table: user_meet_credits (Verifica balance > 0)</div>
+      </div>
+    </div>
+    <div class="logic-layer">
+      <span class="layer-label">Data State → UI</span>
+      <div class="node state-node">state: availableSlots → Refetching; credits: -1</div>
+    </div>
+  </div>
+  <p><strong>⚠️ Scan de Vulnerabilidad:</strong> Race condition en slots populares. <em>Optimización:</em> Implementar
+    bloqueo temporal (Redis/DB lock) de 30s mientras el cliente confirma la compra del slot.</p>
   <p><a href="#indice-de-navegacion">Volver al índice</a></p>
   <hr />
-  <p><a name="onboarding-logic"></a> ## 13. 🧠 Formulario de Onboarding (Lógica) Diseño conversacional para capturar el
-    perfil psicológico y físico del cliente.</p>
-  <h3 id="secciones-7-pasos">🟠 Secciones (7 Pasos)</h3>
-  <ol type="1">
-    <li><strong>Exigencia</strong>: 🌱 Tranquilo vs 🚀 A fondo.</li>
-    <li><strong>Deseo de Cambio</strong>: Desde cero vs Mejora.</li>
-    <li><strong>Horizonte</strong>: Ansiedad vs Sostenibilidad.</li>
-    <li><strong>Constancia</strong>: Nivel de disciplina percibida.</li>
-    <li><strong>Relación Coach</strong>: Independiente vs Guiado.</li>
-    <li><strong>Modalidad</strong>: Online, Híbrido, Presencial.</li>
-    <li><strong>Hard Data</strong>: Lesiones, Fecha de Nacimiento, Peso, Altura.</li>
-  </ol>
-  <h3 id="persistencia">📊 Persistencia</h3>
-  <p>Las respuestas se guardan en <code>profiles.onboarding_answers</code> (JSONB) y alimentan el motor de generación de
-    progreso.</p>
+  <p><a name="perfil-cliente"></a> ## 4. 👤 Perfil del Cliente (Client)</p>
+  <div class="logic-container">
+    <div class="logic-title">🌀 Workflow: Actualización Biométrica</div>
+    <div class="logic-layer">
+      <span class="layer-label">UX → Trigger</span>
+      <div class="node ux-node">Client: Abre biometrics-modal → Ingresa "Peso: 85kg" → Save</div>
+    </div>
+    <div class="logic-layer">
+      <span class="layer-label">Frontend Logic → Hooks</span>
+      <div class="node hook-node">biometrics-modal.tsx: handleSave() → supabase.upsert()</div>
+    </div>
+    <div class="logic-layer">
+      <span class="layer-label">Backend Logic → API/DB</span>
+      <div class="node api-node">Table: user_biometrics (New Row with timestamp)</div>
+      <div class="branch">
+        <span class="arrow">└──</span>
+        <div class="node api-node">DB Table: clients (Update current_weight)</div>
+      </div>
+    </div>
+    <div class="logic-layer">
+      <span class="layer-label">Data State → UI</span>
+      <div class="node state-node">state: userStats → re-render Rings de Actividad</div>
+    </div>
+  </div>
+  <p><strong>⚠️ Scan de Vulnerabilidad:</strong> No hay validación de rangos extremos (ej. peso 1000kg).
+    <em>Optimización:</em> Agregar validación de Z-score para alertar al usuario sobre errores de entrada.
+  </p>
   <p><a href="#indice-de-navegacion">Volver al índice</a></p>
   <hr />
-  <p><a name="progreso-logic"></a> ## 14. ⚙️ Generación de Progreso (Technical) El proceso que convierte una Actividad
-    en un Plan Diario personalizado. <strong>Este es un proceso “One-Shot” que ocurre en el momento de la activación por
-      el cliente.</strong></p>
-  <h3 id="arquitectura-definición-vs-instancia">🏗️ Arquitectura: Definición vs Instancia</h3>
-  <ul>
-    <li><strong>Definición</strong>: La tabla del Coach (<code>planificacion_ejercicios</code> — <strong>nota: se usa la
-        misma tabla para Fitness y Nutrición</strong>) es el “molde”.</li>
-    <li><strong>Instancia</strong>: La tabla <code>progreso_cliente</code> es el resultado final bloqueado para el
-      cliente.</li>
-  </ul>
-  <h3 id="motor-de-instanciación-initialize-progress">🚀 Motor de Instanciación (<code>initialize-progress</code>)</h3>
-  <ol type="1">
-    <li><strong>Punto de Inflexión</strong>: Se ejecuta <strong>solo una vez</strong> al confirmar la compra/inicio.
-    </li>
-    <li><strong>Insumos Iniciales</strong>:
-      <ul>
-        <li><strong>Perfil Físico</strong>: Peso, altura, edad iniciales.</li>
-        <li><strong>Formulario de Preguntas</strong>: Respuestas del Onboarding (Nivel, lesiones, objetivos).</li>
-      </ul>
-    </li>
-    <li><strong>Persistencia y Bloqueo</strong>:
-      <ul>
-        <li>La información usada para la generación es la <strong>info inicial</strong> del momento de compra.</li>
-        <li><strong>Importante</strong>: Si el cliente modifica su peso o perfil después en su Perfil, el progreso YA
-          GENERADO no cambia. Los condicionales no son retroactivos para evitar romper la planificación del coach.</li>
-      </ul>
-    </li>
-    <li><strong>Modificaciones Manuales</strong>:
-      <ul>
-        <li>Una vez generado, tanto el cliente como el coach pueden hacer ajustes manuales en el día a día
-          (<code>progreso_cliente</code>), pero esto no dispara nuevos cálculos del motor condicional.</li>
-      </ul>
-    </li>
-  </ol>
+  <p><a name="comunidad-cliente"></a> ## 5. 🤝 Comunidad (Client)</p>
+  <div class="logic-container">
+    <div class="logic-title">🌀 Workflow: Feed Social</div>
+    <div class="logic-layer">
+      <span class="layer-label">UX → Trigger</span>
+      <div class="node ux-node">Client: Escribe Post → Click "Publicar"</div>
+    </div>
+    <div class="logic-layer">
+      <span class="layer-label">Frontend Logic → Hooks</span>
+      <div class="node hook-node">community-screen.tsx: handleCreatePost()</div>
+    </div>
+    <div class="logic-layer">
+      <span class="layer-label">Backend Logic → API/DB</span>
+      <div class="node api-node">INSERT table: community_posts { user_id, content, media }</div>
+    </div>
+    <div class="logic-layer">
+      <span class="layer-label">Data State → UI</span>
+      <div class="node state-node">state: postsFeed (Unshift new post) → UI: Feed Update</div>
+    </div>
+  </div>
+  <p><strong>⚠️ Scan de Vulnerabilidad:</strong> Inyección de scripts en el content. <em>Optimización:</em> Sanitizar el
+    HTML/Markdown en el cliente y doble check en el DB Trigger.</p>
+  <p><a href="#indice-de-navegacion">Volver al índice</a></p>
+  <hr />
+  <p><a name="mensajeria-cliente"></a> ## 6. 💬 Mensajería (Client)</p>
+  <div class="logic-container">
+    <div class="logic-title">🌀 Workflow: Chat Real-Time</div>
+    <div class="logic-layer">
+      <span class="layer-label">UX → Trigger</span>
+      <div class="node ux-node">Client: Escribe mensaje → Send</div>
+    </div>
+    <div class="logic-layer">
+      <span class="layer-label">Frontend Logic → Hooks</span>
+      <div class="node hook-node">messages-screen.tsx: handleSendMessage() → Supabase Subscription</div>
+    </div>
+    <div class="logic-layer">
+      <span class="layer-label">Backend Logic → API/DB</span>
+      <div class="node api-node">INSERT table: messages { chat_id, content }</div>
+      <div class="branch">
+        <span class="arrow">└──</span>
+        <div class="node api-node">Broadcast: REALTIME payload to recipient</div>
+      </div>
+    </div>
+    <div class="logic-layer">
+      <span class="layer-label">Data State → UI</span>
+      <div class="node state-node">state: activeChatMessages (Push new msg)</div>
+    </div>
+  </div>
+  <p><strong>⚠️ Scan de Vulnerabilidad:</strong> Flooding de mensajes. <em>Optimización:</em> Implementar rate-limiting
+    por IP/User en la API de mensajería (3 msg / sec).</p>
+  <p><a href="#indice-de-navegacion">Volver al índice</a></p>
+  <hr />
+  <p><a name="gestion-clientes-coach"></a> ## 7. 👥 Gestión de Clientes (Coach)</p>
+  <div class="logic-container">
+    <div class="logic-title">🌀 Workflow: Auditoría de Evolución</div>
+    <div class="logic-layer">
+      <span class="layer-label">UX → Trigger</span>
+      <div class="node ux-node">Coach: Click en Cliente "Franco" → Tab "Progreso"</div>
+    </div>
+    <div class="logic-layer">
+      <span class="layer-label">Frontend Logic → Hooks</span>
+      <div class="node hook-node">clients-screen.tsx: loadClientDetailedData()</div>
+    </div>
+    <div class="logic-layer">
+      <span class="layer-label">Backend Logic → API/DB</span>
+      <div class="node api-node">View: client_evolution_chart (Aggregation of 30 days)</div>
+    </div>
+    <div class="logic-layer">
+      <span class="layer-label">Data State → UI</span>
+      <div class="node state-node">state: selectedClientStats → Recharts: LineGraph</div>
+    </div>
+  </div>
+  <p><strong>⚠️ Scan de Vulnerabilidad:</strong> Acceso a clientes de otro coach via URL. <em>Optimización:</em> RLS
+    (Row Level Security) estricto en Supabase verificado: `coach_id = auth.uid()`.</p>
+  <p><a href="#indice-de-navegacion">Volver al índice</a></p>
+  <hr />
+  <p><a name="gestion-productos-coach"></a> ## 8. 🛒 Gestión de Productos (Coach)</p>
+  <div class="logic-container">
+    <div class="logic-title">🌀 Workflow: Gestión de Inventario Comercial</div>
+    <div class="logic-layer">
+      <span class="layer-label">UX → Trigger</span>
+      <div class="node ux-node">Coach: Toggle "Café de Consulta" → Change Price</div>
+    </div>
+    <div class="logic-layer">
+      <span class="layer-label">Frontend Logic → Hooks</span>
+      <div class="node hook-node">useConsultationLogic.ts: updatePrice() → Optimistic UI Update</div>
+    </div>
+    <div class="logic-layer">
+      <span class="layer-label">Backend Logic → API/DB</span>
+      <div class="node api-node">PATCH /api/coach/consultation { price, enabled }</div>
+      <div class="branch">
+        <span class="arrow">└──</span>
+        <div class="node api-node">UPDATE table: coaches (Atomic field update)</div>
+      </div>
+    </div>
+    <div class="logic-layer">
+      <span class="layer-label">Data State → UI</span>
+      <div class="node state-node">state: consultationData (Synced)</div>
+    </div>
+  </div>
+  <p><strong>⚠️ Scan de Vulnerabilidad:</strong> Precios negativos o absurdos. <em>Optimización:</em> Implementar
+    validación de Schema (Zod) en el endpoint para asegurar que el precio esté entre $500 y $500.000.</p>
+  <p><a href="#indice-de-navegacion">Volver al índice</a></p>
+  <hr />
+  <p><a name="calendario-coach"></a> ## 9. 📅 Calendario del Coach (Coach)</p>
+  <div class="logic-container">
+    <div class="logic-title">🌀 Workflow: Sincronización eMeet</div>
+    <div class="logic-layer">
+      <span class="layer-label">UX → Trigger</span>
+      <div class="node ux-node">Coach: Abre Calendario → Click "Sincronizar Disponibilidad"</div>
+    </div>
+    <div class="logic-layer">
+      <span class="layer-label">Frontend Logic → Hooks</span>
+      <div class="node hook-node">coach-calendar-screen.tsx: syncWithGoogle()</div>
+    </div>
+    <div class="logic-layer">
+      <span class="layer-label">Backend Logic → API/DB</span>
+      <div class="node api-node">API /api/google-calendar/auth → Sync Access Token</div>
+      <div class="branch">
+        <span class="arrow">└──</span>
+        <div class="node api-node">Worker: Sync external events into activity_sessions</div>
+      </div>
+    </div>
+    <div class="logic-layer">
+      <span class="layer-label">Data State → UI</span>
+      <div class="node state-node">state: agendaItems (Merged Local + Google)</div>
+    </div>
+  </div>
+  <p><strong>⚠️ Scan de Vulnerabilidad:</strong> Expiración de tokens de Google. <em>Optimización:</em> Implementar un
+    Refresh Token automático en el worker de sincronización para evitar que el calendario se quede "congelado".</p>
+  <p><a href="#indice-de-navegacion">Volver al índice</a></p>
+  <hr />
+  <p><a name="gestion-video-coach"></a> ## 10. 🎥 Gestión de Videos (Bunny.net) e Imágenes (Supabase)</p>
+  <div class="logic-container">
+    <div class="logic-title">🌀 Workflow: Subida de Media en Wizard de Producto</div>
+    <div class="logic-layer">
+      <span class="layer-label">UX → Trigger</span>
+      <div class="node ux-node">Coach: Selecciona Archivo en Wizard</div>
+    </div>
+    <div class="logic-layer">
+      <span class="layer-label">Decision Branch: Image vs Video</span>
+      <div class="branch">
+        <span class="arrow">├──</span>
+        <div class="node hook-node">IMAGEN: Subida Inmediata (Supabase)</div>
+        <div class="node api-node">POST /api/upload-organized → Retorna URL pública</div>
+        <span class="arrow">└──</span>
+        <div class="node hook-node">VIDEO: Subida Diferida (Bunny.net)</div>
+        <div class="node state-node">state: pendingVideoFile (Preview local con URL.createObjectURL)</div>
+      </div>
+    </div>
+    <div class="logic-layer">
+      <span class="layer-label">Final Trigger: Guardar/Publicar Producto</span>
+      <div class="node ux-node">Coach: Click "Guardar" o "Publicar"</div>
+      <div class="branch">
+        <span class="arrow">└──</span>
+        <div class="node api-node">Si hay pendingVideoFile → POST /api/bunny/upload-video (Stream)</div>
+        <div class="node api-node">POST /api/products (Guarda URL de imagen ya subida + URL de video recién subido)
+        </div>
+      </div>
+    </div>
+  </div>
+  <p><strong>⚠️ Regla de Oro:</strong> Las imágenes de portada se suben <em>inmediatamente</em> al seleccionarlas para
+    feedback visual rápido y persistencia simple. Los videos, al ser pesados y costosos (Bunny), se mantienen en memoria
+    (Blob local) y <em>solo</em> se suben cuando el usuario confirma la creación/edición del producto.
+  </p>
+  <p><a href="#indice-de-navegacion">Volver al índice</a></p>
+  <hr />
+  <p><a name="gestion-documentos-coach"></a> ## 11. 📄 Gestión de Documentos (Coach)</p>
+  <div class="logic-container">
+    <div class="logic-title">🌀 Workflow: Librería de Conocimiento</div>
+    <div class="logic-layer">
+      <span class="layer-label">UX → Trigger</span>
+      <div class="node ux-node">Coach: Upload PDF → Asigna "Tema: Nutriciòn Pro"</div>
+    </div>
+    <div class="logic-layer">
+      <span class="layer-label">Frontend Logic → Hooks</span>
+      <div class="node hook-node">document-manager.tsx: handleDocUpload()</div>
+    </div>
+    <div class="logic-layer">
+      <span class="layer-label">Backend Logic → API/DB</span>
+      <div class="node api-node">Supabase Storage: /pdfs/coaches/{id}/*</div>
+      <div class="branch">
+        <span class="arrow">└──</span>
+        <div class="node api-node">INSERT table: document_topics { pdf_url, activity_id }</div>
+      </div>
+    </div>
+    <div class="logic-layer">
+      <span class="layer-label">Data State → UI</span>
+      <div class="node state-node">state: activityDocs (Ready for client download)</div>
+    </div>
+  </div>
+  <p><strong>⚠️ Scan de Vulnerabilidad:</strong> PDFs con scripts maliciosos. <em>Optimización:</em> Implementar escaneo
+    de virus en el bucket de Supabase o forzar la visualización en un Sandboxed PDF Viewer.</p>
+  <p><a href="#indice-de-navegacion">Volver al índice</a></p>
+  <hr />
+  <p><a name="perfil-coach"></a> ## 12. 👤 Perfil del Coach (Coach)</p>
+  <div class="logic-container">
+    <div class="logic-title">🌀 Workflow: Marca Personal</div>
+    <div class="logic-layer">
+      <span class="layer-label">UX → Trigger</span>
+      <div class="node ux-node">Coach: Edita Bio → Agrega Especialidad "Crossfit" → Save</div>
+    </div>
+    <div class="logic-layer">
+      <span class="layer-label">Frontend Logic → Hooks</span>
+      <div class="node hook-node">coach-profile-screen.tsx: handleUpdateProfile()</div>
+    </div>
+    <div class="logic-layer">
+      <span class="layer-label">Backend Logic → API/DB</span>
+      <div class="node api-node">UPDATE table: user_profiles { bio, specialties }</div>
+    </div>
+    <div class="logic-layer">
+      <span class="layer-label">Data State → UI</span>
+      <div class="node state-node">state: coachMasterProfile (Synced) → UI: "Perfil actualizado"</div>
+    </div>
+  </div>
+  <p><strong>⚠️ Scan de Vulnerabilidad:</strong> Suplantación de identidad si se permite cambiar correos verificados.
+    <em>Optimización:</em> Bloquear el cambio de Email una vez la cuenta es de tipo "Coach" y requerir ticket de soporte
+    para modificaciones legales.
+  </p>
+  <p><a href="#indice-de-navegacion">Volver al índice</a></p>
+  <hr />
+  <p><a name="onboarding-logic"></a> ## 13. 🧠 Formulario de Onboarding (Lógica)</p>
+  <div class="logic-container">
+    <div class="logic-title">🌀 Workflow: Perfilado del Cliente</div>
+    <div class="logic-layer">
+      <span class="layer-label">UX → Trigger</span>
+      <div class="node ux-node">Client: Completa Step 7 → Click "Listo, Empezar"</div>
+    </div>
+    <div class="logic-layer">
+      <span class="layer-label">Frontend Logic → Hooks</span>
+      <div class="node hook-node">onboarding-modal.tsx: handleSubmit()</div>
+    </div>
+    <div class="logic-layer">
+      <span class="layer-label">Backend Logic → API/DB</span>
+      <div class="node api-node">UPSERT: client_onboarding_responses (Answers mapping)</div>
+      <div class="branch">
+        <span class="arrow">└──</span>
+        <div class="node api-node">UPDATE: clients (Fisical data parsing)</div>
+      </div>
+    </div>
+    <div class="logic-layer">
+      <span class="layer-label">Data State → UI</span>
+      <div class="node state-node">state: userOnboarded = true → (Close Modal)</div>
+    </div>
+  </div>
+  <p><strong>⚠️ Scan de Vulnerabilidad:</strong> Desconexión durante el envío de 7 pasos. <em>Optimización:</em>
+    Implementar guardado parcial ("Draft") en cada step para que el usuario pueda retomar si se queda sin batería o
+    señal.</p>
+  <p><a href="#indice-de-navegacion">Volver al índice</a></p>
+  <hr />
+  <p><a name="progreso-logic"></a> ## 14. ⚙️ Generación de Progreso (Technical)</p>
+  <div class="logic-container">
+    <div class="logic-title">🌀 Workflow: El Motor de Instanciación</div>
+    <div class="logic-layer">
+      <span class="layer-label">UX → Trigger</span>
+      <div class="node ux-node">System: Detection of "Purchase Completed"</div>
+    </div>
+    <div class="logic-layer">
+      <span class="layer-label">Frontend Logic → Trigger</span>
+      <div class="node hook-node">client-product-modal.tsx: handlePurchase() → activation_trigger</div>
+    </div>
+    <div class="logic-layer">
+      <span class="layer-label">Backend Logic → API/DB</span>
+      <div class="node api-node">API /api/initialize-progress (The Oracle)</div>
+      <div class="branch">
+        <span class="arrow">└──</span>
+        <div class="node api-node">Fetch definition (planificacion_ejercicios)</div>
+        <div class="branch">
+          <span class="arrow">└──</span>
+          <div class="node api-node">Apply Onboarding Filters (Conditionals: injuries/level)</div>
+          <span class="arrow">└──</span>
+          <div class="node api-node">INSERT: progreso_cliente (The massive persistent list)</div>
+        </div>
+      </div>
+    </div>
+    <div class="logic-layer">
+      <span class="layer-label">Data State → UI</span>
+      <div class="node state-node">state: progression_initialized = true</div>
+    </div>
+  </div>
+  <p><strong>⚠️ Scan de Vulnerabilidad:</strong> Tiempo de ejecución excesivo en programas de +6 meses.
+    <em>Optimización:</em> Ejecutar el motor en un **Background Queue** y notificar al cliente vía Push/Email cuando su
+    plan esté listo.
+  </p>
   <hr />
   <p><a name="script-audit"></a> ## 15. 🧪 Auditoría de Scripts y Eficiencia (QA Dashboard) Análisis de los archivos
     críticos del sistema para evaluación de rendimiento, deuda técnica y estabilidad.</p>
@@ -529,42 +935,40 @@
     </thead>
     <tbody>
       <tr class="odd">
-        <td style="text-align: left;"><code>TodayScreen.tsx</code></td>
-        <td style="text-align: center;">6027</td>
+        <td style="text-align: left;"><code>ProductsManagement (Refactored)</code></td>
+        <td style="text-align: center;">~1000</td>
         <td style="text-align: center;">CRÍTICA</td>
-        <td style="text-align: center;">ALTA</td>
-        <td style="text-align: center;">🔴 4/10</td>
-        <td style="text-align: left;">La pantalla principal de cliente hoy. Demasiada lógica de negocio mezclada con UI.
-        </td>
+        <td style="text-align: center;">BAJA</td>
+        <td style="text-align: center;">🔵 10/10</td>
+        <td style="text-align: left;"><strong>MODULARIZADO.</strong> Lógica separada de la UI. Altamente mantenible y
+          performante en mobile.</td>
       </tr>
       <tr class="even">
-        <td style="text-align: left;"><code>create-product-modal-refactored.tsx</code></td>
-        <td style="text-align: center;">5682</td>
-        <td style="text-align: center;">ALTA</td>
+        <td style="text-align: left;"><code>useCreateProductLogic.ts (Refactored)</code></td>
+        <td style="text-align: center;">~570</td>
         <td style="text-align: center;">CRÍTICA</td>
-        <td style="text-align: center;">🔴 4/10</td>
-        <td style="text-align: left;"><strong>EL NUEVO MONSTRUO (EN PROCESO DE REDUCCIÓN).</strong> Archivo masivo que
-          maneja toda la creación de
-          productos. Se ha reducido de ~6350 a ~5680 líneas mediante extracción de componentes. Requiere continuar
-          refactorización.</td>
+        <td style="text-align: center;">BAJA</td>
+        <td style="text-align: center;">🔵 9/10</td>
+        <td style="text-align: left;"><strong>DOMADO.</strong> Lógica de Wizard extraída y modularizada en 6 sub-hooks
+          especializados.</td>
       </tr>
       <tr class="odd">
         <td style="text-align: left;"><code>csv-manager-enhanced.tsx</code></td>
-        <td style="text-align: center;">5037</td>
-        <td style="text-align: center;">MEDIA</td>
-        <td style="text-align: center;">MEDIA</td>
-        <td style="text-align: center;">🟡 5/10</td>
-        <td style="text-align: left;">Gestor de CSV excesivamente largo. Probablemente contiene lógica de parseo que
-          debería ser utilidad pura.</td>
+        <td style="text-align: center;">1035</td>
+        <td style="text-align: center;">ALTA</td>
+        <td style="text-align: center;">BAJA</td>
+        <td style="text-align: center;">🔵 10/10</td>
+        <td style="text-align: left;"><strong>DOMADO EXTREMO.</strong> Lógica totalmente extraída a hooks especializados
+          (useCsvActions, useCsvFileProcessor). UI limpia y modular.</td>
       </tr>
       <tr class="even">
         <td style="text-align: left;"><code>weekly-exercise-planner.tsx</code></td>
-        <td style="text-align: center;">4620</td>
+        <td style="text-align: center;">326</td>
         <td style="text-align: center;">ALTA</td>
-        <td style="text-align: center;">MEDIA</td>
-        <td style="text-align: center;">🟡 6/10</td>
-        <td style="text-align: left;">Planificador semanal complejo. Buen candidato para separar en sub-componentes por
-          día o ejercicio.</td>
+        <td style="text-align: center;">BAJA</td>
+        <td style="text-align: center;">🔵 9/10</td>
+        <td style="text-align: left;">FÉNIX. Refactorizado masivamente. La lógica compleja migró a
+          DayExercisesModal.tsx.</td>
       </tr>
       <tr class="odd">
         <td style="text-align: left;"><code>CalendarView.tsx</code></td>
@@ -572,19 +976,10 @@
         <td style="text-align: center;">CRÍTICA</td>
         <td style="text-align: center;">MEDIA</td>
         <td style="text-align: center;">🟢 8/10</td>
-        <td style="text-align: left;">Optimizado recientemente (Lazy load + extracción de Modal). Bajó de ~4200 a ~3700
-          líneas. Aún grande pero manejable.</td>
+        <td style="text-align: left;">Estable. Recientemente se ajustó la visualización de celdas y modales de temas.
+        </td>
       </tr>
       <tr class="even">
-        <td style="text-align: left;"><code>product-form-modal.tsx</code></td>
-        <td style="text-align: center;">3174</td>
-        <td style="text-align: center;">ALTA</td>
-        <td style="text-align: center;">ALTA</td>
-        <td style="text-align: center;">🟡 5/10</td>
-        <td style="text-align: left;">Parece duplicar lógica de <code>create-product-modal</code>. Investigar posible
-          fusión o refactor.</td>
-      </tr>
-      <tr class="odd">
         <td style="text-align: left;"><code>coach-calendar-screen.tsx</code></td>
         <td style="text-align: center;">3141</td>
         <td style="text-align: center;">ALTA</td>
@@ -592,13 +987,48 @@
         <td style="text-align: center;">🟢 7/10</td>
         <td style="text-align: left;">Manejo de estados de eMeet funcional pero complejo.</td>
       </tr>
+
       <tr class="even">
-        <td style="text-align: left;"><code>products-management-screen.tsx</code></td>
-        <td style="text-align: center;">2351</td>
+        <td style="text-align: left;"><s>products-management-screen_OLD.tsx</s></td>
+        <td style="text-align: center;">0</td>
+        <td style="text-align: center;">-</td>
+        <td style="text-align: center;">-</td>
+        <td style="text-align: center;">🔴 ELIMINADO</td>
+        <td style="text-align: left;"><strong>ZOMBIE ELIMINADO.</strong> Archivo legacy borrado del repositorio.</td>
+      </tr>
+      <tr class="odd">
+        <td style="text-align: left;"><code>profile-screen.tsx</code></td>
+        <td style="text-align: center;">1947</td>
+        <td style="text-align: center;">MEDIA</td>
+        <td style="text-align: center;">MEDIA</td>
+        <td style="text-align: center;">🟡 5/10</td>
+        <td style="text-align: left;">Componente Mobile grande. Candidato a modularización en sub-componentes.</td>
+      </tr>
+      <tr class="even">
+        <td style="text-align: left;"><code>client-product-modal.tsx</code></td>
+        <td style="text-align: center;">1932</td>
+        <td style="text-align: center;">ALTA</td>
+        <td style="text-align: center;">MEDIA</td>
+        <td style="text-align: center;">🟡 6/10</td>
+        <td style="text-align: left;">Lógica de compra y visualización de producto cliente. Complejidad creciente.</td>
+      </tr>
+      <tr class="odd">
+        <td style="text-align: left;"><code>clients-screen.tsx</code></td>
+        <td style="text-align: center;">137 (MODULAR)</td>
         <td style="text-align: center;">ALTA</td>
         <td style="text-align: center;">BAJA</td>
-        <td style="text-align: center;">🟢 8/10</td>
-        <td style="text-align: left;">Pesado para mobile. La lógica gestión de productos es robusta.</td>
+        <td style="text-align: center;">🟢 9/10</td>
+        <td style="text-align: left;"><strong>REFACTOR FINALIZADO.</strong> Monolito segmentado en Hooks y Componentes
+          UI. Extremadamente mantenible.</td>
+      </tr>
+      <tr class="even">
+        <td style="text-align: left;"><code>search-screen.tsx</code></td>
+        <td style="text-align: center;">1189</td>
+        <td style="text-align: center;">ALTA</td>
+        <td style="text-align: center;">BAJA</td>
+        <td style="text-align: center;">🟡 6/10</td>
+        <td style="text-align: left;">Búsqueda y filtros. La lógica de local-filtering debería ir a un useMemo hook
+          externo.</td>
       </tr>
     </tbody>
   </table>
@@ -606,6 +1036,122 @@
     🟢 <strong>7-8</strong>: Estable, pero con margen de optimización en rendimiento. - 🟡 <strong>5-6</strong>: Deuda
     técnica acumulada. Difícil de leer/testear. Requiere refactorización. - 🔴 <strong>&lt;5</strong>: Código peligroso,
     propenso a errores y muy ineficiente.</p>
+  <p><a href="#indice-de-navegacion">Volver al índice</a></p>
+  <hr />
+  <p><a name="logic-map"></a> ## 16. 🌳 Mapa de Salud Operativa y Estructura (Mission Control)</p>
+  <div class="tree-container">
+    <div class="tree-title">🛰️ OMNIA MISSION CONTROL: ARQUITECTURA VISUAL</div>
+
+    <span class="tree-division">📱 [APP CLIENTE]</span>
+    <div class="tree-branch">
+      <span class="tree-tab">🏠 HOY / EXPLORAR</span>
+      <div class="tree-branch">
+        <span class="tree-action">Consumir Rutinas Diarias</span>
+        <div class="tree-detail">
+          <span class="status-pill pill-blue">🔵 MODULAR</span>
+          <code>TodayScreen (Refactored)</code>
+          <span class="line-count">~236 lines</span>
+        </div>
+      </div>
+
+      <span class="tree-tab">🔍 MARKETPLACE</span>
+      <div class="tree-branch">
+        <span class="tree-action">Buscar Servicios y Coaches</span>
+        <div class="tree-detail">
+          <span class="status-pill pill-yellow">🟡 MEJORABLE</span>
+          <code>search-screen.tsx</code>
+          <span class="line-count">1189 lines</span>
+        </div>
+      </div>
+
+      <span class="tree-tab">📅 CALENDARIO</span>
+      <div class="tree-branch">
+        <span class="tree-action">Agendar Sesión eMeet</span>
+        <div class="tree-detail">
+          <span class="status-pill pill-yellow">🟡 MEJORABLE</span>
+          <code>activity-calendar.tsx</code>
+          <span class="line-count">501 lines</span>
+        </div>
+      </div>
+
+      <span class="tree-tab">👤 PERFIL</span>
+      <div class="tree-branch">
+        <span class="tree-action">Gestión Biométrica</span>
+        <div class="tree-detail">
+          <span class="status-pill pill-green">🟢 SALUDABLE</span>
+          <code>biometrics-modal.tsx</code>
+          <span class="line-count">415 lines</span>
+        </div>
+      </div>
+    </div>
+
+    <span class="tree-division">👨‍🏫 [COACH DASHBOARD]</span>
+    <div class="tree-branch">
+      <span class="tree-tab">👥 CLIENTES</span>
+      <div class="tree-branch">
+        <span class="tree-action">Detalle de Cliente (Modular)</span>
+        <div class="tree-detail">
+          <span class="status-pill pill-blue">🔵 MODULARIZADO</span>
+          <code>ClientDetailModal.tsx</code>
+          <span class="line-count">765 lines</span>
+        </div>
+        <span class="tree-action">Lógica de Detalle (Hook)</span>
+        <div class="tree-detail">
+          <span class="status-pill pill-green">🟢 SALUDABLE</span>
+          <code>useClientDetailLogic.ts</code>
+          <span class="line-count">387 lines</span>
+        </div>
+        <span class="tree-action">Metas de Rendimiento (List)</span>
+        <div class="tree-detail">
+          <span class="status-pill pill-green">🟢 SALUDABLE</span>
+          <code>exercise-progress-list.tsx</code>
+          <span class="line-count">383 lines</span>
+        </div>
+      </div>
+
+      <span class="tree-tab">🛒 PRODUCTOS</span>
+      <div class="tree-branch">
+        <span class="tree-action">Gestión del Catálogo</span>
+        <div class="tree-detail">
+          <span class="status-pill pill-blue">🔵 MODULAR</span>
+          <code>ProductsManagement (Index)</code>
+          <span class="line-count">89 lines</span>
+        </div>
+        <span class="tree-action">Wizard de Creación (Logic)</span>
+        <div class="tree-detail">
+          <span class="status-pill pill-blue">🔵 DOMADO</span>
+          <code>useCreateProductLogic.ts</code>
+          <span class="line-count">~570 lines</span>
+        </div>
+        <span class="tree-action">Planificador Diario</span>
+        <div class="tree-detail">
+          <span class="status-pill pill-blue">🔵 OPTIMIZADO</span>
+          <code>DayExercisesModal.tsx</code>
+          <span class="line-count">~430 lines</span>
+        </div>
+      </div>
+
+      <span class="tree-tab">📦 ALMACENAMIENTO</span>
+      <div class="tree-branch">
+        <span class="tree-action">Gestión Bunny.net</span>
+        <div class="tree-detail">
+          <span class="status-pill pill-green">🟢 SALUDABLE</span>
+          <code>StorageUsageWidget</code>
+          <span class="line-count">~150 lines</span>
+        </div>
+      </div>
+
+      <span class="tree-tab">📊 CONTENIDO / CSV</span>
+      <div class="tree-branch">
+        <span class="tree-action">Carga Masiva de Librería</span>
+        <div class="tree-detail">
+          <span class="status-pill pill-yellow">🟡 EN PROGRESO</span>
+          <code>csv-manager-enhanced.tsx</code>
+          <span class="line-count">1035 lines</span>
+        </div>
+      </div>
+    </div>
+  </div>
   <p><a href="#indice-de-navegacion">Volver al índice</a></p>
 </body>
 

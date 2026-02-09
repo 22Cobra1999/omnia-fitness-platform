@@ -3,10 +3,11 @@ import { createRouteHandlerClient, createServiceRoleClient } from '@/lib/supabas
 
 export async function GET(
   request: NextRequest,
-  { params }: { params: { id: string } }
+  { params }: { params: Promise<{ id: string }> }
 ) {
   try {
-    const rawParamId = params?.id
+    const resolvedParams = await params
+    const rawParamId = resolvedParams?.id
     const rawUrlId = (() => {
       try {
         const pathname = new URL(request.url).pathname
@@ -22,9 +23,9 @@ export async function GET(
 
     const activityId = parseInt(String(rawParamId ?? rawUrlId ?? ''), 10)
     if (isNaN(activityId)) {
-      return NextResponse.json({ 
-        success: false, 
-        error: 'ID de actividad inválido' 
+      return NextResponse.json({
+        success: false,
+        error: 'ID de actividad inválido'
       }, { status: 400 })
     }
 
@@ -32,9 +33,9 @@ export async function GET(
     const { data: { user }, error: authError } = await supabase.auth.getUser()
 
     if (authError || !user) {
-      return NextResponse.json({ 
-        success: false, 
-        error: 'No autorizado' 
+      return NextResponse.json({
+        success: false,
+        error: 'No autorizado'
       }, { status: 401 })
     }
 
@@ -46,24 +47,24 @@ export async function GET(
       .single()
 
     if (activityError || !activity) {
-      return NextResponse.json({ 
-        success: false, 
-        error: 'Actividad no encontrada' 
+      return NextResponse.json({
+        success: false,
+        error: 'Actividad no encontrada'
       }, { status: 404 })
     }
 
     if (activity.type !== 'workshop') {
-      return NextResponse.json({ 
-        success: false, 
-        error: 'Esta acción solo es válida para talleres' 
+      return NextResponse.json({
+        success: false,
+        error: 'Esta acción solo es válida para talleres'
       }, { status: 400 })
     }
 
     // Verificar que el usuario es el coach de la actividad
     if (activity.coach_id !== user.id) {
-      return NextResponse.json({ 
-        success: false, 
-        error: 'No tienes permiso para ver esta información' 
+      return NextResponse.json({
+        success: false,
+        error: 'No tienes permiso para ver esta información'
       }, { status: 403 })
     }
 
@@ -71,17 +72,17 @@ export async function GET(
     const versions = activity.workshop_versions?.versions || []
     const currentVersion = versions.length > 0 ? versions[versions.length - 1].version : null
 
-    console.log('🔍 check-coach-survey - Versiones:', { 
-      versions, 
-      currentVersion, 
+    console.log('🔍 check-coach-survey - Versiones:', {
+      versions,
+      currentVersion,
       activityId,
-      coachId: user.id 
+      coachId: user.id
     })
 
     // Si no hay versiones, el taller no ha sido finalizado aún
     if (!currentVersion) {
       console.log('⚠️ No hay versiones, taller no finalizado')
-      return NextResponse.json({ 
+      return NextResponse.json({
         success: true,
         hasSurvey: false,
         survey: null,
@@ -90,13 +91,13 @@ export async function GET(
     }
 
     // Asegurar que currentVersion sea un número entero para la comparación
-    const currentVersionInt = typeof currentVersion === 'number' 
-      ? Math.floor(currentVersion) 
+    const currentVersionInt = typeof currentVersion === 'number'
+      ? Math.floor(currentVersion)
       : parseInt(String(currentVersion), 10)
 
     if (isNaN(currentVersionInt)) {
       console.error('❌ currentVersion no es un número válido:', currentVersion)
-      return NextResponse.json({ 
+      return NextResponse.json({
         success: true,
         hasSurvey: false,
         survey: null,
@@ -121,7 +122,7 @@ export async function GET(
       currentVersionInt,
       activityCoachId: activity.coach_id
     })
-    
+
     // IMPORTANTE: El coach es el client_id en su propia encuesta
     // FORZAR uso de service role para evitar problemas de RLS
     // La consulta directa a BD confirma que la encuesta existe, así que el problema es RLS
@@ -131,15 +132,15 @@ export async function GET(
       keyLength: serviceRoleKey?.length || 0,
       keyPrefix: serviceRoleKey?.substring(0, 20) || 'none'
     })
-    
+
     if (!serviceRoleKey) {
       console.error('❌ SUPABASE_SERVICE_ROLE_KEY no está configurada en variables de entorno')
-      return NextResponse.json({ 
-        success: false, 
-        error: 'Service role client no disponible' 
+      return NextResponse.json({
+        success: false,
+        error: 'Service role client no disponible'
       }, { status: 500 })
     }
-    
+
     // Crear service role client directamente para asegurar que funcione
     const { createClient: createSupabaseClient } = require('@supabase/supabase-js')
     const serviceClient = createSupabaseClient(
@@ -152,10 +153,10 @@ export async function GET(
         }
       }
     )
-    
+
     console.log('✅ Service role client creado directamente')
     const queryClient = serviceClient
-    
+
     console.log('🔍 check-coach-survey - Cliente usado:', {
       usingServiceRole: !!serviceClient,
       hasServiceRoleKey: !!process.env.SUPABASE_SERVICE_ROLE_KEY,
@@ -163,7 +164,7 @@ export async function GET(
       clientId: user.id,
       currentVersionInt
     })
-    
+
     // Buscar directamente las encuestas con rating usando service role
     // La consulta directa a BD confirmó que la encuesta existe, así que esto debería funcionar
     console.log('🔍 Ejecutando query con service role client:', {
@@ -172,14 +173,14 @@ export async function GET(
       currentVersionInt,
       queryClientType: queryClient ? 'serviceRole' : 'none'
     })
-    
+
     const { data: surveys, error: surveyError } = await queryClient
       .from('activity_surveys')
       .select('id, coach_method_rating, comments, workshop_version')
       .eq('activity_id', activityId)
       .eq('client_id', user.id) // El coach también es el "client" en su propia encuesta
       .not('coach_method_rating', 'is', null) // Debe tener rating para considerarse completa
-    
+
     console.log('🔍 check-coach-survey - Respuesta de Supabase:', {
       usingServiceRole: !!serviceClient,
       surveysCount: surveys?.length || 0,
@@ -192,7 +193,7 @@ export async function GET(
         code: surveyError.code
       } : null
     })
-    
+
     // Si no hay encuestas, hacer una query sin filtro de rating para diagnosticar
     if ((!surveys || surveys.length === 0) && !surveyError) {
       console.log('⚠️ No se encontraron encuestas con rating, buscando todas las encuestas...')
@@ -201,16 +202,16 @@ export async function GET(
         .select('*')
         .eq('activity_id', activityId)
         .eq('client_id', user.id)
-      
+
       console.log('🔍 TODAS las encuestas (sin filtro):', {
         count: allSurveys?.length || 0,
         surveys: allSurveys || [],
         error: allError
       })
-      
+
       // Si hay encuestas sin rating, loguearlas para debugging
       if (allSurveys && allSurveys.length > 0) {
-        console.log('⚠️ Hay encuestas pero ninguna tiene coach_method_rating:', 
+        console.log('⚠️ Hay encuestas pero ninguna tiene coach_method_rating:',
           allSurveys.map((s: any) => ({
             id: s.id,
             hasRating: !!s.coach_method_rating,
@@ -220,7 +221,7 @@ export async function GET(
         )
       }
     }
-    
+
     // Filtrar por versión en JavaScript para evitar problemas de tipo
     // IMPORTANTE: Comparar como números enteros para evitar problemas de tipo
     const survey = surveys?.find((s: any) => {
@@ -240,7 +241,7 @@ export async function GET(
           }
         }
       }
-      
+
       const matches = surveyVersion !== null && surveyVersion === currentVersionInt
       console.log('🔍 Comparando versión:', {
         surveyId: s.id,
@@ -255,7 +256,7 @@ export async function GET(
       })
       return matches
     }) || null
-    
+
     console.log('🔍 check-coach-survey - Survey encontrado después de filtrar:', survey ? {
       id: survey.id,
       workshop_version: survey.workshop_version,
@@ -291,14 +292,14 @@ export async function GET(
     const surveyVersionNum = survey?.workshop_version !== null && survey?.workshop_version !== undefined
       ? Number(survey.workshop_version)
       : null
-    
+
     const versionsMatch = surveyVersionNum !== null && surveyVersionNum === currentVersionInt
     const hasRating = survey?.coach_method_rating !== null && survey?.coach_method_rating !== undefined
-    
-    const hasSurvey = !!survey && 
-                      hasRating && 
-                      versionsMatch && 
-                      !surveyError
+
+    const hasSurvey = !!survey &&
+      hasRating &&
+      versionsMatch &&
+      !surveyError
 
     console.log('✅ check-coach-survey - Evaluación final:', {
       hasSurvey,
@@ -310,7 +311,7 @@ export async function GET(
       noError: !surveyError
     })
 
-    return NextResponse.json({ 
+    return NextResponse.json({
       success: true,
       hasSurvey,
       survey: survey || null,
@@ -318,9 +319,9 @@ export async function GET(
     })
   } catch (error) {
     console.error('Error en check-coach-survey:', error)
-    return NextResponse.json({ 
-      success: false, 
-      error: 'Error interno del servidor' 
+    return NextResponse.json({
+      success: false,
+      error: 'Error interno del servidor'
     }, { status: 500 })
   }
 }

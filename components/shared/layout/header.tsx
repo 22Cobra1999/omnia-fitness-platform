@@ -10,18 +10,20 @@ import OmniaBubbleWordmark from '@/components/shared/ui/OmniaBubbleWordmark'
 
 export function Header() {
   const pathname = usePathname()
-  const { userType, isLoggedIn, logout } = useUser()
+  const { user, logout } = useUser()
+  const isLoggedIn = !!user
+  const userType = user?.type
 
   const navItems = isLoggedIn
     ? userType === "client"
       ? [
-          { name: "Trackers", href: "/web" },
-          { name: "Community", href: "/feed" },
-        ]
+        { name: "Trackers", href: "/web" },
+        { name: "Community", href: "/feed" },
+      ]
       : [
-          { name: "Community", href: "/feed" },
-          { name: "Coach", href: "/coach" },
-        ]
+        { name: "Community", href: "/feed" },
+        { name: "Coach", href: "/coach" },
+      ]
     : [{ name: "Community", href: "/feed" }]
 
   return (
@@ -56,9 +58,9 @@ export function Header() {
               whileHover={{ scale: 1.05 }}
               transition={{ duration: 0.2 }}
             >
-              <OmniaBubbleWordmark 
-                text="OMNIA" 
-                size={80} 
+              <OmniaBubbleWordmark
+                text="OMNIA"
+                size={80}
                 darkBg={true}
                 inflate={1.6}
               />

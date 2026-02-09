@@ -347,8 +347,8 @@ export function MeetNotificationsModal({
               }
             })(),
             meetLink: ev.meet_link ? String(ev.meet_link) : null,
-            otherUserId: role === 'client' ? coachId : clientId,
-            otherUserName: role === 'client' ? coachName : clientName,
+            otherUserId: clientId,
+            otherUserName: clientName,
             rsvpStatus,
             invitedByRole,
             invitedByUserId: String(p?.invited_by_user_id || ''),

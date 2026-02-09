@@ -69,11 +69,16 @@ export default function CoachProfileCard({ coach, onClick, size = 'small', varia
             <div className="text-[10px] text-[#FF7939] font-medium uppercase tracking-wider">{specialization.split(',')[0]}</div>
           </div>
           <div className="flex flex-col items-end gap-0.5">
+            {(Number(coach.available_meets) || 0) > 0 && (
+              <div className="flex items-center gap-1 bg-[#FF7939]/10 px-1.5 py-0.5 rounded-full border border-[#FF7939]/20 mb-1">
+                <Video className="h-2.5 w-2.5 text-[#FF7939]" />
+                <span className="text-[9px] font-bold text-[#FF7939]">{coach.available_meets}</span>
+              </div>
+            )}
             <div className="flex items-center gap-1">
               <Star className="h-2.5 w-2.5 fill-[#E9B24A] text-[#E9B24A]" />
               <span className="text-[10px] font-bold text-white/80">{showRating ? ratingValue.toFixed(1) : '—'}</span>
             </div>
-            <div className="text-[9px] text-white/40">{coach.experience_years || 0} años exp.</div>
           </div>
         </div>
       </div>

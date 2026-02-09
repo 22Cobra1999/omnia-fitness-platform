@@ -29,7 +29,7 @@ interface MeetDetailModalProps {
     // For Reschedule Context
     setRescheduleContext: (ctx: any) => void
     handlePickCoachForMeet: (coachId: string) => void
-    setMeetViewMode: (mode: 'month' | 'week' | 'day') => void
+    setMeetViewMode: (mode: 'month' | 'week' | 'day_split') => void
     setMeetWeekStart: (date: Date) => void
 }
 

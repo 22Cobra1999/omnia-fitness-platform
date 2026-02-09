@@ -7,6 +7,7 @@ import { Calendar, User, Play, Clock, Flame, Star, Zap, CheckCircle2, AlertTrian
 import Image from "next/image"
 import type { Enrollment } from "@/types/activity"
 import { createClient } from '@/lib/supabase/supabase-client'
+import { cn } from "@/lib/utils/utils"
 
 interface PurchasedActivityCardProps {
   enrollment: Enrollment
@@ -204,7 +205,7 @@ export function PurchasedActivityCard({
 
     try {
       if (onActivityClick) {
-        onActivityClick(activity.id.toString())
+        onActivityClick(activity.id.toString(), enrollment.id.toString())
       } else {
         localStorage.setItem("openActivityId", activity.id.toString())
         window.location.href = '/?tab=activity'
@@ -273,16 +274,16 @@ export function PurchasedActivityCard({
   // Determine dimensions based on size (matching ActivityCard)
   const getSizeClasses = () => {
     switch (size) {
-      case "small": return "w-[165px] h-[30rem]" // Matched to Search Card size (w-40 approx 160px, h-30rem)
+      case "small": return "w-40 h-[30rem]" // Specific width matching Search Tab
       case "large": return "w-[360px] h-[36rem]" // Featured
-      default: return "w-[340px] h-[32rem]" // Wider than previous w-80 (320px) -> 340px
+      default: return "w-[340px] h-[32rem]"
     }
   }
 
   // Adjust image height based on card size
   const getImageHeightClass = () => {
     switch (size) {
-      case "small": return isCoachView ? "h-32" : "h-48"
+      case "small": return isCoachView ? "h-24" : "h-48" // Taller image for aesthetics
       case "large": return "h-56"
       default: return "h-48"
     }
@@ -316,7 +317,7 @@ export function PurchasedActivityCard({
         )}
 
         {/* Content Body */}
-        <div className="p-4 flex-1 flex flex-col h-full min-h-0 relative">
+        <div className={cn("flex-1 flex flex-col h-full min-h-0 relative", size === "small" ? "p-2.5" : "p-4")}>
 
           {/* 1. Título */}
           <div className="mb-2">
@@ -329,27 +330,28 @@ export function PurchasedActivityCard({
           {!isCoachView && (
             <div className="border-t border-b border-gray-700/30 py-2 mb-3">
               <div className="flex items-center gap-2">
-                <div className="relative h-4 w-4 rounded-full overflow-hidden bg-gray-700">
-                  <Image
-                    src={activity.coach_avatar_url || "/placeholder.svg"}
-                    alt={activity.coach_name || "Coach"}
-                    fill
-                    className="object-cover"
-                  />
+                <div className="flex-1 min-w-0 flex items-center gap-2">
+                  <p className="text-xs font-medium text-gray-300 truncate">{activity.coach_name || 'Coach'}</p>
+                  {/* Rating matching ActivityCard */}
+                  {(activity.coach_rating && activity.coach_rating > 0) && (
+                    <div className="flex items-center gap-1 text-[10px] text-gray-400">
+                      <Star className="h-2.5 w-2.5 fill-yellow-400 text-yellow-400" />
+                      <span>{activity.coach_rating.toFixed(1)}</span>
+                    </div>
+                  )}
                 </div>
-                <p className="text-[11px] font-medium text-gray-300 truncate">{activity.coach_name || 'Coach'}</p>
               </div>
             </div>
           )}
 
           {/* 3. Badges */}
-          <div className="flex justify-between items-center mb-2 -mx-0.5">
-            <span className={`bg-black/20 ${getCategoryColor(activity.categoria ?? undefined)} text-[9px] px-2 py-0.5 rounded-full font-bold border border-[#FF7939]/20`}>
+          <div className="flex flex-row items-center gap-2 mb-3 overflow-hidden whitespace-nowrap">
+            <Badge variant="outline" className="bg-transparent border-[#FF7939] text-[#FF7939] text-[9px] px-1.5 h-4 font-bold tracking-wider uppercase shrink-0">
               {getCategoryBadge(activity.categoria ?? undefined)}
-            </span>
-            <span className={`bg-black/20 ${getTypeColor(activity.type ?? undefined)} text-[9px] px-1.5 py-0.5 rounded-full font-bold border border-[#FF7939]/20`}>
+            </Badge>
+            <Badge variant="outline" className="bg-zinc-800 border-zinc-700 text-zinc-300 text-[9px] px-1.5 h-4 font-bold tracking-wider uppercase shrink-0">
               {getTypeBadge(activity.type ?? undefined)}
-            </span>
+            </Badge>
           </div>
 
           {/* 4. Info Dinámica (Progreso / Fechas / Pendientes) */}
@@ -438,46 +440,40 @@ export function PurchasedActivityCard({
               </div>
             )}
 
-            {/* Fecha Inicio o Countdown */}
-            <div className="flex flex-col gap-1 pt-1.5">
-              {hasStarted ? (
-                <>
-                  <div className="flex flex-col gap-2 py-2 border-y border-zinc-800/40 my-1">
-                    <div className="flex items-center justify-between text-[10px]">
-                      <div className="flex items-center gap-1 text-gray-500 font-bold uppercase tracking-tighter">
-                        <Calendar className="w-2.5 h-2.5" />
-                        <span>Inicio</span>
-                      </div>
-                      <span className="text-zinc-300 font-medium">{formatDate(enrollment.start_date ?? '')}</span>
-                    </div>
+            {/* Fechas Importantes - Always Visible */}
+            <div className="flex flex-col gap-1 pt-2 mt-4 border-t border-zinc-800/40">
+              {/* 1. Inicio */}
+              {enrollment.start_date && (
+                <div className="flex items-center justify-between text-[10px]">
+                  <div className="flex items-center gap-1 text-gray-500 font-bold uppercase tracking-tighter">
+                    <Calendar className="w-2.5 h-2.5" />
+                    <span>Inicio</span>
+                  </div>
+                  <span className="text-zinc-300 font-medium">{formatDate(enrollment.start_date)}</span>
+                </div>
+              )}
 
-                    {enrollment.program_end_date && (
-                      <div className="flex items-center justify-between text-[10px]">
-                        <div className="flex items-center gap-1 text-gray-500 font-bold uppercase tracking-tighter">
-                          <CheckCircle2 className="w-2.5 h-2.5" />
-                          <span>Fin</span>
-                        </div>
-                        <span className="text-zinc-300 font-medium">{formatDate(enrollment.program_end_date ?? '')}</span>
-                      </div>
-                    )}
+              {/* 2. Fin de Programa */}
+              {enrollment.program_end_date && (
+                <div className="flex items-center justify-between text-[10px]">
+                  <div className="flex items-center gap-1 text-gray-500 font-bold uppercase tracking-tighter">
+                    <CheckCircle2 className="w-2.5 h-2.5" />
+                    <span>Fin</span>
                   </div>
-                </>
-              ) : (
-                <div className="flex flex-col gap-1">
-                  <div className="flex items-center gap-1.5">
-                    <Clock className={`w-3.5 h-3.5 ${isExpired ? 'text-red-500' : 'text-zinc-400'}`} />
-                    <span className={`text-[11px] font-bold ${isExpired ? 'text-red-500' : 'text-zinc-400'}`}>
-                      {daysRemaining !== null && daysRemaining > 0
-                        ? `${daysRemaining}d para iniciar`
-                        : 'Expirado'}
-                    </span>
+                  <span className="text-zinc-300 font-medium">{formatDate(enrollment.program_end_date)}</span>
+                </div>
+              )}
+
+              {/* 3. Vencimiento (Expiration) */}
+              {expirationDate && (
+                <div className="flex items-center justify-between text-[10px]">
+                  <div className="flex items-center gap-1 text-gray-500 font-bold uppercase tracking-tighter">
+                    <Clock className="w-2.5 h-2.5" />
+                    <span>Vence</span>
                   </div>
-                  {expirationDate && (
-                    <div className="flex items-center gap-1.5 text-gray-500">
-                      <Calendar className="w-2.5 h-2.5" />
-                      <span className="text-[10px]">Límite: <span className="text-gray-300">{formatDate(expirationDate.toISOString())}</span></span>
-                    </div>
-                  )}
+                  <span className={cn("font-medium", isExpired ? "text-red-400" : "text-zinc-400")}>
+                    {formatDate(expirationDate.toISOString())}
+                  </span>
                 </div>
               )}
             </div>

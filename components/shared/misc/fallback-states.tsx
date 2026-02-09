@@ -13,12 +13,12 @@ interface FallbackStateProps {
   showRetry?: boolean
 }
 
-export function FallbackState({ 
-  type, 
-  title, 
-  message, 
-  onRetry, 
-  showRetry = true 
+export function FallbackState({
+  type,
+  title,
+  message,
+  onRetry,
+  showRetry = true
 }: FallbackStateProps) {
   const getContent = () => {
     switch (type) {
@@ -84,11 +84,11 @@ export function FallbackState({
       <div className={`w-24 h-24 rounded-full ${content.iconBg} flex items-center justify-center mb-6`}>
         {content.icon}
       </div>
-      
+
       <h3 className="text-xl font-semibold text-white mb-3 text-center">
         {content.title}
       </h3>
-      
+
       <p className="text-gray-400 text-center mb-6 max-w-md leading-relaxed">
         {content.message}
       </p>

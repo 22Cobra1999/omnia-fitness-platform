@@ -11,7 +11,7 @@ import { CalendarScreen } from "@/components/calendar/CalendarScreen"
 import CoachCalendarScreen from "@/components/coach/coach-calendar-screen"
 import { ClientsScreen } from "@/components/mobile/clients-screen"
 import { SearchScreen } from "@/components/mobile/search-screen"
-import { ActivityScreen } from "@/components/mobile/activity-screen"
+import ActivityScreen from "@/components/mobile/ActivityScreen"
 import { MessagesScreen } from "@/components/mobile/messages-screen"
 import { useAuth } from "@/contexts/auth-context"
 import { usePopup } from "@/contexts/popup-context"
@@ -19,7 +19,7 @@ import { SignInPopup } from "@/components/auth/sign-in-popup"
 // Eliminado WelcomePopup
 import { SettingsIcon } from '@/components/shared/ui/settings-icon'
 import { MessagesIcon } from '@/components/shared/ui/messages-icon'
-import ProductsManagementScreen from "@/components/mobile/products-management-screen"
+import ProductsManagement from "@/components/mobile/ProductsManagement"
 import { OmniaLogoText } from '@/components/shared/ui/omnia-logo'
 import { useCoachStorageInitialization } from '@/hooks/coach/use-coach-storage-initialization'
 import { UsageReportButton } from '@/components/shared/admin/usage-report-button'
@@ -231,7 +231,7 @@ function MobileAppContent() {
       case "clients":
         return <ClientsScreen />
       case "products-management":
-        return <ProductsManagementScreen />
+        return <ProductsManagement />
 
       // Client screens
       case "search":

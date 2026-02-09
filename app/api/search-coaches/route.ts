@@ -2,6 +2,9 @@ import { NextRequest, NextResponse } from "next/server"
 import { getSupabaseAdmin } from '@/lib/config/db'
 import { createRouteHandlerClient } from '@/lib/supabase/supabase-server'
 
+export const dynamic = 'force-dynamic'
+export const revalidate = 0
+
 export async function GET(request: NextRequest) {
   try {
     const supabaseAdmin = await getSupabaseAdmin()
@@ -162,9 +165,23 @@ export async function GET(request: NextRequest) {
       })
       .filter(coach => {
         const userProfile = userProfileMap.get(coach.id)
-        // If we have a profile and it has a role, it must be 'coach'
-        // If it doesn't have a role, we assume it's a coach since it's in the coaches table
-        return !userProfile || (userProfile as any).role === 'coach'
+        if (!userProfile) {
+          console.log(`[SearchCoaches] ❌ Excluded ${coach.id}: No user profile found`)
+          return false
+        }
+
+        const rawRole = (userProfile as any).role
+        const role = typeof rawRole === 'string' ? rawRole.trim().toLowerCase() : ''
+        const isCoach = role === 'coach'
+
+        if (!isCoach) {
+          console.log(`[SearchCoaches] ❌ Excluded ${userProfile.full_name || coach.id}: Role is '${rawRole}' (normalized: '${role}'), expected 'coach'`)
+        } else {
+          // console.log(`[SearchCoaches] ✅ Included ${userProfile.full_name}: Role is '${rawRole}'`)
+        }
+
+        // STRICT CHECK: Must have a user profile and role MUST be 'coach'
+        return isCoach
       })
 
     const filteredCoaches = formattedCoaches.filter(coach => coach.id !== currentUserId)

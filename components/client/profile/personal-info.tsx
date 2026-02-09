@@ -1,6 +1,8 @@
 "use client"
 
-import { useState } from "react"
+import { useState, useEffect } from "react"
+import { format } from "date-fns"
+import { useLocalStorage } from "@/hooks/shared/use-local-storage"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
@@ -55,7 +57,8 @@ export function PersonalInfo() {
   useEffect(() => {
     const fetchProfile = async () => {
       try {
-        const { data: { user } } = await supabase.auth.getSession().then(({ data }) => ({ data: { user: data.session?.user } }))
+        const { data: { session } } = await supabase.auth.getSession()
+        const user = session?.user
         if (!user) return
 
         const { data: client, error } = await supabase
@@ -195,10 +198,23 @@ export function PersonalInfo() {
     setPersonalInfo({ ...personalInfo, restrictions: newRestrictions })
   }
 
+  const handleFormChange = (updater: (prev: any) => any) => {
+    setPersonalInfo(updater)
+  }
+
+  const handleRestrictionUpdate = (index: number, field: string, value: string) => {
+    setPersonalInfo((prev: any) => {
+      const newRestrictions = [...prev.restrictions]
+      newRestrictions[index] = { ...newRestrictions[index], [field]: value }
+      return { ...prev, restrictions: newRestrictions }
+    })
+  }
+
   const handleSave = async () => {
     setIsEditing(false)
     try {
-      const { data: { user } } = await supabase.auth.getSession().then(({ data }) => ({ data: { user: data.session?.user } }))
+      const { data: { session } } = await supabase.auth.getSession()
+      const user = session?.user
       if (!user) return
 
       const updates = {
@@ -358,7 +374,7 @@ export function PersonalInfo() {
 
   const addNutritionItem = (item: NutritionJourneyItem) => {
     const currentDate = format(new Date(), "yyyy-MM-dd")
-    setNutritionJourney((prev) => ({
+    setNutritionJourney((prev: Record<string, NutritionJourneyItem[]>) => ({
       ...prev,
       [currentDate]: [...(prev[currentDate] || []), item],
     }))
@@ -366,9 +382,9 @@ export function PersonalInfo() {
 
   const removeNutritionItem = (index: number) => {
     const currentDate = format(new Date(), "yyyy-MM-dd")
-    setNutritionJourney((prev) => ({
+    setNutritionJourney((prev: Record<string, NutritionJourneyItem[]>) => ({
       ...prev,
-      [currentDate]: prev[currentDate].filter((_, i) => i !== index),
+      [currentDate]: (prev[currentDate] || []).filter((_: any, i: number) => i !== index),
     }))
   }
 
@@ -384,7 +400,7 @@ export function PersonalInfo() {
 
     return (
       <div className="space-y-2">
-        {journeyItems.map((item, index) => (
+        {journeyItems.map((item: NutritionJourneyItem, index: number) => (
           <div key={index} className="flex items-center justify-between bg-gray-100 p-2 rounded">
             <span>
               {item.type === "meal" ? "🍽️" : "💪"} {item.description}
@@ -800,9 +816,7 @@ export function PersonalInfo() {
                 <>
                   <div className="space-y-4">
                     <div>
-                      <Label htmlFor="bio" className="text-gray-300">
-                        Bio
-                      </Label>
+                      <Label htmlFor="bio" className="text-gray-300">Bio</Label>
                       <Textarea
                         id="bio"
                         value={personalInfo.profile?.bio || ""}
@@ -819,9 +833,7 @@ export function PersonalInfo() {
 
                     <div className="grid grid-cols-2 gap-4">
                       <div>
-                        <Label htmlFor="location" className="text-gray-300">
-                          Location
-                        </Label>
+                        <Label htmlFor="location" className="text-gray-300">Location</Label>
                         <Input
                           id="location"
                           value={personalInfo.profile?.location || ""}
@@ -836,9 +848,7 @@ export function PersonalInfo() {
                         />
                       </div>
                       <div>
-                        <Label htmlFor="profession" className="text-gray-300">
-                          Profession
-                        </Label>
+                        <Label htmlFor="profession" className="text-gray-300">Profession</Label>
                         <Input
                           id="profession"
                           value={personalInfo.profile?.profession || ""}
@@ -855,9 +865,7 @@ export function PersonalInfo() {
                     </div>
 
                     <div>
-                      <Label htmlFor="interests" className="text-gray-300">
-                        Fitness Interests
-                      </Label>
+                      <Label htmlFor="interests" className="text-gray-300">Fitness Interests</Label>
                       <Input
                         id="interests"
                         value={personalInfo.profile?.interests || ""}
@@ -880,7 +888,6 @@ export function PersonalInfo() {
                         {SPORTS_OPTIONS.map((sport) => {
                           const currentSports = personalInfo.sports || []
                           const isSelected = currentSports.includes(sport)
-
                           return (
                             <button
                               key={sport}
@@ -901,83 +908,82 @@ export function PersonalInfo() {
                       </div>
                     </div>
                   </div>
-                </div>
-            </>
-            ) : (
-            <>
-              {personalInfo.profile?.bio ||
-                personalInfo.profile?.location ||
-                personalInfo.profile?.profession ||
-                personalInfo.profile?.interests ? (
-                <div className="space-y-4">
-                  {personalInfo.profile?.bio && (
-                    <div className="bg-[#2D2D2D]/50 p-4 rounded-lg">
-                      <p className="text-white leading-relaxed">{personalInfo.profile.bio}</p>
-                    </div>
-                  )}
-
-                  <div className="grid grid-cols-2 gap-4">
-                    {personalInfo.profile?.location && (
-                      <div className="bg-[#2D2D2D]/50 p-4 rounded-lg">
-                        <div className="text-gray-400 mb-1 text-sm">Location</div>
-                        <div className="text-white font-medium">{personalInfo.profile.location}</div>
-                      </div>
-                    )}
-
-                    {personalInfo.profile?.profession && (
-                      <div className="bg-[#2D2D2D]/50 p-4 rounded-lg">
-                        <div className="text-gray-400 mb-1 text-sm">Profession</div>
-                        <div className="text-white font-medium">{personalInfo.profile.profession}</div>
-                      </div>
-                    )}
-                  </div>
-
-                  {personalInfo.profile?.interests && (
-                    <div className="bg-[#2D2D2D]/50 p-4 rounded-lg">
-                      <div className="text-gray-400 mb-1 text-sm">Fitness Interests</div>
-                      <div className="flex flex-wrap gap-2 mt-1">
-                        {personalInfo.profile.interests.split(",").map((interest, index) => (
-                          <span key={index} className="bg-[#FF7939]/20 text-[#FF7939] px-2 py-1 rounded-md text-sm">
-                            {interest.trim()}
-                          </span>
-                        ))}
-                      </div>
-                    </div>
-                  )}
-
-                  {personalInfo.sports && personalInfo.sports.length > 0 && (
-                    <div className="bg-[#2D2D2D]/50 p-4 rounded-lg">
-                      <div className="text-gray-400 mb-1 text-sm">Sports</div>
-                      <div className="flex flex-wrap gap-2 mt-1">
-                        {personalInfo.sports.map((sport, index) => (
-                          <span key={index} className="bg-[#FF7939]/20 text-[#FF7939] px-2 py-1 rounded-md text-sm">
-                            {sport}
-                          </span>
-                        ))}
-                      </div>
-                    </div>
-                  )}
-                </div>
+                </>
               ) : (
-                <div className="p-6 border border-dashed border-[#FF7939]/30 rounded-lg bg-[#FF7939]/5 text-center">
-                  <p className="text-gray-300 mb-2">Your profile is empty</p>
-                  <p className="text-gray-400 text-sm mb-4">
-                    Add information about yourself to complete your profile
-                  </p>
-                  <Button
-                    onClick={() => setIsEditing(true)}
-                    className="bg-gradient-to-r from-[#FF7939] to-[#FF5C00] hover:from-[#FF5C00] hover:to-[#FF7939] text-white"
-                  >
-                    Complete Profile
-                  </Button>
-                </div>
+                <>
+                  {personalInfo.profile?.bio ||
+                    personalInfo.profile?.location ||
+                    personalInfo.profile?.profession ||
+                    personalInfo.profile?.interests ? (
+                    <div className="space-y-4">
+                      {personalInfo.profile?.bio && (
+                        <div className="bg-[#2D2D2D]/50 p-4 rounded-lg">
+                          <p className="text-white leading-relaxed">{personalInfo.profile.bio}</p>
+                        </div>
+                      )}
+
+                      <div className="grid grid-cols-2 gap-4">
+                        {personalInfo.profile?.location && (
+                          <div className="bg-[#2D2D2D]/50 p-4 rounded-lg">
+                            <div className="text-gray-400 mb-1 text-sm">Location</div>
+                            <div className="text-white font-medium">{personalInfo.profile.location}</div>
+                          </div>
+                        )}
+
+                        {personalInfo.profile?.profession && (
+                          <div className="bg-[#2D2D2D]/50 p-4 rounded-lg">
+                            <div className="text-gray-400 mb-1 text-sm">Profession</div>
+                            <div className="text-white font-medium">{personalInfo.profile.profession}</div>
+                          </div>
+                        )}
+                      </div>
+
+                      {personalInfo.profile?.interests && (
+                        <div className="bg-[#2D2D2D]/50 p-4 rounded-lg">
+                          <div className="text-gray-400 mb-1 text-sm">Fitness Interests</div>
+                          <div className="flex flex-wrap gap-2 mt-1">
+                            {personalInfo.profile.interests.split(",").map((interest, index) => (
+                              <span key={index} className="bg-[#FF7939]/20 text-[#FF7939] px-2 py-1 rounded-md text-sm">
+                                {interest.trim()}
+                              </span>
+                            ))}
+                          </div>
+                        </div>
+                      )}
+
+                      {personalInfo.sports && personalInfo.sports.length > 0 && (
+                        <div className="bg-[#2D2D2D]/50 p-4 rounded-lg">
+                          <div className="text-gray-400 mb-1 text-sm">Sports</div>
+                          <div className="flex flex-wrap gap-2 mt-1">
+                            {personalInfo.sports.map((sport, index) => (
+                              <span key={index} className="bg-[#FF7939]/20 text-[#FF7939] px-2 py-1 rounded-md text-sm">
+                                {sport}
+                              </span>
+                            ))}
+                          </div>
+                        </div>
+                      )}
+                    </div>
+                  ) : (
+                    <div className="p-6 border border-dashed border-[#FF7939]/30 rounded-lg bg-[#FF7939]/5 text-center">
+                      <p className="text-gray-300 mb-2">Your profile is empty</p>
+                      <p className="text-gray-400 text-sm mb-4">
+                        Add information about yourself to complete your profile
+                      </p>
+                      <Button
+                        onClick={() => setIsEditing(true)}
+                        className="bg-gradient-to-r from-[#FF7939] to-[#FF5C00] hover:from-[#FF5C00] hover:to-[#FF7939] text-white"
+                      >
+                        Complete Profile
+                      </Button>
+                    </div>
+                  )}
+                </>
               )}
-            </>
-              )}
-          </div>
-        </TabsContent>
-      </Tabs>
-    </CardContent>
+            </div>
+          </TabsContent>
+        </Tabs>
+      </CardContent>
     </Card >
   )
 }

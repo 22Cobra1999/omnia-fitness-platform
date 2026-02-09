@@ -7,9 +7,10 @@ import {
 
 export async function GET(
   request: NextRequest,
-  { params }: { params: { id: string } }
+  { params }: { params: Promise<{ id: string }> }
 ) {
   try {
+    const { id } = await params
     const supabase = await createRouteHandlerClient()
 
     const { data: { user }, error: authError } = await supabase.auth.getUser()
@@ -18,7 +19,7 @@ export async function GET(
       return NextResponse.json({ error: 'No autenticado' }, { status: 401 })
     }
 
-    const activityId = parseInt(params.id)
+    const activityId = parseInt(id)
 
     if (!activityId || isNaN(activityId)) {
       return NextResponse.json({
@@ -66,7 +67,7 @@ export async function GET(
     }
 
     // Obtener ejercicios de la actividad desde ejercicios_detalles
-    const activityKey = params.id
+    const activityKey = id
     const activityKeyObj = { [activityKey]: {} }
 
     const { data: exercises, error: exercisesError } = await supabase

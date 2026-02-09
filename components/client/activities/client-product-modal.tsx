@@ -334,6 +334,8 @@ export default function ClientProductModal({
     }
   }, [isOpen, loadPlanLimits, showEditButton])
 
+  const [refreshTrigger, setRefreshTrigger] = useState(0)
+
   // Listener para actualizar cuando se edita el producto
   useEffect(() => {
     const handleProductUpdate = (event: CustomEvent) => {
@@ -344,6 +346,8 @@ export default function ClientProductModal({
         refreshStats()
         // Recargar límites del plan
         loadPlanLimits()
+        // Forzar recarga de planificación
+        setRefreshTrigger(prev => prev + 1)
       }
     }
 
@@ -462,7 +466,8 @@ export default function ClientProductModal({
 
     const cacheKey = String(product.id)
     const cached = planningStatsCache.get(cacheKey)
-    if (cached && Date.now() - cached.cachedAt < PLANNING_STATS_CACHE_TTL_MS) {
+    // FORCE UPDATE: Ignore cache if refreshed
+    if (refreshTrigger === 0 && cached && Date.now() - cached.cachedAt < PLANNING_STATS_CACHE_TTL_MS) {
       setWeeksFromPlanning(cached.value)
       setPlanningStatsLoading(false)
       return
@@ -473,7 +478,8 @@ export default function ClientProductModal({
     const signal = abortControllerRef.current.signal
 
     setPlanningStatsLoading(true)
-    fetch(`/api/get-product-planning?actividad_id=${product.id}`, { signal })
+    // Add timestamp to prevent browser caching of GET request
+    fetch(`/api/get-product-planning?actividad_id=${product.id}&t=${Date.now()}`, { signal })
       .then(async res => {
         if (!res.ok) {
           const errorPayload = await res.json().catch(() => ({}))
@@ -489,7 +495,7 @@ export default function ClientProductModal({
           const semanas = Number(data.data.semanas || 0)
           const periods = Number(data.data.periods || 1)
           const totalWeeks = semanas * (periods || 1)
-          console.log('🔢 Semanas desde planificación:', { semanas, periods, totalWeeks })
+          console.log('🔢 Semanas desde planificación (Refreshed):', { semanas, periods, totalWeeks })
           setWeeksFromPlanning(totalWeeks)
           planningStatsCache.set(cacheKey, { value: totalWeeks, cachedAt: Date.now() })
         } else {
@@ -500,12 +506,13 @@ export default function ClientProductModal({
       .catch(error => {
         // Ignorar errores de cancelación
         if (error.name === 'AbortError') {
-          console.log('⏹️ Petición de planificación cancelada')
           return
         }
-        console.error('❌ Error obteniendo planificación para stats:', error)
+        // console.error('❌ Error obteniendo planificación para stats:', error)
         if (!signal.aborted) {
+          // console.log('ℹ️ Guest user viewing product preview (planning stats not available)');
           setWeeksFromPlanning(null)
+          // No mostramos toast de error para no interrumpir al usuario que solo está viendo
         }
       })
       .finally(() => {
@@ -521,7 +528,7 @@ export default function ClientProductModal({
         abortControllerRef.current = null
       }
     }
-  }, [isOpen, product?.id, product?.type])
+  }, [isOpen, product?.id, product?.type, refreshTrigger])
 
   // Función para obtener fuegos de dificultad con colores específicos
   const getDifficultyFires = (difficulty?: string) => {
@@ -617,7 +624,7 @@ export default function ClientProductModal({
         setIsAlreadyPurchased(!result.data.hasNeverPurchased)
       } else if (response.status === 401) {
         // Usuario no autenticado - usar estado por defecto
-        console.log('Usuario no autenticado, usando estado por defecto')
+        // console.log('Usuario no autenticado, usando estado por defecto')
         setPurchaseStatus({
           hasNeverPurchased: true,
           hasActivePurchase: false,
@@ -1082,7 +1089,7 @@ export default function ClientProductModal({
             animate={{ opacity: 1 }}
             exit={{ opacity: 0 }}
             transition={{ duration: 0.05 }}
-            className="fixed inset-0 bg-black/80 z-40 flex items-center justify-center p-4 pt-20"
+            className="fixed inset-0 bg-black/80 z-50 flex items-start justify-center p-4 pt-16"
             onClick={handleClose}
           >
             <motion.div
@@ -1090,7 +1097,7 @@ export default function ClientProductModal({
               animate={{ scale: 1, opacity: 1 }}
               exit={{ opacity: 0, scale: 0.95 }}
               transition={{ duration: 0.05 }}
-              className="bg-[#1A1A1A] rounded-2xl w-full max-w-4xl border border-[#2A2A2A] max-h-[90vh] overflow-y-auto"
+              className="bg-[#1A1A1A] rounded-2xl w-full max-w-2xl border border-[#2A2A2A] max-h-[90vh] overflow-y-auto overscroll-contain"
               onClick={(e) => e.stopPropagation()}
             >
               {/* Content */}
@@ -1407,12 +1414,58 @@ export default function ClientProductModal({
                           })()
                         ) : (
                           product.type === 'workshop'
-                            ? (loadingWorkshopTopics ? '...' : (planLimits?.weeksLimit ? `${calculateWorkshopWeeks}/${planLimits.weeksLimit}` : calculateWorkshopWeeks || 0))
-                            : (planningStatsLoading ? '...' : planLimits?.weeksLimit ? `${weeksCount}/${planLimits.weeksLimit}` : (weeksCount || 'N/A'))
+                            ? (loadingWorkshopTopics ? '...' : (calculateWorkshopWeeks || 0))
+                            : (planningStatsLoading ? '...' : (weeksCount || 'N/A'))
                         )}
                       </div>
                     </div>
 
+                    {/* Ejercicios moved to Row 1 Column 3 */}
+                    <div className="flex flex-col items-center gap-1 text-center">
+                      <div className="flex items-center gap-2">
+                        <Dumbbell className="h-5 w-5 text-[#FF7939]" />
+                        <span className="text-white/60 font-medium">Ejercicios</span>
+                      </div>
+                      <div className="text-white font-semibold">
+                        {exercisesCount || (product.items_unicos || 0)}
+                      </div>
+                    </div>
+
+                    {/* Fila 2 */}
+                    <div className="flex flex-col items-center gap-1 text-center">
+                      <div className="h-5 flex items-center justify-center">
+                        {(product.categoria === 'nutricion' || product.categoria === 'nutrition' || productData?.categoria === 'nutricion' || productData?.categoria === 'nutrition') ? (
+                          getDietTypeDisplay(productData?.dieta || product.dieta)
+                        ) : (
+                          getDifficultyFires(product.difficulty)
+                        )}
+                      </div>
+                      <div className="text-white font-semibold flex items-center h-5">
+                        {(product.categoria === 'nutricion' || product.categoria === 'nutrition' || productData?.categoria === 'nutricion' || productData?.categoria === 'nutrition') ? (
+                          <span className="text-white font-medium text-sm">
+                            {/* Text is inside getDietTypeDisplay usually, but if we need it separate we need to parse it. 
+                                 However, getDietTypeDisplay returns a row with icon+text. 
+                                 For consistency, let's just render it. 
+                                 But for Intensity, we want separating Icon and Text. 
+                             */}
+                          </span>
+                        ) : (
+                          <span className="text-gray-300">
+                            {product.difficulty === 'beginner' ? 'Principiante' :
+                              product.difficulty === 'intermediate' ? 'Intermedio' :
+                                product.difficulty === 'advanced' ? 'Avanzado' : 'Intermedio'}
+                          </span>
+                        )}
+                        {(product.categoria === 'nutricion' || product.categoria === 'nutrition' || productData?.categoria === 'nutricion' || productData?.categoria === 'nutrition') &&
+                          // Render nothing here, diet display is self contained or needs refactor. 
+                          // Current getDietTypeDisplay returns Icon+Text. Logic above puts it in the 'top' slot. 
+                          // To match requested design, we might want to split it, but query specifically mentioned Intensity.
+                          null
+                        }
+                      </div>
+                    </div>
+
+                    {/* Cupos moved to Row 2 Column 2 */}
                     {productCapacity ? (
                       <div className={`flex flex-col items-center gap-1 text-center ${exceedsStock ? 'border-2 border-red-500 rounded-lg p-1' : ''}`}>
                         <div className="flex items-center gap-2">
@@ -1427,83 +1480,55 @@ export default function ClientProductModal({
                       <div />
                     )}
 
-                    {/* Fila 2 */}
-                    <div className="flex flex-col items-center gap-1 text-center">
-                      <div className="flex items-center gap-2">
-                        {(product.categoria === 'nutricion' || product.categoria === 'nutrition' || productData?.categoria === 'nutricion' || productData?.categoria === 'nutrition') ? (
-                          getDietTypeDisplay(productData?.dieta || product.dieta)
-                        ) : (
-                          <>
-                            {getDifficultyFires(product.difficulty)}
-                            <span className="text-gray-300">
-                              {product.difficulty === 'beginner' ? 'Principiante' :
-                                product.difficulty === 'intermediate' ? 'Intermedio' :
-                                  product.difficulty === 'advanced' ? 'Avanzado' : 'Intermedio'}
-                            </span>
-                          </>
-                        )}
-                      </div>
-                    </div>
-
-                    <div className="flex flex-col items-center gap-1 text-center">
-                      <div className="flex items-center gap-2">
-                        <Dumbbell className="h-5 w-5 text-[#FF7939]" />
-                        <span className="text-white/60 font-medium">Ejercicios</span>
-                      </div>
-                      <div className="text-white font-semibold">
-                        {exercisesCount || (product.items_unicos || 0)}
-                      </div>
-                    </div>
-
                     <div className="flex flex-col items-center gap-1 text-center w-full min-w-0">
-                      <div className="flex items-center justify-center gap-2 w-full min-w-0">
-                        {(() => {
-                          const locationName = productData?.location_name || product.location_name
-                          const locationUrl = productData?.location_url || product.location_url
-                          if (productModality === 'presencial') {
-                            return (
-                              <div className="overflow-x-auto whitespace-nowrap -mx-1 px-1 w-full min-w-0">
-                                <div className="inline-flex items-center gap-2 min-w-max justify-center">
-                                  <MapPin className="h-5 w-5 text-red-500 flex-shrink-0" />
-                                  {locationName || locationUrl ? (
-                                    <button
-                                      onClick={() => {
-                                        if (locationUrl) {
-                                          let mapsUrl = locationUrl
-                                          if (!locationUrl.startsWith('http://') && !locationUrl.startsWith('https://')) {
-                                            mapsUrl = `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(locationUrl)}`
-                                          }
-                                          window.open(mapsUrl, '_blank')
-                                        }
-                                      }}
-                                      className="inline-flex items-center text-red-500 underline hover:text-red-400 whitespace-nowrap"
-                                      title={locationUrl ? 'Abrir en Google Maps' : 'Ubicación'}
-                                    >
-                                      {locationName || locationUrl || 'Ver ubicación'}
-                                    </button>
-                                  ) : (
-                                    <span className="text-gray-300">Presencial</span>
-                                  )}
-                                </div>
-                              </div>
-                            )
-                          }
-                          if (productModality === 'hibrido') {
-                            return (
-                              <>
-                                <Globe className="h-5 w-5 text-yellow-500" />
-                                <span className="text-gray-300">Híbrido</span>
-                              </>
-                            )
-                          }
-                          return (
-                            <>
-                              <Globe className="h-5 w-5 text-white" />
-                              <span className="text-gray-300">Online</span>
-                            </>
-                          )
-                        })()}
-                      </div>
+                      {(() => {
+                        const locationName = productData?.location_name || product.location_name
+                        const locationUrl = productData?.location_url || product.location_url
+
+                        let Icon = Globe
+                        let iconColor = "text-white"
+                        let label = "Online"
+                        let isClickable = false
+
+                        if (productModality === 'presencial') {
+                          Icon = MapPin
+                          iconColor = "text-red-500"
+                          label = locationName || "Presencial"
+                          isClickable = !!(locationName || locationUrl)
+                        } else if (productModality === 'hibrido') {
+                          Icon = Globe
+                          iconColor = "text-yellow-500"
+                          label = "Híbrido"
+                        }
+
+                        return (
+                          <>
+                            <div className="h-5 flex items-center justify-center">
+                              <Icon className={`h-5 w-5 ${iconColor}`} />
+                            </div>
+                            <div className="text-gray-300 text-sm font-medium h-5 flex items-center">
+                              {isClickable ? (
+                                <button
+                                  onClick={() => {
+                                    if (locationUrl) {
+                                      let mapsUrl = locationUrl
+                                      if (!locationUrl.startsWith('http://') && !locationUrl.startsWith('https://')) {
+                                        mapsUrl = `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(locationUrl)}`
+                                      }
+                                      window.open(mapsUrl, '_blank')
+                                    }
+                                  }}
+                                  className={`${iconColor} underline hover:opacity-80 transition-opacity truncate max-w-[80px]`}
+                                >
+                                  {label}
+                                </button>
+                              ) : (
+                                <span>{label}</span>
+                              )}
+                            </div>
+                          </>
+                        )
+                      })()}
                     </div>
 
                     {/* Fila 3: Meets (centrado) */}

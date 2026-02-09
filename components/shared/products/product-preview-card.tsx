@@ -49,9 +49,9 @@ interface ProductPreviewCardProps {
   csvData?: string[][]
 }
 
-export function ProductPreviewCard({ 
-  product, 
-  showPurchaseButton = true, 
+export function ProductPreviewCard({
+  product,
+  showPurchaseButton = true,
   onPurchase,
   onExpand,
   isPreview = true,
@@ -61,7 +61,7 @@ export function ProductPreviewCard({
   const [dragOffset, setDragOffset] = useState(0)
   const [isAnimating, setIsAnimating] = useState(false)
   const priceRef = useRef<HTMLDivElement>(null)
-  
+
   // Funciones para manejar URLs de video
   const extractVimeoId = (url: string): string | null => {
     const vimeoRegex = /(?:vimeo\.com\/|player\.vimeo\.com\/video\/)(\d+)/;
@@ -80,15 +80,15 @@ export function ProductPreviewCard({
     if (vimeoId) {
       return `https://player.vimeo.com/video/${vimeoId}`;
     }
-    
+
     const youtubeId = extractYouTubeId(url);
     if (youtubeId) {
       return `https://www.youtube.com/embed/${youtubeId}`;
     }
-    
+
     return null;
   }
-  
+
   const getTypeIcon = () => {
     switch (product.type) {
       case 'workshop':
@@ -133,7 +133,7 @@ export function ProductPreviewCard({
     if (product.image && product.image.trim() !== '') {
       return product.image
     }
-    
+
     // Si no hay imagen real, devolver null para mostrar logo de Omnia
     return null
   }
@@ -147,11 +147,11 @@ export function ProductPreviewCard({
 
   const handleMouseMove = (e: React.MouseEvent) => {
     if (!isDragging || !priceRef.current) return
-    
+
     e.preventDefault()
     const rect = priceRef.current.getBoundingClientRect()
     const offset = e.clientX - rect.left
-    
+
     if (offset > 0) {
       const newOffset = Math.min(offset, rect.width)
       setDragOffset(newOffset)
@@ -167,12 +167,12 @@ export function ProductPreviewCard({
 
   const handleTouchMove = (e: React.TouchEvent) => {
     if (!isDragging || !priceRef.current) return
-    
+
     e.preventDefault()
     const rect = priceRef.current.getBoundingClientRect()
     const touch = e.touches[0]
     const offset = touch.clientX - rect.left
-    
+
     if (offset > 0) {
       const newOffset = Math.min(offset, rect.width)
       setDragOffset(newOffset)
@@ -234,10 +234,10 @@ export function ProductPreviewCard({
 
   const getProductDetails = () => {
     const details = []
-    
+
     // Validar que product existe
     if (!product) return details
-    
+
     // Para talleres, mostrar información específica
     if (product.type === 'workshop') {
       if (product.capacity && typeof product.capacity === 'number') {
@@ -249,7 +249,7 @@ export function ProductPreviewCard({
           bgColor: 'bg-blue-400/10'
         })
       }
-      
+
       if (product.sessionsPerClient && typeof product.sessionsPerClient === 'number') {
         details.push({
           label: 'Sesiones por cliente',
@@ -259,10 +259,10 @@ export function ProductPreviewCard({
           bgColor: 'bg-green-400/10'
         })
       }
-      
+
       if (product.workshopType && typeof product.workshopType === 'string') {
-        const typeLabel = product.workshopType === 'individual' ? 'Individual' : 
-                         product.workshopType === 'grupal' ? 'Grupal' : product.workshopType
+        const typeLabel = product.workshopType === 'individual' ? 'Individual' :
+          product.workshopType === 'grupal' ? 'Grupal' : product.workshopType
         details.push({
           label: 'Tipo de taller',
           value: typeLabel,
@@ -271,7 +271,7 @@ export function ProductPreviewCard({
           bgColor: 'bg-purple-400/10'
         })
       }
-      
+
       if (product.modality && typeof product.modality === 'string') {
         details.push({
           label: 'Modalidad',
@@ -281,7 +281,7 @@ export function ProductPreviewCard({
           bgColor: 'bg-orange-400/10'
         })
       }
-      
+
       if (product.blocks && product.blocks.length > 0) {
         const totalDates = product.blocks.reduce((total, block) => {
           return total + (block.selectedDates ? block.selectedDates.length : 0)
@@ -312,7 +312,7 @@ export function ProductPreviewCard({
           bgColor: 'bg-blue-400/10'
         })
       }
-      
+
       if (product.duration && typeof product.duration === 'string') {
         details.push({
           label: 'Duración',
@@ -322,9 +322,9 @@ export function ProductPreviewCard({
           bgColor: 'bg-green-400/10'
         })
       }
-      
+
       // Para programas y fitness, mostrar cantidad de ejercicios, días y modalidad
-      if (product.type === 'program' || product.type === 'fitness') {
+      if (product.type === 'program' || (product as any).type === 'fitness') {
         // ✅ Ejercicios: cantidad de filas de datos
         const exercisesCount = product.exercisesCount || (csvData && csvData.length > 1 ? csvData.length - 1 : 0)
 
@@ -337,7 +337,7 @@ export function ProductPreviewCard({
             bgColor: 'bg-red-400/10'
           })
         }
-        
+
         // ✅ Sesiones: semanas únicas
         const totalSessions = product.totalSessions || (csvData && csvData.length > 1 ? new Set(csvData.slice(1).map(row => row[0])).size : 0)
 
@@ -350,21 +350,21 @@ export function ProductPreviewCard({
             bgColor: 'bg-blue-400/10'
           })
         }
-        
 
-        
+
+
         // ✅ Modalidad: información del formulario
-              if (product.modality && typeof product.modality === 'string') {
-        details.push({
-          label: 'Modalidad',
-          value: product.modality,
-          icon: MapPin,
-          color: 'text-yellow-400',
-          bgColor: 'bg-yellow-400/10'
-        })
+        if (product.modality && typeof product.modality === 'string') {
+          details.push({
+            label: 'Modalidad',
+            value: product.modality,
+            icon: MapPin,
+            color: 'text-yellow-400',
+            bgColor: 'bg-yellow-400/10'
+          })
+        }
       }
-      }
-      
+
       if (product.pages && typeof product.pages === 'string') {
         details.push({
           label: 'Extensión',
@@ -374,9 +374,9 @@ export function ProductPreviewCard({
           bgColor: 'bg-orange-400/10'
         })
       }
-      
+
       // Modalidad solo para productos que no son programas o fitness (para evitar duplicación)
-      if (product.modality && product.type !== 'program' && product.type !== 'fitness') {
+      if (product.modality && product.type !== 'program' && (product as any).type !== 'fitness') {
         details.push({
           label: 'Modalidad',
           value: product.modality,
@@ -386,13 +386,13 @@ export function ProductPreviewCard({
         })
       }
     }
-    
+
     return details
   }
 
   return (
-    <motion.div 
-      whileHover={{ scale: isPreview ? 1 : 1.03 }} 
+    <motion.div
+      whileHover={{ scale: isPreview ? 1 : 1.03 }}
       transition={{ duration: 0.2 }}
       className="w-full max-w-sm"
     >
@@ -421,12 +421,12 @@ export function ProductPreviewCard({
                 <h1 className="text-gray-400 text-xl font-bold">OMNIA</h1>
               </div>
             )}
-            
+
             {/* Type Badge */}
             <Badge className={`absolute top-3 left-3 ${getTypeColor()} text-white font-medium`}>
               {getTypeLabel()}
             </Badge>
-            
+
             {/* Popular Badge (opcional) */}
             {isPreview && (
               <div className="absolute top-3 right-3 inline-flex items-center px-3 py-1 rounded-full bg-[#FF7939]/80 backdrop-blur-sm text-sm font-medium text-white">
@@ -434,7 +434,7 @@ export function ProductPreviewCard({
                 <span>Preview</span>
               </div>
             )}
-            
+
             {/* Type Icon Overlay */}
             <div className="absolute bottom-3 right-3 w-12 h-12 bg-black/50 backdrop-blur-sm rounded-full flex items-center justify-center">
               {getTypeIcon()}
@@ -447,12 +447,12 @@ export function ProductPreviewCard({
             <h3 className="text-xl font-bold text-white mb-3 line-clamp-2 bg-gradient-to-r from-white to-gray-300 bg-clip-text">
               {product.title || 'Nombre del producto'}
             </h3>
-            
+
             {/* Description with improved styling */}
             <p className="text-gray-400 text-sm mb-4 line-clamp-3 leading-relaxed bg-[#1A1A1A]/30 p-3 rounded-lg border border-[#2A2A2A]/30">
               {product.description || 'Descripción del producto'}
             </p>
-            
+
             {/* Product Details - Enhanced with Icons and Colors */}
             {getProductDetails().length > 0 && (
               <div className="bg-gradient-to-br from-[#0F0F0F] to-[#1A1A1A] rounded-xl p-4 border border-[#2A2A2A] mb-4 shadow-lg">
@@ -472,11 +472,11 @@ export function ProductPreviewCard({
                 </div>
               </div>
             )}
-            
+
             {/* Price and Action Section */}
             <div className="mb-4">
               {/* Swipe Container */}
-              <div 
+              <div
                 ref={priceRef}
                 className="relative bg-gray-800 rounded-xl overflow-hidden cursor-pointer select-none shadow-lg"
                 onMouseDown={handleMouseDown}
@@ -489,30 +489,30 @@ export function ProductPreviewCard({
               >
                 {/* Background with gradient */}
                 <div className="bg-gradient-to-r from-[#FF7939] to-[#E66829] p-4 transition-all duration-500 ease-out"
-                     style={{ 
-                       transform: `translateX(${isDragging ? Math.min(dragOffset * 0.3, 0) : 0}px)`,
-                       filter: isDragging ? 'brightness(1.2) saturate(1.1)' : 'brightness(1) saturate(1)',
-                       boxShadow: isDragging ? '0 8px 25px rgba(255, 121, 57, 0.4)' : '0 4px 15px rgba(0, 0, 0, 0.2)'
-                     }}>
+                  style={{
+                    transform: `translateX(${isDragging ? Math.min(dragOffset * 0.3, 0) : 0}px)`,
+                    filter: isDragging ? 'brightness(1.2) saturate(1.1)' : 'brightness(1) saturate(1)',
+                    boxShadow: isDragging ? '0 8px 25px rgba(255, 121, 57, 0.4)' : '0 4px 15px rgba(0, 0, 0, 0.2)'
+                  }}>
                   <div className="flex items-center justify-between">
                     <span className="text-2xl font-bold text-white transition-all duration-300"
-                          style={{ 
-                            transform: isDragging ? 'scale(1.05)' : 'scale(1)',
-                            textShadow: isDragging ? '0 2px 8px rgba(0, 0, 0, 0.3)' : 'none'
-                          }}>
-                  ${product.price?.toFixed(2) || '0.00'}
-                </span>
+                      style={{
+                        transform: isDragging ? 'scale(1.05)' : 'scale(1)',
+                        textShadow: isDragging ? '0 2px 8px rgba(0, 0, 0, 0.3)' : 'none'
+                      }}>
+                      ${product.price?.toFixed(2) || '0.00'}
+                    </span>
                     <ShoppingCart className="h-6 w-6 text-white transition-all duration-300"
-                                 style={{ 
-                                   transform: isDragging ? 'scale(1.1) rotate(5deg)' : 'scale(1) rotate(0deg)'
-                                 }} />
+                      style={{
+                        transform: isDragging ? 'scale(1.1) rotate(5deg)' : 'scale(1) rotate(0deg)'
+                      }} />
                   </div>
                 </div>
-                
+
                 {/* Progress overlay */}
-                <div 
+                <div
                   className="absolute top-0 left-0 h-full bg-gradient-to-r from-green-500 to-green-400 transition-all duration-300 ease-out flex items-center justify-end pr-4"
-                  style={{ 
+                  style={{
                     width: `${Math.min((dragOffset / (priceRef.current?.offsetWidth || 1)) * 100, 100)}%`,
                     opacity: isDragging ? 1 : 0,
                     transform: isAnimating ? 'scale(1.02)' : 'scale(1)'
@@ -523,16 +523,16 @@ export function ProductPreviewCard({
                     <ShoppingCart className="h-5 w-5 animate-pulse" />
                   </div>
                 </div>
-                
+
                 {/* Swipe indicator */}
                 <div className="absolute top-1/2 right-4 transform -translate-y-1/2 text-white transition-all duration-300"
-                     style={{ opacity: isDragging ? 0 : 0.6 }}>
+                  style={{ opacity: isDragging ? 0 : 0.6 }}>
                   <div className="flex items-center space-x-1">
                     <span className="text-sm">Deslizar</span>
                     <ChevronDown className="h-4 w-4 rotate-90 animate-bounce" />
                   </div>
                 </div>
-                
+
                 {/* Success indicator */}
                 {isAnimating && dragOffset > 80 && (
                   <div className="absolute inset-0 bg-green-500 bg-opacity-90 flex items-center justify-center transition-all duration-300">
@@ -543,16 +543,16 @@ export function ProductPreviewCard({
                   </div>
                 )}
               </div>
-              
+
               {/* Instructions */}
               <div className="text-center mt-2">
                 <p className="text-orange-400 text-sm font-medium">Desliza el precio hacia la derecha para comprar</p>
-                </div>
+              </div>
             </div>
-            
+
             {/* Ver más Button */}
             {onExpand && (
-              <Button 
+              <Button
                 variant="ghost"
                 className="w-full text-orange-400 hover:text-orange-300 hover:bg-orange-400/10 border border-orange-400/20 py-3 rounded-xl transition-all duration-300"
                 onClick={onExpand}

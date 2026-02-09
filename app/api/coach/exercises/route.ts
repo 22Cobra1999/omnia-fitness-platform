@@ -44,14 +44,8 @@ export async function GET(request: NextRequest) {
       .select(isNutrition ? '*, recetas(id, receta)' : '*')
       .eq('coach_id', user.id)
 
-    // Para nutrición: Si la tabla tiene is_active, filtrar si se solicita
-    if (isNutrition && active) {
-      if (active === 'true') {
-        query = query.eq('is_active', true)
-      } else if (active === 'false') {
-        query = query.eq('is_active', false)
-      }
-    }
+    // Note: Removed SQL-level is_active filter for nutrition as the column does not exist.
+    // Filtering will be handled in-memory below.
 
     // Ordenar por id
     let { data, error } = await query.order('id', { ascending: false })
@@ -69,15 +63,6 @@ export async function GET(request: NextRequest) {
           .from(tableName)
           .select(isNutrition ? '*, recetas(id, receta)' : '*')
           .eq('coach_id', user.id)
-
-        // Aplicar el mismo filtro de is_active para nutrición si corresponde
-        if (isNutrition && active) {
-          if (active === 'true') {
-            adminQuery.eq('is_active', true)
-          } else if (active === 'false') {
-            adminQuery.eq('is_active', false)
-          }
-        }
 
         const { data: adminData, error: adminError } = await adminQuery.order('id', { ascending: false })
 
@@ -149,8 +134,8 @@ export async function GET(request: NextRequest) {
     // Filtrar por activo si se especificó (para ejercicios_detalles, verificar en activity_id)
     let filteredData = data || []
 
-    if (!isNutrition && active === 'true') {
-      // Para ejercicios_detalles, verificar si hay alguna actividad donde esté activo
+    if (active === 'true') {
+      // Verificar si hay alguna actividad donde esté activo
       // En modo genérico, consideramos activo si tiene activity_id no vacío
       filteredData = filteredData.filter((item: any) => {
         const activityId = item.activity_id
@@ -163,12 +148,12 @@ export async function GET(request: NextRequest) {
         }
         return true
       })
-    } else if (!isNutrition && active === 'false') {
+    } else if (active === 'false') {
       // Para ejercicios inactivos, verificar que todas las actividades tengan activo: false
       filteredData = filteredData.filter((item: any) => {
         const activityId = item.activity_id
         if (!activityId || (typeof activityId === 'object' && Object.keys(activityId).length === 0)) {
-          return true // Sin actividad = inactivo
+          return true // Sin actividad = inactivo (comportamiento por defecto)
         }
         if (typeof activityId === 'object') {
           return Object.values(activityId).every((val: any) => val?.activo === false)
@@ -178,6 +163,18 @@ export async function GET(request: NextRequest) {
     }
 
     const transformed = filteredData.map((item: any) => {
+      // Determinar is_active dinámicamente para ambos tipos
+      const activityId = item.activity_id
+      let isActive = true
+      if (activityId && typeof activityId === 'object') {
+        // Si hay actividades, verificar que al menos una tenga activo: true
+        const activities = Object.values(activityId) as any[]
+        isActive = activities.length > 0 && activities.some((val: any) => val?.activo !== false)
+      } else if (!activityId || (typeof activityId === 'object' && Object.keys(activityId).length === 0)) {
+        // Sin actividad asignada = item genérico del catálogo, mostrar como activo
+        isActive = true
+      }
+
       if (isNutrition) {
         return {
           id: item.id,
@@ -193,8 +190,8 @@ export async function GET(request: NextRequest) {
           minutos: item.minutos || 0,
           dificultad: item.dificultad || 'Principiante',
           video_url: item.video_url || null,
-          is_active: item.is_active !== false,
-          activo: item.is_active !== false,
+          is_active: isActive,
+          activo: isActive,
           isExisting: true,
           coach_id: item.coach_id,
           created_at: item.created_at,
@@ -203,18 +200,6 @@ export async function GET(request: NextRequest) {
           activity_id_new: item.activity_id_new || null
         }
       } else {
-        // Para ejercicios_detalles, determinar is_active desde activity_id
-        const activityId = item.activity_id
-        let isActive = true
-        if (activityId && typeof activityId === 'object') {
-          // Si hay actividades, verificar que al menos una tenga activo: true
-          const activities = Object.values(activityId) as any[]
-          isActive = activities.length > 0 && activities.some((val: any) => val?.activo !== false)
-        } else if (!activityId || (typeof activityId === 'object' && Object.keys(activityId).length === 0)) {
-          // Sin actividad asignada = item genérico del catálogo, mostrar como activo
-          isActive = true
-        }
-
         return {
           id: item.id,
           nombre_ejercicio: item.nombre_ejercicio || '',

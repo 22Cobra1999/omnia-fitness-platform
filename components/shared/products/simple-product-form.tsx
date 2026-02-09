@@ -1,7 +1,7 @@
 'use client'
 
 import { useState } from 'react'
-import { useSimpleLogger } from '@/lib/logging/logger'
+import { useLogger } from '@/lib/logging/logger'
 
 // ✅ FORMULARIO SIMPLIFICADO DE CREACIÓN DE PRODUCTOS
 // - Verificación general única
@@ -30,9 +30,9 @@ export default function SimpleProductForm() {
     capacity: '20',
     modality: 'online'
   })
-  
+
   const [isSubmitting, setIsSubmitting] = useState(false)
-  const logger = useSimpleLogger('SimpleProductForm')
+  const logger = useLogger('SimpleProductForm')
 
   // 🔍 VERIFICACIÓN GENERAL ÚNICA
   const validateForm = (): boolean => {
@@ -69,22 +69,22 @@ export default function SimpleProductForm() {
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
-    
+
     if (!validateForm()) return
-    
+
     setIsSubmitting(true)
-    
+
     try {
       const backendFields = extractBackendFields(formData)
-      
+
       const response = await fetch('/api/create-product-simple-optimized', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(backendFields)
       })
-      
+
       const result = await response.json()
-      
+
       if (result.success) {
         logger.success('Producto creado exitosamente')
         // Reset form
@@ -111,7 +111,7 @@ export default function SimpleProductForm() {
   return (
     <form onSubmit={handleSubmit} className="space-y-4 p-6 bg-gray-900 rounded-lg">
       <h2 className="text-xl font-bold text-white mb-4">Crear Producto</h2>
-      
+
       {/* Título */}
       <div>
         <label className="block text-sm font-medium text-gray-300 mb-1">
@@ -120,7 +120,7 @@ export default function SimpleProductForm() {
         <input
           type="text"
           value={formData.title}
-          onChange={(e) => setFormData({...formData, title: e.target.value})}
+          onChange={(e) => setFormData({ ...formData, title: e.target.value })}
           className="w-full px-3 py-2 bg-gray-800 border border-gray-600 rounded-md text-white focus:outline-none focus:ring-2 focus:ring-orange-500"
           required
         />
@@ -133,7 +133,7 @@ export default function SimpleProductForm() {
         </label>
         <textarea
           value={formData.description}
-          onChange={(e) => setFormData({...formData, description: e.target.value})}
+          onChange={(e) => setFormData({ ...formData, description: e.target.value })}
           className="w-full px-3 py-2 bg-gray-800 border border-gray-600 rounded-md text-white focus:outline-none focus:ring-2 focus:ring-orange-500"
           rows={3}
           required
@@ -149,7 +149,7 @@ export default function SimpleProductForm() {
           type="number"
           step="0.01"
           value={formData.price}
-          onChange={(e) => setFormData({...formData, price: e.target.value})}
+          onChange={(e) => setFormData({ ...formData, price: e.target.value })}
           className="w-full px-3 py-2 bg-gray-800 border border-gray-600 rounded-md text-white focus:outline-none focus:ring-2 focus:ring-orange-500"
           required
         />
@@ -162,7 +162,7 @@ export default function SimpleProductForm() {
         </label>
         <select
           value={formData.type}
-          onChange={(e) => setFormData({...formData, type: e.target.value as any})}
+          onChange={(e) => setFormData({ ...formData, type: e.target.value as any })}
           className="w-full px-3 py-2 bg-gray-800 border border-gray-600 rounded-md text-white focus:outline-none focus:ring-2 focus:ring-orange-500"
         >
           <option value="program">Programa</option>

@@ -1,0 +1,340 @@
+.next/dev/types/validator.ts(153,31): error TS2344: Type 'typeof import("/Users/francopomati/.gemini/antigravity/scratch/omnia-fitness-platform/app/api/activities/[id]/check-coach-survey/route")' does not satisfy the constraint 'RouteHandlerConfig<"/api/activities/[id]/check-coach-survey">'.
+  Types of property 'GET' are incompatible.
+    Type '(request: NextRequest, { params }: { params: { id: string; }; }) => Promise<NextResponse<{ success: boolean; error: string; }> | NextResponse<{ success: boolean; hasSurvey: boolean; survey: any; currentVersion: any; }>>' is not assignable to type '(request: NextRequest, context: { params: Promise<{ id: string; }>; }) => void | Response | Promise<void | Response>'.
+      Types of parameters '__1' and 'context' are incompatible.
+        Type '{ params: Promise<{ id: string; }>; }' is not assignable to type '{ params: { id: string; }; }'.
+          Types of property 'params' are incompatible.
+            Property 'id' is missing in type 'Promise<{ id: string; }>' but required in type '{ id: string; }'.
+.next/dev/types/validator.ts(162,31): error TS2344: Type 'typeof import("/Users/francopomati/.gemini/antigravity/scratch/omnia-fitness-platform/app/api/activities/[id]/finish-workshop/route")' does not satisfy the constraint 'RouteHandlerConfig<"/api/activities/[id]/finish-workshop">'.
+  Types of property 'POST' are incompatible.
+    Type '(request: NextRequest, { params }: { params: { id: string; }; }) => Promise<NextResponse<{ success: boolean; error: string; }> | NextResponse<{ success: boolean; message: string; version: number; }>>' is not assignable to type '(request: NextRequest, context: { params: Promise<{ id: string; }>; }) => void | Response | Promise<void | Response>'.
+      Types of parameters '__1' and 'context' are incompatible.
+        Type '{ params: Promise<{ id: string; }>; }' is not assignable to type '{ params: { id: string; }; }'.
+          Types of property 'params' are incompatible.
+            Property 'id' is missing in type 'Promise<{ id: string; }>' but required in type '{ id: string; }'.
+.next/dev/types/validator.ts(216,31): error TS2344: Type 'typeof import("/Users/francopomati/.gemini/antigravity/scratch/omnia-fitness-platform/app/api/activity-exercises/[id]/route")' does not satisfy the constraint 'RouteHandlerConfig<"/api/activity-exercises/[id]">'.
+  Types of property 'GET' are incompatible.
+    Type '(request: NextRequest, { params }: { params: { id: string; }; }) => Promise<NextResponse<{ error: string; }> | NextResponse<{ success: boolean; data: any; }>>' is not assignable to type '(request: NextRequest, context: { params: Promise<{ id: string; }>; }) => void | Response | Promise<void | Response>'.
+      Types of parameters '__1' and 'context' are incompatible.
+        Type '{ params: Promise<{ id: string; }>; }' is not assignable to type '{ params: { id: string; }; }'.
+          Types of property 'params' are incompatible.
+            Property 'id' is missing in type 'Promise<{ id: string; }>' but required in type '{ id: string; }'.
+.next/dev/types/validator.ts(225,31): error TS2344: Type 'typeof import("/Users/francopomati/.gemini/antigravity/scratch/omnia-fitness-platform/app/api/activity-nutrition/[id]/route")' does not satisfy the constraint 'RouteHandlerConfig<"/api/activity-nutrition/[id]">'.
+  Types of property 'GET' are incompatible.
+    Type '(request: NextRequest, { params }: { params: { id: string; }; }) => Promise<NextResponse<{ error: string; }> | NextResponse<{ success: boolean; data: { id: any; nombre_plato: any; tipo: any; ... 13 more ...; ingredientes: any; }[]; }>>' is not assignable to type '(request: NextRequest, context: { params: Promise<{ id: string; }>; }) => void | Response | Promise<void | Response>'.
+      Types of parameters '__1' and 'context' are incompatible.
+        Type '{ params: Promise<{ id: string; }>; }' is not assignable to type '{ params: { id: string; }; }'.
+          Types of property 'params' are incompatible.
+            Property 'id' is missing in type 'Promise<{ id: string; }>' but required in type '{ id: string; }'.
+.next/dev/types/validator.ts(360,31): error TS2344: Type 'typeof import("/Users/francopomati/.gemini/antigravity/scratch/omnia-fitness-platform/app/api/coach/clients/[id]/biometrics/route")' does not satisfy the constraint 'RouteHandlerConfig<"/api/coach/clients/[id]/biometrics">'.
+  Types of property 'PUT' are incompatible.
+    Type '(request: NextRequest, { params }: { params: { id: string; }; }) => Promise<NextResponse<{ success: boolean; }> | NextResponse<{ error: any; }>>' is not assignable to type '(request: NextRequest, context: { params: Promise<{ id: string; }>; }) => void | Response | Promise<void | Response>'.
+      Types of parameters '__1' and 'context' are incompatible.
+        Type '{ params: Promise<{ id: string; }>; }' is not assignable to type '{ params: { id: string; }; }'.
+          Types of property 'params' are incompatible.
+            Property 'id' is missing in type 'Promise<{ id: string; }>' but required in type '{ id: string; }'.
+.next/dev/types/validator.ts(378,31): error TS2344: Type 'typeof import("/Users/francopomati/.gemini/antigravity/scratch/omnia-fitness-platform/app/api/coach/clients/[id]/objectives/route")' does not satisfy the constraint 'RouteHandlerConfig<"/api/coach/clients/[id]/objectives">'.
+  Types of property 'PUT' are incompatible.
+    Type '(request: NextRequest, { params }: { params: { id: string; }; }) => Promise<NextResponse<{ success: boolean; }> | NextResponse<{ error: any; }>>' is not assignable to type '(request: NextRequest, context: { params: Promise<{ id: string; }>; }) => void | Response | Promise<void | Response>'.
+      Types of parameters '__1' and 'context' are incompatible.
+        Type '{ params: Promise<{ id: string; }>; }' is not assignable to type '{ params: { id: string; }; }'.
+          Types of property 'params' are incompatible.
+            Property 'id' is missing in type 'Promise<{ id: string; }>' but required in type '{ id: string; }'.
+.next/dev/types/validator.ts(819,31): error TS2344: Type 'typeof import("/Users/francopomati/.gemini/antigravity/scratch/omnia-fitness-platform/app/api/products/[id]/pause/route")' does not satisfy the constraint 'RouteHandlerConfig<"/api/products/[id]/pause">'.
+  Types of property 'POST' are incompatible.
+    Type '(request: NextRequest, { params }: { params: { id: string; }; }) => Promise<NextResponse<{ error: string; }> | NextResponse<{ success: boolean; product: { id: any; is_paused: any; }; message: string; }>>' is not assignable to type '(request: NextRequest, context: { params: Promise<{ id: string; }>; }) => void | Response | Promise<void | Response>'.
+      Types of parameters '__1' and 'context' are incompatible.
+        Type '{ params: Promise<{ id: string; }>; }' is not assignable to type '{ params: { id: string; }; }'.
+          Types of property 'params' are incompatible.
+            Property 'id' is missing in type 'Promise<{ id: string; }>' but required in type '{ id: string; }'.
+.next/types/validator.ts(153,31): error TS2344: Type 'typeof import("/Users/francopomati/.gemini/antigravity/scratch/omnia-fitness-platform/app/api/activities/[id]/check-coach-survey/route")' does not satisfy the constraint 'RouteHandlerConfig<"/api/activities/[id]/check-coach-survey">'.
+  Types of property 'GET' are incompatible.
+    Type '(request: NextRequest, { params }: { params: { id: string; }; }) => Promise<NextResponse<{ success: boolean; error: string; }> | NextResponse<{ success: boolean; hasSurvey: boolean; survey: any; currentVersion: any; }>>' is not assignable to type '(request: NextRequest, context: { params: Promise<{ id: string; }>; }) => void | Response | Promise<void | Response>'.
+      Types of parameters '__1' and 'context' are incompatible.
+        Type '{ params: Promise<{ id: string; }>; }' is not assignable to type '{ params: { id: string; }; }'.
+          Types of property 'params' are incompatible.
+            Property 'id' is missing in type 'Promise<{ id: string; }>' but required in type '{ id: string; }'.
+.next/types/validator.ts(162,31): error TS2344: Type 'typeof import("/Users/francopomati/.gemini/antigravity/scratch/omnia-fitness-platform/app/api/activities/[id]/finish-workshop/route")' does not satisfy the constraint 'RouteHandlerConfig<"/api/activities/[id]/finish-workshop">'.
+  Types of property 'POST' are incompatible.
+    Type '(request: NextRequest, { params }: { params: { id: string; }; }) => Promise<NextResponse<{ success: boolean; error: string; }> | NextResponse<{ success: boolean; message: string; version: number; }>>' is not assignable to type '(request: NextRequest, context: { params: Promise<{ id: string; }>; }) => void | Response | Promise<void | Response>'.
+      Types of parameters '__1' and 'context' are incompatible.
+        Type '{ params: Promise<{ id: string; }>; }' is not assignable to type '{ params: { id: string; }; }'.
+          Types of property 'params' are incompatible.
+            Property 'id' is missing in type 'Promise<{ id: string; }>' but required in type '{ id: string; }'.
+.next/types/validator.ts(216,31): error TS2344: Type 'typeof import("/Users/francopomati/.gemini/antigravity/scratch/omnia-fitness-platform/app/api/activity-exercises/[id]/route")' does not satisfy the constraint 'RouteHandlerConfig<"/api/activity-exercises/[id]">'.
+  Types of property 'GET' are incompatible.
+    Type '(request: NextRequest, { params }: { params: { id: string; }; }) => Promise<NextResponse<{ error: string; }> | NextResponse<{ success: boolean; data: any; }>>' is not assignable to type '(request: NextRequest, context: { params: Promise<{ id: string; }>; }) => void | Response | Promise<void | Response>'.
+      Types of parameters '__1' and 'context' are incompatible.
+        Type '{ params: Promise<{ id: string; }>; }' is not assignable to type '{ params: { id: string; }; }'.
+          Types of property 'params' are incompatible.
+            Property 'id' is missing in type 'Promise<{ id: string; }>' but required in type '{ id: string; }'.
+.next/types/validator.ts(225,31): error TS2344: Type 'typeof import("/Users/francopomati/.gemini/antigravity/scratch/omnia-fitness-platform/app/api/activity-nutrition/[id]/route")' does not satisfy the constraint 'RouteHandlerConfig<"/api/activity-nutrition/[id]">'.
+  Types of property 'GET' are incompatible.
+    Type '(request: NextRequest, { params }: { params: { id: string; }; }) => Promise<NextResponse<{ error: string; }> | NextResponse<{ success: boolean; data: { id: any; nombre_plato: any; tipo: any; ... 13 more ...; ingredientes: any; }[]; }>>' is not assignable to type '(request: NextRequest, context: { params: Promise<{ id: string; }>; }) => void | Response | Promise<void | Response>'.
+      Types of parameters '__1' and 'context' are incompatible.
+        Type '{ params: Promise<{ id: string; }>; }' is not assignable to type '{ params: { id: string; }; }'.
+          Types of property 'params' are incompatible.
+            Property 'id' is missing in type 'Promise<{ id: string; }>' but required in type '{ id: string; }'.
+.next/types/validator.ts(360,31): error TS2344: Type 'typeof import("/Users/francopomati/.gemini/antigravity/scratch/omnia-fitness-platform/app/api/coach/clients/[id]/biometrics/route")' does not satisfy the constraint 'RouteHandlerConfig<"/api/coach/clients/[id]/biometrics">'.
+  Types of property 'PUT' are incompatible.
+    Type '(request: NextRequest, { params }: { params: { id: string; }; }) => Promise<NextResponse<{ success: boolean; }> | NextResponse<{ error: any; }>>' is not assignable to type '(request: NextRequest, context: { params: Promise<{ id: string; }>; }) => void | Response | Promise<void | Response>'.
+      Types of parameters '__1' and 'context' are incompatible.
+        Type '{ params: Promise<{ id: string; }>; }' is not assignable to type '{ params: { id: string; }; }'.
+          Types of property 'params' are incompatible.
+            Property 'id' is missing in type 'Promise<{ id: string; }>' but required in type '{ id: string; }'.
+.next/types/validator.ts(378,31): error TS2344: Type 'typeof import("/Users/francopomati/.gemini/antigravity/scratch/omnia-fitness-platform/app/api/coach/clients/[id]/objectives/route")' does not satisfy the constraint 'RouteHandlerConfig<"/api/coach/clients/[id]/objectives">'.
+  Types of property 'PUT' are incompatible.
+    Type '(request: NextRequest, { params }: { params: { id: string; }; }) => Promise<NextResponse<{ success: boolean; }> | NextResponse<{ error: any; }>>' is not assignable to type '(request: NextRequest, context: { params: Promise<{ id: string; }>; }) => void | Response | Promise<void | Response>'.
+      Types of parameters '__1' and 'context' are incompatible.
+        Type '{ params: Promise<{ id: string; }>; }' is not assignable to type '{ params: { id: string; }; }'.
+          Types of property 'params' are incompatible.
+            Property 'id' is missing in type 'Promise<{ id: string; }>' but required in type '{ id: string; }'.
+.next/types/validator.ts(819,31): error TS2344: Type 'typeof import("/Users/francopomati/.gemini/antigravity/scratch/omnia-fitness-platform/app/api/products/[id]/pause/route")' does not satisfy the constraint 'RouteHandlerConfig<"/api/products/[id]/pause">'.
+  Types of property 'POST' are incompatible.
+    Type '(request: NextRequest, { params }: { params: { id: string; }; }) => Promise<NextResponse<{ error: string; }> | NextResponse<{ success: boolean; product: { id: any; is_paused: any; }; message: string; }>>' is not assignable to type '(request: NextRequest, context: { params: Promise<{ id: string; }>; }) => void | Response | Promise<void | Response>'.
+      Types of parameters '__1' and 'context' are incompatible.
+        Type '{ params: Promise<{ id: string; }>; }' is not assignable to type '{ params: { id: string; }; }'.
+          Types of property 'params' are incompatible.
+            Property 'id' is missing in type 'Promise<{ id: string; }>' but required in type '{ id: string; }'.
+app/actions/auth-actions.ts(3,10): error TS2724: '"@/lib/supabase/supabase-client"' has no exported member named 'getServerSupabaseClient'. Did you mean 'getSupabaseClient'?
+app/actions/force-insert-enrollment.ts(64,12): error TS2551: Property 'catch' does not exist on type 'PostgrestFilterBuilder<any, any, any, any, "execute_sql", null, "RPC">'. Did you mean 'match'?
+app/actions/force-insert-enrollment.ts(64,19): error TS7006: Parameter 'err' implicitly has an 'any' type.
+app/actions/setup-db.ts(36,37): error TS18046: 'error' is of type 'unknown'.
+app/api/activities/[id]/purchase-status/route.ts(72,49): error TS7006: Parameter 'e' implicitly has an 'any' type.
+app/api/activities/[id]/purchase-status/route.ts(83,54): error TS7006: Parameter 'e' implicitly has an 'any' type.
+app/api/activities/[id]/purchase-status/route.ts(84,54): error TS7006: Parameter 'e' implicitly has an 'any' type.
+app/api/client/invoice-history/route.ts(105,52): error TS7006: Parameter 'sum' implicitly has an 'any' type.
+app/api/client/invoice-history/route.ts(105,57): error TS7006: Parameter 'p' implicitly has an 'any' type.
+app/api/client/invoice-history/route.ts(106,58): error TS7006: Parameter 'p' implicitly has an 'any' type.
+app/api/client/recent-purchases/route.ts(41,45): error TS7006: Parameter 'p' implicitly has an 'any' type.
+app/api/client/recent-purchases/route.ts(42,41): error TS7006: Parameter 'p' implicitly has an 'any' type.
+app/api/client/recent-purchases/route.ts(53,27): error TS7006: Parameter 'a' implicitly has an 'any' type.
+app/api/coach/check-real-sizes/route.ts(26,41): error TS7006: Parameter 'a' implicitly has an 'any' type.
+app/api/coach/check-real-sizes/route.ts(141,11): error TS7006: Parameter 'f' implicitly has an 'any' type.
+app/api/coach/check-real-sizes/route.ts(144,34): error TS7006: Parameter 'file' implicitly has an 'any' type.
+app/api/coach/check-real-sizes/route.ts(162,11): error TS7006: Parameter 'f' implicitly has an 'any' type.
+app/api/coach/check-real-sizes/route.ts(165,30): error TS7006: Parameter 'file' implicitly has an 'any' type.
+app/api/coach/storage-usage/route.ts(26,41): error TS7006: Parameter 's' implicitly has an 'any' type.
+app/api/coach/storage-usage/route.ts(27,41): error TS7006: Parameter 's' implicitly has an 'any' type.
+app/api/coach/storage-usage/route.ts(28,39): error TS7006: Parameter 's' implicitly has an 'any' type.
+app/api/coaches/route.ts(107,9): error TS1117: An object literal cannot have multiple properties with the same name.
+app/api/coaches/route.ts(108,9): error TS1117: An object literal cannot have multiple properties with the same name.
+app/api/delete-exercise-items/route.ts(40,61): error TS7006: Parameter 'exercise' implicitly has an 'any' type.
+app/api/delete-nutrition-items/route.ts(53,31): error TS7006: Parameter 'plate' implicitly has an 'any' type.
+app/api/enrollments/create-with-mercadopago/route.ts(348,28): error TS2304: Cannot find name 'initPoint'.
+app/api/existing-exercises/route.ts(182,52): error TS7006: Parameter 'id' implicitly has an 'any' type.
+app/api/get-product-planning/route.ts(239,30): error TS7006: Parameter 'semana' implicitly has an 'any' type.
+app/api/get-product-planning/route.ts(280,29): error TS7006: Parameter 'ejercicio' implicitly has an 'any' type.
+app/api/get-product-planning/route.ts(355,35): error TS7006: Parameter 'ejercicioFromDb' implicitly has an 'any' type.
+app/api/get-product-planning/route.ts(553,33): error TS2304: Cannot find name 'index'.
+app/api/get-product-planning/route.ts(553,58): error TS2304: Cannot find name 'index'.
+app/api/get-product-planning/route.ts(561,13): error TS2353: Object literal may only specify known properties, and 'ejercicios' does not exist in type 'any[]'.
+app/api/get-product-planning/route.ts(612,29): error TS2339: Property 'ejercicios' does not exist on type 'never'.
+app/api/get-product-planning/route.ts(612,62): error TS2339: Property 'exercises' does not exist on type 'never'.
+app/api/get-product-planning/route.ts(616,31): error TS2339: Property 'ejercicios' does not exist on type 'never'.
+app/api/get-product-planning/route.ts(616,56): error TS2339: Property 'exercises' does not exist on type 'never'.
+app/api/google/calendar/events/route.ts(180,16): error TS7006: Parameter 'e' implicitly has an 'any' type.
+app/api/mercadopago/checkout-pro/create-preference-simple/route.ts(115,54): error TS2322: Type '{ items: { title: any; quantity: number; unit_price: number; currency_id: string; }[]; back_urls: { success: string; failure: string; pending: string; }; auto_return: "approved"; payer: { email: any; }; }' is not assignable to type 'PreferenceRequest'.
+  Types of property 'items' are incompatible.
+    Type '{ title: any; quantity: number; unit_price: number; currency_id: string; }[]' is not assignable to type 'Items[]'.
+      Property 'id' is missing in type '{ title: any; quantity: number; unit_price: number; currency_id: string; }' but required in type 'Items'.
+app/api/mercadopago/webhook/route.ts(114,53): error TS2339: Property 'preference_id' does not exist on type 'PaymentResponse'.
+app/api/mercadopago/webhook/route.ts(123,24): error TS2339: Property 'preference_id' does not exist on type 'PaymentResponse'.
+app/api/mercadopago/webhook/route.ts(128,57): error TS2339: Property 'preference_id' does not exist on type 'PaymentResponse'.
+app/api/mercadopago/webhook/route.ts(178,55): error TS2339: Property 'preference_id' does not exist on type 'PaymentResponse'.
+app/api/payments/create-preference/route.ts(143,48): error TS2322: Type '{ items: { title: any; quantity: number; unit_price: number; currency_id: string; }[]; marketplace_fee: number; external_reference: string; back_urls: { success: string; failure: string; pending: string; }; ... 9 more ...; metadata: { ...; }; }' is not assignable to type 'PreferenceRequest'.
+  Types of property 'expiration_date_from' are incompatible.
+    Type 'null' is not assignable to type 'string | undefined'.
+app/api/payments/webhook/route.ts(89,26): error TS2339: Property 'preference_id' does not exist on type 'PaymentResponse'.
+app/api/payments/webhook/route.ts(90,72): error TS2339: Property 'preference_id' does not exist on type 'PaymentResponse'.
+app/api/payments/webhook/route.ts(119,57): error TS2339: Property 'preference_id' does not exist on type 'PaymentResponse'.
+app/api/payments/webhook/route.ts(219,25): error TS7006: Parameter 'err' implicitly has an 'any' type.
+app/api/save-weekly-planning/route.ts(91,20): error TS7006: Parameter 'ex' implicitly has an 'any' type.
+app/api/storage/delete-file/route.ts(40,47): error TS7006: Parameter 'a' implicitly has an 'any' type.
+app/api/storage/update-file-name/route.ts(39,41): error TS7006: Parameter 'a' implicitly has an 'any' type.
+app/api/storage/update-file-name/route.ts(157,45): error TS7006: Parameter 'f' implicitly has an 'any' type.
+app/components/purchase-button.tsx(30,28): error TS2554: Expected 3 arguments, but got 1.
+components/client/profile/client-profile-card.tsx(36,11): error TS7006: Parameter 'name' implicitly has an 'any' type.
+components/client/profile/client-profile-card.tsx(97,13): error TS2322: Type '{ value: number; className: string; indicatorClassName: string; }' is not assignable to type 'IntrinsicAttributes & Omit<ProgressProps & RefAttributes<HTMLDivElement>, "ref"> & RefAttributes<HTMLDivElement>'.
+  Property 'indicatorClassName' does not exist on type 'IntrinsicAttributes & Omit<ProgressProps & RefAttributes<HTMLDivElement>, "ref"> & RefAttributes<HTMLDivElement>'.
+components/coach/coach-calendar-screen.tsx(325,18): error TS7031: Binding element 'data' implicitly has an 'any' type.
+components/mercadopago/checkout-pro-button.tsx(11,26): error TS2307: Cannot find module '@/hooks/use-toast' or its corresponding type declarations.
+components/mobile/activity-screen.tsx(286,52): error TS7006: Parameter 'p' implicitly has an 'any' type.
+components/mobile/activity-screen.tsx(310,49): error TS7006: Parameter 'p' implicitly has an 'any' type.
+components/mobile/activity-screen.tsx(319,50): error TS7006: Parameter 'p' implicitly has an 'any' type.
+components/mobile/activity-screen.tsx(346,32): error TS7006: Parameter 'record' implicitly has an 'any' type.
+components/mobile/activity-screen.tsx(767,15): error TS7006: Parameter 'enrollment' implicitly has an 'any' type.
+components/mobile/activity-screen.tsx(803,64): error TS7006: Parameter 'enrollment' implicitly has an 'any' type.
+components/mobile/activity-screen.tsx(817,61): error TS7006: Parameter 'e' implicitly has an 'any' type.
+components/mobile/activity-screen.tsx(827,56): error TS7006: Parameter 'profile' implicitly has an 'any' type.
+components/mobile/activity-screen.tsx(829,57): error TS7006: Parameter 'enrollment' implicitly has an 'any' type.
+components/mobile/activity-screen.tsx(833,73): error TS2339: Property 'full_name' does not exist on type '{}'.
+components/mobile/activity-screen.tsx(834,79): error TS2339: Property 'avatar_url' does not exist on type '{}'.
+components/mobile/activity-screen.tsx(843,68): error TS7006: Parameter 'enrollment' implicitly has an 'any' type.
+components/mobile/activity-screen.tsx(1544,15): error TS2322: Type 'string | null | undefined' is not assignable to type 'string | undefined'.
+  Type 'null' is not assignable to type 'string | undefined'.
+components/mobile/activity-screen.tsx(1545,15): error TS2322: Type 'string | null | undefined' is not assignable to type 'string | undefined'.
+  Type 'null' is not assignable to type 'string | undefined'.
+components/mobile/activity-screen.tsx(1738,67): error TS2322: Type '(silentUpdate?: boolean) => Promise<void>' is not assignable to type 'MouseEventHandler<HTMLButtonElement>'.
+  Types of parameters 'silentUpdate' and 'event' are incompatible.
+    Type 'MouseEvent<HTMLButtonElement, MouseEvent>' is not assignable to type 'boolean | undefined'.
+components/mobile/activity-screen.tsx(1972,9): error TS2322: Type 'import("/Users/francopomati/.gemini/antigravity/scratch/omnia-fitness-platform/types/activity").Activity | null' is not assignable to type 'Activity | null'.
+  Type 'import("/Users/francopomati/.gemini/antigravity/scratch/omnia-fitness-platform/types/activity").Activity' is not assignable to type 'Activity'.
+    Types of property 'description' are incompatible.
+      Type 'string | null' is not assignable to type 'string | undefined'.
+        Type 'null' is not assignable to type 'string | undefined'.
+components/mobile/activity-screen.tsx(1981,11): error TS2322: Type '{ isOpen: true; onClose: () => void; activityId: string; activityTitle: string; userRating: null; hasUserSubmittedSurvey: boolean; }' is not assignable to type 'IntrinsicAttributes & ActivitySurveyModalProps'.
+  Property 'activityId' does not exist on type 'IntrinsicAttributes & ActivitySurveyModalProps'.
+components/mobile/activity-screen.tsx(2000,13): error TS2353: Object literal may only specify known properties, and 'total_sales' does not exist in type '{ id: string; name: string; avatar_url?: string | undefined; bio?: string | undefined; location?: string | undefined; experience_years?: number | undefined; specialization?: string | undefined; certifications?: string[] | undefined; rating?: number | undefined; total_sessions?: number | undefined; total_products?: n...'.
+components/mobile/messages-screen.tsx(131,59): error TS7006: Parameter 'c' implicitly has an 'any' type.
+components/mobile/messages-screen.tsx(132,58): error TS7006: Parameter 'c' implicitly has an 'any' type.
+components/mobile/messages-screen.tsx(152,34): error TS7006: Parameter 'profile' implicitly has an 'any' type.
+components/mobile/messages-screen.tsx(156,76): error TS7006: Parameter 'conv' implicitly has an 'any' type.
+components/mobile/messages-screen.tsx(162,37): error TS2339: Property 'full_name' does not exist on type '{}'.
+components/mobile/messages-screen.tsx(163,39): error TS2339: Property 'avatar_url' does not exist on type '{}'.
+components/mobile/messages-screen.tsx(164,39): error TS2339: Property 'full_name' does not exist on type '{}'.
+components/mobile/messages-screen.tsx(165,41): error TS2339: Property 'avatar_url' does not exist on type '{}'.
+components/shared/activities/activity-detail-page.tsx(191,11): error TS2322: Type 'import("/Users/francopomati/.gemini/antigravity/scratch/omnia-fitness-platform/types/activity").Activity' is not assignable to type 'Activity'.
+  Types of property 'description' are incompatible.
+    Type 'string | null' is not assignable to type 'string | undefined'.
+      Type 'null' is not assignable to type 'string | undefined'.
+components/shared/activities/activity-detail-screen.tsx(9,28): error TS2307: Cannot find module './vimeo-embed' or its corresponding type declarations.
+components/shared/activities/exercise-routines.tsx(161,19): error TS2345: Argument of type '{ videoUrl: string; id: string; title: string; duration: string; calories: number; image: string; category: string; }' is not assignable to parameter of type '{ id: string; time: string; duration: string; title: string; category: string; repsXSeries: string; calories: number; note: string; videoUrl?: string | undefined; }'.
+  Type '{ videoUrl: string; id: string; title: string; duration: string; calories: number; image: string; category: string; }' is missing the following properties from type '{ id: string; time: string; duration: string; title: string; category: string; repsXSeries: string; calories: number; note: string; videoUrl?: string | undefined; }': time, repsXSeries, note
+components/shared/activities/fitness-exercise-detail-card.tsx(2,39): error TS2307: Cannot find module '@/hooks/shared/use-fitness-exercise-details' or its corresponding type declarations.
+components/shared/activities/fitness-insights.tsx(719,25): error TS2322: Type '{ isOpen: boolean; onClose: () => void; videoUrl: string; title: string; isPlaying: boolean; volume: number; }' is not assignable to type 'IntrinsicAttributes & VideoPlayerProps'.
+  Property 'isOpen' does not exist on type 'IntrinsicAttributes & VideoPlayerProps'.
+components/shared/activities/fitness-insights.tsx(1012,13): error TS17001: JSX elements cannot have multiple attributes with the same name.
+components/shared/activities/fitness-insights.tsx(1376,11): error TS2322: Type '{ isOpen: boolean; onClose: () => void; videoUrl: string; title: string; }' is not assignable to type 'IntrinsicAttributes & VideoPlayerProps'.
+  Property 'isOpen' does not exist on type 'IntrinsicAttributes & VideoPlayerProps'.
+components/shared/activities/fitness-tracker.tsx(9,38): error TS2307: Cannot find module '@/components/chat-with-fitness-coach' or its corresponding type declarations.
+components/shared/activities/gym-tracker.tsx(9,34): error TS2307: Cannot find module '@/components/chat-with-gym-coach' or its corresponding type declarations.
+components/shared/activities/program-import-form.tsx(54,18): error TS7006: Parameter 'results' implicitly has an 'any' type.
+components/shared/activities/program-import-form.tsx(58,15): error TS7006: Parameter 'error' implicitly has an 'any' type.
+components/shared/activities/program-import-form.tsx(89,45): error TS2503: Cannot find namespace 'Papa'.
+components/shared/activities/purchase-activity-form.tsx(59,28): error TS2554: Expected 3 arguments, but got 1.
+components/shared/activities/purchase-activity-form.tsx(72,11): error TS2322: Type 'string | undefined' is not assignable to type 'string'.
+  Type 'undefined' is not assignable to type 'string'.
+components/shared/activities/purchase-activity-form.tsx(83,43): error TS2551: Property 'enrollmentId' does not exist on type '{ success: boolean; message: string; enrollment: any; transactionId: any; invoiceNumber: string; error?: undefined; } | { success: boolean; error: any; message?: undefined; enrollment?: undefined; transactionId?: undefined; invoiceNumber?: undefined; }'. Did you mean 'enrollment'?
+  Property 'enrollmentId' does not exist on type '{ success: boolean; message: string; enrollment: any; transactionId: any; invoiceNumber: string; error?: undefined; }'.
+components/shared/activities/recent-activities.tsx(272,7): error TS2322: Type 'null' is not assignable to type 'never'.
+components/shared/activities/start-activity-button.tsx(299,15): error TS2322: Type '(startToday?: boolean) => Promise<void>' is not assignable to type 'MouseEventHandler<HTMLButtonElement>'.
+  Types of parameters 'startToday' and 'event' are incompatible.
+    Type 'MouseEvent<HTMLButtonElement, MouseEvent>' is not assignable to type 'boolean | undefined'.
+components/shared/admin/auto-usage-tracker.tsx(37,40): error TS2345: Argument of type 'any[]' is not assignable to parameter of type '[input: URL | RequestInfo, init?: RequestInit | undefined]'.
+  Target requires 1 element(s) but source may have fewer.
+components/shared/admin/debug-supabase.tsx(44,53): error TS7006: Parameter 'b' implicitly has an 'any' type.
+components/shared/calendar/modify-calendar.tsx(46,23): error TS2322: Type '{ mode: string; selected: Date | undefined; onSelect: Dispatch<SetStateAction<Date | undefined>>; className: string; }' is not assignable to type 'IntrinsicAttributes & CalendarProps'.
+  Property 'mode' does not exist on type 'IntrinsicAttributes & CalendarProps'.
+components/shared/calendar/modify-fitness-calendar.tsx(33,17): error TS2322: Type '{ mode: string; selected: Date | undefined; onSelect: Dispatch<SetStateAction<Date | undefined>>; className: string; }' is not assignable to type 'IntrinsicAttributes & CalendarProps'.
+  Property 'mode' does not exist on type 'IntrinsicAttributes & CalendarProps'.
+components/shared/calendar/modify-gym-calendar.tsx(33,17): error TS2322: Type '{ mode: string; selected: Date | undefined; onSelect: Dispatch<SetStateAction<Date | undefined>>; className: string; }' is not assignable to type 'IntrinsicAttributes & CalendarProps'.
+  Property 'mode' does not exist on type 'IntrinsicAttributes & CalendarProps'.
+components/shared/calendar/schedule-activity-button.tsx(8,36): error TS2307: Cannot find module '@/hooks/shared/use-activities-store' or its corresponding type declarations.
+components/shared/community/feed.tsx(13,39): error TS2307: Cannot find module '@/components/client/dashboard/top-client-contribution' or its corresponding type declarations.
+components/shared/community/feed.tsx(490,24): error TS2532: Object is possibly 'undefined'.
+components/shared/community/feed.tsx(490,69): error TS2532: Object is possibly 'undefined'.
+components/shared/community/omnia-publication.tsx(7,52): error TS2304: Cannot find name 'Post'.
+components/shared/community/post-interaction.tsx(4,51): error TS2304: Cannot find name 'Post'.
+components/shared/csv/csv-debug.tsx(20,18): error TS7006: Parameter 'results' implicitly has an 'any' type.
+components/shared/csv/csv-import-modular.tsx(40,18): error TS7006: Parameter 'results' implicitly has an 'any' type.
+components/shared/csv/csv-import-modular.tsx(55,15): error TS7006: Parameter 'error' implicitly has an 'any' type.
+components/shared/csv/csv-import-simple.tsx(41,18): error TS7006: Parameter 'results' implicitly has an 'any' type.
+components/shared/csv/csv-import-simple.tsx(63,15): error TS7006: Parameter 'error' implicitly has an 'any' type.
+components/shared/csv/csv-preview-modular.tsx(4,10): error TS2305: Module '"@/lib/data/csv-parser"' has no exported member 'parseModularCSVRow'.
+components/shared/csv/csv-preview-modular.tsx(254,66): error TS2322: Type 'unknown' is not assignable to type 'ReactNode'.
+components/shared/csv/csv-upload-form.tsx(158,66): error TS2322: Type 'Dispatch<SetStateAction<boolean>>' is not assignable to type '(checked: CheckedState) => void'.
+  Types of parameters 'value' and 'checked' are incompatible.
+    Type 'CheckedState' is not assignable to type 'SetStateAction<boolean>'.
+      Type '"indeterminate"' is not assignable to type 'SetStateAction<boolean>'.
+components/shared/layout/basic-header.tsx(5,31): error TS2307: Cannot find module './omnia-logo' or its corresponding type declarations.
+components/shared/layout/header.tsx(13,11): error TS2339: Property 'userType' does not exist on type 'UserContextType'.
+components/shared/layout/header.tsx(13,21): error TS2339: Property 'isLoggedIn' does not exist on type 'UserContextType'.
+components/shared/layout/header.tsx(60,17): error TS2322: Type '{ text: string; size: number; darkBg: boolean; inflate: number; }' is not assignable to type 'IntrinsicAttributes'.
+  Property 'text' does not exist on type 'IntrinsicAttributes'.
+components/shared/meet-notifications-modal.tsx(286,11): error TS2367: This comparison appears to be unintentional because the types '"coach"' and '"client"' have no overlap.
+components/shared/meet-notifications-modal.tsx(350,26): error TS2367: This comparison appears to be unintentional because the types '"coach"' and '"client"' have no overlap.
+components/shared/meet-notifications-modal.tsx(351,28): error TS2367: This comparison appears to be unintentional because the types '"coach"' and '"client"' have no overlap.
+components/shared/misc/dashboard-controller.tsx(211,28): error TS2769: No overload matches this call.
+  Overload 1 of 2, '(props: RadialBarProps): RadialBar', gave the following error.
+    Type '{ minAngle: number; label: { position: "insideStart"; fill: string; }; background: true; dataKey: string; }' is not assignable to type 'IntrinsicAttributes & IntrinsicClassAttributes<RadialBar> & Pick<Readonly<RadialBarProps>, never> & InexactPartial<...> & InexactPartial<...>'.
+      Property 'minAngle' does not exist on type 'IntrinsicAttributes & IntrinsicClassAttributes<RadialBar> & Pick<Readonly<RadialBarProps>, never> & InexactPartial<...> & InexactPartial<...>'.
+  Overload 2 of 2, '(props: RadialBarProps, context: any): RadialBar', gave the following error.
+    Type '{ minAngle: number; label: { position: "insideStart"; fill: string; }; background: true; dataKey: string; }' is not assignable to type 'IntrinsicAttributes & IntrinsicClassAttributes<RadialBar> & Pick<Readonly<RadialBarProps>, never> & InexactPartial<...> & InexactPartial<...>'.
+      Property 'minAngle' does not exist on type 'IntrinsicAttributes & IntrinsicClassAttributes<RadialBar> & Pick<Readonly<RadialBarProps>, never> & InexactPartial<...> & InexactPartial<...>'.
+components/shared/misc/index.ts(1,29): error TS2307: Cannot find module './gym-insights' or its corresponding type declarations.
+components/shared/misc/optimized-tabs.tsx(8,34): error TS2307: Cannot find module '@/hooks/shared/use-tab-controller' or its corresponding type declarations.
+components/shared/misc/optimized-tabs.tsx(79,28): error TS7006: Parameter 'tab' implicitly has an 'any' type.
+components/shared/misc/optimized-tabs.tsx(113,24): error TS7006: Parameter 'tab' implicitly has an 'any' type.
+components/shared/misc/purchase-checkout.tsx(90,17): error TS7006: Parameter 'err' implicitly has an 'any' type.
+components/shared/misc/reward-system-design.tsx(7,31): error TS2307: Cannot find module './client-rewards' or its corresponding type declarations.
+components/shared/misc/reward-system-design.tsx(8,30): error TS2307: Cannot find module './coach-rewards' or its corresponding type declarations.
+components/shared/misc/rewards-section.tsx(9,31): error TS2307: Cannot find module './omnia-coin-icon' or its corresponding type declarations.
+components/shared/misc/rewards-section.tsx(11,32): error TS2307: Cannot find module './avatar-selector' or its corresponding type declarations.
+components/shared/misc/rewards-section.tsx(88,30): error TS7006: Parameter 'id' implicitly has an 'any' type.
+components/shared/misc/TodayScreen.tsx(4443,95): error TS2339: Property 'series' does not exist on type '{ url: string; exerciseName: string; exerciseId: string; description?: string | undefined; equipment?: string | undefined; detalle_series?: any; duration?: number | undefined; descripcion?: string | undefined; ... 9 more ...; coverImageUrl?: string | ... 1 more ... | undefined; }'.
+components/shared/misc/TodayScreen.tsx(4479,111): error TS2339: Property 'series' does not exist on type '{ url: string; exerciseName: string; exerciseId: string; description?: string | undefined; equipment?: string | undefined; detalle_series?: any; duration?: number | undefined; descripcion?: string | undefined; ... 9 more ...; coverImageUrl?: string | ... 1 more ... | undefined; }'.
+components/shared/misc/TodayScreen.tsx(4482,108): error TS2339: Property 'series' does not exist on type '{ url: string; exerciseName: string; exerciseId: string; description?: string | undefined; equipment?: string | undefined; detalle_series?: any; duration?: number | undefined; descripcion?: string | undefined; ... 9 more ...; coverImageUrl?: string | ... 1 more ... | undefined; }'.
+components/shared/misc/weekly-progress.tsx(203,34): error TS7053: Element implicitly has an 'any' type because expression of type 'string' can't be used to index type '{ daily: { name: string; protein: number; carbs: number; fat: number; gym: number; fitness: number; calories: number; }[]; weekly: { name: string; protein: number; carbs: number; fat: number; gym: number; fitness: number; }[]; monthly: { ...; }[]; }'.
+  No index signature with a parameter of type 'string' was found on type '{ daily: { name: string; protein: number; carbs: number; fat: number; gym: number; fitness: number; calories: number; }[]; weekly: { name: string; protein: number; carbs: number; fat: number; gym: number; fitness: number; }[]; monthly: { ...; }[]; }'.
+components/shared/payments/payment-methods-modal.tsx(93,39): error TS18048: 'selectedPaymentMethod.processingFee' is possibly 'undefined'.
+components/shared/payments/payment-methods-modal.tsx(95,68): error TS18048: 'selectedPaymentMethod.processingFee' is possibly 'undefined'.
+components/shared/payments/payment-methods-modal.tsx(96,67): error TS18048: 'selectedPaymentMethod.processingFee' is possibly 'undefined'.
+components/shared/products/conditional-rules-panel.tsx(196,46): error TS7006: Parameter 'item' implicitly has an 'any' type.
+components/shared/products/expanded-product-card.tsx(164,39): error TS2367: This comparison appears to be unintentional because the types '"workshop" | "document"' and '"fitness"' have no overlap.
+components/shared/products/expanded-product-card.tsx(168,37): error TS2339: Property 'categoria' does not exist on type '{ id?: number | undefined; title: string; description: string; price: number; type: "workshop" | "program" | "document"; image?: string | null | undefined; video?: string | null | undefined; ... 14 more ...; blocks?: { ...; }[] | undefined; }'.
+components/shared/products/expanded-product-card.tsx(168,66): error TS2367: This comparison appears to be unintentional because the types '"program"' and '"nutrition"' have no overlap.
+components/shared/products/product-detail-view.tsx(300,11): error TS2322: Type 'import("/Users/francopomati/.gemini/antigravity/scratch/omnia-fitness-platform/types/activity").Activity' is not assignable to type 'Activity'.
+  Types of property 'description' are incompatible.
+    Type 'string | null' is not assignable to type 'string | undefined'.
+      Type 'null' is not assignable to type 'string | undefined'.
+components/shared/products/product-preview-card.tsx(236,11): error TS7034: Variable 'details' implicitly has type 'any[]' in some locations where its type cannot be determined.
+components/shared/products/product-preview-card.tsx(239,26): error TS7005: Variable 'details' implicitly has an 'any[]' type.
+components/shared/ui/global-settings-button.tsx(6,30): error TS2307: Cannot find module './logout-button' or its corresponding type declarations.
+components/shared/ui/icons.tsx(53,26): error TS2749: 'LucideProps' refers to a value, but is being used as a type here. Did you mean 'typeof LucideProps'?
+components/shared/video/universal-video-uploader.tsx(102,23): error TS2339: Property 'url' does not exist on type 'never'.
+components/shared/video/video-player.tsx(135,22): error TS2554: Expected 0 arguments, but got 1.
+components/shared/video/video-upload.tsx(99,28): error TS7006: Parameter 'progress' implicitly has an 'any' type.
+components/shared/video/vimeo-preview.tsx(22,34): error TS2345: Argument of type 'string | null | undefined' is not assignable to parameter of type 'string'.
+  Type 'undefined' is not assignable to type 'string'.
+components/ui/chart.tsx(119,7): error TS2339: Property 'payload' does not exist on type 'Omit<Omit<Props<ValueType, NameType>, PropertiesReadFromContext> & { active?: boolean | undefined; includeHidden?: boolean | undefined; ... 17 more ...; axisId?: AxisId | undefined; } & ClassAttributes<...> & HTMLAttributes<...> & { ...; }, "ref">'.
+components/ui/chart.tsx(124,7): error TS2339: Property 'label' does not exist on type 'Omit<Omit<Props<ValueType, NameType>, PropertiesReadFromContext> & { active?: boolean | undefined; includeHidden?: boolean | undefined; ... 17 more ...; axisId?: AxisId | undefined; } & ClassAttributes<...> & HTMLAttributes<...> & { ...; }, "ref">'.
+components/ui/chart.tsx(188,25): error TS7006: Parameter 'item' implicitly has an 'any' type.
+components/ui/chart.tsx(188,31): error TS7006: Parameter 'index' implicitly has an 'any' type.
+components/ui/chart.tsx(264,41): error TS2344: Type '"payload" | "verticalAlign"' does not satisfy the constraint '"string" | "name" | "path" | "media" | "spacing" | "order" | "height" | "width" | "rotate" | "scale" | "cursor" | "fill" | "stroke" | "strokeWidth" | "fontFamily" | "fontSize" | ... 430 more ... | "onBBoxUpdate"'.
+  Type '"payload"' is not assignable to type '"string" | "name" | "path" | "media" | "spacing" | "order" | "height" | "width" | "rotate" | "scale" | "cursor" | "fill" | "stroke" | "strokeWidth" | "fontFamily" | "fontSize" | ... 430 more ... | "onBBoxUpdate"'.
+components/ui/chart.tsx(275,19): error TS2339: Property 'length' does not exist on type '{}'.
+components/ui/chart.tsx(288,18): error TS2339: Property 'map' does not exist on type '{}'.
+components/ui/chart.tsx(288,23): error TS7006: Parameter 'item' implicitly has an 'any' type.
+components/ui/date-picker.tsx(34,19): error TS2322: Type '{ mode: string; selected: Date | undefined; onSelect: (date: Date | undefined) => void; initialFocus: true; }' is not assignable to type 'IntrinsicAttributes & CalendarProps'.
+  Property 'mode' does not exist on type 'IntrinsicAttributes & CalendarProps'.
+components/ui/sidebar.tsx(8,29): error TS2307: Cannot find module '@/hooks/shared/use-mobile' or its corresponding type declarations.
+lib/auth/auth.ts(49,3): error TS2322: Type '{ sub: string; email: string; exp: number; } | null' is not assignable to type 'string'.
+  Type 'null' is not assignable to type 'string'.
+lib/auth/auth.ts(49,36): error TS2554: Expected 1 arguments, but got 2.
+lib/utils/auto-adjust-limits.ts(487,34): error TS18047: 'activities' is possibly 'null'.
+lib/utils/error-prevention.ts(132,31): error TS2686: 'React' refers to a UMD global, but the current file is a module. Consider adding an import instead.
+lib/utils/middlewares.ts(2,29): error TS2307: Cannot find module './auth' or its corresponding type declarations.
+lib/utils/middlewares.ts(26,24): error TS2345: Argument of type '(req: NextRequest, user: any) => Promise<NextResponse<unknown>> | NextResponse<{ error: string; }>' is not assignable to parameter of type '(req: NextRequest, user: any) => Promise<NextResponse<unknown>>'.
+  Type 'Promise<NextResponse<unknown>> | NextResponse<{ error: string; }>' is not assignable to type 'Promise<NextResponse<unknown>>'.
+    Type 'NextResponse<{ error: string; }>' is missing the following properties from type 'Promise<NextResponse<unknown>>': then, catch, finally, [Symbol.toStringTag]
+middleware.ts(66,7): error TS2353: Object literal may only specify known properties, and 'cookies' does not exist in type 'SupabaseClientOptions<"public">'.
+middleware.ts(67,13): error TS7006: Parameter 'name' implicitly has an 'any' type.
+scripts/corregir-status-enrollments.ts(8,10): error TS2300: Duplicate identifier 'createClient'.
+scripts/corregir-status-enrollments.ts(10,7): error TS2451: Cannot redeclare block-scoped variable 'supabaseUrl'.
+scripts/corregir-status-enrollments.ts(11,7): error TS2451: Cannot redeclare block-scoped variable 'supabaseServiceKey'.
+scripts/corregir-status-enrollments.ts(18,7): error TS2451: Cannot redeclare block-scoped variable 'supabase'.
+scripts/corregir-status-enrollments.ts(25,16): error TS2393: Duplicate function implementation.
+scripts/corregir-status-enrollments.ts(70,16): error TS2393: Duplicate function implementation.
+scripts/corregir-status-enrollments.ts(121,16): error TS2393: Duplicate function implementation.
+scripts/corregir-status-enrollments.ts(236,10): error TS2300: Duplicate identifier 'createClient'.
+scripts/corregir-status-enrollments.ts(238,7): error TS2451: Cannot redeclare block-scoped variable 'supabaseUrl'.
+scripts/corregir-status-enrollments.ts(239,7): error TS2451: Cannot redeclare block-scoped variable 'supabaseServiceKey'.
+scripts/corregir-status-enrollments.ts(246,7): error TS2451: Cannot redeclare block-scoped variable 'supabase'.
+scripts/corregir-status-enrollments.ts(253,16): error TS2393: Duplicate function implementation.
+scripts/corregir-status-enrollments.ts(298,16): error TS2393: Duplicate function implementation.
+scripts/corregir-status-enrollments.ts(349,16): error TS2393: Duplicate function implementation.
+scripts/sincronizar-talleres-directo.ts(153,36): error TS2552: Cannot find name 'response'. Did you mean 'Response'?
+utils/program-data-service.ts(27,27): error TS7006: Parameter 'header' implicitly has an 'any' type.
+utils/program-data-service.ts(28,20): error TS7006: Parameter 'results' implicitly has an 'any' type.
+utils/program-data-service.ts(39,17): error TS7006: Parameter 'error' implicitly has an 'any' type.

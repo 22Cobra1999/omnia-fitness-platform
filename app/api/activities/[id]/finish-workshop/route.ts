@@ -3,10 +3,11 @@ import { createRouteHandlerClient, createServiceRoleClient } from '@/lib/supabas
 
 export async function POST(
   request: NextRequest,
-  { params }: { params: { id: string } }
+  { params }: { params: Promise<{ id: string }> }
 ) {
   try {
-    const rawParamId = params?.id
+    const resolvedParams = await params
+    const rawParamId = resolvedParams?.id
     const rawUrlId = (() => {
       try {
         const pathname = new URL(request.url).pathname
@@ -22,9 +23,9 @@ export async function POST(
 
     const activityId = parseInt(String(rawParamId ?? rawUrlId ?? ''), 10)
     if (isNaN(activityId)) {
-      return NextResponse.json({ 
-        success: false, 
-        error: 'ID de actividad inválido' 
+      return NextResponse.json({
+        success: false,
+        error: 'ID de actividad inválido'
       }, { status: 400 })
     }
 
@@ -34,9 +35,9 @@ export async function POST(
     const { data: { user }, error: authError } = await supabase.auth.getUser()
 
     if (authError || !user) {
-      return NextResponse.json({ 
-        success: false, 
-        error: 'No autorizado' 
+      return NextResponse.json({
+        success: false,
+        error: 'No autorizado'
       }, { status: 401 })
     }
 
@@ -48,24 +49,24 @@ export async function POST(
       .single()
 
     if (activityError || !activity) {
-      return NextResponse.json({ 
-        success: false, 
-        error: 'Actividad no encontrada' 
+      return NextResponse.json({
+        success: false,
+        error: 'Actividad no encontrada'
       }, { status: 404 })
     }
 
     if (activity.type !== 'workshop') {
-      return NextResponse.json({ 
-        success: false, 
-        error: 'Esta acción solo es válida para talleres' 
+      return NextResponse.json({
+        success: false,
+        error: 'Esta acción solo es válida para talleres'
       }, { status: 400 })
     }
 
     // Verificar que el usuario es el coach de la actividad
     if (activity.coach_id !== user.id) {
-      return NextResponse.json({ 
-        success: false, 
-        error: 'No tienes permiso para finalizar este taller' 
+      return NextResponse.json({
+        success: false,
+        error: 'No tienes permiso para finalizar este taller'
       }, { status: 403 })
     }
 
@@ -92,7 +93,7 @@ export async function POST(
     const currentVersions = currentActivity?.workshop_versions?.versions || []
     const wasAlreadyFinished = currentActivity?.is_finished === true
     let currentVersion = 0
-    
+
     console.log('📊 Estado del taller:', {
       activityId,
       wasAlreadyFinished,
@@ -102,13 +103,13 @@ export async function POST(
       coach_rating,
       coach_feedback: coach_feedback ? 'presente' : 'vacío'
     })
-    
+
     // Si se está finalizando Y el taller no estaba finalizado antes, agregar nueva versión
     if (is_finished === true && !wasAlreadyFinished) {
       // El taller se está finalizando por primera vez, crear nueva versión
       const nextVersion = currentVersions.length + 1
       currentVersion = nextVersion // La nueva versión que se está creando
-      
+
       const newVersion = {
         version: nextVersion,
         empezada_el: formatDateSpanish(startedAt),
@@ -130,9 +131,9 @@ export async function POST(
 
       if (updateError) {
         console.error('Error actualizando taller:', updateError)
-        return NextResponse.json({ 
-          success: false, 
-          error: 'Error al actualizar el taller' 
+        return NextResponse.json({
+          success: false,
+          error: 'Error al actualizar el taller'
         }, { status: 500 })
       }
     } else {
@@ -147,7 +148,7 @@ export async function POST(
         currentVersion = 1
         console.log('⚠️ No hay versiones, usando versión 1 por defecto')
       }
-      
+
       // Solo actualizar is_finished y finished_at si cambió
       if (is_finished !== wasAlreadyFinished) {
         const updateData: any = {
@@ -162,9 +163,9 @@ export async function POST(
 
         if (updateError) {
           console.error('Error actualizando taller:', updateError)
-          return NextResponse.json({ 
-            success: false, 
-            error: 'Error al actualizar el taller' 
+          return NextResponse.json({
+            success: false,
+            error: 'Error al actualizar el taller'
           }, { status: 500 })
         }
       }
@@ -175,9 +176,9 @@ export async function POST(
       // Validar rating si se proporciona
       if (coach_rating !== null && coach_rating !== undefined) {
         if (coach_rating < 1 || coach_rating > 5) {
-          return NextResponse.json({ 
-            success: false, 
-            error: 'La puntuación debe estar entre 1 y 5' 
+          return NextResponse.json({
+            success: false,
+            error: 'La puntuación debe estar entre 1 y 5'
           }, { status: 400 })
         }
       }
@@ -261,9 +262,9 @@ export async function POST(
             code: surveyError.code,
             surveyData
           })
-          return NextResponse.json({ 
-            success: false, 
-            error: `Error al guardar la encuesta: ${surveyError.message || 'Error desconocido'}` 
+          return NextResponse.json({
+            success: false,
+            error: `Error al guardar la encuesta: ${surveyError.message || 'Error desconocido'}`
           }, { status: 500 })
         }
         console.log('✅ Encuesta actualizada exitosamente')
@@ -283,25 +284,25 @@ export async function POST(
             code: surveyError.code,
             surveyData
           })
-          return NextResponse.json({ 
-            success: false, 
-            error: `Error al guardar la encuesta: ${surveyError.message || 'Error desconocido'}` 
+          return NextResponse.json({
+            success: false,
+            error: `Error al guardar la encuesta: ${surveyError.message || 'Error desconocido'}`
           }, { status: 500 })
         }
         console.log('✅ Encuesta creada exitosamente')
       }
     }
 
-    return NextResponse.json({ 
-      success: true, 
+    return NextResponse.json({
+      success: true,
       message: 'Taller finalizado exitosamente',
       version: currentVersion // Devolver la versión para referencia
     })
   } catch (error) {
     console.error('Error en finish-workshop:', error)
-    return NextResponse.json({ 
-      success: false, 
-      error: 'Error interno del servidor' 
+    return NextResponse.json({
+      success: false,
+      error: 'Error interno del servidor'
     }, { status: 500 })
   }
 }

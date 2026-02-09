@@ -11,6 +11,7 @@ interface StorageFile {
   usesCount: number
   activities: Array<{ id: number, name: string }>
   url?: string // URL pública del archivo
+  libraryId?: string // Bunny Library ID
 }
 
 export async function GET(_request: NextRequest) {
@@ -66,11 +67,13 @@ export async function GET(_request: NextRequest) {
     // ============================================
     // 1. VIDEOS: De activity_media y ejercicios_detalles
     // ============================================
-    const videoMap = new Map<string, { 
+    const videoMap = new Map<string, {
       bunny_video_id: string
+      libraryId: string
       fileName: string
       activities: Set<number>
-      sizeBytes: number // Inicialmente 0, se actualiza cuando se obtiene de Bunny
+      sizeBytes: number
+      url?: string
     }>()
 
     const nonBunnyVideoMap = new Map<string, {
@@ -97,9 +100,11 @@ export async function GET(_request: NextRequest) {
             if (!videoMap.has(bunnyId)) {
               videoMap.set(bunnyId, {
                 bunny_video_id: bunnyId,
+                libraryId: item.bunny_library_id || '',
                 fileName: item.video_file_name || `video-${bunnyId.substring(0, 8)}`,
                 activities: new Set(),
-                sizeBytes: 0 // Inicializar en 0, se actualizará desde Bunny
+                sizeBytes: 0,
+                url: item.video_url || undefined
               })
             }
             const video = videoMap.get(bunnyId)!
@@ -139,9 +144,11 @@ export async function GET(_request: NextRequest) {
           if (!videoMap.has(bunnyId)) {
             videoMap.set(bunnyId, {
               bunny_video_id: bunnyId,
+              libraryId: item.bunny_library_id || '',
               fileName: item.video_file_name || item.nombre_plato || `video-${bunnyId.substring(0, 8)}`,
               activities: new Set(),
-              sizeBytes: 0
+              sizeBytes: 0,
+              url: item.video_url || undefined
             })
           }
           const video = videoMap.get(bunnyId)!
@@ -180,9 +187,11 @@ export async function GET(_request: NextRequest) {
           if (!videoMap.has(bunnyId)) {
             videoMap.set(bunnyId, {
               bunny_video_id: bunnyId,
+              libraryId: item.bunny_library_id || '',
               fileName: item.video_file_name || item.nombre_ejercicio || `video-${bunnyId.substring(0, 8)}`,
               activities: new Set(),
-              sizeBytes: 0 // Inicializar en 0, se actualizará desde Bunny
+              sizeBytes: 0,
+              url: item.video_url || undefined
             })
           }
           const video = videoMap.get(bunnyId)!
@@ -229,12 +238,14 @@ export async function GET(_request: NextRequest) {
                   fileName = lastPart.split('?')[0]
                 }
               }
-              
+
               videoMap.set(bunnyId, {
                 bunny_video_id: bunnyId,
+                libraryId: item.bunny_library_id || '',
                 fileName,
                 activities: new Set(),
-                sizeBytes: 0 // Inicializar en 0, se actualizará desde Bunny
+                sizeBytes: 0,
+                url: item.video_url || undefined
               })
             }
             const video = videoMap.get(bunnyId)!
@@ -278,12 +289,12 @@ export async function GET(_request: NextRequest) {
 
           // El storageSize puede venir en bytes
           // Bunny API puede devolverlo como storageSize, storage_size, o en metadata
-          const sizeBytes = videoInfo.storageSize || 
-                           (videoInfo as any).storage_size || 
-                           (videoInfo as any).sizeBytes ||
-                           (videoInfo as any).metadata?.storageSize ||
-                           0
-          
+          const sizeBytes = videoInfo.storageSize ||
+            (videoInfo as any).storage_size ||
+            (videoInfo as any).sizeBytes ||
+            (videoInfo as any).metadata?.storageSize ||
+            0
+
           if (sizeBytes > 0) {
             video.sizeBytes = sizeBytes
           } else {
@@ -311,7 +322,7 @@ export async function GET(_request: NextRequest) {
         id,
         name: activityMap.get(id) || `Actividad ${id}`
       }))
-      
+
       files.push({
         fileId: bunnyId,
         fileName: video.fileName,
@@ -319,7 +330,9 @@ export async function GET(_request: NextRequest) {
         sizeBytes: video.sizeBytes || 0,
         sizeGB: (video.sizeBytes || 0) / (1024 * 1024 * 1024),
         usesCount: Math.max(1, video.activities.size),
-        activities: activityList
+        activities: activityList,
+        url: video.url,
+        libraryId: video.libraryId
       })
     })
 
@@ -381,10 +394,10 @@ export async function GET(_request: NextRequest) {
             // Extraer nombre de archivo de la URL
             const urlParts = item.image_url.split('/')
             const fileName = urlParts[urlParts.length - 1].split('?')[0]
-            
+
             // Guardar la URL original de activity_media
             imageUrlMap.set(fileName, item.image_url)
-            
+
             if (!imageMap.has(fileName)) {
               imageMap.set(fileName, {
                 fileName,
@@ -414,7 +427,7 @@ export async function GET(_request: NextRequest) {
           // Extraer nombre de archivo de la URL del avatar
           const urlParts = profile.avatar_url.split('/')
           const fileName = urlParts[urlParts.length - 1].split('?')[0]
-          
+
           // Identificar TODOS los avatares para excluirlos después
           // Los avatares pueden estar en:
           // - /avatars/{user_id}.{ext}
@@ -439,12 +452,12 @@ export async function GET(_request: NextRequest) {
 
         validImages.forEach((file: { name: string; metadata?: any; size?: any }) => {
           const fileName = file.name
-          
+
           // Excluir avatares (archivos que están identificados como avatares en user_profiles)
           if (avatarFileNames.has(fileName)) {
             return // Excluir esta imagen, es un avatar
           }
-          
+
           const sizeBytes = parseInt(file.metadata?.size || (file as any).size || '0')
 
           if (!imageMap.has(fileName)) {
@@ -494,7 +507,7 @@ export async function GET(_request: NextRequest) {
       // Obtener URL pública de la imagen
       // Solo de activity_media (ya no incluimos user_profiles)
       let imageUrl: string | undefined = imageUrlMap.get(fileName)
-      
+
       // Si no se encontró, construir URL pública desde Storage
       if (!imageUrl) {
         const { data: urlData } = supabase.storage
@@ -539,7 +552,7 @@ export async function GET(_request: NextRequest) {
             // Extraer nombre de archivo de la URL
             const urlParts = item.pdf_url.split('/')
             const fileName = urlParts[urlParts.length - 1].split('?')[0]
-            
+
             if (!pdfMap.has(fileName)) {
               pdfMap.set(fileName, {
                 fileName,

@@ -4,7 +4,7 @@ import { createRouteHandlerClient } from '@/lib/supabase/supabase-server'
 export async function POST(request: NextRequest) {
   try {
     const supabase = await createRouteHandlerClient()
-    
+
     const { data: { user }, error: authError } = await supabase.auth.getUser()
     if (authError || !user) {
       return NextResponse.json({ success: false, error: 'No autenticado' }, { status: 401 })
@@ -16,17 +16,17 @@ export async function POST(request: NextRequest) {
     console.log('[update-file-name] Request:', { fileId, fileName, concept, userId: user.id })
 
     if (!fileId || !fileName || !concept) {
-      return NextResponse.json({ 
-        success: false, 
-        error: 'Faltan parámetros: fileId, fileName, concept' 
+      return NextResponse.json({
+        success: false,
+        error: 'Faltan parámetros: fileId, fileName, concept'
       }, { status: 400 })
     }
 
     const trimmedFileName = fileName.trim()
     if (!trimmedFileName) {
-      return NextResponse.json({ 
-        success: false, 
-        error: 'El nombre no puede estar vacío' 
+      return NextResponse.json({
+        success: false,
+        error: 'El nombre no puede estar vacío'
       }, { status: 400 })
     }
 
@@ -36,113 +36,77 @@ export async function POST(request: NextRequest) {
       .select('id')
       .eq('coach_id', user.id)
 
-    const activityIds = activities?.map(a => a.id) || []
+    const activityIds = activities?.map((a: { id: number }) => a.id) || []
 
     // Determinar el origen del archivo según el fileId y concept
     if (concept === 'video') {
-      // fileId puede ser:
-      // - bunny_video_id (para videos de activity_media o ejercicios_detalles)
-      // - video-{activityId}-{idx} (formato antiguo sintético)
-      
-      // Buscar en ejercicios_detalles
-      const { data: ejercicio, error: ejError } = await supabase
+      let updatedCount = 0
+
+      // 1. Actualizar en ejercicios_detalles
+      const { error: ejError, count: ejUpdated } = await supabase
         .from('ejercicios_detalles')
-        .select('id, activity_id')
+        .update({ video_file_name: trimmedFileName })
         .eq('coach_id', user.id)
         .eq('bunny_video_id', fileId)
-        .maybeSingle()
+        .select('id', { count: 'exact' })
 
-      if (!ejError && ejercicio) {
-        // Validar que la actividad pertenece al coach
-        if (activityIds.includes(ejercicio.activity_id)) {
-          const { error: updateError } = await supabase
-            .from('ejercicios_detalles')
-            .update({ video_file_name: trimmedFileName })
-            .eq('id', ejercicio.id)
+      if (!ejError) updatedCount += ejUpdated || 0
 
-          if (updateError) {
-            console.error('Error actualizando video_file_name en ejercicios_detalles:', updateError)
-            return NextResponse.json({ 
-              success: false, 
-              error: 'Error actualizando nombre en ejercicios_detalles' 
-            }, { status: 500 })
-          }
+      // 2. Actualizar en activity_media
+      if (activityIds.length > 0) {
+        const { error: mediaError, count: mediaUpdatedCount } = await supabase
+          .from('activity_media')
+          .update({ video_file_name: trimmedFileName })
+          .in('activity_id', activityIds)
+          .eq('bunny_video_id', fileId)
+          .select('id', { count: 'exact' })
 
-          return NextResponse.json({ success: true, message: 'Nombre actualizado en ejercicios_detalles' })
-        }
+        if (!mediaError) updatedCount += mediaUpdatedCount || 0
       }
 
-      // Buscar en activity_media
+      // 3. Actualizar en nutrition_program_details
       if (activityIds.length > 0) {
-        const { data: media, error: mediaError } = await supabase
-          .from('activity_media')
-          .select('id, activity_id')
-          .in('activity_id', activityIds)
-          .eq('bunny_video_id', fileId)
-          .maybeSingle()
-
-        if (!mediaError && media) {
-          const { error: updateError } = await supabase
-            .from('activity_media')
-            .update({ video_file_name: trimmedFileName })
-            .eq('id', media.id)
-
-          if (updateError) {
-            console.error('Error actualizando video_file_name en activity_media:', updateError)
-            return NextResponse.json({ 
-              success: false, 
-              error: 'Error actualizando nombre en activity_media' 
-            }, { status: 500 })
-          }
-
-          return NextResponse.json({ success: true, message: 'Nombre actualizado en activity_media' })
-        }
-
-        // Buscar en nutrition_program_details (si tiene bunny_video_id)
-        const { data: nutritionVideo, error: nutritionError } = await supabase
-          .from('nutrition_program_details')
-          .select('id, activity_id')
-          .in('activity_id', activityIds)
-          .eq('bunny_video_id', fileId)
-          .maybeSingle()
-
-        if (!nutritionError && nutritionVideo) {
-          // Nota: nutrition_program_details puede no tener video_file_name, pero intentamos actualizar si existe
-          // Primero verificamos si la columna existe consultando la estructura
-          const { error: updateError } = await supabase
+        // Intentar actualizar nutrition_program_details (especulativo según esquema)
+        try {
+          const { error: nutrError, count: nutrUpdatedCount } = await supabase
             .from('nutrition_program_details')
             .update({ video_file_name: trimmedFileName })
-            .eq('id', nutritionVideo.id)
+            .in('activity_id', activityIds)
+            .eq('bunny_video_id', fileId)
+            .select('id', { count: 'exact' })
 
-          if (updateError) {
-            // Si falla porque no existe la columna, solo logueamos pero no fallamos
-            console.warn('No se pudo actualizar video_file_name en nutrition_program_details (puede que la columna no exista):', updateError)
-            // Continuamos sin fallar porque puede que la tabla no tenga ese campo
-          } else {
-            return NextResponse.json({ success: true, message: 'Nombre actualizado en nutrition_program_details' })
-          }
+          if (!nutrError) updatedCount += nutrUpdatedCount || 0
+        } catch (e) {
+          console.warn('nutrition_program_details update attempt failed (column might not exist)')
         }
       }
 
-      return NextResponse.json({ 
-        success: false, 
-        error: 'Video no encontrado o no tienes permisos' 
+      if (updatedCount > 0) {
+        return NextResponse.json({
+          success: true,
+          message: `Nombre actualizado en ${updatedCount} registros`
+        })
+      }
+
+      return NextResponse.json({
+        success: false,
+        error: 'No se encontraron registros de video para actualizar'
       }, { status: 404 })
 
     } else if (concept === 'image') {
       // fileId puede ser: image-{fileName}
       const actualFileName = fileId.startsWith('image-') ? fileId.substring(6) : fileId
       const coachId = user.id
-      
+
       console.log('[update-file-name] Procesando imagen:', { actualFileName, newFileName: trimmedFileName, coachId })
-      
+
       // Primero, renombrar el archivo en Supabase Storage directamente
       const oldPath = `coaches/${coachId}/images/${actualFileName}`
       const newPath = `coaches/${coachId}/images/${trimmedFileName}`
-      
+
       let storageRenamed = false
       let storageErrorMsg: string | null = null
-      
+
       try {
         // Verificar si el archivo existe listando los archivos en el directorio
         const { data: fileList, error: listError } = await supabase.storage
@@ -154,8 +118,8 @@ export async function POST(request: NextRequest) {
           storageErrorMsg = 'Error accediendo al storage'
         } else {
           // Verificar si el archivo existe
-          const fileExists = fileList?.some(f => f.name === actualFileName)
-          
+          const fileExists = fileList?.some((f: { name: string }) => f.name === actualFileName)
+
           if (fileExists) {
             // Intentar copiar el archivo con el nuevo nombre
             const { error: copyError } = await supabase.storage
@@ -209,8 +173,8 @@ export async function POST(request: NextRequest) {
           if (matchingMedia) {
             // Actualizar la URL en activity_media con el nuevo nombre (mantener path y parámetros)
             const urlParts = matchingMedia.image_url.split('/')
-            const params = urlParts[urlParts.length - 1].includes('?') 
-              ? urlParts[urlParts.length - 1].split('?')[1] 
+            const params = urlParts[urlParts.length - 1].includes('?')
+              ? urlParts[urlParts.length - 1].split('?')[1]
               : ''
             const baseUrl = urlParts.slice(0, -1).join('/')
             const newUrl = `${baseUrl}/${trimmedFileName}${params ? '?' + params : ''}`
@@ -253,8 +217,8 @@ export async function POST(request: NextRequest) {
           // Actualizar avatar_url en cada perfil que use esta imagen
           for (const profile of matchingProfiles) {
             const urlParts = profile.avatar_url.split('/')
-            const params = urlParts[urlParts.length - 1].includes('?') 
-              ? urlParts[urlParts.length - 1].split('?')[1] 
+            const params = urlParts[urlParts.length - 1].includes('?')
+              ? urlParts[urlParts.length - 1].split('?')[1]
               : ''
             const baseUrl = urlParts.slice(0, -1).join('/')
             const newUrl = `${baseUrl}/${trimmedFileName}${params ? '?' + params : ''}`
@@ -280,28 +244,28 @@ export async function POST(request: NextRequest) {
         if (storageRenamed) updates.push('storage')
         if (mediaUpdated) updates.push('actividades')
         if (avatarUpdated) updates.push('avatar')
-        
-        return NextResponse.json({ 
-          success: true, 
+
+        return NextResponse.json({
+          success: true,
           message: `Nombre de imagen actualizado (${updates.join(', ')})`
         })
       }
 
       // Si no se pudo renombrar en ningún lado
-      return NextResponse.json({ 
-        success: false, 
-        error: storageErrorMsg || 'Imagen no encontrada o no tienes permisos' 
+      return NextResponse.json({
+        success: false,
+        error: storageErrorMsg || 'Imagen no encontrada o no tienes permisos'
       }, { status: 404 })
 
     } else if (concept === 'pdf') {
       // fileId puede ser: pdf-{fileName}
       const actualFileName = fileId.startsWith('pdf-') ? fileId.substring(4) : fileId
       const coachId = user.id
-      
+
       // Primero, renombrar el archivo en Supabase Storage directamente
       const oldPath = `coaches/${coachId}/pdfs/${actualFileName}`
       const newPath = `coaches/${coachId}/pdfs/${trimmedFileName}`
-      
+
       let storageRenamed = false
       try {
         // Intentar copiar el archivo directamente (Supabase manejará el error si no existe)
@@ -346,8 +310,8 @@ export async function POST(request: NextRequest) {
           if (matchingMedia) {
             // Actualizar la URL en activity_media con el nuevo nombre
             const urlParts = matchingMedia.pdf_url.split('/')
-            const params = urlParts[urlParts.length - 1].includes('?') 
-              ? urlParts[urlParts.length - 1].split('?')[1] 
+            const params = urlParts[urlParts.length - 1].includes('?')
+              ? urlParts[urlParts.length - 1].split('?')[1]
               : ''
             const newUrl = urlParts.slice(0, -1).join('/') + '/' + trimmedFileName + (params ? '?' + params : '')
 
@@ -358,15 +322,15 @@ export async function POST(request: NextRequest) {
 
             if (updateError) {
               console.error('Error actualizando pdf_url en activity_media:', updateError)
-              return NextResponse.json({ 
-                success: false, 
-                error: 'Error actualizando nombre de PDF en BD' 
+              return NextResponse.json({
+                success: false,
+                error: 'Error actualizando nombre de PDF en BD'
               }, { status: 500 })
             }
 
-            return NextResponse.json({ 
-              success: true, 
-              message: storageRenamed ? 'Nombre de PDF actualizado' : 'Nombre actualizado en BD (renombrado en storage pendiente)' 
+            return NextResponse.json({
+              success: true,
+              message: storageRenamed ? 'Nombre de PDF actualizado' : 'Nombre actualizado en BD (renombrado en storage pendiente)'
             })
           }
         }
@@ -374,21 +338,21 @@ export async function POST(request: NextRequest) {
 
       // Si se renombró en storage, devolver éxito
       if (storageRenamed) {
-        return NextResponse.json({ 
-          success: true, 
-          message: 'Nombre de PDF actualizado en storage' 
+        return NextResponse.json({
+          success: true,
+          message: 'Nombre de PDF actualizado en storage'
         })
       }
 
-      return NextResponse.json({ 
-        success: false, 
-        error: 'PDF no encontrado o no tienes permisos' 
+      return NextResponse.json({
+        success: false,
+        error: 'PDF no encontrado o no tienes permisos'
       }, { status: 404 })
     }
 
-    return NextResponse.json({ 
-      success: false, 
-      error: `Tipo de archivo no soportado: ${concept}` 
+    return NextResponse.json({
+      success: false,
+      error: `Tipo de archivo no soportado: ${concept}`
     }, { status: 400 })
 
   } catch (error) {

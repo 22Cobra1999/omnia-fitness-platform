@@ -5,8 +5,8 @@ import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { Calendar, Plus, Settings, Palette } from 'lucide-react'
-import { WorkshopTopicScheduler } from './workshop-topic-scheduler'
-import { WorkshopSimpleScheduler } from './workshop-simple-scheduler'
+import { WorkshopTopicScheduler } from '../calendar/workshop-topic-scheduler'
+import { WorkshopSimpleScheduler } from '../calendar/workshop-simple-scheduler'
 
 interface WorkshopTopic {
   id?: string
@@ -14,18 +14,18 @@ interface WorkshopTopic {
   topic_description: string
   topic_number: number
   color: string
-  
+
   // Horario Original
   original_days: string[]
   original_start_time: string
   original_end_time: string
-  
+
   // Horario BIS
   bis_enabled: boolean
   bis_days: string[]
   bis_start_time: string
   bis_end_time: string
-  
+
   // Período
   start_date: string
   end_date: string
@@ -45,9 +45,9 @@ interface WorkshopTopicManagerProps {
   initialSessions?: WorkshopSession[]
 }
 
-export function WorkshopTopicManager({ 
-  onTopicsChange, 
-  onSessionsChange, 
+export function WorkshopTopicManager({
+  onTopicsChange,
+  onSessionsChange,
   initialTopics = [],
   initialSessions = []
 }: WorkshopTopicManagerProps) {
@@ -65,7 +65,7 @@ export function WorkshopTopicManager({
 
     if (editingTopic) {
       // Editar tema existente
-      const updatedTopics = topics.map(topic => 
+      const updatedTopics = topics.map(topic =>
         topic.id === editingTopic.id ? topicWithId : topic
       )
       setTopics(updatedTopics)
@@ -76,7 +76,7 @@ export function WorkshopTopicManager({
       setTopics(updatedTopics)
       onTopicsChange(updatedTopics)
     }
-    
+
     setEditingTopic(null)
     setActiveTab("calendar")
   }
@@ -100,25 +100,25 @@ export function WorkshopTopicManager({
   return (
     <div className="w-full max-w-6xl mx-auto">
       <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
-        
+
         {/* Tabs Navigation */}
         <TabsList className="grid w-full grid-cols-3 bg-[#1A1A1A] border-[#2A2A2A]">
-          <TabsTrigger 
-            value="topics" 
+          <TabsTrigger
+            value="topics"
             className="data-[state=active]:bg-orange-500 data-[state=active]:text-white"
           >
             <Settings className="h-4 w-4 mr-2" />
             Temas ({topics.length})
           </TabsTrigger>
-          <TabsTrigger 
-            value="calendar" 
+          <TabsTrigger
+            value="calendar"
             className="data-[state=active]:bg-orange-500 data-[state=active]:text-white"
           >
             <Calendar className="h-4 w-4 mr-2" />
             Calendario ({sessions.length})
           </TabsTrigger>
-          <TabsTrigger 
-            value="preview" 
+          <TabsTrigger
+            value="preview"
             className="data-[state=active]:bg-orange-500 data-[state=active]:text-white"
           >
             <Palette className="h-4 w-4 mr-2" />
@@ -129,7 +129,7 @@ export function WorkshopTopicManager({
         {/* Tab: Configurar Temas */}
         <TabsContent value="topics" className="space-y-4">
           <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
-            
+
             {/* Formulario de Tema */}
             <div className="lg:col-span-2">
               <WorkshopTopicScheduler
@@ -141,7 +141,7 @@ export function WorkshopTopicManager({
             {/* Lista de Temas Creados */}
             <div className="space-y-3">
               <h3 className="text-white font-medium text-sm">Temas Creados</h3>
-              
+
               {topics.length === 0 ? (
                 <div className="text-gray-400 text-sm text-center py-8">
                   No hay temas creados
@@ -166,7 +166,7 @@ export function WorkshopTopicManager({
                               </p>
                             </div>
                           </div>
-                          
+
                           <div className="flex gap-1">
                             <Button
                               size="sm"
@@ -210,7 +210,7 @@ export function WorkshopTopicManager({
               <CardTitle className="text-white text-lg">Vista Previa del Taller</CardTitle>
             </CardHeader>
             <CardContent className="space-y-4">
-              
+
               {/* Resumen de Temas */}
               <div>
                 <h3 className="text-white font-medium mb-3">Temas Configurados</h3>

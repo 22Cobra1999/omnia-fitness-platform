@@ -1,7 +1,115 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createRouteHandlerClient } from '@/lib/supabase/supabase-server'
 import { createClient } from '@supabase/supabase-js'
-import { syncWorkshopToCalendar } from '@/lib/utils/workshop-sync'
+import { saveWeeklySchedule, saveProductPeriods } from './handlers/program.handler'
+import { handleWorkshopCreation, handleWorkshopUpdate } from './handlers/workshop.handler'
+import { handleDocumentCreation, handleDocumentUpdate } from './handlers/document.handler'
+
+const calculateStatsFromSchedule = (weeklySchedule: any, periods: number) => {
+  const defaultStats = {
+    items_totales: 0,
+    items_unicos: 0,
+    sesiones_dias_totales: 0,
+    semanas_totales: 0
+  };
+
+  try {
+    let schedule = weeklySchedule;
+    if (typeof schedule === 'string' && schedule.trim() !== '') {
+      try {
+        schedule = JSON.parse(schedule);
+      } catch (e) {
+        console.error('❌ Error parsing weeklySchedule string:', e);
+        return defaultStats;
+      }
+    }
+
+    if (!schedule || typeof schedule !== 'object') {
+      console.log('⚠️ Schedule no es objeto en calculo:', typeof schedule);
+      return defaultStats;
+    }
+
+    // Convertir a array de semanas si es un objeto { "1": ..., "2": ... }
+    const weeks = Array.isArray(schedule) ? schedule : Object.values(schedule);
+    const rawWeeks = weeks.length;
+
+    if (rawWeeks === 0) {
+      console.log('⚠️ No hay semanas en el schedule');
+      return defaultStats;
+    }
+
+    const uniqueItems = new Set();
+    let itemsTotales = 0;
+    let sesionesTotales = 0;
+
+    console.log(`📊 Iniciando calculo para ${rawWeeks} semanas...`);
+
+    weeks.forEach((week: any, wIdx) => {
+      if (!week || typeof week !== 'object') return;
+
+      // Iterar sobre todas las claves del objeto semana, no solo las predefinidas
+      Object.entries(week).forEach(([dayKey, dayData]: [string, any]) => {
+        // Solo procesar claves que parezcan dias (nombres o numeros del 1 al 7)
+        const isDayKey = ['lunes', 'martes', 'miercoles', 'jueves', 'viernes', 'sabado', 'domingo', '1', '2', '3', '4', '5', '6', '7'].includes(dayKey.toLowerCase());
+        if (!isDayKey) return;
+
+        let data = dayData;
+        if (typeof data === 'string' && data.trim() !== '') {
+          try { data = JSON.parse(data); } catch (e) { }
+        }
+
+        if (!data) return;
+
+        // Buscar el array de ejercicios. Puede ser data.ejercicios, data.exercises, o data mismo si es un array
+        let ejercicios: any[] = [];
+        if (Array.isArray(data)) {
+          ejercicios = data;
+        } else if (data && typeof data === 'object') {
+          ejercicios = data.ejercicios || data.exercises || [];
+        }
+
+        if (Array.isArray(ejercicios) && ejercicios.length > 0) {
+          // Filtrar activos (permissivo: si no tiene el campo, se considera activo)
+          const activeExercises = ejercicios.filter((ex: any) =>
+            ex && typeof ex === 'object' && ex.activo !== false && ex.is_active !== false
+          );
+
+          if (activeExercises.length > 0) {
+            sesionesTotales++;
+            activeExercises.forEach((ex: any) => {
+              const id = ex.id || ex.ejercicio_id || ex.id_ejercicio || ex.exercise_id;
+              if (id) {
+                uniqueItems.add(String(id));
+                itemsTotales++;
+              }
+            });
+          }
+        }
+      });
+    });
+
+    const periodos = Number(periods) || 1;
+    const finalStats = {
+      items_totales: itemsTotales * periodos,
+      items_unicos: uniqueItems.size,
+      sesiones_dias_totales: sesionesTotales * periodos,
+      semanas_totales: rawWeeks * periodos
+    };
+
+    console.log('✅ Resultado calculo servidor:', {
+      rawWeeks,
+      periodos,
+      sesionesBase: sesionesTotales,
+      itemsBase: itemsTotales,
+      finalStats
+    });
+
+    return finalStats;
+  } catch (error) {
+    console.error('❌ Error crítico en calculateStatsFromSchedule:', error);
+    return defaultStats;
+  }
+};
 
 export const dynamic = 'force-dynamic'
 export const runtime = 'nodejs'
@@ -383,163 +491,88 @@ export async function GET(request: NextRequest) {
           }
         }
 
+        // Helper interno para parsear días (que pueden venir como string o JSONB)
+        const parseDay = (data: any) => {
+          if (!data) return null
+          if (typeof data === 'object' && !Array.isArray(data)) return data
+          try {
+            return typeof data === 'string' ? JSON.parse(data) : data
+          } catch (e) {
+            return null
+          }
+        }
+
         // Verificar si es nutrición - usar categoria, no type
         const isNutrition = product.categoria === 'nutricion' || product.categoria === 'nutrition'
 
         if (isNutrition) {
           // Para nutrición: obtener platos de nutrition_program_details
-          // Intentar múltiples estrategias para encontrar los platos
-          let platos: any[] = []
-
-          // Estrategia 0: match directo por activity_id (legacy) como número o string
+          let platosCount = 0
           try {
-            const { data: platosByActivityId } = await supabase
+            const { count } = await supabase
               .from('nutrition_program_details')
-              .select('id')
-              .eq('activity_id', product.id)
+              .select('*', { count: 'exact', head: true })
+              .or(`activity_id.eq.${product.id},activity_id.eq.${product.id.toString()},activity_id_new.cs.{"${product.id.toString()}":{}},activity_id.cs.{"${product.id.toString()}":{}}`)
+            platosCount = count || 0
+          } catch (e) { }
 
-            if (platosByActivityId && platosByActivityId.length > 0) {
-              platos = platosByActivityId
-            }
-          } catch (e) {
-            // ignore
-          }
-
-          if (platos.length === 0) {
-            try {
-              const { data: platosByActivityIdStr } = await supabase
-                .from('nutrition_program_details')
-                .select('id')
-                .eq('activity_id', product.id.toString())
-
-              if (platosByActivityIdStr && platosByActivityIdStr.length > 0) {
-                platos = platosByActivityIdStr
-              }
-            } catch (e) {
-              // ignore
-            }
-          }
-
-          // Estrategia 0b: activity_id_new JSONB con .contains()
-          if (platos.length === 0) {
-            try {
-              const activityKeyObjNew = { [product.id.toString()]: { activo: true } }
-              const { data: platosJsonbNew } = await supabase
-                .from('nutrition_program_details')
-                .select('id')
-                .contains('activity_id_new', activityKeyObjNew)
-
-              if (platosJsonbNew && platosJsonbNew.length > 0) {
-                platos = platosJsonbNew
-              }
-            } catch (e) {
-              // ignore
-            }
-          }
-
-          // Estrategia 1: JSONB con .contains()
-          try {
-            const activityKeyObj = { [product.id.toString()]: {} }
-            const { data: platosJsonb } = await supabase
-              .from('nutrition_program_details')
-              .select('id')
-              .contains('activity_id', activityKeyObj)
-
-            if (platosJsonb && platosJsonb.length > 0) {
-              platos = platosJsonb
-            }
-          } catch (e) {
-            // Continuar con otras estrategias
-          }
-
-          // Estrategia 2: Si no hay resultados, buscar todos y filtrar manualmente
-          if (platos.length === 0) {
-            try {
-              const { data: allPlatos } = await supabase
-                .from('nutrition_program_details')
-                .select('id, activity_id, activity_id_new')
-                .eq('coach_id', user.id)
-
-              if (allPlatos) {
-                const filteredPlatos = allPlatos.filter((plato: any) => {
-                  // Verificar si activity_id es JSONB y contiene el ID
-                  if (plato.activity_id && typeof plato.activity_id === 'object') {
-                    return product.id.toString() in plato.activity_id
-                  }
-                  // Verificar si es integer (formato legacy)
-                  if (typeof plato.activity_id === 'number') {
-                    return plato.activity_id === product.id
-                  }
-                  // Verificar si es string (formato legacy)
-                  if (typeof plato.activity_id === 'string') {
-                    return plato.activity_id === product.id.toString()
-                  }
-
-                  // Verificar JSONB nuevo
-                  if (plato.activity_id_new && typeof plato.activity_id_new === 'object') {
-                    return product.id.toString() in plato.activity_id_new
-                  }
-                  return false
-                })
-                platos = filteredPlatos
-              }
-            } catch (e) {
-              // Si falla, continuar con 0
-            }
-          }
-
-          exercisesCount = platos.length
+          // Fallback: contar platos únicos del plan
+          const uniquePlatosInPlan = new Set()
+          let totalSessionsCalculated = 0
 
           if (planificacion && planificacion.length > 0) {
-            const diasConEjercicios = new Set()
             planificacion.forEach((semana: any) => {
               ['lunes', 'martes', 'miercoles', 'jueves', 'viernes', 'sabado', 'domingo'].forEach(dia => {
-                if (semana[dia] && typeof semana[dia] === 'object' && semana[dia].ejercicios && Array.isArray(semana[dia].ejercicios) && semana[dia].ejercicios.length > 0) {
-                  diasConEjercicios.add(dia)
+                const dayData = parseDay(semana[dia])
+                if (dayData && dayData.ejercicios && Array.isArray(dayData.ejercicios) && dayData.ejercicios.length > 0) {
+                  totalSessionsCalculated++
+                  dayData.ejercicios.forEach((ex: any) => { if (ex.id) uniquePlatosInPlan.add(ex.id) })
                 }
               })
             })
-
-            const diasUnicos = diasConEjercicios.size
-            const periodosUnicos = periodos?.cantidad_periodos || 1
-            totalSessions = diasUnicos * periodosUnicos
-
-            console.log(`🥗 PRODUCTOS: Actividad ${product.id} (Nutrición) - Platos: ${exercisesCount}, Días: ${diasUnicos}, Períodos: ${periodosUnicos}, Sesiones: ${totalSessions}`)
           }
+
+          exercisesCount = Math.max(platosCount, uniquePlatosInPlan.size)
+          const periodosUnicos = periodos?.cantidad_periodos || 1
+          totalSessions = totalSessionsCalculated * periodosUnicos
+
+          console.log(`🥗 PRODUCTOS: Actividad ${product.id} (Nutrición) - Platos: ${exercisesCount}, Sesiones: ${totalSessions}`)
+
         } else if (product.type === 'program' && product.categoria === 'fitness') {
           // Obtener ejercicios
-          const { data: ejercicios } = await supabase
-            .from('ejercicios_detalles')
-            .select('id')
-            .contains('activity_id', { [product.id]: {} })
+          let exerciseCountFromDetails = 0
+          try {
+            const { count } = await supabase
+              .from('ejercicios_detalles')
+              .select('*', { count: 'exact', head: true })
+              .contains('activity_id', { [product.id.toString()]: {} })
+            exerciseCountFromDetails = count || 0
+          } catch (e) { }
 
-          exercisesCount = ejercicios?.length || 0
+          // Fallback: contar ejercicios únicos del plan
+          const uniqueExercisesInPlan = new Set()
+          let totalSessionsCalculated = 0
 
           if (planificacion && planificacion.length > 0) {
-            // Calcular días únicos con ejercicios ACTIVOS
-            const diasConEjercicios = new Set()
             planificacion.forEach((semana: any) => {
               ['lunes', 'martes', 'miercoles', 'jueves', 'viernes', 'sabado', 'domingo'].forEach(dia => {
-                if (semana[dia] && typeof semana[dia] === 'object' && semana[dia].ejercicios && Array.isArray(semana[dia].ejercicios)) {
-                  // Filtrar solo ejercicios activos (activo !== false)
-                  const activeExercises = semana[dia].ejercicios.filter((exercise: any) => {
-                    return exercise.activo !== false
-                  })
-
-                  // Solo contar el día si tiene al menos un ejercicio activo
+                const dayData = parseDay(semana[dia])
+                if (dayData && dayData.ejercicios && Array.isArray(dayData.ejercicios)) {
+                  const activeExercises = dayData.ejercicios.filter((ex: any) => ex.activo !== false)
                   if (activeExercises.length > 0) {
-                    diasConEjercicios.add(dia)
+                    totalSessionsCalculated++
+                    activeExercises.forEach((ex: any) => { if (ex.id) uniqueExercisesInPlan.add(ex.id) })
                   }
                 }
               })
             })
-
-            const diasUnicos = diasConEjercicios.size
-            const periodosUnicos = periodos?.cantidad_periodos || 1
-            totalSessions = diasUnicos * periodosUnicos
-
-            console.log(`📊 PRODUCTOS: Actividad ${product.id} - Días: ${diasUnicos}, Períodos: ${periodosUnicos}, Sesiones: ${totalSessions}`)
           }
+
+          exercisesCount = Math.max(exerciseCountFromDetails, uniqueExercisesInPlan.size)
+          const periodosUnicos = periodos?.cantidad_periodos || 1
+          totalSessions = totalSessionsCalculated * periodosUnicos
+
+          console.log(`📊 PRODUCTOS: Actividad ${product.id} - Ejercicios: ${exercisesCount}, Sesiones: ${totalSessions}`)
         }
 
         // Los objetivos están guardados en workshop_type; puede venir como:
@@ -739,8 +772,8 @@ export async function GET(request: NextRequest) {
           // Cantidad de participantes por clase (solo para talleres grupales)
           participants_per_class: product.type === 'workshop' && ((product as any).workshop_mode === 'grupal') ? ((product as any).participants_per_class || null) : null,
           // Estadísticas calculadas dinámicamente (con fallback a denormalizadas)
-          exercisesCount: product.items_unicos ?? exercisesCount,
-          totalSessions: product.sesiones_dias_totales ?? totalSessions,
+          exercisesCount: product.items_unicos || exercisesCount,
+          totalSessions: product.sesiones_dias_totales || totalSessions,
           // Para talleres: cantidad de temas y días
           cantidadTemas: cantidadTemas,
           cantidadDias: cantidadDias,
@@ -908,12 +941,26 @@ export async function POST(request: NextRequest) {
           workshop_mode: body.workshop_mode || 'grupal',
           // ✅ NUEVO: Cantidad de participantes por clase (solo para talleres grupales)
           participants_per_class: body.participants_per_class || null,
-          // ✅ NUEVO: Estadísticas denormalizadas
-          semanas_totales: body.semanas_totales || 0,
-          sesiones_dias_totales: body.sesiones_dias_totales || 0,
-          items_totales: body.items_totales || 0,
-          items_unicos: body.items_unicos || 0,
-          periodos_configurados: body.periodos_configurados || 1
+          // ✅ NUEVO: Estadísticas denormalizadas (Preferir frontend, fallback servidor)
+          ...(() => {
+            const calculated = calculateStatsFromSchedule(body.weeklySchedule, body.periods || 1);
+            console.log('🚀 [POST] Stats combinadas:', {
+              frontend: {
+                semanas: body.semanas_totales,
+                sesiones: body.sesiones_dias_totales,
+                items: body.items_totales,
+                unicos: body.items_unicos
+              },
+              backend: calculated
+            });
+            return {
+              semanas_totales: body.semanas_totales || calculated.semanas_totales || 0,
+              sesiones_dias_totales: body.sesiones_dias_totales || calculated.sesiones_dias_totales || 0,
+              items_totales: body.items_totales || calculated.items_totales || 0,
+              items_unicos: body.items_unicos || calculated.items_unicos || 0,
+            };
+          })(),
+          periodos_configurados: body.periods || 1
         }
       ])
       .select()
@@ -926,162 +973,39 @@ export async function POST(request: NextRequest) {
     // Verificar y pausar productos automáticamente si exceden el límite del plan
     await checkAndPauseProductsIfNeeded(user.id)
 
-    if (body.modality === 'workshop' && body.workshopSchedule && Array.isArray(body.workshopSchedule)) {
-
-      // Agrupar sesiones por tema
-      const topicGroups = new Map()
-
-      for (const session of body.workshopSchedule) {
-        const topicKey = session.title || 'Sin título'
-        if (!topicGroups.has(topicKey)) {
-          topicGroups.set(topicKey, {
-            nombre: session.title,
-            descripcion: session.description || '',
-            originales: [],
-            secundarios: []
-          })
-        }
-
-        const topic = topicGroups.get(topicKey)
-        const horarioItem = {
-          fecha: session.date,
-          hora_inicio: session.startTime,
-          hora_fin: session.endTime,
-          cupo: 20 // Cupo por defecto
-        }
-
-        // Si no viene isPrimary (viejas versiones del UI), asumir que es horario principal
-        if (session.isPrimary !== false) {
-          topic.originales.push(horarioItem)
-        } else {
-          topic.secundarios.push(horarioItem)
-        }
-      }
-
-      // Manejar PDFs del taller
-      let generalPdfUrl = null
-      const topicPdfUrls: Record<string, { url: string, fileName: string }> = {}
-
-      if (body.workshopMaterial) {
-        const material = body.workshopMaterial
-
-        // Si hay PDF general, guardarlo
-        if (material.pdfType === 'general' && material.pdfUrl && material.pdfUrl.startsWith('http')) {
-          generalPdfUrl = material.pdfUrl
-        }
-
-        // Si hay PDFs por tema, guardar las URLs
-        if (material.pdfType === 'by-topic' && material.topicPdfs) {
-          for (const [topicTitle, topicPdf] of Object.entries(material.topicPdfs)) {
-            const topicPdfAny = topicPdf as any
-            if (topicPdfAny && topicPdfAny.url && String(topicPdfAny.url).startsWith('http')) {
-              topicPdfUrls[topicTitle] = {
-                url: topicPdfAny.url,
-                fileName: topicPdfAny.fileName || null
-              }
-            }
-          }
-        }
-      }
-
-      // Guardar PDF general en activity_media si existe
-      if (generalPdfUrl) {
-        await supabase
-          .from('activity_media')
-          .insert({
-            activity_id: newActivity.id,
-            pdf_url: generalPdfUrl
-          })
-      }
-
-      for (const [topicTitle, topicData] of topicGroups) {
-        const originalesJson = {
-          fechas_horarios: topicData.originales
-        }
-
-        const secundariosJson = {
-          fechas_horarios: topicData.secundarios
-        }
-
-        // Verificar si hay fechas futuras para determinar si el taller está activo
-        const now = new Date()
-        now.setHours(0, 0, 0, 0)
-        const hasFutureDates = topicData.originales.some((horario: any) => {
-          const fecha = new Date(horario.fecha)
-          fecha.setHours(0, 0, 0, 0)
-          return fecha >= now
-        })
-
-        // Insertar en taller_detalles con activo = true si hay fechas futuras
-        const topicInsert: any = {
-          actividad_id: newActivity.id,
-          nombre: topicData.nombre || 'Sin título',
-          descripcion: topicData.descripcion || '',
-          originales: originalesJson,
-          secundarios: secundariosJson,
-          activo: hasFutureDates // Activo solo si hay fechas futuras
-        }
-
-        // Agregar PDF por tema si existe
-        if (topicPdfUrls[topicTitle]) {
-          topicInsert.pdf_url = topicPdfUrls[topicTitle].url
-          topicInsert.pdf_file_name = topicPdfUrls[topicTitle].fileName
-        }
-
-        const { error: topicError } = await supabase
-          .from('taller_detalles')
-          .insert(topicInsert)
-
-        if (topicError) {
-          console.error('❌ Error creando tema en taller_detalles:', topicError)
-        }
-      }
-
-      // ✅ SINCRONIZAR A CALENDAR_EVENTS
-      try {
-        await syncWorkshopToCalendar(newActivity.id, user.id)
-      } catch (syncError) {
-        console.error('⚠️ [API/Products] Error sincronizando taller al calendario:', syncError)
-      }
+    // ✅ MANEJAR TALLERES (WORKSHOPS)
+    if (body.modality === 'workshop') {
+      await handleWorkshopCreation(supabase, newActivity.id, body, user.id)
     }
 
 
 
     // ✅ MANEJAR TEMAS Y PDFs DE DOCUMENTOS (NUEVO)
-    if (body.modality === 'document' && body.documentMaterial) {
-      const material = body.documentMaterial
-      const topics = material.topics || []
-      const topicPdfs = material.topicPdfs || {}
+    if (body.modality === 'document') {
+      await handleDocumentCreation(supabase, newActivity.id, body)
+    }
 
-      // 1. Guardar PDF general si existe
-      if (material.pdfType === 'general' && material.pdfUrl) {
-        await supabase
-          .from('activity_media')
-          .insert({
-            activity_id: newActivity.id,
-            pdf_url: material.pdfUrl
-          })
+    // ✅ MANEJAR PLANIFICACIÓN DE EJERCICIOS (PROGRAMAS/FITNESS) EN CREACIÓN
+    if (body.modality !== 'workshop' && body.modality !== 'document' && !body.modality?.includes('consultation')) {
+      if (body.weeklySchedule && typeof body.weeklySchedule === 'object' && Object.keys(body.weeklySchedule).length > 0) {
+        await saveWeeklySchedule(supabase, newActivity.id, body.weeklySchedule, body.categoria)
+
+        // 🔥 NUCLEAR RESYNC: Reparar estadísticas después de que el trigger potencialmente las rompiera
+        const finalStats = calculateStatsFromSchedule(body.weeklySchedule, body.periods || 1);
+        console.log('🔥 [POST] Nuclear Resync de estadísticas:', finalStats);
+
+        await supabase.from('activities').update({
+          semanas_totales: body.semanas_totales || finalStats.semanas_totales || 0,
+          sesiones_dias_totales: body.sesiones_dias_totales || finalStats.sesiones_dias_totales || 0,
+          items_totales: body.items_totales || finalStats.items_totales || 0,
+          items_unicos: body.items_unicos || finalStats.items_unicos || 0,
+          duration_weeks: body.semanas_totales || finalStats.semanas_totales || 0
+        }).eq('id', newActivity.id);
       }
 
-      // 2. Guardar cada tema en document_topics
-      for (const topic of topics) {
-        if (!topic.title) continue
-
-        const topicInsert = {
-          activity_id: newActivity.id,
-          title: topic.title,
-          description: topic.description || '',
-          pdf_url: topicPdfs[topic.id]?.url || null,
-          pdf_filename: topicPdfs[topic.id]?.fileName || null
-        }
-
-        const { error: topicError } = await supabase
-          .from('document_topics')
-          .insert(topicInsert)
-
-        if (topicError) {
-          console.error(`❌ Error insertando tema de documento "${topic.title}":`, topicError)
-        }
+      // Guardar periodos si existen
+      if (body.periods) {
+        await saveProductPeriods(supabase, newActivity.id, body.periods)
       }
     }
 
@@ -1294,6 +1218,8 @@ export async function PUT(request: NextRequest) {
       }
     })
 
+    const calculatedStats = calculateStatsFromSchedule(body.weeklySchedule, body.periods || 1);
+
     const updateData: any = {
       title: body.name,
       description: body.description,
@@ -1322,13 +1248,37 @@ export async function PUT(request: NextRequest) {
       workshop_mode: body.workshop_mode || 'grupal',
       // ✅ NUEVO: Cantidad de participantes por clase (solo para talleres grupales)
       participants_per_class: body.participants_per_class || null,
-      // ✅ NUEVO: Estadísticas denormalizadas
-      semanas_totales: body.semanas_totales || 0,
-      sesiones_dias_totales: body.sesiones_dias_totales || 0,
-      items_totales: body.items_totales || 0,
-      items_unicos: body.items_unicos || 0,
-      periodos_configurados: body.periodos_configurados || 1
+      // ✅ NUEVO: Estadísticas denormalizadas (Preferir frontend, fallback servidor)
+      // Solo incluirlos si vienen en el body o si se pueden calcular del schedule
+      periodos_configurados: body.periods || 1
+    };
+
+    if (body.semanas_totales !== undefined || calculatedStats.semanas_totales !== undefined) {
+      updateData.semanas_totales = body.semanas_totales || calculatedStats.semanas_totales || 0;
     }
+    if (body.sesiones_dias_totales !== undefined || calculatedStats.sesiones_dias_totales !== undefined) {
+      updateData.sesiones_dias_totales = body.sesiones_dias_totales || calculatedStats.sesiones_dias_totales || 0;
+    }
+    if (body.items_totales !== undefined || calculatedStats.items_totales !== undefined) {
+      updateData.items_totales = body.items_totales || calculatedStats.items_totales || 0;
+    }
+    if (body.items_unicos !== undefined || calculatedStats.items_unicos !== undefined) {
+      updateData.items_unicos = body.items_unicos || calculatedStats.items_unicos || 0;
+    }
+
+    console.log('🚀 [PUT] updateData final para activities:', {
+      semanas: updateData.semanas_totales,
+      sesiones: updateData.sesiones_dias_totales,
+      items: updateData.items_totales,
+      unicos: updateData.items_unicos,
+      frontend: {
+        semanas: body.semanas_totales,
+        sesiones: body.sesiones_dias_totales,
+        items: body.items_totales,
+        unicos: body.items_unicos
+      },
+      backendCalculation: calculatedStats
+    });
 
     const { data: product, error: productError } = await supabase
       .from('activities')
@@ -1414,329 +1364,37 @@ export async function PUT(request: NextRequest) {
       }
     }
 
-    if (body.modality === 'workshop' && body.workshopSchedule && Array.isArray(body.workshopSchedule)) {
-
-      // Cargar temas existentes para hacer merge inteligente
-      const { data: existingTopics, error: fetchError } = await supabase
-        .from('taller_detalles')
-        .select('id, nombre, descripcion, originales, pdf_url, pdf_file_name, activo')
-        .eq('actividad_id', body.editingProductId)
-
-      if (fetchError) {
-        console.error('❌ Error cargando temas existentes:', fetchError)
-      }
-
-      const existingTopicsMap = new Map()
-      if (existingTopics) {
-        existingTopics.forEach((tema: any) => {
-          existingTopicsMap.set(tema.nombre, tema)
-        })
-      }
-
-      console.log(`📊 Temas existentes encontrados: ${existingTopics?.length || 0}`)
-
-      // Agrupar sesiones por tema
-      const topicGroups = new Map()
-
-      for (const session of body.workshopSchedule) {
-        const topicKey = session.title || 'Sin título'
-        if (!topicGroups.has(topicKey)) {
-          topicGroups.set(topicKey, {
-            nombre: session.title,
-            descripcion: session.description || '',
-            originales: [],
-            secundarios: []
-          })
-        }
-
-        const topic = topicGroups.get(topicKey)
-        const horarioItem = {
-          fecha: session.date,
-          hora_inicio: session.startTime,
-          hora_fin: session.endTime,
-          cupo: 20 // Cupo por defecto
-        }
-
-        // Si no viene isPrimary (viejas versiones del UI), asumir que es horario principal
-        if (session.isPrimary !== false) {
-          topic.originales.push(horarioItem)
-        } else {
-          topic.secundarios.push(horarioItem)
-        }
-      }
-
-      // Verificar si hay fechas futuras en todos los temas para determinar si el taller está activo
-      const now = new Date()
-      now.setHours(0, 0, 0, 0)
-      let hasAnyFutureDates = false
-
-      for (const [topicTitle, topicData] of topicGroups) {
-        const hasFutureDates = topicData.originales.some((horario: any) => {
-          const fecha = new Date(horario.fecha)
-          fecha.setHours(0, 0, 0, 0)
-          return fecha >= now
-        })
-        if (hasFutureDates) {
-          hasAnyFutureDates = true
-          break
-        }
-      }
-
-      // Si el taller estaba finalizado y se agregaron nuevas fechas futuras, generar nueva versión y reactivar
-      if (hasAnyFutureDates) {
-        const formatDateSpanish = (date: Date | string): string => {
-          const d = typeof date === 'string' ? new Date(date) : date
-          const day = String(d.getDate()).padStart(2, '0')
-          const month = String(d.getMonth() + 1).padStart(2, '0')
-          const year = String(d.getFullYear()).slice(-2)
-          return `${day}/${month}/${year}`
-        }
-
-        const { data: currentActivity } = await supabase
-          .from('activities')
-          .select('is_finished, workshop_versions')
-          .eq('id', body.editingProductId)
-          .single()
-
-        const wasFinished = currentActivity?.is_finished === true
-        if (wasFinished) {
-          const versions = (currentActivity as any)?.workshop_versions?.versions || []
-          const nextVersion = (Array.isArray(versions) ? versions.length : 0) + 1
-          const newVersion = {
-            version: nextVersion,
-            empezada_el: formatDateSpanish(new Date()),
-            finalizada_el: null
-          }
-
-          await supabase
-            .from('activities')
-            .update({
-              is_finished: false,
-              finished_at: null,
-              workshop_versions: {
-                versions: [...(Array.isArray(versions) ? versions : []), newVersion]
-              }
-            })
-            .eq('id', body.editingProductId)
-        }
-      }
-
-      // Manejar PDFs del taller
-      let generalPdfUrl = null
-      const topicPdfUrls: Record<string, { url: string, fileName: string }> = {}
-
-      if (body.workshopMaterial) {
-        const material = body.workshopMaterial
-
-        // Si hay PDF general, subirlo
-        if (material.pdfType === 'general' && material.pdfFile) {
-          // El PDF general se subirá desde el frontend antes de enviar
-          // Aquí solo guardamos la URL si viene en el body
-          if (material.pdfUrl && material.pdfUrl.startsWith('http')) {
-            generalPdfUrl = material.pdfUrl
-          }
-        }
-
-        // Si hay PDFs por tema, guardar las URLs
-        if (material.pdfType === 'by-topic' && material.topicPdfs) {
-          for (const [topicTitle, topicPdf] of Object.entries(material.topicPdfs)) {
-            const topicPdfAny = topicPdf as any
-            if (topicPdfAny && topicPdfAny.url && String(topicPdfAny.url).startsWith('http')) {
-              topicPdfUrls[topicTitle] = {
-                url: topicPdfAny.url,
-                fileName: topicPdfAny.fileName || null
-              }
-            }
-          }
-        }
-      }
-
-      // Guardar PDF general en activities o activity_media si existe
-      if (generalPdfUrl) {
-        // Verificar si existe activity_media
-        const { data: existingMedia } = await supabase
-          .from('activity_media')
-          .select('id')
-          .eq('activity_id', body.editingProductId)
-          .maybeSingle()
-
-        if (existingMedia) {
-          await supabase
-            .from('activity_media')
-            .update({ pdf_url: generalPdfUrl })
-            .eq('activity_id', body.editingProductId)
-        } else {
-          await supabase
-            .from('activity_media')
-            .insert({
-              activity_id: body.editingProductId,
-              pdf_url: generalPdfUrl
-            })
-        }
-      }
-
-      // Procesar cada tema: actualizar si existe, insertar si no existe
-      for (const [topicTitle, topicData] of topicGroups) {
-        const originalesJson = {
-          fechas_horarios: topicData.originales
-        }
-
-        const existingTopic = existingTopicsMap.get(topicTitle)
-
-        const topicUpdate: any = {
-          actividad_id: body.editingProductId,
-          nombre: topicData.nombre || 'Sin título',
-          descripcion: topicData.descripcion || '',
-          originales: originalesJson,
-          activo: hasAnyFutureDates // Todos los temas tienen el mismo valor
-        }
-
-        // Nota: La columna 'secundarios' no existe en la tabla, no la incluimos
-
-        // Agregar PDF por tema si existe (preservar el existente si no hay uno nuevo)
-        if (topicPdfUrls[topicTitle]) {
-          topicUpdate.pdf_url = topicPdfUrls[topicTitle].url
-          topicUpdate.pdf_file_name = topicPdfUrls[topicTitle].fileName
-        } else if (existingTopic && existingTopic.pdf_url) {
-          // Preservar PDF existente si no hay uno nuevo
-          topicUpdate.pdf_url = existingTopic.pdf_url
-          topicUpdate.pdf_file_name = existingTopic.pdf_file_name
-        }
-
-        if (existingTopic) {
-          // Actualizar tema existente
-          const { error: updateError } = await supabase
-            .from('taller_detalles')
-            .update(topicUpdate)
-            .eq('id', existingTopic.id)
-
-          if (updateError) {
-            console.error(`❌ Error actualizando tema "${topicTitle}":`, updateError)
-          } else {
-            console.log(`✅ Tema actualizado: "${topicTitle}"`)
-          }
-        } else {
-          // Insertar tema nuevo
-          const { error: insertError } = await supabase
-            .from('taller_detalles')
-            .insert(topicUpdate)
-
-          if (insertError) {
-            console.error(`❌ Error insertando tema "${topicTitle}":`, insertError)
-          } else {
-            console.log(`✅ Tema insertado: "${topicTitle}"`)
-          }
-        }
-      }
-
-      // Eliminar solo los temas que ya no están en el nuevo schedule
-      // (temas que existían pero no están en topicGroups)
-      const newTopicNames = new Set(topicGroups.keys())
-      const topicsToDelete: number[] = []
-
-      existingTopicsMap.forEach((tema, nombre) => {
-        if (!newTopicNames.has(nombre)) {
-          topicsToDelete.push(tema.id)
-        }
-      })
-
-      if (topicsToDelete.length > 0) {
-        console.log(`🗑️ Eliminando ${topicsToDelete.length} tema(s) que ya no están en el schedule:`, topicsToDelete)
-        const { error: deleteError } = await supabase
-          .from('taller_detalles')
-          .delete()
-          .in('id', topicsToDelete)
-
-        if (deleteError) {
-          console.error('❌ Error eliminando temas obsoletos:', deleteError)
-        } else {
-          console.log(`✅ Temas obsoletos eliminados correctamente`)
-        }
-      }
+    // ✅ MANEJAR TALLERES (WORKSHOPS) EN ACTUALIZACIÓN
+    if (body.modality === 'workshop') {
+      await handleWorkshopUpdate(supabase, body.editingProductId, body, user.id)
     }
 
-    // ✅ MANEJAR TEMAS Y PDFs DE DOCUMENTOS EN ACTUALIZACIÓN (NUEVO)
-    if (body.modality === 'document' && body.documentMaterial) {
-      const material = body.documentMaterial
-      const topics = material.topics || []
-      const topicPdfs = material.topicPdfs || {}
+    // ✅ MANEJAR TEMAS Y PDFs DE DOCUMENTOS (NUEVO)
+    if (body.modality === 'document') {
+      await handleDocumentUpdate(supabase, body.editingProductId, body)
+    }
 
-      // 1. Guardar/Actualizar PDF general en activity_media
-      if (material.pdfType === 'general' && material.pdfUrl) {
-        const { data: existingMedia } = await supabase
-          .from('activity_media')
-          .select('id')
-          .eq('activity_id', body.editingProductId)
-          .maybeSingle()
+    // ✅ MANEJAR PLANIFICACIÓN DE EJERCICIOS (PROGRAMAS/FITNESS)
+    if (body.modality !== 'workshop' && body.modality !== 'document' && !body.modality?.includes('consultation')) {
+      if (body.weeklySchedule && typeof body.weeklySchedule === 'object' && Object.keys(body.weeklySchedule).length > 0) {
+        await saveWeeklySchedule(supabase, body.editingProductId, body.weeklySchedule, body.categoria)
 
-        if (existingMedia) {
-          await supabase
-            .from('activity_media')
-            .update({ pdf_url: material.pdfUrl })
-            .eq('activity_id', body.editingProductId)
-        } else {
-          await supabase
-            .from('activity_media')
-            .insert({
-              activity_id: body.editingProductId,
-              pdf_url: material.pdfUrl
-            })
-        }
+        // 🔥 NUCLEAR RESYNC: Reparar estadísticas después de que el trigger potencialmente las rompiera
+        const finalStats = calculateStatsFromSchedule(body.weeklySchedule, body.periods || 1);
+        console.log('🔥 [PUT] Nuclear Resync de estadísticas:', finalStats);
+
+        await supabase.from('activities').update({
+          semanas_totales: body.semanas_totales || finalStats.semanas_totales || 0,
+          sesiones_dias_totales: body.sesiones_dias_totales || finalStats.sesiones_dias_totales || 0,
+          items_totales: body.items_totales || finalStats.items_totales || 0,
+          items_unicos: body.items_unicos || finalStats.items_unicos || 0,
+          duration_weeks: body.semanas_totales || finalStats.semanas_totales || 0
+        }).eq('id', body.editingProductId);
       }
 
-      // 2. Cargar temas existentes para sincronizar (desde document_topics)
-      const { data: existingTopics } = await supabase
-        .from('document_topics')
-        .select('id, title')
-        .eq('activity_id', body.editingProductId)
-
-      const existingTopicsMap = new Map()
-      if (existingTopics) {
-        existingTopics.forEach((t: any) => existingTopicsMap.set(t.title, t.id))
-      }
-
-      const currentTopicNames = new Set()
-
-      // 3. Procesar temas: Insertar o actualizar
-      for (const topic of topics) {
-        if (!topic.title) continue
-        currentTopicNames.add(topic.title)
-
-        const topicData = {
-          activity_id: body.editingProductId,
-          title: topic.title,
-          description: topic.description || '',
-          pdf_url: topicPdfs[topic.id]?.url || null,
-          pdf_filename: topicPdfs[topic.id]?.fileName || null
-        }
-
-        if (existingTopicsMap.has(topic.title)) {
-          // Actualizar existente
-          const topicId = existingTopicsMap.get(topic.title)
-          await supabase
-            .from('document_topics')
-            .update(topicData)
-            .eq('id', topicId)
-        } else {
-          // Insertar nuevo
-          await supabase
-            .from('document_topics')
-            .insert(topicData)
-        }
-      }
-
-      // 4. Eliminar temas obsoletos
-      if (existingTopics) {
-        const topicsToDelete = existingTopics
-          .filter((t: any) => !currentTopicNames.has(t.title))
-          .map((t: any) => t.id)
-
-        if (topicsToDelete.length > 0) {
-          await supabase
-            .from('document_topics')
-            .delete()
-            .in('id', topicsToDelete)
-        }
+      // Guardar periodos si existen
+      if (body.periods) {
+        await saveProductPeriods(supabase, body.editingProductId, body.periods)
       }
     }
 
@@ -1746,6 +1404,7 @@ export async function PUT(request: NextRequest) {
       productId: product.id,
       product: product
     })
+
 
   } catch (error: any) {
     console.error('❌ Error en actualización:', error)

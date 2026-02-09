@@ -7,9 +7,10 @@ import {
 
 export async function GET(
   request: NextRequest,
-  { params }: { params: { id: string } }
+  { params }: { params: Promise<{ id: string }> }
 ) {
   try {
+    const resolvedParams = await params
     const supabase = await createRouteHandlerClient()
 
     const { data: { user }, error: authError } = await supabase.auth.getUser()
@@ -18,7 +19,7 @@ export async function GET(
       return NextResponse.json({ error: 'No autenticado' }, { status: 401 })
     }
 
-    const rawParamId = typeof params?.id === 'string' ? params.id : ''
+    const rawParamId = typeof resolvedParams?.id === 'string' ? resolvedParams.id : ''
     const rawFromPath = request?.nextUrl?.pathname?.split('/').filter(Boolean).pop() || ''
     const rawId = (rawParamId || rawFromPath || '').toString()
     const normalizedIdStr = decodeURIComponent(rawId).trim()

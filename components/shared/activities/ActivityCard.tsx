@@ -34,13 +34,13 @@ const ActivityCard: React.FC<ActivityCardProps> = ({
     const semanas = activity.semanas_totales
     if (semanas < 1) {
       const dias = Math.ceil(semanas * 7)
-      return `${dias} ${dias === 1 ? 'día' : 'días'}`
+      return `${dias} d`
     }
     if (semanas > 4) {
       const meses = Math.ceil(semanas / 4)
-      return `${meses} ${meses === 1 ? 'mes' : 'meses'}`
+      return `${meses} m`
     }
-    return `${Math.ceil(semanas)} ${semanas === 1 ? 'semana' : 'semanas'}`
+    return `${Math.ceil(semanas)} s`
   })()
 
   const sessionsToShow = isDocument && documentDuration
@@ -62,10 +62,10 @@ const ActivityCard: React.FC<ActivityCardProps> = ({
         return previewStats.ejerciciosTotales
       }
     }
-    if (activity.items_unicos !== undefined && activity.items_unicos !== null) {
+    if (activity.items_unicos) {
       return activity.items_unicos
     }
-    return activity.exercisesCount || 0
+    return Number(activity.exercisesCount) || 0
   })()
 
   const totalSessions = activity.totalSessions || 0
@@ -95,7 +95,9 @@ const ActivityCard: React.FC<ActivityCardProps> = ({
     }
   }
 
-  const capacityNumber = productCapacity ? parseInt(productCapacity.toString()) : null
+  const capacityDisplay = String(productCapacity) === '∞' || String(productCapacity).toLowerCase() === 'ilimitada' || String(productCapacity).toLowerCase() === 'unlimited' || (typeof productCapacity === 'number' && productCapacity > 9999)
+    ? '∞'
+    : (productCapacity ? parseInt(productCapacity.toString()) : null)
 
   const getValidImageUrl = (activity: Activity) => {
     const imageUrl = activity.media?.image_url ||
@@ -159,17 +161,20 @@ const ActivityCard: React.FC<ActivityCardProps> = ({
     }
   }
 
-  const formatPrice = (price?: number | null) => {
+  const formatPrice = (price?: number | string | null) => {
     if (!price) return '$0'
-    const priceStr = price.toString()
-    const parts = priceStr.split('.')
-    if (parts.length === 2) {
-      const integerPart = parseInt(parts[0]).toLocaleString('es-ES')
-      const decimalPart = parts[1].padEnd(2, '0').substring(0, 2)
-      return decimalPart === '00' ? `$${integerPart}` : `$${integerPart},${decimalPart}`
-    } else {
-      return `$${parseInt(parts[0]).toLocaleString('es-ES')}`
-    }
+    const numPrice = typeof price === 'string'
+      ? parseFloat(price.replace(',', '.'))
+      : price
+
+    if (isNaN(numPrice)) return '$0'
+
+    return new Intl.NumberFormat('es-AR', {
+      style: 'currency',
+      currency: 'ARS',
+      minimumFractionDigits: 0,
+      maximumFractionDigits: 0
+    }).format(numPrice)
   }
 
   const getDifficultyLabel = (difficulty?: string) => {
@@ -374,7 +379,12 @@ const ActivityCard: React.FC<ActivityCardProps> = ({
           <div className="flex items-center justify-between text-gray-300 mb-2">
             <div className="flex items-center gap-1">
               <Calendar className="w-4 h-4 text-[#FF7939]" />
-              <span className="text-sm font-medium">{sessionsToShow}<span className="text-[#FF7939] text-[10px]">{activity.type === 'document' ? ' s' : ' d'}</span></span>
+              <span className="text-sm font-medium">
+                {sessionsToShow}
+                {activity.type !== 'document' && (
+                  <span className="text-[#FF7939] text-[10px]"> d</span>
+                )}
+              </span>
             </div>
             <div className="flex items-center gap-1">
               {activity.categoria === 'nutricion' ? <UtensilsCrossed className="w-4 h-4 text-[#FF7939]" /> : <Zap className="w-4 h-4 text-[#FF7939]" />}
@@ -382,7 +392,7 @@ const ActivityCard: React.FC<ActivityCardProps> = ({
             </div>
             <div className="flex items-center gap-1">
               <Users className="w-4 h-4 text-[#FF7939]" />
-              <span className="text-sm font-medium">{activity.capacity || '-'}</span>
+              <span className="text-sm font-medium">{capacityDisplay || '-'}</span>
             </div>
           </div>
 

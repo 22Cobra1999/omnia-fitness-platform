@@ -60,7 +60,7 @@ export async function GET(
     })
 
     // 4. PARALLEL DATA FETCH
-    const [profileRes, injuriesRes, biometricsRes, objectivesRes, meetRes, progressRes, fitnessRes, nutriRes, docsRes, tallerRes, clientTableRes, bancoRes] = await Promise.all([
+    const [profileRes, injuriesRes, biometricsRes, objectivesRes, meetRes, progressRes, fitnessRes, nutriRes, docsRes, tallerRes, clientTableRes, bancoRes, onboardingRes] = await Promise.all([
       adminSupabase.from('user_profiles').select('*').eq('id', clientId).single(),
       adminSupabase.from('user_injuries').select('*').eq('user_id', clientId),
       adminSupabase.from('user_biometrics').select('*').eq('user_id', clientId),
@@ -72,7 +72,8 @@ export async function GET(
       adminSupabase.from('client_document_progress').select('*').eq('client_id', clientId),
       adminSupabase.from('taller_progreso_temas').select('*').eq('cliente_id', clientId),
       adminSupabase.from('clients').select('*').eq('id', clientId).maybeSingle(),
-      adminSupabase.from('banco').select('*').eq('client_id', clientId)
+      adminSupabase.from('banco').select('*').eq('client_id', clientId),
+      adminSupabase.from('client_onboarding_responses').select('*').eq('client_id', clientId).maybeSingle()
     ])
 
     const workshopFutureMap = new Map<number, number>()
@@ -390,7 +391,8 @@ export async function GET(
         emergency_contact: clientTableRes.data?.emergency_contact || null,
         location: clientTableRes.data?.location || profileRes.data?.location || null,
         meet_credits: meetRes.data?.meet_credits_available || 0
-      }
+      },
+      onboarding: onboardingRes.data || null
     }
 
     return NextResponse.json({ success: true, hasClient: true, client })

@@ -17,6 +17,7 @@ interface UniversalVideoPlayerProps {
   loop?: boolean
   disableDownload?: boolean
   forceIframeForBunny?: boolean
+  libraryId?: string | null
 }
 
 export function UniversalVideoPlayer({
@@ -31,6 +32,7 @@ export function UniversalVideoPlayer({
   loop = false,
   disableDownload = false,
   forceIframeForBunny = false,
+  libraryId = null,
 }: UniversalVideoPlayerProps) {
   const [isPlaying, setIsPlaying] = useState(autoPlay)
   const [hasError, setHasError] = useState(false)
@@ -84,6 +86,7 @@ export function UniversalVideoPlayer({
   const videoSrc = getVideoSrc()
 
   const resolveBunnyLibraryId = () => {
+    if (libraryId) return libraryId
     const envId = process.env.NEXT_PUBLIC_BUNNY_LIBRARY_ID
     if (typeof envId === 'string' && envId.trim() !== '') return envId.trim()
     if (inferredBunny?.libraryId) return inferredBunny.libraryId

@@ -61,7 +61,6 @@ export async function forceInsertEnrollment({ activityId }: ForceInsertParams) {
               RETURNING id;
             `,
           })
-          .catch((err) => ({ data: null, error: err }))
 
         if (rawError) {
           console.error("Error en SQL directo:", rawError)

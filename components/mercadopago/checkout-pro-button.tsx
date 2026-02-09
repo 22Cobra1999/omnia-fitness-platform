@@ -3,12 +3,12 @@
 import { useState } from 'react';
 import { Button } from '@/components/ui/button';
 import { Loader2, CreditCard, AlertCircle } from 'lucide-react';
-import { 
-  createCheckoutProPreference, 
+import {
+  createCheckoutProPreference,
   redirectToMercadoPagoCheckout,
-  getCheckoutProErrorMessage 
+  getCheckoutProErrorMessage
 } from '@/lib/mercadopago/checkout-pro';
-import { useToast } from '@/hooks/use-toast';
+import { useToast } from '@/hooks/shared/use-toast';
 
 interface CheckoutProButtonProps {
   /** ID de la actividad a comprar */
@@ -80,9 +80,9 @@ export function CheckoutProButton({
       }
     } catch (error: any) {
       console.error('Error en Checkout Pro:', error);
-      
+
       const errorMessage = getCheckoutProErrorMessage(error);
-      
+
       // Mostrar toast de error
       toast({
         title: 'Error al procesar el pago',

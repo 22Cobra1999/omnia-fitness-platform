@@ -154,15 +154,15 @@ export function ProductPreviewDialog({ isOpen, onClose, activity }: ProductPrevi
   }
 
   // Extraer el contenido enriquecido si existe
-  const richContentMatch = activity.description?.match(/\[RICH_CONTENT\](.*?)\[\/RICH_CONTENT\]/s)
+  const richContentMatch = activity.description?.match(/\[RICH_CONTENT\]([\s\S]*?)\[\/RICH_CONTENT\]/)
   const richContent = richContentMatch ? richContentMatch[1] : null
 
   // Limpiar la descripción de todos los marcadores especiales
   let cleanDescription = activity.description || ""
   cleanDescription = cleanDescription.replace(/\[CONSULTAS_INCLUIDAS\]/g, "")
-  cleanDescription = cleanDescription.replace(/\[NOTA_CONSULTA\].*?\[\/NOTA_CONSULTA\]/gs, "")
-  cleanDescription = cleanDescription.replace(/\[SESSIONS_COUNT\]\d+\[\/SESSIONS_COUNT\]/gs, "")
-  cleanDescription = cleanDescription.replace(/\[RICH_CONTENT\].*?\[\/RICH_CONTENT\]/gs, "")
+  cleanDescription = cleanDescription.replace(/\[NOTA_CONSULTA\][\s\S]*?\[\/NOTA_CONSULTA\]/g, "")
+  cleanDescription = cleanDescription.replace(/\[SESSIONS_COUNT\]\d+\[\/SESSIONS_COUNT\]/g, "")
+  cleanDescription = cleanDescription.replace(/\[RICH_CONTENT\][\s\S]*?\[\/RICH_CONTENT\]/g, "")
   cleanDescription = cleanDescription.trim()
 
   return (

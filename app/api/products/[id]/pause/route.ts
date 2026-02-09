@@ -4,10 +4,11 @@ import { createClient } from '@supabase/supabase-js'
 
 export async function POST(
   request: NextRequest,
-  { params }: { params: { id: string } }
+  { params }: { params: Promise<{ id: string }> }
 ) {
   try {
-    const productId = parseInt(params.id)
+    const { id } = await params
+    const productId = parseInt(id)
     const { is_paused } = await request.json()
 
     if (isNaN(productId)) {
@@ -54,14 +55,14 @@ export async function POST(
 
         if (detallesError) {
           console.error('Error obteniendo detalles del taller:', detallesError)
-          return NextResponse.json({ 
+          return NextResponse.json({
             error: 'Error al validar fechas del taller',
-            details: detallesError.message 
+            details: detallesError.message
           }, { status: 500 })
         }
 
         if (!tallerDetalles || tallerDetalles.length === 0) {
-          return NextResponse.json({ 
+          return NextResponse.json({
             error: 'No se pueden reactivar las ventas',
             details: 'El taller no tiene temas configurados. Agrega al menos un tema con fechas nuevas para reactivar las ventas.'
           }, { status: 400 })
@@ -70,7 +71,7 @@ export async function POST(
         // Validar fechas: verificar que tenga al menos una fecha futura
         const now = new Date()
         now.setHours(0, 0, 0, 0)
-        
+
         let hasAnyFutureDate = false
 
         for (const tema of tallerDetalles) {
@@ -102,7 +103,7 @@ export async function POST(
 
         // Si no tiene ninguna fecha futura, no permitir activar
         if (!hasAnyFutureDate) {
-          return NextResponse.json({ 
+          return NextResponse.json({
             error: 'No se pueden reactivar las ventas',
             details: 'El taller no tiene fechas futuras. Agrega al menos una fecha futura para reactivar las ventas.'
           }, { status: 400 })
@@ -120,9 +121,9 @@ export async function POST(
 
       if (updateError) {
         console.error('Error actualizando estado activo del taller:', updateError)
-        return NextResponse.json({ 
+        return NextResponse.json({
           error: 'Error al actualizar el estado del taller',
-          details: updateError.message 
+          details: updateError.message
         }, { status: 500 })
       }
 
@@ -147,8 +148,8 @@ export async function POST(
           is_paused: is_paused,
           taller_activo: !is_paused
         },
-        message: is_paused 
-          ? 'Taller desactivado - no disponible para nuevas ventas' 
+        message: is_paused
+          ? 'Taller desactivado - no disponible para nuevas ventas'
           : 'Taller activado - disponible para nuevas ventas'
       })
     } else {
@@ -164,9 +165,9 @@ export async function POST(
 
       if (updateError) {
         console.error('Error actualizando estado del producto:', updateError)
-        return NextResponse.json({ 
+        return NextResponse.json({
           error: 'Error al actualizar el estado del producto',
-          details: updateError.message 
+          details: updateError.message
         }, { status: 500 })
       }
 
@@ -176,16 +177,16 @@ export async function POST(
           id: product.id,
           is_paused: is_paused
         },
-        message: is_paused 
-          ? 'Producto pausado' 
+        message: is_paused
+          ? 'Producto pausado'
           : 'Producto activado'
       })
     }
   } catch (error: any) {
     console.error('Error en pause endpoint:', error)
-    return NextResponse.json({ 
+    return NextResponse.json({
       error: 'Error interno del servidor',
-      details: error.message 
+      details: error.message
     }, { status: 500 })
   }
 }

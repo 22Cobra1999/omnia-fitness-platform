@@ -1,9 +1,9 @@
 "use server"
 
-import { getServerSupabaseClient } from '@/lib/supabase/supabase-client'
+import { createClient } from '@/lib/supabase/supabase-server'
 
 export async function getCurrentUser() {
-  const supabase = getServerSupabaseClient()
+  const supabase = await createClient()
 
   try {
     const {
@@ -33,7 +33,7 @@ export async function getCurrentUser() {
 }
 
 export async function signOut() {
-  const supabase = getServerSupabaseClient()
+  const supabase = await createClient()
 
   try {
     await supabase.auth.signOut()
@@ -45,7 +45,7 @@ export async function signOut() {
 }
 
 export async function createUserProfile(userId: string, data: any) {
-  const supabase = getServerSupabaseClient()
+  const supabase = await createClient()
 
   try {
     const { error } = await supabase.from("user_profiles").insert([

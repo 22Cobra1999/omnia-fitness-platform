@@ -15,25 +15,25 @@ interface ProductPreviewModalProps {
   onDelete: (product: any) => void
 }
 
-export default function ProductPreviewModal({ 
-  isOpen, 
-  onClose, 
-  product, 
-  onEdit, 
-  onDelete 
+export default function ProductPreviewModal({
+  isOpen,
+  onClose,
+  product,
+  onEdit,
+  onDelete
 }: ProductPreviewModalProps) {
   const [isExpanded, setIsExpanded] = useState(false)
-  
+
   if (!isOpen || !product) return null
 
   const getValidImageUrl = () => {
     const imageUrl = product.activity_media?.[0]?.image_url || product.image?.url
-    
+
     // Si es una URL de placeholder, usar una imagen real
     if (imageUrl && imageUrl.includes('via.placeholder.com')) {
       return `https://images.unsplash.com/photo-1571019613454-1cb2f99b2d8b?w=400&h=300&fit=crop&crop=center&timestamp=${Date.now()}`
     }
-    
+
     return imageUrl
   }
 
@@ -46,12 +46,7 @@ export default function ProductPreviewModal({
   }
 
   // Debug: Log para verificar los datos del producto
-    title: product.title,
-    type: product.type,
-    exercisesCount: product.exercisesCount,
-    csvDataLength: product.csvData?.length,
-    csvData: product.csvData
-  })
+
 
   return (
     <AnimatePresence>
@@ -104,7 +99,7 @@ export default function ProductPreviewModal({
 
           {/* Content */}
           <div className="p-6">
-            
+
             <AnimatePresence mode="wait">
               {!isExpanded ? (
                 <motion.div
@@ -114,21 +109,16 @@ export default function ProductPreviewModal({
                   exit={{ opacity: 0 }}
                   className="flex justify-center"
                 >
-                    type: product.type,
-                    exercisesCount: product.exercisesCount,
-                    totalSessions: product.totalSessions,
-                    csvDataLength: product.csvData?.length,
-                    videoUrl: product.activity_media?.[0]?.video_url || product.video_url
-                  })}
-                                      <ProductPreviewCard
-                      product={{
-                        id: product.id,
-                        title: product.title,
-                        description: product.description,
-                        price: product.price,
-                        type: product.type,
-                        image: getValidImageUrl(),
-                        videoUrl: product.activity_media?.[0]?.video_url || product.video_url,
+
+                  <ProductPreviewCard
+                    product={{
+                      id: product.id,
+                      title: product.title,
+                      description: product.description,
+                      price: product.price,
+                      type: product.type,
+                      image: getValidImageUrl(),
+                      videoUrl: product.activity_media?.[0]?.video_url || product.video_url,
                       difficulty: product.difficulty,
                       duration: product.duration,
                       capacity: product.capacity,

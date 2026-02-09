@@ -171,17 +171,25 @@ export const ExerciseProgressList = forwardRef<ExerciseProgressListRef, Exercise
           return {
             id,
             exercise_title: data.title,
-            current_value: parseFloat(currentValue || '0'),
-            objective: parseFloat(objectiveValue || '0'),
+            current_value: currentValue ? parseFloat(currentValue.toString()) : 0,
+            objective: objectiveValue ? parseFloat(objectiveValue.toString()) : 0,
             unit: exercise?.unit
           }
         })
 
-        await fetch(`/api/coach/clients/${userId}/objectives`, {
+        console.log(`[COACH] Saving ${objectives.length} objectives for client ${userId}:`, objectives);
+        const response = await fetch(`/api/coach/clients/${userId}/objectives`, {
           method: 'PUT',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ objectives })
         })
+
+        if (!response.ok) {
+          const errorData = await response.json();
+          console.error('[COACH] Failed to save objectives:', errorData);
+          throw new Error(errorData.error || 'Failed to save objectives');
+        }
+        console.log('[COACH] Objectives saved successfully');
       } else {
         // Individual profile updates (Optimized to single request per exercise)
         const savePromises = Object.entries(editData).map(async ([exerciseId, data]) => {
@@ -243,19 +251,26 @@ export const ExerciseProgressList = forwardRef<ExerciseProgressListRef, Exercise
 
   const deleteExercise = async (exerciseId: string) => {
     try {
-      const response = await fetch('/api/profile/exercise-progress', {
-        method: 'DELETE',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ id: exerciseId })
-      })
+      // Use coach-specific endpoint if userId is present
+      const url = userId
+        ? `/api/coach/clients/${userId}/objectives?id=${exerciseId}`
+        : '/api/profile/exercise-progress';
 
+      const options: RequestInit = {
+        method: 'DELETE',
+        headers: {
+          'Content-Type': 'application/json',
+        }
+      };
+
+      // Profile API might expect ID in body, Coach API uses searchParams (handled in URL)
+      if (!userId) {
+        options.body = JSON.stringify({ id: exerciseId });
+      }
+
+      const response = await fetch(url, options);
       if (response.ok) {
-        // Remover del estado local
-        setExercises(exercises.filter(e => e.id !== exerciseId))
-        // Limpiar datos de edición si existe
-        const newEditData = { ...editData }
-        delete newEditData[exerciseId]
-        setEditData(newEditData)
+        await fetchExercises()
       } else {
         console.error('Error eliminando ejercicio')
       }
@@ -284,8 +299,6 @@ export const ExerciseProgressList = forwardRef<ExerciseProgressListRef, Exercise
 
   return (
     <div className="flex flex-col gap-2">
-      {/* Eliminado botón redundante 'Editar Objetivos' que aparecía internamente */}
-
       <div className="overflow-x-auto pb-4 -mx-1 px-1 custom-scrollbar">
         <div className="flex gap-3 min-w-max">
           {exercises.map((exercise) => {
@@ -314,7 +327,7 @@ export const ExerciseProgressList = forwardRef<ExerciseProgressListRef, Exercise
                   ) : (
                     <div className="flex items-center gap-1.5">
                       <div className="h-1.5 w-1.5 rounded-full bg-[#FF6A00] opacity-70 group-hover:opacity-100 transition-opacity"></div>
-                      <span className="text-[10px] uppercase text-gray-400 font-bold block leading-tight truncate w-full">{exercise.exercise_title || exercise.exercise_title}</span>
+                      <span className="text-[10px] uppercase text-gray-400 font-bold block leading-tight truncate w-full">{exercise.exercise_title}</span>
                     </div>
                   )}
                 </div>
