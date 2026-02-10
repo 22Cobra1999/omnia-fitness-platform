@@ -278,18 +278,21 @@ export function ActivityDetailExpanded({ activity, onBack }: ActivityDetailExpan
           )}
 
           {/* Comments and Rating */}
-          <div>
-            <h3 className="text-lg font-semibold mb-2">Comentarios</h3>
+          <div className="space-y-4">
+            <div className="flex items-center justify-between">
+              <h3 className="text-lg font-semibold">Comentarios</h3>
+              {activity.program_rating && activity.program_rating > 0 && (
+                <div className="flex items-center space-x-1.5 bg-white/5 px-2 py-1 rounded-lg">
+                  <Star className="h-4 w-4 text-yellow-400 fill-current" />
+                  <span className="text-white font-medium text-sm">{activity.program_rating.toFixed(1)}</span>
+                  <span className="text-gray-400 text-xs">({activity.total_program_reviews || 0})</span>
+                </div>
+              )}
+            </div>
             <div className="flex items-center space-x-2 text-gray-400">
               <MessageCircle className="h-4 w-4" />
               <span>No hay comentarios aún</span>
             </div>
-            {activity.program_rating && activity.program_rating > 0 && (
-              <div className="flex items-center space-x-2 mt-2">
-                <Star className="h-4 w-4 text-yellow-400 fill-current" />
-                <span className="text-gray-300">Rating del producto: {activity.program_rating.toFixed(1)}</span>
-              </div>
-            )}
           </div>
         </div>
       </div>

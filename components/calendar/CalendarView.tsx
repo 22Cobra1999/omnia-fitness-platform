@@ -103,6 +103,42 @@ export default function CalendarView({ activityIds, onActivityClick, scheduleMee
     }>
   >([])
 
+  // Load info for all active activities to determine available coaches
+  useEffect(() => {
+    const loadAllActivityInfo = async () => {
+      if (activityIds.length === 0) return
+
+      const missingIds = activityIds.filter(id => !activitiesInfo[id])
+      if (missingIds.length === 0) return
+
+      try {
+        const { data: activitiesData, error } = await supabase
+          .from('activities')
+          .select('id, title, type, categoria, coach_id') // Added coach_id
+          .in('id', missingIds)
+
+        if (error) {
+          console.error('Error fetching activities info:', error)
+          return
+        }
+
+        if (activitiesData) {
+          setActivitiesInfo((prev) => {
+            const next = { ...prev }
+            activitiesData.forEach((a: any) => {
+              next[String(a.id)] = a
+            })
+            return next
+          })
+        }
+      } catch (err) {
+        console.error('Error loading activity info:', err)
+      }
+    }
+
+    loadAllActivityInfo()
+  }, [activityIds, activitiesInfo, supabase])
+
   // Edit Mode States
   const [isEditing, setIsEditing] = useState(false)
   const [sourceDate, setSourceDate] = useState<Date | null>(null)
@@ -1749,6 +1785,7 @@ export default function CalendarView({ activityIds, onActivityClick, scheduleMee
   }
 
   const handleTimelineClick = (e: React.MouseEvent<HTMLButtonElement>, blockStart: string, blockEnd: string, dayKey: string) => {
+    console.log('[handleTimelineClick] Called with rescheduleContext:', rescheduleContext)
     // Calculate click position relative to the button (Available Block)
     const rect = e.currentTarget.getBoundingClientRect()
     const relativeY = e.clientY - rect.top
@@ -1771,13 +1808,16 @@ export default function CalendarView({ activityIds, onActivityClick, scheduleMee
     const m = finalMins % 60
     const timeHHMM = `${String(h).padStart(2, '0')}:${String(m).padStart(2, '0')}`
 
-    setSelectedMeetRequest({
+    setSelectedMeetRequest((prev) => ({
       coachId: String(selectedCoachId),
       dayKey,
       timeHHMM,
-      title: 'Meet',
-      description: '',
-    })
+      // If we're in reschedule mode, use the original title/description from snapshot
+      // Otherwise, preserve existing title if available
+      title: rescheduleContext?.snapshot?.title || prev?.title || 'Meet',
+      description: rescheduleContext?.snapshot?.description || prev?.description || '',
+    }))
+    console.log('[handleTimelineClick] Set selectedMeetRequest, rescheduleContext still:', rescheduleContext)
     setMeetViewMode('day_split') // Drill down to Day/Split View for booking
     setSelectedDate(addDays(new Date(dayKey), 1)) // Force date update (offset by timezone if needed, but dayKey is accurate)
     const d = new Date(dayKey + 'T12:00:00') // Better parsing
@@ -2003,6 +2043,28 @@ export default function CalendarView({ activityIds, onActivityClick, scheduleMee
             </span>
           )}
         </button>
+
+        {/* Cancelar modificación button - only show when in reschedule mode */}
+        {rescheduleContext && (
+          <button
+            type="button"
+            onClick={() => {
+              setReschedulePreview(null)
+              setRescheduleContext(null)
+              setMeetViewMode('month')
+              handleClearCoachForMeet()
+            }}
+            className={
+              `px-4 py-1.5 rounded-full border text-sm font-medium ` +
+              `backdrop-blur-md bg-red-500/10 border-red-500/30 shadow-[0_8px_24px_rgba(0,0,0,0.35)] ` +
+              `text-red-400 hover:bg-red-500/20 transition-colors whitespace-nowrap`
+            }
+            title="Cancelar modificación"
+            aria-label="Cancelar modificación"
+          >
+            Cancelar modificación
+          </button>
+        )}
 
         <div className="flex items-center gap-2">
           <div
@@ -2654,6 +2716,72 @@ export default function CalendarView({ activityIds, onActivityClick, scheduleMee
                             type="button"
                             className="w-full py-3 rounded-xl bg-[#FF7939] text-black font-bold text-sm hover:opacity-90 transition-opacity shadow-[0_4px_12px_rgba(255,121,57,0.25)]"
                             onClick={async () => {
+                              console.log('[day_split Confirm] Button clicked', { rescheduleContext })
+
+                              // If we're in reschedule mode, handle differently
+                              if (rescheduleContext) {
+                                const duration = coachConsultations[selectedConsultationType].time
+                                const startIso = new Date(`${selectedMeetRequest.dayKey}T${selectedMeetRequest.timeHHMM}:00`).toISOString()
+                                const endIso = new Date(new Date(startIso).getTime() + duration * 60 * 1000).toISOString()
+
+                                try {
+                                  const { data: auth } = await supabase.auth.getUser()
+                                  const user = auth?.user
+                                  if (!user?.id) return
+
+                                  const { data: participantData } = await (supabase
+                                    .from('calendar_event_participants') as any)
+                                    .select('rsvp_status, invited_by_user_id')
+                                    .eq('event_id', rescheduleContext.eventId)
+                                    .eq('client_id', user.id)
+                                    .single()
+
+                                  // If the meet is still pending and the client created it, update directly
+                                  if (participantData?.rsvp_status === 'pending' && participantData?.invited_by_user_id === user.id) {
+                                    console.log('[day_split] Updating existing meet...')
+                                    const { error: updateError } = await (supabase
+                                      .from('calendar_events') as any)
+                                      .update({
+                                        start_time: startIso,
+                                        end_time: endIso,
+                                        title: selectedMeetRequest.title || 'Meet',
+                                        description: selectedMeetRequest.description,
+                                      })
+                                      .eq('id', rescheduleContext.eventId)
+
+                                    if (updateError) {
+                                      console.error('[day_split] Error updating event:', updateError)
+                                      return
+                                    }
+
+                                    console.log('[day_split] Event updated successfully!')
+                                    setRescheduleContext(null)
+                                    setMeetViewMode('month')
+                                    setSelectedMeetRequest(null)
+                                    handleClearCoachForMeet()
+
+                                    const [startHour, startMin] = selectedMeetRequest.timeHHMM.split(':').map(Number)
+                                    const startMinutes = startHour * 60 + startMin
+                                    const endMinutes = startMinutes + duration
+                                    const endHour = Math.floor(endMinutes / 60)
+                                    const endMin = endMinutes % 60
+                                    const endTime = `${String(endHour).padStart(2, '0')}:${String(endMin).padStart(2, '0')}`
+
+                                    setSuccessModalData({
+                                      coachName: coachProfiles.find(c => c.id === selectedCoachId)?.full_name || 'Coach',
+                                      date: format(new Date(startIso), 'dd MMM yyyy', { locale: es }),
+                                      time: `${selectedMeetRequest.timeHHMM} – ${endTime}`,
+                                      duration: duration
+                                    })
+                                    setShowSuccessModal(true)
+                                    return
+                                  }
+                                } catch (error) {
+                                  console.error('[day_split] Error checking meet status:', error)
+                                }
+                              }
+
+                              // Original logic for creating new meets
                               // REUSED LOGIC FROM MODAL
                               // We need to either call the same function or duplicate the logic. 
                               // For safety/speed, duplicating the core submission logic here.
@@ -2727,10 +2855,18 @@ export default function CalendarView({ activityIds, onActivityClick, scheduleMee
                                   setSelectedMeetRequest(null)
                                   if (onSetScheduleMeetContext) onSetScheduleMeetContext(null)
                                   setShowSuccessModal(true)
+                                  // Calculate end time
+                                  const [startHour, startMin] = selectedMeetRequest.timeHHMM.split(':').map(Number)
+                                  const startMinutes = startHour * 60 + startMin
+                                  const endMinutes = startMinutes + duration
+                                  const endHour = Math.floor(endMinutes / 60)
+                                  const endMin = endMinutes % 60
+                                  const endTime = `${String(endHour).padStart(2, '0')}:${String(endMin).padStart(2, '0')}`
+
                                   setSuccessModalData({
                                     coachName: coachProfiles.find(c => c.id === selectedCoachId)?.full_name || 'Coach',
                                     date: format(new Date(startIso), 'dd MMM yyyy', { locale: es }),
-                                    time: `${selectedMeetRequest.timeHHMM} – ...`,
+                                    time: `${selectedMeetRequest.timeHHMM} – ${endTime}`,
                                     duration: duration
                                   })
                                 }
@@ -3536,11 +3672,105 @@ export default function CalendarView({ activityIds, onActivityClick, scheduleMee
                               : 'w-full px-4 py-2.5 rounded-xl bg-white/10 text-white/70 text-sm font-semibold border border-white/15 cursor-not-allowed'
                           }
                           onClick={async () => {
-                            console.log('[CalendarView] Confirm button clicked', { authUserId, selectedCoachId, canConfirm, selectedMeetRequest })
+                            console.log('[CalendarView] Confirm button clicked', { authUserId, selectedCoachId, canConfirm, selectedMeetRequest, rescheduleContext })
                             if (!authUserId) return
                             if (!selectedCoachId) return
                             if (!canConfirm) return
 
+                            // If we're in reschedule mode, handle differently based on meet status
+                            if (rescheduleContext) {
+                              console.log('[CalendarView] In reschedule mode, checking meet status...', { rescheduleContext })
+                              const startIso = new Date(`${selectedMeetRequest.dayKey}T${selectedMeetRequest.timeHHMM}:00`).toISOString()
+                              const duration = Number(rescheduleContext.durationMinutes ?? 30) || 30
+                              const endIso = new Date(new Date(startIso).getTime() + duration * 60 * 1000).toISOString()
+
+                              // Check if the original meet is still pending
+                              // If it's pending and the client created it, just update the event directly
+                              // If it's confirmed, create a reschedule request
+                              try {
+                                const { data: eventData, error: eventError } = await (supabase
+                                  .from('calendar_events') as any)
+                                  .select('id, status')
+                                  .eq('id', rescheduleContext.eventId)
+                                  .single()
+
+                                console.log('[CalendarView] Event data:', { eventData, eventError })
+
+                                const { data: participantData, error: participantError } = await (supabase
+                                  .from('calendar_event_participants') as any)
+                                  .select('rsvp_status, invited_by_user_id')
+                                  .eq('event_id', rescheduleContext.eventId)
+                                  .eq('client_id', authUserId)
+                                  .single()
+
+                                console.log('[CalendarView] Participant data:', { participantData, participantError, authUserId })
+
+                                // If the meet is still pending and the client created it, update directly
+                                if (participantData?.rsvp_status === 'pending' && participantData?.invited_by_user_id === authUserId) {
+                                  console.log('[CalendarView] Meet is pending and created by client, updating directly...')
+                                  // Update the event directly
+                                  const { error: updateError } = await (supabase
+                                    .from('calendar_events') as any)
+                                    .update({
+                                      start_time: startIso,
+                                      end_time: endIso,
+                                    })
+                                    .eq('id', rescheduleContext.eventId)
+
+                                  if (updateError) {
+                                    console.error('[CalendarView] Error updating event:', updateError)
+                                    return
+                                  }
+
+                                  console.log('[CalendarView] Event updated successfully!')
+
+                                  // Clear reschedule context and show success
+                                  setRescheduleContext(null)
+                                  setReschedulePreview(null)
+                                  setMeetViewMode('month')
+                                  setSelectedMeetRequest(null)
+                                  handleClearCoachForMeet()
+
+                                  const coachName = selectedCoachProfile?.full_name || 'Coach'
+                                  const dateFormatted = format(new Date(startIso), "EEEE d 'de' MMMM", { locale: es })
+                                  const [startHour, startMin] = selectedMeetRequest.timeHHMM.split(':').map(Number)
+                                  const startMinutes = startHour * 60 + startMin
+                                  const endMinutes = startMinutes + duration
+                                  const endHour = Math.floor(endMinutes / 60)
+                                  const endMin = endMinutes % 60
+                                  const endTime = `${String(endHour).padStart(2, '0')}:${String(endMin).padStart(2, '0')}`
+
+                                  setSuccessModalData({
+                                    coachName,
+                                    date: dateFormatted,
+                                    time: `${selectedMeetRequest.timeHHMM} – ${endTime}`,
+                                    duration,
+                                  })
+                                  setShowSuccessModal(true)
+                                  return
+                                } else {
+                                  console.log('[CalendarView] Meet is confirmed or not created by client, showing reschedule preview...', {
+                                    rsvp_status: participantData?.rsvp_status,
+                                    invited_by_user_id: participantData?.invited_by_user_id,
+                                    authUserId
+                                  })
+                                }
+                              } catch (error) {
+                                console.error('[CalendarView] Error checking meet status:', error)
+                              }
+
+                              // Otherwise, show the reschedule preview modal for confirmed meets
+                              setReschedulePreview({
+                                dayKey: selectedMeetRequest.dayKey,
+                                timeHHMM: selectedMeetRequest.timeHHMM,
+                                toStartIso: startIso,
+                                toEndIso: endIso,
+                                note: '',
+                              })
+                              return
+                            }
+
+                            // Otherwise, create a new meet event
                             try {
                               const startIso = new Date(`${selectedMeetRequest.dayKey}T${selectedMeetRequest.timeHHMM}:00`).toISOString()
                               const duration = isPaidMeetFlow
@@ -3584,10 +3814,18 @@ export default function CalendarView({ activityIds, onActivityClick, scheduleMee
                               const coachName = selectedCoachProfile?.full_name || 'Coach'
                               const dateFormatted = format(new Date(payload.start_time), "EEEE d 'de' MMMM", { locale: es })
 
+                              // Calculate end time
+                              const [startHour, startMin] = selectedMeetRequest.timeHHMM.split(':').map(Number)
+                              const startMinutes = startHour * 60 + startMin
+                              const endMinutes = startMinutes + duration
+                              const endHour = Math.floor(endMinutes / 60)
+                              const endMin = endMinutes % 60
+                              const endTime = `${String(endHour).padStart(2, '0')}:${String(endMin).padStart(2, '0')}`
+
                               setSuccessModalData({
                                 coachName,
                                 date: dateFormatted,
-                                time: selectedMeetRequest.timeHHMM,
+                                time: `${selectedMeetRequest.timeHHMM} – ${endTime}`,
                                 duration,
                               })
 
@@ -3604,7 +3842,7 @@ export default function CalendarView({ activityIds, onActivityClick, scheduleMee
                             }
                           }}
                         >
-                          Confirmar solicitud
+                          {rescheduleContext ? 'Revisar cambio' : 'Confirmar solicitud'}
                         </button>
 
                         {!canConfirm && !isPaidMeetFlow && (

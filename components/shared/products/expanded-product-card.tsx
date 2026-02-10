@@ -47,14 +47,14 @@ interface ExpandedProductCardProps {
   csvData?: string[][]
 }
 
-export function ExpandedProductCard({ 
-  product, 
+export function ExpandedProductCard({
+  product,
   onPurchase,
   onClose,
   csvData
 }: ExpandedProductCardProps) {
   const [isVideoPlaying, setIsVideoPlaying] = useState(false)
-  
+
   // Funciones para manejar URLs de video
   const extractVimeoId = (url: string): string | null => {
     const vimeoRegex = /(?:vimeo\.com\/|player\.vimeo\.com\/video\/)(\d+)/;
@@ -73,15 +73,15 @@ export function ExpandedProductCard({
     if (vimeoId) {
       return `https://player.vimeo.com/video/${vimeoId}`;
     }
-    
+
     const youtubeId = extractYouTubeId(url);
     if (youtubeId) {
       return `https://www.youtube.com/embed/${youtubeId}`;
     }
-    
+
     return null;
   }
-  
+
   const getTypeIcon = () => {
     switch (product.type) {
       case 'workshop':
@@ -168,7 +168,7 @@ export function ExpandedProductCard({
         const isNutrition = product.categoria === 'nutricion' || product.type === 'nutrition'
         const label = isNutrition ? 'Platos' : 'Ejercicios'
         const value = isNutrition ? `${exercisesCount} platos` : `${exercisesCount} ejercicios`
-        
+
         details.push({
           label: label,
           value: value,
@@ -197,7 +197,7 @@ export function ExpandedProductCard({
   const embedUrl = videoUrl ? getEmbedUrl(videoUrl) : null
 
   return (
-    <motion.div 
+    <motion.div
       initial={{ opacity: 0, y: 20 }}
       animate={{ opacity: 1, y: 0 }}
       exit={{ opacity: 0, y: -20 }}
@@ -245,7 +245,7 @@ export function ExpandedProductCard({
                 <h1 className="text-gray-400 text-2xl font-bold">OMNIA</h1>
               </div>
             )}
-            
+
             {/* Type Badge */}
             <div className="absolute top-4 left-4">
               <Badge className="bg-orange-500 text-white border-none">
@@ -283,37 +283,18 @@ export function ExpandedProductCard({
 
             {/* Rating Section */}
             <div className="border-t border-gray-700 pt-6 mb-6">
-              <h3 className="text-lg font-semibold text-white mb-4 flex items-center">
-                <Star className="h-5 w-5 text-yellow-400 mr-2" />
-                Calificaciones y Comentarios
-              </h3>
-              
-              {product.program_rating && product.total_program_reviews ? (
-                <div className="space-y-4">
-                  <div className="flex items-center space-x-4">
-                    <div className="flex items-center">
-                      <span className="text-3xl font-bold text-white mr-2">
-                        {product.program_rating.toFixed(1)}
-                      </span>
-                      <div className="flex">
-                        {[1, 2, 3, 4, 5].map((star) => (
-                          <Star
-                            key={star}
-                            className={`h-5 w-5 ${
-                              star <= Math.round(product.program_rating!)
-                                ? 'text-yellow-400 fill-current'
-                                : 'text-gray-400'
-                            }`}
-                          />
-                        ))}
-                      </div>
-                    </div>
-                    <span className="text-gray-400">
-                      ({product.total_program_reviews} opiniones)
-                    </span>
+              <div className="flex items-center justify-between mb-4">
+                <h3 className="text-lg font-semibold text-white">Comentarios</h3>
+                {product.program_rating && product.total_program_reviews && (
+                  <div className="flex items-center space-x-1.5 bg-white/5 px-2 py-1 rounded-lg">
+                    <Star className="h-4 w-4 text-yellow-400 fill-current" />
+                    <span className="text-white font-medium text-sm">{product.program_rating.toFixed(1)}</span>
+                    <span className="text-gray-400 text-xs">({product.total_program_reviews})</span>
                   </div>
-                </div>
-              ) : (
+                )}
+              </div>
+
+              {!(product.program_rating && product.total_program_reviews) && (
                 <div className="text-center py-8">
                   <MessageCircle className="h-12 w-12 text-gray-500 mx-auto mb-3" />
                   <p className="text-gray-400">No hay calificaciones aún</p>
@@ -327,7 +308,7 @@ export function ExpandedProductCard({
               <div className="text-3xl font-bold text-white">
                 ${product.price.toFixed(2)}
               </div>
-              
+
               <div className="flex space-x-3">
                 <Button
                   onClick={onClose}
@@ -337,7 +318,7 @@ export function ExpandedProductCard({
                   <ChevronUp className="h-4 w-4 mr-2" />
                   Ver menos
                 </Button>
-                
+
                 <Button
                   onClick={onPurchase}
                   className="bg-gradient-to-r from-orange-500 to-orange-600 hover:from-orange-600 hover:to-orange-700 text-white font-semibold px-6 py-3"

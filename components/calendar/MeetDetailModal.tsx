@@ -1,8 +1,8 @@
 
 import React from 'react'
-import { format, startOfWeek } from 'date-fns'
+import { format, startOfWeek, isToday } from 'date-fns'
 import { es } from 'date-fns/locale'
-import { Calendar as CalendarIcon, Globe, RotateCcw, X } from 'lucide-react'
+import { Calendar as CalendarIcon, Globe, RotateCcw, X, Video, AlertTriangle } from 'lucide-react'
 import { createClientComponentClient } from '@supabase/auth-helpers-nextjs'
 import { useToast } from "@/components/ui/use-toast"
 
@@ -31,6 +31,10 @@ interface MeetDetailModalProps {
     handlePickCoachForMeet: (coachId: string) => void
     setMeetViewMode: (mode: 'month' | 'week' | 'day_split') => void
     setMeetWeekStart: (date: Date) => void
+
+    // Optional: New reschedule handler
+    onReschedule?: (meet: any) => void
+    onCancelRescheduleRequest?: (eventId: string) => Promise<void>
 }
 
 export function MeetDetailModal({
@@ -49,13 +53,18 @@ export function MeetDetailModal({
     setRescheduleContext,
     handlePickCoachForMeet,
     setMeetViewMode,
-    setMeetWeekStart
+    setMeetWeekStart,
+    onReschedule,
+    onCancelRescheduleRequest
 }: MeetDetailModalProps) {
     const supabase = createClientComponentClient()
     const { toast } = useToast()
+    const [showCancelConfirm, setShowCancelConfirm] = React.useState(false)
+    const [showWorkshopRescheduleWarning, setShowWorkshopRescheduleWarning] = React.useState(false)
 
     // Logic extracted from IIFE
     const start = new Date(selectedMeetEvent.start_time)
+    const actualEventId = selectedMeetEvent.is_ghost ? selectedMeetEvent.original_event_id : selectedMeetEvent.id
     const end = selectedMeetEvent.end_time ? new Date(selectedMeetEvent.end_time) : null
     const timeLabel = `${format(start, 'HH:mm')}${end && !Number.isNaN(end.getTime()) ? ` – ${format(end, 'HH:mm')}` : ''}`
     const dateLabel = format(start, "EEEE d 'de' MMMM", { locale: es })
@@ -103,7 +112,7 @@ export function MeetDetailModal({
                 const dayEvents = prev[dateKey] || []
                 return {
                     ...prev,
-                    [dateKey]: dayEvents.map((e: any) => e.id === eventId ? { ...e, rsvp_status: newStatus } : e)
+                    [dateKey]: dayEvents.map((e: any) => (e.id === actualEventId || e.original_event_id === actualEventId) ? { ...e, rsvp_status: newStatus } : e)
                 }
             })
             setSelectedMeetRsvpStatus(newStatus)
@@ -118,6 +127,14 @@ export function MeetDetailModal({
         }
     }
 
+
+    const handleRescheduleClick = () => {
+        if (isWorkshop && onReschedule) {
+            setShowWorkshopRescheduleWarning(true)
+        } else if (onReschedule) {
+            onReschedule(selectedMeetEvent)
+        }
+    }
 
     // Rewrite safe handleAcceptReschedule for toast
     const safeHandleAcceptReschedule = async () => {
@@ -137,7 +154,7 @@ export function MeetDetailModal({
                     end_time: pendingReschedule.to_end_time,
                     status: 'rescheduled'
                 })
-                .eq('id', selectedMeetEvent.id)
+                .eq('id', actualEventId)
             if (evtErr) throw evtErr
 
             // Local state update
@@ -149,7 +166,7 @@ export function MeetDetailModal({
             setMeetEventsByDate((prev: any) => {
                 const updatedMap = { ...prev }
                 if (updatedMap[oldKey]) {
-                    updatedMap[oldKey] = updatedMap[oldKey].filter((e: any) => e.id !== selectedMeetEvent.id)
+                    updatedMap[oldKey] = updatedMap[oldKey].filter((e: any) => e.id !== actualEventId)
                 }
                 const updatedEvent = {
                     ...selectedMeetEvent,
@@ -212,7 +229,7 @@ export function MeetDetailModal({
     const handleAccept = async () => {
         try {
             setSelectedMeetRsvpLoading(true)
-            await updateMeetStatus(String(selectedMeetEvent.id), 'accepted')
+            await updateMeetStatus(String(actualEventId), 'accepted')
             toast({
                 title: "¡Estás dentro!",
                 description: "Has confirmado tu asistencia a la reunión.",
@@ -228,7 +245,7 @@ export function MeetDetailModal({
     const handleDecline = async () => {
         try {
             setSelectedMeetRsvpLoading(true)
-            await updateMeetStatus(String(selectedMeetEvent.id), 'declined')
+            await updateMeetStatus(String(actualEventId), 'declined')
             toast({
                 title: "Asistencia rechazada",
                 description: "Has indicado que no asistirás a esta reunión.",
@@ -242,16 +259,20 @@ export function MeetDetailModal({
     }
 
     const handleCancel = async () => {
-        if (!confirm('¿Estás seguro que querés cancelar esta meet?')) return
+        setShowCancelConfirm(true)
+    }
+
+    const confirmCancel = async () => {
         try {
             setSelectedMeetRsvpLoading(true)
             setSelectedMeetRsvpStatus('cancelled')
-            await updateMeetStatus(String(selectedMeetEvent.id), 'cancelled')
+            await updateMeetStatus(String(actualEventId), 'cancelled')
             toast({
                 title: "Asistencia cancelada",
                 description: "Hemos actualizado tu estado para esta reunión.",
             })
             setSelectedMeetEvent(null)
+            setShowCancelConfirm(false)
         } catch (e) {
             // Toast handled in updateMeetStatus
         } finally {
@@ -270,13 +291,13 @@ export function MeetDetailModal({
         })()
 
         setRescheduleContext({
-            eventId: String(selectedMeetEvent.id),
+            eventId: String(actualEventId),
             coachId: String(selectedMeetEvent.coach_id),
             fromStart: String(selectedMeetEvent.start_time),
             fromEnd: selectedMeetEvent.end_time ? String(selectedMeetEvent.end_time) : null,
             durationMinutes,
             snapshot: {
-                id: String(selectedMeetEvent.id),
+                id: String(actualEventId),
                 title: selectedMeetEvent.title ?? null,
                 start_time: String(selectedMeetEvent.start_time),
                 end_time: selectedMeetEvent.end_time ? String(selectedMeetEvent.end_time) : null,
@@ -292,10 +313,10 @@ export function MeetDetailModal({
         setSelectedMeetEvent(null)
     }
 
-    const hostParticipant = selectedMeetParticipants.find(p => String(p.client_id) === String(selectedMeetEvent.coach_id))
-    // Filter out host from guests list
-    const guests = selectedMeetParticipants.filter(p => String(p.client_id) !== String(selectedMeetEvent.coach_id))
-    const coachNameResolved = hostParticipant?.name || coachProfile?.full_name || 'Coach'
+    const hostParticipant = selectedMeetParticipants.find(p => p.is_organizer === true)
+    // Filter out organizer from guests list
+    const guests = selectedMeetParticipants.filter(p => p.is_organizer !== true)
+    const organizerName = hostParticipant?.name || 'Organizador'
 
     const requestorName = (() => {
         if (!pendingReschedule?.requested_by_user_id) return ''
@@ -311,10 +332,23 @@ export function MeetDetailModal({
         (pendingReschedule.status === 'accepted' && pendingReschedule.from_start_time !== selectedMeetEvent.start_time)
     )
 
+    // Determine if current user sent this invitation
+    const isSentByMe = selectedMeetEvent.invited_by_user_id === authUserId
+
+    // Check if any participant has pending status
+    const hasPendingParticipants = selectedMeetParticipants.some(p =>
+        p.rsvp_status === 'pending' && String(p.client_id) !== String(selectedMeetEvent.coach_id)
+    )
+
     const timingStatusLabel = (() => {
         if (isCancelled) return { label: 'Cancelada', color: 'text-red-400 bg-red-500/10 border-red-500/20' }
+        if (selectedMeetEvent.is_ghost) return { label: 'Propuesta', color: 'text-[#FFB366] bg-[#FFB366]/10 border-[#FFB366]/20' }
         if (pendingReschedule?.status === 'pending') return { label: 'Sugerida', color: 'text-[#FFB366] bg-[#FFB366]/10 border-[#FFB366]/20' }
         if (isRescheduled) return { label: 'Reprogramada', color: 'text-blue-400 bg-blue-500/10 border-blue-500/20' }
+        // If there are pending participants, show 'Pendiente'
+        if (hasPendingParticipants) return { label: 'Pendiente', color: 'text-[#FFB366] bg-[#FFB366]/10 border-[#FFB366]/20' }
+        // If my RSVP is pending, show 'Pendiente'
+        if (myRsvp === 'pending') return { label: 'Pendiente', color: 'text-[#FFB366] bg-[#FFB366]/10 border-[#FFB366]/20' }
         return { label: 'Confirmada', color: 'text-[#FF7939] bg-[#FF7939]/10 border-[#FF7939]/20' }
     })()
 
@@ -367,7 +401,7 @@ export function MeetDetailModal({
                                 <span className="text-base font-semibold text-white capitalize leading-tight">
                                     {dateLabel}
                                 </span>
-                                {showRescheduleHistory && (
+                                {(selectedMeetEvent.is_ghost || pendingReschedule?.status === 'accepted' || pendingReschedule?.status === 'pending') && pendingReschedule && (
                                     <span className="text-xs text-white/20 line-through font-medium">
                                         {format(new Date(pendingReschedule.from_start_time), "d 'de' MMM", { locale: es })}
                                     </span>
@@ -377,7 +411,7 @@ export function MeetDetailModal({
                                 <span className="text-sm text-gray-400 font-medium">
                                     {timeLabel}
                                 </span>
-                                {showRescheduleHistory && (
+                                {(selectedMeetEvent.is_ghost || pendingReschedule?.status === 'accepted' || pendingReschedule?.status === 'pending') && pendingReschedule && (
                                     <span className="text-[11px] text-white/20 line-through">
                                         {format(new Date(pendingReschedule.from_start_time), "HH:mm")}
                                     </span>
@@ -385,16 +419,30 @@ export function MeetDetailModal({
                                 <span className="w-1 h-1 rounded-full bg-white/10" />
                                 <span className="text-[10px] text-gray-500 uppercase font-black tracking-widest">GMT-3</span>
                             </div>
+                        </div>
+                    </div>
 
-                            {pendingReschedule?.status === 'pending' && (
-                                <div className="mt-2 text-[10px] text-[#FFB366] font-medium flex items-center gap-1.5">
-                                    <RotateCcw size={12} />
-                                    {pendingReschedule.requested_by_user_id === authUserId ? 'Sugeriste un cambio' : `${requestorName} sugirió este cambio`}
-                                    {pendingReschedule.note && <span className="text-white/30 italic ml-1">"{pendingReschedule.note}"</span>}
+                    {pendingReschedule?.status === 'pending' && (
+                        <div className="flex flex-col gap-2 p-3 rounded-xl bg-[#FFB366]/5 border border-[#FFB366]/10 w-full">
+                            <div className="text-[10px] font-black text-[#FFB366] uppercase tracking-widest flex items-center gap-1.5">
+                                <RotateCcw size={12} />
+                                PROPUESTA DE CAMBIO
+                            </div>
+                            <div className="flex flex-col">
+                                <span className="text-xs font-bold text-white">
+                                    {format(new Date(pendingReschedule.to_start_time), "EEEE d 'de' MMMM", { locale: es })}
+                                </span>
+                                <span className="text-[11px] text-gray-400">
+                                    {format(new Date(pendingReschedule.to_start_time), "HH:mm")} – {format(new Date(pendingReschedule.to_end_time), "HH:mm")}
+                                </span>
+                            </div>
+                            {pendingReschedule.reason && (
+                                <div className="text-[11px] text-white/50 italic leading-relaxed border-t border-white/5 pt-2 mt-1">
+                                    "{pendingReschedule.reason}"
                                 </div>
                             )}
                         </div>
-                    </div>
+                    )}
 
                     {/* MINIMALIST PARTICIPANTS */}
                     <div>
@@ -408,21 +456,23 @@ export function MeetDetailModal({
                                             <img
                                                 src={hostParticipant?.avatar_url || coachProfile?.avatar_url || ''}
                                                 className="w-8 h-8 rounded-full object-cover bg-zinc-800"
-                                                alt="Coach"
+                                                alt="Organizador"
                                             />
                                         ) : (
                                             <div className="w-8 h-8 rounded-full bg-zinc-800 flex items-center justify-center text-[10px] font-bold text-white uppercase">
-                                                {coachNameResolved.substring(0, 2)}
+                                                {organizerName.substring(0, 2)}
                                             </div>
                                         )}
-                                        <div className="absolute -bottom-0.5 -right-0.5 w-2.5 h-2.5 rounded-full bg-[#FF7939] border-2 border-zinc-950" />
+                                        <div className={`absolute -bottom-0.5 -right-0.5 w-2.5 h-2.5 rounded-full border-2 border-zinc-950 ${selectedMeetEvent.is_ghost ? 'bg-[#FFB366]' : 'bg-[#FF7939]'}`} />
                                     </div>
                                     <div className="flex flex-col">
-                                        <span className="text-white font-medium">{coachNameResolved}</span>
-                                        <span className="text-[9px] text-[#FF7939] font-black uppercase tracking-widest">Anfitrión</span>
+                                        <span className="text-white font-medium">{organizerName}</span>
+                                        <span className="text-[9px] text-[#FF7939] font-black uppercase tracking-widest">Organizador</span>
                                     </div>
                                 </div>
-                                <div className="text-xs text-[#FF7939] font-bold">Reserva</div>
+                                <div className={`text-xs font-bold ${selectedMeetEvent.is_ghost ? 'text-[#FFB366]' : 'text-[#FF7939]'}`}>
+                                    {selectedMeetEvent.is_ghost ? 'Pendiente' : 'Reserva'}
+                                </div>
                             </div>
 
                             {/* Guests */}
@@ -516,14 +566,73 @@ export function MeetDetailModal({
                                         </div>
                                     </div>
                                 ) : (
-                                    <div className="text-xs text-white/50 bg-black/20 p-4 rounded-xl border border-white/5 text-center italic leading-relaxed">
-                                        Esperando respuesta por parte de {selectedMeetEvent.coach_id === authUserId ? 'los invitados' : 'el coach'} para confirmar el nuevo horario.
+                                    <div className="flex flex-col gap-3">
+                                        <div className="text-[10px] text-white/40 text-center uppercase tracking-widest font-bold">
+                                            Esperando respuesta del {selectedMeetEvent.coach_id === authUserId ? 'cliente' : 'coach'}...
+                                        </div>
+                                        <div className="grid grid-cols-2 gap-2">
+                                            <button
+                                                type="button"
+                                                disabled={selectedMeetRsvpLoading}
+                                                onClick={handleRescheduleClick}
+                                                className="px-3 py-2 rounded-xl bg-zinc-800 text-white text-[11px] font-bold border border-white/5 hover:bg-zinc-700 transition-colors"
+                                            >
+                                                Nuevo cambio
+                                            </button>
+                                            <button
+                                                type="button"
+                                                disabled={selectedMeetRsvpLoading}
+                                                onClick={async () => {
+                                                    if (onCancelRescheduleRequest) {
+                                                        try {
+                                                            setSelectedMeetRsvpLoading(true)
+                                                            await onCancelRescheduleRequest(String(actualEventId))
+                                                            setSelectedMeetEvent(null)
+                                                            toast({
+                                                                title: "Solicitud anulada",
+                                                                description: "Tu pedido de cambio ha sido cancelado.",
+                                                            })
+                                                        } catch (err) {
+                                                            // error handled in hook
+                                                        } finally {
+                                                            setSelectedMeetRsvpLoading(false)
+                                                        }
+                                                    }
+                                                }}
+                                                className="px-3 py-2 rounded-xl bg-red-500/10 text-red-400 text-[11px] font-bold border border-red-500/20 hover:bg-red-500/20 transition-colors"
+                                            >
+                                                Anular pedido
+                                            </button>
+                                        </div>
                                     </div>
                                 )}
                             </div>
                         ) : (
                             <>
-                                {!isMyRsvpConfirmed && !isCancelled && !isMyRsvpDeclined && !isPast && (
+                                {/* If I sent the invitation and it's pending, show cancel/modify options */}
+                                {isSentByMe && myRsvp === 'pending' && !isCancelled && !isPast && (
+                                    <div className="flex flex-col gap-2">
+                                        <button
+                                            type="button"
+                                            disabled={selectedMeetRsvpLoading || !canEditRsvp}
+                                            onClick={handleSuggestNewTime}
+                                            className="w-full px-4 py-2.5 rounded-xl bg-zinc-800 text-white text-sm hover:bg-zinc-700 transition-colors disabled:opacity-60"
+                                        >
+                                            Modificar horario
+                                        </button>
+                                        <button
+                                            type="button"
+                                            disabled={selectedMeetRsvpLoading || !canEditRsvp}
+                                            onClick={handleCancel}
+                                            className="w-full px-4 py-2.5 rounded-xl bg-red-500/10 text-red-400 text-sm font-semibold border border-red-500/20 hover:bg-red-500/20 transition-colors"
+                                        >
+                                            Cancelar solicitud
+                                        </button>
+                                    </div>
+                                )}
+
+                                {/* If I received the invitation and it's pending, show accept/reject options */}
+                                {!isSentByMe && !isMyRsvpConfirmed && !isCancelled && !isMyRsvpDeclined && !isPast && (
                                     <div className="flex flex-col gap-2">
                                         <button
                                             type="button"
@@ -573,12 +682,39 @@ export function MeetDetailModal({
                                     </div>
                                 )}
 
-                                {isMyRsvpConfirmed && !isCancelled && !isPast && (
+                                {((isMyRsvpConfirmed && !isCancelled && !isPast) || (onReschedule && !isCancelled && !isPast)) && (
                                     <div className="flex flex-col gap-2">
+                                        {(() => {
+                                            const meetLink = selectedMeetEvent.meet_link || selectedMeetEvent.google_meet_data?.meet_link;
+                                            if (!meetLink) return null;
+
+                                            if (isToday(start)) {
+                                                return (
+                                                    <button
+                                                        type="button"
+                                                        onClick={() => window.open(String(meetLink), '_blank')}
+                                                        className="w-full px-4 py-2.5 rounded-xl bg-[#FF7939] text-black text-sm font-bold hover:opacity-90 transition-opacity flex items-center justify-center gap-2"
+                                                    >
+                                                        <Video size={16} />
+                                                        Unirse a la Meet
+                                                    </button>
+                                                );
+                                            }
+
+                                            if (!isPast) {
+                                                return (
+                                                    <div className="w-full px-4 py-2 rounded-xl bg-white/5 border border-white/5 text-[11px] text-white/40 text-center font-medium">
+                                                        Link disponible el día de la meet
+                                                    </div>
+                                                );
+                                            }
+
+                                            return null;
+                                        })()}
                                         <button
                                             type="button"
-                                            disabled={selectedMeetRsvpLoading || !canEditRsvp}
-                                            onClick={handleSuggestNewTime}
+                                            disabled={selectedMeetRsvpLoading || (!onReschedule && !canEditRsvp)}
+                                            onClick={handleRescheduleClick}
                                             className="w-full px-4 py-2.5 rounded-xl bg-zinc-800 text-white text-sm hover:bg-zinc-700 transition-colors disabled:opacity-60"
                                         >
                                             Reprogramar
@@ -598,6 +734,66 @@ export function MeetDetailModal({
                     </div>
                 </div>
             </div>
+
+            {/* Cancel Confirmation Modal */}
+            {showCancelConfirm && (
+                <div className="fixed inset-0 z-[100] bg-black/60 backdrop-blur-sm flex items-center justify-center p-4">
+                    <div className="bg-zinc-900/95 backdrop-blur-xl border border-white/10 rounded-2xl p-6 max-w-sm w-full shadow-2xl">
+                        <h3 className="text-lg font-bold text-white mb-2">Cancelar meet</h3>
+                        <p className="text-white/60 text-sm mb-6">
+                            ¿Estás seguro que querés cancelar esta meet? Esta acción no se puede deshacer.
+                        </p>
+                        <div className="flex gap-3">
+                            <button
+                                type="button"
+                                onClick={() => setShowCancelConfirm(false)}
+                                className="flex-1 px-4 py-2.5 rounded-xl bg-zinc-800 text-white text-sm font-semibold hover:bg-zinc-700 transition-colors"
+                            >
+                                Volver
+                            </button>
+                            <button
+                                type="button"
+                                onClick={confirmCancel}
+                                disabled={selectedMeetRsvpLoading}
+                                className="flex-1 px-4 py-2.5 rounded-xl bg-red-500/10 text-red-400 text-sm font-semibold border border-red-500/20 hover:bg-red-500/20 transition-colors disabled:opacity-60"
+                            >
+                                {selectedMeetRsvpLoading ? 'Cancelando...' : 'Confirmar'}
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            )}
+            {/* Workshop Reschedule Warning */}
+            {showWorkshopRescheduleWarning && (
+                <div className="fixed inset-0 z-[110] bg-black/80 backdrop-blur-md flex items-center justify-center p-6">
+                    <div className="bg-zinc-950 border border-[#FFB366]/20 rounded-3xl p-8 max-w-sm w-full shadow-2xl text-center">
+                        <div className="w-16 h-16 rounded-full bg-[#FFB366]/10 flex items-center justify-center mx-auto mb-6">
+                            <AlertTriangle className="w-8 h-8 text-[#FFB366]" />
+                        </div>
+                        <h3 className="text-xl font-bold text-white mb-3">Aviso de Reputación</h3>
+                        <p className="text-sm text-white/60 leading-relaxed mb-8">
+                            Reprogramar un taller grupal puede afectar negativamente tu reputación como coach. Asegurate de que el cambio sea estrictamente necesario ya que impacta en múltiples participantes.
+                        </p>
+                        <div className="flex flex-col gap-3">
+                            <button
+                                onClick={() => {
+                                    setShowWorkshopRescheduleWarning(false)
+                                    if (onReschedule) onReschedule(selectedMeetEvent)
+                                }}
+                                className="w-full py-4 rounded-2xl bg-[#FFB366] text-black font-bold text-sm hover:opacity-90 transition-opacity"
+                            >
+                                Entendido, Reprogramar
+                            </button>
+                            <button
+                                onClick={() => setShowWorkshopRescheduleWarning(false)}
+                                className="w-full py-4 rounded-2xl bg-white/5 text-white/60 font-medium text-sm hover:bg-white/10 transition-colors"
+                            >
+                                Volver atrás
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            )}
         </div>
     )
 }
