@@ -37,7 +37,7 @@ export async function GET(request: NextRequest) {
     // Consultar la tabla optimizada 'progreso_diario_actividad'
     const { data: rows, error: summaryError } = await supabase
       .from('progreso_diario_actividad')
-      .select('fecha, tipo, area, items_objetivo, items_completados, calorias, minutos')
+      .select('fecha, tipo, area, items_objetivo, items_completados, calorias, minutos, proteinas, carbohidratos, grasas, calorias_objetivo, minutos_objetivo')
       .eq('cliente_id', clienteId)
       .gte('fecha', startDate)
       .lte('fecha', endDate)
@@ -60,16 +60,19 @@ export async function GET(request: NextRequest) {
       platos_completados: 0,
       platos_pendientes: 0,
       nutri_kcal: 0,
-      nutri_kcal_objetivo: 0, // Nota: La tabla actual no guarda objetivo de kcal explícito, asumimos 0 o requeriría lógica extra
       nutri_mins: 0,
+      nutri_kcal_objetivo: 0,
       nutri_mins_objetivo: 0,
+      nutri_p: 0,
+      nutri_c: 0,
+      nutri_f: 0,
 
       ejercicios_objetivo: 0,
       ejercicios_completados: 0,
       ejercicios_pendientes: 0,
       fitness_kcal: 0,
-      fitness_kcal_objetivo: 0,
       fitness_mins: 0,
+      fitness_kcal_objetivo: 0,
       fitness_mins_objetivo: 0
     });
 
@@ -85,6 +88,8 @@ export async function GET(request: NextRequest) {
       const itemsPend = Math.max(0, itemsObj - itemsComp);
       const cals = Number(r.calorias) || 0;
       const mins = Number(r.minutos) || 0;
+      const calsObj = Number(r.calorias_objetivo) || 0;
+      const minsObj = Number(r.minutos_objetivo) || 0;
 
       if (r.area === 'nutricion') {
         stats.platos_objetivo += itemsObj;
@@ -92,12 +97,19 @@ export async function GET(request: NextRequest) {
         stats.platos_pendientes += itemsPend;
         stats.nutri_kcal += cals;
         stats.nutri_mins += mins;
+        stats.nutri_kcal_objetivo += calsObj;
+        stats.nutri_mins_objetivo += minsObj;
+        stats.nutri_p += Number(r.proteinas) || 0;
+        stats.nutri_c += Number(r.carbohidratos) || 0;
+        stats.nutri_f += Number(r.grasas) || 0;
       } else if (r.area === 'fitness') {
         stats.ejercicios_objetivo += itemsObj;
         stats.ejercicios_completados += itemsComp;
         stats.ejercicios_pendientes += itemsPend;
         stats.fitness_kcal += cals;
         stats.fitness_mins += mins;
+        stats.fitness_kcal_objetivo += calsObj;
+        stats.fitness_mins_objetivo += minsObj;
       }
       // Ignoramos 'general' / 'taller' para este resumen específico si solo muestra fitness/nutrición
     });
@@ -123,24 +135,23 @@ export async function GET(request: NextRequest) {
         platos_completados: r.platos_completados,
         platos_pendientes: r.platos_pendientes,
         nutri_kcal: r.nutri_kcal,
-        nutri_kcal_objetivo: r.nutri_kcal_objetivo,
         nutri_mins: r.nutri_mins,
+        nutri_kcal_objetivo: r.nutri_kcal_objetivo,
         nutri_mins_objetivo: r.nutri_mins_objetivo,
+        nutri_p: r.nutri_p,
+        nutri_c: r.nutri_c,
+        nutri_f: r.nutri_f,
 
         ejercicios_objetivo: r.ejercicios_objetivo,
         ejercicios_completados: r.ejercicios_completados,
         ejercicios_pendientes: r.ejercicios_pendientes,
         fitness_kcal: r.fitness_kcal,
-        fitness_kcal_objetivo: r.fitness_kcal_objetivo,
         fitness_mins: r.fitness_mins,
+        fitness_kcal_objetivo: r.fitness_kcal_objetivo,
         fitness_mins_objetivo: r.fitness_mins_objetivo,
 
-        nutri_kcal_progress: clamp01(safeDiv(r.nutri_kcal, r.nutri_kcal_objetivo)),
-        nutri_mins_progress: clamp01(safeDiv(r.nutri_mins, r.nutri_mins_objetivo)),
+        // Progreso se mide por items
         platos_progress: clamp01(safeDiv(r.platos_completados, r.platos_objetivo)),
-
-        fitness_kcal_progress: clamp01(safeDiv(r.fitness_kcal, r.fitness_kcal_objetivo)),
-        fitness_mins_progress: clamp01(safeDiv(r.fitness_mins, r.fitness_mins_objetivo)),
         ejercicios_progress: clamp01(safeDiv(r.ejercicios_completados, r.ejercicios_objetivo))
       })
     }

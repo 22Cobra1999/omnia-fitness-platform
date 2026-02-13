@@ -1,7 +1,7 @@
 'use client'
 
 import { useEffect, useMemo, useState } from 'react'
-import { format, addDays } from 'date-fns'
+import { format, addDays, startOfDay } from 'date-fns'
 import { es } from 'date-fns/locale'
 import { Bell, Video, X, Clock, CheckCircle2, XCircle, Ban } from 'lucide-react'
 
@@ -71,7 +71,7 @@ export function MeetNotificationsModal({
   const range = useMemo(() => {
     const now = new Date()
     return {
-      from: addDays(now, -45).toISOString(),
+      from: startOfDay(now).toISOString(), // From TODAY onwards
       to: addDays(now, 365).toISOString(),
       nowIso: now.toISOString(),
     }
@@ -88,7 +88,7 @@ export function MeetNotificationsModal({
       if (role === 'client') {
         const { data: myParts, error: myPartsError } = await supabase
           .from('calendar_event_participants')
-          .select('event_id, rsvp_status, updated_at, invited_by_role, invited_by_user_id')
+          .select('event_id, rsvp_status, updated_at, invited_by_user_id, invited_by_role')
           .eq('user_id', userId)
           .order('updated_at', { ascending: false })
           .limit(200)
@@ -99,8 +99,19 @@ export function MeetNotificationsModal({
           return
         }
 
+        const { data: myEvents, error: myEventsError } = await supabase
+          .from('calendar_events')
+          .select('id, title, start_time, end_time, google_meet_data, coach_id, event_type')
+          .eq('created_by_user_id', userId)
+          .lt('start_time', range.to)
+          .order('start_time', { ascending: false })
+          .limit(100)
+
         const eventIds = Array.from(
-          new Set((myParts || []).map((p: any) => String(p?.event_id || '')).filter(Boolean))
+          new Set([
+            ...(myParts || []).map((p: any) => String(p?.event_id || '')),
+            ...(myEvents || []).map((e: any) => String(e?.id || ''))
+          ].filter(Boolean))
         )
 
         if (eventIds.length === 0) {
@@ -110,9 +121,8 @@ export function MeetNotificationsModal({
 
         const { data: events, error: eventsError } = await supabase
           .from('calendar_events')
-          .select('id, title, start_time, end_time, google_meet_data, coach_id')
+          .select('id, title, start_time, end_time, google_meet_data, coach_id, event_type, created_by_user_id, status')
           .in('id', eventIds)
-          .eq('event_type', 'consultation')
           .lt('start_time', range.to)
 
         if (eventsError) {
@@ -154,56 +164,74 @@ export function MeetNotificationsModal({
             pendingRescheduleByEventId[eid] = r
           })
 
-        const out: NotificationItem[] = (myParts || [])
-          .map((p: any) => {
-            const eid = String(p?.event_id || '')
-            const ev = eventById[eid]
-            if (!ev?.id) return null
+        const partByEventId: Record<string, any> = {}
+          ; (myParts || []).forEach((p: any) => {
+            partByEventId[String(p.event_id)] = p
+          })
+
+        const itemsMap = new Map<string, NotificationItem>()
+
+          ; (events || []).forEach((ev: any) => {
+            const eid = String(ev.id)
+            const p = partByEventId[eid]
+
+            // Participant or Creator
+            const isCreator = String(ev.created_by_user_id) === userId
+
+            // Prioritize global event status if it's cancelled or rescheduled
+            let rsvpStatus = p ? String(p.rsvp_status || 'pending') : (isCreator ? 'confirmed' : 'pending')
+            if (ev.status === 'cancelled') rsvpStatus = 'cancelled'
+            else if (ev.status === 'rescheduled' && rsvpStatus !== 'pending') rsvpStatus = 'rescheduled'
+
+            const updatedAt = p?.updated_at || ev.start_time
 
             const endIso = ev.end_time ? String(ev.end_time) : null
             const startIso = String(ev.start_time)
             const endsAfterNow = endIso ? endIso >= range.nowIso : startIso >= range.nowIso
-            if (!endsAfterNow) return null
 
-            const rsvpStatus = String(p?.rsvp_status || 'pending')
+            const isRecent = (new Date().getTime() - new Date(updatedAt).getTime()) < (30 * 24 * 60 * 60 * 1000)
+            const isPending = rsvpStatus === 'pending'
+
+            // Show if it's in the future OR recent OR pending invitation
+            if (!endsAfterNow && !isRecent && !isPending) return
+
             const invitedByRole = p?.invited_by_role == null ? null : String(p.invited_by_role)
             const coachId = String(ev?.coach_id || '')
             const coachName = coachIdToName[coachId] || 'Coach'
 
             const kind: NotificationItem['kind'] = rsvpStatus === 'pending' ? 'invitation' : 'status_update'
-            const labelId = `${eid}:${String(p?.updated_at || '')}:${rsvpStatus}`
 
-            return {
-              id: labelId,
+            const rs = pendingRescheduleByEventId[eid]
+
+            const item: NotificationItem = {
+              id: `ev:${eid}`,
               kind,
               eventId: eid,
-              title: ev.title ? String(ev.title) : 'Meet',
+              title: ev.title ? String(ev.title) : (ev.event_type === 'workshop' ? 'Taller' : 'Meet'),
               startTime: String(ev.start_time),
               endTime: ev.end_time ? String(ev.end_time) : null,
-              reschedulePending: (() => {
-                const rr = pendingRescheduleByEventId[eid]
-                if (!rr?.to_start_time) return null
-                return {
-                  toStartTime: String(rr.to_start_time),
-                  toEndTime: rr.to_end_time ? String(rr.to_end_time) : null,
-                  fromStartTime: String(rr.from_start_time),
-                  fromEndTime: rr.from_end_time ? String(rr.from_end_time) : null,
-                  note: rr.note == null ? null : String(rr.note),
-                  requestedByUserId: rr.requested_by_user_id ? String(rr.requested_by_user_id) : null,
-                }
-              })(),
+              reschedulePending: rs ? {
+                toStartTime: String(rs.to_start_time),
+                toEndTime: rs.to_end_time ? String(rs.to_end_time) : null,
+                fromStartTime: String(rs.from_start_time),
+                fromEndTime: rs.from_end_time ? String(rs.from_end_time) : null,
+                note: rs.note == null ? null : String(rs.note),
+                requestedByUserId: rs.requested_by_user_id ? String(rs.requested_by_user_id) : null,
+              } : null,
               meetLink: ev.google_meet_data?.meet_link ? String(ev.google_meet_data.meet_link) : null,
               otherUserId: coachId,
               otherUserName: coachName,
               rsvpStatus,
               invitedByRole,
-              updatedAt: String(p?.updated_at || ev.start_time),
+              invitedByUserId: p?.invited_by_user_id || null,
+              updatedAt: String(updatedAt),
             }
+            itemsMap.set(eid, item)
           })
-          .filter(Boolean)
-          .slice(0, 30) as any
 
-        setItems(out)
+        const out = Array.from(itemsMap.values())
+        out.sort((a, b) => new Date(b.updatedAt).getTime() - new Date(a.updatedAt).getTime())
+        setItems(out.slice(0, 30))
         return
       }
 
@@ -228,7 +256,7 @@ export function MeetNotificationsModal({
 
       const { data: parts, error: partsError } = await supabase
         .from('calendar_event_participants')
-        .select('event_id, user_id, rsvp_status, updated_at, role, participant_role, invited_by_user_id, invited_by_role')
+        .select('event_id, user_id, rsvp_status, updated_at, role, participant_role, invited_by_user_id')
         .in('event_id', eventIds)
         .order('updated_at', { ascending: false })
 
@@ -433,17 +461,24 @@ export function MeetNotificationsModal({
     }
 
     // Client role
+    if (it.rsvpStatus === 'cancelled' || it.rsvpStatus === 'declined') {
+      return `Meet cancelada o rechazada`
+    }
+
     if (it.rsvpStatus === 'pending') {
-      const invitedByMe = isMe(it.invitedByUserId)
+      const isInvitedByMe = it.invitedByUserId === userId || it.otherUserId !== userId // simplified check
+      const p = items.find(x => x.id === it.id)
+      const invitedByMe = isInvitedByMe || (p?.invitedByRole === 'client')
+
       return invitedByMe ? `Solicitaste una meet a ${otherName}` : `${otherName} te invitó a una meet`
     }
+
     if (it.rsvpStatus === 'confirmed') {
-      return isMe(it.invitedByUserId) ? `Solicitud aceptada por ${otherName}` : `${otherName} aceptó la meet`
+      const isInvitedByMe = it.invitedByUserId === userId || it.otherUserId !== userId
+      return isInvitedByMe ? `Tu solicitud fue aceptada por ${otherName}` : `Confirmaste la asistencia con ${otherName}`
     }
-    if (it.rsvpStatus === 'declined') {
-      return isMe(it.invitedByUserId) ? `Rechazaste la meet con ${otherName}` : `${otherName} no puede asistir`
-    }
-    return it.rsvpStatus === 'cancelled' ? `Meet cancelada` : `Actualización de meet con ${otherName}`
+
+    return `Actualización de meet con ${otherName}`
   }
 
   const filteredItems = useMemo(() => {
@@ -452,7 +487,10 @@ export function MeetNotificationsModal({
       return items.filter(it => it.rsvpStatus === 'pending' || it.reschedulePending?.status === 'pending')
     }
     if (filter === 'accepted') {
-      return items.filter(it => it.rsvpStatus === 'confirmed' || it.reschedulePending?.status === 'accepted')
+      return items.filter(it => {
+        const hasPendingReschedule = it.reschedulePending?.status === 'pending'
+        return (it.rsvpStatus === 'confirmed' || it.rsvpStatus === 'rescheduled') && !hasPendingReschedule
+      })
     }
     return items
   }, [items, filter])

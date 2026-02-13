@@ -1,11 +1,8 @@
 // Función para parsear las series
 export const parseSeries = (seriesData?: any) => {
     if (!seriesData || seriesData === '' || seriesData === 'undefined' || seriesData === 'null') {
-        // console.log('🔍 [parseSeries] No hay datos de series:', seriesData);
         return [];
     }
-
-    // console.log('🔍 [parseSeries] Datos recibidos:', seriesData);
 
     // Si es un string, usar el formato anterior
     if (typeof seriesData === 'string') {
@@ -13,18 +10,17 @@ export const parseSeries = (seriesData?: any) => {
             const cleanGroup = group.trim().replace(/[()]/g, '');
             const parts = cleanGroup.split('-');
 
-            if (parts.length >= 3) {
+            if (parts.length >= 1) {
                 return {
                     id: index + 1,
-                    reps: parts[0],
-                    kg: parts[1],
-                    sets: parts[2]
+                    reps: parts[0] || '10',
+                    kg: parts[1] || '0',
+                    sets: parts[2] || '1'
                 };
             }
             return null;
         }).filter(Boolean);
 
-        // console.log('🔍 [parseSeries] Datos parseados:', parsed);
         return parsed;
     }
 
@@ -32,12 +28,11 @@ export const parseSeries = (seriesData?: any) => {
     if (Array.isArray(seriesData)) {
         return seriesData.map((block, index) => ({
             id: index + 1,
-            reps: block.repeticiones,
-            kg: block.peso,
-            sets: block.series
+            reps: block.reps || block.repeticiones || '',
+            kg: block.kg || block.peso || '',
+            sets: block.sets || block.series || block.series_num || '1'
         }));
     }
 
-    // console.log('🔍 [parseSeries] Formato no reconocido:', typeof seriesData);
     return [];
 };

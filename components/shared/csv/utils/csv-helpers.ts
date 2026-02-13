@@ -233,3 +233,89 @@ export const getRowIdentifier = (item: any, index?: number): string => {
     const calories = (item['Calorías'] || item.calorias || '').toString().trim().toLowerCase()
     return `row_${name}_${desc}_${duration}_${calories}`
 }
+
+export const getVideoDisplayName = (
+    fileName?: string,
+    url?: string,
+    bunnyVideoId?: string | null,
+    bunnyVideoTitles: Record<string, string> = {}
+): string => {
+    const extractBunnyGuidFromUrl = (raw?: string): string | null => {
+        if (!raw || typeof raw !== 'string') return null
+        try {
+            const guidMatch = raw.match(/([a-f0-9]{8}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{12})/i)
+            return guidMatch?.[1] || null
+        } catch {
+            return null
+        }
+    }
+
+    const bunnyIdRaw = typeof bunnyVideoId === 'string' ? bunnyVideoId.trim() : ''
+    const bunnyIdFromUrl = extractBunnyGuidFromUrl(url)
+    const bunnyId = bunnyIdRaw || bunnyIdFromUrl || ''
+
+    if (bunnyId && bunnyVideoTitles[bunnyId]) {
+        return bunnyVideoTitles[bunnyId]
+    }
+
+    const cleanedFileName = typeof fileName === 'string' ? fileName.trim() : ''
+    const looksSynthetic =
+        cleanedFileName.startsWith('video-') ||
+        /^\d{10,}_.+/.test(cleanedFileName) ||
+        cleanedFileName.startsWith('manual-')
+
+    if (cleanedFileName && !looksSynthetic) return cleanedFileName
+    if (!url) return ''
+
+    try {
+        const urlParts = url.split('/')
+        const lastPart = urlParts[urlParts.length - 1]
+        if (lastPart) {
+            const clean = lastPart.split('?')[0]
+            return clean || 'Video'
+        }
+    } catch {
+        // ignore
+    }
+
+    return 'Video'
+}
+
+export const getExerciseTypeColor = (type: string): string => {
+    const normalized = normalizeExerciseType(type)
+    const colors: { [key: string]: string } = {
+        fuerza: 'bg-orange-200',
+        cardio: 'bg-orange-300',
+        hiit: 'bg-orange-400',
+        movilidad: 'bg-rose-300',
+        flexibilidad: 'bg-pink-300',
+        equilibrio: 'bg-pink-200',
+        funcional: 'bg-rose-200',
+        general: 'bg-orange-300'
+    }
+    return colors[normalized] || colors.general
+}
+
+export const getExerciseTypeLabel = (type: string): string => {
+    const normalized = normalizeExerciseType(type)
+    const labels: { [key: string]: string } = {
+        fuerza: 'Fuerza',
+        cardio: 'Cardio',
+        hiit: 'HIIT',
+        movilidad: 'Movilidad',
+        flexibilidad: 'Flexibilidad',
+        equilibrio: 'Equilibrio',
+        funcional: 'Funcional',
+        general: 'General'
+    }
+    return labels[normalized] || (type || '').toString()
+}
+
+export const getNutritionTypeColor = (rawType: string): string => {
+    const type = (rawType || '').toString().toLowerCase().trim()
+    if (type.includes('desayuno')) return 'bg-orange-200'
+    if (type.includes('snack') || type.includes('colación') || type.includes('colacion')) return 'bg-orange-300'
+    if (type.includes('almuerzo')) return 'bg-orange-400'
+    if (type.includes('cena')) return 'bg-rose-300'
+    return 'bg-orange-300'
+}

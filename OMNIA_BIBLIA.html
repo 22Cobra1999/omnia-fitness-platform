@@ -495,11 +495,74 @@
       <div class="node" style="background: #da3633; color: white;">CoachCalendarScreen.tsx (3,142 líneas de CAOS)</div>
       <div class="branch">
         <span class="arrow">⬇️ FRAGMENTADO Y DOMADO</span>
-        <div class="node pill-blue">Modularizado en 5 Hooks + 4 Vistas Especializadas (~280 líneas core)</div>
+        <div class="node pill-blue">Modularizado en 5 Hooks + 4 Vistas Especializadas (~798 líneas UI + Logic Hooks)
+        </div>
+      </div>
+    </div>
+
+    <div class="logic-layer">
+      <span class="layer-label">EL LEVIATÁN DEL CLIENTE</span>
+      <div class="node" style="background: #da3633; color: white;">CalendarView.tsx (Original: ~4,000 líneas)</div>
+      <div class="branch">
+        <span class="arrow">⬇️ CAZADO Y FRAGMENTADO</span>
+        <div class="node pill-blue">Reducido a ~1,000 líneas. Lógica extraída a 3 Hooks (Data, Logic, CoachAvailability)
+          y UI modularizada en 7 sub-componentes.</div>
+      </div>
+    </div>
+
+    <div class="logic-layer">
+      <span class="layer-label">EL GUARDIÁN DEL DETALLE</span>
+      <div class="node" style="background: #9e6a03; color: white;">MeetDetailModal.tsx (Original: ~800 líneas)</div>
+      <div class="branch">
+        <span class="arrow">⬇️ MODULARIZADO</span>
+        <div class="node pill-green">Reducido a ~460 líneas. UI dividida en Header, Info, Participants, Actions y
+          Confirmations.</div>
+      </div>
+    </div>
+
+    <div class="logic-layer">
+      <span class="layer-label">EL TITÁN DE LOS INSIGHTS</span>
+      <div class="node" style="background: #da3633; color: white;">fitness-insights.tsx (Original: ~1,400 líneas)</div>
+      <div class="branch">
+        <span class="arrow">⬇️ CAZADO Y FRAGMENTADO</span>
+        <div class="node pill-green">Reducido a 120 líneas (90% de compresión). Lógica extraída a useFitnessInsights,
+          datos a fitness-insights-data, y UI en 7 sub-componentes.</div>
+      </div>
+    </div>
+
+    <div class="logic-layer">
+      <span class="layer-label">EL COLOSO DE LAS REGLAS</span>
+      <div class="node" style="background: #da3633; color: white;">conditional-rules-panel.tsx (Original: ~1,100 líneas)
+      </div>
+      <div class="branch">
+        <span class="arrow">⬇️ CAZADO Y FRAGMENTADO</span>
+        <div class="node pill-green">Reducido a 140 líneas (87% de compresión). Lógica extraída a useConditionalRules,
+          datos a conditional-rules-data, y UI en sub-componentes especializados.</div>
+      </div>
+    </div>
+
+    <div class="logic-layer">
+      <span class="layer-label">EL TITÁN DEL PROGRESO</span>
+      <div class="node" style="background: #da3633; color: white;">goals-progress.tsx (Original: ~1,140 líneas)</div>
+      <div class="branch">
+        <span class="arrow">⬇️ CAZADO Y FRAGMENTADO</span>
+        <div class="node pill-green">Reducido a 60 líneas (95% de compresión). Lógica extraída a useGoalsProgress,
+          datos a goals-progress-data, y UI en sub-componentes modulares.</div>
+      </div>
+    </div>
+
+    <div class="logic-layer">
+      <span class="layer-label">EL GENERAL DEL CSV</span>
+      <div class="node" style="background: #da3633; color: white;">csv-manager-enhanced.tsx (Original: ~1,035 líneas)
+      </div>
+      <div class="branch">
+        <span class="arrow">⬇️ CAZADO Y FRAGMENTADO</span>
+        <div class="node pill-green">Reducido a ~350 líneas (66% de compresión). Lógica extraída a 7 hooks
+          especializados
+          y UI modularizada en componentes atómicos.</div>
       </div>
     </div>
   </div>
-  <hr />
   <h2 id="índice-de-navegación">📑 Índice de Navegación</h2>
   <h3 id="aplicación-del-cliente-client-app">👤 Aplicación del Cliente (Client App)</h3>
   <ol type="1">
@@ -513,22 +576,27 @@
   </ol>
   <h3 id="panel-del-coach-coach-dashboard">👨‍🏫 Panel del Coach (Coach Dashboard)</h3>
   <ol start="7" type="1">
-    <li><a href="#gestion-clientes-coach"><strong>Gestión de Clientes</strong></a>: Cartera y detalle de evolución.</li>
+    <li><a href="#gestion-clientes-coach"><strong>Gestión de Clientes</strong></a>: Cartera y detalle de evolución.
+    </li>
     <li><a href="#gestion-productos-coach"><strong>Gestión de Productos</strong></a>: Creación de ejercicios y
       nutrición.</li>
-    <li><a href="#calendario-coach"><strong>Calendario del Coach</strong></a>: Disponibilidad y sincronización eMeet.
+    <li><a href="#calendario-coach"><strong>Calendario del Coach</strong></a>: Disponibilidad y sincronización
+      eMeet.
     </li>
     <li><a href="#gestion-video-coach"><strong>Gestión de Videos (Bunny.net)</strong></a>: Subida y streaming.</li>
-    <li><a href="#gestion-documentos-coach"><strong>Gestión de Documentos</strong></a>: Estructura de PDFs y temas.</li>
+    <li><a href="#gestion-documentos-coach"><strong>Gestión de Documentos</strong></a>: Estructura de PDFs y temas.
+    </li>
     <li><a href="#perfil-coach"><strong>Perfil del Coach</strong></a>: Configuración y marca personal.</li>
   </ol>
   <h3 id="lógica-y-arquitectura-técnica">🧠 Lógica y Arquitectura Técnica</h3>
   <ol start="13" type="1">
     <li><a href="#onboarding-logic"><strong>Formulario de Onboarding</strong></a>: Lógica de admisión.</li>
     <li><a href="#progreso-logic"><strong>Generación de Progreso</strong></a>: El “Motor de Instanciación”.</li>
-    <li><a href="#script-audit"><strong>Auditoría de Scripts y QA</strong></a>: Dashboard de eficiencia y deuda técnica.
+    <li><a href="#script-audit"><strong>Auditoría de Scripts y QA</strong></a>: Dashboard de eficiencia y deuda
+      técnica.
     </li>
-    <li><a href="#logic-map"><strong>Mapa de Salud Operativa y Estructura</strong></a>: Arquitectura Visual de Omnia.
+    <li><a href="#logic-map"><strong>Mapa de Salud Operativa y Estructura</strong></a>: Arquitectura Visual de
+      Omnia.
     </li>
   </ol>
   <p><a name="explorar-marketplace"></a> ## 1. 🔍 Explorar / Marketplace (Client)</p>
@@ -584,9 +652,11 @@
       <div class="node state-node">state: enrolledActivitiesList → Render ActivityCard con % progreso</div>
     </div>
   </div>
-  <p><strong>⚠️ Scan de Vulnerabilidad:</strong> El cálculo de `% progreso` ocurre on-the-fly. <em>Optimización:</em>
+  <p><strong>⚠️ Scan de Vulnerabilidad:</strong> El cálculo de `% progreso` ocurre on-the-fly.
+    <em>Optimización:</em>
     Persistir el % en `activity_enrollments` cada vez que se marca un item como completado para evitar recalculadas
-    costosas.</p>
+    costosas.
+  </p>
   <p><a href="#indice-de-navegacion">Volver al índice</a></p>
   <hr />
   <p><a name="calendario-cliente"></a> ## 3. 📅 Calendario del Cliente (Client)</p>
@@ -595,11 +665,26 @@
     <div class="logic-title">🌀 Flujo Completo de Meets: Creación, Modificación y Cancelación</div>
 
     <div class="logic-layer">
+      <span class="layer-label">📌 ESCENARIO 0: Recibir Invitación de Coach</span>
+      <div class="node ux-node">Client: Recibe Notificación / Ve Turno "Pendiente" en Calendario</div>
+      <div class="branch">
+        <span class="arrow">⬇️ ACCIÓN</span>
+        <div class="node ux-node">Click en "Confirmar Asistencia"</div>
+      </div>
+      <div class="branch">
+        <span class="arrow">⬇️ DATABASE</span>
+        <div class="node api-node">UPDATE calendar_event_participants SET rsvp_status = 'confirmed'</div>
+        <div class="node state-node">UI: Turno cambia a color sólido (Confirmado)</div>
+      </div>
+    </div>
+
+    <div class="logic-layer">
       <span class="layer-label">📌 ESCENARIO 1: Crear Nueva Meet</span>
       <div class="node ux-node">Client: Selecciona coach → Elige fecha/hora → Click "Confirmar Reserva"</div>
       <div class="branch">
         <span class="arrow">⬇️</span>
-        <div class="node api-node">INSERT calendar_events { title, start_time, end_time, coach_id, client_id, status:
+        <div class="node api-node">INSERT calendar_events { title, start_time, end_time, coach_id, client_id,
+          status:
           'scheduled' }</div>
       </div>
       <div class="branch">
@@ -615,7 +700,8 @@
 
     <div class="logic-layer">
       <span class="layer-label">📌 ESCENARIO 2: Modificar Meet Pendiente (Cliente Creador)</span>
-      <div class="node ux-node">Client: Click en meet → "Modificar horario" → Selecciona nuevo slot → "Confirmar"</div>
+      <div class="node ux-node">Client: Click en meet → "Modificar horario" → Selecciona nuevo slot → "Confirmar"
+      </div>
       <div class="branch">
         <span class="arrow">⬇️ VERIFICACIÓN</span>
         <div class="node hook-node">rescheduleContext detectado → Fetch participant data</div>
@@ -657,7 +743,8 @@
       <div class="node ux-node">Client: Click en meet → "Cancelar solicitud" / "Cancelar mi asistencia"</div>
       <div class="branch">
         <span class="arrow">⬇️</span>
-        <div class="node state-node" style="background: #1f2937; color: white;">UI: Modal de confirmación personalizado
+        <div class="node state-node" style="background: #1f2937; color: white;">UI: Modal de confirmación
+          personalizado
           (glassmorphism)</div>
       </div>
       <div class="branch">
@@ -679,7 +766,8 @@
       <div class="node hook-node">CalendarView.tsx: handleTimelineClick(), confirmación en modal y day_split</div>
       <div class="branch">
         <span class="arrow">└──</span>
-        <div class="node hook-node">MeetDetailModal.tsx: handleSuggestNewTime(), handleCancel(), confirmCancel()</div>
+        <div class="node hook-node">MeetDetailModal.tsx: handleSuggestNewTime(), handleCancel(), confirmCancel()
+        </div>
       </div>
       <div class="branch">
         <span class="arrow">└──</span>
@@ -688,10 +776,12 @@
     </div>
   </div>
 
-  <p><strong>🐛 Bug Crítico Resuelto:</strong> Duplicación de meets al modificar horario. El sistema ahora verifica el
+  <p><strong>🐛 Bug Crítico Resuelto:</strong> Duplicación de meets al modificar horario. El sistema ahora verifica
+    el
     estado del meet (pending vs confirmed) y el rol del usuario (creador vs invitado) para decidir si actualizar el
     evento existente o crear una solicitud de reschedule.</p>
-  <p><strong>🎨 UX Premium:</strong> Modal de confirmación personalizado con glassmorphism reemplaza el window.confirm
+  <p><strong>🎨 UX Premium:</strong> Modal de confirmación personalizado con glassmorphism reemplaza el
+    window.confirm
     nativo del navegador.</p>
   <p><a href="#indice-de-navegacion">Volver al índice</a></p>
   <hr />
@@ -744,7 +834,8 @@
       <div class="node state-node">state: postsFeed (Unshift new post) → UI: Feed Update</div>
     </div>
   </div>
-  <p><strong>⚠️ Scan de Vulnerabilidad:</strong> Inyección de scripts en el content. <em>Optimización:</em> Sanitizar el
+  <p><strong>⚠️ Scan de Vulnerabilidad:</strong> Inyección de scripts en el content. <em>Optimización:</em>
+    Sanitizar el
     HTML/Markdown en el cliente y doble check en el DB Trigger.</p>
   <p><a href="#indice-de-navegacion">Volver al índice</a></p>
   <hr />
@@ -772,7 +863,8 @@
       <div class="node state-node">state: activeChatMessages (Push new msg)</div>
     </div>
   </div>
-  <p><strong>⚠️ Scan de Vulnerabilidad:</strong> Flooding de mensajes. <em>Optimización:</em> Implementado límite diario
+  <p><strong>⚠️ Scan de Vulnerabilidad:</strong> Flooding de mensajes. <em>Optimización:</em> Implementado límite
+    diario
     de 10 mensajes por chat por usuario. Bloqueo hasta 00:00hs.</p>
   <p><a href="#indice-de-navegacion">Volver al índice</a></p>
   <hr />
@@ -828,32 +920,65 @@
     validación de Schema (Zod) en el endpoint para asegurar que el precio esté entre $500 y $500.000.</p>
   <p><a href="#indice-de-navegacion">Volver al índice</a></p>
   <hr />
-  <p><a name="calendario-coach"></a> ## 9. 📅 Calendario del Coach (Coach)</p>
+  <p><a name="calendario-coach"></a> ## 9. 📅 Calendario del Coach (Coach) [ACTUALIZADO]</p>
   <div class="logic-container">
-    <div class="logic-title">🌀 Workflow: Sincronización eMeet</div>
+    <div class="logic-title">🌀 Workflow: Ciclo de Vida de eMeets (Interno)</div>
+
     <div class="logic-layer">
-      <span class="layer-label">UX → Trigger</span>
-      <div class="node ux-node">Coach: Abre Calendario → Click "Sincronizar Disponibilidad"</div>
-    </div>
-    <div class="logic-layer">
-      <span class="layer-label">Frontend Logic → Hooks</span>
-      <div class="node hook-node">coach-calendar-screen.tsx: syncWithGoogle()</div>
-    </div>
-    <div class="logic-layer">
-      <span class="layer-label">Backend Logic → API/DB</span>
-      <div class="node api-node">API /api/google-calendar/auth → Sync Access Token</div>
+      <span class="layer-label">📌 FARE 1: CREACIÓN Y DISPONIBILIDAD</span>
+      <div class="node ux-node">Coach: Abre Calendario → Click en Día (Futuro)</div>
       <div class="branch">
-        <span class="arrow">└──</span>
-        <div class="node api-node">Worker: Sync external events into activity_sessions</div>
+        <span class="arrow">⬇️ INTERACCIÓN</span>
+        <div class="node state-node">UI: Selector de Fecha (Nuevo Modal 2 Columnas: Años | Meses)</div>
+        <div class="node ux-node">Coach: Click en Slot Horario → Selecciona Cliente</div>
+      </div>
+      <div class="branch">
+        <span class="arrow">⬇️ LÓGICA DE NEGOCIO</span>
+        <div class="node hook-node">useCoachCalendarLogic.ts: handleCreateMeet()</div>
+        <div class="node api-node">INSERT calendar_events { title, status: 'scheduled', ... }</div>
+        <div class="node api-node">INSERT participants { rsvp_status: 'pending' (Client), 'confirmed' (Coach) }
+        </div>
       </div>
     </div>
+
     <div class="logic-layer">
-      <span class="layer-label">Data State → UI</span>
-      <div class="node state-node">state: agendaItems (Merged Local + Google)</div>
+      <span class="layer-label">📌 FASE 2: ESTADOS VISUALES (SEMÁFORO)</span>
+      <div class="branch">
+        <span class="status-pill pill-green">CONFIRMADA</span>
+        <div class="node" style="border: 1px solid #FF7939; color: #FF7939;">Borde Naranja Intenso (Coach + Client
+          Confirmed)</div>
+      </div>
+      <div class="branch">
+        <span class="status-pill pill-yellow">INVITACIÓN ENVIADA</span>
+        <div class="node" style="border: 1px solid #ffccaa; color: #ffccaa;">Borde Beige/Suave (Client RSVP:
+          Pending)
+        </div>
+        <div class="node state-node">Muestra conteo de participantes (ej. "0/1 Confirmados")</div>
+      </div>
+      <div class="branch">
+        <span class="status-pill pill-red">CAMBIO SOLICITADO</span>
+        <div class="node" style="border: 1px solid #ff4d4d; color: #ff4d4d;">Borde Rojo (Reschedule Request Pending)
+        </div>
+        <div class="node state-node">Muestra "Propuesta: [Nueva Fecha]" en lugar de texto estático</div>
+      </div>
+    </div>
+
+    <div class="logic-layer">
+      <span class="layer-label">📌 FASE 3: GESTIÓN Y REPROGRAMACIÓN</span>
+      <div class="node ux-node">Coach: Click en Meet → Modal de Detalle</div>
+      <div class="branch">
+        <span class="arrow">⬇️ ACCIONES</span>
+        <div class="node hook-node">useCoachEvents.ts: Detecta `rsvp_status` y `reschedule_requests`</div>
+        <div class="node ux-node">Opciones: "Cancelar", "Reprogramar" (Si confirmado), "Reenviar Invitación" (Si
+          pendiente)</div>
+      </div>
     </div>
   </div>
-  <p><strong>⚠️ Scan de Vulnerabilidad:</strong> Expiración de tokens de Google. <em>Optimización:</em> Implementar un
-    Refresh Token automático en el worker de sincronización para evitar que el calendario se quede "congelado".</p>
+  <p><strong>⚠️ Arquitectura Modular:</strong> La lógica está estrictamente separada:
+    <br><code>useCoachEvents.ts</code>: Fetching y suscripción a cambios en DB (Real-time).
+    <br><code>useCoachCalendarLogic.ts</code>: Manejo de interacción, validación de fechas y creación.
+    <br><code>coach-calendar-screen.tsx</code>: Únicamente renderizado UI (Dumb Components).
+  </p>
   <p><a href="#indice-de-navegacion">Volver al índice</a></p>
   <hr />
   <p><a name="gestion-video-coach"></a> ## 10. 🎥 Gestión de Videos (Bunny.net) e Imágenes (Supabase)</p>
@@ -885,8 +1010,10 @@
       </div>
     </div>
   </div>
-  <p><strong>⚠️ Regla de Oro:</strong> Las imágenes de portada se suben <em>inmediatamente</em> al seleccionarlas para
-    feedback visual rápido y persistencia simple. Los videos, al ser pesados y costosos (Bunny), se mantienen en memoria
+  <p><strong>⚠️ Regla de Oro:</strong> Las imágenes de portada se suben <em>inmediatamente</em> al seleccionarlas
+    para
+    feedback visual rápido y persistencia simple. Los videos, al ser pesados y costosos (Bunny), se mantienen en
+    memoria
     (Blob local) y <em>solo</em> se suben cuando el usuario confirma la creación/edición del producto.
   </p>
   <p><a href="#indice-de-navegacion">Volver al índice</a></p>
@@ -915,7 +1042,8 @@
       <div class="node state-node">state: activityDocs (Ready for client download)</div>
     </div>
   </div>
-  <p><strong>⚠️ Scan de Vulnerabilidad:</strong> PDFs con scripts maliciosos. <em>Optimización:</em> Implementar escaneo
+  <p><strong>⚠️ Scan de Vulnerabilidad:</strong> PDFs con scripts maliciosos. <em>Optimización:</em> Implementar
+    escaneo
     de virus en el bucket de Supabase o forzar la visualización en un Sandboxed PDF Viewer.</p>
   <p><a href="#indice-de-navegacion">Volver al índice</a></p>
   <hr />
@@ -939,8 +1067,10 @@
       <div class="node state-node">state: coachMasterProfile (Synced) → UI: "Perfil actualizado"</div>
     </div>
   </div>
-  <p><strong>⚠️ Scan de Vulnerabilidad:</strong> Suplantación de identidad si se permite cambiar correos verificados.
-    <em>Optimización:</em> Bloquear el cambio de Email una vez la cuenta es de tipo "Coach" y requerir ticket de soporte
+  <p><strong>⚠️ Scan de Vulnerabilidad:</strong> Suplantación de identidad si se permite cambiar correos
+    verificados.
+    <em>Optimización:</em> Bloquear el cambio de Email una vez la cuenta es de tipo "Coach" y requerir ticket de
+    soporte
     para modificaciones legales.
   </p>
   <p><a href="#indice-de-navegacion">Volver al índice</a></p>
@@ -1005,9 +1135,30 @@
     </div>
   </div>
   <p><strong>⚠️ Scan de Vulnerabilidad:</strong> Tiempo de ejecución excesivo en programas de +6 meses.
-    <em>Optimización:</em> Ejecutar el motor en un **Background Queue** y notificar al cliente vía Push/Email cuando su
+    <em>Optimización:</em> Ejecutar el motor en un **Background Queue** y notificar al cliente vía Push/Email cuando
+    su
     plan esté listo.
   </p>
+
+  <h3 id="progreso-diario-actividad">📊 Tabla de Consolidación: progreso_diario_actividad</h3>
+  <div class="logic-container">
+    <div class="logic-title">🛡️ Fuente de Verdad Unificada</div>
+    <div class="logic-layer">
+      <span class="layer-label">Propósito</span>
+      <div class="node ux-node">Consolidar fitness y nutrición en una sola tabla para optimizar rings y calendario.
+      </div>
+    </div>
+    <div class="logic-layer">
+      <span class="layer-label">Columnas Clave</span>
+      <div class="node api-node">cliente_id, fecha, area (fitness/nutricion), items_objetivo, items_completados,
+        minutos, calorias, proteinas, carbohidratos, grasas</div>
+    </div>
+    <div class="logic-layer">
+      <span class="layer-label">Sincronización</span>
+      <div class="node state-node">Trigger: update_daily_progress_from_program() - Se dispara al tocar progreso_cliente
+        o progreso_cliente_nutricion.</div>
+    </div>
+  </div>
   <hr />
   <p><a name="script-audit"></a> ## 15. 🧪 Auditoría de Scripts y Eficiencia (QA Dashboard) Análisis de los archivos
     críticos del sistema para evaluación de rendimiento, deuda técnica y estabilidad.</p>
@@ -1037,7 +1188,8 @@
         <td style="text-align: center;">CRÍTICA</td>
         <td style="text-align: center;">BAJA</td>
         <td style="text-align: center;">🔵 10/10</td>
-        <td style="text-align: left;"><strong>MODULARIZADO.</strong> Lógica separada de la UI. Altamente mantenible y
+        <td style="text-align: left;"><strong>MODULARIZADO.</strong> Lógica separada de la UI. Altamente mantenible
+          y
           performante en mobile.</td>
       </tr>
       <tr class="even">
@@ -1046,7 +1198,8 @@
         <td style="text-align: center;">CRÍTICA</td>
         <td style="text-align: center;">BAJA</td>
         <td style="text-align: center;">🔵 9/10</td>
-        <td style="text-align: left;"><strong>DOMADO.</strong> Lógica de Wizard extraída y modularizada en 6 sub-hooks
+        <td style="text-align: left;"><strong>DOMADO.</strong> Lógica de Wizard extraída y modularizada en 6
+          sub-hooks
           especializados.</td>
       </tr>
       <tr class="odd">
@@ -1055,7 +1208,8 @@
         <td style="text-align: center;">ALTA</td>
         <td style="text-align: center;">BAJA</td>
         <td style="text-align: center;">🔵 10/10</td>
-        <td style="text-align: left;"><strong>DOMADO EXTREMO.</strong> Lógica totalmente extraída a hooks especializados
+        <td style="text-align: left;"><strong>DOMADO EXTREMO.</strong> Lógica totalmente extraída a hooks
+          especializados
           (useCsvActions, useCsvFileProcessor). UI limpia y modular.</td>
       </tr>
       <tr class="even">
@@ -1069,14 +1223,12 @@
       </tr>
       <tr class="odd">
         <td style="text-align: left;"><code>CalendarView.tsx</code></td>
-        <td style="text-align: center;">~3900</td>
+        <td style="text-align: center;">1032</td>
         <td style="text-align: center;">CRÍTICA</td>
-        <td style="text-align: center;">MEDIA</td>
+        <td style="text-align: center;">BAJA</td>
         <td style="text-align: center;">🟢 8/10</td>
-        <td style="text-align: left;"><strong>BUG FIX CRÍTICO.</strong> Eliminada duplicación de meets en reschedule.
-          Flujo unificado para pending meets: actualiza evento existente en lugar de crear duplicado. Lógica aplicada en
-          modal y vista day_split.
-        </td>
+        <td style="text-align: left;"><strong>DOMADO PARCIALMENTE.</strong> Reducido de ~4,000 a 1,032 líneas.
+          Fragmentación avanzada en hooks, pero el core sigue siendo denso. </td>
       </tr>
       <tr class="even">
         <td style="text-align: left;"><code>MeetDetailModal.tsx</code></td>
@@ -1103,7 +1255,8 @@
         <td style="text-align: center;">-</td>
         <td style="text-align: center;">-</td>
         <td style="text-align: center;">🔴 ELIMINADO</td>
-        <td style="text-align: left;"><strong>ZOMBIE ELIMINADO.</strong> Archivo legacy borrado del repositorio.</td>
+        <td style="text-align: left;"><strong>ZOMBIE ELIMINADO.</strong> Archivo legacy borrado del repositorio.
+        </td>
       </tr>
       <tr class="odd">
         <td style="text-align: left;"><code>profile-screen.tsx</code></td>
@@ -1120,16 +1273,27 @@
         <td style="text-align: center;">ALTA</td>
         <td style="text-align: center;">BAJA</td>
         <td style="text-align: center;">🔵 9/10</td>
-        <td style="text-align: left;"><strong>LIMPIO.</strong> Orquestador de estados para el perfil dual del usuario.
+        <td style="text-align: left;"><strong>LIMPIO.</strong> Orquestador de estados para el perfil dual del
+          usuario.
         </td>
       </tr>
       <tr class="even">
+        <td style="text-align: left;"><code>workshop-schedule-manager.tsx</code></td>
+        <td style="text-align: center;">1 (MODULAR)</td>
+        <td style="text-align: center;">ALTA</td>
+        <td style="text-align: center;">BAJA</td>
+        <td style="text-align: center;">🔵 10/10</td>
+        <td style="text-align: left;"><strong>CAZADO.</strong> Refactorización del gestor de horarios de talleres.
+          Lógica de generación de fechas movida a utils y estados complejos a hooks.</td>
+      </tr>
+      <tr class="odd">
         <td style="text-align: left;"><code>client-product-modal.tsx</code></td>
         <td style="text-align: center;">120</td>
         <td style="text-align: center;">ALTA</td>
         <td style="text-align: center;">BAJA</td>
         <td style="text-align: center;">🔵 9/10</td>
-        <td style="text-align: left;"><strong>MODULARIZADO.</strong> Descompuesto en Hero, Details, Topics y Comments.
+        <td style="text-align: left;"><strong>MODULARIZADO.</strong> Descompuesto en Hero, Details, Topics y
+          Comments.
           Lógica en hook.</td>
       </tr>
       <tr class="odd">
@@ -1138,7 +1302,8 @@
         <td style="text-align: center;">ALTA</td>
         <td style="text-align: center;">BAJA</td>
         <td style="text-align: center;">🔵 9/10</td>
-        <td style="text-align: left;"><strong>CENTRALIZADO.</strong> Maneja pagos, límites de plan y caché de talleres.
+        <td style="text-align: left;"><strong>CENTRALIZADO.</strong> Maneja pagos, límites de plan y caché de
+          talleres.
         </td>
       </tr>
       <tr class="odd">
@@ -1147,17 +1312,27 @@
         <td style="text-align: center;">ALTA</td>
         <td style="text-align: center;">BAJA</td>
         <td style="text-align: center;">🟢 9/10</td>
-        <td style="text-align: left;"><strong>REFACTOR FINALIZADO.</strong> Monolito segmentado en Hooks y Componentes
+        <td style="text-align: left;"><strong>REFACTOR FINALIZADO.</strong> Monolito segmentado en Hooks y
+          Componentes
           UI. Extremadamente mantenible.</td>
       </tr>
       <tr class="even">
         <td style="text-align: left;"><code>search-screen.tsx</code></td>
-        <td style="text-align: center;">100 (MODULAR)</td>
+        <td style="text-align: center;">466</td>
         <td style="text-align: center;">ALTA</td>
         <td style="text-align: center;">BAJA</td>
         <td style="text-align: center;">🔵 9/10</td>
-        <td style="text-align: left;"><strong>MODULARIZADO.</strong> UI dividida en Header, Filters y Results.
-          Filtros optimizados y lógica extraída.</td>
+        <td style="text-align: left;"><strong>MODULARIZADO.</strong> UI dividida y lógica extraída. Mantenible pero
+          con UI de filtros compleja.</td>
+      </tr>
+      <tr class="odd">
+        <td style="text-align: left;"><code>workshop-client-view.tsx</code></td>
+        <td style="text-align: center;">1 (MODULAR)</td>
+        <td style="text-align: center;">ALTA</td>
+        <td style="text-align: center;">BAJA</td>
+        <td style="text-align: center;">🔵 10/10</td>
+        <td style="text-align: left;"><strong>CAZADO.</strong> Refactorizado en arquitectura de Pilares.
+          Lógica extraída a hooks y UI fragmentada en sub-componentes especializados.</td>
       </tr>
       <tr class="odd">
         <td style="text-align: left;"><code>useSearchScreenLogic.ts</code></td>
@@ -1165,7 +1340,8 @@
         <td style="text-align: center;">ALTA</td>
         <td style="text-align: center;">BAJA</td>
         <td style="text-align: center;">🔵 9/10</td>
-        <td style="text-align: left;"><strong>CENTRALIZADO.</strong> Maneja búsqueda local, stack de navegación y load
+        <td style="text-align: left;"><strong>CENTRALIZADO.</strong> Maneja búsqueda local, stack de navegación y
+          load
           de coaches/actividades.
         </td>
       </tr>
@@ -1184,7 +1360,18 @@
         <td style="text-align: center;">ALTA</td>
         <td style="text-align: center;">BAJA</td>
         <td style="text-align: center;">🔵 9/10</td>
-        <td style="text-align: left;"><strong>LIMPIO.</strong> Orquestador de estados para el detalle del cliente.</td>
+        <td style="text-align: left;"><strong>LIMPIO.</strong> Orquestador de estados para el detalle del cliente.
+        </td>
+      </tr>
+      <tr class="even">
+        <td style="text-align: left;"><code>purchased-activity-card.tsx</code></td>
+        <td style="text-align: center;">1 (MODULAR)</td>
+        <td style="text-align: center;">CRÍTICA</td>
+        <td style="text-align: center;">BAJA</td>
+        <td style="text-align: center;">🔵 10/10</td>
+        <td style="text-align: left;"><strong>CAZADO.</strong> Refactorización de la tarjeta principal de productos
+          comprados.
+          Lógica de progreso y tipos de producto extraída a hooks. UI fragmentada en sub-componentes.</td>
       </tr>
       <tr class="even">
         <td style="text-align: left;"><code>onboarding-modal.tsx</code></td>
@@ -1192,7 +1379,8 @@
         <td style="text-align: center;">CRÍTICA</td>
         <td style="text-align: center;">BAJA</td>
         <td style="text-align: center;">🔵 10/10</td>
-        <td style="text-align: left;"><strong>MODULARIZADO.</strong> Monolito de 700 líneas segmentado. Lógica extraída
+        <td style="text-align: left;"><strong>MODULARIZADO.</strong> Monolito de 700 líneas segmentado. Lógica
+          extraída
           y UI dividida en sub-componentes.</td>
       </tr>
       <tr class="odd">
@@ -1210,7 +1398,8 @@
         <td style="text-align: center;">ALTA</td>
         <td style="text-align: center;">BAJA</td>
         <td style="text-align: center;">🔵 10/10</td>
-        <td style="text-align: left;"><strong>MODULARIZADO.</strong> Chat segmentado en componentes de UI (List, Header,
+        <td style="text-align: left;"><strong>MODULARIZADO.</strong> Chat segmentado en componentes de UI (List,
+          Header,
           Input). Lógica extraída a hook.</td>
       </tr>
       <tr class="odd">
@@ -1219,7 +1408,8 @@
         <td style="text-align: center;">ALTA</td>
         <td style="text-align: center;">BAJA</td>
         <td style="text-align: center;">🔵 9/10</td>
-        <td style="text-align: left;"><strong>CENTRALIZADO.</strong> Orquestador de chats, suscripciones y polling en
+        <td style="text-align: left;"><strong>CENTRALIZADO.</strong> Orquestador de chats, suscripciones y polling
+          en
           tiempo real.</td>
       </tr>
       <tr class="even">
@@ -1241,19 +1431,60 @@
           lógica compleja de movimiento de actividades.</td>
       </tr>
       <tr class="even">
+        <td style="text-align: left;"><code>personal-info.tsx</code></td>
+        <td style="text-align: center;">1</td>
+        <td style="text-align: center;">ALTA</td>
+        <td style="text-align: center;">BAJA</td>
+        <td style="text-align: center;">🔵 10/10</td>
+        <td style="text-align: left;"><strong>CAZADO.</strong> Refactorizado en arquitectura de Pilares (PersonalInfo/).
+          Fragmentado en Básicos, Metas, Restricciones y Perfil.</td>
+      </tr>
+      <tr class="odd">
+        <td style="text-align: left;"><code>useTodayScreenLogic.ts</code></td>
+        <td style="text-align: center;">346</td>
+        <td style="text-align: center;">CRÍTICA</td>
+        <td style="text-align: center;">BAJA</td>
+        <td style="text-align: center;">🔵 10/10</td>
+        <td style="text-align: left;"><strong>FRAGMENTACIÓN TOTAL.</strong> Orquestador central refinado.
+          Lógica delegada en 5 hooks especializados (Ui, Data, Actions, Workshop, ExerciseEditing). UI inmersiva con
+          fondos blureados dinámicos.</td>
+      </tr>
+      <tr class="even">
+        <td style="text-align: left;"><code>media-selection-modal.tsx</code></td>
+        <td style="text-align: center;">1 (MODULAR)</td>
+        <td style="text-align: center;">MEDIA</td>
+        <td style="text-align: center;">BAJA</td>
+        <td style="text-align: center;">🔵 10/10</td>
+        <td style="text-align: left;"><strong>CAZADO.</strong> Refactorizado en arquitectura de Pilares.
+          Lógica de Bunny y Storage integrada en un hook limpio. UI fragmentada.</td>
+      </tr>
+      <tr class="even">
+        <td style="text-align: left;"><code>profile-edit-modal.tsx</code></td>
+        <td style="text-align: center;">1 (MODULAR)</td>
+        <td style="text-align: center;">ALTA</td>
+        <td style="text-align: center;">BAJA</td>
+        <td style="text-align: center;">🔵 10/10</td>
+        <td style="text-align: left;"><strong>CAZADO.</strong> Refactorización móvil del editor de perfil.
+          Arquitectura espejada de PersonalInfo para consistencia multiplataforma.</td>
+      </tr>
+      <tr class="even">
         <td style="text-align: left;"><code>exercise-progress-list.tsx</code></td>
         <td style="text-align: center;">383</td>
         <td style="text-align: center;">MEDIA</td>
         <td style="text-align: center;">BAJA</td>
         <td style="text-align: center;">🔵 10/10</td>
-        <td style="text-align: left;"><strong>ESTABLE.</strong> Recientemente corregido y optimizado para el guardado
+        <td style="text-align: left;"><strong>ESTABLE.</strong> Recientemente corregido y optimizado para el
+          guardado
           imperativo de cambios.</td>
       </tr>
     </tbody>
   </table>
-  <p><strong>Leyenda de Calificación:</strong> - 🔵 <strong>9-10</strong>: Excelente arquitectura, fácil de mantener. -
-    🟢 <strong>7-8</strong>: Estable, pero con margen de optimización en rendimiento. - 🟡 <strong>5-6</strong>: Deuda
-    técnica acumulada. Difícil de leer/testear. Requiere refactorización. - 🔴 <strong>&lt;5</strong>: Código peligroso,
+  <p><strong>Leyenda de Calificación:</strong> - 🔵 <strong>9-10</strong>: Excelente arquitectura, fácil de
+    mantener. -
+    🟢 <strong>7-8</strong>: Estable, pero con margen de optimización en rendimiento. - 🟡 <strong>5-6</strong>:
+    Deuda
+    técnica acumulada. Difícil de leer/testear. Requiere refactorización. - 🔴 <strong>&lt;5</strong>: Código
+    peligroso,
     propenso a errores y muy ineficiente.</p>
   <p><a href="#indice-de-navegacion">Volver al índice</a></p>
   <hr />
@@ -1267,9 +1498,9 @@
       <div class="tree-branch">
         <span class="tree-action">Consumir Rutinas Diarias</span>
         <div class="tree-detail">
-          <span class="status-pill pill-blue">🔵 MODULAR</span>
-          <code>TodayScreen (Refactored)</code>
-          <span class="line-count">~236 lines</span>
+          <span class="status-pill pill-blue">🔵 DOMADO Y FRAGMENTADO</span>
+          <code>TodayScreen (useTodayScreenLogic.ts)</code>
+          <span class="line-count">346 lines</span>
         </div>
       </div>
 
@@ -1277,9 +1508,23 @@
       <div class="tree-branch">
         <span class="tree-action">Buscar Servicios y Coaches</span>
         <div class="tree-detail">
-          <span class="status-pill pill-yellow">🟡 MEJORABLE</span>
+          <span class="status-pill pill-blue">🔵 MODULAR</span>
           <code>search-screen.tsx</code>
-          <span class="line-count">1189 lines</span>
+          <span class="line-count">466 lines</span>
+        </div>
+        <span class="tree-action">Planificación de Talleres (Modular)</span>
+        <div class="tree-detail">
+          <span class="status-pill pill-blue">🔵 CAZADO</span>
+          <code>WorkshopSchedule/</code>
+          <span class="line-count">~600 lines (Refactored)</span>
+          <span class="hook-ref">🪝 useWorkshopScheduleLogic</span>
+        </div>
+        <span class="tree-action">Mis Actividades (Modular)</span>
+        <div class="tree-detail">
+          <span class="status-pill pill-blue">🔵 CAZADO</span>
+          <code>PurchasedActivity/</code>
+          <span class="line-count">~600 lines (Refactored)</span>
+          <span class="hook-ref">🪝 usePurchasedActivityLogic</span>
         </div>
         <span class="tree-action">Detalle de Producto (Modal)</span>
         <div class="tree-detail">
@@ -1294,10 +1539,9 @@
       <div class="tree-branch">
         <span class="tree-action">Vista Mensual y Meets</span>
         <div class="tree-detail">
-          <span class="status-pill pill-yellow">🟡 MEJORABLE</span>
+          <span class="status-pill pill-yellow">🟡 TITÁN DOMADO</span>
           <code>CalendarView.tsx</code>
-          <span class="line-count">~3700 lines</span>
-          <span class="bug-fix">🐛 Fix: Carga de coaches activos</span>
+          <span class="line-count">1032 lines</span>
         </div>
         <span class="tree-action">Agendar Sesión eMeet</span>
         <div class="tree-detail">
@@ -1332,11 +1576,38 @@
 
       <span class="tree-tab">👤 PERFIL</span>
       <div class="tree-branch">
-        <span class="tree-action">Gestión Biométrica</span>
         <div class="tree-detail">
           <span class="status-pill pill-green">🟢 SALUDABLE</span>
           <code>biometrics-modal.tsx</code>
           <span class="line-count">415 lines</span>
+        </div>
+        <span class="tree-action">Detalle de Usuario (Modular)</span>
+        <div class="tree-detail">
+          <span class="status-pill pill-blue">🔵 CAZADO</span>
+          <code>PersonalInfo/</code>
+          <span class="line-count">~1000 lines (5 components)</span>
+          <span class="hook-ref">🪝 usePersonalInfoLogic</span>
+        </div>
+        <span class="tree-action">Edición de Perfil Mobile (Modular)</span>
+        <div class="tree-detail">
+          <span class="status-pill pill-blue">🔵 CAZADO</span>
+          <code>ProfileEdit/</code>
+          <span class="line-count">~700 lines (Mobile)</span>
+          <span class="hook-ref">🪝 useProfileEditLogic</span>
+        </div>
+        <span class="tree-action">Vista de Talleres (Modular)</span>
+        <div class="tree-detail">
+          <span class="status-pill pill-blue">🔵 CAZADO</span>
+          <code>WorkshopClientView/</code>
+          <span class="line-count">~1000 lines (4 components)</span>
+          <span class="hook-ref">🪝 useWorkshopLogic</span>
+        </div>
+        <span class="tree-action">Selección de Media (Modular)</span>
+        <div class="tree-detail">
+          <span class="status-pill pill-blue">🔵 CAZADO</span>
+          <code>MediaSelection/</code>
+          <span class="line-count">~1000 lines (3 components)</span>
+          <span class="hook-ref">🪝 useMediaSelectionLogic</span>
         </div>
       </div>
     </div>
@@ -1389,6 +1660,12 @@
 
       <span class="tree-tab">📦 ALMACENAMIENTO</span>
       <div class="tree-branch">
+        <span class="tree-action">Selección de Media (Modular)</span>
+        <div class="tree-detail">
+          <span class="status-pill pill-blue">🔵 CAZADO</span>
+          <code>MediaSelection/</code>
+          <span class="line-count">~1000 lines (Modular)</span>
+        </div>
         <span class="tree-action">Gestión Bunny.net</span>
         <div class="tree-detail">
           <span class="status-pill pill-green">🟢 SALUDABLE</span>
@@ -1401,9 +1678,9 @@
       <div class="tree-branch">
         <span class="tree-action">Carga Masiva de Librería</span>
         <div class="tree-detail">
-          <span class="status-pill pill-blue">🔵 DOMADO EXTREMO</span>
+          <span class="status-pill pill-green">🟢 CAZADO Y FRAGMENTADO</span>
           <code>csv-manager-enhanced.tsx</code>
-          <span class="line-count">1035 lines</span>
+          <span class="line-count">~350 lines</span>
         </div>
       </div>
     </div>

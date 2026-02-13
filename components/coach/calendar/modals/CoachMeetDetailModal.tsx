@@ -215,7 +215,10 @@ export function CoachMeetDetailModal({
         if (isCancelled) return { label: 'Cancelada', color: 'text-red-400 bg-red-500/10 border-red-500/20' }
         if (pendingReschedule?.status === 'pending') return { label: 'Cambio Sugerido', color: 'text-[#FFB366] bg-[#FFB366]/10 border-[#FFB366]/20' }
         if (isPending) return { label: 'Pendiente', color: 'text-[#FFB366] bg-[#FFB366]/10 border-[#FFB366]/20' }
-        if (isConfirmed && !allConfirmed) return { label: `${confirmedCount}/${totalCount} Confirmados`, color: 'text-blue-400 bg-blue-500/10 border-blue-500/20' }
+        if (isConfirmed && !allConfirmed) {
+            const label = totalCount > 1 ? `Inv. Enviada (${confirmedCount}/${totalCount})` : 'Invitación Enviada'
+            return { label, color: 'text-[#FFB366] bg-[#FFB366]/10 border-[#FFB366]/20' }
+        }
         if (allConfirmed) return { label: 'Confirmada', color: 'text-[#FF7939] bg-[#FF7939]/10 border-[#FF7939]/20' }
         return { label: 'Programada', color: 'text-white/40 bg-white/5 border-white/10' }
     })()
@@ -312,10 +315,10 @@ export function CoachMeetDetailModal({
                                                 <span className="text-xs text-white/70">{p.client?.full_name || 'Cliente'}</span>
                                             </div>
                                             <span className={`text-[9px] font-bold uppercase px-2 py-0.5 rounded-full ${p.rsvp_status === 'accepted' || p.rsvp_status === 'confirmed'
-                                                    ? 'bg-[#FF7939]/10 text-[#FF7939] border border-[#FF7939]/20'
-                                                    : p.rsvp_status === 'declined'
-                                                        ? 'bg-red-500/10 text-red-500 border border-red-500/20'
-                                                        : 'bg-white/5 text-white/40 border border-white/10'
+                                                ? 'bg-[#FF7939]/10 text-[#FF7939] border border-[#FF7939]/20'
+                                                : p.rsvp_status === 'declined'
+                                                    ? 'bg-red-500/10 text-red-500 border border-red-500/20'
+                                                    : 'bg-white/5 text-white/40 border border-white/10'
                                                 }`}>
                                                 {p.rsvp_status === 'accepted' || p.rsvp_status === 'confirmed' ? 'Confirmado' : p.rsvp_status === 'declined' ? 'Rechazado' : 'Pendiente'}
                                             </span>

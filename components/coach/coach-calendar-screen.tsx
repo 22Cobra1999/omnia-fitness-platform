@@ -1,7 +1,7 @@
 "use client"
 
 import React, { Suspense } from "react"
-import { Flame, Video, Calendar as CalendarIcon } from "lucide-react"
+import { Flame, Video, Calendar as CalendarIcon, GraduationCap, X, ChevronLeft, ChevronRight } from "lucide-react"
 import { format, isToday } from 'date-fns'
 import { es } from 'date-fns/locale'
 import { useCoachCalendarLogic } from "./hooks/calendar/useCoachCalendarLogic"
@@ -38,6 +38,8 @@ export interface CalendarEvent {
   is_google_event?: boolean
   source?: 'omnia' | 'google_calendar'
   current_participants?: number
+  confirmed_participants?: number
+  total_guests?: number
   is_ghost?: boolean
   original_event_id?: string
   pending_reschedule?: any
@@ -55,6 +57,12 @@ function CoachCalendarContent() {
     currentDate,
     selectedDate,
     setSelectedDate,
+    showMonthSelector,
+    setShowMonthSelector,
+    monthPickerYear,
+    setMonthPickerYear,
+    goToToday,
+    changeMonth,
     showAddMenu,
     setShowAddMenu,
     showMeetNotifications,
@@ -145,6 +153,15 @@ function CoachCalendarContent() {
   const [pendingReschedule, setPendingReschedule] = React.useState<any>(null)
   const [selectedMeetRsvpStatus, setSelectedMeetRsvpStatus] = React.useState('pending')
   const [selectedMeetRsvpLoading, setSelectedMeetRsvpLoading] = React.useState(false)
+
+  // Sincronizar estado local al seleccionar un evento
+  React.useEffect(() => {
+    if (selectedMeetEvent) {
+      // Inicializar con la data que ya tenemos para evitar parpadeo
+      setPendingReschedule(selectedMeetEvent.pending_reschedule || null)
+      setSelectedMeetRsvpStatus(selectedMeetEvent.rsvp_status || 'pending')
+    }
+  }, [selectedMeetEvent])
 
   // Calclular eventos del día seleccionado para el detalle inferior
   const { dayEvents, meetEvents, otherEvents, dateLabel } = React.useMemo(() => {
@@ -301,7 +318,7 @@ function CoachCalendarContent() {
 
   return (
     <div className="min-h-screen bg-[#0A0A0B] text-white pb-32">
-      <div className="max-w-2xl mx-auto p-4 sm:p-6 space-y-6">
+      <div className="w-full mx-auto p-4 sm:p-8 space-y-6">
 
         <CoachCalendarHeader
           viewMode={viewMode}
@@ -357,7 +374,7 @@ function CoachCalendarContent() {
               onDateClick={(date) => handleDayClickForScheduler(date)}
               onPrevMonth={goToPreviousMonth}
               onNextMonth={goToNextMonth}
-              onMonthClick={() => { }} // TODO: Selector de mes
+              onMonthClick={() => setShowMonthSelector(true)}
             />
 
             {/* Detalle del día seleccionado - DEBAJO DEL CALENDARIO como en cliente */}
@@ -396,7 +413,12 @@ function CoachCalendarContent() {
                               const end = m.end_time ? new Date(m.end_time) : null
                               const label = `${format(start, 'HH:mm')}${end && !Number.isNaN(end.getTime()) ? ` – ${format(end, 'HH:mm')}` : ''}`
                               const isPending = String(m.rsvp_status || 'pending') === 'pending'
-                              const isCancelled = m.status === 'cancelled'
+                              const hasRequest = (m as any).pending_reschedule?.status === 'pending'
+
+                              // isCancelled solo debe ser para estados finales negativos
+                              const isCancelled = m.status === 'cancelled' || m.rsvp_status === 'declined'
+                              // isUrgent es para cosas que requieren atención (rojo)
+                              const isUrgent = isCancelled || hasRequest
 
                               const handleEnter = () => {
                                 if (!isPending && m.meet_link) {
@@ -415,10 +437,10 @@ function CoachCalendarContent() {
                                   key={m.id}
                                   className={
                                     `w-full rounded-2xl border px-4 py-3 flex items-center justify-between gap-3 transition-all duration-200 select-none ` +
-                                    (isCancelled
+                                    (isUrgent
                                       ? 'border-red-500/20 bg-red-500/5 opacity-80 backdrop-blur-md'
                                       : (m.is_ghost
-                                        ? 'border-white/10 bg-white/5 border-dashed opacity-60 hover:opacity-100 hover:border-white/20 active:scale-[0.98] cursor-pointer'
+                                        ? 'border-[#FF7939]/20 bg-[#FF7939]/5 border-dashed hover:opacity-100 hover:border-[#FF7939]/40 active:scale-[0.98] cursor-pointer'
                                         : 'border-white/10 bg-white/5 hover:bg-white/10 backdrop-blur-md hover:border-white/20 active:scale-[0.98] cursor-pointer'))
                                   }
                                   role="button"
@@ -426,18 +448,26 @@ function CoachCalendarContent() {
                                   onClick={() => setSelectedMeetEvent(m)}
                                 >
                                   <div className="flex items-center gap-3 min-w-0">
-                                    <div className={`w-10 h-10 rounded-full flex items-center justify-center flex-shrink-0 ${isCancelled ? 'bg-red-500/10 text-red-500 border border-red-500/20' : (m.is_ghost ? 'bg-white/5 text-white/40 border border-white/5' : (isPending ? 'bg-[#FF7939]/10 text-[#FF7939] border border-[#FF7939]/20' : 'bg-white/5 text-white/70 border border-white/10'))}`}>
+                                    <div className={`w-10 h-10 rounded-full flex items-center justify-center flex-shrink-0 ${isUrgent ? 'bg-red-500/10 text-red-400 border border-red-500/30' : (m.is_ghost ? 'bg-[#FF7939]/10 text-[#FF7939] border border-[#FF7939]/30' : (isPending ? 'bg-[#FF7939]/10 text-[#FF7939] border border-[#FF7939]/20' : 'bg-white/5 text-white/70 border border-white/10'))}`}>
                                       {m.event_type === 'workshop' ? (
-                                        <CalendarIcon className="h-5 w-5" />
+                                        <GraduationCap className="h-5 w-5" />
                                       ) : (
                                         <Video className="h-5 w-5" />
                                       )}
                                     </div>
                                     <div className="min-w-0">
-                                      <div className="text-sm font-bold text-white truncate leading-snug">{m.title ? String(m.title) : 'Meet'}</div>
+                                      <div className="text-sm font-bold text-white truncate leading-snug">{m.title ? String(m.title) : (m.event_type === 'workshop' ? 'Taller' : 'Meet')}</div>
                                       <div className="flex items-center gap-2 mt-0.5">
                                         <div className="text-[11px] text-white/50 font-medium">{label}</div>
-                                        {isCancelled && <span className="text-[9px] font-bold uppercase text-red-500 px-1.5 py-0.5 rounded bg-red-500/10 border border-red-500/20">Cancelada</span>}
+                                        {m.status === 'cancelled' && <span className="text-[9px] font-bold uppercase text-red-500 px-1.5 py-0.5 rounded bg-red-500/10 border border-red-500/20">Cancelada</span>}
+                                        {m.rsvp_status === 'declined' && <span className="text-[9px] font-bold uppercase text-red-500 px-1.5 py-0.5 rounded bg-red-500/10 border border-red-500/20">Rechazada</span>}
+                                        {hasRequest && (
+                                          <span className="text-[9px] font-bold uppercase text-red-400 px-1.5 py-0.5 rounded bg-red-500/10 border border-red-500/20">
+                                            {(m as any).pending_reschedule?.to_start_time
+                                              ? `Propuesta: ${format(new Date((m as any).pending_reschedule.to_start_time), 'd MMM HH:mm', { locale: es })}`
+                                              : 'Cambio Solicitado'}
+                                          </span>
+                                        )}
                                         {m.is_ghost && <span className="text-[9px] font-bold uppercase text-[#FFB366] px-1.5 py-0.5 rounded bg-[#FFB366]/10 border border-[#FFB366]/20">Propuesta</span>}
                                         {m.event_type === 'workshop' && <span className="text-[9px] font-bold uppercase text-[#FF7939] px-1.5 py-0.5 rounded bg-[#FF7939]/10 border border-[#FF7939]/20">Taller</span>}
                                       </div>
@@ -458,23 +488,32 @@ function CoachCalendarContent() {
                                     }
                                   >
                                     {(() => {
-                                      if (isCancelled) return 'Cancelada'
-                                      if (m.is_ghost) return 'Propuesta sugerida'
+                                      if (m.status === 'cancelled') return 'Cancelada'
+                                      if (m.rsvp_status === 'declined') return 'Rechazada'
 
-                                      // Check for pending reschedule requests first
-                                      if (m.pending_reschedule?.status === 'pending') {
-                                        return m.pending_reschedule.requested_by_user_id === coachId
-                                          ? 'Cambio pedido'
-                                          : 'Responder cambio'
+                                      // Primero solicitudes de cambio
+                                      if (hasRequest) {
+                                        return 'Cambio Solicitado'
                                       }
+
+                                      if (m.is_ghost) return 'Propuesta enviada'
 
                                       if (new Date(m.end_time || m.start_time) < new Date()) return 'Finalizada'
                                       if (isToday(new Date(m.start_time))) return 'Unirse'
 
-                                      // If it's confirmed or rescheduled-and-accepted
-                                      if (m.status === 'scheduled' || m.status === 'rescheduled') return 'Confirmada'
+                                      // Si está confirmada o reprogramada-y-aceptada
+                                      if (m.status === 'scheduled' || m.status === 'rescheduled') {
+                                        const confirmed = m.confirmed_participants || 0
+                                        const total = m.total_guests || 0
 
-                                      if (isPending) return 'Pendiente de confirmar'
+                                        if (total > 0 && confirmed < total) {
+                                          if (total > 1) return `Inv. enviada (${confirmed}/${total})`
+                                          return 'Invitación enviada'
+                                        }
+                                        return 'Confirmada'
+                                      }
+
+                                      if (isPending) return 'Pendiente'
                                       return 'Confirmada'
                                     })()}
                                   </button>
@@ -680,6 +719,71 @@ function CoachCalendarContent() {
         <div className="fixed inset-0 bg-black/60 backdrop-blur-sm z-[9999] flex flex-col items-center justify-center gap-4">
           <Flame className="w-12 h-12 text-[#FF7939] animate-bounce" />
           <p className="text-sm font-bold tracking-widest uppercase">Sincronizando con Google...</p>
+        </div>
+      )}
+      {/* Modal Selector de Mes/Año */}
+      {showMonthSelector && (
+        <div className="fixed inset-0 z-[100] bg-black/60 backdrop-blur-md flex items-center justify-center p-4">
+          <div className="bg-zinc-900 border border-white/10 rounded-3xl p-6 w-full max-w-sm shadow-2xl animate-in fade-in zoom-in duration-200">
+            <div className="flex items-center justify-between mb-6">
+              <h3 className="text-xl font-bold text-white">Seleccionar Fecha</h3>
+              <button
+                onClick={() => setShowMonthSelector(false)}
+                className="w-10 h-10 rounded-full bg-white/5 flex items-center justify-center text-white/50 hover:text-white transition-colors"
+                title="Cerrar"
+              >
+                <X size={20} />
+              </button>
+            </div>
+
+            <div className="flex gap-4 h-[320px] mb-4">
+              {/* Columna de Años */}
+              <div className="w-24 overflow-y-auto flex flex-col gap-1 pr-2 border-r border-white/5">
+                {Array.from({ length: 11 }, (_, i) => new Date().getFullYear() - 5 + i).map(year => (
+                  <button
+                    key={year}
+                    onClick={() => setMonthPickerYear(year)}
+                    className={
+                      `py-3 rounded-xl text-sm font-bold transition-all ` +
+                      (monthPickerYear === year
+                        ? 'bg-[#FF7939]/20 text-[#FF7939] border border-[#FF7939]/30'
+                        : 'text-white/40 hover:text-white hover:bg-white/5')
+                    }
+                  >
+                    {year}
+                  </button>
+                ))}
+              </div>
+
+              {/* Columna de Meses */}
+              <div className="flex-1 grid grid-cols-2 gap-2 overflow-y-auto pr-1">
+                {['Enero', 'Febrero', 'Marzo', 'Abril', 'Mayo', 'Junio', 'Julio', 'Agosto', 'Sept', 'Oct', 'Nov', 'Dic'].map((m, idx) => {
+                  const isCurrent = currentDate.getMonth() === idx && currentDate.getFullYear() === monthPickerYear
+                  return (
+                    <button
+                      key={m}
+                      onClick={() => changeMonth(idx)}
+                      className={
+                        `h-12 rounded-xl text-xs font-bold transition-all ` +
+                        (isCurrent
+                          ? 'bg-[#FF7939] text-black shadow-[0_4px_12px_rgba(255,121,57,0.3)]'
+                          : 'bg-white/5 text-white/70 hover:bg-white/10 border border-white/5')
+                      }
+                    >
+                      {m}
+                    </button>
+                  )
+                })}
+              </div>
+            </div>
+
+            <button
+              onClick={goToToday}
+              className="w-full mt-2 py-4 rounded-2xl bg-white/5 border border-white/10 text-white font-bold text-sm hover:bg-white/10 transition-all"
+            >
+              Ir a Hoy
+            </button>
+          </div>
         </div>
       )}
     </div>

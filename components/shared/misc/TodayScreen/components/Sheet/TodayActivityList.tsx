@@ -123,40 +123,12 @@ export function TodayActivityList({
                         {/* Block Body */}
                         {!isCollapsed && (
                             <div style={{ marginTop: 8, paddingLeft: 0 }}>
-                                {/* PRS Frame (simplified) */}
-                                {(() => {
-                                    const prs = getBlockPRSFormat(blockActivities);
-                                    // Only show if fitness?
-                                    const isNutri = programInfo?.categoria === 'nutricion' || enrollment?.activity?.categoria === 'nutricion';
-                                    if (prs && !isNutri) {
-                                        return (
-                                            <div style={{ background: 'rgba(255, 255, 255, 0.05)', border: '1px solid rgba(255, 255, 255, 0.1)', borderRadius: 12, padding: '12px 16px', marginBottom: 12 }}>
-                                                <div style={{ display: 'flex', alignItems: 'center', gap: 8, borderBottom: '1px solid rgba(255, 255, 255, 0.1)', paddingBottom: 12, marginBottom: 12 }}>
-                                                    <span style={{ fontSize: 11, color: 'rgba(255, 255, 255, 0.6)', fontWeight: 500, textTransform: 'uppercase' }}>Orden:</span>
-                                                    <span style={{ fontSize: 12, color: '#FF7939', fontFamily: 'monospace', fontWeight: 600 }}>{prs}</span>
-                                                </div>
-                                                {/* List inside would assume items usage but design shows list separate? 
-                                       Original code line 5458: "Lista de ejercicios del bloque" IS INSIDE logic? 
-                                       Wait, line 5416: "Frame del bloque con PRS...".
-                                       Lines 5460: "blockActivities.map...".
-                                       Yes, the list IS INSIDE this frame if PRS exists? OR separate?
-                                       Line 5458 `div` wrapping map IS SIBLING to PRS block inside 5417 wrapper?
-                                       Let's check indent. 
-                                       Yes, line 5417 opens div. 5425 renders PRS. 5459 renders List. 
-                                       So the List IS inside the container.
-                                   */}
-                                                <ActivityItemsList activities={blockActivities} openVideo={openVideo} toggleExerciseSimple={toggleExerciseSimple} isNutri={isNutri} />
-                                            </div>
-                                        )
-                                    } else {
-                                        // Plain list if no PRS
-                                        return (
-                                            <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
-                                                <ActivityItemsList activities={blockActivities} openVideo={openVideo} toggleExerciseSimple={toggleExerciseSimple} isNutri={isNutri} />
-                                            </div>
-                                        )
-                                    }
-                                })()}
+                                <ActivityItemsList
+                                    activities={blockActivities}
+                                    openVideo={openVideo}
+                                    toggleExerciseSimple={toggleExerciseSimple}
+                                    isNutri={programInfo?.categoria === 'nutricion' || enrollment?.activity?.categoria === 'nutricion'}
+                                />
                             </div>
                         )}
                     </div>
@@ -177,6 +149,10 @@ function ActivityItemsList({ activities, openVideo, toggleExerciseSimple, isNutr
                     openVideo(activity.video_url || '', activity);
                 };
 
+                if (activity.exercise_id === 1230 || String(activity.title).includes('Press')) {
+                    console.log(`🔥 [TodayActivityList] Rendering ${activity.title}: done=${activity.done}, id=${activity.id}`);
+                }
+
                 return (
                     <button key={activity.id} onClick={handleOpenVideo}
                         style={{ width: '100%', padding: '10px 12px', background: 'transparent', border: 'none', borderRadius: 8, textAlign: 'left', cursor: 'pointer', transition: 'all 0.2s ease' }}
@@ -193,7 +169,7 @@ function ActivityItemsList({ activities, openVideo, toggleExerciseSimple, isNutr
                                         color: activity.done ? '#FF7939' : 'rgba(255, 255, 255, 0.4)',
                                         cursor: 'pointer', flexShrink: 0
                                     }}>
-                                    <Flame size={20} />
+                                    <Flame size={20} fill={activity.done ? '#FF7939' : 'none'} />
                                 </div>
 
                                 <div style={{ flex: 1, minWidth: 0 }}>
@@ -210,8 +186,15 @@ function ActivityItemsList({ activities, openVideo, toggleExerciseSimple, isNutr
                                             if (!firstBlock || (firstBlock.kg === undefined && firstBlock.reps === undefined)) return null;
 
                                             return (
-                                                <div style={{ fontSize: 11, color: '#FF7939', fontWeight: 600, fontFamily: 'monospace', marginTop: 2, letterSpacing: '0.3px' }}>
-                                                    P:{firstBlock.kg}kg | R:{firstBlock.reps} | S:{firstBlock.sets}
+                                                <div style={{ display: 'flex', flexDirection: 'column', gap: 2, marginTop: 2 }}>
+                                                    <div style={{ fontSize: 11, color: '#FF7939', fontWeight: 600, fontFamily: 'monospace', letterSpacing: '0.3px' }}>
+                                                        P:{firstBlock.kg}kg | R:{firstBlock.reps} | S:{firstBlock.sets}
+                                                    </div>
+                                                    {activity.tipo && activity.tipo !== 'fitness' && (
+                                                        <div style={{ fontSize: 11, color: 'rgba(255, 255, 255, 0.4)', fontWeight: 500, textTransform: 'capitalize' }}>
+                                                            {activity.tipo}
+                                                        </div>
+                                                    )}
                                                 </div>
                                             );
                                         })()
@@ -230,8 +213,8 @@ function ActivityItemsList({ activities, openVideo, toggleExerciseSimple, isNutr
 
                             {/* Right Side: Kcal/Min */}
                             <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: 2, flexShrink: 0 }}>
-                                {(activity as any).calorias != null && <span style={{ fontSize: 13, fontWeight: 600, color: 'rgba(255, 255, 255, 0.8)' }}>{(activity as any).calorias} kcal</span>}
-                                {(activity as any).minutos != null && <span style={{ fontSize: 12, fontWeight: 500, color: 'rgba(255, 255, 255, 0.6)' }}>{(activity as any).minutos}min</span>}
+                                {activity.calorias != null && <span style={{ fontSize: 13, fontWeight: 600, color: 'rgba(255, 255, 255, 0.8)' }}>{activity.calorias} kcal</span>}
+                                {activity.minutos != null && <span style={{ fontSize: 12, fontWeight: 500, color: 'rgba(255, 255, 255, 0.6)' }}>{activity.minutos} min</span>}
                             </div>
                         </div>
                     </button>

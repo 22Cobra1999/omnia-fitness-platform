@@ -154,28 +154,31 @@ export function DailyActivityRings({ userId, selectedDate, category = 'fitness',
     return minutesTarget > 0
   }
 
-  const ActivityRing = ({ progress, color, size = 36 }: { progress: number, color: string, size?: number }) => {
-    // Corregir NaN y valores inválidos
+  const ActivityRing = ({ progress, color, size = 36, strokeWidth = 3, label }: { progress: number, color: string, size?: number, strokeWidth?: number, label?: string }) => {
     const safeProgress = isNaN(progress) || !isFinite(progress) ? 0 : Math.max(0, Math.min(100, progress));
-    const radius = (size - 8) / 2
+    const radius = (size - strokeWidth * 2) / 2
     const circumference = 2 * Math.PI * radius
-    const strokeDasharray = circumference
     const strokeDashoffset = circumference - (safeProgress / 100) * circumference
 
+    // Create a unique ID for the gradient based on color
+    const gradientId = `grad-${color.replace('#', '')}`
+
     return (
-      <div className="relative" style={{ width: size, height: size }}>
-        <svg
-          width={size}
-          height={size}
-          className="transform -rotate-90"
-        >
+      <div className="relative flex items-center justify-center" style={{ width: size, height: size }}>
+        <svg width={size} height={size} className="transform -rotate-90 block">
+          <defs>
+            <linearGradient id={gradientId} x1="0%" y1="0%" x2="100%" y2="100%">
+              <stop offset="0%" stopColor={color} />
+              <stop offset="100%" stopColor={color} stopOpacity={0.6} />
+            </linearGradient>
+          </defs>
           {/* Background circle */}
           <circle
             cx={size / 2}
             cy={size / 2}
             r={radius}
-            stroke="rgba(75, 85, 99, 0.2)"
-            strokeWidth="2"
+            stroke="rgba(255, 255, 255, 0.05)"
+            strokeWidth={strokeWidth}
             fill="none"
           />
           {/* Progress circle */}
@@ -183,18 +186,20 @@ export function DailyActivityRings({ userId, selectedDate, category = 'fitness',
             cx={size / 2}
             cy={size / 2}
             r={radius}
-            stroke={color}
-            strokeWidth="2"
+            stroke={`url(#${gradientId})`}
+            strokeWidth={strokeWidth}
             fill="none"
             strokeLinecap="round"
-            strokeDasharray={strokeDasharray}
+            strokeDasharray={circumference}
             strokeDashoffset={strokeDashoffset}
-            className="transition-all duration-500 ease-out"
-            style={{
-              filter: `drop-shadow(0 0 3px ${color}40)`
-            }}
+            style={{ transition: 'stroke-dashoffset 0.8s ease-in-out' }}
           />
         </svg>
+        {label && (
+          <div className="absolute inset-0 flex items-center justify-center text-[8px] font-bold text-white/90">
+            {label}
+          </div>
+        )}
       </div>
     )
   }
@@ -270,33 +275,37 @@ export function DailyActivityRings({ userId, selectedDate, category = 'fitness',
 
               {/* Anillos apilados */}
               <div
-                className="flex justify-center relative"
-                style={{ width: 40, height: 40 }}
+                className="flex justify-center items-center relative"
+                style={{ width: 44, height: 44 }}
               >
                 {/* Anillo exterior - Kcal */}
                 <ActivityRing
                   progress={kcalProgress}
                   color="#FF6A00"
-                  size={40}
+                  size={44}
+                  strokeWidth={3}
                 />
 
                 {/* Anillo medio - Minutos (solo si aplica) */}
                 {shouldShowMiddleRing(day.category || 'fitness', day.minutesTarget) && (
-                  <div className="absolute top-1 left-1">
+                  <div className="absolute inset-0 flex items-center justify-center">
                     <ActivityRing
                       progress={minutesProgress}
                       color="#FF8C42"
-                      size={32}
+                      size={34}
+                      strokeWidth={3}
                     />
                   </div>
                 )}
 
                 {/* Anillo interior - Ejercicios/Platos */}
-                <div className={`absolute ${shouldShowMiddleRing(day.category || 'fitness', day.minutesTarget) ? 'top-2 left-2' : 'top-1 left-1'}`}>
+                <div className="absolute inset-0 flex items-center justify-center">
                   <ActivityRing
                     progress={exercisesProgress}
                     color="#FFFFFF"
-                    size={shouldShowMiddleRing(day.category || 'fitness', day.minutesTarget) ? 24 : 32}
+                    size={shouldShowMiddleRing(day.category || 'fitness', day.minutesTarget) ? 24 : 34}
+                    strokeWidth={3}
+                    label={category === 'nutricion' && day.exercisesTarget > 0 ? `${day.exercises}` : undefined}
                   />
                 </div>
               </div>

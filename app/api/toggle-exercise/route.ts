@@ -124,119 +124,31 @@ const buildCompletedNutriKeyPrefixSet = (ejerciciosCompletados: any): Set<string
   return prefixes
 }
 
-async function recalcAndUpsertDailySummary(opts: {
+async function refreshDailyProgress(opts: {
   supabase: any
   clienteId: string
   fecha: string
-  enrollmentId?: string | number
+  enrollmentId: string | number
 }) {
   const { supabase, clienteId, fecha, enrollmentId } = opts
 
-  let fitQuery = supabase
-    .from('progreso_cliente')
-    .select('fecha, ejercicios_completados, ejercicios_pendientes, minutos_json, calorias_json')
-    .eq('cliente_id', clienteId)
-    .eq('fecha', fecha)
-
-  let nutriQuery = supabase
-    .from('progreso_cliente_nutricion')
-    .select('fecha, ejercicios_completados, ejercicios_pendientes, macros')
-    .eq('cliente_id', clienteId)
-    .eq('fecha', fecha)
-
-  if (enrollmentId) {
-    fitQuery = fitQuery.eq('enrollment_id', enrollmentId)
-    nutriQuery = nutriQuery.eq('enrollment_id', enrollmentId)
-  }
-
-  const [{ data: fitRows, error: fitErr }, { data: nutriRows, error: nutriErr }] = await Promise.all([
-    fitQuery,
-    nutriQuery
-  ])
-
-  let fitness_kcal = 0
-  let fitness_mins = 0
-  let ejercicios_completados = 0
-  let ejercicios_pendientes = 0
-
-  for (const r of (fitRows || []) as any[]) {
-    ejercicios_completados += countJsonKeysOrArrayLen(safeJsonParse(r.ejercicios_completados))
-    ejercicios_pendientes += countJsonKeysOrArrayLen(safeJsonParse(r.ejercicios_pendientes))
-    fitness_mins += sumJsonbEachTextNumbers(r.minutos_json)
-    fitness_kcal += sumJsonbEachTextNumbers(r.calorias_json)
-  }
-
-  let platos_completados = 0
-  let platos_pendientes = 0
-  let nutri_kcal = 0
-  let nutri_mins = 0
-  let nutri_protein = 0
-  let nutri_carbs = 0
-  let nutri_fat = 0
-
-  for (const r of (nutriRows || []) as any[]) {
-    const comp = safeJsonParse(r.ejercicios_completados) || {}
-    const pend = safeJsonParse(r.ejercicios_pendientes) || {}
-    platos_completados += countJsonKeysOrArrayLen(comp)
-    platos_pendientes += countJsonKeysOrArrayLen(pend)
-
-    const completedKeys = buildCompletedNutriKeySet(r.ejercicios_completados)
-    const completedPrefixes = buildCompletedNutriKeyPrefixSet(r.ejercicios_completados)
-    const macrosAgg = computeNutriKcalFromMacros(r.macros, {
-      onlyKeys: completedKeys.size ? completedKeys : undefined,
-      onlyPrefixes: completedPrefixes.size ? completedPrefixes : undefined
-    })
-
-    nutri_kcal += macrosAgg.kcal
-    nutri_mins += macrosAgg.mins
-    nutri_protein += macrosAgg.p
-    nutri_carbs += macrosAgg.c
-    nutri_fat += macrosAgg.f
-  }
-
-  const ejercicios_objetivo = ejercicios_completados + ejercicios_pendientes
-  const platos_objetivo = platos_completados + platos_pendientes
-
-  const { data: existingSummary } = await supabase
-    .from('progreso_cliente_daily_summary')
-    .select('nutri_kcal_objetivo, nutri_mins_objetivo, fitness_kcal_objetivo, fitness_mins_objetivo, platos_objetivo, ejercicios_objetivo')
-    .eq('cliente_id', clienteId)
-    .eq('fecha', fecha)
-    .maybeSingle()
-
-  const payload: any = {
-    cliente_id: clienteId,
-    fecha,
-    platos_completados,
-    platos_pendientes,
-    platos_objetivo: Number(existingSummary?.platos_objetivo) || platos_objetivo,
-    nutri_kcal,
-    nutri_mins,
-    nutri_protein,
-    nutri_carbs,
-    nutri_fat,
-    nutri_kcal_objetivo: Number(existingSummary?.nutri_kcal_objetivo) || 0,
-    nutri_mins_objetivo: Number(existingSummary?.nutri_mins_objetivo) || 0,
-    ejercicios_completados,
-    ejercicios_pendientes,
-    ejercicios_objetivo: Number(existingSummary?.ejercicios_objetivo) || ejercicios_objetivo,
-    fitness_kcal,
-    fitness_mins,
-    fitness_kcal_objetivo: Number(existingSummary?.fitness_kcal_objetivo) || 0,
-    fitness_mins_objetivo: Number(existingSummary?.fitness_mins_objetivo) || 0,
-    recalculado_en: new Date().toISOString()
-  }
-
-  await supabase.from('progreso_cliente_daily_summary').upsert(payload, { onConflict: 'cliente_id,fecha' })
+  // Triggering the manual refresh if needed, but since we updated the source table (progreso_cliente or nutricion),
+  // the database trigger 'tr_refresh_daily_progreso_*' will automatically update 'progreso_diario_actividad'.
+  // However, for immediate UI response, we can fetch the source and calculate if the trigger is async.
+  // In Supabase/Postgres, triggers are sync by default. So we just return ok.
   return { ok: true }
 }
 
 export async function POST(request: NextRequest) {
   try {
-    const { executionId, bloque, orden, fecha, categoria, activityId, enrollmentId } = await request.json()
+    const body = await request.json()
+    const { executionId, bloque, orden, fecha, categoria, activityId, enrollmentId } = body
+
+    console.log('🚀 [API toggle-exercise] Incoming:', { executionId, activityId, fecha, categoria })
 
     if (!executionId || !activityId) {
-      return NextResponse.json({ error: 'Faltan parámetros básicos' }, { status: 400 })
+      console.warn('❌ [API toggle-exercise] Missing params:', { executionId, activityId })
+      return NextResponse.json({ error: 'Faltan parámetros básicos', received: { executionId, activityId } }, { status: 400 })
     }
 
     const supabase = await createRouteHandlerClient()
@@ -293,7 +205,76 @@ export async function POST(request: NextRequest) {
     }
 
     if (!progressTable || !progressRecord) {
-      return NextResponse.json({ error: 'No se encontró el registro de progreso' }, { status: 404 })
+      console.log(`ℹ️ No se encontró registro para ${targetDate}. Intentando crear uno nuevo en toggle-exercise...`)
+
+      // Obtener el enrollment
+      const { data: enrollment } = await supabase
+        .from('activity_enrollments')
+        .select('id, start_date')
+        .eq('client_id', user.id)
+        .eq('activity_id', activityId)
+        .order('created_at', { ascending: false })
+        .limit(1)
+        .single()
+
+      if (!enrollment) {
+        return NextResponse.json({ error: 'No se encontró inscripción activa' }, { status: 404 })
+      }
+
+      // Calcular semana ciclo
+      const start = new Date(enrollment.start_date)
+      const current = new Date(targetDate)
+      const diffDays = Math.floor((current.getTime() - start.getTime()) / (1000 * 60 * 60 * 24))
+      const totalWeekNumber = Math.floor(diffDays / 7) + 1
+
+      const { data: allPlan } = await supabase.from('planificacion_ejercicios').select('numero_semana').eq('actividad_id', activityId).order('numero_semana', { ascending: false }).limit(1)
+      const maxSemanas = allPlan?.[0]?.numero_semana || 1
+      const weekInCycle = ((totalWeekNumber - 1) % maxSemanas) + 1
+
+      const diasMap: Record<number, string> = { 0: 'domingo', 1: 'lunes', 2: 'martes', 3: 'miercoles', 4: 'jueves', 5: 'viernes', 6: 'sabado' }
+      const diaColumna = diasMap[current.getDay()] || 'lunes'
+
+      // Obtener planificación
+      const { data: plan } = await supabase.from('planificacion_ejercicios').select(`${diaColumna}`).eq('actividad_id', activityId).eq('numero_semana', weekInCycle).single()
+
+      let detallesPlan: any = {}
+      if (plan && plan[diaColumna]) {
+        const rawPlan = typeof plan[diaColumna] === 'string' ? JSON.parse(plan[diaColumna]) : plan[diaColumna]
+        Object.keys(rawPlan).forEach(bKey => {
+          if (bKey === 'blockCount' || bKey === 'blockNames') return
+          const block = rawPlan[bKey]
+          if (Array.isArray(block)) {
+            block.forEach((ej: any) => {
+              const key = `${ej.id}_${bKey}_${ej.orden || 1}`
+              detallesPlan[key] = { ejercicio_id: Number(ej.id), bloque: Number(bKey), orden: Number(ej.orden || 1), detalle_series: ej.detalle_series || "Sin especificar" }
+            })
+          }
+        })
+      }
+
+      // Crear el registro inicial
+      const currentTable = requestedCategoria === 'nutricion' ? 'progreso_cliente_nutricion' : 'progreso_cliente'
+      const { data: newRecord, error: insertError } = await supabase
+        .from(currentTable)
+        .insert({
+          cliente_id: user.id,
+          actividad_id: activityId,
+          enrollment_id: enrollment.id,
+          fecha: targetDate,
+          ejercicios_pendientes: detallesPlan,
+          ejercicios_completados: {},
+          detalles_series: requestedCategoria === 'nutricion' ? undefined : detallesPlan,
+          macros: requestedCategoria === 'nutricion' ? detallesPlan : undefined
+        })
+        .select()
+        .single()
+
+      if (insertError) {
+        console.error('Error creando registro en toggle:', insertError)
+        return NextResponse.json({ error: 'Error al inicializar registro' }, { status: 500 })
+      }
+      progressTable = currentTable
+      progressRecord = newRecord
     }
 
     // 2. Parsear y normalizar estructuras (pueden ser Map o Array)
@@ -364,19 +345,32 @@ export async function POST(request: NextRequest) {
     }
 
     const exerciseKey = `${ejercicioId}_${bloqueNum}_${ordenNum}`
+    console.log(`🔄 [API toggle-exercise] Toggling key ${exerciseKey}`, {
+      in_completados: Object.keys(rawComp),
+      in_pendientes: Object.keys(rawPend)
+    })
+
     let toggledToCompleted = false
 
     // Intentar mover de completado a pendiente
     const removedFromComp = removeFromRef(rawComp, ejercicioId, bloqueNum, ordenNum, exerciseKey)
     if (removedFromComp) {
+      console.log(`✅ [API toggle-exercise] Removed from COMPLETADOS, adding to PENDIENTES`)
       addToRef(rawPend, ejercicioId, bloqueNum, ordenNum, exerciseKey, removedFromComp)
       toggledToCompleted = false
     } else {
       // No estaba en completados, buscar en pendientes o simplemente agregarlo a completados
+      console.log(`✅ [API toggle-exercise] Not in COMPLETADOS, moving from PENDIENTES to COMPLETADOS`)
       const removedFromPend = removeFromRef(rawPend, ejercicioId, bloqueNum, ordenNum, exerciseKey)
       addToRef(rawComp, ejercicioId, bloqueNum, ordenNum, exerciseKey, removedFromPend || {})
       toggledToCompleted = true
     }
+
+    console.log(`📊 [API toggle-exercise] AFTER:`, {
+      toggledToCompleted,
+      in_completados: Object.keys(rawComp),
+      in_pendientes: Object.keys(rawPend)
+    })
 
     // 3. Persistir conservando el tipo original (string vs objeto)
     const persist = (orig: any, next: any) => typeof orig === 'string' ? JSON.stringify(next) : next
@@ -389,7 +383,7 @@ export async function POST(request: NextRequest) {
     if (updErr) throw updErr
 
     try {
-      await recalcAndUpsertDailySummary({ supabase, clienteId: user.id, fecha: targetDate, enrollmentId })
+      await refreshDailyProgress({ supabase, clienteId: user.id, fecha: targetDate, enrollmentId: enrollmentId || progressRecord.enrollment_id })
     } catch (e) { console.error('Summary error:', e) }
 
     return NextResponse.json({ success: true, isCompleted: toggledToCompleted })

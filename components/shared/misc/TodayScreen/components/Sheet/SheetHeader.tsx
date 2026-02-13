@@ -24,8 +24,10 @@ export function SheetHeader({
     return (
         <div style={{ padding: '0px 20px 0px' }}>
             <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 16, marginTop: 0 }}>
-                <div style={{ fontSize: 18, fontWeight: 700, color: 'rgba(255, 255, 255, 0.6)' }}>
-                    {title || 'Actividades de hoy'}
+                <div style={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
+                    <div style={{ fontSize: 18, fontWeight: 700, color: 'rgba(255, 255, 255, 0.6)' }}>
+                        {title || 'Actividades de hoy'}
+                    </div>
                 </div>
                 {activities.length > 0 && (
                     <div style={{ display: 'flex', alignItems: 'center', gap: 6, background: 'rgba(255, 121, 57, 0.2)', padding: '6px 12px', borderRadius: 20, border: '1px solid rgba(255, 121, 57, 0.3)', marginLeft: 32, backdropFilter: 'blur(10px)', WebkitBackdropFilter: 'blur(10px)' }}>

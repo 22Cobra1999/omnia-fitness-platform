@@ -297,21 +297,42 @@ export function ClientProfileView({ logic }: ClientProfileViewProps) {
                     />
                 </div>
 
-                <div className="flex items-center justify-between">
-                    <div className="relative w-52 h-52">
-                        {activityRings.map((ring: any, index: number) => {
-                            const rawPercentage = ring.target > 0 ? (ring.current / ring.target) * 100 : 0
-                            const percentage = isNaN(rawPercentage) || !isFinite(rawPercentage) ? 0 : Math.max(0, Math.min(rawPercentage, 100))
-                            const radius = 50 - (index * 12)
-                            const circumference = 2 * Math.PI * radius
-                            const strokeDashoffset = circumference - (percentage / 100) * circumference
-                            return (
-                                <svg key={ring.type} className="absolute inset-0 w-full h-full transform -rotate-90" viewBox="0 0 120 120">
-                                    <circle cx="60" cy="60" r={radius} stroke="rgba(255,255,255,0.08)" strokeWidth="10" fill="none" />
-                                    <circle cx="60" cy="60" r={radius} stroke={ring.color} strokeWidth="10" fill="none" strokeDasharray={circumference} strokeDashoffset={strokeDashoffset} strokeLinecap="round" className="transition-all duration-1000 ease-out" />
-                                </svg>
-                            )
-                        })}
+                <div className="flex items-center justify-between mt-8">
+                    <div className="relative w-52 h-52 flex items-center justify-center">
+                        <svg className="absolute inset-0 w-full h-full transform -rotate-90" viewBox="0 0 120 120">
+                            <defs>
+                                {activityRings.map((ring: any) => (
+                                    <linearGradient key={`grad-big-${ring.type}`} id={`grad-big-${ring.type}`} x1="0%" y1="0%" x2="100%" y2="100%">
+                                        <stop offset="0%" stopColor={ring.color} />
+                                        <stop offset="100%" stopColor={ring.color} stopOpacity={0.6} />
+                                    </linearGradient>
+                                ))}
+                            </defs>
+                            {activityRings.map((ring: any, index: number) => {
+                                const rawPercentage = ring.target > 0 ? (ring.current / ring.target) * 100 : 0
+                                const percentage = isNaN(rawPercentage) || !isFinite(rawPercentage) ? 0 : Math.max(0, Math.min(rawPercentage, 100))
+                                const radius = 52 - (index * 14) // Increased spacing and radius
+                                const circumference = 2 * Math.PI * radius
+                                const strokeDashoffset = circumference - (percentage / 100) * circumference
+                                return (
+                                    <g key={ring.type}>
+                                        <circle cx="60" cy="60" r={radius} stroke="rgba(255,255,255,0.03)" strokeWidth="10" fill="none" />
+                                        <circle
+                                            cx="60" cy="60" r={radius}
+                                            stroke={`url(#grad-big-${ring.type})`}
+                                            strokeWidth="10" fill="none"
+                                            strokeDasharray={circumference}
+                                            strokeDashoffset={strokeDashoffset}
+                                            strokeLinecap="round"
+                                            className="transition-all duration-1000 ease-out"
+                                            style={{ filter: `drop-shadow(0 0 4px ${ring.color}40)` }}
+                                        />
+                                    </g>
+                                )
+                            })}
+                        </svg>
+
+                        {/* Center Stats Removed */}
                     </div>
 
                     <div className="flex flex-col space-y-3 items-end">

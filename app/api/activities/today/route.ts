@@ -75,7 +75,7 @@ export async function GET(request: NextRequest) {
     // 2. Verificar enrollment
     const { data: enrollment } = await supabase
       .from('activity_enrollments')
-      .select('id, activity_id, start_date, status')
+      .select('id, activity_id, start_date, status, expiration_date')
       .eq('client_id', clientId)
       .eq('activity_id', activityId)
       .order('created_at', { ascending: false })
@@ -93,6 +93,7 @@ export async function GET(request: NextRequest) {
 
       // Si el usuario es el coach, cargar ejercicios desde planificación
       if (activity && activity.coach_id === clientId && dia) {
+        activity.targetDate = today;
         return await getActivitiesFromPlanning(supabase, activityId, dia, activity);
       }
 
@@ -153,27 +154,76 @@ export async function GET(request: NextRequest) {
       error_hint: progressError?.hint
     });
 
-    // Si hay error o no hay registros, devolver vacío
+    // Si hay error o no hay registros, intentar obtener de planificación (Self-healing view)
     if (progressError || !progressRecords || progressRecords.length === 0) {
-      console.log('ℹ️ No existe registro de progreso para fecha:', today, 'en tabla:', tablaProgreso, '- devolviendo actividades vacías');
-      if (progressError) {
-        console.error('❌ Error obteniendo progreso:', {
-          code: progressError.code,
-          message: progressError.message,
-          details: progressError.details,
-          hint: progressError.hint
-        });
+      console.log('ℹ️ No existe registro de progreso para fecha:', today, 'en tabla:', tablaProgreso);
+
+      const current = new Date(today);
+      const dayNum = current.getDay() === 0 ? 7 : current.getDay();
+
+      // 1. Obtener información de la actividad
+      const { data: activity } = await supabase
+        .from('activities')
+        .select('id, coach_id, title, description')
+        .eq('id', activityId)
+        .single();
+
+      if (!activity) {
+        return NextResponse.json({ success: true, data: { activities: [], count: 0, date: today } });
       }
-      return NextResponse.json({
-        success: true,
-        data: {
-          activities: [],
-          count: 0,
-          date: today,
-          activity: actividadInfo,
-          enrollment: enrollment[0]
+
+      // 2. Si es cliente, calcular la semana correcta
+      let targetWeek = 1;
+      const userEnrollment = enrollment && enrollment.length > 0 ? enrollment[0] : null;
+
+      if (userEnrollment && userEnrollment.start_date) {
+        // Verificar si ya expiró el programa
+        if (userEnrollment.expiration_date && current > new Date(userEnrollment.expiration_date)) {
+          console.warn('⚠️ [API] Programa expirado para esta fecha:', today);
+          return NextResponse.json({
+            success: true,
+            data: { activities: [], count: 0, date: today, message: 'Tu programa ha finalizado' }
+          });
         }
-      });
+
+        const start = new Date(userEnrollment.start_date);
+        const diffDays = Math.floor((current.getTime() - start.getTime()) / (1000 * 60 * 60 * 24));
+        const totalWeekNumber = Math.floor(diffDays / 7) + 1;
+
+        // Si la fecha solicitada es ANTERIOR al inicio del programa, no mostrar nada
+        if (diffDays < 0) {
+          return NextResponse.json({ success: true, data: { activities: [], count: 0, date: today, message: 'El programa aún no ha comenzado' } });
+        }
+
+        // Obtener el máximo de semanas planificadas
+        const { data: allPlan } = await supabase
+          .from('planificacion_ejercicios')
+          .select('numero_semana')
+          .eq('actividad_id', activityId)
+          .order('numero_semana', { ascending: false })
+          .limit(1);
+
+        const maxSemanas = allPlan?.[0]?.numero_semana || 1;
+
+        // Si totalWeekNumber supera el máximo de semanas Y no hay registro de progreso, 
+        // significa que el programa terminó (a menos que sea cíclico, lo cual manejaremos con el modulo)
+        if (totalWeekNumber > maxSemanas) {
+          // Si queremos que sea cíclico, dejamos que fluya con el modulo
+          // Si queremos que MUERA, retornamos vacío
+          // Por el reporte del usuario, parece que DEBE MORIR/LIMITARSE
+          console.log(`ℹ️ [API] totalWeekNumber (${totalWeekNumber}) > maxSemanas (${maxSemanas}). Retornando vacío.`);
+          return NextResponse.json({
+            success: true,
+            data: { activities: [], count: 0, date: today, message: 'Programa completado' }
+          });
+        }
+
+        targetWeek = totalWeekNumber;
+      }
+
+      console.log(`ℹ️ Cargando desde planificación: Semana ${targetWeek}, Día ${dayNum}`);
+      activity.targetDate = today;
+      return await getActivitiesFromPlanning(supabase, activityId, String(dayNum), activity, targetWeek);
     }
 
     // Tomar el primer registro (el más reciente por el order by id desc)
@@ -818,10 +868,82 @@ export async function GET(request: NextRequest) {
         });
       }
 
-      // Verificar si está completado usando el key único
-      const isCompleted = categoria === 'nutricion'
-        ? (nutritionCompletionKeySet ? nutritionCompletionKeySet.has(`${detalle.ejercicio_id}_${detalle.bloque}_${detalle.orden}`) : false)
-        : (completados && typeof completados === 'object' && key in completados);
+      // Verificar si está completado usando el key único y soporte para varios formatos
+      const isCompleted = (() => {
+        if (categoria === 'nutricion') {
+          return nutritionCompletionKeySet ? nutritionCompletionKeySet.has(`${detalle.ejercicio_id}_${detalle.bloque}_${detalle.orden}`) : false;
+        }
+
+        if (!completados) return false;
+        const c = completados;
+
+        let found = false;
+        // 1. Verificar por key directo (Map)
+        if (key in c) found = true;
+
+        // 2. Verificar dentro de object.ejercicios si existe
+        if (!found && c.ejercicios && typeof c.ejercicios === 'object' && !Array.isArray(c.ejercicios)) {
+          if (key in c.ejercicios) found = true;
+        }
+
+        // 3. Verificar en Array (root o .ejercicios)
+        const arr = Array.isArray(c) ? c : (Array.isArray(c.ejercicios) ? c.ejercicios : []);
+        const ejIdNum = Number(detalle.ejercicio_id);
+        const bNum = Number(detalle.bloque);
+        const oNum = Number(detalle.orden);
+
+        if (!found && arr.length > 0) {
+          found = arr.some((e: any) => {
+            if (typeof e === 'string') return e === key || e === String(detalle.ejercicio_id) || e === `${ejIdNum}_${bNum}_${oNum}`;
+            const itemID = Number(e.id ?? e.ejercicio_id);
+            const itemB = Number(e.bloque ?? 1);
+            const itemO = Number(e.orden ?? 1);
+            return itemID === ejIdNum && itemB === bNum && itemO === oNum;
+          });
+        }
+
+        // 4. Si es objeto (Map), buscar por valor o por patrón de key
+        if (!found && typeof c === 'object' && !Array.isArray(c)) {
+          // Intentar match por patrón de key alternativo (ID_B_O) en lugar del 'key' original
+          const alternativeKey = `${ejIdNum}_${bNum}_${oNum}`;
+          if (alternativeKey in c) {
+            found = true;
+          } else {
+            // Match por valores internos
+            found = Object.entries(c).some(([k, v]: [string, any]) => {
+              if (k === 'ejercicios' || k === 'blockCount' || k === 'blockNames') return false;
+
+              // Verificar si la key del mapa matchea numéricamente
+              const parts = k.split('_');
+              if (parts.length >= 2) {
+                const kId = Number(parts[0]);
+                const kB = parts.length >= 3 ? Number(parts[1]) : 1;
+                const kO = parts.length >= 3 ? Number(parts[2]) : Number(parts[1]);
+                if (kId === ejIdNum && kB === bNum && kO === oNum) return true;
+              }
+
+              // Verificar si el valor del objeto matchea
+              if (v && typeof v === 'object') {
+                const itemID = Number(v.id ?? v.ejercicio_id);
+                const itemB = Number(v.bloque ?? 1);
+                const itemO = Number(v.orden ?? 1);
+                return itemID === ejIdNum && itemB === bNum && itemO === oNum;
+              }
+              return false;
+            });
+          }
+        }
+
+        if (detalle.ejercicio_id === 1230 || String(detalle.ejercicio_id).includes('1230')) {
+          console.log(`🔍 [API activities/today] Completion check for ${detalle.ejercicio_id}:`, {
+            key,
+            isCompleted: found,
+            completados_keys: Object.keys(c)
+          });
+        }
+
+        return found;
+      })();
 
       // Para nutrición: obtener datos directamente de macrosParsed, recetaParsed e ingredientesParsed usando la key de forma robusta
       let macrosData: any = null;
@@ -915,8 +1037,8 @@ export async function GET(request: NextRequest) {
         nombre_plato: categoria === 'nutricion' ? nombreFinal : null,
         title: nombreFinal,
         name: nombreFinal,
-        tipo: categoria,
-        type: categoria,
+        tipo: ejercicio?.tipo || categoria,
+        type: ejercicio?.tipo || categoria,
         bloque: detalle.bloque,
         block: detalle.bloque,
         orden: detalle.orden,
@@ -936,6 +1058,8 @@ export async function GET(request: NextRequest) {
         duration: minutosFinal,
         minutos: minutosFinal,
         calorias: caloriasFinal,
+        description: categoria === 'nutricion' ? null : (ejercicio?.descripcion || null),
+        descripcion: categoria === 'nutricion' ? null : (ejercicio?.descripcion || null),
         intensidad: categoria === 'nutricion' ? null : (ejercicio?.intensidad || null),
         equipo: categoria === 'nutricion' ? null : (ejercicio?.equipo || null),
         body_parts: categoria === 'nutricion' ? null : (ejercicio?.body_parts || null)
@@ -1160,8 +1284,9 @@ async function obtenerEjerciciosPlanificacion(supabase: any, activityId: number,
 }
 
 // Función auxiliar para obtener ejercicios desde planificación cuando el coach ve el producto
-async function getActivitiesFromPlanning(supabase: any, activityId: number, dia: string, activity: any) {
+async function getActivitiesFromPlanning(supabase: any, activityId: number, dia: string, activity: any, week: number = 1) {
   try {
+    console.log(`📋 [getActivitiesFromPlanning] Loading Week ${week}, Day ${dia} for Activity ${activityId}`);
 
     // Mapear el día al nombre de columna en la BD
     const diasMap: Record<string, string> = {
@@ -1183,12 +1308,12 @@ async function getActivitiesFromPlanning(supabase: any, activityId: number, dia:
 
     const diaColumna = diasMap[dia] || 'lunes';
 
-    // Obtener planificación de la primera semana (para preview del coach)
+    // Obtener planificación de la semana especificada
     const { data: planificacion } = await supabase
       .from('planificacion_ejercicios')
       .select(`${diaColumna}`)
       .eq('actividad_id', activityId)
-      .eq('numero_semana', 1)
+      .eq('numero_semana', week)
       .single();
 
 
@@ -1226,10 +1351,32 @@ async function getActivitiesFromPlanning(supabase: any, activityId: number, dia:
           });
         }
       });
+    } else if (Array.isArray(ejerciciosDia)) {
+      // Handle array format for backward compatibility or simpler plans
+      ejerciciosDia.forEach((ejercicioData: any, index: number) => {
+        if (typeof ejercicioData === 'object' && ejercicioData.id) {
+          ejercicioIds.push(ejercicioData.id);
+          ejerciciosConBloque.push({
+            id: ejercicioData.id,
+            bloque: 1, // Default block for array format
+            orden: ejercicioData.orden || (index + 1)
+          });
+        } else if (typeof ejercicioData === 'number') {
+          ejercicioIds.push(ejercicioData);
+          ejerciciosConBloque.push({
+            id: ejercicioData,
+            bloque: 1,
+            orden: index + 1
+          });
+        }
+      });
     }
 
+    console.log('✅ IDs de ejercicios extraídos:', ejercicioIds);
+    console.log('✅ Ejercicios con bloque y orden:', ejerciciosConBloque);
 
     if (ejercicioIds.length === 0) {
+      console.log('ℹ️ No se encontraron IDs de ejercicios para el día.');
       return NextResponse.json({
         success: true,
         data: { activities: [], count: 0, date: new Date().toISOString().split('T')[0], activity }
@@ -1287,7 +1434,7 @@ async function getActivitiesFromPlanning(supabase: any, activityId: number, dia:
         series: ejercicio?.detalle_series || null,
         detalle_series: ejercicio?.detalle_series || null,
         formatted_series: ejercicio?.detalle_series || null,
-        date: new Date().toISOString().split('T')[0],
+        date: activity.targetDate || new Date().toISOString().split('T')[0], // Usar fecha del contexto
         video_url: ejercicio?.video_url || null,
         duracion_minutos: categoria === 'nutricion' ? null : ((ejercicio as any)?.duracion_min || null),
         duracion_min: categoria === 'nutricion' ? null : ((ejercicio as any)?.duracion_min || null),
@@ -1314,7 +1461,7 @@ async function getActivitiesFromPlanning(supabase: any, activityId: number, dia:
       data: {
         activities: transformedActivities,
         count: transformedActivities.length,
-        date: new Date().toISOString().split('T')[0],
+        date: activity.targetDate || new Date().toISOString().split('T')[0],
         activity
       }
     });

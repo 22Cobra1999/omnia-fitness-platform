@@ -40,7 +40,8 @@ export function useCoachEvents(currentDate: Date, googleConnected: boolean) {
                 return
             }
 
-            setCoachId(user.id)
+            const currentCoachId = user.id
+            setCoachId(currentCoachId)
 
             if (!coachProfile) {
                 const { data: profile } = await supabase.from('user_profiles').select('id, full_name, avatar_url').eq('id', user.id).single()
@@ -65,25 +66,25 @@ export function useCoachEvents(currentDate: Date, googleConnected: boolean) {
             const { data: ownedEvents, error: ownedError } = await supabase
                 .from('calendar_events')
                 .select(`
-          id, title, start_time, end_time, event_type, status,
-          description, coach_id, created_by_user_id,
-          google_meet_data, pricing_data, relations_data, timing_data
-        `)
-                .eq('coach_id', user.id)
+                  id, title, start_time, end_time, event_type, status,
+                  description, coach_id, created_by_user_id,
+                  google_meet_data, pricing_data, relations_data, timing_data
+                `)
+                .eq('coach_id', currentCoachId)
                 .gte('start_time', monthStartISO)
                 .lte('start_time', monthEndISO)
 
             const { data: guestEventsRaw, error: guestError } = await supabase
                 .from('calendar_event_participants')
                 .select(`
-          event_id,
-          calendar_events!inner(
-            id, title, start_time, end_time, event_type, status,
-            description, coach_id, created_by_user_id,
-            google_meet_data, pricing_data, relations_data, timing_data
-          )
-        `)
-                .eq('client_id', user.id)
+                  event_id,
+                  calendar_events!inner(
+                    id, title, start_time, end_time, event_type, status,
+                    description, coach_id, created_by_user_id,
+                    google_meet_data, pricing_data, relations_data, timing_data
+                  )
+                `)
+                .eq('client_id', currentCoachId)
                 .gte('calendar_events.start_time', monthStartISO)
                 .lte('calendar_events.start_time', monthEndISO)
 
@@ -104,114 +105,102 @@ export function useCoachEvents(currentDate: Date, googleConnected: boolean) {
                 calendarEvents = merged
             }
 
-            try {
-                const omniaEventIds = (calendarEvents || []).map((e: any) => e?.id).filter(Boolean)
-                if (omniaEventIds.length > 0) {
-                    const { data: parts, error: partsErr } = await supabase
-                        .from('calendar_event_participants')
-                        .select('event_id, rsvp_status, user_id, participant_role')
-                        .in('event_id', omniaEventIds as any)
+            const omniaEventIds = (calendarEvents || []).map((e: any) => e?.id).filter(Boolean)
+            const reschedulesByEventId = new Map<string, any>()
+            const countByEvent = new Map<string, number>()
+            const confirmedCountByEvent = new Map<string, number>()
+            const guestsCountByEvent = new Map<string, number>()
+            const rsvpByEvent = new Map<string, string>()
+            let allParticipants: any[] = []
 
-                    // Fetch reschedules (pending to show ghosts/red, accepted to show history)
-                    const { data: reschedules } = await supabase
-                        .from('calendar_event_reschedule_requests')
-                        .select('*')
-                        .in('event_id', omniaEventIds as any)
-                        .order('created_at', { ascending: false })
+            if (omniaEventIds.length > 0) {
+                // Fetch reschedules
+                const { data: reschedules } = await supabase
+                    .from('calendar_event_reschedule_requests')
+                    .select('*')
+                    .in('event_id', omniaEventIds as any)
+                    .order('created_at', { ascending: false })
 
-                    const reschedulesByEventId = new Map<string, any>()
-                    if (reschedules) {
-                        reschedules.forEach((r: any) => {
-                            const eid = String(r.event_id)
-                            // The query is ordered by created_at DESC, so the first one we find is the newest
-                            if (!reschedulesByEventId.has(eid)) {
-                                reschedulesByEventId.set(eid, r)
+                if (reschedules) {
+                    console.log('🔍 [useCoachEvents] Total reschedules recuperados:', reschedules.length)
+                    reschedules.forEach((r: any) => {
+                        const eid = String(r.event_id)
+                        const current = reschedulesByEventId.get(eid)
+                        if (!current || (current.status !== 'pending' && r.status === 'pending')) {
+                            reschedulesByEventId.set(eid, r)
+                        }
+                    })
+                }
+
+                // Fetch participants
+                const { data: participantsData } = await supabase
+                    .from('calendar_event_participants')
+                    .select('event_id, rsvp_status, user_id, role')
+                    .in('event_id', omniaEventIds as any)
+
+                if (participantsData) {
+                    allParticipants = participantsData
+                    allParticipants.forEach((p: any) => {
+                        const eid = String(p?.event_id || '')
+                        if (!eid) return
+                        countByEvent.set(eid, (countByEvent.get(eid) || 0) + 1)
+
+                        const pUserId = String(p.user_id || '')
+                        const isCoach = pUserId === currentCoachId || p.role === 'coach' || p.role === 'host'
+
+                        if (!isCoach) {
+                            guestsCountByEvent.set(eid, (guestsCountByEvent.get(eid) || 0) + 1)
+                            const isConfirmed = p.rsvp_status === 'confirmed' || p.rsvp_status === 'accepted'
+                            if (isConfirmed) {
+                                confirmedCountByEvent.set(eid, (confirmedCountByEvent.get(eid) || 0) + 1)
                             }
-                        })
-                    }
 
-                    // Pre-fetch client participants for all events to correctly identify the "client_id"
-                    const { data: allParticipants } = await supabase
-                        .from('calendar_event_participants')
-                        .select('event_id, user_id, participant_role')
-                        .in('event_id', omniaEventIds as any)
-
-                    if (!partsErr && Array.isArray(parts)) {
-                        const countByEvent = new Map<string, number>()
-                        const rsvpByEvent = new Map<string, string>()
-
-                        for (const p of parts as any[]) {
-                            const eid = String(p?.event_id || '')
-                            if (!eid) continue
-
-                            // Count participants
-                            countByEvent.set(eid, (countByEvent.get(eid) || 0) + 1)
-
-                            // Logic for representative rsvp_status:
-                            // If it's a coach participant, we ignore it for "pending" logic of the card
-                            // If any NON-coach participant is confirmed, we might want to see it as confirmed?
-                            // For simplicity: if any guest is confirmed, it's 'confirmed'. If all are pending, it's 'pending'.
-                            const isGuest = p.participant_role !== 'coach' && p.participant_role !== 'host'
-                            if (isGuest) {
-                                const current = rsvpByEvent.get(eid)
-                                if (p.rsvp_status === 'confirmed' || p.rsvp_status === 'accepted') {
-                                    rsvpByEvent.set(eid, 'confirmed')
-                                } else if (!current || current === 'pending') {
-                                    rsvpByEvent.set(eid, p.rsvp_status || 'pending')
-                                }
+                            const currentRsvp = rsvpByEvent.get(eid)
+                            if (isConfirmed) {
+                                rsvpByEvent.set(eid, 'confirmed')
+                            } else if (!currentRsvp || currentRsvp === 'pending') {
+                                rsvpByEvent.set(eid, p.rsvp_status || 'pending')
                             }
                         }
-
-                        const ghostEvents: any[] = []
-
-                        calendarEvents = calendarEvents.map((e: any) => {
-                            const eid = String(e?.id || '')
-                            const count = countByEvent.get(eid) || 0
-                            const pendingReschedule = reschedulesByEventId.get(eid)
-                            // Find the client participant (someone who is not the coach)
-                            const participants = allParticipants?.filter((p: any) => String(p.event_id) === eid) || []
-                            const clientParticipant = participants.find((p: any) => p.participant_role !== 'coach' && p.participant_role !== 'host')
-                            const clientId = clientParticipant ? clientParticipant.user_id : (e.created_by_user_id !== coachId ? e.created_by_user_id : null)
-
-                            const enriched = {
-                                ...e,
-                                meet_link: e.google_meet_data?.meet_link,
-                                google_event_id: e.google_meet_data?.google_event_id,
-                                activity_id: e.relations_data?.activity_id,
-                                enrollment_id: e.relations_data?.enrollment_id,
-                                price: e.pricing_data?.price,
-                                currency: e.pricing_data?.currency,
-                                is_free: e.pricing_data?.is_free ?? true,
-                                client_id: clientId,
-                                current_participants: count,
-                                rsvp_status: rsvpByEvent.get(eid) || 'confirmed',
-                                max_participants: e.relations_data?.max_participants ?? (count > 0 ? count : null),
-                                pending_reschedule: pendingReschedule
-                            }
-
-                            // If there's a pending reschedule, create a ghost event for the target date
-                            if (pendingReschedule && pendingReschedule.status === 'pending') {
-                                ghostEvents.push({
-                                    ...enriched,
-                                    id: `ghost-${eid}`,
-                                    original_event_id: eid,
-                                    start_time: pendingReschedule.to_start_time,
-                                    end_time: pendingReschedule.to_end_time,
-                                    status: 'rescheduled', // Visual indicator
-                                    is_ghost: true
-                                })
-                            }
-
-                            return enriched
-                        })
-
-                        // Add ghosts to main list
-                        calendarEvents = [...calendarEvents, ...ghostEvents]
-                    }
+                    })
                 }
-            } catch (pErr) {
-                console.error("Error enriching participants and reschedules:", pErr)
             }
+
+            const ghostEvents: any[] = []
+            calendarEvents = calendarEvents.map((e: any) => {
+                const eid = String(e?.id || '')
+                const count = countByEvent.get(eid) || 0
+                const pendingReschedule = reschedulesByEventId.get(eid)
+                const participants = allParticipants.filter((p: any) => String(p.event_id) === eid)
+                const clientParticipant = participants.find((p: any) => p.role !== 'coach' && p.role !== 'host')
+                const clientId = clientParticipant ? clientParticipant.user_id : (e.created_by_user_id !== currentCoachId ? e.created_by_user_id : null)
+
+                if (eid === '7ca77961-fd5c-456a-96ed-7c76f60ea182' || e.start_time.includes('2024-02-18')) {
+                    console.log('🔍 [useCoachEvents] Procesando evento del 18:', e.title, 'ID:', eid)
+                    console.log('🔍 [useCoachEvents] Reschedule:', pendingReschedule?.status || 'NINGUNO')
+                    console.log('🔍 [useCoachEvents] RSVP representativo:', rsvpByEvent.get(eid) || 'confirmed')
+                }
+
+                const enriched = {
+                    ...e,
+                    meet_link: e.google_meet_data?.meet_link,
+                    google_event_id: e.google_meet_data?.google_event_id,
+                    activity_id: e.relations_data?.activity_id,
+                    enrollment_id: e.relations_data?.enrollment_id,
+                    price: e.pricing_data?.price,
+                    currency: e.pricing_data?.currency,
+                    is_free: e.pricing_data?.is_free ?? true,
+                    client_id: clientId,
+                    current_participants: count,
+                    confirmed_participants: confirmedCountByEvent.get(eid) || 0,
+                    total_guests: guestsCountByEvent.get(eid) || 0,
+                    rsvp_status: rsvpByEvent.get(eid) || 'confirmed',
+                    max_participants: e.relations_data?.max_participants ?? (count > 0 ? count : null),
+                    pending_reschedule: pendingReschedule
+                }
+
+                return enriched
+            })
 
             let googleEvents: CalendarEvent[] = []
             try {
@@ -284,7 +273,12 @@ export function useCoachEvents(currentDate: Date, googleConnected: boolean) {
             }))
 
             if (typeof window !== 'undefined' && googleConnected && calendarEvents.length > 0) {
-                const workshops = calendarEvents.filter(e => e.event_type === 'workshop' && !e.google_meet_data?.meet_link && !e.google_meet_data?.google_event_id && e.coach_id === user.id)
+                const workshops = calendarEvents.filter(e =>
+                    e.event_type === 'workshop' &&
+                    !e.google_meet_data?.meet_link &&
+                    !e.google_meet_data?.google_event_id &&
+                    e.coach_id === currentCoachId
+                )
                 if (workshops.length > 0) {
                     Promise.all(workshops.map(async (e) => {
                         try {

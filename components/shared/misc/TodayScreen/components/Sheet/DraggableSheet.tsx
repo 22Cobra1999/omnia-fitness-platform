@@ -46,6 +46,8 @@ interface DraggableSheetProps {
     isBlockCompleted?: any;
     toggleExerciseSimple?: any;
     openVideo?: any;
+    onNext?: () => void;
+    onPrev?: () => void;
 
     // Extra
     title?: string;
@@ -59,6 +61,7 @@ export function DraggableSheet({
     goToToday, goToNextActivity, handlePrevDay, handleNextDay, handleOpenSurveyModal,
     selectedVideo, setSelectedVideo, isVideoExpanded = false, setIsVideoExpanded,
     blockNames, collapsedBlocks, toggleBlock, toggleBlockCompletion, isBlockCompleted, toggleExerciseSimple, openVideo,
+    onNext, onPrev,
     title, children
 }: DraggableSheetProps) {
 
@@ -125,17 +128,6 @@ export function DraggableSheet({
                 <div style={{ width: 56, height: 5, borderRadius: 999, background: 'rgba(255, 121, 57, 0.6)' }}></div >
             </div>
 
-            {/* Overlay if Video Selected */}
-            {selectedVideo && (
-                <ActivityDetailOverlay
-                    selectedVideo={selectedVideo}
-                    onClose={() => { setSelectedVideo?.(null); setIsVideoExpanded?.(false); }}
-                    toggleExerciseSimple={toggleExerciseSimple}
-                    programInfo={programInfo} enrollment={enrollment}
-                    onNext={() => { }} onPrev={() => { }} // TODO: Implementing nav
-                />
-            )}
-
             {/* Main Content (Hidden if video expanded) */}
             {!isVideoExpanded && (
                 <>
@@ -154,7 +146,7 @@ export function DraggableSheet({
                             <>
                                 <EmptyState
                                     isDayLoading={isDayLoading} activities={activities} nextAvailableActivity={nextAvailableActivity}
-                                    goToNextActivity={goToNextActivity} snapToCollapsed={() => snapTo(collapsedY)} handleOpenSurveyModal={handleOpenSurveyModal}
+                                    goToNextActivity={goToNextActivity || (() => { })} snapToCollapsed={() => snapTo(collapsedY)} handleOpenSurveyModal={handleOpenSurveyModal || (() => { })}
                                 />
 
                                 {activities.length > 0 && (

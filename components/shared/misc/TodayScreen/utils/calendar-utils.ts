@@ -86,3 +86,86 @@ export function getDayName(date: Date) {
     const dayNames = ['domingo', 'lunes', 'martes', 'miércoles', 'jueves', 'viernes', 'sábado'];
     return dayNames[buenosAiresDate.getDay()];
 }
+
+export function calculateExerciseDayForDate(targetDate: Date | string, startDate: Date | string) {
+    const {
+        createBuenosAiresDate,
+        getBuenosAiresDateString,
+        getBuenosAiresDayOfWeek
+    } = require('@/utils/date-utils');
+
+    const startDateString = typeof startDate === 'string' ? startDate : getBuenosAiresDateString(startDate);
+    const targetDateString = typeof targetDate === 'string' ? targetDate : getBuenosAiresDateString(targetDate);
+
+    const startBuenosAires = createBuenosAiresDate(startDateString);
+    const targetBuenosAires = createBuenosAiresDate(targetDateString);
+
+    const startDayOfWeek = getBuenosAiresDayOfWeek(startBuenosAires);
+
+    const diffTime = targetBuenosAires.getTime() - startBuenosAires.getTime();
+    const diffDays = Math.floor(diffTime / (1000 * 60 * 60 * 24));
+
+    if (diffDays < 0) return null;
+    if (diffDays === 0) return startDayOfWeek === 0 ? 7 : startDayOfWeek;
+
+    const daysIntoWeek = diffDays % 7;
+    let exerciseDay = (startDayOfWeek === 0 ? 7 : startDayOfWeek) + daysIntoWeek;
+    if (exerciseDay > 7) exerciseDay = exerciseDay - 7;
+
+    return exerciseDay;
+}
+
+export async function loadDayStatusesAsMap(userId: string, activityId: string, enrollment: any) {
+    const { createClient } = require('@/lib/supabase/supabase-client');
+    const {
+        createBuenosAiresDate,
+        getBuenosAiresDateString
+    } = require('@/utils/date-utils');
+
+    const supabase = createClient();
+    const statuses: Record<string, string> = {};
+    const counts = { completed: 0, pending: 0, started: 0 };
+
+    if (!enrollment?.start_date) return { statuses, counts };
+
+    try {
+        const { data: records, error } = await supabase
+            .from('progreso_diario_actividad')
+            .select('fecha, items_objetivo, items_completados')
+            .eq('cliente_id', userId)
+            .eq('actividad_id', Number(activityId));
+
+        if (error) {
+            console.error('Error fetching progreso_diario_actividad:', error);
+            return { statuses, counts };
+        }
+
+        records?.forEach((record: any) => {
+            if (!record.fecha) return;
+            const dateKey = record.fecha.split('T')[0];
+
+            const obj = Number(record.items_objetivo) || 0;
+            const comp = Number(record.items_completados) || 0;
+
+            if (obj === 0) return;
+
+            let status = 'not-started';
+            if (comp >= obj && obj > 0) {
+                status = 'completed';
+                counts.completed++;
+            } else if (comp > 0) {
+                status = 'started';
+                counts.started++;
+            } else {
+                status = 'not-started';
+                counts.pending++;
+            }
+            statuses[dateKey] = status;
+        });
+
+    } catch (e) {
+        console.error("Error loading day statuses", e);
+    }
+
+    return { statuses, counts };
+}

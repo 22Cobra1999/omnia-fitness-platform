@@ -44,7 +44,7 @@ export function ScreenLayout({
 
 
     return (
-        <div style={{ height: '100vh', background: '#0F1012', color: '#fff', position: 'relative', overflow: 'hidden', zIndex: 1 }}>
+        <div style={{ height: '100vh', background: 'transparent', color: '#fff', position: 'relative', overflow: 'hidden', zIndex: 1 }}>
             {/* Fondo blureado con contraste premium */}
             {backgroundImage && backgroundImage.trim() !== '' && (
                 <div style={{
@@ -57,23 +57,19 @@ export function ScreenLayout({
                     backgroundSize: 'cover',
                     backgroundPosition: 'center',
                     zIndex: 0,
-                    pointerEvents: 'none'
+                    pointerEvents: 'none',
+                    transform: 'scale(1.05)'
                 }}>
                     <div
                         style={{
                             position: 'absolute',
                             inset: 0,
-                            background: isSpecialView
-                                ? 'linear-gradient(to bottom, rgba(0,0,0,0.9) 0%, rgba(0,0,0,0.8) 50%, rgba(0,0,0,0.95) 100%)'
-                                : 'transparent',
-                            backdropFilter: isSpecialView ? 'blur(30px)' : 'blur(80px)',
-                            WebkitBackdropFilter: isSpecialView ? 'blur(30px)' : 'blur(80px)',
-                            opacity: isSpecialView ? 1 : 0.15,
+                            background: 'linear-gradient(to bottom, rgba(15, 16, 18, 0.1) 0%, rgba(15, 16, 18, 0.5) 50%, rgba(15, 16, 18, 0.8) 100%)',
+                            backdropFilter: 'blur(12px) brightness(0.8)',
+                            WebkitBackdropFilter: 'blur(12px) brightness(0.8)',
+                            zIndex: 1
                         }}
                     />
-                    {!isSpecialView && (
-                        <div style={{ position: 'absolute', inset: 0, background: '#0F1012', opacity: 0.85 }} />
-                    )}
                 </div>
             )}
 
@@ -106,7 +102,7 @@ export function ScreenLayout({
                     paddingBottom: '240px',
                     WebkitOverflowScrolling: 'touch',
                     position: 'relative',
-                    background: '#0F1012'
+                    background: 'transparent'
                 }}>
 
                 {/* Hero Wrapper */}

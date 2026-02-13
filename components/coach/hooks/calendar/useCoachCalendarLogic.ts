@@ -1,5 +1,6 @@
 import { useState, useEffect, useCallback, useMemo } from "react"
 import { useSearchParams } from "next/navigation"
+import { v4 as uuidv4 } from 'uuid'
 import { createClient } from "@/lib/supabase/supabase-client"
 import { format, isSameDay, addMonths, subMonths, addDays, subDays, parse, addMinutes } from "date-fns"
 import { useCoachEvents } from "./useCoachEvents"
@@ -258,6 +259,8 @@ export function useCoachCalendarLogic() {
         title: string
         description: string
         clientIds: string[]
+        isFree: boolean
+        price: number | null
     }) => {
         if (!quickSchedulerDate || !pendingMeetData || !eventsHook.coachId) return
 
@@ -275,10 +278,13 @@ export function useCoachCalendarLogic() {
             const startISO = startDateTime.toISOString()
             const endISO = endDateTime.toISOString()
 
+            const eventId = uuidv4()
+
             // Create the event
-            const { data: insertedEvent, error: eventError } = await supabase
+            const { error: eventError } = await supabase
                 .from('calendar_events')
                 .insert({
+                    id: eventId,
                     coach_id: eventsHook.coachId,
                     created_by_user_id: eventsHook.coachId,
                     title: data.title.trim() || 'Meet',
@@ -288,8 +294,8 @@ export function useCoachCalendarLogic() {
                     status: 'scheduled',
                     description: data.description.trim() || null,
                     pricing_data: {
-                        is_free: true,
-                        price: null,
+                        is_free: data.isFree,
+                        price: data.price,
                         currency: 'ARS',
                     },
                     google_meet_data: {},
@@ -297,10 +303,8 @@ export function useCoachCalendarLogic() {
                     timing_data: {},
                     lifecycle_data: {},
                 } as any)
-                .select('id')
-                .maybeSingle()
 
-            if (eventError || !insertedEvent?.id) {
+            if (eventError) {
                 console.error('❌ Error creating event:', eventError)
                 throw new Error(eventError?.message || 'No se pudo crear el evento')
             }
@@ -309,9 +313,9 @@ export function useCoachCalendarLogic() {
             const participantRows = [
                 // Coach as host
                 {
-                    event_id: insertedEvent.id,
+                    event_id: eventId,
                     user_id: eventsHook.coachId,
-                    rsvp_status: 'accepted',
+                    rsvp_status: 'confirmed',
                     payment_status: 'free',
                     role: 'host',
                     is_creator: true,
@@ -323,21 +327,34 @@ export function useCoachCalendarLogic() {
                     }
                 },
                 // Clients as participants
-                ...data.clientIds.map((clientId) => ({
-                    event_id: insertedEvent.id,
-                    user_id: clientId,
-                    rsvp_status: 'pending',
-                    payment_status: 'free',
-                    role: 'participant',
-                    is_creator: false,
-                    can_reschedule: false,
-                    attendance_status: 'pending',
-                    invitation_data: {
-                        invited_by: eventsHook.coachId,
-                        invited_at: new Date().toISOString(),
-                        message: data.description.trim() || undefined
+                ...data.clientIds.map((clientId) => {
+                    const clientData = meetModalHook.clientsForMeet.find(c => c.id === clientId)
+                    const availableCredits = clientData?.meet_credits_available || 0
+                    const creditsRequired = Math.ceil(durationMinutes / 15)
+
+                    let paymentStatus = 'unpaid'
+                    if (availableCredits >= creditsRequired) {
+                        paymentStatus = 'credit_deduction'
+                    } else if (data.isFree) {
+                        paymentStatus = 'free'
                     }
-                })),
+
+                    return {
+                        event_id: eventId,
+                        user_id: clientId,
+                        rsvp_status: 'pending',
+                        payment_status: paymentStatus,
+                        role: 'participant',
+                        is_creator: false,
+                        can_reschedule: false,
+                        attendance_status: 'pending',
+                        invitation_data: {
+                            invited_by: eventsHook.coachId,
+                            invited_at: new Date().toISOString(),
+                            message: data.description.trim() || undefined
+                        }
+                    }
+                }),
             ]
 
             const { error: partError } = await supabase
@@ -346,7 +363,7 @@ export function useCoachCalendarLogic() {
 
             if (partError) {
                 // Rollback: delete the event
-                await supabase.from('calendar_events').delete().eq('id', insertedEvent.id)
+                await supabase.from('calendar_events').delete().eq('id', eventId)
                 console.error('❌ Error creating participants:', partError)
                 throw new Error(partError.message || 'No se pudo enviar la solicitud')
             }
@@ -359,7 +376,7 @@ export function useCoachCalendarLogic() {
             // Refresh events
             await eventsHook.getCoachEvents(true)
 
-            console.log('✅ Meet created successfully:', insertedEvent.id)
+            console.log('✅ Meet created successfully:', eventId)
         } catch (error: any) {
             console.error('❌ Error in handleConfirmMeet:', error)
             // TODO: Show error toast
@@ -414,6 +431,8 @@ export function useCoachCalendarLogic() {
         title: string
         description: string
         clientIds: string[]
+        isFree: boolean
+        price: number | null
     }) => {
         if (!quickSchedulerDate || !pendingMeetData || !meetToReschedule || !eventsHook.coachId) return
 

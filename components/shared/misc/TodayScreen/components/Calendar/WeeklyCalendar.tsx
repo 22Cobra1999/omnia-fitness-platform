@@ -132,7 +132,7 @@ export function WeeklyCalendar({
                     <button onClick={handlePrevWeek} style={{ width: 36, height: 36, display: 'flex', alignItems: 'center', justifyContent: 'center', background: 'rgba(255, 255, 255, 0.08)', border: '1px solid rgba(255, 255, 255, 0.15)', borderRadius: 10, color: '#FFFFFF', fontSize: 14 }}>⟵</button>
                 )}
 
-                <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 2, flex: 1 }}>
+                <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 2, flex: 1, width: '100%' }}>
                     {!calendarExpanded ? (
                         <>
                             <h4 style={{ margin: 0, fontSize: 16, fontWeight: 600, color: '#FFFFFF' }}>Semana {weekNumber}</h4>
@@ -142,19 +142,80 @@ export function WeeklyCalendar({
                         </>
                     ) : (
                         /* Expanded Header & Edit Controls */
-                        <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+                        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', width: '100%', position: 'relative' }}>
                             {/* Month Nav... */}
-                            <button onClick={() => { const d = new Date(currentMonth); d.setMonth(d.getMonth() - 1); setCurrentMonth(d); }} style={{ width: 32, height: 32, display: 'flex', alignItems: 'center', justifyContent: 'center', background: 'rgba(255, 255, 255, 0.08)', border: '1px solid rgba(255, 255, 255, 0.15)', borderRadius: 8, color: '#FFFFFF' }}>←</button>
-                            <h4 onClick={() => setIsMonthPickerOpen(!isMonthPickerOpen)} style={{ margin: 0, fontSize: 16, fontWeight: 600, color: 'rgba(255,255,255,0.6)', cursor: 'pointer', textTransform: 'capitalize' }}>
-                                {currentMonth.toLocaleDateString('es-ES', { month: 'long', year: 'numeric' })} ▾
-                            </h4>
-                            <button onClick={() => { const d = new Date(currentMonth); d.setMonth(d.getMonth() + 1); setCurrentMonth(d); }} style={{ width: 32, height: 32, display: 'flex', alignItems: 'center', justifyContent: 'center', background: 'rgba(255, 255, 255, 0.08)', border: '1px solid rgba(255, 255, 255, 0.15)', borderRadius: 8, color: '#FFFFFF' }}>→</button>
+                            <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                                <button onClick={() => { const d = new Date(currentMonth); d.setMonth(d.getMonth() - 1); setCurrentMonth(d); }} style={{ width: 32, height: 32, display: 'flex', alignItems: 'center', justifyContent: 'center', background: 'rgba(255, 255, 255, 0.08)', border: '1px solid rgba(255, 255, 255, 0.15)', borderRadius: 8, color: '#FFFFFF' }}>
+                                    <span style={{ fontSize: 18, marginTop: -2 }}>‹</span>
+                                </button>
+                                <h4 onClick={() => setIsMonthPickerOpen(!isMonthPickerOpen)} style={{ margin: 0, fontSize: 16, fontWeight: 700, color: '#FFFFFF', cursor: 'pointer', textTransform: 'capitalize', display: 'flex', alignItems: 'center', gap: 4 }}>
+                                    {currentMonth.toLocaleDateString('es-ES', { month: 'long', year: 'numeric' })}
+                                    <span style={{ fontSize: 10, opacity: 0.5 }}>▼</span>
+                                </h4>
+                                <button onClick={() => { const d = new Date(currentMonth); d.setMonth(d.getMonth() + 1); setCurrentMonth(d); }} style={{ width: 32, height: 32, display: 'flex', alignItems: 'center', justifyContent: 'center', background: 'rgba(255, 255, 255, 0.08)', border: '1px solid rgba(255, 255, 255, 0.15)', borderRadius: 8, color: '#FFFFFF' }}>
+                                    <span style={{ fontSize: 18, marginTop: -2 }}>›</span>
+                                </button>
+                            </div>
 
                             {/* Edit Button */}
-                            <button onClick={toggleEditMode} style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '4px 10px', height: 26, background: isEditing ? 'rgba(255, 121, 57, 0.2)' : 'rgba(255, 106, 0, 0.1)', border: isEditing ? '1px solid rgba(255, 121, 57, 0.5)' : '1px solid rgba(255, 106, 0, 0.3)', borderRadius: 12, color: isEditing ? '#FFFFFF' : '#FF6A00', fontSize: 11, fontWeight: 600 }}>
-                                <RotateCcw className="w-3.5 h-3.5" />
+                            <button onClick={toggleEditMode} style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '4px 12px', height: 30, background: isEditing ? 'rgba(255, 121, 57, 0.2)' : 'rgba(255, 255, 255, 0.05)', border: isEditing ? '1px solid rgba(255, 121, 57, 0.5)' : '1px solid rgba(255, 255, 255, 0.1)', borderRadius: 15, color: isEditing ? '#FFFFFF' : '#FF7939', fontSize: 12, fontWeight: 700, transition: 'all 0.2s', boxShadow: '0 2px 8px rgba(0,0,0,0.2)' }}>
+                                <RotateCcw className="w-4 h-4" />
                                 <span>Fecha</span>
                             </button>
+
+                            {/* Month Picker Overlay */}
+                            <AnimatePresence>
+                                {isMonthPickerOpen && (
+                                    <>
+                                        {/* Backdrop to close */}
+                                        <div
+                                            onClick={() => setIsMonthPickerOpen(false)}
+                                            style={{ position: 'fixed', inset: 0, zIndex: 90 }}
+                                        />
+                                        <motion.div
+                                            initial={{ opacity: 0, y: -10, scale: 0.95 }}
+                                            animate={{ opacity: 1, y: 0, scale: 1 }}
+                                            exit={{ opacity: 0, y: -10, scale: 0.95 }}
+                                            style={{
+                                                position: 'absolute', top: 45, left: 0, zIndex: 100,
+                                                background: '#1A1D21', border: '1px solid rgba(255,255,255,0.12)',
+                                                borderRadius: 20, padding: 16, width: 220,
+                                                boxShadow: '0 20px 40px rgba(0,0,0,0.6)',
+                                                backdropFilter: 'blur(20px)'
+                                            }}
+                                        >
+                                            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 8 }}>
+                                                {Array.from({ length: 12 }).map((_, i) => (
+                                                    <button
+                                                        key={i}
+                                                        onClick={(e) => {
+                                                            e.stopPropagation();
+                                                            const d = new Date(currentMonth);
+                                                            d.setMonth(i);
+                                                            setCurrentMonth(d);
+                                                            setIsMonthPickerOpen(false);
+                                                        }}
+                                                        style={{
+                                                            padding: '10px 4px', fontSize: 12, borderRadius: 10, border: 'none',
+                                                            background: currentMonth.getMonth() === i ? '#FF7939' : 'rgba(255,255,255,0.05)',
+                                                            color: currentMonth.getMonth() === i ? '#000000' : 'rgba(255,255,255,0.8)',
+                                                            textTransform: 'capitalize', fontWeight: 600,
+                                                            transition: 'all 0.2s'
+                                                        }}
+                                                    >
+                                                        {new Date(2000, i, 1).toLocaleDateString('es-ES', { month: 'short' }).replace('.', '')}
+                                                    </button>
+                                                ))}
+                                            </div>
+                                            <div style={{ borderTop: '1px solid rgba(255,255,255,0.1)', marginTop: 12, paddingTop: 12, display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                                                <button onClick={(e) => { e.stopPropagation(); const d = new Date(currentMonth); d.setFullYear(d.getFullYear() - 1); setCurrentMonth(d); }} style={{ background: 'rgba(255,255,255,0.05)', border: 'none', color: '#fff', fontSize: 18, width: 32, height: 32, borderRadius: 8 }}>«</button>
+                                                <span style={{ fontSize: 16, fontWeight: 800, color: '#fff' }}>{currentMonth.getFullYear()}</span>
+                                                <button onClick={(e) => { e.stopPropagation(); const d = new Date(currentMonth); d.setFullYear(d.getFullYear() + 1); setCurrentMonth(d); }} style={{ background: 'rgba(255,255,255,0.05)', border: 'none', color: '#fff', fontSize: 18, width: 32, height: 32, borderRadius: 8 }}>»</button>
+                                            </div>
+                                        </motion.div>
+                                    </>
+                                )}
+                            </AnimatePresence>
                         </div>
                     )}
                 </div>

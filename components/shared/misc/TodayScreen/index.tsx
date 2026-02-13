@@ -20,6 +20,7 @@ import { UniversalHero } from './components/Hero/UniversalHero';
 import { WeeklyCalendar } from './components/Calendar/WeeklyCalendar';
 import { DraggableSheet } from './components/Sheet/DraggableSheet';
 import { WorkshopTopicList } from './components/Lists/WorkshopTopicList';
+import { ActivityDetailOverlay } from './components/Sheet/ActivityDetailOverlay';
 
 export default function TodayScreen({ activityId, enrollmentId, onBack }: { activityId: string, enrollmentId?: string | null, onBack?: () => void }) {
     const { user } = useAuth();
@@ -144,10 +145,26 @@ export default function TodayScreen({ activityId, enrollmentId, onBack }: { acti
                             isBlockCompleted={actions.isBlockCompleted}
                             toggleExerciseSimple={actions.toggleExerciseSimple}
                             openVideo={actions.openVideo}
+                            onNext={actions.onNext}
+                            onPrev={actions.onPrev}
                         />
                     )
                 )}
             />
+
+            {/* Overlay if Video Selected - Moved outside DraggableSheet for correct fixed positioning */}
+            {state.selectedVideo && (
+                <ActivityDetailOverlay
+                    selectedVideo={state.selectedVideo}
+                    onClose={() => { actions.setSelectedVideo(null); actions.setIsVideoExpanded(false); }}
+                    toggleExerciseSimple={actions.toggleExerciseSimple}
+                    activityId={state.activityId}
+                    programInfo={state.programInfo}
+                    enrollment={state.enrollment}
+                    onNext={actions.onNext}
+                    onPrev={actions.onPrev}
+                />
+            )}
 
             {/* Modals triggered from state */}
             {state.showConfirmModal && state.selectedHorario && (

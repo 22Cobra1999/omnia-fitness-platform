@@ -4,7 +4,7 @@ import { useState, useEffect, useMemo, useRef, Fragment, useCallback } from "rea
 import { createClient } from '@/lib/supabase/supabase-client'
 import { format, startOfMonth, endOfMonth, eachDayOfInterval, isSameDay, isToday, addMonths, subMonths, startOfWeek, addDays } from "date-fns"
 import { es } from "date-fns/locale"
-import { Bell, Calendar as CalendarIcon, ChevronLeft, ChevronRight, Clock, Flame, Plus, Minus, Utensils, Video, X, Zap, Target, GraduationCap, CheckCircle2, XCircle, Ban, Users, User, RotateCcw, ArrowRight, AlertTriangle, Globe } from "lucide-react"
+import { Bell, Calendar as CalendarIcon, ChevronLeft, ChevronRight, Clock, Flame, Plus, Minus, Utensils, X, Zap, Target, GraduationCap, CheckCircle2, XCircle, Ban, Users, User, RotateCcw, ArrowRight, AlertTriangle, Globe, Video } from "lucide-react"
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter, DialogDescription } from "@/components/ui/dialog"
 import { Checkbox } from "@/components/ui/checkbox"
 import { Label } from "@/components/ui/label"
@@ -15,6 +15,23 @@ import { MeetNotificationsModal } from "@/components/shared/meet-notifications-m
 import { createCheckoutProPreference, redirectToMercadoPagoCheckout } from '@/lib/mercadopago/checkout-pro'
 import dynamic from 'next/dynamic'
 import { OmniaLoader } from "@/components/shared/ui/omnia-loader"
+import { useCalendarData } from "./hooks/useCalendarData"
+import { useMeetLogic } from "./hooks/useMeetLogic"
+import { useCoachAvailability } from "./hooks/useCoachAvailability"
+import { CalendarHeader } from "./components/CalendarHeader"
+import { CalendarMonthGrid } from "./components/CalendarMonthGrid"
+import { formatMinutes, START_HOUR, END_HOUR, TOTAL_MINS, toMins, add30, getTop, getHeight, coalesceSlots } from "./utils"
+import { CalendarDaySplitView } from "./components/CalendarDaySplitView"
+import { CalendarWeekView } from "./components/CalendarWeekView"
+import { CalendarDayDetail } from "./components/CalendarDayDetail"
+import { CalendarRescheduleModal } from "./components/CalendarRescheduleModal"
+import { CalendarBookingModal } from "./components/CalendarBookingModal"
+import { CalendarSuccessModal } from "./components/CalendarSuccessModal"
+import { CalendarMoveActivitiesModal } from "./components/CalendarMoveActivitiesModal"
+import { CalendarCoachSelector } from "./components/CalendarCoachSelector"
+import { CalendarHeaderActions } from "./components/CalendarHeaderActions"
+import { CalendarMonthHeader } from "./components/CalendarMonthHeader"
+import { CalendarEditOverlay } from "./components/CalendarEditOverlay"
 
 const MeetDetailModal = dynamic(() => import('./MeetDetailModal').then(ctx => ctx.MeetDetailModal), {
   loading: () => <div className="fixed inset-0 z-[70] bg-black/60 flex items-center justify-center p-4"><div className="w-full max-w-md bg-zinc-950 border border-zinc-800 rounded-2xl p-10 flex items-center justify-center"><OmniaLoader /></div></div>,
@@ -50,94 +67,96 @@ interface CalendarViewProps {
 
 export default function CalendarView({ activityIds, onActivityClick, scheduleMeetContext, onSetScheduleMeetContext }: CalendarViewProps) {
   const supabase = useMemo(() => createClient(), [])
-  const [currentDate, setCurrentDate] = useState<Date>(new Date())
-  const [selectedDate, setSelectedDate] = useState<Date | null>(new Date())
 
   // Hydration fix: ensure consistent initial render or handle mount
   const [isMounted, setIsMounted] = useState(false)
   useEffect(() => {
     setIsMounted(true)
   }, [])
-  const [authUserId, setAuthUserId] = useState<string | null>(null)
-  const [activitiesByDate, setActivitiesByDate] = useState<Record<string, any[]>>({})
-  const [activitiesInfo, setActivitiesInfo] = useState<Record<string, any>>({})
-  const [dayMinutesByDate, setDayMinutesByDate] = useState<
-    Record<
-      string,
-      {
-        fitnessMinutesTotal: number
-        fitnessMinutesPending: number
-        nutritionMinutesTotal: number
-        nutritionMinutesPending: number
-        meetsMinutes: number
-        pendingExercises: number
-        pendingPlates: number
-      }
-    >
-  >({})
-  const [meetEventsByDate, setMeetEventsByDate] = useState<
-    Record<
-      string,
-      Array<{
-        id: string
-        title?: string | null
-        start_time: string
-        end_time: string | null
-        coach_id?: string | null
-        meet_link?: string | null
-        description?: string | null
-        rsvp_status?: string | null
-        invited_by_user_id?: string | null
-      }>
-    >
-  >({})
-  const [selectedDayActivityItems, setSelectedDayActivityItems] = useState<
-    Array<{
-      activityId: string
-      activityTitle: string
-      activityTypeLabel: string
-      borderClass: string
-      bgClass: string
-      pendingCountLabel: string
-      pendingMinutes: number
-    }>
-  >([])
 
-  // Load info for all active activities to determine available coaches
-  useEffect(() => {
-    const loadAllActivityInfo = async () => {
-      if (activityIds.length === 0) return
+  /* -------------------------------------------------------------------------- */
+  /*                                    HOOKS                                   */
+  /* -------------------------------------------------------------------------- */
 
-      const missingIds = activityIds.filter(id => !activitiesInfo[id])
-      if (missingIds.length === 0) return
+  // View Control State (Needed for Hooks)
+  const [meetViewMode, setMeetViewMode] = useState<'month' | 'week' | 'day_split'>('month')
+  const [meetWeekStart, setMeetWeekStart] = useState<Date>(startOfWeek(new Date(), { weekStartsOn: 1 }))
+  const selectedCoachId = scheduleMeetContext?.coachId ? String(scheduleMeetContext.coachId) : null
+  const purchaseContext = scheduleMeetContext?.purchase
+  const isPaidMeetFlow = purchaseContext?.kind === 'consultation'
 
-      try {
-        const { data: activitiesData, error } = await supabase
-          .from('activities')
-          .select('id, title, type, categoria, coach_id') // Added coach_id
-          .in('id', missingIds)
+  // 1. Calendar Data Hook
+  const {
+    currentDate,
+    setCurrentDate,
+    selectedDate,
+    setSelectedDate,
+    authUserId,
+    activitiesByDate,
+    dayMinutesByDate,
+    meetEventsByDate,
+    setMeetEventsByDate,
+    selectedDayActivityItems,
+    activitiesInfo,
+    loadDayMinutes,
+    loadSelectedDayBreakdown
+  } = useCalendarData(activityIds, meetViewMode, meetWeekStart)
 
-        if (error) {
-          console.error('Error fetching activities info:', error)
-          return
-        }
+  // Derived: Purchased Coach Ids (for availability/credits)
+  const purchasedCoachIds = useMemo(() => {
+    const ids = new Set<string>()
+    Object.values(activitiesInfo || {}).forEach((a: any) => {
+      const cid = String(a?.coach_id || '')
+      if (cid) ids.add(cid)
+    })
+    return Array.from(ids)
+  }, [activitiesInfo])
 
-        if (activitiesData) {
-          setActivitiesInfo((prev) => {
-            const next = { ...prev }
-            activitiesData.forEach((a: any) => {
-              next[String(a.id)] = a
-            })
-            return next
-          })
-        }
-      } catch (err) {
-        console.error('Error loading activity info:', err)
-      }
+  // 2. Meet Logic Hook
+  const {
+    selectedMeetEvent,
+    setSelectedMeetEvent,
+    selectedMeetParticipants,
+    meetCreditsByCoachId,
+    pendingReschedule,
+    setPendingReschedule,
+    meetNotificationsCount,
+    setMeetNotificationsCount,
+    openMeetById
+  } = useMeetLogic(authUserId, meetEventsByDate, purchasedCoachIds)
+
+  // State for Consultation Type (Must be before useCoachAvailability)
+  const [selectedConsultationType, setSelectedConsultationType] = useState<'express' | 'puntual' | 'profunda'>(() => {
+    const mins = Number(scheduleMeetContext?.purchase?.durationMinutes ?? 30) || 30
+    if (mins <= 15) return 'express'
+    if (mins >= 60) return 'profunda'
+    return 'puntual'
+  })
+
+  // 3. Coach Availability Hook
+  const getDurationMinutes = (type: 'express' | 'puntual' | 'profunda') => {
+    switch (type) {
+      case 'express': return 15
+      case 'puntual': return 30
+      case 'profunda': return 60
+      default: return 30
     }
+  }
 
-    loadAllActivityInfo()
-  }, [activityIds, activitiesInfo, supabase])
+  const {
+    coachConsultations,
+    coachAvailabilityRows,
+    bookedSlotsByDay,
+    bookedSlotsByDayMonth,
+    getSlotsForDate,
+    availableSlotsCountByDay
+  } = useCoachAvailability(
+    selectedCoachId,
+    meetViewMode,
+    meetWeekStart,
+    currentDate,
+    getDurationMinutes(selectedConsultationType)
+  )
 
   // Edit Mode States
   const [isEditing, setIsEditing] = useState(false)
@@ -147,93 +166,9 @@ export default function CalendarView({ activityIds, onActivityClick, scheduleMee
   const [applyToAllSameDays, setApplyToAllSameDays] = useState(false)
   const [isUpdating, setIsUpdating] = useState(false)
 
-  const selectedDayKeyRef = useRef<string | null>(null)
-  const [loading, setLoading] = useState(true)
   const [showAddMenu, setShowAddMenu] = useState(false)
   const [showCoachRow, setShowCoachRow] = useState(false)
   const [coachProfiles, setCoachProfiles] = useState<Array<{ id: string; full_name: string; avatar_url?: string | null }>>([])
-  const [meetCreditsByCoachId, setMeetCreditsByCoachId] = useState<Record<string, number>>({})
-  const [coachConsultations, setCoachConsultations] = useState<{
-    express: { active: boolean; price: number; time: number; name: string }
-    puntual: { active: boolean; price: number; time: number; name: string }
-    profunda: { active: boolean; price: number; time: number; name: string }
-  }>({
-    express: { active: false, price: 0, time: 15, name: 'Express' },
-    puntual: { active: false, price: 0, time: 30, name: 'Consulta puntual' },
-    profunda: { active: false, price: 0, time: 60, name: 'Sesión profunda' },
-  })
-
-  const selectedCoachId = scheduleMeetContext?.coachId ? String(scheduleMeetContext.coachId) : null
-
-  const [selectedConsultationType, setSelectedConsultationType] = useState<'express' | 'puntual' | 'profunda'>(() => {
-    const mins = Number(scheduleMeetContext?.purchase?.durationMinutes ?? 30) || 30
-    if (mins <= 15) return 'express'
-    if (mins >= 60) return 'profunda'
-    return 'puntual'
-  })
-  const [coachAvailabilityRows, setCoachAvailabilityRows] = useState<
-    Array<{
-      id: string
-      weekday: number
-      start_time: string
-      end_time: string
-      scope: 'always' | 'month'
-      year: number | null
-      month: number | null
-      timezone: string | null
-    }>
-  >([])
-
-  const [selectedMeetRsvpStatus, setSelectedMeetRsvpStatus] = useState<string>('pending')
-  const [selectedMeetParticipantsCount, setSelectedMeetParticipantsCount] = useState<number>(0)
-  const [selectedMeetRsvpLoading, setSelectedMeetRsvpLoading] = useState<boolean>(false)
-  const [confirmDeclineStep, setConfirmDeclineStep] = useState<boolean>(false)
-  const [meetViewMode, setMeetViewMode] = useState<'month' | 'week' | 'day_split'>('month')
-  const [meetWeekStart, setMeetWeekStart] = useState<Date>(startOfWeek(new Date(), { weekStartsOn: 1 }))
-  const [bookedSlotsByDay, setBookedSlotsByDay] = useState<Record<string, Set<string>>>({})
-  const [bookedSlotsByDayMonth, setBookedSlotsByDayMonth] = useState<Record<string, Set<string>>>({})
-  const [selectedMeetEvent, setSelectedMeetEvent] = useState<
-    | {
-      id: string
-      title?: string | null
-      start_time: string
-      end_time: string | null
-      coach_id?: string | null
-      meet_link?: string | null
-      description?: string | null
-      invited_by_user_id?: string | null
-      status?: string | null
-      event_type?: string | null
-      max_participants?: number | null
-    }
-    | null
-  >(null)
-  const [selectedMeetParticipants, setSelectedMeetParticipants] = useState<any[]>([])
-
-  const [meetPurchasePaid, setMeetPurchasePaid] = useState(false)
-  const [showSuccessModal, setShowSuccessModal] = useState(false)
-  const [successModalData, setSuccessModalData] = useState<{
-    coachName: string
-    date: string
-    time: string
-    duration: number
-  } | null>(null)
-  const purchaseContext = scheduleMeetContext?.purchase
-  const isPaidMeetFlow = purchaseContext?.kind === 'consultation'
-
-  const [pendingReschedule, setPendingReschedule] = useState<
-    | {
-      id: string
-      from_start_time: string
-      from_end_time: string | null
-      to_start_time: string
-      to_end_time: string | null
-      note: string | null
-      status: string
-      requested_by_user_id: string | null
-    }
-    | null
-  >(null)
 
   const [reschedulePreview, setReschedulePreview] = useState<
     | {
@@ -272,9 +207,6 @@ export default function CalendarView({ activityIds, onActivityClick, scheduleMee
     const mins = Number(rescheduleContext?.durationMinutes ?? purchaseContext?.durationMinutes ?? 30) || 30
     return Math.max(1, Math.ceil(mins / 30))
   }, [purchaseContext?.durationMinutes, rescheduleContext?.durationMinutes])
-
-  const hasAutoOpenedPaidFlowRef = useRef(false)
-
   useEffect(() => {
     const mins = Number(scheduleMeetContext?.purchase?.durationMinutes ?? 0) || 0
     if (!mins) return
@@ -282,6 +214,17 @@ export default function CalendarView({ activityIds, onActivityClick, scheduleMee
     else if (mins >= 60) setSelectedConsultationType('profunda')
     else setSelectedConsultationType('puntual')
   }, [scheduleMeetContext?.purchase?.durationMinutes])
+
+  const [loading, setLoading] = useState(true)
+  const [showMeetNotifications, setShowMeetNotifications] = useState(false)
+  const [meetPurchasePaid, setMeetPurchasePaid] = useState(false)
+
+  useEffect(() => {
+    if (isMounted) {
+      const timer = setTimeout(() => setLoading(false), 500)
+      return () => clearTimeout(timer)
+    }
+  }, [isMounted])
 
   const applyConsultationSelection = useCallback(async (type: 'express' | 'puntual' | 'profunda') => {
     if (!selectedCoachId) return
@@ -354,10 +297,6 @@ export default function CalendarView({ activityIds, onActivityClick, scheduleMee
     }
     onSetScheduleMeetContext?.(nextCtx)
   }, [coachConsultations, onSetScheduleMeetContext, scheduleMeetContext?.activityId, scheduleMeetContext?.source, selectedCoachId, supabase])
-
-  const [showMeetNotifications, setShowMeetNotifications] = useState(false)
-  const [meetNotificationsCount, setMeetNotificationsCount] = useState<number>(0)
-
   const [selectedMeetRequest, setSelectedMeetRequest] = useState<
     | {
       coachId: string
@@ -368,535 +307,20 @@ export default function CalendarView({ activityIds, onActivityClick, scheduleMee
     }
     | null
   >(null)
+  /* UI States */
+  const [showSuccessModal, setShowSuccessModal] = useState(false)
+  const [successModalData, setSuccessModalData] = useState<any>(null)
+
+  const [confirmDeclineStep, setConfirmDeclineStep] = useState(false)
+  const [selectedMeetRsvpLoading, setSelectedMeetRsvpLoading] = useState(false)
+  const [selectedMeetRsvpStatus, setSelectedMeetRsvpStatus] = useState<string>('pending')
+
   const dayDetailRef = useRef<HTMLDivElement | null>(null)
 
-  useEffect(() => {
-    const loadAuthUserId = async () => {
-      try {
-        const { data } = await supabase.auth.getUser()
-        const uid = data?.user?.id ? String(data.user.id) : null
-        setAuthUserId(uid)
-      } catch {
-        setAuthUserId(null)
-      }
-    }
-    loadAuthUserId()
-  }, [supabase])
-
-  const formatMinutes = (minsRaw: number) => {
-    const mins = Number.isFinite(minsRaw) ? Math.max(0, Math.round(minsRaw)) : 0
-    if (mins <= 0) return ''
-    const h = Math.floor(mins / 60)
-    const m = mins % 60
-    if (h <= 0) return `${m}m`
-    if (m <= 0) return `${h}h`
-    return `${h}h ${m}m`
-  }
-
-  const purchasedCoachIds = useMemo(() => {
-    const ids = new Set<string>()
-    Object.values(activitiesInfo || {}).forEach((a: any) => {
-      const cid = String(a?.coach_id || '')
-      if (cid) ids.add(cid)
-    })
-    return Array.from(ids)
-  }, [activitiesInfo])
   const selectedCoachProfile = useMemo(() => {
     if (!selectedCoachId) return null
     return coachProfiles.find((c) => c.id === selectedCoachId) || null
   }, [coachProfiles, selectedCoachId])
-
-  useEffect(() => {
-    const loadCoachConsultations = async () => {
-      try {
-        if (!selectedCoachId) return
-        const { data, error } = await (supabase
-          .from('coaches') as any)
-          .select('cafe, cafe_enabled, meet_30, meet_30_enabled, meet_1, meet_1_enabled')
-          .eq('id', selectedCoachId)
-          .single()
-
-        if (error || !data) return
-
-        setCoachConsultations({
-          express: {
-            active: !!(data as any).cafe_enabled,
-            price: Number((data as any).cafe ?? 0) || 0,
-            time: 15,
-            name: 'Express',
-          },
-          puntual: {
-            active: !!(data as any).meet_30_enabled,
-            price: Number((data as any).meet_30 ?? 0) || 0,
-            time: 30,
-            name: 'Consulta puntual',
-          },
-          profunda: {
-            active: !!(data as any).meet_1_enabled,
-            price: Number((data as any).meet_1 ?? 0) || 0,
-            time: 60,
-            name: 'Sesión profunda',
-          },
-        })
-      } catch {
-        // ignore
-      }
-    }
-
-    loadCoachConsultations()
-  }, [selectedCoachId, supabase])
-
-  // Listener para resetear al origen cuando se presiona el tab activo
-  useEffect(() => {
-    const handleResetToOrigin = (event: CustomEvent) => {
-      const { tab } = event.detail
-      if (tab === 'calendar') {
-        // Resetear fecha seleccionada
-        setSelectedDate(new Date())
-
-        // Scroll al inicio
-        setTimeout(() => {
-          window.scrollTo({ top: 0, behavior: 'smooth' })
-        }, 100)
-      }
-    }
-
-    window.addEventListener('reset-tab-to-origin', handleResetToOrigin as EventListener)
-    return () => {
-      window.removeEventListener('reset-tab-to-origin', handleResetToOrigin as EventListener)
-    }
-  }, [])
-
-
-  useEffect(() => {
-    const loadDayMinutes = async () => {
-      try {
-        const { data: auth } = await supabase.auth.getUser()
-        const user = auth?.user
-        if (!user?.id) {
-          setDayMinutesByDate({})
-          setMeetEventsByDate({})
-          return
-        }
-
-        let startISO: string
-        let endISO: string
-
-        if (meetViewMode === 'week' && meetWeekStart) {
-          const wEnd = addDays(meetWeekStart, 7)
-          startISO = meetWeekStart.toISOString().split('T')[0]
-          endISO = wEnd.toISOString().split('T')[0]
-        } else {
-          const monthStart = startOfMonth(currentDate)
-          const monthEnd = endOfMonth(currentDate)
-          // Add buffer for month view typical grid (usually shows prev/next month days)
-          const bufferedStart = addDays(monthStart, -7)
-          const bufferedEnd = addDays(monthEnd, 14)
-          startISO = bufferedStart.toISOString().split('T')[0]
-          endISO = bufferedEnd.toISOString().split('T')[0]
-        }
-
-        const toInt = (v: any) => {
-          const n = Number(v)
-          return Number.isFinite(n) ? Math.round(n) : 0
-        }
-
-        const agg: Record<
-          string,
-          {
-            fitnessMinutesTotal: number
-            fitnessMinutesPending: number
-            nutritionMinutesTotal: number
-            nutritionMinutesPending: number
-            meetsMinutes: number
-            pendingExercises: number
-            pendingPlates: number
-          }
-        > = {}
-
-        console.log('📅 [loadDayMinutes] Query Range:', { meetViewMode, startISO, endISO })
-
-        // 1) Daily summary from the VIEW: client_day_activity_summary_v
-        // This view aggregates across fitness, nutrition, and meets
-        const { data: summaryRows, error: summaryError } = await (supabase
-          .from('client_day_activity_summary_v') as any)
-          .select('*')
-          .eq('client_id', user.id)
-          .gte('day', startISO)
-          .lte('day', endISO)
-
-        if (summaryError) {
-          console.error('Error fetching client_day_activity_summary_v:', summaryError)
-        }
-
-        const newActivityStats: Record<string, { minutes: number }> = {}
-        const newActivitiesByDate: Record<string, any[]> = {}
-
-          ; (summaryRows || []).forEach((row: any) => {
-            const dayKey = String(row?.day || '').split('T')[0]
-            if (!dayKey) return
-
-            // Populate Activity Stats
-            if (row.activity_id) {
-              const aid = String(row.activity_id)
-              if (!newActivityStats[aid]) newActivityStats[aid] = { minutes: 0 }
-              newActivityStats[aid].minutes += (Number(row.total_mins) || 0)
-            }
-
-            // Initialize if not exists
-            if (!agg[dayKey]) {
-              agg[dayKey] = {
-                fitnessMinutesTotal: 0,
-                fitnessMinutesPending: 0,
-                nutritionMinutesTotal: 0,
-                nutritionMinutesPending: 0,
-                meetsMinutes: 0,
-                pendingExercises: 0,
-                pendingPlates: 0,
-              }
-            }
-
-            // In the view:
-            // fitness_mins, nutri_mins, calendar_mins
-            const fMins = Number(row.fitness_mins) || 0
-            const nMins = Number(row.nutri_mins) || 0
-
-            agg[dayKey].fitnessMinutesTotal += fMins
-            agg[dayKey].nutritionMinutesTotal += nMins
-            // Meet minutes are handled later via meetEventsByDate, but we could also use row.calendar_mins if available
-
-            if (row.activity_id && !row.calendar_event_id) {
-              if (!newActivitiesByDate[dayKey]) newActivitiesByDate[dayKey] = []
-              newActivitiesByDate[dayKey].push({
-                id: String(row.activity_id),
-                fecha: dayKey,
-                // Note: The view doesn't have pending counts, but we'll get them in the detail view
-                pendingCount: 0,
-                totalCount: 0,
-                type: 'activity',
-                title: row.activity_title
-              })
-            }
-          })
-
-        setActivitiesByDate(newActivitiesByDate)
-
-        // 2) Meets del cliente en el mes
-        const meetMap: Record<string, any[]> = {} // Initialize meetMap here
-        const { data: myParts, error: myPartsError } = await (supabase
-          .from('calendar_event_participants') as any)
-          .select('event_id, rsvp_status, invited_by_role, invited_by_user_id')
-          .eq('client_id', user.id)
-
-        if (myPartsError) {
-          console.error('Error fetching client meet participants:', myPartsError)
-        }
-
-        const eventIdToParticipantInfo: Record<string, { rsvp: string; invitedBy: string | null; invitedByUserId: string | null }> = {}
-          ; (myParts || []).forEach((p: any) => {
-            const eid = String(p?.event_id || '')
-            if (!eid) return
-            eventIdToParticipantInfo[eid] = {
-              rsvp: String(p?.rsvp_status || 'pending'),
-              invitedBy: p?.invited_by_role ? String(p.invited_by_role) : null,
-              invitedByUserId: p?.invited_by_user_id ? String(p.invited_by_user_id) : null,
-            }
-          })
-
-        const candidateEventIds = Object.keys(eventIdToParticipantInfo)
-        const meetEventsRes = candidateEventIds.length
-          ? await (supabase
-            .from('calendar_events') as any)
-            .select('id, title, description, meet_link, start_time, end_time, event_type, coach_id, status, max_participants')
-            .in('id', candidateEventIds)
-            // .eq('event_type', 'consultation') // Removed to show workshops too if client is participant
-            .gte('start_time', startISO)
-            .lt('start_time', addDays(new Date(endISO), 1).toISOString())
-          : { data: [], error: null }
-
-        if (meetEventsRes && (meetEventsRes as any).error) {
-          console.error('Error fetching client meet events (by ids):', (meetEventsRes as any).error)
-        }
-
-        const meetEvents = (meetEventsRes as any)?.data
-        const meetEventsSafe = Array.isArray(meetEvents) ? meetEvents : []
-
-          ; (meetEventsSafe || []).forEach((ev: any) => {
-            if (!ev?.start_time) return
-            const start = new Date(ev.start_time)
-            if (Number.isNaN(start.getTime())) return
-            const dayKey = format(start, 'yyyy-MM-dd')
-
-            const end = ev.end_time ? new Date(ev.end_time) : null
-            const minutes = (() => {
-              if (end && !Number.isNaN(end.getTime())) {
-                const diff = (end.getTime() - start.getTime()) / 60000
-                return diff > 0 ? diff : 0
-              }
-              return 30
-            })()
-
-            if (!agg[dayKey]) {
-              agg[dayKey] = {
-                fitnessMinutesTotal: 0,
-                fitnessMinutesPending: 0,
-                nutritionMinutesTotal: 0,
-                nutritionMinutesPending: 0,
-                meetsMinutes: 0,
-                pendingExercises: 0,
-                pendingPlates: 0,
-              }
-            }
-            agg[dayKey].meetsMinutes += Math.round(minutes)
-
-            if (!meetMap[dayKey]) meetMap[dayKey] = []
-            const pInfo = eventIdToParticipantInfo[String(ev.id)]
-            meetMap[dayKey].push({
-              id: String(ev.id),
-              title: ev.title == null ? null : String(ev.title || ''),
-              start_time: String(ev.start_time),
-              end_time: ev.end_time ? String(ev.end_time) : null,
-              coach_id: ev.coach_id ? String(ev.coach_id) : null,
-              meet_link: ev.meet_link ? String(ev.meet_link) : null,
-              description: ev.description == null ? null : String(ev.description || ''),
-              rsvp_status: String(pInfo?.rsvp || 'pending'),
-              invited_by_role: pInfo?.invitedBy || null,
-              invited_by_user_id: pInfo?.invitedByUserId || null,
-              status: ev.status || 'scheduled',
-              event_type: ev.event_type || 'consultation',
-              max_participants: ev.max_participants || null
-            })
-          })
-
-        Object.keys(meetMap).forEach((k) => {
-          meetMap[k].sort((a, b) => String(a.start_time).localeCompare(String(b.start_time)))
-        })
-
-        console.log('📅 [loadDayMinutes] Final Agg:', agg)
-
-        setDayMinutesByDate(agg)
-        setActivityStats(newActivityStats)
-        setMeetEventsByDate(meetMap)
-        setLoading(false)
-      } catch (e) {
-        console.error('Error loading day minutes:', e)
-        setDayMinutesByDate({})
-        setMeetEventsByDate({})
-        setLoading(false)
-      }
-    }
-
-    loadDayMinutes()
-  }, [currentDate, supabase, meetViewMode, meetWeekStart])
-
-  useEffect(() => {
-    const loadSelectedDayBreakdown = async () => {
-      try {
-        if (!selectedDate) {
-          setSelectedDayActivityItems([])
-          selectedDayKeyRef.current = null
-          return
-        }
-
-        const { data: auth } = await supabase.auth.getUser()
-        const user = auth?.user
-        if (!user?.id) {
-          // Evitar borrar el estado si hay un glitch temporal de auth; si no, desaparecen los pendientes.
-          return
-        }
-
-        const dayKey = format(selectedDate, 'yyyy-MM-dd')
-        selectedDayKeyRef.current = dayKey
-
-        const toInt = (v: any) => {
-          const n = Number(v)
-          return Number.isFinite(n) ? Math.round(n) : 0
-        }
-
-        const parseMaybeJsonObject = (raw: any) => {
-          try {
-            if (!raw) return null
-            if (typeof raw === 'object') return raw
-            if (typeof raw === 'string') return JSON.parse(raw)
-            return null
-          } catch {
-            return null
-          }
-        }
-
-        const pendingKeysFromRaw = (raw: any): string[] => {
-          const parsed = parseMaybeJsonObject(raw)
-          if (!parsed) return []
-          if (Array.isArray(parsed)) return parsed.map((x) => String(x))
-          if (typeof parsed === 'object') return Object.keys(parsed)
-          return []
-        }
-
-        const sumMinutesForPendingKeys = (minutesObj: any, pendingKeys: string[]) => {
-          if (!minutesObj || typeof minutesObj !== 'object' || Array.isArray(minutesObj)) return 0
-          const minutes: any = minutesObj
-          let total = 0
-          for (const k of Object.keys(minutes)) {
-            const base = String(k).split('_')[0]
-            if (!pendingKeys.some((pk) => String(pk).split('_')[0] === base)) continue
-            total += toInt(minutes[k])
-          }
-          return total
-        }
-
-        const { data: summaryRows, error: summaryError } = await (supabase
-          .from('progreso_diario_actividad') as any)
-          .select('actividad_id, items_objetivo, items_completados, area, minutos, tipo')
-          .eq('cliente_id', user.id)
-          .eq('fecha', dayKey)
-
-        if (summaryError) throw summaryError
-
-        // Fallback to the summary view if no rows in the log table
-        // to show scheduled items that haven't had progress yet
-        let finalRows = summaryRows || []
-        if (finalRows.length === 0) {
-          const { data: viewRows } = await (supabase
-            .from('client_day_activity_summary_v') as any)
-            .select('*')
-            .eq('client_id', user.id)
-            .eq('day', dayKey)
-            .is('calendar_event_id', null) // Only non-meet activities
-
-          if (viewRows) {
-            finalRows = viewRows.map((r: any) => ({
-              actividad_id: r.activity_id,
-              items_objetivo: 0,
-              items_completados: 0,
-              area: r.fitness_mins > 0 ? 'fitness' : (r.nutri_mins > 0 ? 'nutricion' : 'general'),
-              minutos: Number(r.fitness_mins || 0) + Number(r.nutri_mins || 0),
-              tipo: 'programa'
-            }))
-          }
-        }
-
-        // Cargar títulos si faltan
-        const potentialIds = finalRows.map((r: any) => String(r.actividad_id))
-        const missingIds = potentialIds.filter((id: string) => !activitiesInfo[id])
-        if (missingIds.length > 0) {
-          const numericIds = missingIds.map((id: string) => Number(id)).filter((n: number) => Number.isFinite(n))
-          if (numericIds.length > 0) {
-            const { data: activitiesData } = await (supabase
-              .from('activities') as any)
-              .select('id, title, type, categoria')
-              .in('id', numericIds)
-            if (activitiesData) {
-              setActivitiesInfo((prev) => {
-                const next = { ...prev }
-                activitiesData.forEach((a: any) => {
-                  next[String(a.id)] = a
-                })
-                return next
-              })
-            }
-          }
-        }
-
-        const buildStyle = (info: any) => {
-          const type = info?.type || 'program'
-          const categoria = String(info?.categoria || '').toLowerCase()
-          let borderClass = 'border-[#FF7939]'
-          let bgClass = 'bg-[#FF7939]/10'
-          let label = 'Programa'
-          if (type === 'workshop') {
-            borderClass = 'border-[#FFB873]'
-            bgClass = 'bg-[#FFB873]/12'
-            label = 'Taller'
-          } else if (categoria === 'nutricion' || categoria === 'nutrition') {
-            borderClass = 'border-[#FFB873]'
-            bgClass = 'bg-[#FFB873]/12'
-            label = 'Nutrición'
-          }
-          return { borderClass, bgClass, label }
-        }
-
-        const list = finalRows
-          .map((row: any) => {
-            const activityId = String(row.actividad_id)
-            const info = activitiesInfo[activityId]
-            const style = buildStyle(info)
-            const pendingCount = Math.max(0, (row.items_objetivo || 0) - (row.items_completados || 0))
-            const completedCount = row.items_completados || 0
-            const totalCount = row.items_objetivo || 0
-
-            if (info?.type === 'document' || String(info?.categoria || '').toLowerCase() === 'doc' || String(info?.categoria || '').toLowerCase() === 'documento') {
-              return null
-            }
-
-            return {
-              activityId,
-              activityTitle: info?.title || `Actividad ${activityId}`,
-              activityTypeLabel: style.label,
-              borderClass: style.borderClass,
-              bgClass: style.bgClass,
-              pendingCount,
-              completedCount,
-              totalCount,
-              area: row.area,
-              minutes: row.minutos || 0,
-            }
-          })
-          .filter(Boolean)
-          .sort((a: any, b: any) => b.pendingCount - a.pendingCount)
-
-        setSelectedDayActivityItems(list)
-      } catch (e) {
-        console.error('Error loading selected day breakdown:', e)
-        // No borrar el estado para evitar que desaparezcan pendientes por fallos transitorios.
-      }
-    }
-
-    loadSelectedDayBreakdown()
-  }, [activitiesInfo, selectedDate, supabase])
-
-  useEffect(() => {
-    const fetchParticipants = async () => {
-      if (!selectedMeetEvent?.id) {
-        setSelectedMeetParticipants([])
-        return
-      }
-
-      try {
-        const { data: participants, error: pError } = await supabase
-          .from('calendar_event_participants')
-          .select('id, client_id, rsvp_status, payment_status')
-          .eq('event_id', selectedMeetEvent.id)
-
-        if (pError) throw pError
-
-        const clientIds = (participants || []).map((p: any) => p.client_id).filter(Boolean)
-        const profileMap: Record<string, any> = {}
-
-        if (clientIds.length > 0) {
-          const { data: profiles, error: profError } = await supabase
-            .from('user_profiles')
-            .select('id, full_name, avatar_url')
-            .in('id', clientIds)
-
-          if (!profError && profiles) {
-            profiles.forEach((p: any) => { profileMap[p.id] = p })
-          }
-        }
-
-        const parts = (participants || []).map((p: any) => ({
-          ...p,
-          name: profileMap[p.client_id]?.full_name || 'Cliente',
-          avatar_url: profileMap[p.client_id]?.avatar_url
-        }))
-
-        setSelectedMeetParticipants(parts)
-      } catch (err) {
-        console.error('Error fetching participants:', err)
-      }
-    }
-
-    fetchParticipants()
-  }, [selectedMeetEvent?.id, supabase])
 
   useEffect(() => {
     const loadCoachProfiles = async () => {
@@ -918,516 +342,16 @@ export default function CalendarView({ activityIds, onActivityClick, scheduleMee
           .select('id, full_name, avatar_url')
           .in('id', ids)
 
-        if (error) {
-          console.error('Error fetching coach profiles:', error)
-          setCoachProfiles([])
-          return
+        if (!error && data) {
+          setCoachProfiles(data)
         }
-
-        setCoachProfiles(
-          (data || []).map((p: any) => ({
-            id: String(p.id),
-            full_name: String(p.full_name || 'Coach'),
-            avatar_url: p.avatar_url || null,
-          }))
-        )
-      } catch (e) {
-        console.error('Error fetching coach profiles:', e)
-        setCoachProfiles([])
+      } catch {
+        // ignore
       }
     }
 
     loadCoachProfiles()
-  }, [purchasedCoachIds, supabase])
-
-  useEffect(() => {
-    const loadMeetNotificationCount = async () => {
-      try {
-        if (!authUserId) {
-          setMeetNotificationsCount(0)
-          return
-        }
-
-        const { count, error } = await (supabase
-          .from('calendar_event_participants') as any)
-          .select('id', { count: 'exact' })
-          .eq('client_id', authUserId)
-          .eq('rsvp_status', 'pending')
-
-        if (error) {
-          setMeetNotificationsCount(0)
-          return
-        }
-        setMeetNotificationsCount(Number.isFinite(count as any) ? (count as any) : 0)
-      } catch {
-        setMeetNotificationsCount(0)
-      }
-    }
-
-    loadMeetNotificationCount()
-  }, [supabase, meetEventsByDate, authUserId])
-
-  const openMeetById = async (eventId: string) => {
-    try {
-      const all = Object.values(meetEventsByDate || {}).flat()
-      const found = all.find((m: any) => String(m?.id || '') === String(eventId))
-      if (found) {
-        setSelectedMeetEvent(found as any)
-        setShowMeetNotifications(false)
-        return
-      }
-
-      const { data: ev, error } = await (supabase
-        .from('calendar_events') as any)
-        .select('id, title, description, meet_link, start_time, end_time, coach_id')
-        .eq('id', eventId)
-        .maybeSingle()
-
-      if (error || !ev?.id) return
-      setSelectedMeetEvent({
-        id: String(ev.id),
-        title: ev.title == null ? null : String(ev.title || ''),
-        start_time: String(ev.start_time),
-        end_time: ev.end_time ? String(ev.end_time) : null,
-        coach_id: ev.coach_id ? String(ev.coach_id) : null,
-        meet_link: ev.meet_link ? String(ev.meet_link) : null,
-        description: ev.description == null ? null : String(ev.description || ''),
-      })
-      setShowMeetNotifications(false)
-    } catch {
-      // ignore
-    }
-  }
-
-  useEffect(() => {
-    const loadMeetCredits = async () => {
-      try {
-        if (!purchasedCoachIds || purchasedCoachIds.length === 0) {
-          setMeetCreditsByCoachId({})
-          return
-        }
-
-        const { data: auth } = await supabase.auth.getUser()
-        const user = auth?.user
-        if (!user?.id) {
-          setMeetCreditsByCoachId({})
-          return
-        }
-
-        const { data, error } = await (supabase
-          .from('client_meet_credits_ledger') as any)
-          .select('coach_id, meet_credits_available')
-          .eq('client_id', user.id)
-          .in('coach_id', purchasedCoachIds)
-
-        if (error) {
-          console.error('Error fetching meet credits:', error)
-          setMeetCreditsByCoachId({})
-          return
-        }
-
-        const map: Record<string, number> = {}
-          ; (data || []).forEach((row: any) => {
-            const coachId = String(row?.coach_id || '')
-            if (!coachId) return
-            const credits = Number(row?.meet_credits_available ?? 0)
-            map[coachId] = Number.isFinite(credits) ? credits : 0
-          })
-        setMeetCreditsByCoachId(map)
-      } catch (e) {
-        console.error('Error fetching meet credits:', e)
-        setMeetCreditsByCoachId({})
-      }
-    }
-
-    loadMeetCredits()
-  }, [purchasedCoachIds, supabase])
-
-  useEffect(() => {
-    if (!selectedMeetEvent?.id) {
-      setConfirmDeclineStep(false)
-      return
-    }
-    setConfirmDeclineStep(false)
-  }, [selectedMeetEvent?.id])
-
-  useEffect(() => {
-    const loadPendingReschedule = async () => {
-      try {
-        if (!selectedMeetEvent?.id) {
-          setPendingReschedule(null)
-          return
-        }
-        const { data: auth } = await supabase.auth.getUser()
-        const user = auth?.user
-        if (!user?.id) {
-          setPendingReschedule(null)
-          return
-        }
-
-        const { data: rr, error } = await (supabase
-          .from('calendar_event_reschedule_requests') as any)
-          .select('id, from_start_time, from_end_time, to_start_time, to_end_time, note, status, created_at, requested_by_user_id')
-          .eq('event_id', selectedMeetEvent.id)
-          .order('created_at', { ascending: false })
-          .limit(1)
-
-        if (error) {
-          setPendingReschedule(null)
-          return
-        }
-        const row = (rr || [])[0]
-        if (!row?.id) {
-          setPendingReschedule(null)
-          return
-        }
-        setPendingReschedule({
-          id: String(row.id),
-          from_start_time: String(row.from_start_time),
-          from_end_time: row.from_end_time ? String(row.from_end_time) : null,
-          to_start_time: String(row.to_start_time),
-          to_end_time: row.to_end_time ? String(row.to_end_time) : null,
-          note: row.note == null ? null : String(row.note),
-          status: String(row.status || 'pending'),
-          requested_by_user_id: row.requested_by_user_id ? String(row.requested_by_user_id) : null
-        })
-      } catch {
-        setPendingReschedule(null)
-      }
-    }
-
-    loadPendingReschedule()
-  }, [selectedMeetEvent?.id, supabase])
-
-  useEffect(() => {
-    const loadCoachAvailability = async () => {
-      console.log('[CalendarView] loadCoachAvailability start', { selectedCoachId })
-      try {
-        if (!selectedCoachId) {
-          setCoachAvailabilityRows([])
-          return
-        }
-
-        const { data, error } = await (supabase
-          .from('coach_availability_rules') as any)
-          .select('id, weekday, start_time, end_time, scope, year, month, timezone')
-          .eq('coach_id', selectedCoachId)
-
-        if (error) {
-          console.error('Error fetching coach availability rules:', error)
-          setCoachAvailabilityRows([])
-          return
-        }
-
-        const toHHMM = (t: any) => {
-          const s = String(t || '')
-          if (!s) return ''
-          return s.slice(0, 5)
-        }
-
-        setCoachAvailabilityRows(
-          (Array.isArray(data) ? data : []).map((r: any) => ({
-            id: String(r.id),
-            weekday: Number(r.weekday),
-            start_time: toHHMM(r.start_time),
-            end_time: toHHMM(r.end_time),
-            scope: String(r.scope || '').toLowerCase() === 'month' ? 'month' : 'always',
-            year: r.year == null ? null : Number(r.year),
-            month: r.month == null ? null : Number(r.month),
-            timezone: r.timezone ?? null,
-          }))
-        )
-
-
-      } catch (e) {
-        console.error('Error fetching coach availability rules:', e)
-        setCoachAvailabilityRows([])
-      }
-    }
-
-    loadCoachAvailability()
-  }, [selectedCoachId, supabase])
-
-  useEffect(() => {
-    const loadBookedSlots = async () => {
-      try {
-        if (!selectedCoachId || meetViewMode !== 'week') {
-          setBookedSlotsByDay({})
-          return
-        }
-
-        const start = meetWeekStart
-        const end = addDays(meetWeekStart, 7)
-
-        const { data, error } = await (supabase
-          .from('calendar_events') as any)
-          .select('start_time, end_time, event_type, coach_id')
-          .eq('coach_id', selectedCoachId)
-          .eq('event_type', 'consultation')
-          .gte('start_time', start.toISOString())
-          .lt('start_time', end.toISOString())
-
-        if (error) {
-          console.error('Error fetching booked meet slots:', error)
-          setBookedSlotsByDay({})
-          return
-        }
-
-        const map: Record<string, Set<string>> = {}
-          ; (data || []).forEach((row: any) => {
-            const startDt = new Date(row.start_time)
-            const endDt = row.end_time ? new Date(row.end_time) : new Date(startDt.getTime() + 30 * 60 * 1000)
-
-            const startMs = startDt.getTime()
-            const endMs = endDt.getTime()
-            if (!Number.isFinite(startMs) || !Number.isFinite(endMs)) return
-
-            // Marcar todos los slots de 30 min que ocupa el evento
-            const cursor = new Date(startDt)
-            cursor.setSeconds(0, 0)
-            while (cursor.getTime() < endMs) {
-              const dayKey = format(cursor, 'yyyy-MM-dd')
-              const timeKey = format(cursor, 'HH:mm')
-              if (!map[dayKey]) map[dayKey] = new Set<string>()
-              map[dayKey].add(timeKey)
-              cursor.setMinutes(cursor.getMinutes() + 30)
-            }
-          })
-        setBookedSlotsByDay(map)
-      } catch (e) {
-        console.error('Error fetching booked meet slots:', e)
-        setBookedSlotsByDay({})
-      }
-    }
-
-    loadBookedSlots()
-  }, [meetViewMode, meetWeekStart, selectedCoachId, supabase])
-
-  useEffect(() => {
-    const loadBookedSlotsMonth = async () => {
-      try {
-        if (!selectedCoachId) {
-          setBookedSlotsByDayMonth({})
-          return
-        }
-
-        const start = startOfMonth(currentDate)
-        const end = addDays(endOfMonth(currentDate), 1)
-
-
-        const { data, error } = await (supabase
-          .from('calendar_events') as any)
-          .select('start_time, end_time, event_type, coach_id')
-          .eq('coach_id', selectedCoachId)
-          .eq('event_type', 'consultation')
-          .gte('start_time', start.toISOString())
-          .lt('start_time', end.toISOString())
-
-        if (error) {
-          console.error('Error fetching month booked meet slots:', error)
-          setBookedSlotsByDayMonth({})
-          return
-        }
-
-        const map: Record<string, Set<string>> = {}
-          ; (data || []).forEach((row: any) => {
-            const startDt = new Date(row.start_time)
-            const endDt = row.end_time ? new Date(row.end_time) : new Date(startDt.getTime() + 30 * 60 * 1000)
-
-            const startMs = startDt.getTime()
-            const endMs = endDt.getTime()
-            if (!Number.isFinite(startMs) || !Number.isFinite(endMs)) return
-
-            const cursor = new Date(startDt)
-            cursor.setSeconds(0, 0)
-            while (cursor.getTime() < endMs) {
-              const dayKey = format(cursor, 'yyyy-MM-dd')
-              const timeKey = format(cursor, 'HH:mm')
-              if (!map[dayKey]) map[dayKey] = new Set<string>()
-              map[dayKey].add(timeKey)
-              cursor.setMinutes(cursor.getMinutes() + 30)
-            }
-          })
-        setBookedSlotsByDayMonth(map)
-      } catch (e) {
-        console.error('Error fetching month booked meet slots:', e)
-        setBookedSlotsByDayMonth({})
-      }
-    }
-
-    loadBookedSlotsMonth()
-  }, [currentDate, selectedCoachId, supabase])
-
-  useEffect(() => {
-    const loadSelectedMeetDetails = async () => {
-      try {
-        if (!selectedMeetEvent?.id) {
-          setSelectedMeetRsvpStatus('pending')
-          setSelectedMeetParticipantsCount(0)
-          return
-        }
-
-        setSelectedMeetRsvpLoading(true)
-        const { data: auth } = await supabase.auth.getUser()
-        const user = auth?.user
-        if (!user?.id) {
-          setSelectedMeetRsvpStatus('pending')
-          setSelectedMeetParticipantsCount(0)
-          return
-        }
-
-        const { data: myPart, error: myPartErr } = await (supabase
-          .from('calendar_event_participants') as any)
-          .select('rsvp_status')
-          .eq('event_id', selectedMeetEvent.id)
-          .eq('client_id', user.id)
-          .maybeSingle()
-
-        if (!myPartErr) {
-          setSelectedMeetRsvpStatus(String(myPart?.rsvp_status || 'pending'))
-        } else {
-          console.error('Error fetching meet participant status:', myPartErr)
-          setSelectedMeetRsvpStatus('pending')
-        }
-
-        const { count, error: countErr } = await (supabase
-          .from('calendar_event_participants') as any)
-          .select('id', { count: 'exact', head: true })
-          .eq('event_id', selectedMeetEvent.id)
-
-        if (!countErr) {
-          setSelectedMeetParticipantsCount(typeof count === 'number' ? count : 0)
-        } else {
-          console.error('Error fetching meet participants count:', countErr)
-          setSelectedMeetParticipantsCount(0)
-        }
-      } catch (e) {
-        console.error('Error loading selected meet details:', e)
-        setSelectedMeetRsvpStatus('pending')
-        setSelectedMeetParticipantsCount(0)
-      } finally {
-        setSelectedMeetRsvpLoading(false)
-      }
-    }
-
-    loadSelectedMeetDetails()
-  }, [selectedMeetEvent?.id, supabase])
-
-  const availableSlotsCountByDay = useMemo(() => {
-    if (!selectedCoachId) return {} as Record<string, number>
-
-    const monthStart = startOfMonth(currentDate)
-    const monthEnd = endOfMonth(currentDate)
-    const days = eachDayOfInterval({ start: monthStart, end: monthEnd })
-
-    const month = monthStart.getMonth() + 1
-    const year = monthStart.getFullYear()
-
-    const toMinutes = (hhmm: string) => {
-      const [h, m] = hhmm.split(':').map((x) => parseInt(x, 10))
-      if (!Number.isFinite(h) || !Number.isFinite(m)) return 0
-      return h * 60 + m
-    }
-
-    const result: Record<string, number> = {}
-    for (const d of days) {
-      const weekday = d.getDay() // 0..6
-
-      // Compat: weekday puede venir en DB como:
-      // - 0..6 (0=Domingo)
-      // - 1..7 (7=Domingo)
-      // - 0..6 (0=Lunes)
-      const weekdayDbCandidates = new Set<number>([
-        weekday, // 0=Domingo
-        weekday === 0 ? 7 : weekday, // 1..7 (7=Domingo)
-        (weekday + 6) % 7, // 0=Lunes
-      ])
-
-      const rows = coachAvailabilityRows.filter((r) => {
-        if (!weekdayDbCandidates.has(r.weekday)) return false
-        if (r.scope === 'always') return true
-        if (!r.year || !r.month) return false
-        return r.year === year && r.month === month
-      })
-
-      const dayKey = format(d, 'yyyy-MM-dd')
-      const booked = bookedSlotsByDayMonth?.[dayKey] || new Set<string>()
-
-      const slots = new Set<string>()
-      for (const r of rows) {
-        const start = toMinutes(r.start_time)
-        const end = toMinutes(r.end_time)
-        for (let t = start; t + 30 <= end; t += 30) {
-          const h = Math.floor(t / 60)
-          const m = t % 60
-          const hhmm = `${String(h).padStart(2, '0')}:${String(m).padStart(2, '0')}`
-          // Validar bloques contiguos según duración
-          let ok = true
-          for (let i = 0; i < requiredSlotBlocks; i++) {
-            const nextMins = t + i * 30
-            if (nextMins + 30 > end) {
-              ok = false
-              break
-            }
-            const nh = Math.floor(nextMins / 60)
-            const nm = nextMins % 60
-            const nHHMM = `${String(nh).padStart(2, '0')}:${String(nm).padStart(2, '0')}`
-            if (booked.has(nHHMM)) {
-              ok = false
-              break
-            }
-          }
-          if (ok) slots.add(hhmm)
-        }
-      }
-
-      if (slots.size > 0) result[dayKey] = slots.size
-    }
-
-    return result
-  }, [bookedSlotsByDayMonth, coachAvailabilityRows, currentDate, requiredSlotBlocks, selectedCoachId])
-
-  const availableSlotDays = useMemo(() => {
-    return new Set<string>(Object.keys(availableSlotsCountByDay || {}))
-  }, [availableSlotsCountByDay])
-
-  useEffect(() => {
-    if (process.env.NODE_ENV !== 'development') return
-    if (!selectedCoachId) return
-
-    const monthStart = startOfMonth(currentDate)
-    const month = monthStart.getMonth() + 1
-    const year = monthStart.getFullYear()
-    const days = Array.from(availableSlotDays.values()).sort((a, b) => a.localeCompare(b))
-
-    if (days.length === 0) {
-      // no-op
-    }
-  }, [availableSlotDays, coachAvailabilityRows, currentDate, selectedCoachId])
-
-  useEffect(() => {
-    if (!isPaidMeetFlow) {
-      hasAutoOpenedPaidFlowRef.current = false
-      return
-    }
-    if (!selectedCoachId) return
-    if (hasAutoOpenedPaidFlowRef.current) return
-
-    const days = Array.from(availableSlotDays.values()).sort((a, b) => a.localeCompare(b))
-    if (days.length === 0) return
-
-    try {
-      const first = new Date(`${days[0]}T00:00:00`)
-      setSelectedDate(first)
-      setMeetViewMode('week')
-      setMeetWeekStart(startOfWeek(first, { weekStartsOn: 1 }))
-      setShowCoachRow(true)
-      setShowAddMenu(false)
-      hasAutoOpenedPaidFlowRef.current = true
-    } catch {
-      // ignore
-    }
-  }, [availableSlotDays, isPaidMeetFlow, selectedCoachId])
+  }, [purchasedCoachIds, selectedCoachId, supabase])
 
   useEffect(() => {
     if (!isPaidMeetFlow) {
@@ -1471,73 +395,6 @@ export default function CalendarView({ activityIds, onActivityClick, scheduleMee
     }
   }, [isPaidMeetFlow, scheduleMeetContext?.activityId])
 
-  const getSlotsForDate = (date: Date) => {
-    if (!selectedCoachId) return [] as string[]
-    const weekday = date.getDay()
-    const month = date.getMonth() + 1
-    const year = date.getFullYear()
-
-    const toMinutes = (hhmm: string) => {
-      const [h, m] = hhmm.split(':').map((x) => parseInt(x, 10))
-      if (!Number.isFinite(h) || !Number.isFinite(m)) return 0
-      return h * 60 + m
-    }
-    const toHHMM = (mins: number) => {
-      const h = Math.floor(mins / 60)
-      const m = mins % 60
-      return `${String(h).padStart(2, '0')}:${String(m).padStart(2, '0')}`
-    }
-
-    const weekdayDbCandidates = new Set<number>([
-      weekday,
-      weekday === 0 ? 7 : weekday,
-      (weekday + 6) % 7,
-    ])
-
-    const rows = coachAvailabilityRows.filter((r) => {
-      if (!weekdayDbCandidates.has(r.weekday)) return false
-      if (r.scope === 'always') return true
-      if (!r.year || !r.month) return false
-      return r.year === year && r.month === month
-    })
-
-    const dayKey = format(date, 'yyyy-MM-dd')
-    const booked = (meetViewMode === 'week' ? bookedSlotsByDay?.[dayKey] : bookedSlotsByDayMonth?.[dayKey]) || new Set<string>()
-
-    const slots = new Set<string>()
-    for (const r of rows) {
-      const start = toMinutes(r.start_time)
-      const end = toMinutes(r.end_time)
-      for (let t = start; t + 30 <= end; t += 30) {
-        // Validar bloques contiguos según duración
-        let ok = true
-        for (let i = 0; i < requiredSlotBlocks; i++) {
-          const nextMins = t + i * 30
-          if (nextMins + 30 > end) {
-            ok = false
-            break
-          }
-          const n = toHHMM(nextMins)
-          if (booked.has(n)) {
-            ok = false
-            break
-          }
-        }
-        if (ok) slots.add(toHHMM(t))
-      }
-    }
-    return Array.from(slots.values()).sort((a, b) => a.localeCompare(b))
-  }
-
-  const getWeekSlotsMap = (weekStart: Date) => {
-    const days = Array.from({ length: 7 }).map((_, i) => addDays(weekStart, i))
-    const map: Record<string, string[]> = {}
-    for (const d of days) {
-      const dayKey = format(d, 'yyyy-MM-dd')
-      map[dayKey] = getSlotsForDate(d)
-    }
-    return map
-  }
 
   const handlePickCoachForMeet = (coachId: string) => {
     const ctx = { coachId, source: 'calendar' as const }
@@ -1558,24 +415,15 @@ export default function CalendarView({ activityIds, onActivityClick, scheduleMee
       // ignore
     }
     onSetScheduleMeetContext?.(null)
-    // No cambiamos el meetViewMode para quedarnos en el flujo de meet
+    setMeetViewMode('month')
     setSelectedMeetRequest(null)
     setSelectedMeetEvent(null)
     setMeetPurchasePaid(false)
   }
 
-  const monthStart = startOfMonth(currentDate)
-  const monthEnd = endOfMonth(currentDate)
-  const daysInMonth = eachDayOfInterval({ start: monthStart, end: monthEnd })
-  const leadingEmptyDays = monthStart.getDay()
-
-  const previousMonth = () => {
-    setCurrentDate(subMonths(currentDate, 1))
-  }
-
-  const nextMonth = () => {
-    setCurrentDate(addMonths(currentDate, 1))
-  }
+  // Navigation methods
+  const previousMonth = () => setCurrentDate(subMonths(currentDate, 1))
+  const nextMonth = () => setCurrentDate(addMonths(currentDate, 1))
 
   /* New logic for Edit Mode */
   const toggleEditMode = () => {
@@ -1716,7 +564,7 @@ export default function CalendarView({ activityIds, onActivityClick, scheduleMee
 
     if (selectedCoachId) {
       const key = format(date, 'yyyy-MM-dd')
-      if (availableSlotDays.has(key)) {
+      if ((availableSlotsCountByDay?.[key] || 0) > 0) {
         // Switch to Week View first (Month -> Week -> Day/Split)
         setMeetViewMode('week')
         // Still update week start for context if needed
@@ -1731,58 +579,6 @@ export default function CalendarView({ activityIds, onActivityClick, scheduleMee
   }
 
   // --- TIMELINE HELPERS ---
-  const START_HOUR = 6
-  const END_HOUR = 23
-  const TOTAL_MINS = (END_HOUR - START_HOUR) * 60
-
-  const toMins = (h: string) => {
-    const [hh, mm] = h.split(':').map(Number)
-    if (!Number.isFinite(hh) || !Number.isFinite(mm)) return 0
-    return hh * 60 + mm
-  }
-
-  const add30 = (hhmm: string) => {
-    let m = toMins(hhmm) + 30
-    const hh = Math.floor(m / 60)
-    const mm = m % 60
-    return `${String(hh).padStart(2, '0')}:${String(mm).padStart(2, '0')}`
-  }
-
-  const coalesceSlots = (slots: string[]) => {
-    if (!slots.length) return []
-    const sorted = [...slots].sort()
-    const ranges: { start: string; end: string }[] = []
-
-    let currentStart = sorted[0]
-    let currentEnd = sorted[0]
-    let expectedNext = add30(currentStart)
-
-    for (let i = 1; i < sorted.length; i++) {
-      const t = sorted[i]
-      if (t === expectedNext) {
-        currentEnd = t
-        expectedNext = add30(t)
-      } else {
-        ranges.push({ start: currentStart, end: add30(currentEnd) })
-        currentStart = t
-        currentEnd = t
-        expectedNext = add30(t)
-      }
-    }
-    ranges.push({ start: currentStart, end: add30(currentEnd) })
-    return ranges
-  }
-
-  const getTop = (hhmm: string) => {
-    const [h, m] = hhmm.split(':').map(Number)
-    const val = h * 60 + m
-    const startVal = START_HOUR * 60
-    return ((val - startVal) / TOTAL_MINS) * 100
-  }
-
-  const getHeight = (durationMins: number) => {
-    return (durationMins / TOTAL_MINS) * 100
-  }
 
   const handleTimelineClick = (e: React.MouseEvent<HTMLButtonElement>, blockStart: string, blockEnd: string, dayKey: string) => {
     console.log('[handleTimelineClick] Called with rescheduleContext:', rescheduleContext)
@@ -1819,7 +615,6 @@ export default function CalendarView({ activityIds, onActivityClick, scheduleMee
     }))
     console.log('[handleTimelineClick] Set selectedMeetRequest, rescheduleContext still:', rescheduleContext)
     setMeetViewMode('day_split') // Drill down to Day/Split View for booking
-    setSelectedDate(addDays(new Date(dayKey), 1)) // Force date update (offset by timezone if needed, but dayKey is accurate)
     const d = new Date(dayKey + 'T12:00:00') // Better parsing
     setSelectedDate(d)
     setMeetWeekStart(startOfWeek(d, { weekStartsOn: 1 }))
@@ -1987,7 +782,8 @@ export default function CalendarView({ activityIds, onActivityClick, scheduleMee
             title={`${ev.title || 'Meet'} (${ev.start_time.split('T')[1].substring(0, 5)} - ${ev.end_time ? ev.end_time.split('T')[1].substring(0, 5) : ''})`}
           >
             <div className={`${isSmall ? 'flex items-center gap-2 overflow-hidden w-full' : 'flex flex-col w-full h-full justify-center'}`}>
-              <span className={`text-[10px] font-bold truncate leading-tight flex-shrink-0 ${isGhost ? 'text-black' : 'text-[#FFB366]'}`}>
+              <span className={`text-[10px] font-bold truncate leading-tight flex-shrink-0 flex items-center gap-1 ${isGhost ? 'text-black' : (ev.status === 'cancelled' || ev.rsvp_status === 'declined' ? 'text-red-500' : 'text-[#FFB366]')}`}>
+                {ev.event_type === 'workshop' ? <GraduationCap className="w-3 h-3" /> : (ev.isGhost ? null : <Video className="w-3 h-3" />)}
                 {ev.title || 'Meet'}
               </span>
               <div className={`${isSmall ? '' : 'flex items-center gap-1'}`}>
@@ -2020,100 +816,6 @@ export default function CalendarView({ activityIds, onActivityClick, scheduleMee
 
   return (
     <div className="p-4 text-white w-full max-w-full overflow-x-hidden">
-      {/* Acciones arriba (fuera del frame del calendario) */}
-      <div className="mb-3 relative flex items-center justify-between">
-        <button
-          type="button"
-          onClick={() => setShowMeetNotifications(true)}
-          className={
-            `relative w-8 h-8 rounded-full border flex items-center justify-center ` +
-            `backdrop-blur-md bg-white/10 border-white/20 shadow-[0_8px_24px_rgba(0,0,0,0.35)] ` +
-            `hover:bg-white/15 transition-colors`
-          }
-          title="Notificaciones"
-          aria-label="Notificaciones"
-        >
-          <Bell className="h-4 w-4 text-[#FF7939]" />
-          {meetNotificationsCount > 0 && (
-            <span
-              className="absolute -top-1 -right-1 min-w-[18px] h-[18px] px-1 rounded-full text-[10px] font-bold flex items-center justify-center"
-              style={{ background: '#FF7939', color: '#000' }}
-            >
-              {meetNotificationsCount}
-            </span>
-          )}
-        </button>
-
-        {/* Cancelar modificación button - only show when in reschedule mode */}
-        {rescheduleContext && (
-          <button
-            type="button"
-            onClick={() => {
-              setReschedulePreview(null)
-              setRescheduleContext(null)
-              setMeetViewMode('month')
-              handleClearCoachForMeet()
-            }}
-            className={
-              `px-4 py-1.5 rounded-full border text-sm font-medium ` +
-              `backdrop-blur-md bg-red-500/10 border-red-500/30 shadow-[0_8px_24px_rgba(0,0,0,0.35)] ` +
-              `text-red-400 hover:bg-red-500/20 transition-colors whitespace-nowrap`
-            }
-            title="Cancelar modificación"
-            aria-label="Cancelar modificación"
-          >
-            Cancelar modificación
-          </button>
-        )}
-
-        <div className="flex items-center gap-2">
-          <div
-            className={
-              `flex items-center gap-2 transition-all duration-200 ease-out ` +
-              (showAddMenu ? 'opacity-100 translate-x-0 max-w-[220px]' : 'opacity-0 translate-x-2 max-w-0 pointer-events-none')
-            }
-          >
-            <button
-              type="button"
-              onClick={() => {
-                setShowCoachRow(true)
-              }}
-              className={
-                `px-4 py-1.5 rounded-full border text-sm ` +
-                `backdrop-blur-md bg-white/10 border-white/20 shadow-[0_8px_24px_rgba(0,0,0,0.35)] ` +
-                `text-[#FF7939] hover:bg-white/15 transition-colors whitespace-nowrap`
-              }
-            >
-              Meet
-            </button>
-          </div>
-
-          <button
-            type="button"
-            onClick={() => {
-              setShowAddMenu((v) => {
-                const next = !v
-                if (!next) setShowCoachRow(false)
-                return next
-              })
-            }}
-            className={
-              `w-8 h-8 rounded-full border flex items-center justify-center ` +
-              `backdrop-blur-md bg-white/10 border-white/20 shadow-[0_8px_24px_rgba(0,0,0,0.35)] ` +
-              `hover:bg-white/15 transition-colors`
-            }
-            title={showAddMenu ? 'Cerrar' : 'Acciones'}
-            aria-label={showAddMenu ? 'Cerrar' : 'Acciones'}
-          >
-            {showAddMenu ? (
-              <Minus className="h-4 w-4 text-[#FF7939]" />
-            ) : (
-              <Plus className="h-4 w-4 text-[#FF7939]" />
-            )}
-          </button>
-        </div>
-      </div>
-
       <MeetNotificationsModal
         open={showMeetNotifications}
         onClose={() => setShowMeetNotifications(false)}
@@ -2123,1843 +825,209 @@ export default function CalendarView({ activityIds, onActivityClick, scheduleMee
         onOpenMeet={(eventId) => openMeetById(eventId)}
       />
 
-      {(showCoachRow || !!selectedCoachId) && (
-        <div className="mb-3">
-          {coachProfiles.length === 0 ? (
-            <div className="text-sm text-gray-400">
-              {selectedCoachId ? 'Cargando coach...' : 'No tenés coaches asociados a compras.'}
-            </div>
-          ) : (
-            <div className="flex items-center gap-4 overflow-x-auto pb-4 px-1 scrollbar-hide">
-              {coachProfiles.map((coach) => {
-                const isSelected = !!selectedCoachId && coach.id === selectedCoachId
-                const isDimmed = !!selectedCoachId && coach.id !== selectedCoachId
-                const availableMeets = meetCreditsByCoachId[coach.id] ?? 0
+      <CalendarCoachSelector
+        showCoachRow={showCoachRow}
+        selectedCoachId={selectedCoachId}
+        coachProfiles={coachProfiles}
+        meetCreditsByCoachId={meetCreditsByCoachId}
+        handlePickCoachForMeet={handlePickCoachForMeet}
+        handleClearCoachForMeet={handleClearCoachForMeet}
+        isPaidMeetFlow={isPaidMeetFlow}
+        selectedConsultationType={selectedConsultationType}
+        applyConsultationSelection={applyConsultationSelection}
+        coachConsultations={coachConsultations}
+      />
 
-                return (
-                  <div key={coach.id} className="flex items-center gap-4 flex-shrink-0 animate-in fade-in slide-in-from-left-4 duration-500">
-                    <button
-                      type="button"
-                      onClick={() => {
-                        if (isSelected) {
-                          handleClearCoachForMeet()
-                        } else {
-                          handlePickCoachForMeet(coach.id)
-                        }
-                      }}
-                      className={
-                        `relative py-2.5 px-3 rounded-[20px] border backdrop-blur-md transition-all duration-300 flex flex-col items-center gap-2 active:scale-95 ` +
-                        (isSelected
-                          ? 'bg-white/10 border-white/30 shadow-lg ring-1 ring-[#FF7939]/20'
-                          : 'bg-white/5 border-white/10 hover:bg-white/10 hover:border-white/20')
-                      }
-                    >
-                      {/* Coach Circular Photo */}
-                      <div className={
-                        `relative w-11 h-11 rounded-full transition-all duration-300 ` +
-                        (isSelected
-                          ? 'ring-1 ring-[#FF7939] ring-offset-1 ring-offset-zinc-900 scale-105'
-                          : 'ring-1 ring-white/10') +
-                        (isDimmed ? ' opacity-40 grayscale blur-[0.5px]' : '')
-                      }>
-                        <Image
-                          src={coach.avatar_url || '/placeholder.svg?height=160&width=160&query=coach'}
-                          alt={coach.full_name}
-                          fill
-                          className="rounded-full object-cover"
-                          sizes="44px"
-                        />
-                      </div>
+      <CalendarRescheduleModal
+        rescheduleContext={rescheduleContext}
+        reschedulePreview={reschedulePreview}
+        setReschedulePreview={setReschedulePreview}
+        setRescheduleContext={setRescheduleContext}
+        setMeetViewMode={setMeetViewMode}
+        setSelectedMeetEvent={setSelectedMeetEvent}
+        supabase={supabase}
+      />
 
-                      <div className="flex flex-col items-center gap-1.5 leading-none">
-                        <div className="relative">
-                          {/* Video Icon Standalone Orange */}
-                          <div className={
-                            `flex items-center justify-center transition-all duration-300 ` +
-                            (isSelected ? 'opacity-100 scale-110' : 'opacity-40')
-                          }>
-                            <Video className="w-3.5 h-3.5 text-[#FF7939]" />
-                          </div>
+      <CalendarHeader
+        title={monthLabel}
+        onPrev={previousMonth}
+        onNext={nextMonth}
+        onToday={() => setCurrentDate(new Date())}
+        meetViewMode={meetViewMode}
+        meetNotificationsCount={meetNotificationsCount}
+        onNotificationsClick={() => setShowMeetNotifications(true)}
+        onAddClick={() => setShowCoachRow(!showCoachRow)}
+        isAddSectionOpen={showCoachRow}
+      />
 
-                          {/* Notification-style Number Badge */}
-                          {availableMeets > 0 && (
-                            <div className="absolute -top-1.5 -right-2 bg-[#FF7939] text-black text-[9px] font-extrabold w-3.5 h-3.5 rounded-full flex items-center justify-center">
-                              {availableMeets}
-                            </div>
-                          )}
-                        </div>
+      <Card className="bg-zinc-900 border-zinc-800 w-full sm:max-w-none mt-4">
+        <CardContent className="p-4">
 
-                        <div className={
-                          `text-[9px] font-medium leading-[1.1] text-center max-w-[60px] transition-colors ` +
-                          (isSelected ? 'text-white' : 'text-white/40')
-                        }>
-                          {coach.full_name.split(' ').map((part, i) => (
-                            <div key={i} className="capitalize">{part.toLowerCase()}</div>
-                          ))}
-                        </div>
-                      </div>
-                    </button>
+          <CalendarEditOverlay
+            isEditing={isEditing}
+            sourceDate={sourceDate}
+          />
 
-                    {isPaidMeetFlow && isSelected && (
-                      <div className="flex items-center gap-5 px-4 py-3 rounded-2xl bg-white/5 border border-white/10 ml-1 animate-in fade-in slide-in-from-left-4 duration-500">
-                        <button
-                          type="button"
-                          onClick={() => applyConsultationSelection('express')}
-                          className={
-                            `flex flex-col items-center transition-opacity ` +
-                            (selectedConsultationType === 'express' ? 'opacity-100' : 'opacity-60 hover:opacity-100')
-                          }
-                        >
-                          <Zap className="w-4 h-4 text-[#FF7939]" />
-                          <div className="mt-1 text-white text-[9px] font-bold uppercase tracking-wider">Express</div>
-                          <div className="text-gray-400 text-[8px]">15 min</div>
-                          <div className="mt-0.5 text-[#FF7939] text-[11px] font-bold">${coachConsultations.express.price}</div>
-                        </button>
-                        <button
-                          type="button"
-                          onClick={() => applyConsultationSelection('puntual')}
-                          className={
-                            `flex flex-col items-center transition-opacity ` +
-                            (selectedConsultationType === 'puntual' ? 'opacity-100' : 'opacity-60 hover:opacity-100')
-                          }
-                        >
-                          <Utensils className="w-4 h-4 text-[#FF7939]" />
-                          <div className="mt-1 text-white text-[9px] font-bold uppercase tracking-wider">Puntual</div>
-                          <div className="text-gray-400 text-[8px]">30 min</div>
-                          <div className="mt-0.5 text-[#FF7939] text-[11px] font-bold">${coachConsultations.puntual.price}</div>
-                        </button>
-                        <button
-                          type="button"
-                          onClick={() => applyConsultationSelection('profunda')}
-                          className={
-                            `flex flex-col items-center transition-opacity ` +
-                            (selectedConsultationType === 'profunda' ? 'opacity-100' : 'opacity-60 hover:opacity-100')
-                          }
-                        >
-                          <GraduationCap className="w-4 h-4 text-[#FF7939]" />
-                          <div className="mt-1 text-white text-[9px] font-bold uppercase tracking-wider">Profunda</div>
-                          <div className="text-gray-400 text-[8px]">60 min</div>
-                          <div className="mt-0.5 text-[#FF7939] text-[11px] font-bold">${coachConsultations.profunda.price}</div>
-                        </button>
-                      </div>
-                    )}
-                  </div>
-                )
-              })}
-            </div>
-          )}
-        </div>
-      )}
-
-      {
-        rescheduleContext && reschedulePreview && (
-          <div
-            className="fixed inset-0 z-[75] bg-black/60 flex items-center justify-center p-4"
-            role="dialog"
-            aria-modal="true"
-            onClick={() => setReschedulePreview(null)}
-          >
-            <div
-              className="w-full max-w-md bg-zinc-950 border border-zinc-800 rounded-2xl p-5"
-              onClick={(e) => e.stopPropagation()}
-            >
-              <div className="flex items-center justify-between">
-                <div className="text-white font-semibold text-xl">Confirmar reprogramación</div>
-                <button
-                  type="button"
-                  onClick={() => setReschedulePreview(null)}
-                  className="w-8 h-8 rounded-full hover:bg-white/10 text-white flex items-center justify-center"
-                  aria-label="Cerrar"
-                >
-                  <span className="text-xl leading-none">×</span>
-                </button>
-              </div>
-
-              <div className="mt-3 text-sm text-white/70">
-                Revisá el nuevo horario antes de enviar la solicitud.
-              </div>
-
-              <div className="mt-4 flex flex-wrap items-center gap-2">
-                <div className="flex items-center gap-2 bg-black/30 border border-[#FF7939]/30 rounded-lg px-3 py-2 text-sm text-gray-200">
-                  <CalendarIcon className="h-4 w-4 text-[#FFB366]" />
-                  <span className="font-medium">{format(new Date(reschedulePreview.toStartIso), 'dd MMM yyyy', { locale: es })}</span>
-                </div>
-                <div className="flex items-center gap-2 bg-black/30 border border-[#FF7939]/30 rounded-lg px-3 py-2 text-sm text-gray-200">
-                  <Clock className="h-4 w-4 text-[#FFB366]" />
-                  <span className="font-medium">
-                    {(() => {
-                      const a = new Date(reschedulePreview.toStartIso)
-                      const b = new Date(reschedulePreview.toEndIso)
-                      return `${format(a, 'HH:mm')} – ${format(b, 'HH:mm')}`
-                    })()}
-                  </span>
-                </div>
-
-                <div className="flex items-center gap-2 bg-black/30 border border-white/10 rounded-lg px-3 py-2 text-xs text-white/55">
-                  <CalendarIcon className="h-4 w-4 text-white/45" />
-                  <span className="line-through">{format(new Date(rescheduleContext.fromStart), 'dd MMM yyyy', { locale: es })}</span>
-                </div>
-                <div className="flex items-center gap-2 bg-black/30 border border-white/10 rounded-lg px-3 py-2 text-xs text-white/55">
-                  <Clock className="h-4 w-4 text-white/45" />
-                  <span className="line-through">
-                    {(() => {
-                      const a = new Date(rescheduleContext.fromStart)
-                      const b = rescheduleContext.fromEnd ? new Date(rescheduleContext.fromEnd) : null
-                      return `${format(a, 'HH:mm')}${b && !Number.isNaN(b.getTime()) ? ` – ${format(b, 'HH:mm')}` : ''}`
-                    })()}
-                  </span>
-                </div>
-              </div>
-
-              <div className="mt-4">
-                <div className="text-base font-semibold text-white">Nota (opcional)</div>
-                <textarea
-                  value={reschedulePreview.note}
-                  onChange={(e) => setReschedulePreview((p) => (p ? { ...p, note: e.target.value } : p))}
-                  className="mt-2 w-full rounded-xl bg-zinc-900 border border-white/10 px-3 py-2 text-sm text-white outline-none focus:border-[#FF7939]/60"
-                  rows={3}
-                  placeholder="Dejá un mensaje para tu coach..."
-                />
-              </div>
-
-              <div className="mt-4 flex flex-col gap-2">
-                <button
-                  type="button"
-                  className="w-full px-4 py-2.5 rounded-xl bg-[#FF7939] text-black text-sm font-semibold hover:opacity-95 transition-opacity"
-                  onClick={() => {
-                    const send = async () => {
-                      try {
-                        const { data: auth } = await supabase.auth.getUser()
-                        const user = auth?.user
-                        if (!user?.id) return
-
-                        const { error } = await (supabase
-                          .from('calendar_event_reschedule_requests') as any)
-                          .insert({
-                            event_id: rescheduleContext.eventId,
-                            requested_by_user_id: user.id,
-                            requested_by_role: 'client',
-                            from_start_time: rescheduleContext.fromStart,
-                            from_end_time: rescheduleContext.fromEnd,
-                            to_start_time: reschedulePreview.toStartIso,
-                            to_end_time: reschedulePreview.toEndIso,
-                            note: reschedulePreview.note?.trim() ? reschedulePreview.note.trim() : null,
-                            status: 'pending',
-                          })
-
-                        if (error) return
-
-                        setReschedulePreview(null)
-                        setRescheduleContext(null)
-                        setMeetViewMode('month')
-                        setSelectedMeetEvent(rescheduleContext.snapshot)
-                      } catch {
-                        // ignore
-                      }
-                    }
-                    send()
-                  }}
-                >
-                  Enviar solicitud
-                </button>
-
-                <button
-                  type="button"
-                  className="w-full px-4 py-2.5 rounded-xl bg-zinc-900 text-white text-sm border border-white/15 hover:bg-zinc-800 transition-colors"
-                  onClick={() => setReschedulePreview(null)}
-                >
-                  Volver
-                </button>
-              </div>
-            </div>
-          </div>
-        )
-      }
-
-      <Card className="bg-zinc-900 border-zinc-800">
-        {meetViewMode === 'month' && (
-          <CardHeader className="pb-3">
-            {scheduleMeetContext?.coachId ? (
-              <div className="mb-2 text-xs text-[#FFB366]">
-                Agendá tu meet: elegí un día con disponibilidad
-              </div>
-            ) : null}
-            <div className="flex items-center justify-between">
-              <Button
-                variant="ghost"
-                onClick={previousMonth}
-                className="h-8 w-8 p-0 text-gray-300 hover:text-white hover:bg-zinc-800"
-              >
-                <ChevronLeft className="h-4 w-4" />
-              </Button>
-
-              <CardTitle className="text-white text-lg font-semibold">
-                <span className="text-white/80">{monthLabel}</span>
-              </CardTitle>
-
-              <Button
-                variant="ghost"
-                onClick={nextMonth}
-                className="h-8 w-8 p-0 text-gray-300 hover:text-white hover:bg-zinc-800"
-              >
-                <ChevronRight className="h-4 w-4" />
-              </Button>
-
-            </div>
-          </CardHeader>
-        )}
-
-        <CardContent>
-          {isEditing && (
-            <div className="mb-4 bg-[#FF7939]/10 border border-[#FF7939]/20 rounded-lg p-2 text-center text-xs text-[#FF7939] animate-in fade-in slide-in-from-top-2">
-              {!sourceDate
-                ? "Selecciona el día que quieres mover"
-                : "Ahora selecciona el día destino"}
-            </div>
-          )}
-          {meetViewMode === 'day_split' && selectedCoachId && selectedDate ? (
-            <div>
-              {/* Header: Back + Title */}
-              <div className="flex flex-col items-center justify-center mb-4 transition-all animate-in fade-in slide-in-from-top-2 relative z-10 pointer-events-auto">
-                <button
-                  type="button"
-                  onClick={(e) => {
-                    e.preventDefault()
-                    e.stopPropagation()
-                    e.nativeEvent.stopImmediatePropagation()
-                    setSelectedMeetRequest(null)
-                    setSelectedMeetEvent(null)
+          <div className="mt-4">
+            {meetViewMode === 'month' ? (
+              <CalendarMonthGrid
+                currentDate={currentDate}
+                activitiesByDate={activitiesByDate}
+                dayMinutesByDate={dayMinutesByDate}
+                meetEventsByDate={meetEventsByDate}
+                availableSlotsCountByDay={availableSlotsCountByDay}
+                selectedDate={selectedDate}
+                onSelectDate={(date) => {
+                  setSelectedDate(date)
+                  if (isEditing) {
+                    if (!sourceDate) setSourceDate(date)
+                    else if (!targetDate) setTargetDate(date)
+                  } else if (selectedCoachId) {
                     setMeetViewMode('week')
-                  }}
-                  onMouseDown={(e) => e.stopPropagation()}
-                  onMouseUp={(e) => e.stopPropagation()}
-                  className="flex items-center gap-2 px-4 py-2 rounded-full text-xs font-semibold text-white/50 hover:text-white transition-colors cursor-pointer relative z-10 mb-4"
-                >
-                  <ChevronLeft className="h-3.5 w-3.5" />
-                  Volver a semana
-                </button>
-
-                <div className="flex items-center gap-6">
-                  <Button
-                    variant="ghost"
-                    className="h-8 w-8 p-0 text-white/50 hover:text-white hover:bg-white/10 rounded-full"
-                    onClick={() => setSelectedDate(d => d ? addDays(d, -1) : d)}
-                  >
-                    <ChevronLeft className="h-5 w-5" />
-                  </Button>
-                  <div className="text-white font-bold text-xl capitalize">
-                    {format(selectedDate, 'EEEE d MMMM', { locale: es })}
-                  </div>
-                  <Button
-                    variant="ghost"
-                    className="h-8 w-8 p-0 text-white/50 hover:text-white hover:bg-white/10 rounded-full"
-                    onClick={() => setSelectedDate(d => d ? addDays(d, 1) : d)}
-                  >
-                    <ChevronRight className="h-5 w-5" />
-                  </Button>
-                </div>
-              </div>
-
-              <div className="flex flex-col md:flex-row gap-6">
-                {/* LEFT PANEL: TIMELINE (Slots) */}
-                <div className="w-full md:w-1/2">
-                  <div className="bg-transparent overflow-hidden flex flex-col relative">
-                    {/* Header */}
-                    <div className="flex bg-transparent">
-                      <div className="w-6 flex-shrink-0" />
-                      <div className="flex-1 text-center py-3">
-                        {(() => {
-                          const dayKey = format(selectedDate, 'yyyy-MM-dd')
-                          const dayActs = activitiesByDate[dayKey] || []
-                          const mins = dayMinutesByDate[dayKey]
-
-                          // Fallback if no specific data
-                          const hasActivities = dayActs.length > 0 || (mins?.fitnessMinutesTotal || 0) > 0 || (mins?.nutritionMinutesTotal || 0) > 0 || (mins?.meetsMinutes || 0) > 0
-
-                          if (!hasActivities) {
-                            return (
-                              <div className="flex flex-col justify-center h-full">
-                                <div className="text-[10px] text-white/40 uppercase font-bold tracking-wider mb-0.5">
-                                  {format(selectedDate, 'EEEE d', { locale: es })}
-                                </div>
-                                <div className="text-sm font-bold text-zinc-600">
-                                  Sin programación
-                                </div>
-                              </div>
-                            )
-                          }
-
-                          return (
-                            <div className="flex flex-col justify-center h-full gap-2">
-                              {/* <div className="text-[10px] text-white/40 uppercase font-bold tracking-wider">
-                                Resumen
-                              </div> */}
-                              {/* Unified Total Hours Bubble (Matches Weekly/Monthly View) */}
-                              <div className="flex flex-wrap justify-center gap-3">
-                                {mins?.fitnessMinutesTotal > 0 && (
-                                  <span
-                                    className={
-                                      `inline-flex items-center justify-center px-3 py-1 rounded-full border text-xs font-semibold ` +
-                                      `border-[#FF7939]/40 bg-[#FF7939]/10 text-[#FFB366]`
-                                    }
-                                  >
-                                    <Flame className="w-3.5 h-3.5 mr-1.5" />
-                                    {formatMinutes(mins.fitnessMinutesTotal)}
-                                  </span>
-                                )}
-                                {mins?.nutritionMinutesTotal > 0 && (
-                                  <span
-                                    className={
-                                      `inline-flex items-center justify-center px-3 py-1 rounded-full border text-xs font-semibold ` +
-                                      `border-[#FFB873]/40 bg-[#FFB873]/10 text-[#FFB366]`
-                                    }
-                                  >
-                                    <Utensils className="w-3.5 h-3.5 mr-1.5" />
-                                    {formatMinutes(mins.nutritionMinutesTotal)}
-                                  </span>
-                                )}
-                                {mins?.meetsMinutes > 0 && (
-                                  <span
-                                    className={
-                                      `inline-flex items-center justify-center px-3 py-1 rounded-full border text-xs font-semibold ` +
-                                      `border-[#FF7939]/30 bg-[#FF7939]/10 text-[#FFB366]`
-                                    }
-                                  >
-                                    <Video className="w-3.5 h-3.5 mr-1.5" />
-                                    {formatMinutes(mins.meetsMinutes)}
-                                  </span>
-                                )}
-                              </div>
-                            </div>
-                          )
-                        })()}
-                      </div>
-                    </div>
-
-                    {/* Scrollable Body */}
-                    <div className="flex-1 relative">
-                      <div className="flex min-h-[1000px] h-full relative">
-                        {/* Time Axis */}
-                        {/* Time Axis (Day View) */}
-                        <div className="w-5 flex-shrink-0 bg-transparent text-[10px] text-white/40 font-bold text-left relative pl-1">
-                          {Array.from({ length: END_HOUR - START_HOUR }).map((_, i) => {
-                            const h = START_HOUR + i
-                            return (
-                              <div key={h} className="absolute w-full" style={{ top: `${(i * 60 / TOTAL_MINS) * 100}%` }}>
-                                <span className="relative -top-2">{h}</span>
-                              </div>
-                            )
-                          })}
-                        </div>
-
-                        {/* Day Column */}
-                        <div className="flex-1 relative">
-                          {/* Horizontal Lines */}
-                          {Array.from({ length: END_HOUR - START_HOUR }).map((_, i) => (
-                            <div key={`grid-${i}`} className="absolute w-full border-t border-white/5 pointer-events-none" style={{ top: `${(i * 60 / TOTAL_MINS) * 100}%` }} />
-                          ))}
-
-                          {/* Client Events */}
-                          {renderClientEvents(format(selectedDate, 'yyyy-MM-dd'))}
-
-                          {/* Available Blocks */}
-                          {(() => {
-                            const slots = getSlotsForDate(selectedDate)
-                            const blocks = coalesceSlots(slots)
-                            return blocks.map((block, idx) => {
-                              const startMins = Number(block.start.split(':')[0]) * 60 + Number(block.start.split(':')[1])
-                              const endMins = Number(block.end.split(':')[0]) * 60 + Number(block.end.split(':')[1])
-                              const duration = endMins - startMins
-                              return (
-                                <button
-                                  key={idx}
-                                  type="button"
-                                  onClick={(e) => {
-                                    const dayKey = format(selectedDate, 'yyyy-MM-dd')
-                                    handleTimelineClick(e, block.start, block.end, dayKey)
-                                  }}
-                                  style={{
-                                    top: `${getTop(block.start)}%`,
-                                    height: `${getHeight(duration)}%`
-                                  }}
-                                  className={`absolute left-0 right-0 mx-1 rounded-md border text-[10px] font-medium flex items-center justify-center
-                                      overflow-hidden transition-all shadow-sm group
-                                      bg-[#FF7939]/10 border-[#FF7939]/30 text-[#FFB366] hover:bg-[#FF7939]/20 hover:border-[#FF7939]/50 hover:scale-[1.02] z-10 hover:z-20`}
-                                >
-                                  <div className="flex flex-col items-center justify-center leading-none gap-0.5 w-full h-full p-0.5">
-                                    <span className="font-bold truncate">{block.start}</span>
-                                    <span className="text-[8px] opacity-60">-</span>
-                                    <span className="font-bold truncate">{block.end}</span>
-                                  </div>
-                                </button>
-                              )
-                            })
-                          })()}
-
-                          {/* Ghost Block */}
-
-                        </div>
-                      </div>
-                    </div>
-                  </div>
-                </div>
-
-                {/* RIGHT PANEL: BOOKING FORM */}
-                <div className="w-full md:w-1/2">
-                  <div className="bg-zinc-950 border border-zinc-800 rounded-2xl p-5 h-full flex flex-col justify-center">
-                    {!selectedMeetRequest ? (
-                      <div className="text-center py-12">
-                        <Clock className="w-12 h-12 text-white/10 mx-auto mb-3" />
-                        <h3 className="text-white/40 font-medium">Seleccioná un horario</h3>
-                        <p className="text-white/20 text-sm mt-1">Elige un bloque de la izquierda para continuar.</p>
-                      </div>
-                    ) : (
-                      <div className="animate-in fade-in slide-in-from-bottom-4 duration-300">
-                        <h3 className="text-lg font-semibold text-white mb-4">Configurar Meet</h3>
-
-                        {/* TITLE INPUT */}
-                        <div className="mb-5">
-                          <label className="text-xs text-white/50 font-semibold mb-2 block uppercase tracking-wide">Título</label>
-                          <input
-                            type="text"
-                            value={selectedMeetRequest.title}
-                            onChange={(e) => setSelectedMeetRequest(p => p ? ({ ...p, title: e.target.value }) : null)}
-                            className="w-full bg-black/40 border border-white/10 rounded-xl px-3 py-2 text-sm text-white placeholder:text-white/20 focus:outline-none focus:border-[#FF7939]/50 transition-colors"
-                            placeholder="Ej: Revisión de técnica"
-                          />
-                        </div>
-
-                        {/* DURATION SELECTOR */}
-                        <div className="mb-5">
-                          <label className="text-xs text-white/50 font-semibold mb-2 block uppercase tracking-wide">Duración</label>
-                          <div className="grid grid-cols-3 gap-2">
-                            {([
-                              { id: 'express', label: '15 min', min: 15 },
-                              { id: 'puntual', label: '30 min', min: 30 },
-                              { id: 'profunda', label: '60 min', min: 60 }
-                            ] as const).map((opt) => {
-                              const isActive = selectedConsultationType === opt.id
-                              return (
-                                <button
-                                  key={opt.id}
-                                  type="button"
-                                  onClick={() => setSelectedConsultationType(opt.id)}
-                                  className={`
-                                    py-2 rounded-lg text-xs font-bold border transition-all
-                                    ${isActive
-                                      ? 'bg-white text-black border-white shadow-md'
-                                      : 'bg-transparent text-white/60 border-white/10 hover:border-white/30'
-                                    }
-                                  `}
-                                >
-                                  {opt.label}
-                                </button>
-                              )
-                            })}
-                          </div>
-                        </div>
-
-                        {/* TIME EDITOR */}
-                        <div className="mb-5">
-                          <label className="text-xs text-white/50 font-semibold mb-2 block uppercase tracking-wide">Horario</label>
-                          <div className="flex items-center gap-3">
-                            <div className="flex-1">
-                              <div className="bg-black/40 border border-white/10 rounded-xl px-3 py-2 flex items-center gap-2 focus-within:border-[#FF7939]/50 transition-colors">
-                                <Clock className="w-4 h-4 text-[#FF7939]" />
-                                <input
-                                  type="time"
-                                  className="bg-transparent border-none text-white text-sm font-semibold focus:outline-none w-full [color-scheme:dark]"
-                                  value={selectedMeetRequest.timeHHMM}
-                                  onChange={(e) => {
-                                    if (e.target.value) {
-                                      setSelectedMeetRequest(p => p ? ({ ...p, timeHHMM: e.target.value }) : null)
-                                    }
-                                  }}
-                                />
-                              </div>
-                            </div>
-                            <div className="text-white/30 font-medium">➔</div>
-                            <div className="flex-1">
-                              <div className="bg-white/5 border border-white/5 rounded-xl px-3 py-2 flex items-center justify-center gap-2">
-                                <span className="text-white/60 text-sm font-medium">
-                                  {(() => {
-                                    const mins = coachConsultations[selectedConsultationType].time
-                                    const [h, m] = selectedMeetRequest.timeHHMM.split(':').map(x => parseInt(x) || 0)
-                                    const total = h * 60 + m + mins
-                                    const endH = Math.floor(total / 60) % 24
-                                    const endM = total % 60
-                                    return `${String(endH).padStart(2, '0')}:${String(endM).padStart(2, '0')}`
-                                  })()}
-                                </span>
-                              </div>
-                            </div>
-                          </div>
-                        </div>
-
-                        {/* NOTE */}
-                        <div className="mb-6">
-                          <label className="text-xs text-white/50 font-semibold mb-2 block uppercase tracking-wide">Nota</label>
-                          <textarea
-                            value={selectedMeetRequest.description || ''}
-                            onChange={(e) => setSelectedMeetRequest(p => p ? ({ ...p, description: e.target.value }) : null)}
-                            className="w-full h-20 bg-black/40 border border-white/10 rounded-xl p-3 text-sm text-white placeholder:text-white/20 focus:outline-none focus:border-[#FF7939]/50 transition-colors resize-none"
-                            placeholder="¿Sobre qué te gustaría hablar?"
-                          />
-                        </div>
-
-                        {/* ACTION */}
-                        <div className="flex flex-col gap-2">
-                          <div className="text-xs text-white/40 text-center mb-2">
-                            Se descontará {isPaidMeetFlow ? 'dinero' : `${Math.ceil(coachConsultations[selectedConsultationType].time / 15)} crédito${Math.ceil(coachConsultations[selectedConsultationType].time / 15) > 1 ? 's' : ''}`} de tu cuenta.
-                          </div>
-                          <button
-                            type="button"
-                            className="w-full py-3 rounded-xl bg-[#FF7939] text-black font-bold text-sm hover:opacity-90 transition-opacity shadow-[0_4px_12px_rgba(255,121,57,0.25)]"
-                            onClick={async () => {
-                              console.log('[day_split Confirm] Button clicked', { rescheduleContext })
-
-                              // If we're in reschedule mode, handle differently
-                              if (rescheduleContext) {
-                                const duration = coachConsultations[selectedConsultationType].time
-                                const startIso = new Date(`${selectedMeetRequest.dayKey}T${selectedMeetRequest.timeHHMM}:00`).toISOString()
-                                const endIso = new Date(new Date(startIso).getTime() + duration * 60 * 1000).toISOString()
-
-                                try {
-                                  const { data: auth } = await supabase.auth.getUser()
-                                  const user = auth?.user
-                                  if (!user?.id) return
-
-                                  const { data: participantData } = await (supabase
-                                    .from('calendar_event_participants') as any)
-                                    .select('rsvp_status, invited_by_user_id')
-                                    .eq('event_id', rescheduleContext.eventId)
-                                    .eq('client_id', user.id)
-                                    .single()
-
-                                  // If the meet is still pending and the client created it, update directly
-                                  if (participantData?.rsvp_status === 'pending' && participantData?.invited_by_user_id === user.id) {
-                                    console.log('[day_split] Updating existing meet...')
-                                    const { error: updateError } = await (supabase
-                                      .from('calendar_events') as any)
-                                      .update({
-                                        start_time: startIso,
-                                        end_time: endIso,
-                                        title: selectedMeetRequest.title || 'Meet',
-                                        description: selectedMeetRequest.description,
-                                      })
-                                      .eq('id', rescheduleContext.eventId)
-
-                                    if (updateError) {
-                                      console.error('[day_split] Error updating event:', updateError)
-                                      return
-                                    }
-
-                                    console.log('[day_split] Event updated successfully!')
-                                    setRescheduleContext(null)
-                                    setMeetViewMode('month')
-                                    setSelectedMeetRequest(null)
-                                    handleClearCoachForMeet()
-
-                                    const [startHour, startMin] = selectedMeetRequest.timeHHMM.split(':').map(Number)
-                                    const startMinutes = startHour * 60 + startMin
-                                    const endMinutes = startMinutes + duration
-                                    const endHour = Math.floor(endMinutes / 60)
-                                    const endMin = endMinutes % 60
-                                    const endTime = `${String(endHour).padStart(2, '0')}:${String(endMin).padStart(2, '0')}`
-
-                                    setSuccessModalData({
-                                      coachName: coachProfiles.find(c => c.id === selectedCoachId)?.full_name || 'Coach',
-                                      date: format(new Date(startIso), 'dd MMM yyyy', { locale: es }),
-                                      time: `${selectedMeetRequest.timeHHMM} – ${endTime}`,
-                                      duration: duration
-                                    })
-                                    setShowSuccessModal(true)
-                                    return
-                                  }
-                                } catch (error) {
-                                  console.error('[day_split] Error checking meet status:', error)
-                                }
-                              }
-
-                              // Original logic for creating new meets
-                              // REUSED LOGIC FROM MODAL
-                              // We need to either call the same function or duplicate the logic. 
-                              // For safety/speed, duplicating the core submission logic here.
-
-                              const canConfirm = !isPaidMeetFlow
-                                ? (Number(meetCreditsByCoachId?.[String(selectedMeetRequest.coachId)] ?? 0) > 0)
-                                : meetPurchasePaid
-
-                              if (!canConfirm && !isPaidMeetFlow) return // Prevent if no credits
-
-                              if (isPaidMeetFlow && !meetPurchasePaid) {
-                                // Trigger Payment Logic
-                                const actId = scheduleMeetContext?.activityId ? String(scheduleMeetContext.activityId) : null
-                                if (!actId) return
-
-                                const duration = coachConsultations[selectedConsultationType].time
-                                try {
-                                  sessionStorage.setItem(
-                                    'pending_meet_booking',
-                                    JSON.stringify({
-                                      coachId: String(selectedMeetRequest.coachId),
-                                      activityId: actId,
-                                      dayKey: selectedMeetRequest.dayKey,
-                                      timeHHMM: selectedMeetRequest.timeHHMM,
-                                      durationMinutes: duration,
-                                    })
-                                  )
-                                } catch { }
-                                const res = await createCheckoutProPreference(actId)
-                                if (res?.success && res?.initPoint) {
-                                  redirectToMercadoPagoCheckout(res.initPoint, actId, res.preferenceId)
-                                }
-                                return
-                              }
-
-                              // Perform Booking
-                              try {
-                                setSelectedMeetRsvpLoading(true)
-                                const duration = coachConsultations[selectedConsultationType].time
-                                const startIso = new Date(`${selectedMeetRequest.dayKey}T${selectedMeetRequest.timeHHMM}:00`).toISOString()
-                                const endIso = new Date(new Date(startIso).getTime() + duration * 60 * 1000).toISOString()
-
-                                const { data: auth } = await supabase.auth.getUser()
-                                const user = auth?.user
-                                if (!user?.id) return
-
-                                const { data: newEvent, error } = await (supabase.from('calendar_events') as any).insert({
-                                  title: selectedMeetRequest.title || 'Meet',
-                                  description: selectedMeetRequest.description,
-                                  start_time: startIso,
-                                  end_time: endIso,
-                                  coach_id: selectedMeetRequest.coachId,
-                                  client_id: user.id, // RLS requirement: auth.uid() must match client_id for client bookings
-                                  event_type: 'consultation',
-                                  status: 'scheduled',
-                                  activity_id: scheduleMeetContext?.activityId ? Number(scheduleMeetContext.activityId) : null
-                                }).select('id').single()
-
-                                if (!error && newEvent?.id) {
-                                  // Must insert participant as well
-                                  await (supabase.from('calendar_event_participants') as any).insert({
-                                    event_id: newEvent.id,
-                                    client_id: user.id,
-                                    rsvp_status: 'pending',
-                                    invited_by_user_id: user.id,
-                                    invited_by_role: 'client',
-                                  })
-
-                                  // Refresh
-                                  setMeetViewMode('month')
-                                  setSelectedMeetRequest(null)
-                                  if (onSetScheduleMeetContext) onSetScheduleMeetContext(null)
-                                  setShowSuccessModal(true)
-                                  // Calculate end time
-                                  const [startHour, startMin] = selectedMeetRequest.timeHHMM.split(':').map(Number)
-                                  const startMinutes = startHour * 60 + startMin
-                                  const endMinutes = startMinutes + duration
-                                  const endHour = Math.floor(endMinutes / 60)
-                                  const endMin = endMinutes % 60
-                                  const endTime = `${String(endHour).padStart(2, '0')}:${String(endMin).padStart(2, '0')}`
-
-                                  setSuccessModalData({
-                                    coachName: coachProfiles.find(c => c.id === selectedCoachId)?.full_name || 'Coach',
-                                    date: format(new Date(startIso), 'dd MMM yyyy', { locale: es }),
-                                    time: `${selectedMeetRequest.timeHHMM} – ${endTime}`,
-                                    duration: duration
-                                  })
-                                }
-                              } catch (e) {
-                                console.error(e)
-                              } finally {
-                                setSelectedMeetRsvpLoading(false)
-                              }
-                            }}
-                          >
-                            {isPaidMeetFlow && !meetPurchasePaid ? 'Ir a Pagar' : 'Confirmar Reserva'}
-                          </button>
-                        </div>
-                      </div>
-                    )}
-                  </div>
-                </div>
-              </div>
-            </div>
-          ) : meetViewMode === 'week' && selectedCoachId ? (
-            <div>
-              <div className="flex items-center justify-center mb-2">
-                <Button
-                  variant="ghost"
-                  onClick={(e) => {
-                    e.stopPropagation()
-                    setSelectedMeetRequest(null)
-                    setSelectedMeetEvent(null)
-                    setMeetViewMode('month')
-                  }}
-                  className="gap-1 px-4 py-1 text-xs text-white/60 hover:text-white transition-colors h-7 flex items-center"
-                >
-                  <ChevronLeft className="h-3 w-3" />
-                  Volver al mes
-                </Button>
-              </div>
-              <div className="flex items-center justify-between mb-3 px-2">
-                <Button
-                  variant="ghost"
-                  onClick={() => setMeetWeekStart((d) => addDays(d, -7))}
-                  className="h-8 w-8 p-0 text-gray-300 hover:text-white hover:bg-zinc-800"
-                  title="Semana anterior"
-                >
-                  <ChevronLeft className="h-4 w-4" />
-                </Button>
-                <div className="text-white font-bold text-lg capitalize">
-                  {format(meetWeekStart, "MMMM", { locale: es })}
-                  <span className="ml-1.5 text-sm font-normal text-white/50 lowercase">
-                    {format(meetWeekStart, "d", { locale: es })} - {format(addDays(meetWeekStart, 6), "d", { locale: es })}
-                  </span>
-                </div>
-                <Button
-                  variant="ghost"
-                  onClick={() => setMeetWeekStart((d) => addDays(d, 7))}
-                  className="h-8 w-8 p-0 text-gray-300 hover:text-white hover:bg-zinc-800"
-                  title="Semana siguiente"
-                >
-                  <ChevronRight className="h-4 w-4" />
-                </Button>
-              </div>
-
-              {(() => {
-                const weekSlotsMap = getWeekSlotsMap(meetWeekStart)
-
-                // Helper to merge adjacent 30-min slots
-                const coalesceSlots = (slots: string[]) => {
-                  if (!slots.length) return []
-                  const sorted = [...slots].sort()
-                  const ranges: { start: string; end: string }[] = []
-
-                  let currentStart = sorted[0]
-                  let currentEnd = sorted[0]
-
-                  const toMins = (h: string) => {
-                    const [hh, mm] = h.split(':').map(Number)
-                    return hh * 60 + mm
+                    // Calculate monday of the week for the selected date
+                    const d = new Date(date)
+                    const day = d.getDay()
+                    const diff = d.getDate() - day + (day === 0 ? -6 : 1) // adjust when day is sunday
+                    const monday = new Date(d.setDate(diff))
+                    setMeetWeekStart(monday)
                   }
-
-                  const add30 = (h: string) => {
-                    let m = toMins(h) + 30
-                    const hh = Math.floor(m / 60)
-                    const mm = m % 60
-                    return `${String(hh).padStart(2, '0')}:${String(mm).padStart(2, '0')}`
-                  }
-
-                  let expectedNext = add30(currentStart)
-
-                  for (let i = 1; i < sorted.length; i++) {
-                    const t = sorted[i]
-                    if (t === expectedNext) {
-                      // Continuous
-                      currentEnd = t
-                      expectedNext = add30(t)
-                    } else {
-                      // Gap/Break
-                      // End of previous block is currentEnd + 30 mins
-                      ranges.push({ start: currentStart, end: add30(currentEnd) })
-                      currentStart = t
-                      currentEnd = t
-                      expectedNext = add30(t)
-                    }
-                  }
-                  // Push last
-                  ranges.push({ start: currentStart, end: add30(currentEnd) })
-                  return ranges
-                }
-
-                // Config for Vertical Axis
-                const START_HOUR = 6
-                const END_HOUR = 23
-                const TOTAL_MINS = (END_HOUR - START_HOUR) * 60
-                const getTop = (hhmm: string) => {
-                  const [h, m] = hhmm.split(':').map(Number)
-                  const val = h * 60 + m
-                  const startVal = START_HOUR * 60
-                  return ((val - startVal) / TOTAL_MINS) * 100
-                }
-                const getHeight = (durationMins: number) => {
-                  return (durationMins / TOTAL_MINS) * 100
-                }
-
-                // (renderClientEvents helper moved to component scope)
-
-                return (
-                  <div className="relative overflow-hidden flex flex-col w-full h-full">
-                    {/* Header Row */}
-                    <div className="flex bg-transparent">
-                      <div className="w-6 flex-shrink-0 border-r border-transparent" />
-                      <div className="flex flex-1">
-                        {Array.from({ length: 7 }).map((_, idx) => {
-                          const d = addDays(meetWeekStart, idx)
-                          const label = format(d, 'EEE', { locale: es })
-                          const dayNum = format(d, 'd')
-                          const isTodayDay = isToday(d)
-                          const dayKey = format(d, 'yyyy-MM-dd')
-                          const mins = dayMinutesByDate[dayKey]
-
-                          const totalPendingMins = (mins?.fitnessMinutesPending || 0) + (mins?.nutritionMinutesPending || 0)
-                          const totalPendingItems = (mins?.pendingPlates || 0) + (mins?.pendingExercises || 0)
-
-                          return (
-                            <div key={idx} className={`flex-1 text-center py-2 ${isTodayDay ? 'bg-white/5' : ''}`}>
-                              <div className="text-xs text-white/50 uppercase font-semibold">{label}</div>
-                              <div className={`text-sm font-bold ${isTodayDay ? 'text-[#FF7939]' : 'text-white'}`}>{dayNum}</div>
-
-                              {/* Activity Summary Bubbles - Split by Category */}
-                              <div className="flex flex-col items-center gap-1 mt-1.5 min-h-[22px]">
-                                {mins?.fitnessMinutesTotal > 0 && (
-                                  <span className="inline-flex items-center justify-center px-1.5 py-0.5 rounded-full border text-[9px] font-semibold border-[#FF7939]/40 bg-[#FF7939]/10 text-[#FFB366] gap-0.5">
-                                    <Flame className="w-2.5 h-2.5" />
-                                    {formatMinutes(mins.fitnessMinutesTotal)}
-                                  </span>
-                                )}
-                                {mins?.nutritionMinutesTotal > 0 && (
-                                  <span className="inline-flex items-center justify-center px-1.5 py-0.5 rounded-full border text-[9px] font-semibold border-[#FFB873]/40 bg-[#FFB873]/10 text-[#FFD1B5] gap-0.5">
-                                    <Utensils className="w-2.5 h-2.5" />
-                                    {formatMinutes(mins.nutritionMinutesTotal)}
-                                  </span>
-                                )}
-                                {mins?.meetsMinutes > 0 && (
-                                  <span className="inline-flex items-center justify-center px-1.5 py-0.5 rounded-full border text-[9px] font-semibold border-white/20 bg-white/5 text-white/70 gap-0.5">
-                                    <Video className="w-2.5 h-2.5" />
-                                    {formatMinutes(mins.meetsMinutes)}
-                                  </span>
-                                )}
-                              </div>
-                            </div>
-                          )
-                        })}
-                      </div>
-                    </div>
-
-                    {/* Scrollable Body (Week View) */}
-                    <div className="flex-1 relative">
-                      <div className="flex min-h-[1000px] h-full relative">
-                        {/* Time Axis */}
-                        <div className="w-5 flex-shrink-0 bg-transparent text-[10px] text-white/40 font-bold text-left relative pl-1">
-                          {Array.from({ length: END_HOUR - START_HOUR }).map((_, i) => {
-                            const h = START_HOUR + i
-                            return (
-                              <div key={h} className="absolute w-full" style={{ top: `${(i * 60 / TOTAL_MINS) * 100}%` }}>
-                                <span className="relative -top-2">{h}</span>
-                              </div>
-                            )
-                          })}
-                        </div>
-
-                        {/* Days Columns */}
-                        <div className="flex flex-1 relative">
-                          {/* Horizontal grid lines */}
-                          {Array.from({ length: END_HOUR - START_HOUR }).map((_, i) => (
-                            <div key={`grid-${i}`} className="absolute w-full border-t border-white/5 pointer-events-none" style={{ top: `${(i * 60 / TOTAL_MINS) * 100}%` }} />
-                          ))}
-
-                          {Array.from({ length: 7 }).map((_, idx) => {
-                            const d = addDays(meetWeekStart, idx)
-                            const dayKey = format(d, 'yyyy-MM-dd')
-                            const slots = weekSlotsMap[dayKey] || []
-                            const blocks = coalesceSlots(slots)
-                            const isTodayDay = isToday(d)
-                            const isGhost = selectedMeetRequest?.dayKey === dayKey
-
-                            return (
-                              <div key={dayKey} className={`flex-1 relative ${isTodayDay ? 'bg-white/5' : ''}`}>
-                                {/* Client Events (Rendered BEFORE available slots so slots cover them? No, events should probably be ON TOP or clearly distinct) 
-                      Actually, if an event exists, usually the slot is NOT available. 
-                      But if the slot IS available (e.g. coach open), we want to show the client already has something?
-                      Let's render events ON TOP (z-25) as defined in helper, blocks are (z-0 but hover z-10).
-                  */}
-                                {renderClientEvents(dayKey)}
-
-                                {/* Available Blocks */}
-                                {blocks.map((block, bIdx) => {
-                                  const startMins = Number(block.start.split(':')[0]) * 60 + Number(block.start.split(':')[1])
-                                  const endMins = Number(block.end.split(':')[0]) * 60 + Number(block.end.split(':')[1])
-                                  const duration = endMins - startMins
-
-                                  return (
-                                    <button
-                                      key={`${dayKey}-${bIdx}`}
-                                      type="button"
-                                      onClick={(e) => handleTimelineClick(e, block.start, block.end, dayKey)}
-                                      style={{
-                                        top: `${getTop(block.start)}%`,
-                                        height: `${getHeight(duration)}%`
-                                      }}
-                                      className="absolute inset-x-0.5 rounded-md bg-[#FFB366]/20 border border-[#FFB366]/30 hover:bg-[#FFB366]/30 hover:z-10 transition-colors flex flex-col justify-center items-center px-1 py-1 group cursor-pointer"
-                                    >
-                                      <div className="flex flex-col items-center justify-center leading-tight">
-                                        <span className="text-[10px] font-bold text-[#FFB366] group-hover:text-white truncate">
-                                          {block.start}
-                                        </span>
-                                        <span className="text-[8px] text-[#FFB366]/60 group-hover:text-white/60">
-                                          -
-                                        </span>
-                                        <span className="text-[10px] font-bold text-[#FFB366] group-hover:text-white truncate">
-                                          {block.end}
-                                        </span>
-                                      </div>
-                                    </button>
-                                  )
-                                })}
-                              </div>
-                            )
-                          })}
-                        </div>
-                      </div>
-                    </div>
-                  </div>
-                )
-              })()}
-
-              <div className="flex justify-center mt-4">
-                <button
-                  type="button"
-                  onClick={() => setMeetViewMode('month')}
-                  className="px-4 py-2 rounded-full border text-sm backdrop-blur-md bg-white/10 border-white/20 text-white hover:bg-white/15 transition-colors"
-                >
-                  Volver al mes
-                </button>
-              </div>
-            </div>
-          ) : (
-            <>
-              <div className="grid grid-cols-7 gap-1 sm:gap-2 mb-2">
-                {['Dom', 'Lun', 'Mar', 'Mié', 'Jue', 'Vie', 'Sáb'].map((day) => (
-                  <div key={day} className="text-center text-sm font-semibold text-gray-400">
-                    {day}
-                  </div>
-                ))}
-              </div>
-
-              <div className="grid grid-cols-7 gap-1 sm:gap-2">
-                {Array.from({ length: leadingEmptyDays }).map((_, idx) => (
-                  <div key={`empty-${idx}`} className="aspect-square p-2" />
-                ))}
-
-                {daysInMonth.map((day) => {
-                  const dateKey = format(day, 'yyyy-MM-dd')
-                  const activities = activitiesByDate[dateKey] || []
-                  const hasActivities = activities.length > 0
-                  const totalPending = activities.reduce((sum, a: any) => {
-                    const n = typeof a.pendingCount === 'number' ? a.pendingCount : 0
-                    return sum + n
-                  }, 0)
-
-                  const mins = dayMinutesByDate[dateKey]
-                  const busyMinutes = (mins?.fitnessMinutesTotal ?? 0) + (mins?.nutritionMinutesTotal ?? 0)
-                  const meets = meetEventsByDate?.[dateKey] || []
-                  const hasClientMeet = (meets.length ?? 0) > 0
-                  const hasPendingClientMeet = meets.some((m) => String((m as any)?.rsvp_status || 'pending') === 'pending')
-
-                  const isSource = isEditing && sourceDate && isSameDay(day, sourceDate)
-                  const isSelected = selectedDate ? isSameDay(day, selectedDate) : false
-                  const isTodayDate = isToday(day)
-
-                  const coachSlotsCount = availableSlotsCountByDay[dateKey] || 0
-                  const hasMeetSlots = coachSlotsCount > 0
-
-                  return (
-                    <button
-                      key={day.toISOString()}
-                      type="button"
-                      onClick={() => handleDateClick(day)}
-                      className={
-                        `aspect-square p-1.5 sm:p-2 rounded-lg text-sm font-medium transition-colors flex flex-col items-center justify-start relative ` +
-                        `${isSelected ? 'backdrop-blur-md bg-white/10 border border-[#FF7939]/40 shadow-[0_8px_24px_rgba(0,0,0,0.35)] text-white' : ''} ` +
-                        `${isSource ? 'bg-[#FF7939]/20 ring-1 ring-[#FF7939] text-white' : ''} ` +
-                        `${isTodayDate && !isSelected && !isSource ? 'bg-zinc-800 text-white' : ''} ` +
-                        `${!isSelected && !isTodayDate && !isSource ? 'text-gray-400 hover:bg-zinc-800' : ''}`
-                      }
-                    >
-                      {isSource && (
-                        <div className="absolute -top-1 -right-1 w-4 h-4 bg-[#FF7939] rounded-full flex items-center justify-center text-[8px] font-bold text-white z-10">
-                          1
-                        </div>
-                      )}
-                      <div className="w-full text-center">
-                        <span>
-                          {format(day, 'd')}
-                        </span>
-                      </div>
-
-                      {busyMinutes > 0 && (
-                        <div className="mt-1 flex items-center justify-center">
-                          <span
-                            className={
-                              `inline-flex items-center justify-center px-2 py-0.5 rounded-full border text-[10px] font-bold ` +
-                              `backdrop-blur-md bg-[#FF7939]/10 border-[#FF7939]/30 text-[#FFB366]`
-                            }
-                          >
-                            {formatMinutes(busyMinutes)}
-                          </span>
-                        </div>
-                      )}
-
-                      {hasMeetSlots && (
-                        <div className="mt-1 flex items-center justify-center">
-                          <span
-                            className={
-                              `inline-flex items-center justify-center px-2 py-0.5 rounded-full border text-[10px] font-semibold ` +
-                              `border-[#FF7939]/30 bg-[#FF7939]/10 text-[#FFD1B5]`
-                            }
-                          >
-                            {(() => {
-                              const hrs = coachSlotsCount * 0.5
-                              return `${hrs % 1 === 0 ? hrs : hrs.toFixed(1)}h disp`
-                            })()}
-                          </span>
-                        </div>
-                      )}
-
-                      {hasClientMeet && (
-                        <div className="mt-1 flex items-center justify-center">
-                          <span
-                            className={
-                              hasPendingClientMeet
-                                ? 'inline-flex items-center justify-center px-1.5 h-6 rounded-full border border-[#FF3B30]/40 bg-[#FF3B30]/15 gap-1'
-                                : 'inline-flex items-center justify-center px-1.5 h-6 rounded-full border border-white/20 bg-white/10 gap-1'
-                            }
-                          >
-                            <Video className={hasPendingClientMeet ? 'w-3.5 h-3.5 text-[#FF3B30]' : 'w-3.5 h-3.5 text-white'} />
-                            {meets.length > 1 && (
-                              <span className={`text-[10px] font-bold ${hasPendingClientMeet ? 'text-[#FF3B30]' : 'text-white'}`}>
-                                {meets.length}
-                              </span>
-                            )}
-                          </span>
-                        </div>
-                      )}
-                    </button>
-                  )
-                })}
-              </div>
-            </>
-          )}
+                }}
+                isEditing={isEditing}
+                sourceDate={sourceDate}
+              />
+            ) : meetViewMode === 'week' && selectedCoachId ? (
+              <CalendarWeekView
+                meetWeekStart={meetWeekStart}
+                setMeetWeekStart={setMeetWeekStart}
+                selectedDate={selectedDate!!}
+                setSelectedDate={setSelectedDate}
+                setMeetViewMode={setMeetViewMode}
+                getSlotsForDate={getSlotsForDate}
+                handleTimelineClick={handleTimelineClick}
+                renderClientEvents={renderClientEvents}
+                dayMinutesByDate={dayMinutesByDate}
+                selectedMeetRequest={selectedMeetRequest}
+                setSelectedMeetRequest={setSelectedMeetRequest}
+                setSelectedMeetEvent={setSelectedMeetEvent}
+              />
+            ) : meetViewMode === 'day_split' && selectedCoachId && selectedDate ? (
+              <CalendarDaySplitView
+                selectedDate={selectedDate}
+                setSelectedDate={setSelectedDate}
+                setMeetViewMode={setMeetViewMode}
+                rescheduleContext={rescheduleContext}
+                setRescheduleContext={setRescheduleContext}
+                setSelectedMeetRequest={setSelectedMeetRequest}
+                setSelectedMeetEvent={setSelectedMeetEvent}
+                activitiesByDate={activitiesByDate}
+                dayMinutesByDate={dayMinutesByDate}
+                renderClientEvents={renderClientEvents}
+                getSlotsForDate={getSlotsForDate}
+                handleTimelineClick={handleTimelineClick}
+                selectedMeetRequest={selectedMeetRequest}
+                selectedConsultationType={selectedConsultationType}
+                setSelectedConsultationType={setSelectedConsultationType}
+                coachConsultations={coachConsultations}
+                isPaidMeetFlow={isPaidMeetFlow}
+                meetCreditsByCoachId={meetCreditsByCoachId}
+                meetPurchasePaid={meetPurchasePaid}
+                scheduleMeetContext={scheduleMeetContext}
+                coachProfiles={coachProfiles}
+                selectedCoachId={selectedCoachId}
+                authUserId={authUserId}
+                supabase={supabase}
+                setSuccessModalData={setSuccessModalData}
+                setShowSuccessModal={setShowSuccessModal}
+                setSelectedMeetRsvpLoading={setSelectedMeetRsvpLoading}
+                handleClearCoachForMeet={handleClearCoachForMeet}
+                createCheckoutProPreference={createCheckoutProPreference}
+                redirectToMercadoPagoCheckout={redirectToMercadoPagoCheckout}
+                onSetScheduleMeetContext={onSetScheduleMeetContext}
+                selectedMeetRsvpLoading={selectedMeetRsvpLoading}
+              />
+            ) : null}
+          </div>
         </CardContent>
       </Card>
 
-      {
-        selectedDate && meetViewMode === 'month' && (
-          <div className="mt-4" ref={dayDetailRef}>
-            {(() => {
-              const key = format(selectedDate, 'yyyy-MM-dd')
-              const mins = dayMinutesByDate[key]
-              const meets = meetEventsByDate[key] || []
-              const pendingMinutes = (mins?.fitnessMinutesPending ?? 0) + (mins?.nutritionMinutesPending ?? 0)
-              const meetMinutes = mins?.meetsMinutes ?? 0
-              const dateLabel = isToday(selectedDate) ? 'Hoy' : format(selectedDate, 'dd/MM/yyyy', { locale: es })
-              const summaryParts: string[] = []
-              if (pendingMinutes > 0) summaryParts.push(`${formatMinutes(pendingMinutes)} de actividades`)
-              if (meetMinutes > 0) summaryParts.push(`${formatMinutes(meetMinutes)} en vivo`)
-              const summary = summaryParts.join(' · ')
+      <CalendarDayDetail
+        selectedDate={selectedDate}
+        dayMinutesByDate={dayMinutesByDate}
+        meetEventsByDate={meetEventsByDate}
+        selectedDayActivityItems={selectedDayActivityItems}
+        activitiesByDate={activitiesByDate}
+        setSelectedMeetEvent={setSelectedMeetEvent}
+        onActivityClick={onActivityClick}
+        dayDetailRef={dayDetailRef}
+        meetViewMode={meetViewMode}
+      />
 
-              return (
-                <div className="mb-3">
-                  <div className="flex items-center gap-2">
-                    <h3 className="text-base font-semibold text-white/95">Actividades · {dateLabel}</h3>
-                  </div>
-                  {summaryParts.length > 0 && (
-                    <div className="mt-2 flex flex-wrap gap-2">
-                      {mins?.fitnessMinutesPending > 0 && (
-                        <div className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full border border-[#FF7939]/40 bg-[#FF7939]/10 text-[#FFB366] text-[10px] font-bold">
-                          <Flame className="h-3 w-3" />
-                          Fitness {formatMinutes(mins.fitnessMinutesPending)}
-                        </div>
-                      )}
-                      {mins?.nutritionMinutesPending > 0 && (
-                        <div className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full border border-[#FFB873]/40 bg-[#FFB873]/10 text-[#FFB366] text-[10px] font-bold">
-                          <Utensils className="h-3 w-3" />
-                          Nutrición {formatMinutes(mins.nutritionMinutesPending)}
-                        </div>
-                      )}
-                      {meetMinutes > 0 && (
-                        <div className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full border border-[#FF7939]/30 bg-[#FF7939]/10 text-[#FFB366] text-[10px] font-bold">
-                          <Video className="h-3 w-3" />
-                          {formatMinutes(meetMinutes)} en vivo
-                        </div>
-                      )}
-                    </div>
-                  )}
-                </div>
-              )
-            })()}
+      {selectedMeetEvent && (
+        <MeetDetailModal
+          selectedMeetEvent={selectedMeetEvent}
+          setSelectedMeetEvent={setSelectedMeetEvent}
+          pendingReschedule={pendingReschedule}
+          setPendingReschedule={setPendingReschedule}
+          selectedMeetParticipants={selectedMeetParticipants}
+          coachProfiles={coachProfiles}
+          authUserId={authUserId}
+          meetEventsByDate={meetEventsByDate}
+          setMeetEventsByDate={setMeetEventsByDate}
+          selectedMeetRsvpStatus={selectedMeetRsvpStatus}
+          setSelectedMeetRsvpStatus={setSelectedMeetRsvpStatus}
+          selectedMeetRsvpLoading={selectedMeetRsvpLoading}
+          setSelectedMeetRsvpLoading={setSelectedMeetRsvpLoading}
+          setRescheduleContext={setRescheduleContext}
+          handlePickCoachForMeet={handlePickCoachForMeet}
+          setMeetViewMode={setMeetViewMode}
+          setMeetWeekStart={setMeetWeekStart}
+        />
+      )}
 
-            {(() => {
-              const key = format(selectedDate, 'yyyy-MM-dd')
-              const meets = meetEventsByDate[key] || []
-              if (meets.length === 0) return null
-              return (
-                <div className="mb-4">
-                  <div className="text-[11px] tracking-widest text-white/45 mb-2">MEET</div>
-                  <div className="space-y-2">
-                    {meets.map((m) => {
-                      const start = new Date(m.start_time)
-                      const end = m.end_time ? new Date(m.end_time) : null
-                      const label = `${format(start, 'HH:mm')}${end && !Number.isNaN(end.getTime()) ? ` – ${format(end, 'HH:mm')}` : ''}`
-                      const isPending = String((m as any)?.rsvp_status || 'pending') === 'pending'
+      <CalendarBookingModal
+        selectedMeetRequest={selectedMeetRequest}
+        setSelectedMeetRequest={setSelectedMeetRequest}
+        meetViewMode={meetViewMode}
+        setMeetViewMode={setMeetViewMode}
+        coachProfiles={coachProfiles}
+        meetCreditsByCoachId={meetCreditsByCoachId}
+        isPaidMeetFlow={isPaidMeetFlow}
+        purchaseContext={purchaseContext}
+        meetPurchasePaid={meetPurchasePaid}
+        onSetScheduleMeetContext={(ctx) => onSetScheduleMeetContext?.(ctx)}
+        authUserId={authUserId}
+        selectedCoachId={selectedCoachId}
+        selectedCoachProfile={selectedCoachProfile}
+        rescheduleContext={rescheduleContext}
+        setRescheduleContext={setRescheduleContext}
+        setReschedulePreview={setReschedulePreview}
+        handleClearCoachForMeet={handleClearCoachForMeet}
+        setSuccessModalData={setSuccessModalData}
+        setShowSuccessModal={setShowSuccessModal}
+        supabase={supabase}
+        createCheckoutProPreference={createCheckoutProPreference}
+        redirectToMercadoPagoCheckout={redirectToMercadoPagoCheckout}
+        scheduleMeetContext={scheduleMeetContext}
+      />
 
-                      const handleEnter = () => {
-                        if (!isPending && m.meet_link) {
-                          try {
-                            window.open(String(m.meet_link), '_blank', 'noopener,noreferrer')
-                            return
-                          } catch {
-                            // fallback
-                          }
-                        }
-                        setSelectedMeetEvent(m)
-                      }
+      <CalendarSuccessModal
+        show={showSuccessModal}
+        onClose={() => setShowSuccessModal(false)}
+        data={successModalData}
+      />
 
-                      const handleOpenDetail = () => {
-                        setSelectedMeetEvent(m)
-                      }
-
-                      const isCancelled = (m as any).status === 'cancelled'
-                      const isDeclined = String((m as any).rsvp_status || 'pending') === 'declined'
-
-                      return (
-                        <div
-                          key={m.id}
-                          className={
-                            `w-full rounded-2xl border px-4 py-3 flex items-center justify-between gap-3 transition-all duration-200 select-none ` +
-                            (isCancelled
-                              ? 'border-red-500/20 bg-red-500/5 opacity-80 backdrop-blur-md'
-                              : 'border-white/10 bg-white/5 hover:bg-white/10 backdrop-blur-md hover:border-white/20 active:scale-[0.98]')
-                          }
-                          role="button"
-                          tabIndex={0}
-                          onClick={handleOpenDetail}
-                          onKeyDown={(e) => {
-                            if (e.key === 'Enter' || e.key === ' ') handleOpenDetail()
-                          }}
-                        >
-                          <div className="flex items-center gap-3 min-w-0">
-                            <div className={`w-10 h-10 rounded-full flex items-center justify-center flex-shrink-0 ${isCancelled ? 'bg-red-500/10 text-red-500 border border-red-500/20' : (isPending ? 'bg-[#FF7939]/10 text-[#FF7939] border border-[#FF7939]/20' : 'bg-white/5 text-white/70 border border-white/10')}`}>
-                              <Video className="h-5 w-5" />
-                            </div>
-                            <div className="min-w-0">
-                              <div className="text-sm font-bold text-white truncate leading-snug">{m.title ? String(m.title) : 'Meet'}</div>
-                              <div className="flex items-center gap-2 mt-0.5">
-                                <div className="text-[11px] text-white/50 font-medium">{label}</div>
-                                {isCancelled && <span className="text-[9px] font-bold uppercase text-red-500 px-1.5 py-0.5 rounded bg-red-500/10 border border-red-500/20">Cancelada</span>}
-                              </div>
-                            </div>
-                          </div>
-                          <button
-                            type="button"
-                            disabled={isCancelled}
-                            onClick={(e) => {
-                              e.stopPropagation()
-                              handleEnter()
-                            }}
-                            className={
-                              `h-8 px-4 rounded-full text-[10px] font-bold uppercase tracking-wider border transition-all ` +
-                              (isCancelled
-                                ? 'border-transparent bg-white/5 text-white/20 cursor-not-allowed'
-                                : 'border-[#FF7939]/60 text-[#FFB366] bg-[#FF7939]/5 hover:bg-[#FF7939] hover:text-black shadow-[0_4px_12px_rgba(255,121,57,0.2)]')
-                            }
-                          >
-                            {isCancelled ? 'Cancelada' : 'Unirse'}
-                          </button>
-                        </div>
-                      )
-                    })}
-                  </div>
-                </div>
-              )
-            })()}
-
-            {selectedDayActivityItems.length > 0 && (
-              <div className="mb-4">
-                <div className="text-[11px] tracking-widest text-white/45 mb-2 uppercase">Programación</div>
-                <div className="space-y-3">
-                  {selectedDayActivityItems.map((it: any) => {
-                    const isNutri = String(it.area || '').toLowerCase().includes('nutri') || String(it.activityTypeLabel || '').toLowerCase().includes('nutri')
-
-                    return (
-                      <button
-                        key={it.activityId}
-                        type="button"
-                        onClick={() => onActivityClick(it.activityId)}
-                        className={`w-full text-left p-3 rounded-xl border relative ${it.borderClass} ${it.bgClass} hover:bg-white/5 transition-colors`}
-                      >
-                        <div className="flex items-center justify-between gap-3">
-                          <div className="flex items-center gap-3 min-w-0">
-                            {isNutri ? (
-                              <Utensils className="h-4 w-4 text-[#FF7939]" />
-                            ) : (
-                              <Flame className="h-4 w-4 text-[#FF7939]" />
-                            )}
-                            <div className="min-w-0">
-                              <div className="text-sm font-semibold text-white truncate">{it.activityTitle}</div>
-                              <div className="text-xs text-white/65 truncate flex items-center gap-2">
-                                <span className="uppercase tracking-wider font-bold text-[9px] opacity-80">{it.activityTypeLabel}</span>
-                                {it.minutes > 0 && (
-                                  <span className="text-[#FFB366] bg-[#FF7939]/10 px-1.5 rounded text-[10px] font-bold">
-                                    {formatMinutes(it.minutes)}
-                                  </span>
-                                )}
-                              </div>
-                            </div>
-                          </div>
-
-                          {it.pendingCount > 0 && (
-                            <div
-                              className="flex-shrink-0 min-w-[20px] h-5 px-1.5 rounded-full flex items-center justify-center"
-                              style={{
-                                background: '#FF7939',
-                                color: '#000'
-                              }}
-                            >
-                              <div className="flex items-center gap-0.5">
-                                <Flame className="w-2.5 h-2.5 text-black" fill="black" />
-                                <span className="text-[10px] font-bold text-black leading-none">
-                                  {it.pendingCount}
-                                </span>
-                              </div>
-                            </div>
-                          )}
-                        </div>
-                      </button>
-                    )
-                  })}
-                </div>
-              </div>
-            )}
-
-            {(() => {
-              const key = format(selectedDate, 'yyyy-MM-dd')
-              const hasMeets = (meetEventsByDate[key]?.length ?? 0) > 0
-              const hasBreakdown = selectedDayActivityItems.length > 0
-              const hasLegacy = (activitiesByDate[key]?.length ?? 0) > 0
-              if (hasMeets || hasBreakdown || hasLegacy) return null
-              return <div className="text-sm text-gray-400">Sin actividades para este día</div>
-            })()}
-
-          </div>
-        )
-      }
-
-      {
-        selectedMeetEvent && (
-          <MeetDetailModal
-            selectedMeetEvent={selectedMeetEvent}
-            setSelectedMeetEvent={setSelectedMeetEvent}
-            pendingReschedule={pendingReschedule}
-            setPendingReschedule={setPendingReschedule}
-            selectedMeetParticipants={selectedMeetParticipants}
-            coachProfiles={coachProfiles}
-            authUserId={authUserId}
-            meetEventsByDate={meetEventsByDate}
-            setMeetEventsByDate={setMeetEventsByDate}
-            selectedMeetRsvpStatus={selectedMeetRsvpStatus}
-            setSelectedMeetRsvpStatus={setSelectedMeetRsvpStatus}
-            selectedMeetRsvpLoading={selectedMeetRsvpLoading}
-            setSelectedMeetRsvpLoading={setSelectedMeetRsvpLoading}
-            setRescheduleContext={setRescheduleContext}
-            handlePickCoachForMeet={handlePickCoachForMeet}
-            setMeetViewMode={setMeetViewMode}
-            setMeetWeekStart={setMeetWeekStart}
-          />
-        )
-      }
-
-      {
-        selectedMeetRequest && meetViewMode !== 'day_split' && (
-          <div
-            className="fixed inset-0 z-[70] bg-black/40 flex items-center justify-center p-4"
-            role="dialog"
-            aria-modal="true"
-            onClick={() => setSelectedMeetRequest(null)}
-          >
-            <div
-              className="w-full max-w-md bg-zinc-950 border border-zinc-800 rounded-2xl p-5"
-              onClick={(e) => e.stopPropagation()}
-            >
-              {(() => {
-                const coachName =
-                  coachProfiles.find((c) => c.id === String(selectedMeetRequest.coachId))?.full_name || 'Coach'
-                const creditsAvailable = Number(meetCreditsByCoachId?.[String(selectedMeetRequest.coachId)] ?? 0)
-                const dateLabel = format(new Date(`${selectedMeetRequest.dayKey}T00:00:00`), 'dd MMM yyyy', { locale: es })
-                const durationMins = isPaidMeetFlow
-                  ? (Number(purchaseContext?.durationMinutes ?? 30) || 30)
-                  : 30
-                const timeLabel = `${selectedMeetRequest.timeHHMM} – ${(() => {
-                  const [h, m] = selectedMeetRequest.timeHHMM.split(':').map((x) => parseInt(x, 10))
-                  const total = (Number.isFinite(h) ? h : 0) * 60 + (Number.isFinite(m) ? m : 0) + durationMins
-                  const hh = Math.floor(total / 60)
-                  const mm = total % 60
-                  return `${String(hh).padStart(2, '0')}:${String(mm).padStart(2, '0')}`
-                })()}`
-
-                const canConfirm = (() => {
-                  if (isPaidMeetFlow) return meetPurchasePaid
-                  return creditsAvailable > 0
-                })()
-
-                return (
-                  <>
-                    <div className="flex items-start justify-between gap-3 mb-2">
-                      <div className="flex-1 min-w-0 pt-1">
-                        <h2 className="text-xl font-bold text-white mb-0.5 leading-tight">
-                          Solicitud de Meet
-                        </h2>
-                        <div className="flex items-center gap-1.5 mt-2">
-                          <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[10px] font-bold uppercase tracking-wider bg-white text-black">
-                            Meet
-                          </span>
-                          <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[10px] font-bold uppercase tracking-wider bg-[#FF7939] text-black">
-                            <Globe className="h-2.5 w-2.5" />
-                            Online
-                          </span>
-                        </div>
-                      </div>
-                      <button
-                        type="button"
-                        onClick={() => setSelectedMeetRequest(null)}
-                        className="w-8 h-8 rounded-full hover:bg-white/10 text-white flex items-center justify-center transition-colors -mt-1 -mr-1"
-                      >
-                        <span className="text-xl leading-none">&times;</span>
-                      </button>
-                    </div>
-
-                    <div className="space-y-4 pt-2">
-                      {/* DATE / TIME ROW */}
-                      <div className="flex items-center gap-3 px-1 py-1">
-                        <div className="w-8 h-8 rounded-full bg-zinc-900 border border-white/10 flex items-center justify-center text-[#FF7939] flex-shrink-0">
-                          <CalendarIcon className="h-4 w-4" />
-                        </div>
-                        <div className="flex flex-col">
-                          <span className="text-sm font-medium text-white leading-tight capitalize">
-                            {dateLabel}
-                          </span>
-                          <span className="text-xs text-gray-400">
-                            {timeLabel} (GMT-3)
-                          </span>
-                        </div>
-                      </div>
-
-                      <div className="border-t border-dashed border-white/10" />
-
-                      {/* COACH ROW */}
-                      <div>
-                        <div className="text-sm font-semibold text-white mb-2">Organizador</div>
-                        <div className="px-3 py-3 flex items-center justify-between gap-3 bg-black/20 border border-white/10 rounded-xl">
-                          <div className="flex items-center gap-3 min-w-0">
-                            <div className="relative">
-                              {coachProfiles.find((c) => c.id === String(selectedMeetRequest.coachId))?.avatar_url ? (
-                                <div className="w-10 h-10 rounded-full bg-zinc-800 overflow-hidden">
-                                  <img src={coachProfiles.find((c) => c.id === String(selectedMeetRequest.coachId))?.avatar_url ?? ''} className="w-full h-full object-cover" />
-                                </div>
-                              ) : (
-                                <div className="w-10 h-10 rounded-full bg-zinc-800 flex items-center justify-center text-xs font-bold text-white uppercase">
-                                  {coachName.substring(0, 2)}
-                                </div>
-                              )}
-                              <div className="absolute -bottom-0.5 -right-0.5 w-3 h-3 rounded-full bg-[#FF7939] border-2 border-zinc-950" />
-                            </div>
-                            <div className="flex-1 min-w-0">
-                              <div className="text-white text-sm font-medium leading-tight truncate">
-                                {coachName}
-                              </div>
-                              <div className="text-[10px] text-gray-400 uppercase tracking-wider font-bold">Coach Principal</div>
-                            </div>
-                          </div>
-                        </div>
-                      </div>
-
-                      <div>
-                        <div className="text-sm font-semibold text-white">Nombre de la meet</div>
-                        <input
-                          value={selectedMeetRequest.title}
-                          onChange={(e) =>
-                            setSelectedMeetRequest((prev) =>
-                              prev ? { ...prev, title: e.target.value } : prev
-                            )
-                          }
-                          className="mt-2 w-full rounded-xl border border-white/10 bg-black/40 px-3 py-2.5 text-sm text-white placeholder:text-white/30 focus:outline-none focus:border-[#FF7939] transition-colors"
-                          placeholder="Ej: Check rápido · Dudas de rutina"
-                        />
-                      </div>
-
-                      <div>
-                        <div className="text-sm font-semibold text-white">Notas adicionales</div>
-                        <textarea
-                          value={selectedMeetRequest.description}
-                          onChange={(e) =>
-                            setSelectedMeetRequest((prev) =>
-                              prev ? { ...prev, description: e.target.value } : prev
-                            )
-                          }
-                          className="mt-2 w-full min-h-[96px] rounded-xl border border-white/10 bg-black/40 px-3 py-2.5 text-sm text-white placeholder:text-white/30 focus:outline-none focus:border-[#FF7939] transition-colors resize-none"
-                          placeholder="¿Sobre qué te gustaría hablar en esta sesión?..."
-                        />
-                      </div>
-
-                      <div className="mt-4">
-                        <div className="text-base font-semibold text-white">
-                          {isPaidMeetFlow ? 'Resumen de pago' : 'Esto consumirá 1 crédito'}
-                        </div>
-
-                        {isPaidMeetFlow ? (
-                          <div className="mt-1 text-sm text-white/70">
-                            Total: <span className="text-white/90 font-semibold">${Number(purchaseContext?.price ?? 0) || 0}</span>
-                            {' '}· Duración:{' '}
-                            <span className="text-white/90 font-semibold">{Number(purchaseContext?.durationMinutes ?? 30) || 30} min</span>
-                          </div>
-                        ) : (
-                          <div className="mt-1 text-sm text-white/70">
-                            Tenés{' '}
-                            <span className="text-white/90 font-semibold">{Number.isFinite(creditsAvailable) ? creditsAvailable : 0}</span>
-                            {' '}créditos disponibles con este coach.
-                          </div>
-                        )}
-                      </div>
-
-                      <div className="mt-4 flex flex-col gap-2">
-                        {isPaidMeetFlow && !meetPurchasePaid && (
-                          <button
-                            type="button"
-                            disabled={!(scheduleMeetContext?.activityId)}
-                            className={
-                              scheduleMeetContext?.activityId
-                                ? 'w-full px-4 py-2.5 rounded-xl bg-[#FF7939] text-black text-sm font-semibold hover:opacity-95 transition-opacity'
-                                : 'w-full px-4 py-2.5 rounded-xl bg-white/10 text-white/70 text-sm font-semibold border border-white/15 cursor-not-allowed'
-                            }
-                            onClick={async () => {
-                              const actId = scheduleMeetContext?.activityId ? String(scheduleMeetContext.activityId) : null
-                              if (!actId) return
-
-                              try {
-                                sessionStorage.setItem(
-                                  'pending_meet_booking',
-                                  JSON.stringify({
-                                    coachId: String(selectedMeetRequest.coachId),
-                                    activityId: actId,
-                                    dayKey: selectedMeetRequest.dayKey,
-                                    timeHHMM: selectedMeetRequest.timeHHMM,
-                                    durationMinutes: Number(purchaseContext?.durationMinutes ?? 30) || 30,
-                                  })
-                                )
-                              } catch {
-                                // ignore
-                              }
-
-                              const res = await createCheckoutProPreference(actId)
-                              if (res?.success && res?.initPoint) {
-                                redirectToMercadoPagoCheckout(res.initPoint, actId, res.preferenceId)
-                              }
-                            }}
-                          >
-                            Pagar
-                          </button>
-                        )}
-
-                        <button
-                          type="button"
-                          disabled={!canConfirm}
-                          className={
-                            canConfirm
-                              ? 'w-full px-4 py-2.5 rounded-xl bg-[#FF7939] text-black text-sm font-semibold hover:opacity-95 transition-opacity'
-                              : 'w-full px-4 py-2.5 rounded-xl bg-white/10 text-white/70 text-sm font-semibold border border-white/15 cursor-not-allowed'
-                          }
-                          onClick={async () => {
-                            console.log('[CalendarView] Confirm button clicked', { authUserId, selectedCoachId, canConfirm, selectedMeetRequest, rescheduleContext })
-                            if (!authUserId) return
-                            if (!selectedCoachId) return
-                            if (!canConfirm) return
-
-                            // If we're in reschedule mode, handle differently based on meet status
-                            if (rescheduleContext) {
-                              console.log('[CalendarView] In reschedule mode, checking meet status...', { rescheduleContext })
-                              const startIso = new Date(`${selectedMeetRequest.dayKey}T${selectedMeetRequest.timeHHMM}:00`).toISOString()
-                              const duration = Number(rescheduleContext.durationMinutes ?? 30) || 30
-                              const endIso = new Date(new Date(startIso).getTime() + duration * 60 * 1000).toISOString()
-
-                              // Check if the original meet is still pending
-                              // If it's pending and the client created it, just update the event directly
-                              // If it's confirmed, create a reschedule request
-                              try {
-                                const { data: eventData, error: eventError } = await (supabase
-                                  .from('calendar_events') as any)
-                                  .select('id, status')
-                                  .eq('id', rescheduleContext.eventId)
-                                  .single()
-
-                                console.log('[CalendarView] Event data:', { eventData, eventError })
-
-                                const { data: participantData, error: participantError } = await (supabase
-                                  .from('calendar_event_participants') as any)
-                                  .select('rsvp_status, invited_by_user_id')
-                                  .eq('event_id', rescheduleContext.eventId)
-                                  .eq('client_id', authUserId)
-                                  .single()
-
-                                console.log('[CalendarView] Participant data:', { participantData, participantError, authUserId })
-
-                                // If the meet is still pending and the client created it, update directly
-                                if (participantData?.rsvp_status === 'pending' && participantData?.invited_by_user_id === authUserId) {
-                                  console.log('[CalendarView] Meet is pending and created by client, updating directly...')
-                                  // Update the event directly
-                                  const { error: updateError } = await (supabase
-                                    .from('calendar_events') as any)
-                                    .update({
-                                      start_time: startIso,
-                                      end_time: endIso,
-                                    })
-                                    .eq('id', rescheduleContext.eventId)
-
-                                  if (updateError) {
-                                    console.error('[CalendarView] Error updating event:', updateError)
-                                    return
-                                  }
-
-                                  console.log('[CalendarView] Event updated successfully!')
-
-                                  // Clear reschedule context and show success
-                                  setRescheduleContext(null)
-                                  setReschedulePreview(null)
-                                  setMeetViewMode('month')
-                                  setSelectedMeetRequest(null)
-                                  handleClearCoachForMeet()
-
-                                  const coachName = selectedCoachProfile?.full_name || 'Coach'
-                                  const dateFormatted = format(new Date(startIso), "EEEE d 'de' MMMM", { locale: es })
-                                  const [startHour, startMin] = selectedMeetRequest.timeHHMM.split(':').map(Number)
-                                  const startMinutes = startHour * 60 + startMin
-                                  const endMinutes = startMinutes + duration
-                                  const endHour = Math.floor(endMinutes / 60)
-                                  const endMin = endMinutes % 60
-                                  const endTime = `${String(endHour).padStart(2, '0')}:${String(endMin).padStart(2, '0')}`
-
-                                  setSuccessModalData({
-                                    coachName,
-                                    date: dateFormatted,
-                                    time: `${selectedMeetRequest.timeHHMM} – ${endTime}`,
-                                    duration,
-                                  })
-                                  setShowSuccessModal(true)
-                                  return
-                                } else {
-                                  console.log('[CalendarView] Meet is confirmed or not created by client, showing reschedule preview...', {
-                                    rsvp_status: participantData?.rsvp_status,
-                                    invited_by_user_id: participantData?.invited_by_user_id,
-                                    authUserId
-                                  })
-                                }
-                              } catch (error) {
-                                console.error('[CalendarView] Error checking meet status:', error)
-                              }
-
-                              // Otherwise, show the reschedule preview modal for confirmed meets
-                              setReschedulePreview({
-                                dayKey: selectedMeetRequest.dayKey,
-                                timeHHMM: selectedMeetRequest.timeHHMM,
-                                toStartIso: startIso,
-                                toEndIso: endIso,
-                                note: '',
-                              })
-                              return
-                            }
-
-                            // Otherwise, create a new meet event
-                            try {
-                              const startIso = new Date(`${selectedMeetRequest.dayKey}T${selectedMeetRequest.timeHHMM}:00`).toISOString()
-                              const duration = isPaidMeetFlow
-                                ? (Number(purchaseContext?.durationMinutes ?? 30) || 30)
-                                : 30
-                              const endIso = new Date(new Date(startIso).getTime() + duration * 60 * 1000).toISOString()
-
-                              const payload = {
-                                coach_id: selectedMeetRequest.coachId,
-                                client_id: authUserId,
-                                title: selectedMeetRequest.title,
-                                description: selectedMeetRequest.description || null,
-                                start_time: startIso,
-                                end_time: endIso,
-                                event_type: 'consultation',
-                                status: 'scheduled',
-                                activity_id: scheduleMeetContext?.activityId ? Number(scheduleMeetContext.activityId) : null,
-                              };
-
-                              console.log('[CalendarView] Inserting calendar event with payload:', payload);
-
-                              const { data: newEvent, error: eventError } = await (supabase
-                                .from('calendar_events') as any)
-                                .insert(payload)
-                                .select('id')
-                                .single()
-
-                              if (eventError || !newEvent?.id) {
-                                console.error('[CalendarView] Insert failed:', eventError);
-                                return
-                              }
-
-                              const { data: partData, error: partError } = await (supabase.from('calendar_event_participants') as any).insert({
-                                event_id: newEvent.id,
-                                client_id: authUserId,
-                                rsvp_status: 'pending',
-                                invited_by_user_id: authUserId,
-                                invited_by_role: 'client',
-                              })
-
-                              const coachName = selectedCoachProfile?.full_name || 'Coach'
-                              const dateFormatted = format(new Date(payload.start_time), "EEEE d 'de' MMMM", { locale: es })
-
-                              // Calculate end time
-                              const [startHour, startMin] = selectedMeetRequest.timeHHMM.split(':').map(Number)
-                              const startMinutes = startHour * 60 + startMin
-                              const endMinutes = startMinutes + duration
-                              const endHour = Math.floor(endMinutes / 60)
-                              const endMin = endMinutes % 60
-                              const endTime = `${String(endHour).padStart(2, '0')}:${String(endMin).padStart(2, '0')}`
-
-                              setSuccessModalData({
-                                coachName,
-                                date: dateFormatted,
-                                time: `${selectedMeetRequest.timeHHMM} – ${endTime}`,
-                                duration,
-                              })
-
-                              setMeetViewMode('month')
-                              setSelectedMeetRequest(null)
-
-                              if (onSetScheduleMeetContext) {
-                                onSetScheduleMeetContext(null)
-                              }
-
-                              setShowSuccessModal(true)
-                            } catch {
-                              // ignore
-                            }
-                          }}
-                        >
-                          {rescheduleContext ? 'Revisar cambio' : 'Confirmar solicitud'}
-                        </button>
-
-                        {!canConfirm && !isPaidMeetFlow && (
-                          <div className="text-[11px] text-white/55">No tenés créditos disponibles para solicitar este meet.</div>
-                        )}
-
-                        <button
-                          type="button"
-                          className="w-full px-4 py-2.5 rounded-xl bg-zinc-900 text-white text-sm border border-white/15 hover:bg-zinc-800 transition-colors"
-                          onClick={() => setSelectedMeetRequest(null)}
-                        >
-                          Cancelar
-                        </button>
-                      </div>
-                    </div>
-                  </>
-                )
-              })()}
-            </div>
-          </div>
-        )
-      }
-      {/* Success Modal */}
-      {
-        showSuccessModal && successModalData && (
-          <div className="fixed inset-0 z-[60] flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm animate-in fade-in duration-200">
-            <div className="max-w-sm w-full bg-[#1C1C1E]/90 backdrop-blur-xl border border-white/10 rounded-3xl p-6 shadow-2xl scale-100 animate-in zoom-in-95 duration-200">
-              <div className="flex flex-col items-center text-center">
-                <div className="w-16 h-16 rounded-full bg-green-500/20 flex items-center justify-center mb-4">
-                  <CalendarIcon className="w-8 h-8 text-green-500" />
-                </div>
-
-                <h3 className="text-xl font-bold text-white mb-2">¡Solicitud Enviada!</h3>
-
-                <p className="text-white/70 text-sm leading-relaxed mb-6">
-                  Tu solicitud fue enviada a <span className="text-white font-medium">{successModalData.coachName}</span> para un meet de {successModalData.duration} min el día {successModalData.date} a las {successModalData.time} hs.
-                </p>
-
-                <div className="bg-white/5 rounded-xl p-3 mb-6 w-full">
-                  <div className="flex items-center gap-3 text-xs text-white/50">
-                    <Clock className="w-4 h-4 text-[#FF7939]" />
-                    <span>El coach suele responder en promedio en <span className="text-white">2 horas</span>.</span>
-                  </div>
-                </div>
-
-                <button
-                  onClick={() => setShowSuccessModal(false)}
-                  className="w-full py-3 rounded-xl bg-[#FF7939] text-black font-bold text-sm hover:opacity-90 transition-opacity"
-                >
-                  Entendido
-                </button>
-              </div>
-            </div>
-          </div>
-        )
-      }
-      <Dialog open={showConfirmModal} onOpenChange={setShowConfirmModal}>
-        <DialogContent className="bg-[#1A1C1F] border-zinc-800 text-white w-[90%] max-w-sm rounded-2xl">
-          <DialogHeader>
-            <DialogTitle className="text-lg">Mover actividades</DialogTitle>
-            <DialogDescription className="text-gray-400">
-              ¿Estás seguro que quieres cambiar la fecha de estas actividades?
-            </DialogDescription>
-          </DialogHeader>
-
-          <div className="bg-[#141414] rounded-xl p-4 my-2 border border-zinc-800 flex items-center justify-between">
-            <div className="flex flex-col items-center">
-              <span className="text-xs text-gray-500 uppercase">De</span>
-              <span className="text-xl font-bold text-white">{sourceDate?.getDate()}</span>
-              <span className="text-xs text-[#FF7939]">{sourceDate && getDayName(sourceDate.getDay())}</span>
-            </div>
-
-            <ArrowRight className="text-gray-600" />
-
-            <div className="flex flex-col items-center">
-              <span className="text-xs text-gray-500 uppercase">A</span>
-              <span className="text-xl font-bold text-white">{targetDate?.getDate()}</span>
-              <span className="text-xs text-green-500">{targetDate && getDayName(targetDate.getDay())}</span>
-            </div>
-          </div>
-
-          {sourceDate && (
-            <div className="flex items-start gap-3 p-3 bg-blue-500/10 rounded-lg border border-blue-500/20">
-              <Checkbox
-                id="apply-all"
-                checked={applyToAllSameDays}
-                onCheckedChange={(checked) => setApplyToAllSameDays(checked as boolean)}
-                className="mt-0.5 border-blue-400 data-[state=checked]:bg-blue-500 data-[state=checked]:text-white"
-              />
-              <div className="grid gap-1.5 leading-none">
-                <Label
-                  htmlFor="apply-all"
-                  className="text-sm font-medium leading-none text-blue-100 cursor-pointer"
-                >
-                  Mover todos los {getDayName(sourceDate.getDay())}s futuros
-                </Label>
-                <p className="text-xs text-blue-200/70">
-                  Esto aplicará el mismo cambio a todos los {getDayName(sourceDate.getDay())}s en el futuro.
-                </p>
-              </div>
-            </div>
-          )}
-
-          <DialogFooter className="flex gap-2 sm:justify-end mt-2">
-            <Button variant="ghost" onClick={() => setShowConfirmModal(false)} className="flex-1 text-gray-400 hover:text-white">
-              Cancelar
-            </Button>
-            <Button
-              onClick={handleConfirmUpdate}
-              disabled={isUpdating}
-              className="flex-1 bg-[#FF7939] hover:bg-[#FF6A00] text-white"
-            >
-              {isUpdating ? 'Guardando...' : 'Confirmar'}
-            </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
-    </div >
+      <CalendarMoveActivitiesModal
+        open={showConfirmModal}
+        onOpenChange={setShowConfirmModal}
+        sourceDate={sourceDate}
+        targetDate={targetDate}
+        getDayName={getDayName}
+        applyToAllSameDays={applyToAllSameDays}
+        setApplyToAllSameDays={setApplyToAllSameDays}
+        handleConfirmUpdate={handleConfirmUpdate}
+        isUpdating={isUpdating}
+        onCancel={() => setShowConfirmModal(false)}
+      />
+    </div>
   )
 }

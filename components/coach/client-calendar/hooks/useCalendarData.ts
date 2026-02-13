@@ -31,32 +31,119 @@ export function useCalendarData(supabase: any, clientId: string, currentDate: Da
     const fetchClientCalendarSummary = useCallback(async () => {
         try {
             const { monthStartStr, monthEndStr } = getMonthRange(currentDate)
-            const { data: summaryRows } = await supabase.from('client_day_activity_summary_v').select('*').eq('client_id', clientId).gte('day', monthStartStr).lte('day', monthEndStr)
 
-            const rows = (summaryRows || []) as ClientDaySummaryRow[]
+            // 1. Fetch Fitness Progress
+            const { data: fitnessRows } = await supabase
+                .from('progreso_cliente')
+                .select('id, actividad_id, fecha, minutos_json')
+                .eq('cliente_id', clientId)
+                .gte('fecha', monthStartStr)
+                .lte('fecha', monthEndStr)
+
+            // 2. Fetch Nutrition Progress
+            const { data: nutriRows } = await supabase
+                .from('progreso_cliente_nutricion')
+                .select('id, actividad_id, fecha, macros')
+                .eq('cliente_id', clientId)
+                .gte('fecha', monthStartStr)
+                .lte('fecha', monthEndStr)
+
+            // 3. Fetch Calendar Events (Meets)
+            const { data: participants } = await supabase
+                .from('calendar_event_participants')
+                .select('event_id')
+                .eq('client_id', clientId)
+
+            const myEventIds = (participants || []).map((p: any) => p.event_id)
+            let meetRows: any[] = []
+            if (myEventIds.length > 0) {
+                const { data: events } = await supabase
+                    .from('calendar_events')
+                    .select('id, title, start_time, end_time')
+                    .in('id', myEventIds)
+                    .gte('start_time', `${monthStartStr}T00:00:00`)
+                    .lte('start_time', `${monthEndStr}T23:59:59`)
+                meetRows = events || []
+            }
+
             const byDate: Record<string, ClientDaySummaryRow[]> = {}
             const processed: { [key: string]: DayData } = {}
 
-            rows.forEach(r => {
-                // Filter out obviously non-scheduled items if they are tagged as documents in title
-                // or if we decide to skip them. Since type is missing, we'll need a better way later.
-                // For now, removing the invalid check.
-                const day = String(r.day)
+            // Helper to aggregate
+            const addRow = (day: string, row: ClientDaySummaryRow) => {
                 if (!byDate[day]) byDate[day] = []
-                byDate[day].push(r)
+                byDate[day].push(row)
+
+                if (!processed[day]) {
+                    processed[day] = {
+                        date: day,
+                        exerciseCount: 0,
+                        completedCount: 0,
+                        totalMinutes: 0,
+                        exercises: [],
+                        activities: []
+                    }
+                }
+                processed[day].exerciseCount++
+                processed[day].totalMinutes += (Number(row.total_mins) || 0)
+            }
+
+            // Process Fitness
+            (fitnessRows || []).forEach((r: any) => {
+                const day = String(r.fecha)
+                let mins = 0
+                if (r.minutos_json) {
+                    const mObj = typeof r.minutos_json === 'string' ? JSON.parse(r.minutos_json) : r.minutos_json
+                    Object.values(mObj).forEach((v: any) => { mins += (Number(v) || 0) })
+                }
+                addRow(day, {
+                    id: `fit-${r.id}`,
+                    client_id: clientId,
+                    day,
+                    activity_id: r.actividad_id,
+                    total_mins: mins,
+                    fitness_mins: mins,
+                    nutri_mins: 0,
+                    calendar_mins: 0
+                } as any)
             })
 
-            Object.keys(byDate).forEach(day => {
-                const dayRows = byDate[day]
-                const progMins = dayRows.filter(r => !r.calendar_event_id).reduce((acc, r) => acc + (Number(r.total_mins) || 0), 0)
-                processed[day] = {
-                    date: day,
-                    exerciseCount: dayRows.length,
-                    completedCount: 0,
-                    totalMinutes: progMins,
-                    exercises: [],
-                    activities: []
-                }
+                // Process Nutrition
+                (nutriRows || []).forEach((r: any) => {
+                    const day = String(r.fecha)
+                    let mins = 0
+                    if (r.macros) {
+                        const mObj = typeof r.macros === 'string' ? JSON.parse(r.macros) : r.macros
+                        Object.values(mObj).forEach((v: any) => { mins += (Number(v?.minutos) || 0) })
+                    }
+                    addRow(day, {
+                        id: `nut-${r.id}`,
+                        client_id: clientId,
+                        day,
+                        activity_id: r.actividad_id,
+                        total_mins: mins,
+                        fitness_mins: 0,
+                        nutri_mins: mins,
+                        calendar_mins: 0
+                    } as any)
+                })
+
+            // Process Meets
+            meetRows.forEach((r: any) => {
+                const day = String(r.start_time).split('T')[0]
+                const durationMs = new Date(r.end_time).getTime() - new Date(r.start_time).getTime()
+                const mins = Math.round(durationMs / 60000)
+                addRow(day, {
+                    id: `evt-${r.id}`,
+                    client_id: clientId,
+                    day,
+                    calendar_event_id: r.id,
+                    activity_title: r.title,
+                    total_mins: mins,
+                    fitness_mins: 0,
+                    nutri_mins: 0,
+                    calendar_mins: mins
+                } as any)
             })
 
             setSummaryRowsByDate(byDate)
