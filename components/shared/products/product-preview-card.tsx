@@ -233,7 +233,7 @@ export function ProductPreviewCard({
   }
 
   const getProductDetails = () => {
-    const details = []
+    const details: any[] = []
 
     // Validar que product existe
     if (!product) return details
@@ -287,15 +287,23 @@ export function ProductPreviewCard({
           return total + (block.selectedDates ? block.selectedDates.length : 0)
         }, 0)
         details.push({
-          label: 'Bloques de horarios',
-          value: `${product.blocks.length}`,
+          label: 'Sesiones totales',
+          value: `${totalDates} d`,
           icon: Calendar,
           color: 'text-yellow-400',
           bgColor: 'bg-yellow-400/10'
         })
         details.push({
-          label: 'Clases disponibles',
-          value: `${totalDates}`,
+          label: 'Temas únicos',
+          value: `${product.blocks.length}`,
+          icon: Zap,
+          color: 'text-cyan-400',
+          bgColor: 'bg-cyan-400/10'
+        })
+      } else if ((product as any).items_unicos !== undefined) {
+        details.push({
+          label: 'Temas',
+          value: `${(product as any).items_unicos} temas`,
           icon: Zap,
           color: 'text-cyan-400',
           bgColor: 'bg-cyan-400/10'

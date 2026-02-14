@@ -19,7 +19,7 @@ export function useProductMediaLogic() {
     const [pdfModalContext, setPdfModalContext] = useState<PdfSelectionContext | null>(null)
     const [pendingPdfContext, setPendingPdfContext] = useState<PdfSelectionContext | null>(null)
     const [uploadingPdf, setUploadingPdf] = useState<string | null>(null)
-    const [selectedTopics, setSelectedTopics] = useState<string[]>([]) // For bulk PDF assignment
+    const [selectedTopics, setSelectedTopics] = useState<Set<string>>(new Set()) // For bulk PDF assignment
 
     // File inputs refs
     const inlineFileInputRef = useRef<HTMLInputElement>(null)

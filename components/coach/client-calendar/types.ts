@@ -38,6 +38,11 @@ export interface ExerciseExecution {
     original_ejercicio_id?: string // Para limpiar el ejercicio anterior al guardar si se cambió
     receta_texto?: string // Texto de la receta (override o default)
     ingredientes_detalle?: any // Objeto de ingredientes para este plato
+    is_workshop?: boolean
+    workshop_details?: {
+        nombre: string
+        descripcion: string | null
+    } | null
 }
 
 export interface DayData {
@@ -65,6 +70,7 @@ export interface ClientDaySummaryRow {
     fitness_items_done?: number | null
     nutri_items_planned?: number | null
     nutri_items_done?: number | null
+    is_workshop?: boolean
 }
 
 export interface ActivityFilterOption {

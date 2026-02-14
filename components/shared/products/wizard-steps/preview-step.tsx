@@ -20,6 +20,7 @@ interface PreviewStepProps {
         sesiones: number
         ejerciciosTotales: number
         ejerciciosUnicos: number
+        semanas: number
     }
     user: any
 }
@@ -46,14 +47,6 @@ export function PreviewStep({
         difficulty: specificForm.level || (editingProduct as any)?.difficulty || 'beginner',
         ...(selectedType === 'workshop'
             ? (() => {
-                const titles = new Set<string>()
-                const dates = new Set<string>()
-                    ; (workshopSchedule || []).forEach((s: any) => {
-                        const t = String(s?.title || '').trim()
-                        if (t) titles.add(t)
-                        const d = String(s?.date || '').trim()
-                        if (d) dates.add(d)
-                    })
                 const now = new Date()
                 now.setHours(0, 0, 0, 0)
                 const hasFuture = (workshopSchedule || []).some((s: any) => {
@@ -65,8 +58,9 @@ export function PreviewStep({
                 })
                 return {
                     type: 'workshop',
-                    cantidadTemas: titles.size,
-                    cantidadDias: dates.size,
+                    cantidadTemas: derivedPreviewStats.ejerciciosUnicos,
+                    cantidadDias: derivedPreviewStats.sesiones,
+                    semanas_totales: derivedPreviewStats.semanas,
                     // Forzar estado activo en preview si hay fechas futuras
                     taller_activo: hasFuture,
                     is_finished: !hasFuture
@@ -107,7 +101,10 @@ export function PreviewStep({
         } : {
             // Para programas/talleres: usar estadísticas calculadas en vivo
             items_unicos: derivedPreviewStats.ejerciciosUnicos,
+            cantidadTemas: derivedPreviewStats.ejerciciosUnicos, // Asegurar para workshops
             sesiones_dias_totales: derivedPreviewStats.sesiones,
+            cantidadDias: derivedPreviewStats.sesiones, // Asegurar para workshops
+            semanas_totales: selectedType === 'workshop' ? derivedPreviewStats.semanas : 0,
             totalSessions: derivedPreviewStats.sesiones,
             // ⚠️ FIX: Correctly map capacity for preview.
             // If capacity is 'limitada', use stockQuantity.
@@ -119,13 +116,17 @@ export function PreviewStep({
         previewStats: {
             sesiones: derivedPreviewStats.sesiones,
             ejerciciosTotales: derivedPreviewStats.ejerciciosTotales,
-            ejerciciosUnicos: derivedPreviewStats.ejerciciosUnicos
+            ejerciciosUnicos: derivedPreviewStats.ejerciciosUnicos,
+            semanas: derivedPreviewStats.semanas
         },
         // ✅ OVERRIDE FINAL: Asegurar que los stats calculados siempre ganen sobre valores guardados
         ...(selectedType !== 'document' ? {
             items_unicos: derivedPreviewStats.ejerciciosUnicos,
+            cantidadTemas: derivedPreviewStats.ejerciciosUnicos,
             sesiones_dias_totales: derivedPreviewStats.sesiones,
-            totalSessions: derivedPreviewStats.sesiones
+            cantidadDias: derivedPreviewStats.sesiones,
+            totalSessions: derivedPreviewStats.sesiones,
+            semanas_totales: selectedType === 'workshop' ? derivedPreviewStats.semanas : ((editingProduct as any)?.semanas_totales || 0)
         } : {}),
         // Agregar información del coach para que se muestre en preview
         coach_name: (editingProduct as any)?.coach_name || (user as any)?.user_metadata?.full_name || (user as any)?.user_metadata?.name || user?.email?.split('@')[0] || 'Coach',

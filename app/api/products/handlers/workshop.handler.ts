@@ -14,6 +14,7 @@ const formatDateSpanish = (date: Date | string): string => {
  */
 export async function handleWorkshopCreation(supabase: any, activityId: number | string, body: any, userId: string) {
     if (body.modality !== 'workshop' || !body.workshopSchedule || !Array.isArray(body.workshopSchedule)) {
+        console.log('⚠️ handleWorkshopCreation: No workshopSchedule provided or invalid format')
         return
     }
 
@@ -140,6 +141,7 @@ export async function handleWorkshopCreation(supabase: any, activityId: number |
  */
 export async function handleWorkshopUpdate(supabase: any, activityId: number | string, body: any, userId: string) {
     if (body.modality !== 'workshop' || !body.workshopSchedule || !Array.isArray(body.workshopSchedule)) {
+        console.log('⚠️ handleWorkshopUpdate: No workshopSchedule provided or invalid format')
         return
     }
 
@@ -230,8 +232,9 @@ export async function handleWorkshopUpdate(supabase: any, activityId: number | s
             actividad_id: activityId,
             nombre: topicData.nombre || 'Sin título',
             descripcion: topicData.descripcion || '',
-            originales: originalesJson,
-            secundarios: secundariosJson,
+            originales: {
+                fechas_horarios: [...topicData.originales, ...topicData.secundarios]
+            },
             activo: hasFutureDates
         }
 

@@ -50,7 +50,7 @@ export function useGeneralProductForm(
                 price: editingProduct.price?.toString() || '',
                 image: editingProduct.image_url ? { url: editingProduct.image_url } : null,
                 videoUrl: editingProduct.video_url || '',
-                modality: editingProduct.type === 'program' ? 'online' : (editingProduct.type || 'online'),
+                modality: (editingProduct?.type === 'program' ? 'online' : (editingProduct?.modality || 'online')),
                 included_meet_credits: editingProduct.included_meet_credits || 0,
                 is_public: editingProduct.is_public !== false,
                 objetivos: splitSemicolonList(editingProduct.objetivos),

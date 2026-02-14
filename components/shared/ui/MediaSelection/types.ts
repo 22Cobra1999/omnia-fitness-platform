@@ -24,6 +24,7 @@ export interface MediaSelectionModalProps {
     onClose: () => void
     onMediaSelected: (mediaUrl: string, mediaType: MediaType, mediaFile?: File, fileName?: string) => void
     mediaType: MediaType
+    className?: string
 }
 
 export type SourceFilter = 'all' | 'cover' | 'catalog'

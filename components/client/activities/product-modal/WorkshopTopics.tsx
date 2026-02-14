@@ -20,37 +20,57 @@ export function WorkshopTopics({ topics, loading }: WorkshopTopicsProps) {
     }
 
     return (
-        <div className="px-6 border-t border-gray-800 pt-4 space-y-4">
-            <h4 className="text-white font-semibold mb-3">Temas y Horarios</h4>
-            {topics.map((tema, i) => {
-                const horarios = [...(tema.originales?.fechas_horarios || []), ...(tema.secundarios?.fechas_horarios || [])]
-                const grouped = horarios.reduce((acc: any, h: any) => {
-                    if (h.fecha) {
-                        if (!acc[h.fecha]) acc[h.fecha] = []
-                        acc[h.fecha].push(h)
-                    }
-                    return acc
-                }, {})
+        <div className="px-6 border-t border-white/5 pt-8 space-y-6">
+            <div className="flex items-center gap-2 mb-2">
+                <h4 className="text-gray-400 font-bold uppercase tracking-widest text-[10px]">Temas y Horarios</h4>
+            </div>
 
-                return (
-                    <div key={tema.id || i} className="bg-gray-800/50 rounded-lg p-4">
-                        <h5 className="text-white font-medium mb-2">{tema.nombre}</h5>
-                        {tema.descripcion && <p className="text-gray-400 text-sm mb-3">{tema.descripcion}</p>}
-                        <div className="space-y-2">
-                            {Object.keys(grouped).sort().map(fecha => (
-                                <div key={fecha} className="text-gray-300 text-sm">
-                                    <div className="flex items-center gap-2 mb-1"><Calendar className="h-4 w-4 text-[#FF7939]" /><span>{formatFecha(fecha)}</span></div>
-                                    <div className="ml-6 space-y-1">
-                                        {grouped[fecha].map((h: any, j: number) => (
-                                            <div key={j} className="flex items-center gap-2 text-gray-400"><Clock className="h-3 w-3" /><span>{h.hora_inicio} - {h.hora_fin}</span></div>
-                                        ))}
+            <div className="space-y-8">
+                {topics.map((tema, i) => {
+                    const horarios = [...(tema.originales?.fechas_horarios || []), ...(tema.secundarios?.fechas_horarios || [])]
+                    const grouped = horarios.reduce((acc: any, h: any) => {
+                        if (h.fecha) {
+                            if (!acc[h.fecha]) acc[h.fecha] = []
+                            acc[h.fecha].push(h)
+                        }
+                        return acc
+                    }, {})
+
+                    return (
+                        <div key={tema.id || i} className="group">
+                            <div className="flex items-baseline gap-3 mb-2">
+                                <span className="text-[#FF7939] font-black text-sm tabular-nums">{(i + 1).toString().padStart(2, '0')}</span>
+                                <h5 className="text-white font-bold text-base leading-tight group-hover:text-[#FF7939] transition-colors">{tema.nombre}</h5>
+                            </div>
+
+                            {tema.descripcion && (
+                                <p className="text-gray-500 text-[11px] leading-relaxed mb-4 ml-8 max-w-md">
+                                    {tema.descripcion}
+                                </p>
+                            )}
+
+                            <div className="ml-8 space-y-2">
+                                {Object.keys(grouped).sort().map(fecha => (
+                                    <div key={fecha} className="flex items-center gap-4 text-[10px] tracking-wide">
+                                        <div className="flex items-center gap-1.5 text-gray-400 font-bold uppercase min-w-[100px]">
+                                            <Calendar className="h-3 w-3 opacity-50" />
+                                            <span>{formatFecha(fecha)}</span>
+                                        </div>
+                                        <div className="flex flex-wrap gap-3">
+                                            {grouped[fecha].map((h: any, j: number) => (
+                                                <div key={j} className="flex items-center gap-1.5 text-gray-500 font-medium bg-white/[0.03] px-2 py-0.5 rounded-md border border-white/5">
+                                                    <Clock className="h-2.5 w-2.5 opacity-40" />
+                                                    <span>{h.hora_inicio} - {h.hora_fin}</span>
+                                                </div>
+                                            ))}
+                                        </div>
                                     </div>
-                                </div>
-                            ))}
+                                ))}
+                            </div>
                         </div>
-                    </div>
-                )
-            })}
+                    )
+                })}
+            </div>
         </div>
     )
 }

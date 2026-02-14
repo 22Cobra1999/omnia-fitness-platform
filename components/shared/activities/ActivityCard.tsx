@@ -2,7 +2,7 @@
 
 import React from 'react'
 import Image from 'next/image'
-import { Star, Calendar, Users, Globe, Dumbbell, Zap, Lock, Unlock, UtensilsCrossed, Flame, MapPin, RotateCcw, Pause, MonitorSmartphone, Video } from 'lucide-react'
+import { Star, Calendar, Users, Globe, Dumbbell, Zap, Lock, Unlock, UtensilsCrossed, Flame, MapPin, RotateCcw, Pause, MonitorSmartphone, Video, FileText } from 'lucide-react'
 import type { Activity } from '@/types/activity'
 
 interface ActivityCardProps {
@@ -45,8 +45,8 @@ const ActivityCard: React.FC<ActivityCardProps> = ({
 
   const sessionsToShow = isDocument && documentDuration
     ? documentDuration
-    : isWorkshop && cantidadDias !== undefined
-      ? cantidadDias
+    : isWorkshop
+      ? (cantidadDias !== undefined ? cantidadDias : (activity.sesiones_dias_totales || previewStats?.sesiones || 0))
       : (previewStats?.sesiones || previewStats?.totalSessions || activity.sesiones_dias_totales || activity.totalSessions || 0)
 
   const uniqueExercises = (() => {
@@ -357,23 +357,30 @@ const ActivityCard: React.FC<ActivityCardProps> = ({
             <div className="flex items-center gap-2 text-[#FF7939]">
               {activity.categoria === 'nutricion' || activity.categoria === 'nutrition' ?
                 getDietTypeDisplay(((activity as any).dieta ?? undefined) as string | undefined) :
-                <div className="flex items-center gap-1">{getDifficultyFires(activity.difficulty || undefined)}</div>
+                <div className="flex items-center gap-0.5 opacity-80">{getDifficultyFires(activity.difficulty || undefined)}</div>
               }
             </div>
             <div className="flex items-center justify-center flex-1">
               {activity.type === 'workshop' && (() => {
                 const workshopMode = (activity as any).workshop_mode || 'grupal'
                 return workshopMode === 'individual' ? (
-                  <span className="bg-yellow-500/20 text-yellow-500 text-[10px] px-1.5 py-0.5 rounded-full font-medium border border-yellow-500/30">1:1</span>
+                  <span className="bg-yellow-500/10 text-yellow-500 text-[8px] px-1 py-0.5 rounded font-black border border-yellow-500/20">1:1</span>
                 ) : (
-                  <div className="relative flex items-center justify-center text-white"><Users className="h-3 w-3" /></div>
+                  <div className="relative flex items-center justify-center text-gray-500"><Users className="h-3 w-3" /></div>
                 )
               })()}
               {activity.type !== 'workshop' && includedMeetCredits > 0 && (
-                <Video className="h-4 w-4 text-rose-100/90" />
+                <Video className="h-3 w-3 text-orange-200/50" />
               )}
             </div>
-            <div className="flex items-center">{getModalityIcon(activity.modality || 'online')}</div>
+            <div className="flex items-center gap-1.5 opacity-80">
+              {activity.location_name && (
+                <span className="text-[10px] text-gray-400 font-bold uppercase tracking-tighter max-w-[60px] truncate">
+                  {activity.location_name}
+                </span>
+              )}
+              {getModalityIcon(activity.modality || 'online')}
+            </div>
           </div>
 
           <div className="flex items-center justify-between text-gray-300 mb-2">
@@ -387,8 +394,14 @@ const ActivityCard: React.FC<ActivityCardProps> = ({
               </span>
             </div>
             <div className="flex items-center gap-1">
-              {activity.categoria === 'nutricion' ? <UtensilsCrossed className="w-4 h-4 text-[#FF7939]" /> : <Zap className="w-4 h-4 text-[#FF7939]" />}
-              <span className="text-sm font-medium">{activity.items_unicos ?? uniqueExercises}</span>
+              {activity.type === 'workshop' ? (
+                <Zap className="w-4 h-4 text-[#FF7939]" />
+              ) : (
+                activity.categoria === 'nutricion' ? <UtensilsCrossed className="w-4 h-4 text-[#FF7939]" /> : <Zap className="w-4 h-4 text-[#FF7939]" />
+              )}
+              <span className="text-sm font-medium">
+                {activity.items_unicos ?? uniqueExercises}
+              </span>
             </div>
             <div className="flex items-center gap-1">
               <Users className="w-4 h-4 text-[#FF7939]" />

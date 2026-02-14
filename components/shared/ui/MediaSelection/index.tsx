@@ -13,7 +13,8 @@ export function MediaSelectionModal({
     isOpen,
     onClose,
     onMediaSelected,
-    mediaType
+    mediaType,
+    className
 }: MediaSelectionModalProps) {
     const {
         media,
@@ -40,7 +41,7 @@ export function MediaSelectionModal({
 
     return (
         <Dialog open={isOpen} onOpenChange={onClose}>
-            <DialogContent className="max-w-2xl max-h-[70vh] bg-[#0A0A0A] border-[#1A1A1A] overflow-hidden flex flex-col">
+            <DialogContent className={`max-w-2xl max-h-[70vh] bg-[#0A0A0A] border-[#1A1A1A] overflow-hidden flex flex-col ${className || ''}`}>
                 <DialogHeader>
                     <DialogTitle className="text-white text-xl font-semibold">
                         Seleccionar {getMediaTypeLabel(mediaType)} de Portada

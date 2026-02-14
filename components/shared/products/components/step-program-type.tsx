@@ -127,11 +127,27 @@ export const StepProgramType: React.FC<StepProgramTypeProps> = ({
                             </div>
                         </div>
                     </button>
+
+                    <button
+                        onClick={() => onSelectModality('hibrido')}
+                        className={`p-5 rounded-xl border text-left transition-all ${modality === 'hibrido'
+                            ? 'border-[#FF7939] bg-[#FF7939]/10'
+                            : 'border-white/10 bg-[#0A0A0A]'
+                            }`}
+                    >
+                        <div className="flex items-center gap-4">
+                            <Monitor className={`h-5 w-5 ${modality === 'hibrido' ? 'text-[#FF7939]' : 'text-gray-400'}`} />
+                            <div>
+                                <h4 className="text-base font-bold text-white">Híbrido</h4>
+                                <p className="text-xs text-gray-500">Sesiones presenciales y online.</p>
+                            </div>
+                        </div>
+                    </button>
                 </div>
             </div>
 
-            {/* Campos adicionales para Presencial */}
-            {modality === 'presencial' && (
+            {/* Campos adicionales para Presencial o Híbrido */}
+            {(modality === 'presencial' || modality === 'hibrido') && (
                 <div className="space-y-4 px-2">
                     <motion.div
                         initial={{ opacity: 0, height: 0 }}

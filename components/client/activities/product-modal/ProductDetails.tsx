@@ -51,116 +51,132 @@ export function ProductDetails({ product, logic }: ProductDetailsProps) {
     }
 
     return (
-        <div className="px-6 space-y-6">
-            {/* Title and Coach */}
+        <div className="px-6 space-y-5">
+            {/* 1. Title - Minimalist and smaller */}
             <div>
-                <h3 className="text-xl font-semibold text-white/85 mb-3">{product.title}</h3>
-                <div
-                    className={`flex items-center space-x-3 p-3 rounded-lg transition-all ${!navigationContext?.fromCoachProfile ? 'hover:bg-gray-800/50 cursor-pointer' : 'cursor-default opacity-75'}`}
-                    onClick={handleCoachClick}
-                >
-                    <div className="w-10 h-10 rounded-full overflow-hidden border-2 border-[#FF7939]/50">
-                        <Image src={product.coach_avatar_url || '/placeholder.svg'} alt="Coach" width={40} height={40} className="object-cover" />
+                <h2 className="text-2xl font-black text-white tracking-tight leading-tight">{product.title}</h2>
+            </div>
+
+            {/* 2. Coach Intro - Very compact, below title */}
+            <div
+                className={`flex items-center space-x-2 py-1 transition-all ${!navigationContext?.fromCoachProfile ? 'hover:opacity-80 cursor-pointer' : 'cursor-default opacity-75'}`}
+                onClick={handleCoachClick}
+            >
+                <div className="w-6 h-6 rounded-full overflow-hidden border border-white/10">
+                    <Image src={product.coach_avatar_url || '/placeholder.svg'} alt="Coach" width={24} height={24} className="object-cover" />
+                </div>
+                <div className="flex items-center gap-2">
+                    <h3 className="text-gray-300 font-bold text-xs">{product.coach_name || product.coach?.name || 'Coach'}</h3>
+                    <div className="flex items-center space-x-0.5 opacity-80">
+                        <Star className="h-2.5 w-2.5 text-yellow-400 fill-current" />
+                        <span className="text-gray-400 font-bold text-[10px]">{product.coach_avg_rating?.toFixed(1) || '-'}</span>
                     </div>
-                    <div className="flex-1 flex items-center gap-3">
-                        <div>
-                            <p className="text-white/80 font-medium">{product.coach_name || product.coach?.name || 'Coach'}</p>
-                            {product.coach_experience_years && <p className="text-gray-400 text-xs">{product.coach_experience_years} años de experiencia</p>}
-                        </div>
-                        <div className="flex items-center space-x-1">
-                            <Star className="h-4 w-4 text-yellow-400 fill-current" />
-                            <span className="text-white font-medium text-sm">{product.coach_avg_rating?.toFixed(1) || 'N/A'}</span>
-                        </div>
-                    </div>
-                    {!navigationContext?.fromCoachProfile && <ChevronRight className="h-4 w-4 text-gray-400" />}
+                </div>
+                {!navigationContext?.fromCoachProfile && <ChevronRight className="h-3 w-3 text-gray-600" />}
+            </div>
+
+            {/* 3. Description - Smaller text */}
+            <div>
+                <div className="text-gray-400 text-xs font-medium leading-relaxed">
+                    <p className={!isDescriptionExpanded ? "line-clamp-2" : ""}>{product.description}</p>
+                    {product.description?.length > 100 && (
+                        <button onClick={() => setIsDescriptionExpanded(!isDescriptionExpanded)} className="text-[#FF7939] hover:text-[#FF6B00] text-[10px] mt-1 font-bold uppercase tracking-wider">
+                            {isDescriptionExpanded ? 'ver menos' : 'leer más'}
+                        </button>
+                    )}
                 </div>
             </div>
 
-            {/* Stats Grid */}
-            <div className="grid grid-cols-3 gap-4 items-start w-full">
-                <div className="flex flex-col items-center gap-1 text-center">
-                    <div className="flex items-center gap-2">
-                        {product.type === 'document' ? <Zap className="h-5 w-5 text-[#FF7939]" /> : <Calendar className="h-5 w-5 text-[#FF7939]" />}
-                        <span className="text-white/60 font-medium">{product.type === 'document' ? 'Temas' : 'Sesiones'}</span>
+            {/* 4. Stats Grid - Finer borders, more minimalist */}
+            <div className="grid grid-cols-3 gap-2 w-full pt-2">
+                <div className="flex flex-col gap-0.5 bg-white/[0.02] border border-white/5 p-2.5 rounded-xl">
+                    <div className="flex items-center gap-1.5 opacity-60">
+                        {product.type === 'document' ? <Zap className="h-3 w-3 text-[#FF7939]" /> : <Calendar className="h-3 w-3 text-[#FF7939]" />}
+                        <span className="text-gray-400 text-[9px] font-bold uppercase tracking-widest">{product.type === 'document' ? 'Temas' : 'Sesiones'}</span>
                     </div>
-                    <div className="text-white/75 font-medium">{product.type === 'document' ? (product.items_unicos || 0) : (statsLoading ? '...' : totalSessions)}</div>
+                    <div className="text-white font-black text-sm">{product.type === 'document' ? (product.items_unicos || 0) : (statsLoading ? '...' : totalSessions)}</div>
                 </div>
 
-                <div className={`flex flex-col items-center gap-1 text-center ${exceedsWeeks ? 'border-2 border-red-500 rounded-lg p-1' : ''}`}>
-                    <div className="flex items-center gap-2">
-                        {product.type === 'document' ? <Calendar className="h-5 w-5 text-[#FF7939]" /> : <Clock className={`h-5 w-5 ${exceedsWeeks ? 'text-red-500' : 'text-[#FF7939]'}`} />}
-                        <span className={exceedsWeeks ? 'text-red-500 font-bold' : 'text-white/60 font-medium'}>{product.type === 'document' ? 'Duración' : 'Semanas'}</span>
+                <div className={`flex flex-col gap-0.5 bg-white/[0.02] border p-2.5 rounded-xl ${exceedsWeeks ? 'border-red-500/50 bg-red-500/5' : 'border-white/5'}`}>
+                    <div className="flex items-center gap-1.5 opacity-60">
+                        {product.type === 'document' ? <Calendar className="h-3 w-3 text-[#FF7939]" /> : <Clock className={`h-3 w-3 ${exceedsWeeks ? 'text-red-500' : 'text-[#FF7939]'}`} />}
+                        <span className={`text-[9px] font-bold uppercase tracking-widest ${exceedsWeeks ? 'text-red-500' : 'text-gray-400'}`}>{product.type === 'document' ? 'Duración' : 'Semanas'}</span>
                     </div>
-                    <div className={exceedsWeeks ? 'text-red-500 font-bold' : 'text-white font-semibold'}>
+                    <div className={`font-black text-sm ${exceedsWeeks ? 'text-red-500' : 'text-white'}`}>
                         {product.type === 'document' ? '-' : (product.type === 'workshop' ? (loadingWorkshopTopics ? '...' : calculateWorkshopWeeks) : (planningStatsLoading ? '...' : weeksCount))}
                     </div>
                 </div>
 
-                <div className="flex flex-col items-center gap-1 text-center">
-                    <div className="flex items-center gap-2">
-                        <Dumbbell className="h-5 w-5 text-[#FF7939]" />
-                        <span className="text-white/60 font-medium">Ejercicios</span>
+                <div className="flex flex-col gap-0.5 bg-white/[0.02] border border-white/5 p-2.5 rounded-xl">
+                    <div className="flex items-center gap-1.5 opacity-60">
+                        <Dumbbell className="h-3 w-3 text-[#FF7939]" />
+                        <span className="text-gray-400 text-[9px] font-bold uppercase tracking-widest">Items</span>
                     </div>
-                    <div className="text-white font-semibold">{exercisesCount}</div>
+                    <div className="text-white font-black text-sm">{exercisesCount}</div>
                 </div>
 
                 {/* Row 2 */}
-                <div className="flex flex-col items-center gap-1 text-center">
-                    <div className="h-5 flex items-center justify-center">
+                <div className="flex flex-col gap-0.5 bg-white/[0.02] border border-white/5 p-2.5 rounded-xl">
+                    <div className="h-3 flex items-center justify-start mb-0.5 opacity-80">
                         {['nutricion', 'nutrition'].includes(product.categoria) ? getDietTypeDisplay(product.dieta) : getDifficultyFires(difficulty)}
                     </div>
-                    <div className="text-gray-300 text-sm font-medium h-5">
+                    <div className="text-gray-500 text-[9px] font-bold uppercase tracking-widest h-3 flex items-end">
                         {!['nutricion', 'nutrition'].includes(product.categoria) && (
                             difficulty === 'beginner' ? 'Principiante' : difficulty === 'advanced' ? 'Avanzado' : 'Intermedio'
                         )}
                     </div>
                 </div>
 
-                {product.capacity ? (
-                    <div className={`flex flex-col items-center gap-1 text-center ${exceedsStock ? 'border-2 border-red-500 rounded-lg p-1' : ''}`}>
-                        <div className="flex items-center gap-2">
-                            <Users className={`h-5 w-5 ${exceedsStock ? 'text-red-500' : 'text-[#FF7939]'}`} />
-                            <span className={exceedsStock ? 'text-red-500 font-bold' : 'text-white/60 font-medium'}>Cupos</span>
-                        </div>
-                        <div className={exceedsStock ? 'text-red-500 font-bold' : 'text-white font-semibold'}>
-                            {parseInt(product.capacity) >= 999 ? 'Ilimitados' : product.capacity}
-                        </div>
+                <div className={`flex flex-col gap-0.5 bg-white/[0.02] border p-2.5 rounded-xl ${exceedsStock ? 'border-red-500/50 bg-red-500/5' : 'border-white/5'}`}>
+                    <div className="flex items-center gap-1.5 opacity-60">
+                        <Users className={`h-3 w-3 ${exceedsStock ? 'text-red-500' : 'text-[#FF7939]'}`} />
+                        <span className={`text-[9px] font-bold uppercase tracking-widest ${exceedsStock ? 'text-red-500' : 'text-gray-400'}`}>Cupos</span>
                     </div>
-                ) : <div />}
+                    <div className={`font-black text-sm ${exceedsStock ? 'text-red-500' : 'text-white'}`}>
+                        {parseInt(product.capacity) >= 999 ? '∞' : product.capacity}
+                    </div>
+                </div>
 
-                <div className="flex flex-col items-center gap-1 text-center">
-                    <div className="h-5 flex items-center justify-center"><ModalityIcon className="h-5 w-5 text-white" /></div>
-                    <div className="text-gray-300 text-sm font-medium">{productModality === 'online' ? 'Online' : 'Presencial'}</div>
+                <div className="flex flex-col gap-0.5 bg-white/[0.02] border border-white/5 p-2.5 rounded-xl">
+                    <div className="flex items-center gap-1.5 opacity-60 mb-0.5">
+                        <ModalityIcon className="h-3 w-3 text-[#FF7939]" />
+                        <span className="text-gray-400 text-[9px] font-bold uppercase tracking-widest">Modalidad</span>
+                    </div>
+                    <div className="text-white font-black text-[10px] uppercase truncate w-full">
+                        {product.location_name || (productModality === 'online' ? 'Online' : 'Presencial')}
+                    </div>
                 </div>
 
                 {includedMeetCredits > 0 && (
-                    <div className="col-span-3 flex justify-center mt-2">
-                        <div className="flex items-center gap-2"><Video className="h-5 w-5 text-rose-100/90" /><span className="text-gray-300">{includedMeetCredits} meets</span></div>
+                    <div className="col-span-3 flex justify-center mt-1 bg-[#FF7939]/5 border border-[#FF7939]/10 py-1.5 rounded-lg text-[#FF7939]">
+                        <div className="flex items-center gap-2"><Video className="h-3 w-3" /><span className="text-[9px] font-bold uppercase tracking-widest">{includedMeetCredits} meets incluidos</span></div>
                     </div>
                 )}
             </div>
 
-            {/* Goals */}
-            {product.objetivos?.length > 0 && (
-                <div className="flex gap-2 overflow-x-auto hide-scrollbar pb-2">
-                    {product.objetivos.map((o: string, i: number) => (
-                        <span key={i} className="bg-[#FF7939]/20 text-[#FF7939] text-sm px-3 py-1.5 rounded-full border border-[#FF7939]/30 whitespace-nowrap">{o}</span>
-                    ))}
+            {/* 5. Google Maps Link (for Presencial/Híbrido) - More minimal button */}
+            {(productModality === 'presencial' || productModality === 'hibrido') && product.location_url && (
+                <div className="mt-1">
+                    <Button asChild variant="outline" className="w-full border-[#FF7939]/30 text-[#FF7939] hover:bg-[#FF7939]/10 rounded-xl font-bold text-[10px] uppercase tracking-widest h-10">
+                        <a href={product.location_url} target="_blank" rel="noopener noreferrer" className="flex items-center gap-2">
+                            <MapPin className="h-3 w-3" />
+                            Ver Ubicación
+                        </a>
+                    </Button>
                 </div>
             )}
 
-            {/* Description */}
-            <div>
-                <h3 className="text-lg font-medium mb-2 text-white/80">Descripción</h3>
-                <div className="text-white/65 font-light leading-relaxed">
-                    <p className={!isDescriptionExpanded ? "line-clamp-3" : ""}>{product.description}</p>
-                    {product.description?.length > 150 && (
-                        <button onClick={() => setIsDescriptionExpanded(!isDescriptionExpanded)} className="text-[#FF7939] hover:text-[#FF6B00] text-sm mt-2">
-                            {isDescriptionExpanded ? 'ver menos' : '...ver más'}
-                        </button>
-                    )}
+            {/* 6. Objetivos / Tags - Finer */}
+            {product.objetivos?.length > 0 && (
+                <div className="space-y-2 pt-2">
+                    <h3 className="text-[9px] font-bold text-gray-500 uppercase tracking-widest">Logros</h3>
+                    <div className="flex flex-wrap gap-2">
+                        {product.objetivos.map((o: string, i: number) => (
+                            <span key={i} className="text-gray-400 text-[9px] font-medium uppercase tracking-wider">{o} {i < product.objetivos.length - 1 && '•'}</span>
+                        ))}
+                    </div>
                 </div>
-            </div>
+            )}
         </div>
     )
 }

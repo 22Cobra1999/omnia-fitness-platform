@@ -213,7 +213,6 @@ export default function CreateProductModal({ isOpen, onClose, editingProduct, in
     } else {
       setSelectedProgramType(subType)
       setProductCategory(subType === 'fitness' ? 'fitness' : 'nutricion')
-      setCurrentStep('general')
     }
   }
 
@@ -385,7 +384,6 @@ export default function CreateProductModal({ isOpen, onClose, editingProduct, in
                     handleMediaSelection,
                     handleInlineUploadChange,
                     setShowMediaSourceModal,
-                    setShowMediaSourceModal,
                     setInlineMediaType,
                     handleStockQuantityChange,
                     onNext: () => goToStep(currentStepNumber + 1),
@@ -431,7 +429,17 @@ export default function CreateProductModal({ isOpen, onClose, editingProduct, in
                 <div className="space-y-6">
                   <WorkshopSimpleScheduler
                     sessions={workshopSchedule}
-                    onSessionsChange={setWorkshopSchedule}
+                    onSessionsChange={(sessions) => {
+                      setWorkshopSchedule(sessions)
+                      // Update stats for workshops
+                      const uniqueDays = new Set(sessions.map(s => s.date)).size
+                      const uniqueThemes = new Set(sessions.map(s => s.title).filter(Boolean)).size
+                      setWeeklyStats(prev => ({
+                        ...prev,
+                        sesiones: uniqueDays,
+                        ejerciciosUnicos: uniqueThemes
+                      }))
+                    }}
                   />
                 </div>
               )}
@@ -598,6 +606,7 @@ export default function CreateProductModal({ isOpen, onClose, editingProduct, in
         onClose={() => setIsMediaModalOpen(false)}
         onMediaSelected={handleMediaSelection}
         mediaType={mediaModalType}
+        className="z-[80]"
       />
 
       {/* Modal de selección de videos de ejercicios */}
@@ -657,6 +666,7 @@ export default function CreateProductModal({ isOpen, onClose, editingProduct, in
         onClose={() => setIsPdfModalOpen(false)}
         onMediaSelected={(url, type, file, name) => handlePdfSelected(url, type, file, name)}
         mediaType="pdf"
+        className="z-[80]"
       />
 
       {/* Modal de confirmación de cierre */}

@@ -535,18 +535,22 @@ export function CalendarDaySplitView({
                                                         if (updateError) {
                                                             console.error('[day_split] Error updating event:', updateError)
                                                             setSelectedMeetRsvpLoading(false)
+                                                            alert('Error al actualizar: ' + updateError.message)
                                                             return
                                                         }
 
                                                         console.log('[day_split] Update Rows Affected:', updatedData?.length || 0)
-                                                        if (updatedData && updatedData.length > 0) {
-                                                            console.log('[day_split] Updated Row Sample:', {
-                                                                id: updatedData[0].id,
-                                                                start: updatedData[0].start_time
-                                                            })
-                                                        } else {
+                                                        if (!updatedData || updatedData.length === 0) {
                                                             console.warn('[day_split] ZERO ROWS UPDATED! Check RLS or ID.')
+                                                            setSelectedMeetRsvpLoading(false)
+                                                            alert('No se pudo actualizar el evento. Verifica tus permisos.')
+                                                            return
                                                         }
+
+                                                        console.log('[day_split] Updated Row Sample:', {
+                                                            id: updatedData[0].id,
+                                                            start: updatedData[0].start_time
+                                                        })
 
                                                         // OPTIMISTIC UPDATE (Backup in case refetch is stale)
                                                         setMeetEventsByDate((prev: any) => {

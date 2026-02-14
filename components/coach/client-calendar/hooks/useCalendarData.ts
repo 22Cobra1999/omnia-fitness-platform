@@ -35,7 +35,7 @@ export function useCalendarData(supabase: any, clientId: string, currentDate: Da
             // 1. Fetch Fitness Progress
             const { data: fitnessRows } = await supabase
                 .from('progreso_cliente')
-                .select('id, actividad_id, fecha, minutos_json')
+                .select('id, actividad_id, fecha, minutos_json, activities!inner(coach_id, title)')
                 .eq('cliente_id', clientId)
                 .gte('fecha', monthStartStr)
                 .lte('fecha', monthEndStr)
@@ -43,23 +43,31 @@ export function useCalendarData(supabase: any, clientId: string, currentDate: Da
             // 2. Fetch Nutrition Progress
             const { data: nutriRows } = await supabase
                 .from('progreso_cliente_nutricion')
-                .select('id, actividad_id, fecha, macros')
+                .select('id, actividad_id, fecha, macros, activities!inner(coach_id, title)')
                 .eq('cliente_id', clientId)
                 .gte('fecha', monthStartStr)
                 .lte('fecha', monthEndStr)
 
-            // 3. Fetch Calendar Events (Meets)
+            // 3. Fetch Workshop Progress
+            const { data: workshopRows } = await supabase
+                .from('taller_progreso_temas')
+                .select('id, actividad_id, fecha_seleccionada, horario_seleccionado, activities!inner(coach_id, title)')
+                .eq('cliente_id', clientId)
+                .gte('fecha_seleccionada', monthStartStr)
+                .lte('fecha_seleccionada', monthEndStr)
+
+            // 4. Fetch Calendar Events (Meets)
             const { data: participants } = await supabase
                 .from('calendar_event_participants')
                 .select('event_id')
-                .eq('client_id', clientId)
+                .eq('user_id', clientId) // Corrected from client_id
 
             const myEventIds = (participants || []).map((p: any) => p.event_id)
             let meetRows: any[] = []
             if (myEventIds.length > 0) {
                 const { data: events } = await supabase
                     .from('calendar_events')
-                    .select('id, title, start_time, end_time')
+                    .select('id, title, start_time, end_time, coach_id, activity_id')
                     .in('id', myEventIds)
                     .gte('start_time', `${monthStartStr}T00:00:00`)
                     .lte('start_time', `${monthEndStr}T23:59:59`)
@@ -89,7 +97,8 @@ export function useCalendarData(supabase: any, clientId: string, currentDate: Da
             }
 
             // Process Fitness
-            (fitnessRows || []).forEach((r: any) => {
+            const fitnessList = Array.isArray(fitnessRows) ? fitnessRows : []
+            fitnessList.forEach((r: any) => {
                 const day = String(r.fecha)
                 let mins = 0
                 if (r.minutos_json) {
@@ -101,6 +110,8 @@ export function useCalendarData(supabase: any, clientId: string, currentDate: Da
                     client_id: clientId,
                     day,
                     activity_id: r.actividad_id,
+                    activity_title: r.activities?.title,
+                    coach_id: r.activities?.coach_id,
                     total_mins: mins,
                     fitness_mins: mins,
                     nutri_mins: 0,
@@ -108,25 +119,56 @@ export function useCalendarData(supabase: any, clientId: string, currentDate: Da
                 } as any)
             })
 
-                // Process Nutrition
-                (nutriRows || []).forEach((r: any) => {
-                    const day = String(r.fecha)
-                    let mins = 0
-                    if (r.macros) {
-                        const mObj = typeof r.macros === 'string' ? JSON.parse(r.macros) : r.macros
-                        Object.values(mObj).forEach((v: any) => { mins += (Number(v?.minutos) || 0) })
+            // Process Nutrition
+            const nutriList = Array.isArray(nutriRows) ? nutriRows : []
+            nutriList.forEach((r: any) => {
+                const day = String(r.fecha)
+                let mins = 0
+                if (r.macros) {
+                    const mObj = typeof r.macros === 'string' ? JSON.parse(r.macros) : r.macros
+                    Object.values(mObj).forEach((v: any) => { mins += (Number(v?.minutos) || 0) })
+                }
+                addRow(day, {
+                    id: `nut-${r.id}`,
+                    client_id: clientId,
+                    day,
+                    activity_id: r.actividad_id,
+                    activity_title: r.activities?.title,
+                    coach_id: r.activities?.coach_id,
+                    total_mins: mins,
+                    fitness_mins: 0,
+                    nutri_mins: mins,
+                    calendar_mins: 0
+                } as any)
+            })
+
+            // Process Workshops
+            const workshopList = Array.isArray(workshopRows) ? workshopRows : []
+            workshopList.forEach((r: any) => {
+                const day = String(r.fecha_seleccionada)
+                let mins = 0
+                if (r.horario_seleccionado) {
+                    const h = typeof r.horario_seleccionado === 'string' ? JSON.parse(r.horario_seleccionado) : r.horario_seleccionado
+                    if (h.hora_inicio && h.hora_fin) {
+                        const start = new Date(`1970-01-01T${h.hora_inicio}`)
+                        const end = new Date(`1970-01-01T${h.hora_fin}`)
+                        mins = Math.round((end.getTime() - start.getTime()) / 60000)
                     }
-                    addRow(day, {
-                        id: `nut-${r.id}`,
-                        client_id: clientId,
-                        day,
-                        activity_id: r.actividad_id,
-                        total_mins: mins,
-                        fitness_mins: 0,
-                        nutri_mins: mins,
-                        calendar_mins: 0
-                    } as any)
-                })
+                }
+                addRow(day, {
+                    id: `ws-${r.id}`,
+                    client_id: clientId,
+                    day,
+                    activity_id: r.actividad_id,
+                    activity_title: r.activities?.title || 'Taller',
+                    coach_id: r.activities?.coach_id,
+                    total_mins: mins,
+                    fitness_mins: 0,
+                    nutri_mins: 0,
+                    calendar_mins: 0,
+                    is_workshop: true
+                } as any)
+            })
 
             // Process Meets
             meetRows.forEach((r: any) => {
@@ -138,7 +180,9 @@ export function useCalendarData(supabase: any, clientId: string, currentDate: Da
                     client_id: clientId,
                     day,
                     calendar_event_id: r.id,
+                    activity_id: r.activity_id,
                     activity_title: r.title,
+                    coach_id: r.coach_id,
                     total_mins: mins,
                     fitness_mins: 0,
                     nutri_mins: 0,
@@ -186,12 +230,13 @@ export function useCalendarData(supabase: any, clientId: string, currentDate: Da
                 const allIds = [...new Set([...(Array.isArray(pend) ? pend : Object.keys(pend)), ...(Array.isArray(comp) ? comp : Object.keys(comp))])]
 
                 allIds.forEach(id => {
+                    const seriesData = fit.detalles_series?.[id]?.detalle_series || fit.detalles_series?.[id] || null
                     details.push({
                         id: `fit-${fit.id}-${id}`, ejercicio_id: String(id),
                         ejercicio_nombre: fit.ejercicio_nombre || `Ejercicio ${id}`,
                         completado: Array.isArray(comp) ? comp.includes(id) : !!comp[id],
                         fecha_ejercicio: dayStr, actividad_id: activityId, actividad_titulo: activityTitle,
-                        detalle_series: fit.detalles_series?.[id]?.detalle_series || fit.detalles_series?.[id] || null
+                        detalle_series: seriesData
                     })
                 })
             }
@@ -215,13 +260,41 @@ export function useCalendarData(supabase: any, clientId: string, currentDate: Da
                 })
             }
 
+            // Talleres
+            const { data: wsList } = await supabase
+                .from('taller_progreso_temas')
+                .select('*, taller_detalles(nombre, descripcion)')
+                .eq('cliente_id', clientId)
+                .eq('fecha_seleccionada', dayStr)
+                .eq('actividad_id', activityId)
+
+            if (wsList && wsList.length > 0) {
+                wsList.forEach((ws: any) => {
+                    details.push({
+                        id: `ws-${ws.id}`,
+                        ejercicio_id: String(ws.tema_id),
+                        ejercicio_nombre: ws.taller_detalles?.nombre || `Tema de taller`,
+                        completado: ws.asistio || ws.estado === 'completado',
+                        fecha_ejercicio: dayStr,
+                        actividad_id: activityId,
+                        actividad_titulo: activityTitle,
+                        is_workshop: true,
+                        workshop_details: ws.taller_detalles
+                    })
+                })
+            }
+
             setActivityDetailsByKey(prev => ({ ...prev, [cacheKey]: details }))
         } catch (e) { console.warn(e) }
     }, [clientId, supabase, activityDetailsByKey])
 
     const loadEventDetails = useCallback(async (eventId: string) => {
         if (!eventId || eventDetailsByKey[eventId]) return
-        const { data } = await supabase.from('calendar_events').select('*').eq('id', eventId).single()
+        const { data } = await supabase
+            .from('calendar_events')
+            .select('*, participants:calendar_event_participants(*)')
+            .eq('id', eventId)
+            .single()
         if (data) setEventDetailsByKey(prev => ({ ...prev, [eventId]: data }))
     }, [supabase, eventDetailsByKey])
 

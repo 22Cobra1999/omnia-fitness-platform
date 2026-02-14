@@ -21,6 +21,8 @@ export type Product = {
     objetivos?: string[]
     sessions_per_client?: number
     is_paused?: boolean
+    location_name?: string | null
+    location_url?: string | null
 }
 
 export type SortField = 'title' | 'type' | 'price' | 'created_at'

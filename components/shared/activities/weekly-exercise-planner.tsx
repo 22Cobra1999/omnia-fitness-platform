@@ -100,11 +100,11 @@ export function WeeklyExercisePlanner(props: WeeklyExercisePlannerProps) {
               </span>
             </div>
             <div className="flex justify-between">
-              <span className="text-gray-400">{isNutrition ? 'Platos totales:' : 'Ejercicios totales:'}</span>
+              <span className="text-gray-400">{isNutrition ? 'Platos totales:' : (props.activityId ? 'Temas totales:' : 'Ejercicios totales:')}</span>
               <span className="text-[#FF7939] font-medium">{summaryStats.totalExercisesReplicated}</span>
             </div>
             <div className="flex justify-between">
-              <span className="text-gray-400">{isNutrition ? 'Platos únicos:' : 'Ejercicios únicos:'}</span>
+              <span className="text-gray-400">{isNutrition ? 'Platos únicos:' : (props.activityId ? 'Temas únicos:' : 'Ejercicios únicos:')}</span>
               <span className={`${uniqueExceeded ? 'text-red-400 font-semibold' : 'text-[#FF7939] font-medium'}`}>
                 {activitiesLimit !== null ? `${summaryStats.uniqueExercises}/${activitiesLimit}` : summaryStats.uniqueExercises}
               </span>

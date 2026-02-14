@@ -71,6 +71,9 @@ export function ActivityDetailExpanded({ activity, onBack }: ActivityDetailExpan
     if (categoria === 'nutricion' || categoria === 'nutrition') {
       return 'Platos'
     }
+    if (activity.type === 'workshop') {
+      return 'Temas'
+    }
     return 'Ejercicios'
   }
 

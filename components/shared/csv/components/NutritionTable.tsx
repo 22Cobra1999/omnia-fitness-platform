@@ -51,7 +51,6 @@ export function NutritionTable({
                     <th className="px-3 py-3 text-left text-xs font-medium text-white border-b border-gray-600 w-24">Proteínas</th>
                     <th className="px-3 py-3 text-left text-xs font-medium text-white border-b border-gray-600 w-24">Carbohidratos</th>
                     <th className="px-3 py-3 text-left text-xs font-medium text-white border-b border-gray-600 w-20">Grasas</th>
-                    <th className="px-3 py-3 text-left text-xs font-medium text-white border-b border-gray-600 w-24">Dificultad</th>
                     <th className="px-3 py-3 text-left text-xs font-medium text-white border-b border-gray-600 w-32">Ingredientes</th>
                     <th className="px-3 py-3 text-left text-xs font-medium text-white border-b border-gray-600 w-20">Porciones</th>
                     <th className="px-3 py-3 text-left text-xs font-medium text-white border-b border-gray-600 w-20">Minutos</th>
@@ -61,7 +60,7 @@ export function NutritionTable({
             <tbody>
                 {data.length === 0 ? (
                     <tr>
-                        <td colSpan={15 + (activityId === 0 ? 1 : 0)} className="px-4 py-8 text-center text-gray-400">
+                        <td colSpan={14 + (activityId === 0 ? 1 : 0)} className="px-4 py-8 text-center text-gray-400">
                             {loadingExisting ? 'Cargando platos existentes...' : 'No hay platos para mostrar'}
                         </td>
                     </tr>
@@ -95,7 +94,13 @@ export function NutritionTable({
                                     </Button>
                                 </td>
                                 {activityId === 0 && (
-                                    <td className="px-3 py-3 text-xs text-white">-</td>
+                                    <td className="px-3 py-3 text-[10px] text-white">
+                                        {(item as any).exerciseUsage > 0 ? (
+                                            <span className="bg-green-500/10 text-green-400 px-1.5 py-0.5 rounded border border-green-500/20">En uso</span>
+                                        ) : (
+                                            <span className="bg-gray-500/10 text-gray-400 px-1.5 py-0.5 rounded border border-gray-500/20">Disponible</span>
+                                        )}
+                                    </td>
                                 )}
                                 <td className="px-3 py-3 text-xs font-medium whitespace-pre-wrap break-words">
                                     <span className={isDuplicate ? 'text-red-400' : 'text-white'}>{exerciseName}</span>
@@ -138,7 +143,6 @@ export function NutritionTable({
                                         return Number(val) > 0 ? `${val}g` : '-'
                                     })()}
                                 </td>
-                                <td className="px-3 py-3 text-xs text-white">{item['Dificultad'] ?? item.dificultad ?? '-'}</td>
                                 <td className="px-3 py-3 text-xs text-white">
                                     <div className="max-h-32 overflow-y-auto overflow-x-hidden">
                                         {(() => {

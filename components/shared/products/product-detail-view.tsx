@@ -7,7 +7,7 @@ import Image from "next/image"
 import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
-import { Clock, Star, Video, DollarSign, MessageCircle, CheckCircle, AlertCircle, Loader2 } from "lucide-react"
+import { Clock, Star, Video, DollarSign, MessageCircle, CheckCircle, AlertCircle, Loader2, MapPin, Calendar, Users } from "lucide-react"
 import { VimeoEmbed } from '@/components/shared/video/vimeo-embed'
 import { extractVimeoId } from "@/utils/vimeo-utils"
 import { useToast } from "@/components/ui/use-toast"
@@ -25,6 +25,8 @@ export function ProductDetailView({ activityId }: ProductDetailViewProps) {
   const [error, setError] = useState<string | null>(null)
   const [purchaseModalOpen, setPurchaseModalOpen] = useState(false)
   const [isEnrolled, setIsEnrolled] = useState(false)
+  const [workshopThemes, setWorkshopThemes] = useState<any[]>([])
+  const [loadingThemes, setLoadingThemes] = useState(false)
   const supabase = getSupabaseClient()
   const { toast } = useToast()
 
@@ -91,7 +93,27 @@ export function ProductDetailView({ activityId }: ProductDetailViewProps) {
       }
     }
 
+    const fetchWorkshopThemes = async (id: string) => {
+      setLoadingThemes(true)
+      try {
+        const { data, error } = await supabase
+          .from("taller_detalles")
+          .select("*")
+          .eq("actividad_id", parseInt(id))
+          .eq("activo", true)
+          .order("id", { ascending: true })
+
+        if (error) throw error
+        setWorkshopThemes(data || [])
+      } catch (err) {
+        console.error("Error fetching workshop themes:", err)
+      } finally {
+        setLoadingThemes(false)
+      }
+    }
+
     fetchActivity()
+    fetchWorkshopThemes(activityId)
   }, [activityId, supabase])
 
   const handlePurchaseClick = () => {
@@ -154,122 +176,175 @@ export function ProductDetailView({ activityId }: ProductDetailViewProps) {
             priority
           />
         )}
-        <div className="absolute inset-0 bg-gradient-to-t from-gray-950 to-transparent" />
-        <div className="absolute bottom-0 left-0 right-0 p-6 md:p-8">
-          <h1 className="text-4xl md:text-5xl font-extrabold mb-2 leading-tight">{activity.title}</h1>
-          <p className="text-gray-300 text-lg md:text-xl mb-4">{activity.description}</p>
-          <div className="flex items-center space-x-4">
-            <Badge className="bg-orange-500 text-white text-sm px-3 py-1 rounded-full">
-              {activity.type.toUpperCase()}
-            </Badge>
-            {activity.difficulty && (
-              <Badge variant="outline" className="border-gray-700 text-gray-300 text-sm px-3 py-1 rounded-full">
-                {activity.difficulty.charAt(0).toUpperCase() + activity.difficulty.slice(1)}
-              </Badge>
-            )}
-          </div>
-        </div>
+        <div className="absolute inset-0 bg-gradient-to-t from-gray-950 via-gray-950/40 to-transparent" />
       </div>
 
       {/* Main Content */}
-      <div className="container mx-auto px-4 py-8">
-        {/* Coach Info & Rating */}
-        <Card className="bg-gray-900 border-gray-800 text-white mb-8">
-          <CardContent className="flex items-center p-4">
-            <div className="relative w-16 h-16 rounded-full overflow-hidden mr-4 border-2 border-orange-500">
-              <Image
-                src={activity.coach_avatar_url || "/placeholder.svg?height=64&width=64&query=coach avatar"}
-                alt={activity.coach_name || "Coach"}
-                fill
-                className="object-cover"
-              />
-            </div>
-            <div>
-              <h3 className="text-lg font-semibold">{activity.coach_name || "Coach Desconocido"}</h3>
-              <div className="flex items-center text-sm text-gray-400">
-                <Star className="h-4 w-4 fill-yellow-400 text-yellow-400 mr-1" />
-                <span>{activity.coach_rating?.toFixed(1) || "N/A"}</span>
-                {activity.coach_whatsapp && (
-                  <a
-                    href={`https://wa.me/${activity.coach_whatsapp.replace(/[^0-9]/g, "")}`}
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    className="ml-3 text-green-500 hover:text-green-400"
-                    aria-label="Chat with coach on WhatsApp"
-                  >
-                    <MessageCircle className="h-5 w-5" />
-                  </a>
-                )}
-              </div>
-            </div>
-          </CardContent>
-        </Card>
+      <div className="container mx-auto px-4 -mt-12 relative z-10 pb-24">
+        {/* 1. Title - Minimalist and smaller */}
+        <div className="mb-6">
+          <div className="flex flex-wrap items-center gap-2 mb-4">
+            <Badge className="bg-[#FF7939] text-white text-[9px] font-black px-1.5 py-0.5 rounded-sm">
+              {activity.type.toUpperCase()}
+            </Badge>
+            {activity.categoria && (
+              <Badge variant="outline" className="border-[#FF7939]/30 text-[#FF7939] text-[9px] font-bold px-1.5 py-0.5 rounded-sm">
+                {activity.categoria.toUpperCase()}
+              </Badge>
+            )}
+          </div>
+          <h1 className="text-3xl md:text-4xl lg:text-5xl font-black text-white mb-4 tracking-tighter leading-none">
+            {activity.title}
+          </h1>
+        </div>
 
-        {/* Program Info / Details */}
-        {activity.program_info && (
-          <Card className="bg-gray-900 border-gray-800 text-white mb-8">
-            <CardHeader>
-              <CardTitle className="text-xl font-bold">Detalles del Programa</CardTitle>
-            </CardHeader>
-            <CardContent className="grid grid-cols-1 md:grid-cols-2 gap-4">
-              {activity.program_info.program_duration && (
-                <div className="flex items-center">
-                  <Clock className="h-5 w-5 text-orange-500 mr-2" />
-                  <span>Duración: {activity.program_info.program_duration} meses</span>
-                </div>
-              )}
-              {activity.program_info.duration && (
-                <div className="flex items-center">
-                  <Video className="h-5 w-5 text-orange-500 mr-2" />
-                  <span>Sesiones: {activity.program_info.duration}</span>
-                </div>
-              )}
-              {activity.program_info.calories && (
-                <div className="flex items-center">
-                  <svg
-                    xmlns="http://www.w3.org/2000/svg"
-                    className="h-5 w-5 text-orange-500 mr-2"
-                    viewBox="0 0 24 24"
-                    fill="none"
-                    stroke="currentColor"
-                    strokeWidth="2"
-                    strokeLinecap="round"
-                    strokeLinejoin="round"
-                  >
-                    <path d="M12 20V10"></path>
-                    <path d="M18 20V4"></path>
-                    <path d="M6 20v-6"></path>
-                  </svg>
-                  <span>Calorías estimadas: {activity.program_info.calories} kcal</span>
-                </div>
-              )}
-              {activity.program_info.rich_description && (
-                <div className="md:col-span-2">
-                  <h4 className="font-semibold mb-2">Descripción detallada:</h4>
-                  <div
-                    className="prose prose-invert max-w-none text-gray-300"
-                    dangerouslySetInnerHTML={{ __html: activity.program_info.rich_description }}
-                  />
-                </div>
-              )}
-            </CardContent>
-          </Card>
+        {/* 2. Coach Intro - Very compact, below title */}
+        <div className="flex items-center gap-2 mb-6 opacity-90">
+          <div className="relative w-6 h-6 rounded-full overflow-hidden border border-white/10">
+            <Image
+              src={activity.coach_avatar_url || "/placeholder.svg?height=40&width=40&query=coach"}
+              alt={activity.coach_name || "Coach"}
+              fill
+              className="object-cover"
+            />
+          </div>
+          <div className="flex items-center gap-2">
+            <h3 className="text-xs font-bold text-gray-300">{activity.coach_name || "Coach"}</h3>
+            {activity.coach_rating > 0 && (
+              <div className="flex items-center text-[10px] text-yellow-500 opacity-80">
+                <Star className="h-2.5 w-2.5 fill-yellow-500 mr-1" />
+                <span>{activity.coach_rating.toFixed(1)}</span>
+              </div>
+            )}
+          </div>
+        </div>
+
+        {/* 3. Description Section - Minimalist */}
+        <div className="max-w-2xl mb-10">
+          <p className="text-gray-400 text-base leading-relaxed">
+            {activity.description}
+          </p>
+        </div>
+
+        {/* 4. Stats Grid - Minimalist approach */}
+        <div className="grid grid-cols-2 md:grid-cols-6 gap-3 mb-12">
+          <div className="bg-white/[0.02] border border-white/5 p-3 rounded-xl">
+            <div className="flex items-center gap-1.5 opacity-60 mb-1">
+              <Calendar className="w-3 h-3 text-[#FF7939]" />
+              <span className="text-[9px] text-gray-400 font-bold uppercase tracking-widest">Sesiones</span>
+            </div>
+            <span className="text-sm font-black text-white">{activity.sesiones_dias_totales || 0}</span>
+          </div>
+          <div className="bg-white/[0.02] border border-white/5 p-3 rounded-xl">
+            <div className="flex items-center gap-1.5 opacity-60 mb-1">
+              <Clock className="w-3 h-3 text-[#FF7939]" />
+              <span className="text-[9px] text-gray-400 font-bold uppercase tracking-widest">Semanas</span>
+            </div>
+            <span className="text-sm font-black text-white">{activity.semanas_totales || 0}</span>
+          </div>
+          <div className="bg-white/[0.02] border border-white/5 p-3 rounded-xl">
+            <div className="flex items-center gap-1.5 opacity-60 mb-1">
+              <Video className="w-3 h-3 text-[#FF7939]" />
+              <span className="text-[9px] text-gray-400 font-bold uppercase tracking-widest">Items</span>
+            </div>
+            <span className="text-sm font-black text-white">{activity.items_unicos || 0}</span>
+          </div>
+          <div className="bg-white/[0.02] border border-white/5 p-3 rounded-xl">
+            <span className="text-[9px] text-gray-400 font-bold uppercase tracking-widest block mb-1">Nivel</span>
+            <span className="text-sm font-black text-white capitalize">{activity.difficulty || 'Intermedio'}</span>
+          </div>
+          <div className="bg-white/[0.02] border border-white/5 p-3 rounded-xl">
+            <div className="flex items-center gap-1.5 opacity-60 mb-1">
+              <Users className="w-3 h-3 text-[#FF7939]" />
+              <span className="text-[9px] text-gray-400 font-bold uppercase tracking-widest">Cupos</span>
+            </div>
+            <span className="text-sm font-black text-white">{activity.capacity || '∞'}</span>
+          </div>
+          <div className="bg-white/[0.02] border border-white/5 p-3 rounded-xl">
+            <div className="flex items-center gap-1.5 opacity-60 mb-1">
+              <MapPin className="w-3 h-3 text-[#FF7939]" />
+              <span className="text-[9px] text-gray-400 font-bold uppercase tracking-widest">Modalidad</span>
+            </div>
+            <span className="text-sm font-black text-white truncate block">{activity.location_name || activity.modality || 'Online'}</span>
+          </div>
+        </div>
+
+        {/* 5. Google Maps Link (for Presencial/Híbrido) - Minimal Button */}
+        {(activity.modality === 'presencial' || activity.modality === 'hibrido') && activity.location_url && (
+          <div className="mb-12">
+            <Button asChild variant="outline" className="border-[#FF7939]/30 text-[#FF7939] hover:bg-[#FF7939]/10 rounded-xl px-6 font-bold text-[10px] uppercase tracking-widest h-10">
+              <a href={activity.location_url} target="_blank" rel="noopener noreferrer" className="flex items-center gap-2">
+                <MapPin className="h-3 w-3" />
+                Ver Ubicación
+              </a>
+            </Button>
+          </div>
         )}
 
-        {/* Tags Section */}
-        {activity.tags && activity.tags.length > 0 && (
-          <Card className="bg-gray-900 border-gray-800 text-white mb-8">
-            <CardHeader>
-              <CardTitle className="text-xl font-bold">Etiquetas</CardTitle>
-            </CardHeader>
-            <CardContent className="flex flex-wrap gap-2">
-              {activity.tags.map((tag) => (
-                <Badge key={tag.id} variant="secondary" className="bg-gray-800 text-gray-200">
-                  {tag.tag_value}
-                </Badge>
+        {/* 6. Workshop Themes Section - Simple List */}
+        {activity.type === 'workshop' && (
+          <div className="mb-12 border-t border-white/5 pt-10">
+            <div className="flex items-center gap-2 mb-8">
+              <h2 className="text-[10px] font-bold text-gray-500 uppercase tracking-widest">Temas y Horarios</h2>
+            </div>
+
+            {loadingThemes ? (
+              <div className="flex items-center gap-2 text-gray-500">
+                <Loader2 className="w-3 h-3 animate-spin" />
+                <span className="text-[10px] font-bold uppercase tracking-widest opacity-50">Cargando...</span>
+              </div>
+            ) : workshopThemes.length > 0 ? (
+              <div className="space-y-8">
+                {workshopThemes.map((theme, i) => (
+                  <div key={theme.id} className="group">
+                    <div className="flex items-baseline gap-3 mb-2">
+                      <span className="text-[#FF7939] font-black text-sm">{(i + 1).toString().padStart(2, '0')}</span>
+                      <h4 className="text-white font-bold text-lg group-hover:text-[#FF7939] transition-colors">{theme.nombre}</h4>
+                    </div>
+
+                    {theme.descripcion && (
+                      <p className="text-gray-500 text-xs mb-4 ml-8 max-w-xl leading-relaxed italic opacity-80">"{theme.descripcion}"</p>
+                    )}
+
+                    <div className="ml-8 space-y-2">
+                      {theme.originales?.fechas_horarios?.map((horario: any, idx: number) => (
+                        <div key={idx} className="flex items-center gap-6 text-[10px] tracking-wide">
+                          <div className="flex items-center gap-2 text-gray-400 font-bold uppercase min-w-[120px]">
+                            <Calendar className="w-3 h-3 opacity-40" />
+                            <span>
+                              {new Date(horario.fecha).toLocaleDateString('es-ES', { weekday: 'short', day: 'numeric', month: 'short' })}
+                            </span>
+                          </div>
+                          <div className="flex items-center gap-2 text-gray-500 font-medium bg-white/[0.03] px-2 py-0.5 rounded-md border border-white/5">
+                            <Clock className="w-3 h-3 opacity-30" />
+                            <span>
+                              {horario.inicio} - {horario.fin}
+                            </span>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                ))}
+              </div>
+            ) : (
+              <p className="text-gray-600 text-[10px] font-bold uppercase tracking-widest">No hay temas programados.</p>
+            )}
+          </div>
+        )}
+
+        {/* 7. Objetivos / Tags Section - Finer */}
+        {activity.objetivos && activity.objetivos.length > 0 && (
+          <div className="mb-24 pt-8 border-t border-white/5">
+            <h3 className="text-[9px] font-bold text-gray-500 uppercase tracking-widest mb-4">Logros</h3>
+            <div className="flex flex-wrap gap-2">
+              {activity.objetivos.map((obj: string, i: number) => (
+                <span key={i} className="text-gray-400 text-[10px] font-medium uppercase tracking-wider">
+                  {obj} {i < activity.objetivos.length - 1 && '•'}
+                </span>
               ))}
-            </CardContent>
-          </Card>
+            </div>
+          </div>
         )}
 
         {/* Purchase Button */}

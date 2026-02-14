@@ -111,6 +111,25 @@ const calculateStatsFromSchedule = (weeklySchedule: any, periods: number) => {
   }
 };
 
+const calculateWorkshopStats = (schedule: any[]) => {
+  if (!Array.isArray(schedule) || schedule.length === 0) return {
+    items_totales: 0,
+    items_unicos: 0,
+    sesiones_dias_totales: 0,
+    semanas_totales: 0
+  }
+
+  const uniqueDays = new Set(schedule.map(s => s.date)).size
+  const uniqueThemes = new Set(schedule.map(s => s.title).filter(Boolean)).size
+
+  return {
+    items_totales: schedule.length,
+    items_unicos: uniqueThemes,
+    sesiones_dias_totales: uniqueDays,
+    semanas_totales: 0
+  }
+}
+
 export const dynamic = 'force-dynamic'
 export const runtime = 'nodejs'
 
@@ -432,15 +451,35 @@ export async function GET(request: NextRequest) {
         // Verificar si es taller - calcular cantidadTemas y cantidadDias
         if (product.type === 'workshop') {
           try {
-            const { data: tallerDetallesStats } = await supabase
+            const targetId = typeof product.id === 'string' ? parseInt(product.id) : product.id
+
+            let { data: tallerDetallesStats, error: tallerError } = await supabaseService
               .from('taller_detalles')
-              .select('nombre, originales')
-              .eq('actividad_id', product.id)
-              .eq('activo', true)
+              .select('id, nombre, descripcion, originales, pdf_url, pdf_file_name, activo')
+              .eq('actividad_id', targetId)
+
+            if (tallerError) {
+              console.error(`❌ [API] Error fetching taller_detalles for ${product.id}:`, tallerError)
+            }
+
+            // Si falló con número y el id original era distinto, reintentar con el id original
+            if ((!tallerDetallesStats || tallerDetallesStats.length === 0) && product.id !== targetId) {
+              const { data: retryData } = await supabaseService
+                .from('taller_detalles')
+                .select('id, nombre, descripcion, originales, pdf_url, pdf_file_name, activo')
+                .eq('actividad_id', product.id)
+              if (retryData && retryData.length > 0) {
+                tallerDetallesStats = retryData
+              }
+            }
 
             if (tallerDetallesStats && tallerDetallesStats.length > 0) {
+              const activeDetalles = tallerDetallesStats.filter((t: any) => t.activo !== false)
+              // Store full details for editing
+              product.workshop_details = tallerDetallesStats
+
               // Calcular cantidad de temas únicos
-              const temasUnicos = new Set(tallerDetallesStats.map((t: any) => t.nombre).filter(Boolean))
+              const temasUnicos = new Set(activeDetalles.map((t: any) => t.nombre).filter(Boolean))
               cantidadTemas = temasUnicos.size
 
               // Calcular duración desde la primera fecha hasta la última fecha
@@ -777,6 +816,8 @@ export async function GET(request: NextRequest) {
           // Para talleres: cantidad de temas y días
           cantidadTemas: cantidadTemas,
           cantidadDias: cantidadDias,
+          workshop_details: product.workshop_details,
+          taller_detalles: product.workshop_details,
           // Estado de pausa
           is_paused: product.is_paused || false,
           // Para talleres: estado 'activo' desde taller_detalles (indica si está disponible para nuevas ventas)
@@ -943,8 +984,12 @@ export async function POST(request: NextRequest) {
           participants_per_class: body.participants_per_class || null,
           // ✅ NUEVO: Estadísticas denormalizadas (Preferir frontend, fallback servidor)
           ...(() => {
-            const calculated = calculateStatsFromSchedule(body.weeklySchedule, body.periods || 1);
+            const calculated = body.modality === 'workshop' && body.workshopSchedule
+              ? calculateWorkshopStats(body.workshopSchedule)
+              : calculateStatsFromSchedule(body.weeklySchedule, body.periods || 1);
+
             console.log('🚀 [POST] Stats combinadas:', {
+              type: body.modality,
               frontend: {
                 semanas: body.semanas_totales,
                 sesiones: body.sesiones_dias_totales,
@@ -1218,7 +1263,9 @@ export async function PUT(request: NextRequest) {
       }
     })
 
-    const calculatedStats = calculateStatsFromSchedule(body.weeklySchedule, body.periods || 1);
+    const calculatedStats = (body.modality === 'workshop' && Array.isArray(body.workshopSchedule))
+      ? calculateWorkshopStats(body.workshopSchedule)
+      : calculateStatsFromSchedule(body.weeklySchedule, body.periods || 1);
 
     const updateData: any = {
       title: body.name,

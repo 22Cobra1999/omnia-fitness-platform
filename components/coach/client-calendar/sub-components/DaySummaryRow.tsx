@@ -69,6 +69,8 @@ export const DaySummaryRow: React.FC<DaySummaryRowProps> = ({
         title = isMeet ? "Otro Meet" : "Otra Actividad"
     } else if (isMeet) {
         extraLabel = "Meet"
+    } else if (row.is_workshop) {
+        extraLabel = "Taller"
     } else {
         // We could look up the type, but for now we label as "Programa" by default
         extraLabel = "Programa"
@@ -101,6 +103,8 @@ export const DaySummaryRow: React.FC<DaySummaryRowProps> = ({
                         <div className="flex items-center gap-1.5">
                             {isMeet ? (
                                 <Video className={`h-3.5 w-3.5 ${isOwned ? 'text-[#FF7939]' : 'text-zinc-500'}`} />
+                            ) : row.is_workshop ? (
+                                <Calendar className={`h-3.5 w-3.5 ${isOwned ? 'text-[#FF7939]' : 'text-zinc-500'}`} />
                             ) : (
                                 <Flame className={`h-3.5 w-3.5 ${isOwned ? 'text-[#FF7939]' : 'text-zinc-500'}`} />
                             )}
@@ -133,12 +137,20 @@ export const DaySummaryRow: React.FC<DaySummaryRowProps> = ({
                 <div className="space-y-2">
                     {eventId && eventDetailsByKey[eventId] && (
                         <div className="pl-4 pr-2 py-2 text-sm text-gray-300 space-y-1 bg-zinc-800/20 rounded-lg">
-                            <div className="flex gap-2 text-xs text-gray-500">
-                                <Clock className="w-3 h-3" />
-                                <span>
-                                    {new Date(eventDetailsByKey[eventId].start_time).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })} -
-                                    {new Date(eventDetailsByKey[eventId].end_time).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
-                                </span>
+                            <div className="flex items-center justify-between">
+                                <div className="flex gap-2 text-xs text-gray-500">
+                                    <Clock className="w-3 h-3" />
+                                    <span>
+                                        {new Date(eventDetailsByKey[eventId].start_time).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })} -
+                                        {new Date(eventDetailsByKey[eventId].end_time).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                                    </span>
+                                </div>
+                                <div className={`text-[10px] font-bold uppercase px-1.5 py-0.5 rounded ${eventDetailsByKey[eventId].participants?.[0]?.rsvp_status === 'confirmed' || eventDetailsByKey[eventId].participants?.[0]?.rsvp_status === 'accepted' ? 'bg-green-500/20 text-green-500' :
+                                    eventDetailsByKey[eventId].participants?.[0]?.rsvp_status === 'cancelled' || eventDetailsByKey[eventId].participants?.[0]?.rsvp_status === 'declined' ? 'bg-red-500/20 text-red-500' :
+                                        'bg-yellow-500/20 text-yellow-500'
+                                    }`}>
+                                    {eventDetailsByKey[eventId].participants?.[0]?.rsvp_status || 'Pendiente'}
+                                </div>
                             </div>
                             {eventDetailsByKey[eventId].description && <div className="text-gray-400 text-xs italic">{eventDetailsByKey[eventId].description}</div>}
                             {eventDetailsByKey[eventId].meet_link && (
@@ -151,7 +163,7 @@ export const DaySummaryRow: React.FC<DaySummaryRowProps> = ({
                     )}
 
                     {activityId && (() => {
-                        const items = activityDetailsByKey[expandedKey] || []
+                        const items = activityDetailsByKey[expandedKey!] || []
                         return items.length > 0 ? (
                             <div className="space-y-0">
                                 {items.map((exercise) => {
@@ -166,6 +178,8 @@ export const DaySummaryRow: React.FC<DaySummaryRowProps> = ({
                                             <div className="flex items-center justify-center w-10 pt-1 shrink-0">
                                                 {exercise.is_nutricion ? (
                                                     <Utensils className={`h-5 w-5 ${isCompleted ? 'text-[#FF7939]' : 'text-gray-600'}`} />
+                                                ) : exercise.is_workshop ? (
+                                                    <Calendar className={`h-5 w-5 ${isCompleted ? 'text-[#FF7939]' : 'text-gray-600'}`} />
                                                 ) : (
                                                     <Flame className={`h-5 w-5 ${isCompleted ? 'text-[#FF7939]' : 'text-gray-600'}`} fill={isCompleted ? "#FF7939" : "transparent"} />
                                                 )}
@@ -191,9 +205,19 @@ export const DaySummaryRow: React.FC<DaySummaryRowProps> = ({
                                                     </div>
                                                 ) : (
                                                     <div className="flex items-center justify-between gap-2">
-                                                        <div className="text-sm font-semibold text-gray-300 truncate">{exercise.ejercicio_nombre}</div>
+                                                        <div className="text-sm font-semibold text-gray-300 truncate">
+                                                            {exercise.ejercicio_nombre}
+                                                            {exercise.completado && (
+                                                                <span className="ml-2 text-[10px] bg-green-500/20 text-green-500 px-1.5 py-0.5 rounded uppercase font-bold">
+                                                                    {exercise.is_nutricion ? 'Consumido' : (exercise.is_workshop ? 'Asistió' : 'Completado')}
+                                                                </span>
+                                                            )}
+                                                            {!exercise.completado && (
+                                                                <span className="ml-2 text-[10px] bg-zinc-700 text-gray-400 px-1.5 py-0.5 rounded uppercase font-bold">Pendiente</span>
+                                                            )}
+                                                        </div>
                                                         {(() => {
-                                                            const canE = exercise.is_nutricion ? canEditNutritionForDay(exercise) : canEditFitnessForDay(exercise)
+                                                            const canE = exercise.is_nutricion ? canEditNutritionForDay(exercise) : (exercise.is_workshop ? false : canEditFitnessForDay(exercise))
                                                             if (!canE) return null
                                                             return (
                                                                 <button type="button" onClick={() => {
@@ -262,7 +286,8 @@ export const DaySummaryRow: React.FC<DaySummaryRowProps> = ({
                         ) : <div className="text-xs text-gray-500">Cargando detalle...</div>
                     })()}
                 </div>
-            )}
-        </div>
+            )
+            }
+        </div >
     )
 }
