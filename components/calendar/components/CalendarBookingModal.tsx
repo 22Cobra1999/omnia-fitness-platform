@@ -117,6 +117,7 @@ export function CalendarBookingModal({
                         date: dateFormatted,
                         time: `${selectedMeetRequest.timeHHMM} – ${endTime}`,
                         duration,
+                        message: "Solicitud enviada al coach, espera a que confirme..."
                     })
                     setShowSuccessModal(true)
                     return
@@ -220,7 +221,9 @@ export function CalendarBookingModal({
             >
                 <div className="flex items-start justify-between gap-3 mb-2">
                     <div className="flex-1 min-w-0 pt-1">
-                        <h2 className="text-xl font-bold text-white mb-0.5 leading-tight">Solicitud de Meet</h2>
+                        <h2 className="text-xl font-bold text-white mb-0.5 leading-tight">
+                            {rescheduleContext ? 'Reprogramar' : 'Solicitud de Meet'}
+                        </h2>
                         <div className="flex items-center gap-1.5 mt-2">
                             <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[10px] font-bold uppercase tracking-wider bg-white text-black">Meet</span>
                             <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[10px] font-bold uppercase tracking-wider bg-[#FF7939] text-black">
@@ -272,31 +275,38 @@ export function CalendarBookingModal({
                         <div className="text-sm font-semibold text-white">Nombre de la meet</div>
                         <input
                             value={selectedMeetRequest.title}
+                            readOnly={!!rescheduleContext}
                             onChange={(e) => setSelectedMeetRequest((prev: any) => prev ? { ...prev, title: e.target.value } : prev)}
-                            className="mt-2 w-full rounded-xl border border-white/10 bg-black/40 px-3 py-2.5 text-sm text-white placeholder:text-white/30 focus:outline-none focus:border-[#FF7939] transition-colors"
+                            className={`mt-2 w-full rounded-xl border border-white/10 bg-black/40 px-3 py-2.5 text-sm text-white placeholder:text-white/30 focus:outline-none focus:border-[#FF7939] transition-colors ${rescheduleContext ? 'opacity-50 cursor-not-allowed' : ''}`}
                             placeholder="Ej: Check rápido · Dudas de rutina"
                         />
                     </div>
 
                     <div>
-                        <div className="text-sm font-semibold text-white">Notas adicionales</div>
+                        <div className="text-sm font-semibold text-white">
+                            {rescheduleContext ? 'Agregar detalle de cambio' : 'Notas adicionales'}
+                        </div>
                         <textarea
                             value={selectedMeetRequest.description}
                             onChange={(e) => setSelectedMeetRequest((prev: any) => prev ? { ...prev, description: e.target.value } : prev)}
                             className="mt-2 w-full min-h-[96px] rounded-xl border border-white/10 bg-black/40 px-3 py-2.5 text-sm text-white placeholder:text-white/30 focus:outline-none focus:border-[#FF7939] transition-colors resize-none"
-                            placeholder="¿Sobre qué te gustaría hablar en esta sesión?..."
+                            placeholder={rescheduleContext ? "Explicá brevemente por qué solicitás el cambio..." : "¿Sobre qué te gustaría hablar en esta sesión?..."}
                         />
                     </div>
 
                     <div className="mt-4">
-                        <div className="text-base font-semibold text-white">{isPaidMeetFlow ? 'Resumen de pago' : 'Esto consumirá 1 crédito'}</div>
+                        <div className="text-base font-semibold text-white">{isPaidMeetFlow ? 'Resumen de pago' : (rescheduleContext ? 'Duración' : 'Esto consumirá 1 crédito')}</div>
                         {isPaidMeetFlow ? (
                             <div className="mt-1 text-sm text-white/70">
                                 Total: <span className="text-white/90 font-semibold">${Number(purchaseContext?.price ?? 0) || 0}</span> · Duración: <span className="text-white/90 font-semibold">{Number(purchaseContext?.durationMinutes ?? 30) || 30} min</span>
                             </div>
                         ) : (
                             <div className="mt-1 text-sm text-white/70">
-                                Tenés <span className="text-white/90 font-semibold">{Number.isFinite(creditsAvailable) ? creditsAvailable : 0}</span> créditos disponibles con este coach.
+                                {rescheduleContext ? (
+                                    <span>Duración actual: <span className="text-white/90 font-semibold">{Number(purchaseContext?.durationMinutes ?? 30) || 30} min</span></span>
+                                ) : (
+                                    <span>Tenés <span className="text-white/90 font-semibold">{Number.isFinite(creditsAvailable) ? creditsAvailable : 0}</span> créditos disponibles con este coach.</span>
+                                )}
                             </div>
                         )}
                     </div>

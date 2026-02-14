@@ -19,9 +19,9 @@ export const toMins = (h: string) => {
     return hh * 60 + mm
 }
 
-export const add30 = (hhmm: string) => {
+export const add15 = (hhmm: string) => {
     if (!hhmm) return ''
-    const t = toMins(hhmm) + 30
+    const t = toMins(hhmm) + 15
     const hh = Math.floor(t / 60)
     const mm = t % 60
     return `${String(hh).padStart(2, '0')}:${String(mm).padStart(2, '0')}`
@@ -45,20 +45,20 @@ export const coalesceSlots = (slots: string[]) => {
 
     let currentStart = sorted[0]
     let currentEnd = sorted[0]
-    let expectedNext = add30(currentStart)
+    let expectedNext = add15(currentStart)
 
     for (let i = 1; i < sorted.length; i++) {
         const t = sorted[i]
         if (t === expectedNext) {
             currentEnd = t
-            expectedNext = add30(t)
+            expectedNext = add15(t)
         } else {
-            ranges.push({ start: currentStart, end: add30(currentEnd) })
+            ranges.push({ start: currentStart, end: add15(currentEnd) })
             currentStart = t
             currentEnd = t
-            expectedNext = add30(t)
+            expectedNext = add15(t)
         }
     }
-    ranges.push({ start: currentStart, end: add30(currentEnd) })
+    ranges.push({ start: currentStart, end: add15(currentEnd) })
     return ranges
 }

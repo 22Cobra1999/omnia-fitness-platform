@@ -67,8 +67,29 @@ export function InlineMeetScheduler({
         )
     }, [existingEvents, previewEvent])
 
+    const isTimeValid = () => {
+        if (!startTime) return false
+
+        const now = new Date()
+        const [hours, minutes] = startTime.split(':').map(Number)
+        const targetDate = new Date(selectedDate)
+        targetDate.setHours(hours, minutes, 0, 0)
+
+        // If target date is past (allow small buffer? No, strict > now)
+        if (targetDate < now) return false
+
+        const diffHours = (targetDate.getTime() - now.getTime()) / (1000 * 60 * 60)
+        return diffHours >= 2
+    }
+
+    const isBookingAllowed = isTimeValid()
+
     const handleConfirm = () => {
         if (!startTime || !/^\d{2}:\d{2}$/.test(startTime)) return
+        if (!isBookingAllowed) {
+            alert('Debes reservar con al menos 2 horas de antelación.')
+            return
+        }
         onConfirm(startTime, selectedDuration)
     }
 
@@ -85,8 +106,20 @@ export function InlineMeetScheduler({
                 </div>
             )}
 
+            {/* Validation Warning */}
+            {isValidTime && !isBookingAllowed && (
+                <div className="bg-red-500/10 border border-red-500/20 rounded-xl p-3 flex items-center gap-3">
+                    <Clock className="w-5 h-5 text-red-500" />
+                    <div className="text-xs text-red-200">
+                        <span className="font-bold block text-red-400">Antelación insuficiente</span>
+                        Mínimo 2 horas de anticipación requeridas.
+                    </div>
+                </div>
+            )}
+
             {/* Scheduler Controls */}
             <div className={`bg-white/5 border rounded-xl p-4 transition-all duration-300 ${hasOverlap ? 'border-red-500/50 bg-red-500/5' : 'border-white/10'}`}>
+                {/* ... existing code ... */}
                 <div className="flex items-center gap-3 mb-4">
                     <Clock className={`w-5 h-5 ${hasOverlap ? 'text-red-500' : 'text-[#FF7939]'}`} />
                     <span className="text-sm font-bold text-white">
@@ -139,7 +172,12 @@ export function InlineMeetScheduler({
                 {isValidTime && (
                     <button
                         onClick={handleConfirm}
-                        className={`w-full mt-3 px-4 py-2.5 rounded-xl text-sm font-bold shadow-lg transition-all flex items-center justify-center gap-2 ${hasOverlap ? 'bg-zinc-800 text-white hover:bg-zinc-700' : 'bg-[#FF7939] text-black hover:bg-[#FF7939]/90 shadow-[#FF7939]/20'}`}
+                        disabled={!isBookingAllowed}
+                        className={`w-full mt-3 px-4 py-2.5 rounded-xl text-sm font-bold shadow-lg transition-all flex items-center justify-center gap-2 
+                        ${!isBookingAllowed
+                                ? 'bg-white/5 text-white/30 border border-white/10 cursor-not-allowed'
+                                : hasOverlap ? 'bg-zinc-800 text-white hover:bg-zinc-700' : 'bg-[#FF7939] text-black hover:bg-[#FF7939]/90 shadow-[#FF7939]/20'
+                            }`}
                     >
                         {hasOverlap ? (
                             <>Confirmar aun con superposición</>

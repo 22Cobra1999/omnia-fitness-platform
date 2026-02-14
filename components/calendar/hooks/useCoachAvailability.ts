@@ -180,7 +180,7 @@ export const useCoachAvailability = (
                             const timeKey = format(cursor, 'HH:mm')
                             if (!map[dayKey]) map[dayKey] = new Set<string>()
                             map[dayKey].add(timeKey)
-                            cursor.setMinutes(cursor.getMinutes() + 30)
+                            cursor.setMinutes(cursor.getMinutes() + 15)
                         }
                     })
                 setBookedSlotsByDay(map)
@@ -237,7 +237,7 @@ export const useCoachAvailability = (
                             const timeKey = format(cursor, 'HH:mm')
                             if (!map[dayKey]) map[dayKey] = new Set<string>()
                             map[dayKey].add(timeKey)
-                            cursor.setMinutes(cursor.getMinutes() + 30)
+                            cursor.setMinutes(cursor.getMinutes() + 15)
                         }
                     })
                 setBookedSlotsByDayMonth(map)
@@ -290,21 +290,21 @@ export const useCoachAvailability = (
         const dayKey = format(date, 'yyyy-MM-dd')
         const booked = (meetViewMode === 'week' ? bookedSlotsByDay?.[dayKey] : bookedSlotsByDayMonth?.[dayKey]) || new Set<string>()
 
-        const requiredSlotBlocks = Math.ceil(durationMinutes / 30)
+        const requiredSlotBlocks = Math.ceil(durationMinutes / 15)
         const slots = new Set<string>()
 
         rows.forEach(r => {
             const startMins = toMinutes(r.start_time)
             const endMins = toMinutes(r.end_time)
 
-            // Loop in 30 min increments
-            for (let t = startMins; t + 30 <= endMins; t += 30) {
+            // Loop in 15 min increments
+            for (let t = startMins; t + 15 <= endMins; t += 15) {
                 let ok = true
                 // Check if the sequence of blocks fits and is not booked
                 for (let i = 0; i < requiredSlotBlocks; i++) {
-                    const checkMins = t + i * 30
+                    const checkMins = t + i * 15
                     // If this block goes beyond end time of availability
-                    if (checkMins + 30 > endMins) {
+                    if (checkMins + 15 > endMins) {
                         ok = false
                         break
                     }

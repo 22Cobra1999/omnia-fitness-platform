@@ -1,11 +1,13 @@
 import { useState, useEffect } from 'react'
 import { createClient } from '@/lib/supabase/supabase-client'
 import { useAuth } from '@/contexts/auth-context'
+import { useToast } from "@/components/ui/use-toast"
 import { TallerDetalle, TemaEstado, TopicProgressMap, CuposMap } from '../types'
 
 export function useWorkshopLogic(activityId: number, isDocument: boolean) {
     const { user } = useAuth()
     const supabase = createClient()
+    const { toast } = useToast()
 
     const [temas, setTemas] = useState<TallerDetalle[]>([])
     const [ejecucionId, setEjecucionId] = useState<number | null>(null)
@@ -253,7 +255,11 @@ export function useWorkshopLogic(activityId: number, isDocument: boolean) {
         const cupoKey = `${temaId}-${fecha}-${horario.hora_inicio}`
         const ocupados = cuposOcupados[cupoKey] || 0
         if (ocupados >= horario.cupo) {
-            alert('Este horario está lleno.')
+            toast({
+                variant: "destructive",
+                title: "Horario lleno",
+                description: "Este horario ya no tiene cupos disponibles."
+            })
             return
         }
         setSelectedHorario({ temaId, temaNombre, fecha, horario })
@@ -274,12 +280,29 @@ export function useWorkshopLogic(activityId: number, isDocument: boolean) {
                 .eq('ejecucion_id', ejecucionId)
                 .eq('tema_id', temaId)
 
-            if (error) { alert('Error al confirmar'); return; }
+            if (error) {
+                toast({
+                    variant: "destructive",
+                    title: "Error",
+                    description: "No se pudo confirmar la asistencia. Inténtalo de nuevo."
+                })
+                return;
+            }
             await loadWorkshopData(enrollment?.id)
             setShowConfirmModal(false)
             setSelectedHorario(null)
-            alert('¡Asistencia confirmada!')
-        } catch (e) { alert('Error confirmando') }
+            toast({
+                title: "¡Asistencia confirmada!",
+                description: "Tu lugar ha sido reservado correctamente.",
+                className: "border-green-500/20 bg-green-500/10 text-green-500"
+            })
+        } catch (e) {
+            toast({
+                variant: "destructive",
+                title: "Error",
+                description: "Ocurrió un error inesperado al confirmar."
+            })
+        }
     }
 
     const editarReservacion = async (temaId: number) => {
@@ -288,7 +311,11 @@ export function useWorkshopLogic(activityId: number, isDocument: boolean) {
 
         const eventDate = new Date(`${temaCubierto.fecha_seleccionada}T${temaCubierto.horario_seleccionado?.hora_inicio}`)
         if ((eventDate.getTime() - new Date().getTime()) / (1000 * 3600) < 48) {
-            alert('❌ Los cambios solo son posibles con 48 horas o más de antelación al evento.')
+            toast({
+                variant: "destructive",
+                title: "Cambio no permitido",
+                description: "Solo se permiten cambios con 48hs de anticipación, según la política del taller."
+            })
             return
         }
 

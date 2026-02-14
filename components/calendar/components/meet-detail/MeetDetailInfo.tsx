@@ -9,13 +9,15 @@ interface MeetDetailInfoProps {
     timeLabel: string
     pendingReschedule: any
     isCancelled: boolean
+    isMyRequest?: boolean
 }
 
 export const MeetDetailInfo: React.FC<MeetDetailInfoProps> = ({
     dateLabel,
     timeLabel,
     pendingReschedule,
-    isCancelled
+    isCancelled,
+    isMyRequest
 }) => {
     return (
         <div className="space-y-8">
@@ -53,19 +55,19 @@ export const MeetDetailInfo: React.FC<MeetDetailInfoProps> = ({
                 <div className="flex flex-col gap-2 p-3 rounded-xl bg-[#FFB366]/5 border border-[#FFB366]/10 w-full">
                     <div className="text-[10px] font-black text-[#FFB366] uppercase tracking-widest flex items-center gap-1.5">
                         <RotateCcw size={12} />
-                        PROPUESTA DE CAMBIO
+                        {isMyRequest ? 'TU SOLICITUD DE CAMBIO' : 'PROPUESTA DE CAMBIO'}
                     </div>
                     <div className="flex flex-col">
                         <span className="text-xs font-bold text-white">
-                            {format(new Date(pendingReschedule.to_start_time), "EEEE d 'de' MMMM", { locale: es })}
+                            {pendingReschedule.to_start_time ? format(new Date(pendingReschedule.to_start_time), "EEEE d 'de' MMMM", { locale: es }) : ''}
                         </span>
                         <span className="text-[11px] text-gray-400">
-                            {format(new Date(pendingReschedule.to_start_time), "HH:mm")} – {format(new Date(pendingReschedule.to_end_time), "HH:mm")}
+                            {pendingReschedule.to_start_time ? format(new Date(pendingReschedule.to_start_time), "HH:mm") : ''} – {pendingReschedule.to_end_time ? format(new Date(pendingReschedule.to_end_time), "HH:mm") : ''}
                         </span>
                     </div>
-                    {pendingReschedule.reason && (
+                    {(pendingReschedule.reason || pendingReschedule.note) && (
                         <div className="text-[11px] text-white/50 italic leading-relaxed border-t border-white/5 pt-2 mt-1">
-                            "{pendingReschedule.reason}"
+                            "{pendingReschedule.reason || pendingReschedule.note}"
                         </div>
                     )}
                 </div>

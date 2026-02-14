@@ -189,11 +189,8 @@ export function MeetNotificationsModal({
             const startIso = String(ev.start_time)
             const endsAfterNow = endIso ? endIso >= range.nowIso : startIso >= range.nowIso
 
-            const isRecent = (new Date().getTime() - new Date(updatedAt).getTime()) < (30 * 24 * 60 * 60 * 1000)
-            const isPending = rsvpStatus === 'pending'
-
-            // Show if it's in the future OR recent OR pending invitation
-            if (!endsAfterNow && !isRecent && !isPending) return
+            // Strict filtering: Only show if it ends after or at the current moment (Future or ongoing)
+            if (!endsAfterNow) return
 
             const invitedByRole = p?.invited_by_role == null ? null : String(p.invited_by_role)
             const coachId = String(ev?.coach_id || '')
@@ -397,8 +394,10 @@ export function MeetNotificationsModal({
           }
 
           const now = new Date()
-          const isRecent = (now.getTime() - new Date(r.created_at).getTime()) < (10 * 24 * 60 * 60 * 1000)
-          if (isRecent || r.status === 'pending') {
+          const eventEnd = ev.end_time ? new Date(ev.end_time) : new Date(ev.start_time)
+
+          // Strict filtering: Only Future
+          if (eventEnd >= now) {
             itemsMap.set(eid, item)
           }
         })
@@ -466,11 +465,8 @@ export function MeetNotificationsModal({
     }
 
     if (it.rsvpStatus === 'pending') {
-      const isInvitedByMe = it.invitedByUserId === userId || it.otherUserId !== userId // simplified check
-      const p = items.find(x => x.id === it.id)
-      const invitedByMe = isInvitedByMe || (p?.invitedByRole === 'client')
-
-      return invitedByMe ? `Solicitaste una meet a ${otherName}` : `${otherName} te invitó a una meet`
+      const isInvitedByMe = it.invitedByUserId === userId
+      return isInvitedByMe ? `Solicitaste una meet a ${otherName}` : `${otherName} te invitó a una meet`
     }
 
     if (it.rsvpStatus === 'confirmed') {

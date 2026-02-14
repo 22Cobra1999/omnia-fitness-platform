@@ -91,13 +91,26 @@ export const useMeetLogic = (
                 }))
 
                 setSelectedMeetParticipants(parts)
+
+                // Update RSVP status for current user
+                if (authUserId) {
+                    const myPart = parts.find((p: any) => p.user_id === authUserId)
+                    if (myPart) {
+                        setSelectedMeetRsvpStatus(myPart.rsvp_status || 'pending')
+                    } else if (selectedMeetEvent.invited_by_user_id === authUserId || (selectedMeetEvent as any).created_by_user_id === authUserId) {
+                        // If I am the creator/inviter but not in participants list (rare but possible for logic), assume confirmed or retrieve from event
+                        setSelectedMeetRsvpStatus('confirmed')
+                    } else {
+                        setSelectedMeetRsvpStatus('pending')
+                    }
+                }
             } catch (err) {
                 console.error('Error fetching participants:', err)
             }
         }
 
         fetchParticipants()
-    }, [selectedMeetEvent?.id, supabase])
+    }, [selectedMeetEvent?.id, supabase, authUserId])
 
     // Load Meet Notification Count
     useEffect(() => {
@@ -249,6 +262,8 @@ export const useMeetLogic = (
         meetCreditsByCoachId,
         pendingReschedule,
         setPendingReschedule,
+        selectedMeetRsvpStatus,
+        setSelectedMeetRsvpStatus,
         meetNotificationsCount,
         setMeetNotificationsCount,
         openMeetById

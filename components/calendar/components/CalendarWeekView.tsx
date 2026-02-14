@@ -176,25 +176,42 @@ export function CalendarWeekView({
                                             const endMins = Number(block.end.split(':')[0]) * 60 + Number(block.end.split(':')[1])
                                             const duration = endMins - startMins
 
+                                            // Validation: Past or < Now + 1hr
+                                            const slotDate = new Date(`${dayKey}T${block.start}:00`)
+                                            const now = new Date()
+                                            const minTime = new Date(now.getTime() + 60 * 60 * 1000) // Now + 1 hour
+                                            const isBlocked = slotDate < minTime
+
                                             return (
                                                 <button
                                                     key={`${dayKey}-${bIdx}`}
                                                     type="button"
-                                                    onClick={(e) => handleTimelineClick(e, block.start, block.end, dayKey)}
+                                                    onClick={(e) => {
+                                                        if (isBlocked) {
+                                                            alert('No se pueden reservar turnos con menos de 1 hora de anticipación.')
+                                                            e.stopPropagation()
+                                                            return
+                                                        }
+                                                        handleTimelineClick(e, block.start, block.end, dayKey)
+                                                    }}
                                                     style={{
                                                         top: `${getTop(block.start)}%`,
                                                         height: `${getHeight(duration)}%`
                                                     }}
-                                                    className="absolute inset-x-0.5 rounded-md bg-[#FFB366]/20 border border-[#FFB366]/30 hover:bg-[#FFB366]/30 hover:z-10 transition-colors flex flex-col justify-center items-center px-1 py-1 group cursor-pointer"
+                                                    className={`absolute inset-x-0.5 rounded-md flex flex-col justify-center items-center px-1 py-1 group transition-colors 
+                                                        ${isBlocked
+                                                            ? 'bg-zinc-800/50 border border-zinc-700/50 cursor-not-allowed opacity-60'
+                                                            : 'bg-[#FFB366]/20 border border-[#FFB366]/30 hover:bg-[#FFB366]/30 hover:z-10 cursor-pointer'
+                                                        }`}
                                                 >
                                                     <div className="flex flex-col items-center justify-center leading-tight">
-                                                        <span className="text-[10px] font-bold text-[#FFB366] group-hover:text-white truncate">
+                                                        <span className={`text-[10px] font-bold truncate ${isBlocked ? 'text-zinc-500' : 'text-[#FFB366] group-hover:text-white'}`}>
                                                             {block.start}
                                                         </span>
-                                                        <span className="text-[8px] text-[#FFB366]/60 group-hover:text-white/60">
+                                                        <span className={`text-[8px] ${isBlocked ? 'text-zinc-600' : 'text-[#FFB366]/60 group-hover:text-white/60'}`}>
                                                             -
                                                         </span>
-                                                        <span className="text-[10px] font-bold text-[#FFB366] group-hover:text-white truncate">
+                                                        <span className={`text-[10px] font-bold truncate ${isBlocked ? 'text-zinc-500' : 'text-[#FFB366] group-hover:text-white'}`}>
                                                             {block.end}
                                                         </span>
                                                     </div>

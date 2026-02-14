@@ -269,6 +269,86 @@ export const useCalendarData = (
                     .gte('start_time', `${startISO}T00:00:00`)
                     .lte('start_time', `${endISO}T23:59:59`)
 
+                // Safe fetch for participant names
+                let participantsByEventId: Record<string, any[]> = {}
+                try {
+                    const { data: partsData } = await anySupabase
+                        .from('calendar_event_participants')
+                        .select('event_id, user_id, is_creator, rsvp_status, invited_by_user_id, user_profiles(full_name, avatar_url)')
+                        .in('event_id', myEventIds)
+
+                    if (partsData) {
+                        partsData.forEach((p: any) => {
+                            const eid = String(p.event_id)
+                            if (!participantsByEventId[eid]) participantsByEventId[eid] = []
+                            participantsByEventId[eid].push({
+                                user_id: p.user_id,
+                                name: p.user_profiles?.full_name || 'Participante',
+                                full_name: p.user_profiles?.full_name || 'Participante',
+                                avatar_url: p.user_profiles?.avatar_url || null,
+                                is_organizer: p.is_creator || (p.invited_by_user_id && p.user_id === p.invited_by_user_id),
+                                rsvp_status: p.rsvp_status
+                            })
+                        })
+                    }
+
+                    // ENSURE COACH IS PRESENT (Fallback for older records)
+                    myEventIds.forEach(eid => {
+                        const event = eventsData?.find((e: any) => String(e.id) === eid)
+                        if (!event || event.event_type !== 'meet') return
+
+                        const coachId = String(event.coach_id)
+                        const parts = participantsByEventId[eid] || []
+                        const hasCoach = parts.some(p => String(p.user_id) === coachId)
+
+                        if (!hasCoach) {
+                            if (!participantsByEventId[eid]) participantsByEventId[eid] = []
+                            participantsByEventId[eid].push({
+                                user_id: coachId,
+                                name: 'Coach',
+                                full_name: 'Coach',
+                                avatar_url: null,
+                                is_organizer: false,
+                                rsvp_status: 'pending'
+                            })
+                        }
+                    })
+                } catch (e) {
+                    console.error('Error fetching participant details:', e)
+                    // Continue without participant names
+                }
+
+                // Fetch pending reschedule requests
+                let pendingReschedulesByEventId: Record<string, any> = {}
+                try {
+                    const { data: reschedules } = await anySupabase
+                        .from('calendar_event_reschedule_requests')
+                        .select('event_id, status, requested_by_user_id, created_at, to_start_time, to_end_time, from_start_time, reason, note')
+                        .in('event_id', myEventIds)
+                        .eq('status', 'pending')
+
+                    if (reschedules) {
+                        reschedules.forEach((r: any) => {
+                            const eid = String(r.event_id)
+                            const current = pendingReschedulesByEventId[eid]
+
+                            // If we already have a request for this event
+                            if (current) {
+                                const currentCreated = new Date(current.created_at).getTime()
+                                const newCreated = new Date(r.created_at).getTime()
+                                if (newCreated > currentCreated) {
+                                    pendingReschedulesByEventId[eid] = r
+                                }
+                            } else {
+                                // No request yet, take this one
+                                pendingReschedulesByEventId[eid] = r
+                            }
+                        })
+                    }
+                } catch (e) {
+                    console.error('Error fetching reschedules:', e)
+                }
+
                 if (eventsData) {
                     eventsData.forEach((e: any) => {
                         const s = new Date(e.start_time)
@@ -293,8 +373,11 @@ export const useCalendarData = (
                         }
                         agg[dayKey].meetsMinutes += mins
 
+                        const pendingReschedule = pendingReschedulesByEventId[String(e.id)]
+
                         newMeetEventsByDate[dayKey].push({
                             id: e.id,
+                            pending_reschedule: pendingReschedule || null,
                             title: e.title,
                             start_time: e.start_time,
                             end_time: e.end_time,
@@ -303,7 +386,8 @@ export const useCalendarData = (
                             rsvp_status: eventIdToParticipantInfo[e.id]?.rsvp || 'pending',
                             invited_by_user_id: eventIdToParticipantInfo[e.id]?.invitedBy || null,
                             status: e.status,
-                            event_type: e.event_type
+                            event_type: e.event_type,
+                            participants: participantsByEventId[e.id] || []
                         })
                     })
                 }
@@ -311,6 +395,12 @@ export const useCalendarData = (
 
             setActivitiesByDate(newActivitiesByDate)
             setDayMinutesByDate(agg)
+
+            console.log('[useCalendarData] loadDayMinutes SETTING EVENTS:', {
+                count: Object.keys(newMeetEventsByDate).length,
+                sample: Object.values(newMeetEventsByDate)[0]?.[0]
+            })
+
             setMeetEventsByDate(newMeetEventsByDate)
 
         } catch (err) {

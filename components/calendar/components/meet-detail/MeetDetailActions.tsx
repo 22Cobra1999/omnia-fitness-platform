@@ -24,6 +24,7 @@ interface MeetDetailActionsProps {
     myRsvp: string
     isMyRsvpDeclined: boolean
     onReschedule: any
+    isCoachAccepted: boolean
 }
 
 export const MeetDetailActions: React.FC<MeetDetailActionsProps> = ({
@@ -46,7 +47,8 @@ export const MeetDetailActions: React.FC<MeetDetailActionsProps> = ({
     isSentByMe,
     myRsvp,
     isMyRsvpDeclined,
-    onReschedule
+    onReschedule,
+    isCoachAccepted
 }) => {
     const start = new Date(selectedMeetEvent.start_time)
 
@@ -84,7 +86,7 @@ export const MeetDetailActions: React.FC<MeetDetailActionsProps> = ({
                     ) : (
                         <div className="flex flex-col gap-3">
                             <div className="text-[10px] text-white/40 text-center uppercase tracking-widest font-bold">
-                                Esperando respuesta del {selectedMeetEvent.coach_id === authUserId ? 'cliente' : 'coach'}...
+                                Solicitud de cambio enviada
                             </div>
                             <div className="grid grid-cols-2 gap-2">
                                 <button
@@ -93,7 +95,7 @@ export const MeetDetailActions: React.FC<MeetDetailActionsProps> = ({
                                     onClick={onRescheduleClick}
                                     className="px-3 py-2 rounded-xl bg-zinc-800 text-white text-[11px] font-bold border border-white/5 hover:bg-zinc-700 transition-colors"
                                 >
-                                    Nuevo cambio
+                                    Modificar
                                 </button>
                                 <button
                                     type="button"
@@ -101,7 +103,7 @@ export const MeetDetailActions: React.FC<MeetDetailActionsProps> = ({
                                     onClick={onCancelRescheduleRequest}
                                     className="px-3 py-2 rounded-xl bg-red-500/10 text-red-400 text-[11px] font-bold border border-red-500/20 hover:bg-red-500/20 transition-colors"
                                 >
-                                    Anular pedido
+                                    Cancelar reprogramación
                                 </button>
                             </div>
                         </div>
@@ -109,7 +111,8 @@ export const MeetDetailActions: React.FC<MeetDetailActionsProps> = ({
                 </div>
             ) : (
                 <>
-                    {isSentByMe && myRsvp === 'pending' && !isCancelled && !isPast && (
+                    {/* Branch 1: Pending Request (I sent it, coach hasn't accepted yet) */}
+                    {isSentByMe && !isCoachAccepted && !isCancelled && !isPast && (
                         <div className="flex flex-col gap-2">
                             <button
                                 type="button"
@@ -117,7 +120,7 @@ export const MeetDetailActions: React.FC<MeetDetailActionsProps> = ({
                                 onClick={onSuggestNewTime}
                                 className="w-full px-4 py-2.5 rounded-xl bg-zinc-800 text-white text-sm hover:bg-zinc-700 transition-colors disabled:opacity-60"
                             >
-                                Modificar horario
+                                Modificar
                             </button>
                             <button
                                 type="button"
@@ -130,6 +133,7 @@ export const MeetDetailActions: React.FC<MeetDetailActionsProps> = ({
                         </div>
                     )}
 
+                    {/* Branch 2: Pending Invitation (I received it, I haven't confirmed yet) */}
                     {!isSentByMe && !isMyRsvpConfirmed && !isCancelled && !isMyRsvpDeclined && !isPast && (
                         <div className="flex flex-col gap-2">
                             <button
@@ -159,28 +163,8 @@ export const MeetDetailActions: React.FC<MeetDetailActionsProps> = ({
                         </div>
                     )}
 
-                    {isMyRsvpDeclined && !isPast && (
-                        <div className="flex flex-col gap-2">
-                            <button
-                                type="button"
-                                disabled={selectedMeetRsvpLoading || !canEditRsvp}
-                                onClick={onAcceptInvitation}
-                                className="w-full px-4 py-2.5 rounded-xl bg-[#FF7939] text-black text-sm font-semibold hover:opacity-95 transition-opacity disabled:opacity-60"
-                            >
-                                Reconsiderar y Aceptar
-                            </button>
-                            <button
-                                type="button"
-                                disabled={selectedMeetRsvpLoading || !canEditRsvp}
-                                onClick={onSuggestNewTime}
-                                className="w-full px-4 py-2.5 rounded-xl bg-zinc-800 text-white text-sm hover:bg-zinc-700 transition-colors disabled:opacity-60"
-                            >
-                                Sugerir otro horario
-                            </button>
-                        </div>
-                    )}
-
-                    {isMyRsvpConfirmed && !isCancelled && !isPast && (
+                    {/* Branch 3: Confirmed Meet (Everyone confirmed - or coach confirmed if I invited) */}
+                    {isMyRsvpConfirmed && isCoachAccepted && !isCancelled && !isPast && (
                         <div className="flex flex-col gap-2">
                             {(() => {
                                 const meetLink = selectedMeetEvent.meet_link || selectedMeetEvent.google_meet_data?.meet_link;
@@ -211,8 +195,8 @@ export const MeetDetailActions: React.FC<MeetDetailActionsProps> = ({
                             })()}
                             <button
                                 type="button"
-                                disabled={selectedMeetRsvpLoading || (!onReschedule && !canEditRsvp)}
-                                onClick={onRescheduleClick}
+                                disabled={selectedMeetRsvpLoading || !canEditRsvp}
+                                onClick={onReschedule ? onRescheduleClick : onSuggestNewTime}
                                 className="w-full px-4 py-2.5 rounded-xl bg-zinc-800 text-white text-sm hover:bg-zinc-700 transition-colors disabled:opacity-60"
                             >
                                 Reprogramar
@@ -223,7 +207,7 @@ export const MeetDetailActions: React.FC<MeetDetailActionsProps> = ({
                                 onClick={onCancelParticipation}
                                 className="w-full px-4 py-2.5 rounded-xl bg-red-500/10 text-red-400 text-sm font-semibold border border-red-500/20 hover:bg-red-500/20 transition-colors"
                             >
-                                Cancelar mi asistencia
+                                {isSentByMe ? 'Cancelar solicitud' : 'Cancelar mi asistencia'}
                             </button>
                         </div>
                     )}

@@ -10,6 +10,7 @@ interface CalendarSuccessModalProps {
         duration: number
         date: string
         time: string
+        message?: string
     } | null
 }
 
@@ -26,9 +27,15 @@ export function CalendarSuccessModal({ show, onClose, data }: CalendarSuccessMod
 
                     <h3 className="text-xl font-bold text-white mb-2">¡Solicitud Enviada!</h3>
 
-                    <p className="text-white/70 text-sm leading-relaxed mb-6">
-                        Tu solicitud fue enviada a <span className="text-white font-medium">{data.coachName}</span> para un meet de {data.duration} min el día {data.date} a las {data.time} hs.
-                    </p>
+                    {data.message ? (
+                        <p className="text-white/70 text-sm leading-relaxed mb-6">
+                            {data.message}
+                        </p>
+                    ) : (
+                        <p className="text-white/70 text-sm leading-relaxed mb-6">
+                            Tu solicitud fue enviada a <span className="text-white font-medium">{data.coachName}</span> para un meet de {data.duration} min el día {data.date} a las {data.time} hs.
+                        </p>
+                    )}
 
                     <div className="bg-white/5 rounded-xl p-3 mb-6 w-full">
                         <div className="flex items-center gap-3 text-xs text-white/50">

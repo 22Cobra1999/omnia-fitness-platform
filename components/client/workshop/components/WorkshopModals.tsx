@@ -53,6 +53,9 @@ export function WorkshopModals({
                         <div className="bg-black/40 p-4 rounded-2xl border border-white/5 mb-6">
                             <div className="font-semibold text-white mb-1">{selectedHorario.temaNombre}</div>
                             <div className="text-[#FF7939] text-sm">{formatDate(selectedHorario.fecha)} &bull; {selectedHorario.horario.hora_inicio}</div>
+                            <div className="mt-3 pt-3 border-t border-white/10 text-xs text-white/50 italic">
+                                Nota: Podrás reagendar este turno solo con 48hs de anticipación.
+                            </div>
                         </div>
 
                         <div className="flex gap-3">
@@ -60,8 +63,9 @@ export function WorkshopModals({
                             <Button onClick={confirmAsistencia} className="flex-1 bg-[#FF7939] hover:bg-[#E66829] text-white rounded-xl h-12 font-bold shadow-lg shadow-[#FF7939]/20">Confirmar</Button>
                         </div>
                     </div>
-                </div>
-            )}
+                </div >
+            )
+            }
 
             <ActivitySurveyModal
                 isOpen={isRatingModalOpen}

@@ -118,14 +118,19 @@ export function WorkshopTopicItem({
                         {!isDocument && !isTemaFinalizado && (
                             <div className="pt-2">
                                 {temaEstado === 'reservado' ? (
-                                    <div className="bg-[#FF7939]/10 rounded-xl p-3 border border-[#FF7939]/30 flex justify-between items-center">
-                                        <div className="text-sm">
-                                            <div className="font-semibold text-[#FF7939]">Tu Reserva</div>
-                                            {temaCubierto && <span className="text-gray-200 text-xs">{formatDate(temaCubierto.fecha_seleccionada!)} • {temaCubierto.horario_seleccionado?.hora_inicio}</span>}
+                                    <div className="flex flex-col gap-2 bg-[#FF7939]/10 rounded-xl p-3 border border-[#FF7939]/30">
+                                        <div className="flex justify-between items-center">
+                                            <div className="text-sm">
+                                                <div className="font-semibold text-[#FF7939]">Tu Reserva</div>
+                                                {temaCubierto && <span className="text-gray-200 text-xs">{formatDate(temaCubierto.fecha_seleccionada!)} • {temaCubierto.horario_seleccionado?.hora_inicio}</span>}
+                                            </div>
+                                            <button onClick={(e) => { e.stopPropagation(); editarReservacion(tema.id); }} className="p-1.5 hover:bg-white/10 rounded-lg text-gray-400 hover:text-white transition-colors">
+                                                <Edit2 className="w-4 h-4" />
+                                            </button>
                                         </div>
-                                        <button onClick={(e) => { e.stopPropagation(); editarReservacion(tema.id); }} className="p-1.5 hover:bg-white/10 rounded-lg text-gray-400 hover:text-white transition-colors">
-                                            <Edit2 className="w-4 h-4" />
-                                        </button>
+                                        <p className="text-[10px] text-[#FF7939]/70 italic border-t border-[#FF7939]/20 pt-2 mt-1">
+                                            ℹ️ Política: Solo se permiten cambios hasta 48hs antes.
+                                        </p>
                                     </div>
                                 ) : (
                                     temaEstado === 'pendiente' && (

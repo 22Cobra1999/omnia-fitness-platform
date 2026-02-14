@@ -29,9 +29,12 @@ export const MeetDetailConfirmations: React.FC<MeetDetailConfirmationsProps> = (
             {showCancelConfirm && (
                 <div className="fixed inset-0 z-[100] bg-black/60 backdrop-blur-sm flex items-center justify-center p-4">
                     <div className="bg-zinc-900/95 backdrop-blur-xl border border-white/10 rounded-2xl p-6 max-w-sm w-full shadow-2xl">
-                        <h3 className="text-lg font-bold text-white mb-2">Cancelar meet</h3>
+                        <h3 className="text-lg font-bold text-white mb-2">¿Cancelar asistencia?</h3>
                         <p className="text-white/60 text-sm mb-6">
-                            ¿Estás seguro que querés cancelar esta meet? Esta acción no se puede deshacer.
+                            Esta acción no se puede deshacer. <br /><br />
+                            <span className="text-red-400 font-medium">⚠️ Atención:</span> Si cancelas con menos de 24hs de anticipación, perderás el crédito de esta sesión.
+                            <br /><br />
+                            Si el horario no te conviene, te sugerimos cerrar esto y elegir "Reprogramar" o "Sugerir otro horario".
                         </p>
                         <div className="flex gap-3">
                             <button
