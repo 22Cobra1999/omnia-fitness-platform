@@ -1,7 +1,6 @@
 
 import React from 'react'
 import { format, startOfWeek, isToday } from 'date-fns'
-// ... existing log logic ...
 import { es } from 'date-fns/locale'
 import { Calendar as CalendarIcon, Globe, RotateCcw, X, Video, AlertTriangle } from 'lucide-react'
 import { createClientComponentClient } from '@supabase/auth-helpers-nextjs'
@@ -11,6 +10,7 @@ import { MeetDetailInfo } from './components/meet-detail/MeetDetailInfo'
 import { MeetDetailParticipants } from './components/meet-detail/MeetDetailParticipants'
 import { MeetDetailActions } from './components/meet-detail/MeetDetailActions'
 import { MeetDetailConfirmations } from './components/meet-detail/MeetDetailConfirmations'
+import { WorkshopRescheduleWarningModal } from './components/WorkshopRescheduleWarningModal'
 
 // Interface for dependencies passed from parent
 interface MeetDetailModalProps {
@@ -41,6 +41,7 @@ interface MeetDetailModalProps {
     // Optional: New reschedule handler
     onReschedule?: (meet: any) => void
     onCancelRescheduleRequest?: (eventId: string) => Promise<void>
+    setSelectedMeetParticipants: (participants: any[]) => void
 }
 
 export function MeetDetailModal({
@@ -49,6 +50,7 @@ export function MeetDetailModal({
     pendingReschedule,
     setPendingReschedule,
     selectedMeetParticipants,
+    setSelectedMeetParticipants,
     coachProfiles,
     authUserId,
     setMeetEventsByDate,
@@ -84,14 +86,17 @@ export function MeetDetailModal({
     const enrichedParticipants = [...selectedMeetParticipants]
     if (selectedMeetEvent?.coach_id && !enrichedParticipants.some(p => String(p.user_id) === String(selectedMeetEvent.coach_id))) {
         const cp = coachProfiles.find(c => String(c.id) === String(selectedMeetEvent.coach_id))
+        const isCoachOrganizer = !selectedMeetEvent.invited_by_user_id || String(selectedMeetEvent.invited_by_user_id) === String(selectedMeetEvent.coach_id);
+
         enrichedParticipants.push({
             id: `injected-coach-${selectedMeetEvent.coach_id}`,
             user_id: selectedMeetEvent.coach_id,
             name: cp?.full_name || 'Coach',
             full_name: cp?.full_name || 'Coach',
             avatar_url: cp?.avatar_url || null,
-            is_organizer: false,
-            rsvp_status: 'pending'
+            is_organizer: isCoachOrganizer,
+            rsvp_status: isCoachOrganizer ? 'confirmed' : 'pending',
+            role: 'coach'
         })
     }
 
@@ -99,10 +104,115 @@ export function MeetDetailModal({
     const isCoachAccepted = coachParticipant && ['accepted', 'confirmed'].includes(coachParticipant.rsvp_status)
     const isPendingApproval = (selectedMeetEvent.invited_by_user_id === authUserId) && !isCoachAccepted
 
+    // Check if any participant has pending status
+    const hasPendingParticipants = enrichedParticipants.some(p => p.rsvp_status === 'pending')
+    const isConfirmed = !hasPendingParticipants
+
+    const loadMeet = async () => {
+        try {
+            console.log('[MeetDetailModal] Refreshing meet data for:', actualEventId);
+            const { data, error } = await supabase
+                .from('calendar_events')
+                .select(`
+                    id,
+                    title,
+                    description,
+                    start_time,
+                    end_time,
+                    status,
+                    event_type,
+                    meet_link,
+                    coach_id,
+                    created_by_user_id,
+                    price,
+                    currency,
+                    is_free,
+                    meet_participants:calendar_event_participants (
+                        user_id,
+                        rsvp_status,
+                        payment_status,
+                        is_organizer,
+                        is_creator,
+                        role,
+                        invited_by_user_id,
+                        user_profiles (
+                            id,
+                            full_name,
+                            avatar_url
+                        )
+                    )
+                `)
+                .eq('id', actualEventId)
+                .single();
+
+            if (error) throw error;
+
+            // Map participants with strict logic
+            const participantsWithProfiles = (data.meet_participants || []).map((p: any) => {
+                const profile = p.user_profiles;
+                const isCoach = String(p.user_id) === String(data.coach_id);
+
+                // STRICT LOGIC: Trust DB columns first
+                const dbRole = p.role ? p.role.toLowerCase() : null;
+                const effectiveRole = dbRole === 'coach' ? 'coach' : (isCoach ? 'coach' : 'client');
+
+                // Organizer IF:
+                // 1. is_creator column is true
+                // 2. OR invited_by_user_id matches user_id
+                // 3. Fallback: Coach if invited_by_user_id is NULL
+                const isInviter = p.invited_by_user_id && String(p.user_id) === String(p.invited_by_user_id);
+                const isOrganizer = p.is_creator || isInviter || (isCoach && !p.invited_by_user_id);
+
+                return {
+                    ...p,
+                    name: profile?.full_name || 'Usuario',
+                    avatar_url: profile?.avatar_url,
+                    role: effectiveRole,
+                    is_organizer: isOrganizer
+                };
+            });
+
+            setSelectedMeetParticipants(participantsWithProfiles);
+
+            // Update local RSVP status
+            if (authUserId) {
+                const myPart = participantsWithProfiles.find((p: any) => String(p.user_id) === String(authUserId));
+                if (myPart) {
+                    setSelectedMeetRsvpStatus(myPart.rsvp_status || 'pending');
+                    console.log('[MeetDetailModal] Updated local RSVP to:', myPart.rsvp_status);
+                } else if (
+                    ((data as any).invited_by_user_id && String((data as any).invited_by_user_id) === String(authUserId)) ||
+                    String(data.created_by_user_id) === String(authUserId)
+                ) {
+                    setSelectedMeetRsvpStatus('confirmed');
+                } else {
+                    setSelectedMeetRsvpStatus('pending');
+                }
+            }
+
+            // Update the event itself if status changed
+            if (data.status !== selectedMeetEvent.status) {
+                setSelectedMeetEvent((prev: any) => ({ ...prev, status: data.status }));
+            }
+        } catch (error) {
+            console.error('[MeetDetailModal] Error refreshing meet:', error);
+        }
+    };
+
+    // Allow edit if:
+    // User's personal status
+    const myRsvp = selectedMeetRsvpStatus
+
     // Allow edit if:
     // 1. Time > 24 hours
-    // 2. OR it's a pending request I sent that hasn't been accepted yet (no confirmed commitment/cost yet)
-    const canEditRsvp = (Number.isFinite(startMs) && (startMs - nowMs) > (24 * 60 * 60 * 1000)) || isPendingApproval
+    // 2. OR it's a pending request I sent that hasn't been accepted yet
+    // 3. OR my status is 'pending' (I can always accept/decline a pending invite)
+    // 4. MUST be in the future
+    const canEditRsvp = (Number.isFinite(startMs) && startMs > nowMs) && (
+        ((startMs - nowMs) > (24 * 60 * 60 * 1000)) ||
+        isPendingApproval ||
+        myRsvp === 'pending'
+    )
 
     // NOTE: isConfirmed/isDeclined logic here refers to the EVENT status for display, 
     // but we also have local user RSVP status logic for actions.
@@ -110,8 +220,7 @@ export function MeetDetailModal({
     const isCancelled = selectedMeetEvent.status === 'cancelled'
     const isRescheduled = selectedMeetEvent.status === 'rescheduled'
 
-    // User's personal status
-    const myRsvp = selectedMeetRsvpStatus
+
 
     const isPast = startMs < nowMs
     const isWorkshop = selectedMeetEvent.event_type === 'workshop'
@@ -206,6 +315,8 @@ export function MeetDetailModal({
 
 
     const handleRescheduleClick = () => {
+        const isWorkshop = selectedMeetEvent.event_type === 'workshop'
+
         if (isWorkshop && onReschedule) {
             setShowWorkshopRescheduleWarning(true)
         } else if (onReschedule) {
@@ -347,11 +458,50 @@ export function MeetDetailModal({
         try {
             setSelectedMeetRsvpLoading(true)
             setSelectedMeetRsvpStatus('declined')
-            await updateMeetStatus(String(actualEventId), 'declined')
-            toast({
-                title: "Asistencia cancelada",
-                description: "Hemos actualizado tu estado para esta reunión.",
-            })
+
+            // NEW LOGIC: If not confirmed and not groupal, hard delete.
+            if (!isConfirmed && !isGrupal) {
+                console.log('[MeetDetailModal] Unconfirmed meet, performing HARD DELETE')
+                const { error: deleteError } = await supabase
+                    .from('calendar_events')
+                    .delete()
+                    .eq('id', actualEventId)
+
+                if (deleteError) throw deleteError
+
+                toast({
+                    title: "Meet eliminada",
+                    description: "La invitación ha sido eliminada correctamente.",
+                })
+            } else {
+                // 1. Update participant status
+                await updateMeetStatus(String(actualEventId), 'declined')
+
+                // 2. If it's a 1-to-1 meet, also cancel the event itself
+                if (!isGrupal && authUserId) {
+                    const { error: eventError } = await supabase
+                        .from('calendar_events')
+                        .update({
+                            status: 'cancelled',
+                            cancelled_by_user_id: authUserId,
+                            cancelled_at: new Date().toISOString(),
+                            lifecycle_data: {
+                                ...selectedMeetEvent.lifecycle_data,
+                                cancelled_at: new Date().toISOString(),
+                                cancelled_by: authUserId
+                            }
+                        } as any)
+                        .eq('id', actualEventId)
+
+                    if (eventError) console.error('Error cancelling event:', eventError)
+                }
+
+                toast({
+                    title: "Asistencia cancelada",
+                    description: "Hemos actualizado tu estado para esta reunión.",
+                })
+            }
+
             setSelectedMeetEvent(null)
             setShowCancelConfirm(false)
         } catch (e) {
@@ -362,6 +512,13 @@ export function MeetDetailModal({
     }
 
     const handleSuggestNewTime = () => {
+        // If onReschedule is provided (e.g., from coach calendar), use it instead of old week view logic
+        if (onReschedule) {
+            onReschedule(selectedMeetEvent)
+            return
+        }
+
+        // Fallback to old client-side week view logic
         if (!selectedMeetEvent?.coach_id) return
         const durationMinutes = (() => {
             const a = new Date(selectedMeetEvent.start_time).getTime()
@@ -397,8 +554,8 @@ export function MeetDetailModal({
     }
 
     // Find host with better fallback for broken data
-    const hostParticipant = enrichedParticipants.find(p => p.is_organizer === true) ||
-        enrichedParticipants.find(p => String(p.user_id) === String(selectedMeetEvent.invited_by_user_id)) ||
+    const hostParticipant = enrichedParticipants.find(p => String(p.user_id) === String(selectedMeetEvent.invited_by_user_id)) ||
+        enrichedParticipants.find(p => p.is_organizer === true) ||
         enrichedParticipants[0]
 
     // Filter out organizer from guests list
@@ -431,7 +588,7 @@ export function MeetDetailModal({
         const cp = coachProfiles.find(c => String(c.id) === String(pendingReschedule.requested_by_user_id))
         if (cp) return cp.full_name
         const p = enrichedParticipants.find(part => String(part.user_id) === String(pendingReschedule.requested_by_user_id))
-        return p?.name || 'Usuario'
+        return p?.name || p?.full_name || 'Usuario'
     })()
 
     const showRescheduleHistory = pendingReschedule && (
@@ -441,11 +598,6 @@ export function MeetDetailModal({
 
     // Determine if current user sent this invitation
     const isSentByMe = String(selectedMeetEvent.invited_by_user_id) === String(authUserId)
-
-    // Check if any participant has pending status
-    const hasPendingParticipants = enrichedParticipants.some(p =>
-        p.rsvp_status === 'pending' && String(p.user_id) !== String(selectedMeetEvent.coach_id)
-    )
 
     console.log('[MeetDetailModal] Status Check:', {
         title: selectedMeetEvent.title,
@@ -463,19 +615,16 @@ export function MeetDetailModal({
     const timingStatusLabel = (() => {
         if (isCancelled) return { label: 'Cancelada', color: 'text-red-400 bg-red-500/10 border-red-500/20' }
         if (isPast) return { label: 'Finalizada', color: 'text-gray-400 bg-white/5 border-white/10' }
+        if (effectivePendingReschedule?.status === 'pending') return { label: 'Cambio Solicitado', color: 'text-red-400 bg-red-500/10 border-red-500/20 shadow-[0_0_10px_rgba(239,68,68,0.1)]' }
+        if (isRescheduled) return { label: 'Reprogramada', color: 'text-blue-400 bg-blue-500/10 border-blue-500/20' }
 
-        // If coach NOT accepted, it's Pendiente
-        if (selectedMeetEvent.event_type === 'meet' && !isCoachAccepted) {
+        if (myRsvp === 'declined' || myRsvp === 'cancelled') return { label: 'Rechazada', color: 'text-red-400 bg-red-500/10 border-red-500/20' }
+
+        // MIRROR LOGIC: If ANYONE is pending, the whole event is Pending.
+        if (hasPendingParticipants || myRsvp === 'pending') {
             return { label: 'Pendiente', color: 'text-[#FFB366] bg-[#FFB366]/10 border-[#FFB366]/20' }
         }
 
-        if (effectivePendingReschedule?.status === 'pending') return { label: 'Cambio Solicitado', color: 'text-red-400 bg-red-500/10 border-red-500/20 shadow-[0_0_10px_rgba(239,68,68,0.1)]' }
-        if (isRescheduled) return { label: 'Reprogramada', color: 'text-blue-400 bg-blue-500/10 border-blue-500/20' }
-        if (myRsvp === 'declined' || myRsvp === 'cancelled') return { label: 'Rechazada', color: 'text-red-400 bg-red-500/10 border-red-500/20' }
-        // If there are pending participants, show 'Pendiente'
-        if (hasPendingParticipants) return { label: 'Pendiente', color: 'text-[#FFB366] bg-[#FFB366]/10 border-[#FFB366]/20' }
-        // If my RSVP is pending, show 'Pendiente'
-        if (myRsvp === 'pending') return { label: 'Pendiente', color: 'text-[#FFB366] bg-[#FFB366]/10 border-[#FFB366]/20' }
         return { label: 'Confirmada', color: 'text-[#FF7939] bg-[#FF7939]/10 border-[#FF7939]/20 shadow-[0_0_15px_rgba(255,121,57,0.15)]' }
     })()
 
@@ -510,6 +659,7 @@ export function MeetDetailModal({
                         pendingReschedule={effectivePendingReschedule}
                         isCancelled={isCancelled}
                         isMyRequest={effectivePendingReschedule?.requested_by_user_id === authUserId}
+                        selectedMeetEvent={selectedMeetEvent}
                     />
 
                     <MeetDetailParticipants
@@ -520,6 +670,7 @@ export function MeetDetailModal({
                         selectedMeetEvent={selectedMeetEvent}
                         authUserId={authUserId}
                         organizerName={organizerName}
+                        eventStatus={isCancelled ? 'cancelled' : (isPast ? 'past' : selectedMeetEvent.status)}
                     />
 
                     {selectedMeetEvent.description && (
@@ -599,11 +750,26 @@ export function MeetDetailModal({
                         isSentByMe={isSentByMe}
                         myRsvp={myRsvp}
                         isMyRsvpDeclined={isMyRsvpDeclined}
-                        onReschedule={onReschedule}
+                        onRefresh={loadMeet}
                         isCoachAccepted={isCoachAccepted}
+                        isConfirmed={isConfirmed}
+                        isWorkshop={isWorkshop}
+                        isCoach={enrichedParticipants.find(p => String(p.user_id) === String(authUserId))?.role === 'coach'}
                     />
                 </div>
             </div>
+
+            <WorkshopRescheduleWarningModal
+                isOpen={showWorkshopRescheduleWarning}
+                onClose={() => setShowWorkshopRescheduleWarning(false)}
+                onConfirm={() => {
+                    if (onReschedule) {
+                        onReschedule(selectedMeetEvent)
+                    }
+                }}
+                workshopTitle={selectedMeetEvent.title || 'Taller'}
+                participantCount={enrichedParticipants.length}
+            />
 
             <MeetDetailConfirmations
                 showCancelConfirm={showCancelConfirm}

@@ -21,11 +21,11 @@ export function WorkshopTopics({ topics, loading }: WorkshopTopicsProps) {
 
     return (
         <div className="px-6 border-t border-white/5 pt-8 space-y-6">
-            <div className="flex items-center gap-2 mb-2">
-                <h4 className="text-gray-400 font-bold uppercase tracking-widest text-[10px]">Temas y Horarios</h4>
+            <div className="flex items-center gap-2 mb-8 border-l-2 border-[#FF7939] pl-3">
+                <h4 className="text-gray-300 font-bold uppercase tracking-widest text-[10px]">Temas y Horarios</h4>
             </div>
 
-            <div className="space-y-8">
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-x-12 gap-y-12 pb-12">
                 {topics.map((tema, i) => {
                     const horarios = [...(tema.originales?.fechas_horarios || []), ...(tema.secundarios?.fechas_horarios || [])]
                     const grouped = horarios.reduce((acc: any, h: any) => {
@@ -44,8 +44,8 @@ export function WorkshopTopics({ topics, loading }: WorkshopTopicsProps) {
                             </div>
 
                             {tema.descripcion && (
-                                <p className="text-gray-500 text-[11px] leading-relaxed mb-4 ml-8 max-w-md">
-                                    {tema.descripcion}
+                                <p className="text-gray-500 text-[11px] leading-relaxed mb-4 ml-8 max-w-md italic opacity-80">
+                                    "{tema.descripcion}"
                                 </p>
                             )}
 

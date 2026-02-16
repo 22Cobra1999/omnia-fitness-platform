@@ -37,7 +37,7 @@ interface CalendarDaySplitViewProps {
     handleClearCoachForMeet: () => void
     createCheckoutProPreference: any
     redirectToMercadoPagoCheckout: any
-    onSetScheduleMeetContext: (ctx: any) => void
+    onSetScheduleMeetContext?: (ctx: any) => void
     selectedMeetRsvpLoading: boolean
     setMeetEventsByDate: React.Dispatch<React.SetStateAction<any>>
     onEventUpdated?: () => Promise<void>

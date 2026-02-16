@@ -28,6 +28,10 @@ interface MeetConfirmationModalProps {
         title: string
         start_time: string
         end_time: string
+        description?: string
+        clientIds?: string[]
+        isFree?: boolean
+        price?: number | string
     }
     onEditTime?: () => void
 }
@@ -45,10 +49,10 @@ export function MeetConfirmationModal({
     onEditTime
 }: MeetConfirmationModalProps) {
     const [title, setTitle] = useState(originalMeet?.title || 'Meet')
-    const [description, setDescription] = useState('')
-    const [selectedClientIds, setSelectedClientIds] = useState<string[]>([])
-    const [isFree, setIsFree] = useState(true)
-    const [price, setPrice] = useState<string>('')
+    const [description, setDescription] = useState(originalMeet?.description || '')
+    const [selectedClientIds, setSelectedClientIds] = useState<string[]>(originalMeet?.clientIds || [])
+    const [isFree, setIsFree] = useState(originalMeet?.isFree ?? true)
+    const [price, setPrice] = useState<string>(originalMeet?.price ? String(originalMeet.price) : '')
     const [searchTerm, setSearchTerm] = useState('')
     const [isSubmitting, setIsSubmitting] = useState(false)
 
@@ -135,7 +139,7 @@ export function MeetConfirmationModal({
                                     {isFree ? 'Sesión Gratis' : `${creditsCost} ${creditsCost === 1 ? 'Crédito' : 'Créditos'}`}
                                 </span>
                                 <span className={`text-[9px] font-bold uppercase leading-none mt-0.5 ${isFree ? 'text-white/20' : 'text-[#FF7939]/60'}`}>
-                                    {isFree ? 'Sin consumo de créditos' : (price ? `Monto: $${price}` : 'Consumo de créditos')}
+                                    {isFree ? 'Sin consumo de créditos' : (price && price !== '0' ? `Monto: $${price}` : 'Consumo de créditos')}
                                 </span>
                             </div>
                         </div>
@@ -248,7 +252,7 @@ export function MeetConfirmationModal({
                     <div className="flex items-start gap-1.5 px-1">
                         <Info size={10} className="text-[#FF7939] flex-shrink-0 mt-0.5 opacity-60" />
                         <p className="text-[8px] text-white/30 leading-tight">
-                            Prioridad de cobro en créditos. El saldo insuficiente generará un pago pendiente por la diferencia.
+                            Consume créditos o paga por sesión. El saldo insuficiente generará un pago pendiente por la diferencia. (Acepta valor 0 para consumo de créditos).
                         </p>
                     </div>
                 </div>
@@ -263,8 +267,8 @@ export function MeetConfirmationModal({
                     </button>
                     <button
                         onClick={handleSubmit}
-                        disabled={isSubmitting || !title.trim() || (!isFree && !price)}
-                        className={`flex-[2] py-2 rounded-xl text-[10px] font-bold transition-all flex items-center justify-center gap-2 ${isSubmitting || !title.trim() || (!isFree && !price) ? 'bg-white/5 text-white/10 opacity-50 cursor-not-allowed' : 'bg-[#FF7939] text-black shadow-lg shadow-[#FF7939]/20 hover:scale-[1.02] active:scale-[0.98]'}`}
+                        disabled={isSubmitting || !title.trim() || (!isFree && (price === '' || price === null || Number(price) < 0))}
+                        className={`flex-[2] py-2 rounded-xl text-[10px] font-bold transition-all flex items-center justify-center gap-2 ${isSubmitting || !title.trim() || (!isFree && (price === '' || price === null || Number(price) < 0)) ? 'bg-white/5 text-white/10 opacity-50 cursor-not-allowed' : 'bg-[#FF7939] text-black shadow-lg shadow-[#FF7939]/20 hover:scale-[1.02] active:scale-[0.98]'}`}
                     >
                         {isSubmitting ? (
                             <div className="w-3 h-3 border-2 border-black/20 border-t-black rounded-full animate-spin" />

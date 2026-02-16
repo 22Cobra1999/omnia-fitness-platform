@@ -20,7 +20,7 @@ interface ProductDetailViewProps {
 }
 
 export function ProductDetailView({ activityId }: ProductDetailViewProps) {
-  const [activity, setActivity] = useState<Activity | null>(null)
+  const [activity, setActivity] = useState<any | null>(null)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
   const [purchaseModalOpen, setPurchaseModalOpen] = useState(false)
@@ -210,7 +210,7 @@ export function ProductDetailView({ activityId }: ProductDetailViewProps) {
           </div>
           <div className="flex items-center gap-2">
             <h3 className="text-xs font-bold text-gray-300">{activity.coach_name || "Coach"}</h3>
-            {activity.coach_rating > 0 && (
+            {activity.coach_rating !== null && activity.coach_rating !== undefined && activity.coach_rating > 0 && (
               <div className="flex items-center text-[10px] text-yellow-500 opacity-80">
                 <Star className="h-2.5 w-2.5 fill-yellow-500 mr-1" />
                 <span>{activity.coach_rating.toFixed(1)}</span>
@@ -222,70 +222,72 @@ export function ProductDetailView({ activityId }: ProductDetailViewProps) {
         {/* 3. Description Section - Minimalist */}
         <div className="max-w-2xl mb-10">
           <p className="text-gray-400 text-base leading-relaxed">
-            {activity.description}
+            {activity.description || ''}
           </p>
         </div>
 
         {/* 4. Stats Grid - Minimalist approach */}
         <div className="grid grid-cols-2 md:grid-cols-6 gap-3 mb-12">
-          <div className="bg-white/[0.02] border border-white/5 p-3 rounded-xl">
+          <div className="p-3">
             <div className="flex items-center gap-1.5 opacity-60 mb-1">
               <Calendar className="w-3 h-3 text-[#FF7939]" />
               <span className="text-[9px] text-gray-400 font-bold uppercase tracking-widest">Sesiones</span>
             </div>
             <span className="text-sm font-black text-white">{activity.sesiones_dias_totales || 0}</span>
           </div>
-          <div className="bg-white/[0.02] border border-white/5 p-3 rounded-xl">
+          <div className="p-3">
             <div className="flex items-center gap-1.5 opacity-60 mb-1">
               <Clock className="w-3 h-3 text-[#FF7939]" />
               <span className="text-[9px] text-gray-400 font-bold uppercase tracking-widest">Semanas</span>
             </div>
             <span className="text-sm font-black text-white">{activity.semanas_totales || 0}</span>
           </div>
-          <div className="bg-white/[0.02] border border-white/5 p-3 rounded-xl">
+          <div className="p-3">
             <div className="flex items-center gap-1.5 opacity-60 mb-1">
               <Video className="w-3 h-3 text-[#FF7939]" />
-              <span className="text-[9px] text-gray-400 font-bold uppercase tracking-widest">Items</span>
+              <span className="text-[9px] text-gray-400 font-bold uppercase tracking-widest">Temas</span>
             </div>
             <span className="text-sm font-black text-white">{activity.items_unicos || 0}</span>
           </div>
-          <div className="bg-white/[0.02] border border-white/5 p-3 rounded-xl">
+          <div className="p-3">
             <span className="text-[9px] text-gray-400 font-bold uppercase tracking-widest block mb-1">Nivel</span>
             <span className="text-sm font-black text-white capitalize">{activity.difficulty || 'Intermedio'}</span>
           </div>
-          <div className="bg-white/[0.02] border border-white/5 p-3 rounded-xl">
+          <div className="p-3">
             <div className="flex items-center gap-1.5 opacity-60 mb-1">
               <Users className="w-3 h-3 text-[#FF7939]" />
               <span className="text-[9px] text-gray-400 font-bold uppercase tracking-widest">Cupos</span>
             </div>
             <span className="text-sm font-black text-white">{activity.capacity || '∞'}</span>
           </div>
-          <div className="bg-white/[0.02] border border-white/5 p-3 rounded-xl">
+          <div className="p-3 relative group/modalidad">
             <div className="flex items-center gap-1.5 opacity-60 mb-1">
               <MapPin className="w-3 h-3 text-[#FF7939]" />
               <span className="text-[9px] text-gray-400 font-bold uppercase tracking-widest">Modalidad</span>
             </div>
-            <span className="text-sm font-black text-white truncate block">{activity.location_name || activity.modality || 'Online'}</span>
+            <div className="flex items-center gap-2">
+              <span className="text-sm font-black text-white truncate max-w-[100px]">{activity.location_name || activity.modality || 'Online'}</span>
+              {(activity.modality === 'presencial' || activity.modality === 'hibrido') && activity.location_url && (
+                <a
+                  href={activity.location_url}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="text-[#FF7939] hover:text-[#FF7939]/80 text-[10px] font-bold uppercase tracking-widest flex items-center gap-1"
+                >
+                  <MapPin className="h-2.5 w-2.5" />
+                  Ver
+                </a>
+              )}
+            </div>
           </div>
         </div>
 
-        {/* 5. Google Maps Link (for Presencial/Híbrido) - Minimal Button */}
-        {(activity.modality === 'presencial' || activity.modality === 'hibrido') && activity.location_url && (
-          <div className="mb-12">
-            <Button asChild variant="outline" className="border-[#FF7939]/30 text-[#FF7939] hover:bg-[#FF7939]/10 rounded-xl px-6 font-bold text-[10px] uppercase tracking-widest h-10">
-              <a href={activity.location_url} target="_blank" rel="noopener noreferrer" className="flex items-center gap-2">
-                <MapPin className="h-3 w-3" />
-                Ver Ubicación
-              </a>
-            </Button>
-          </div>
-        )}
 
         {/* 6. Workshop Themes Section - Simple List */}
         {activity.type === 'workshop' && (
           <div className="mb-12 border-t border-white/5 pt-10">
-            <div className="flex items-center gap-2 mb-8">
-              <h2 className="text-[10px] font-bold text-gray-500 uppercase tracking-widest">Temas y Horarios</h2>
+            <div className="flex items-center gap-2 mb-8 border-l-2 border-[#FF7939] pl-3">
+              <h2 className="text-[10px] font-bold text-gray-300 uppercase tracking-widest">Temas y Horarios</h2>
             </div>
 
             {loadingThemes ? (
@@ -294,7 +296,7 @@ export function ProductDetailView({ activityId }: ProductDetailViewProps) {
                 <span className="text-[10px] font-bold uppercase tracking-widest opacity-50">Cargando...</span>
               </div>
             ) : workshopThemes.length > 0 ? (
-              <div className="space-y-8">
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-x-12 gap-y-12">
                 {workshopThemes.map((theme, i) => (
                   <div key={theme.id} className="group">
                     <div className="flex items-baseline gap-3 mb-2">
@@ -333,19 +335,18 @@ export function ProductDetailView({ activityId }: ProductDetailViewProps) {
           </div>
         )}
 
-        {/* 7. Objetivos / Tags Section - Finer */}
-        {activity.objetivos && activity.objetivos.length > 0 && (
-          <div className="mb-24 pt-8 border-t border-white/5">
-            <h3 className="text-[9px] font-bold text-gray-500 uppercase tracking-widest mb-4">Logros</h3>
-            <div className="flex flex-wrap gap-2">
-              {activity.objetivos.map((obj: string, i: number) => (
-                <span key={i} className="text-gray-400 text-[10px] font-medium uppercase tracking-wider">
-                  {obj} {i < activity.objetivos.length - 1 && '•'}
+        <div className="mb-24 pt-8 border-t border-white/5">
+          <h3 className="text-[10px] font-bold text-gray-300 uppercase tracking-widest mb-6 border-l-2 border-[#FF7939] pl-3">Logros</h3>
+          <div className="flex flex-wrap gap-3">
+            {activity.objetivos && activity.objetivos.map((obj: string, i: number) => (
+              <div key={i} className="bg-white/[0.03] border border-white/10 px-4 py-2 rounded-xl">
+                <span className="text-gray-300 text-[10px] font-bold uppercase tracking-wider">
+                  {obj}
                 </span>
-              ))}
-            </div>
+              </div>
+            ))}
           </div>
-        )}
+        </div>
 
         {/* Purchase Button */}
         <div className="fixed bottom-0 left-0 right-0 bg-gray-950 border-t border-gray-800 p-4 shadow-lg flex justify-center z-20">

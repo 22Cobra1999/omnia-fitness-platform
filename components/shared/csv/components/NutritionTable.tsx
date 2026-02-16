@@ -12,6 +12,9 @@ interface NutritionTableProps {
     isAllSelected: boolean
     onEdit: (item: ExerciseData, index: number) => void
     activityId: number
+    exerciseUsage?: Record<number, { activities: Array<{ id: number; name: string }> }>
+    activityNamesMap?: Record<number, string>
+    activityImagesMap?: Record<number, string | null>
     duplicateNames: string[]
     loadingExisting: boolean
 }
@@ -25,6 +28,9 @@ export function NutritionTable({
     isAllSelected,
     onEdit,
     activityId,
+    exerciseUsage = {},
+    activityNamesMap = {},
+    activityImagesMap = {},
     duplicateNames,
     loadingExisting
 }: NutritionTableProps) {
@@ -43,7 +49,7 @@ export function NutritionTable({
                     </th>
                     <th className="px-2 py-3 text-left text-xs font-medium text-white border-b border-gray-600 w-12">Editar</th>
                     {activityId === 0 && (
-                        <th className="px-3 py-3 text-left text-xs font-medium text-white border-b border-gray-600 w-48">Estado</th>
+                        <th className="px-3 py-3 text-left text-xs font-medium text-white border-b border-gray-600 w-32">Estado</th>
                     )}
                     <th className="px-3 py-3 text-left text-xs font-medium text-white border-b border-gray-600 w-48">Plato</th>
                     <th className="px-3 py-3 text-left text-xs font-medium text-white border-b border-gray-600 w-48">Receta</th>
@@ -95,11 +101,70 @@ export function NutritionTable({
                                 </td>
                                 {activityId === 0 && (
                                     <td className="px-3 py-3 text-[10px] text-white">
-                                        {(item as any).exerciseUsage > 0 ? (
-                                            <span className="bg-green-500/10 text-green-400 px-1.5 py-0.5 rounded border border-green-500/20">En uso</span>
-                                        ) : (
-                                            <span className="bg-gray-500/10 text-gray-400 px-1.5 py-0.5 rounded border border-gray-500/20">Disponible</span>
-                                        )}
+                                        {(() => {
+                                            const itemId = item.id && typeof item.id === 'number' ? item.id : null
+                                            const usage = itemId ? exerciseUsage[itemId] : null
+                                            const activityIdNew = item.activity_id_new || item.activity_id
+                                            const activityStatus: Record<number, boolean> = {}
+
+                                            if (activityIdNew) {
+                                                if (typeof activityIdNew === 'object' && !Array.isArray(activityIdNew)) {
+                                                    Object.keys(activityIdNew).forEach(key => {
+                                                        const idNum = parseInt(key, 10)
+                                                        if (!isNaN(idNum)) activityStatus[idNum] = activityIdNew[key]?.activo !== false
+                                                    })
+                                                } else if (typeof activityIdNew === 'number') {
+                                                    activityStatus[activityIdNew] = true
+                                                }
+                                            }
+
+                                            const activities: Array<{ id: number; name: string; activo: boolean }> = []
+                                            if (usage && usage.activities && usage.activities.length > 0) {
+                                                usage.activities.forEach((act: any) => {
+                                                    activities.push({
+                                                        id: act.id,
+                                                        name: (act.name || `${act.id}`).replace(/^Actividad:\s*/i, ''),
+                                                        activo: activityStatus[act.id] !== false
+                                                    })
+                                                })
+                                            } else {
+                                                Object.keys(activityStatus).forEach(key => {
+                                                    const idNum = parseInt(key, 10)
+                                                    activities.push({
+                                                        id: idNum,
+                                                        name: activityNamesMap[idNum] || `Actividad ${idNum}`,
+                                                        activo: activityStatus[idNum] !== false
+                                                    })
+                                                })
+                                            }
+
+                                            if (activities.length === 0) return '-'
+
+                                            return (
+                                                <div className={`flex flex-wrap gap-2 ${activities.length > 3 ? 'max-h-20 overflow-y-auto' : ''}`}>
+                                                    {activities.map((act, idx) => {
+                                                        const imageUrl = activityImagesMap[act.id]
+                                                        return (
+                                                            <div key={`${act.id}-${idx}`} className="relative inline-flex items-center" title={act.name}>
+                                                                <div className="relative w-8 h-8 rounded-full overflow-hidden">
+                                                                    {imageUrl ? (
+                                                                        <img src={imageUrl} alt={act.name} className="w-full h-full object-cover" />
+                                                                    ) : (
+                                                                        <div className="w-full h-full bg-gradient-to-br from-[#FF7939] to-[#E66829] flex items-center justify-center">
+                                                                            <span className="text-xs font-bold text-white">{act.name.charAt(0).toUpperCase()}</span>
+                                                                        </div>
+                                                                    )}
+                                                                </div>
+                                                                <div
+                                                                    className={`absolute -bottom-0.5 -right-0.5 w-3 h-3 rounded-full border-2 border-gray-900 ${act.activo ? 'bg-green-500' : 'bg-red-500'}`}
+                                                                    title={act.activo ? 'Activo en esta actividad' : 'Inactivo en esta actividad'}
+                                                                />
+                                                            </div>
+                                                        )
+                                                    })}
+                                                </div>
+                                            )
+                                        })()}
                                     </td>
                                 )}
                                 <td className="px-3 py-3 text-xs font-medium whitespace-pre-wrap break-words">
@@ -122,25 +187,25 @@ export function NutritionTable({
                                 <td className="px-3 py-3 text-xs text-white">
                                     {(() => {
                                         const val = item['Calorías'] ?? item.calorias
-                                        return Number(val) > 0 ? val : '-'
+                                        return val !== undefined && val !== null ? val : '-'
                                     })()}
                                 </td>
                                 <td className="px-3 py-3 text-xs text-white">
                                     {(() => {
                                         const val = item['Proteínas (g)'] ?? item['Proteínas'] ?? item.proteinas
-                                        return Number(val) > 0 ? `${val}g` : '-'
+                                        return val !== undefined && val !== null ? `${val}g` : '-'
                                     })()}
                                 </td>
                                 <td className="px-3 py-3 text-xs text-white">
                                     {(() => {
                                         const val = item['Carbohidratos (g)'] ?? item['Carbohidratos'] ?? item.carbohidratos
-                                        return Number(val) > 0 ? `${val}g` : '-'
+                                        return val !== undefined && val !== null ? `${val}g` : '-'
                                     })()}
                                 </td>
                                 <td className="px-3 py-3 text-xs text-white">
                                     {(() => {
                                         const val = item['Grasas (g)'] ?? item['Grasas'] ?? item.grasas
-                                        return Number(val) > 0 ? `${val}g` : '-'
+                                        return val !== undefined && val !== null ? `${val}g` : '-'
                                     })()}
                                 </td>
                                 <td className="px-3 py-3 text-xs text-white">
@@ -168,7 +233,7 @@ export function NutritionTable({
                                 <td className="px-3 py-3 text-xs text-white">
                                     {(() => {
                                         const min = item['Minutos'] ?? item.minutos
-                                        return min ? `${min} min` : '-'
+                                        return min !== undefined && min !== null ? `${min} min` : '-'
                                     })()}
                                 </td>
                                 <td className="px-3 py-3 text-xs text-white">

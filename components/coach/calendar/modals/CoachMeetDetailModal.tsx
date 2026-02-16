@@ -34,7 +34,7 @@ export function CoachMeetDetailModal({
                 .from('calendar_event_participants')
                 .select(`
           *,
-          client:client_id (
+          user:user_id (
             id,
             full_name,
             avatar_url
@@ -206,22 +206,39 @@ export function CoachMeetDetailModal({
     const hoursUntilMeet = differenceInHours(start, new Date())
     const isToday = hoursUntilMeet >= 0 && hoursUntilMeet < 24
 
+    // Find my participant data (Coach)
+    const myParticipant = participants.find(p => p.user_id === event.coach_id)
+    const myRsvp = myParticipant?.rsvp_status || 'pending'
+    const isMyRsvpPending = myRsvp === 'pending'
+
     // Count confirmations
     const confirmedCount = participants.filter(p => p.rsvp_status === 'accepted' || p.rsvp_status === 'confirmed').length
     const totalCount = participants.length
     const allConfirmed = confirmedCount === totalCount && totalCount > 0
 
+    // Standardized Status Label Colors (Semaforo)
     const statusLabel = (() => {
-        if (isCancelled) return { label: 'Cancelada', color: 'text-red-400 bg-red-500/10 border-red-500/20' }
-        if (pendingReschedule?.status === 'pending') return { label: 'Cambio Sugerido', color: 'text-[#FFB366] bg-[#FFB366]/10 border-[#FFB366]/20' }
-        if (isPending) return { label: 'Pendiente', color: 'text-[#FFB366] bg-[#FFB366]/10 border-[#FFB366]/20' }
-        if (isConfirmed && !allConfirmed) {
-            const label = totalCount > 1 ? `Inv. Enviada (${confirmedCount}/${totalCount})` : 'Invitación Enviada'
-            return { label, color: 'text-[#FFB366] bg-[#FFB366]/10 border-[#FFB366]/20' }
+        if (isCancelled) return { label: 'Cancelada', color: 'text-red-500 bg-red-500/10 border-red-500/20' }
+        if (isPast) return { label: 'Finalizada', color: 'text-gray-400 bg-white/5 border-white/10 shadow-none' }
+        if (pendingReschedule?.status === 'pending') return { label: 'Cambio Solicitado', color: 'text-red-500 bg-red-500/10 border-red-500/20 shadow-[0_0_10px_rgba(239,68,68,0.1)]' }
+        if (event.status === 'rescheduled') return { label: 'Reprogramada', color: 'text-blue-400 bg-blue-500/10 border-blue-500/20' }
+
+        if (isPending) return { label: 'Pendiente (Solicitud)', color: 'text-yellow-500 bg-yellow-500/10 border-yellow-500/20' }
+
+        // If scheduled but waiting for others
+        if (!allConfirmed) {
+            // Differentiate: If *I* am pending, show "Pendiente". If I am accepted but others pending, show "Invitación Enviada"
+            if (isMyRsvpPending) return { label: 'Pendiente (Acción req.)', color: 'text-yellow-500 bg-yellow-500/10 border-yellow-500/20' }
+            return { label: 'Invitación Enviada', color: 'text-blue-400 bg-blue-500/10 border-blue-500/20' }
         }
-        if (allConfirmed) return { label: 'Confirmada', color: 'text-[#FF7939] bg-[#FF7939]/10 border-[#FF7939]/20' }
-        return { label: 'Programada', color: 'text-white/40 bg-white/5 border-white/10' }
+
+        return { label: 'Confirmada', color: 'text-[#FF7939] bg-[#FF7939]/10 border-[#FF7939]/20 shadow-[0_0_15px_rgba(255,121,57,0.15)]' }
     })()
+
+    // 24h rule fix: Allow actions if RSVP is pending even if < 24h
+    const isUnder24h = hoursUntilMeet < 24 && hoursUntilMeet >= 0
+    // Fix: Allow if my RSVP is currently pending, regardless of time
+    const canPerformActions = !isPast && (!isUnder24h || isPending || isMyRsvpPending)
 
     return (
         <div
@@ -305,22 +322,30 @@ export function CoachMeetDetailModal({
                                     {participants.map((p) => (
                                         <div key={p.id} className="flex items-center justify-between">
                                             <div className="flex items-center gap-2">
-                                                {p.client?.avatar_url ? (
-                                                    <img src={p.client.avatar_url} alt={p.client.full_name} className="w-6 h-6 rounded-full" />
+                                                {p.user?.avatar_url ? (
+                                                    <img src={p.user.avatar_url} alt={p.user.full_name} className="w-6 h-6 rounded-full" />
                                                 ) : (
                                                     <div className="w-6 h-6 rounded-full bg-zinc-800 flex items-center justify-center">
                                                         <Users className="w-3 h-3 text-zinc-500" />
                                                     </div>
                                                 )}
-                                                <span className="text-xs text-white/70">{p.client?.full_name || 'Cliente'}</span>
+                                                <span className="text-xs text-white/70">
+                                                    {p.user?.full_name || 'Usuario'}
+                                                    {String(p.user_id) === String(p.invited_by_user_id) && <span className="ml-1 text-[9px] text-zinc-500">(Organizador)</span>}
+                                                </span>
                                             </div>
-                                            <span className={`text-[9px] font-bold uppercase px-2 py-0.5 rounded-full ${p.rsvp_status === 'accepted' || p.rsvp_status === 'confirmed'
-                                                ? 'bg-[#FF7939]/10 text-[#FF7939] border border-[#FF7939]/20'
-                                                : p.rsvp_status === 'declined'
-                                                    ? 'bg-red-500/10 text-red-500 border border-red-500/20'
-                                                    : 'bg-white/5 text-white/40 border border-white/10'
-                                                }`}>
-                                                {p.rsvp_status === 'accepted' || p.rsvp_status === 'confirmed' ? 'Confirmado' : p.rsvp_status === 'declined' ? 'Rechazado' : 'Pendiente'}
+                                            <span className={`text-[9px] font-bold uppercase px-2 py-0.5 rounded-full ${(() => {
+                                                const pRsvp = isCancelled ? 'cancelled' : p.rsvp_status;
+                                                return (pRsvp === 'accepted' || pRsvp === 'confirmed')
+                                                    ? 'bg-[#FF7939]/10 text-[#FF7939] border border-[#FF7939]/20'
+                                                    : (pRsvp === 'declined' || pRsvp === 'cancelled')
+                                                        ? 'bg-red-500/10 text-red-500 border border-red-500/20'
+                                                        : 'bg-white/5 text-white/40 border border-white/10'
+                                            })()}`}>
+                                                {(() => {
+                                                    const pRsvp = isCancelled ? 'cancelled' : p.rsvp_status;
+                                                    return (pRsvp === 'accepted' || pRsvp === 'confirmed') ? 'Confirmado' : (pRsvp === 'declined' || pRsvp === 'cancelled' ? 'Cancelado' : 'Pendiente')
+                                                })()}
                                             </span>
                                         </div>
                                     ))}
@@ -338,19 +363,26 @@ export function CoachMeetDetailModal({
 
                     {/* Actions */}
                     <div className="space-y-3 pt-4">
+                        {isUnder24h && !isPending && !isCancelled && isConfirmed && !isMyRsvpPending && (
+                            <div className="flex items-center justify-center gap-2 py-3 px-4 rounded-xl bg-white/5 border border-white/5 text-gray-500 text-[10px] uppercase font-black tracking-widest text-center">
+                                <Clock className="w-3 h-3" />
+                                Edición deshabilitada (faltan menos de 24hs)
+                            </div>
+                        )}
+
                         {/* Pending Reschedule Actions */}
                         {pendingReschedule?.status === 'pending' && (
                             <div className="flex gap-2">
                                 <button
                                     onClick={handleAcceptReschedule}
-                                    disabled={loading}
+                                    disabled={loading || !canPerformActions}
                                     className="flex-1 h-12 rounded-2xl bg-[#FF7939] text-black font-bold hover:bg-[#FF7939]/90 transition-all disabled:opacity-50"
                                 >
                                     Aceptar Cambio
                                 </button>
                                 <button
                                     onClick={handleRejectReschedule}
-                                    disabled={loading}
+                                    disabled={loading || !canPerformActions}
                                     className="flex-1 h-12 rounded-2xl bg-white/5 border border-white/10 text-white font-bold hover:bg-white/10 transition-all disabled:opacity-50"
                                 >
                                     Rechazar
@@ -363,7 +395,7 @@ export function CoachMeetDetailModal({
                             <div className="flex gap-2">
                                 <button
                                     onClick={handleAccept}
-                                    disabled={loading}
+                                    disabled={loading || !canPerformActions}
                                     className="flex-1 h-12 rounded-2xl bg-[#FF7939] text-black font-bold hover:bg-[#FF7939]/90 transition-all disabled:opacity-50 flex items-center justify-center gap-2"
                                 >
                                     <CheckCircle2 className="w-5 h-5" />
@@ -371,7 +403,7 @@ export function CoachMeetDetailModal({
                                 </button>
                                 <button
                                     onClick={handleReject}
-                                    disabled={loading}
+                                    disabled={loading || !canPerformActions}
                                     className="flex-1 h-12 rounded-2xl bg-red-500/10 border border-red-500/20 text-red-500 font-bold hover:bg-red-500/20 transition-all disabled:opacity-50 flex items-center justify-center gap-2"
                                 >
                                     <XCircle className="w-5 h-5" />

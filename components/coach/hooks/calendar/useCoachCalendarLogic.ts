@@ -5,6 +5,7 @@ import { createClient } from "@/lib/supabase/supabase-client"
 import { format, isSameDay, addMonths, subMonths, addDays, subDays, parse, addMinutes } from "date-fns"
 import { useCoachEvents } from "./useCoachEvents"
 import { useCoachAvailability } from "./useCoachAvailability"
+import { useCoachAvailability as useSharedCoachAvailability } from "@/components/calendar/hooks/useCoachAvailability"
 import { useCoachMeetModal } from "./useCoachMeetModal"
 import { useGoogleCalendarSync } from "./useGoogleCalendarSync"
 import { CalendarEvent } from "@/components/coach/coach-calendar-screen"
@@ -13,6 +14,7 @@ export function useCoachCalendarLogic() {
     // --- Estados de UI Base ---
     const [currentDate, setCurrentDate] = useState(new Date())
     const [selectedDate, setSelectedDate] = useState<Date | null>(new Date())
+    const [viewedClientId, setViewedClientId] = useState<string | null>(null) // New state for fetching client events
     const [viewMode, setViewMode] = useState<'month' | 'today'>('month')
     const [calendarMode, setCalendarMode] = useState<'events' | 'availability'>('events')
     const [showMonthSelector, setShowMonthSelector] = useState(false)
@@ -49,18 +51,88 @@ export function useCoachCalendarLogic() {
 
     const availabilityHook = useCoachAvailability(eventsHook.coachId)
 
-    const meetModalHook = useCoachMeetModal(eventsHook.coachId, async () => {
-        await eventsHook.getCoachEvents(true)
-    })
+    // Use shared hook for slots calculation (Dots logic)
+    // We map 'today' view mode to 'day_split' or just 'month' implies we want month dots.
+    // For Month view dots, we definitely need 'month' mode text.
+    const dummyDate = useMemo(() => new Date(), [])
+    const { availableSlotsCountByDay } = useSharedCoachAvailability(
+        eventsHook.coachId,
+        'month', // Always fetch month summary for dots
+        dummyDate, // meetWeekStart replacement (irrelevant for month view summary)
+        currentDate,
+        30 // Default duration
+    )
 
-    // --- Lógica de Superposición ---
+    // --- Lógica de Client Availability (para Reschedule) ---
+    const [clientEvents, setClientEvents] = useState<any[]>([])
+
+    useEffect(() => {
+        const fetchClientEvents = async () => {
+            let clientIds: string[] = []
+            let referenceDate = selectedDate || currentDate
+
+            if (isRescheduling && meetToReschedule && quickSchedulerDate) {
+                // ... logic for rescheduling
+                referenceDate = quickSchedulerDate
+                // Get client ID from meet participants
+                const { data: participants } = await supabase
+                    .from('calendar_event_participants')
+                    .select('user_id')
+                    .eq('event_id', meetToReschedule.id)
+                    .neq('user_id', eventsHook.coachId)
+
+                clientIds = participants?.map((p: any) => p.user_id) || []
+            } else if (viewedClientId) {
+                clientIds = [viewedClientId]
+            }
+
+            if (clientIds.length === 0) {
+                setClientEvents([])
+                return
+            }
+
+            // Fetch client's confirmed events for the selected month/period
+            // For simplicity, let's fetch -7 to +30 days from referenceDate
+            const startRange = subDays(new Date(referenceDate), 7).toISOString()
+            const endRange = addDays(new Date(referenceDate), 30).toISOString()
+
+            // Better query: Check participation
+            const { data: participantEvents } = await supabase
+                .from('calendar_event_participants')
+                .select('event_id, calendar_events(id, start_time, end_time, title, status)')
+                .in('user_id', clientIds)
+                .in('rsvp_status', ['confirmed', 'accepted']) // Check both confirmed and accepted
+
+            const parsedClientEvents = (participantEvents || [])
+                .map((row: any) => row.calendar_events)
+                .filter((ev: any) =>
+                    ev &&
+                    ev.status !== 'cancelled' &&
+                    new Date(ev.start_time) >= new Date(startRange) &&
+                    new Date(ev.end_time) <= new Date(endRange)
+                )
+                .map((ev: any) => ({
+                    ...ev,
+                    is_client_event: true,
+                    title: 'Ocupado (Cliente)'
+                }))
+
+            setClientEvents(parsedClientEvents)
+        }
+
+        fetchClientEvents()
+    }, [isRescheduling, meetToReschedule?.id, quickSchedulerDate, viewedClientId, selectedDate, currentDate, supabase, eventsHook.coachId])
+
+
+    // Update checkOverlap to include client events
     const checkOverlap = useCallback((date: Date, startTime: string, durationMinutes: number, ignoreEventId?: string) => {
         const [hours, minutes] = startTime.split(':').map(Number)
         const start = new Date(date)
         start.setHours(hours, minutes, 0, 0)
         const end = addMinutes(start, durationMinutes)
 
-        return eventsHook.events.some(event => {
+        // Check against Coach Events
+        const coachOverlap = eventsHook.events.some(event => {
             if (event.id === ignoreEventId) return false
             if (event.status === 'cancelled') return false
 
@@ -69,7 +141,29 @@ export function useCoachCalendarLogic() {
 
             return (start < eventEnd && end > eventStart)
         })
-    }, [eventsHook.events])
+
+        if (coachOverlap) return true
+
+        // Check against Client Events (only if rescheduling)
+        if (isRescheduling && clientEvents.length > 0) {
+            const clientOverlap = clientEvents.some(event => {
+                const eventStart = new Date(event.start_time)
+                const eventEnd = event.end_time ? new Date(event.end_time) : addMinutes(eventStart, 60)
+                return (start < eventEnd && end > eventStart)
+            })
+            if (clientOverlap) return true
+        }
+
+        return false
+    }, [eventsHook.events, clientEvents, isRescheduling, viewedClientId])
+
+    // Return the new state setter
+
+
+
+    const meetModalHook = useCoachMeetModal(eventsHook.coachId, async () => {
+        await eventsHook.getCoachEvents(true)
+    })
 
     // --- Lógica de Notificaciones ---
     useEffect(() => {
@@ -317,7 +411,7 @@ export function useCoachCalendarLogic() {
                     user_id: eventsHook.coachId,
                     rsvp_status: 'confirmed',
                     payment_status: 'free',
-                    role: 'host',
+                    role: 'coach',
                     is_creator: true,
                     can_reschedule: true,
                     attendance_status: 'pending',
@@ -333,10 +427,10 @@ export function useCoachCalendarLogic() {
                     const creditsRequired = Math.ceil(durationMinutes / 15)
 
                     let paymentStatus = 'unpaid'
-                    if (availableCredits >= creditsRequired) {
-                        paymentStatus = 'credit_deduction'
-                    } else if (data.isFree) {
+                    if (data.isFree) {
                         paymentStatus = 'free'
+                    } else if (!data.price || Number(data.price) === 0) {
+                        paymentStatus = 'credit_deduction'
                     }
 
                     return {
@@ -344,7 +438,7 @@ export function useCoachCalendarLogic() {
                         user_id: clientId,
                         rsvp_status: 'pending',
                         payment_status: paymentStatus,
-                        role: 'participant',
+                        role: 'client',
                         is_creator: false,
                         can_reschedule: false,
                         attendance_status: 'pending',
@@ -410,8 +504,12 @@ export function useCoachCalendarLogic() {
         }
     }, [isRescheduling])
 
-    const handleStartReschedule = useCallback((meet: CalendarEvent) => {
-        setMeetToReschedule(meet)
+    const handleStartReschedule = useCallback((meet: CalendarEvent, metadata?: { description?: string; clientIds?: string[] }) => {
+        setMeetToReschedule({
+            ...meet,
+            description: metadata?.description ?? meet.description,
+            client_id: metadata?.clientIds?.[0] ?? meet.client_id // Primary client fallback
+        })
         setIsRescheduling(true)
         setSelectedEvent(null) // Close detail modal
         setViewMode('month') // Go back to calendar
@@ -450,36 +548,70 @@ export function useCoachCalendarLogic() {
             const newStartISO = newStartDateTime.toISOString()
             const newEndISO = newEndDateTime.toISOString()
 
-            // Create reschedule request
-            const { error: rescheduleError } = await supabase
-                .from('calendar_event_reschedule_requests')
-                .insert({
-                    event_id: meetToReschedule.id,
-                    requested_by_user_id: eventsHook.coachId,
-                    from_start_time: meetToReschedule.start_time,
-                    from_end_time: meetToReschedule.end_time,
-                    to_start_time: newStartISO,
-                    to_end_time: newEndISO,
-                    status: 'pending',
-                    reason: data.description.trim() || 'Solicitud de reprogramación',
-                } as any)
+            // Check if meet is confirmed (invitation stage vs confirmed booking)
+            const { data: participants } = await supabase
+                .from('calendar_event_participants')
+                .select('rsvp_status')
+                .eq('event_id', meetToReschedule.id)
 
-            if (rescheduleError) {
-                console.error('❌ Error creating reschedule request:', rescheduleError)
-                throw new Error(rescheduleError.message || 'No se pudo crear la solicitud de reprogramación')
+            const isConfirmed = participants && participants.length > 0 && !participants.some((p: any) => p.rsvp_status === 'pending')
+
+            if (!isConfirmed) {
+                // Invitation stage: Direct UPDATE
+                console.log('[useCoachCalendarLogic] Unconfirmed meet, performing DIRECT UPDATE')
+                const { error: updateError } = await supabase
+                    .from('calendar_events')
+                    .update({
+                        start_time: newStartISO,
+                        end_time: newEndISO,
+                        // If it was already 'rescheduled', keep it or reset to 'scheduled'
+                        status: 'scheduled'
+                    })
+                    .eq('id', meetToReschedule.id)
+
+                if (updateError) throw updateError
+
+                // Clear any pending requests for this event if they exist
+                await supabase
+                    .from('calendar_event_reschedule_requests')
+                    .delete()
+                    .eq('event_id', meetToReschedule.id)
+                    .eq('status', 'pending')
+
+            } else {
+                // Confirmed stage: Create reschedule request
+                console.log('[useCoachCalendarLogic] Confirmed meet, creating RESCHEDULE REQUEST')
+                const { error: rescheduleError } = await supabase
+                    .from('calendar_event_reschedule_requests')
+                    .insert({
+                        event_id: meetToReschedule.id,
+                        requested_by_user_id: eventsHook.coachId,
+                        from_start_time: meetToReschedule.start_time,
+                        from_end_time: meetToReschedule.end_time,
+                        to_start_time: newStartISO,
+                        to_end_time: newEndISO,
+                        status: 'pending',
+                        reason: data.description.trim() || 'Solicitud de reprogramación',
+                    } as any)
+
+                if (rescheduleError) {
+                    console.error('❌ Error creating reschedule request:', rescheduleError)
+                    throw new Error(rescheduleError.message || 'No se pudo crear la solicitud de reprogramación')
+                }
+
+                // Update event status to rescheduled
+                await supabase
+                    .from('calendar_events')
+                    .update({
+                        status: 'rescheduled',
+                        lifecycle_data: {
+                            ...(meetToReschedule as any).lifecycle_data,
+                            rescheduled_at: new Date().toISOString(),
+                            rescheduled_by: eventsHook.coachId
+                        }
+                    })
+                    .eq('id', meetToReschedule.id)
             }
-
-            // Update event status to rescheduled
-            await supabase
-                .from('calendar_events')
-                .update({
-                    status: 'rescheduled',
-                    lifecycle_data: {
-                        rescheduled_at: new Date().toISOString(),
-                        rescheduled_by: eventsHook.coachId
-                    }
-                })
-                .eq('id', meetToReschedule.id)
 
             // Success! Close modal and refresh
             setShowConfirmationModal(false)
@@ -519,6 +651,7 @@ export function useCoachCalendarLogic() {
         syncing,
         handleSyncGoogleCalendar,
         checkOverlap,
+        showAvailability: showQuickScheduler || isRescheduling,
 
         // UI State
         currentDate,
@@ -567,6 +700,10 @@ export function useCoachCalendarLogic() {
         handleStartReschedule,
         handleRescheduleConfirm,
         handleCancelReschedule,
-        handleCancelRescheduleRequest
+        handleCancelRescheduleRequest,
+        clientEvents,
+        availableSlotsCountByDay,
+        viewedClientId,
+        setViewedClientId
     }
 }

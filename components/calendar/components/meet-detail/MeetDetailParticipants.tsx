@@ -9,6 +9,7 @@ interface MeetDetailParticipantsProps {
     selectedMeetEvent: any
     authUserId: string | null
     organizerName: string
+    eventStatus?: string
 }
 
 export const MeetDetailParticipants: React.FC<MeetDetailParticipantsProps> = ({
@@ -18,8 +19,11 @@ export const MeetDetailParticipants: React.FC<MeetDetailParticipantsProps> = ({
     guests,
     selectedMeetEvent,
     authUserId,
-    organizerName
+    organizerName,
+    eventStatus
 }) => {
+    const isEventCancelled = eventStatus === 'cancelled' || selectedMeetEvent.status === 'cancelled'
+
     return (
         <div>
             <div className="text-[10px] font-black text-gray-500 uppercase tracking-[0.2em] mb-4">Participantes</div>
@@ -39,7 +43,16 @@ export const MeetDetailParticipants: React.FC<MeetDetailParticipantsProps> = ({
                                     {organizerName.substring(0, 2)}
                                 </div>
                             )}
-                            <div className={`absolute -bottom-0.5 -right-0.5 w-2.5 h-2.5 rounded-full border-2 border-zinc-950 ${selectedMeetEvent.is_ghost ? 'bg-[#FFB366]' : 'bg-[#FF7939]'}`} />
+                            {(() => {
+                                // Show organizer's individual RSVP status, not event-level status
+                                const organizerRsvp = hostParticipant?.rsvp_status || 'pending';
+                                const statusColor = (organizerRsvp === 'confirmed' || organizerRsvp === 'accepted')
+                                    ? 'bg-[#FF7939]'
+                                    : (organizerRsvp === 'declined' || organizerRsvp === 'cancelled'
+                                        ? 'bg-red-500'
+                                        : 'bg-[#FFB366]');
+                                return <div className={`absolute -bottom-0.5 -right-0.5 w-2.5 h-2.5 rounded-full border-2 border-zinc-950 ${statusColor}`} />;
+                            })()}
                         </div>
                         <div className="flex flex-col">
                             <span className="text-white font-medium">{organizerName}</span>
@@ -47,23 +60,39 @@ export const MeetDetailParticipants: React.FC<MeetDetailParticipantsProps> = ({
                                 <span className="text-[9px] text-[#FF7939] font-black uppercase tracking-widest">Organizador</span>
                                 <span className="text-[10px] text-gray-500">•</span>
                                 <span className="text-[9px] text-gray-500 font-black uppercase tracking-widest">
-                                    {coachProfiles.some((c: any) => String(c.id) === String(hostParticipant?.user_id)) ? 'Coach' : 'Cliente'}
+                                    {hostParticipant?.role === 'coach' ? 'Coach' : 'Cliente'}
                                 </span>
                             </div>
                         </div>
                     </div>
-                    <div className={`text-xs font-bold ${selectedMeetEvent.is_ghost ? 'text-[#FFB366]' : 'text-[#FF7939]'}`}>
-                        {selectedMeetEvent.is_ghost ? 'Pendiente' : 'Reserva'}
-                    </div>
+                    {(() => {
+                        // Show organizer's individual RSVP status text
+                        const organizerRsvp = hostParticipant?.rsvp_status || 'pending';
+                        const statusText = (organizerRsvp === 'confirmed' || organizerRsvp === 'accepted')
+                            ? 'Confirmado'
+                            : (organizerRsvp === 'declined' || organizerRsvp === 'cancelled'
+                                ? 'Cancelado'
+                                : 'Pendiente');
+                        const statusColor = (organizerRsvp === 'confirmed' || organizerRsvp === 'accepted')
+                            ? 'text-[#FF7939]'
+                            : (organizerRsvp === 'declined' || organizerRsvp === 'cancelled'
+                                ? 'text-red-500'
+                                : 'text-[#FFB366]');
+                        return <div className={`text-xs font-bold ${statusColor}`}>{statusText}</div>;
+                    })()}
                 </div>
 
                 {/* Guests */}
                 {guests.map(p => {
                     const isMe = String(p.user_id) === String(authUserId);
                     const isCoach = coachProfiles.some((c: any) => String(c.id) === String(p.user_id));
-                    const statusColor = (p.rsvp_status === 'confirmed' || p.rsvp_status === 'accepted') ? 'bg-[#FF7939]' : (p.rsvp_status === 'declined' || p.rsvp_status === 'cancelled' ? 'bg-red-500' : 'bg-[#FFB366]');
-                    const statusText = (p.rsvp_status === 'confirmed' || p.rsvp_status === 'accepted') ? 'Confirmado' : (p.rsvp_status === 'declined' || p.rsvp_status === 'cancelled' ? 'Rechazado' : 'Pendiente');
-                    const statusTextColor = (p.rsvp_status === 'confirmed' || p.rsvp_status === 'accepted') ? 'text-[#FF7939]' : (p.rsvp_status === 'declined' || p.rsvp_status === 'cancelled' ? 'text-red-500' : 'text-[#FFB366]');
+
+                    // Show individual RSVP status, not event-level status
+                    const pRsvp = p.rsvp_status;
+
+                    const statusColor = (pRsvp === 'confirmed' || pRsvp === 'accepted') ? 'bg-[#FF7939]' : (pRsvp === 'declined' || pRsvp === 'cancelled' ? 'bg-red-500' : 'bg-[#FFB366]');
+                    const statusText = (pRsvp === 'confirmed' || pRsvp === 'accepted') ? 'Confirmado' : (pRsvp === 'declined' || pRsvp === 'cancelled' ? 'Cancelado' : 'Pendiente');
+                    const statusTextColor = (pRsvp === 'confirmed' || pRsvp === 'accepted') ? 'text-[#FF7939]' : (pRsvp === 'declined' || pRsvp === 'cancelled' ? 'text-red-500' : 'text-[#FFB366]');
 
                     return (
                         <div key={p.id} className="flex items-center justify-between group">
@@ -84,7 +113,7 @@ export const MeetDetailParticipants: React.FC<MeetDetailParticipantsProps> = ({
                                         <span className="text-[9px] text-gray-500 font-black uppercase tracking-widest">Invitado</span>
                                         <span className="text-[10px] text-gray-600">•</span>
                                         <span className="text-[9px] text-gray-500 font-black uppercase tracking-widest">
-                                            {isCoach ? 'Coach' : 'Cliente'}
+                                            {p.role === 'coach' ? 'Coach' : 'Cliente'}
                                         </span>
                                     </div>
                                 </div>

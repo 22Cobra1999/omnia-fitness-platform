@@ -6,6 +6,7 @@ import { format, isToday } from 'date-fns'
 import { es } from 'date-fns/locale'
 import { useCoachCalendarLogic } from "./hooks/calendar/useCoachCalendarLogic"
 import { CoachCalendarHeader } from "./calendar/common/CoachCalendarHeader"
+import { CoachCalendarClientSelector } from "./calendar/common/CoachCalendarClientSelector"
 import { MonthView } from "./calendar/views/MonthView"
 import { AvailabilityEditor } from "./calendar/views/AvailabilityEditor"
 import { InlineMeetScheduler } from "./calendar/views/InlineMeetScheduler"
@@ -45,6 +46,12 @@ export interface CalendarEvent {
   pending_reschedule?: any
   max_participants?: number | null
   rsvp_status?: string
+  cancelled_by_user_id?: string
+  cancellation_reason?: string
+  cancelled_at?: string
+  invited_by_user_id?: string
+  lifecycle_data?: any
+  pricing_data?: any
 }
 
 function CoachCalendarContent() {
@@ -144,7 +151,11 @@ function CoachCalendarContent() {
     handleRescheduleConfirm,
     handleCancelReschedule,
     handleCancelRescheduleRequest,
-    checkOverlap
+    checkOverlap,
+    clientEvents,
+    availableSlotsCountByDay,
+    showAvailability,
+    setViewedClientId // Destructure this
   } = useCoachCalendarLogic()
 
   const supabase = createClient()
@@ -153,6 +164,8 @@ function CoachCalendarContent() {
   const [pendingReschedule, setPendingReschedule] = React.useState<any>(null)
   const [selectedMeetRsvpStatus, setSelectedMeetRsvpStatus] = React.useState('pending')
   const [selectedMeetRsvpLoading, setSelectedMeetRsvpLoading] = React.useState(false)
+  const [isSelectingClient, setIsSelectingClient] = React.useState(false)
+  const [selectedClientForQuickMeet, setSelectedClientForQuickMeet] = React.useState<any>(null)
 
   // Sincronizar estado local al seleccionar un evento
   React.useEffect(() => {
@@ -186,6 +199,41 @@ function CoachCalendarContent() {
     return { dayEvents: events, meetEvents: meets, otherEvents: others, dateLabel: label }
   }, [selectedDate, eventsByDate])
 
+  // Calculate Client Day Events for Scheduler
+  const clientDayEvents = React.useMemo(() => {
+    if (!quickSchedulerDate || !clientEvents.length) return []
+    const dayKey = format(quickSchedulerDate, 'yyyy-MM-dd')
+    return clientEvents.filter(e => {
+      const eDate = new Date(e.start_time)
+      return format(eDate, 'yyyy-MM-dd') === dayKey
+    })
+  }, [quickSchedulerDate, clientEvents])
+
+  // Calculate Client Events for Selected Date (Main List)
+  const clientSelectedDateEvents = React.useMemo(() => {
+    if (!selectedDate || !clientEvents.length) return []
+    const dayKey = format(selectedDate, 'yyyy-MM-dd')
+    return clientEvents.filter(e => {
+      const eDate = new Date(e.start_time)
+      return format(eDate, 'yyyy-MM-dd') === dayKey
+    })
+  }, [selectedDate, clientEvents])
+
+  // Helper: Get Full Client Data (with credits)
+  const activeClientData = React.useMemo(() => {
+    if (selectedClientForQuickMeet) return selectedClientForQuickMeet
+    if (meetToReschedule && clientsForMeet.length > 0) {
+      return clientsForMeet.find((c: any) => c.id === meetToReschedule.client_id) || {
+        id: meetToReschedule.client_id,
+        full_name: meetToReschedule.client_name || 'Cliente',
+        avatar_url: null,
+        meet_credits_available: 0 // Fallback
+      }
+    }
+    return null
+  }, [selectedClientForQuickMeet, meetToReschedule, clientsForMeet])
+
+
   // Load participants and reschedule when meet is selected
   React.useEffect(() => {
     if (!selectedMeetEvent) {
@@ -202,7 +250,7 @@ function CoachCalendarContent() {
         // Load participants with their profiles
         const { data: participants, error: participantsError } = await supabase
           .from('calendar_event_participants')
-          .select('*')
+          .select('id, user_id, role, rsvp_status, is_creator, invited_by_user_id') // Select explicit columns
           .eq('event_id', actualEventId)
 
         if (participantsError) {
@@ -237,16 +285,28 @@ function CoachCalendarContent() {
           const profile = profiles?.find((prof: any) => prof.id === p.user_id)
           const isCoach = String(p.user_id) === String(selectedMeetEvent.coach_id)
 
+          // STRICT LOGIC: Trust DB columns first
+          const dbRole = p.role ? p.role.toLowerCase() : null
+          const effectiveRole = dbRole === 'coach' ? 'coach' : (isCoach ? 'coach' : 'client')
+
+          // Organizer if: 
+          // 1. invited_by_user_id == user_id (Self-invited)
+          // 2. is_creator is true
+          // 3. Fallback: Coach if invited_by_user_id is NULL
+          const isInviter = p.invited_by_user_id && String(p.user_id) === String(p.invited_by_user_id)
+          const isOrganizer = isInviter || p.is_creator || (isCoach && !p.invited_by_user_id)
+
           return {
             ...p,
             name: profile?.full_name || 'Usuario',
             avatar_url: profile?.avatar_url,
-            client_id: p.user_id, // Keep client_id for backwards compatibility
-            is_organizer: isCoach || p.participant_role === 'coach' || p.participant_role === 'host'
+            client_id: p.user_id,
+            role: effectiveRole,
+            is_organizer: isOrganizer
           }
         })
 
-        console.log('✅ Participants with profiles:', participantsWithProfiles)
+        console.log('✅ Participants with profiles (Mapped):', participantsWithProfiles)
 
         // Add coach as host if not already in participants
         const coachProfile = profiles?.find((p: any) => p.id === selectedMeetEvent.coach_id)
@@ -261,10 +321,11 @@ function CoachCalendarContent() {
             name: coachProfile.full_name || 'Coach',
             avatar_url: coachProfile.avatar_url,
             rsvp_status: 'accepted',
-            role: 'host',
-            participant_role: 'host',
+            role: 'coach',
+            participant_role: 'coach',
             is_organizer: true,
-            is_creator: false
+            is_creator: false,
+            invited_by_user_id: selectedMeetEvent.coach_id
           })
         }
 
@@ -320,8 +381,32 @@ function CoachCalendarContent() {
     <div className="min-h-screen bg-[#0A0A0B] text-white pb-32">
       <div className="w-full mx-auto p-4 sm:p-8 space-y-6">
 
+        {/* Selected Client (Positioned above the + button) */}
+        {(showQuickScheduler || isRescheduling || isSelectingClient) && (
+          <div className="flex justify-end mb-8 mr-1 relative z-30">
+            <CoachCalendarClientSelector
+              clients={clientsForMeet}
+              selectedClientId={activeClientData?.id || (isRescheduling ? meetToReschedule?.client_id : null)}
+              onSelectClient={(client) => {
+                setSelectedClientForQuickMeet(client)
+                setViewedClientId(client.id) // Set viewed client
+                setIsSelectingClient(false)
+                if (!showQuickScheduler) handleActivateScheduler()
+              }}
+              onClear={() => {
+                handleQuickSchedulerCancel()
+                if (isRescheduling) handleCancelReschedule()
+                setSelectedClientForQuickMeet(null)
+                setViewedClientId(null) // Clear viewed client
+                setIsSelectingClient(true)
+              }}
+              isSelecting={isSelectingClient}
+            />
+          </div>
+        )}
+
         <CoachCalendarHeader
-          viewMode={viewMode}
+          viewMode={viewMode as any}
           calendarMode={calendarMode}
           notificationsCount={meetNotificationsCount}
           onShowNotifications={() => setShowMeetNotifications(true)}
@@ -331,13 +416,23 @@ function CoachCalendarContent() {
           onCreateMeet={() => {
             setShowAddMenu(false)
             setCalendarMode('events')
-            handleActivateScheduler()
+            setIsSelectingClient(true)
           }}
           onEditAvailability={() => {
             setShowAddMenu(false)
             setCalendarMode('availability')
             setViewMode('month')
           }}
+          isCreating={showQuickScheduler || isSelectingClient || isRescheduling}
+          onCancelCreation={() => {
+            if (isSelectingClient) setIsSelectingClient(false)
+            if (showQuickScheduler) handleQuickSchedulerCancel()
+            if (isRescheduling) handleCancelReschedule()
+            setSelectedClientForQuickMeet(null)
+          }}
+          currentDateLabel={format(currentDate, 'MMMM yyyy', { locale: es })}
+          onPrevMonth={goToPreviousMonth}
+          onNextMonth={goToNextMonth}
         />
 
         {isRescheduling && !showQuickScheduler && (
@@ -375,49 +470,52 @@ function CoachCalendarContent() {
               onPrevMonth={goToPreviousMonth}
               onNextMonth={goToNextMonth}
               onMonthClick={() => setShowMonthSelector(true)}
+              availableSlotsCountByDay={availableSlotsCountByDay}
+              showAvailability={showAvailability}
+              hideHeader={true}
             />
 
-            {/* Detalle del día seleccionado - DEBAJO DEL CALENDARIO como en cliente */}
+            {/* Detalle del día seleccionado */}
             {selectedDate && (
               <div className="mt-4">
                 <div className="mb-3">
-                  {/* Inline Scheduler - Aparece primero si está activo */}
-                  {showQuickScheduler && quickSchedulerDate && (
+                  {/* Inline Scheduler */}
+                  {showQuickScheduler && quickSchedulerDate && !isSelectingClient && (
                     <div className="mb-4">
                       <InlineMeetScheduler
                         selectedDate={quickSchedulerDate}
-                        existingEvents={dayEvents}
+                        existingEvents={[...dayEvents, ...clientDayEvents]}
                         onConfirm={handleQuickSchedulerConfirm}
                         onCancel={handleQuickSchedulerCancel}
                         checkOverlap={checkOverlap}
                         meetTitle={meetToReschedule?.title || 'Meet nueva'}
                         isRescheduling={isRescheduling}
+                        previewClientName={selectedClientForQuickMeet?.full_name}
                       />
                     </div>
                   )}
 
-                  {/* Only show activities list when scheduler is NOT active */}
-                  {!showQuickScheduler && (
-                    <>
-                      <div className="flex items-center gap-2">
-                        <h3 className="text-base font-semibold text-white/95">Actividades · {dateLabel}</h3>
+                  {/* Activities list when scheduler is NOT active */}
+                  {!showQuickScheduler && !isSelectingClient && (
+                    <div className="space-y-4">
+                      <div className="flex items-center gap-2 mb-4">
+                        <h3 className="text-base font-semibold text-white/95">
+                          {showAvailability ? 'Tus Actividades' : `Actividades · ${dateLabel}`}
+                        </h3>
                       </div>
 
-                      {/* Sección de Meets */}
+                      {/* Meet Section */}
                       {meetEvents.length > 0 && (
-                        <div className="mt-4 mb-4">
+                        <div className="mb-4">
                           <div className="text-[11px] tracking-widest text-white/45 mb-2">MEET</div>
                           <div className="space-y-2">
                             {meetEvents.map((m) => {
                               const start = new Date(m.start_time)
                               const end = m.end_time ? new Date(m.end_time) : null
                               const label = `${format(start, 'HH:mm')}${end && !Number.isNaN(end.getTime()) ? ` – ${format(end, 'HH:mm')}` : ''}`
-                              const isPending = String(m.rsvp_status || 'pending') === 'pending'
+                              const isPending = (m as any).my_rsvp === 'pending'
                               const hasRequest = (m as any).pending_reschedule?.status === 'pending'
-
-                              // isCancelled solo debe ser para estados finales negativos
-                              const isCancelled = m.status === 'cancelled' || m.rsvp_status === 'declined'
-                              // isUrgent es para cosas que requieren atención (rojo)
+                              const isCancelled = m.status === 'cancelled' || m.rsvp_status === 'declined' || m.rsvp_status === 'cancelled'
                               const isUrgent = isCancelled || hasRequest
 
                               const handleEnter = () => {
@@ -425,9 +523,7 @@ function CoachCalendarContent() {
                                   try {
                                     window.open(String(m.meet_link), '_blank', 'noopener,noreferrer')
                                     return
-                                  } catch {
-                                    // fallback
-                                  }
+                                  } catch { /* fallback */ }
                                 }
                                 setSelectedMeetEvent(m)
                               }
@@ -447,10 +543,12 @@ function CoachCalendarContent() {
                                   tabIndex={0}
                                   onClick={() => setSelectedMeetEvent(m)}
                                 >
-                                  <div className="flex items-center gap-3 min-w-0">
+                                  <div className="flex items-center gap-3 min-w-0 flex-1">
                                     <div className={`w-10 h-10 rounded-full flex items-center justify-center flex-shrink-0 ${isUrgent ? 'bg-red-500/10 text-red-400 border border-red-500/30' : (m.is_ghost ? 'bg-[#FF7939]/10 text-[#FF7939] border border-[#FF7939]/30' : (isPending ? 'bg-[#FF7939]/10 text-[#FF7939] border border-[#FF7939]/20' : 'bg-white/5 text-white/70 border border-white/10'))}`}>
                                       {m.event_type === 'workshop' ? (
                                         <GraduationCap className="h-5 w-5" />
+                                      ) : m.source === 'google_calendar' ? (
+                                        <CalendarIcon className="h-5 w-5" />
                                       ) : (
                                         <Video className="h-5 w-5" />
                                       )}
@@ -458,9 +556,21 @@ function CoachCalendarContent() {
                                     <div className="min-w-0">
                                       <div className="text-sm font-bold text-white truncate leading-snug">{m.title ? String(m.title) : (m.event_type === 'workshop' ? 'Taller' : 'Meet')}</div>
                                       <div className="flex items-center gap-2 mt-0.5">
-                                        <div className="text-[11px] text-white/50 font-medium">{label}</div>
-                                        {m.status === 'cancelled' && <span className="text-[9px] font-bold uppercase text-red-500 px-1.5 py-0.5 rounded bg-red-500/10 border border-red-500/20">Cancelada</span>}
-                                        {m.rsvp_status === 'declined' && <span className="text-[9px] font-bold uppercase text-red-500 px-1.5 py-0.5 rounded bg-red-500/10 border border-red-500/20">Rechazada</span>}
+                                        <div className="text-[11px] text-white/50 font-medium whitespace-nowrap">
+                                          {label} {m.client_name && ` – ${m.client_name}`}
+                                        </div>
+                                        {m.status === 'cancelled' && (
+                                          <span className="text-[9px] font-bold uppercase text-red-500 px-0 py-0.5 rounded bg-transparent border-none">
+                                            {m.cancelled_by_user_id === coachId ? 'Cancelaste meet' : 'Canceló meet'}
+                                          </span>
+                                        )}
+                                        {(m.rsvp_status === 'pending' && m.status !== 'cancelled') && (
+                                          <span className="text-[9px] font-bold uppercase text-[#FFB366] px-0 py-0.5 rounded bg-transparent border-none">
+                                            {isPending
+                                              ? (m.invited_by_user_id === coachId ? 'Pendiente de que confirmes tú' : 'Solicitó meet')
+                                              : 'Pendiente de que confirme'}
+                                          </span>
+                                        )}
                                         {hasRequest && (
                                           <span className="text-[9px] font-bold uppercase text-red-400 px-1.5 py-0.5 rounded bg-red-500/10 border border-red-500/20">
                                             {(m as any).pending_reschedule?.to_start_time
@@ -469,10 +579,31 @@ function CoachCalendarContent() {
                                           </span>
                                         )}
                                         {m.is_ghost && <span className="text-[9px] font-bold uppercase text-[#FFB366] px-1.5 py-0.5 rounded bg-[#FFB366]/10 border border-[#FFB366]/20">Propuesta</span>}
-                                        {m.event_type === 'workshop' && <span className="text-[9px] font-bold uppercase text-[#FF7939] px-1.5 py-0.5 rounded bg-[#FF7939]/10 border border-[#FF7939]/20">Taller</span>}
+                                        {m.event_type === 'workshop' && (
+                                          <>
+                                            <span className="text-[9px] font-bold uppercase text-[#FF7939] px-1.5 py-0.5 rounded bg-[#FF7939]/10 border border-[#FF7939]/20">Taller</span>
+                                            {(() => {
+                                              const confirmed = m.confirmed_participants || 0
+                                              const max = m.max_participants || 0
+                                              if (max > 0) {
+                                                const isFull = confirmed >= max
+                                                return (
+                                                  <span className={`text-[9px] font-bold uppercase px-1.5 py-0.5 rounded border ${isFull
+                                                    ? 'text-red-400 bg-red-500/10 border-red-500/20'
+                                                    : 'text-white/60 bg-white/5 border-white/10'
+                                                    }`}>
+                                                    {isFull ? 'Completo' : `${confirmed}/${max} cupos`}
+                                                  </span>
+                                                )
+                                              }
+                                              return null
+                                            })()}
+                                          </>
+                                        )}
                                       </div>
                                     </div>
                                   </div>
+
                                   <button
                                     type="button"
                                     disabled={isCancelled}
@@ -481,39 +612,28 @@ function CoachCalendarContent() {
                                       handleEnter()
                                     }}
                                     className={
-                                      `h-8 px-4 rounded-full text-[10px] font-bold uppercase tracking-wider border transition-all ` +
+                                      `h-8 px-4 rounded-full text-[10px] font-bold uppercase tracking-wider border transition-all flex-shrink-0 ` +
                                       (isCancelled
                                         ? 'border-transparent bg-white/5 text-white/20 cursor-not-allowed'
-                                        : 'border-[#FF7939]/60 text-[#FFB366] bg-[#FF7939]/5 hover:bg-[#FF7939] hover:text-black shadow-[0_4px_12px_rgba(255,121,57,0.2)]')
+                                        : 'border-transparent text-[#FFB366] bg-[#FF7939]/10 hover:bg-[#FF7939] hover:text-black shadow-[0_4px_12px_rgba(255,121,57,0.1)]')
                                     }
                                   >
                                     {(() => {
-                                      if (m.status === 'cancelled') return 'Cancelada'
-                                      if (m.rsvp_status === 'declined') return 'Rechazada'
-
-                                      // Primero solicitudes de cambio
-                                      if (hasRequest) {
-                                        return 'Cambio Solicitado'
-                                      }
-
+                                      if (m.status === 'cancelled') return m.cancelled_by_user_id === coachId ? 'Cancelada' : 'Cancelada'
+                                      if (m.rsvp_status === 'declined' || m.rsvp_status === 'cancelled') return 'Rechazada'
+                                      if (hasRequest) return 'Cambio Solicitado'
                                       if (m.is_ghost) return 'Propuesta enviada'
-
                                       if (new Date(m.end_time || m.start_time) < new Date()) return 'Finalizada'
                                       if (isToday(new Date(m.start_time))) return 'Unirse'
-
-                                      // Si está confirmada o reprogramada-y-aceptada
+                                      if (isPending) return 'Aceptar'
                                       if (m.status === 'scheduled' || m.status === 'rescheduled') {
                                         const confirmed = m.confirmed_participants || 0
                                         const total = m.total_guests || 0
-
                                         if (total > 0 && confirmed < total) {
-                                          if (total > 1) return `Inv. enviada (${confirmed}/${total})`
-                                          return 'Invitación enviada'
+                                          return 'Pendiente'
                                         }
                                         return 'Confirmada'
                                       }
-
-                                      if (isPending) return 'Pendiente'
                                       return 'Confirmada'
                                     })()}
                                   </button>
@@ -524,7 +644,7 @@ function CoachCalendarContent() {
                         </div>
                       )}
 
-                      {/* Otros eventos */}
+                      {/* Other events */}
                       {otherEvents.length > 0 && (
                         <div className="mb-4">
                           <div className="text-[11px] tracking-widest text-white/45 mb-2 uppercase">Otros Eventos</div>
@@ -539,13 +659,7 @@ function CoachCalendarContent() {
                                 <div
                                   key={event.id}
                                   onClick={() => !isGoogleEvent && setSelectedMeetEvent(event)}
-                                  className={`
-                                        w-full rounded-2xl border px-4 py-3 transition-all duration-200
-                                        ${isGoogleEvent
-                                      ? 'border-blue-500/20 bg-blue-500/5 backdrop-blur-md'
-                                      : 'border-white/10 bg-white/5 hover:bg-white/10 backdrop-blur-md hover:border-white/20 cursor-pointer active:scale-[0.98]'
-                                    }
-                                      `}
+                                  className={`w-full rounded-2xl border px-4 py-3 transition-all duration-200 ${isGoogleEvent ? 'border-blue-500/20 bg-blue-500/5 backdrop-blur-md' : 'border-white/10 bg-white/5 hover:bg-white/10 backdrop-blur-md hover:border-white/20 cursor-pointer active:scale-[0.98]'}`}
                                 >
                                   <div className="flex items-center gap-3">
                                     <div className={`w-10 h-10 rounded-full flex items-center justify-center flex-shrink-0 ${isGoogleEvent ? 'bg-blue-500/10 text-blue-400 border border-blue-500/20' : 'bg-white/5 text-white/70 border border-white/10'}`}>
@@ -556,9 +670,7 @@ function CoachCalendarContent() {
                                       <div className="flex items-center gap-2 mt-0.5">
                                         <div className="text-[11px] text-white/50 font-medium">{label}</div>
                                         {isGoogleEvent && (
-                                          <span className="text-[9px] font-bold uppercase text-blue-400 px-1.5 py-0.5 rounded bg-blue-500/10 border border-blue-500/20">
-                                            Google
-                                          </span>
+                                          <span className="text-[9px] font-bold uppercase text-blue-400 px-1.5 py-0.5 rounded bg-blue-500/10 border border-blue-500/20">Google</span>
                                         )}
                                       </div>
                                     </div>
@@ -570,13 +682,50 @@ function CoachCalendarContent() {
                         </div>
                       )}
 
+                      {/* Client Activities Section */}
+                      {showAvailability && (
+                        <div className="mt-8 pt-6 border-t border-dashed border-white/10">
+                          <h3 className="text-sm font-bold text-[#FFB366] mb-3 flex items-center gap-2 uppercase tracking-wider">
+                            Actividades del Cliente
+                            <span className="text-xs font-normal text-[#FFB366]/50 bg-[#FFB366]/10 px-2 py-0.5 rounded-full">
+                              {clientSelectedDateEvents.length}
+                            </span>
+                          </h3>
+                          <div className="space-y-2">
+                            {clientSelectedDateEvents.length === 0 ? (
+                              <p className="text-xs text-zinc-500 italic">No tiene actividades programadas.</p>
+                            ) : (
+                              clientSelectedDateEvents.map((e: any) => {
+                                const start = e.start_time ? new Date(e.start_time) : new Date()
+                                const end = e.end_time ? new Date(e.end_time) : null
+                                return (
+                                  <div key={e.id || Math.random()} className="w-full rounded-2xl border border-[#FFB366]/20 bg-[#FFB366]/5 px-4 py-3 opacity-90">
+                                    <div className="flex items-center gap-3">
+                                      <div className="w-10 h-10 rounded-full flex items-center justify-center flex-shrink-0 bg-[#FFB366]/10 text-[#FFB366] border border-[#FFB366]/20">
+                                        <CalendarIcon className="h-5 w-5" />
+                                      </div>
+                                      <div className="min-w-0 flex-1">
+                                        <div className="text-sm font-bold text-white/90 truncate">{e.title || 'Ocupado (Cliente)'}</div>
+                                        <div className="text-[11px] text-[#FFB366]/70 font-medium">
+                                          {format(start, 'HH:mm')} - {end ? format(end, 'HH:mm') : ''}
+                                        </div>
+                                      </div>
+                                    </div>
+                                  </div>
+                                )
+                              })
+                            )}
+                          </div>
+                        </div>
+                      )}
+
                       {/* Empty state */}
                       {dayEvents.length === 0 && (
                         <div className="mt-4 text-center py-8">
                           <p className="text-sm text-gray-400">No hay eventos programados para este día</p>
                         </div>
                       )}
-                    </>
+                    </div>
                   )}
                 </div>
               </div>
@@ -657,7 +806,7 @@ function CoachCalendarContent() {
         supabase={supabase}
         userId={coachId || ''}
         coachId={coachId || ''}
-        onOpenMeet={async (eventId: string) => {
+        onOpenMeet={async (eventId) => {
           const event = await openMeetById(eventId)
           if (event) {
             setSelectedMeetEvent(event)
@@ -673,11 +822,19 @@ function CoachCalendarContent() {
           setSelectedMeetEvent={setSelectedMeetEvent}
           pendingReschedule={pendingReschedule}
           setPendingReschedule={setPendingReschedule}
+          setSelectedMeetParticipants={setSelectedMeetParticipants}
           selectedMeetParticipants={selectedMeetParticipants}
           coachProfiles={[]}
           authUserId={coachId}
           onReschedule={(meet) => {
-            handleStartReschedule(meet)
+            const guestIds = selectedMeetParticipants
+              .filter(p => (p.user_profile?.id || p.user_id) !== coachId)
+              .map(p => p.user_profile?.id || p.user_id)
+
+            handleStartReschedule(meet, {
+              description: meet.description,
+              clientIds: guestIds
+            })
             setSelectedMeetEvent(null)
           }}
           onCancelRescheduleRequest={handleCancelRescheduleRequest}
@@ -709,7 +866,11 @@ function CoachCalendarContent() {
           originalMeet={meetToReschedule ? {
             title: meetToReschedule.title,
             start_time: meetToReschedule.start_time,
-            end_time: meetToReschedule.end_time || ''
+            end_time: meetToReschedule.end_time || '',
+            description: meetToReschedule.description,
+            clientIds: [meetToReschedule.client_id].filter(Boolean) as string[],
+            isFree: meetToReschedule.pricing_data?.is_free,
+            price: meetToReschedule.pricing_data?.price
           } : undefined}
         />
       )}
@@ -721,6 +882,7 @@ function CoachCalendarContent() {
           <p className="text-sm font-bold tracking-widest uppercase">Sincronizando con Google...</p>
         </div>
       )}
+
       {/* Modal Selector de Mes/Año */}
       {showMonthSelector && (
         <div className="fixed inset-0 z-[100] bg-black/60 backdrop-blur-md flex items-center justify-center p-4">

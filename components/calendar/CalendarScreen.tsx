@@ -118,13 +118,18 @@ export function CalendarScreen({ onTabChange }: CalendarScreenProps) {
   }, [readScheduleMeetContextFromStorage])
 
   // Función para manejar el clic en una actividad
-  const handleActivityClick = (activityId: string) => {
-    console.log('🎯 [CalendarScreen] Navegando a actividad:', activityId);
+  const handleActivityClick = (activityId: string, date?: Date) => {
+    console.log('🎯 [CalendarScreen] Navegando a actividad:', activityId, date);
 
     // Guardar el activityId en localStorage para que ActivityScreen lo lea
     if (typeof window !== 'undefined') {
       localStorage.setItem('selectedActivityFromCalendar', activityId);
-      console.log('💾 [CalendarScreen] ActivityId guardado en localStorage:', activityId);
+      if (date) {
+        localStorage.setItem('selectedActivityDate', date.toISOString());
+      } else {
+        localStorage.removeItem('selectedActivityDate');
+      }
+      console.log('💾 [CalendarScreen] ActivityId y Date guardados en localStorage');
     }
 
     if (onTabChange) {

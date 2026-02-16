@@ -43,10 +43,12 @@ const ActivityCard: React.FC<ActivityCardProps> = ({
     return `${Math.ceil(semanas)} s`
   })()
 
+  const totalSessions = activity.totalSessions || 0
+
   const sessionsToShow = isDocument && documentDuration
     ? documentDuration
     : isWorkshop
-      ? (cantidadDias !== undefined ? cantidadDias : (activity.sesiones_dias_totales || previewStats?.sesiones || 0))
+      ? (activity.sesiones_dias_totales || totalSessions || (cantidadDias !== undefined ? cantidadDias : (previewStats?.sesiones || 0)))
       : (previewStats?.sesiones || previewStats?.totalSessions || activity.sesiones_dias_totales || activity.totalSessions || 0)
 
   const uniqueExercises = (() => {
@@ -67,8 +69,6 @@ const ActivityCard: React.FC<ActivityCardProps> = ({
     }
     return Number(activity.exercisesCount) || 0
   })()
-
-  const totalSessions = activity.totalSessions || 0
   const productCapacity = activity.capacity
   const productModality = activity.modality || (activity as any).type || null
 
@@ -374,11 +374,6 @@ const ActivityCard: React.FC<ActivityCardProps> = ({
               )}
             </div>
             <div className="flex items-center gap-1.5 opacity-80">
-              {activity.location_name && (
-                <span className="text-[10px] text-gray-400 font-bold uppercase tracking-tighter max-w-[60px] truncate">
-                  {activity.location_name}
-                </span>
-              )}
               {getModalityIcon(activity.modality || 'online')}
             </div>
           </div>

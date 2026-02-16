@@ -50,6 +50,9 @@ export const useCalendarData = (
                 invited_by_user_id?: string | null
                 status?: string | null
                 event_type?: string | null
+                cancelled_by_user_id?: string | null
+                cancellation_reason?: string | null
+                cancelled_at?: string | null
             }>
         >
     >({})
@@ -264,7 +267,7 @@ export const useCalendarData = (
             if (myEventIds.length > 0) {
                 const { data: eventsData } = await anySupabase
                     .from('calendar_events')
-                    .select('*')
+                    .select('*, cancelled_by_user_id, cancellation_reason, cancelled_at, invited_by_user_id')
                     .in('id', myEventIds)
                     .gte('start_time', `${startISO}T00:00:00`)
                     .lte('start_time', `${endISO}T23:59:59`)
@@ -384,10 +387,13 @@ export const useCalendarData = (
                             coach_id: e.coach_id,
                             description: e.description,
                             rsvp_status: eventIdToParticipantInfo[e.id]?.rsvp || 'pending',
-                            invited_by_user_id: eventIdToParticipantInfo[e.id]?.invitedBy || null,
                             status: e.status,
                             event_type: e.event_type,
-                            participants: participantsByEventId[e.id] || []
+                            participants: participantsByEventId[e.id] || [],
+                            cancelled_by_user_id: e.cancelled_by_user_id,
+                            cancellation_reason: e.cancellation_reason,
+                            cancelled_at: e.cancelled_at,
+                            invited_by_user_id: e.invited_by_user_id
                         })
                     })
                 }

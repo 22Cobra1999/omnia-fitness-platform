@@ -1,5 +1,5 @@
 import React from 'react'
-import { format } from 'date-fns'
+import { format, isToday } from 'date-fns'
 import { es } from 'date-fns/locale'
 import { Clock, Users, Video, Calendar, ChevronLeft, ChevronRight } from 'lucide-react'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
@@ -83,9 +83,8 @@ export function DayView({
                             const start = new Date(m.start_time)
                             const end = m.end_time ? new Date(m.end_time) : null
                             const label = `${format(start, 'HH:mm')}${end && !Number.isNaN(end.getTime()) ? ` – ${format(end, 'HH:mm')}` : ''}`
-                            const isPending = String(m.rsvp_status || 'pending') === 'pending'
-                            const isCancelled = m.status === 'cancelled'
-                            const isDeclined = String(m.rsvp_status || 'pending') === 'declined'
+                            const isPending = (m as any).my_rsvp === 'pending'
+                            const isCancelled = m.status === 'cancelled' || m.rsvp_status === 'cancelled' || m.rsvp_status === 'declined'
 
                             const handleEnter = () => {
                                 if (!isPending && m.meet_link) {
@@ -119,8 +118,14 @@ export function DayView({
                                         <div className="min-w-0">
                                             <div className="text-sm font-bold text-white truncate leading-snug">{m.title ? String(m.title) : 'Meet'}</div>
                                             <div className="flex items-center gap-2 mt-0.5">
-                                                <div className="text-[11px] text-white/50 font-medium">{label}</div>
-                                                {isCancelled && <span className="text-[9px] font-bold uppercase text-red-500 px-1.5 py-0.5 rounded bg-red-500/10 border border-red-500/20">Cancelada</span>}
+                                                <div className="text-[11px] text-white/50 font-medium whitespace-nowrap">
+                                                    {label} {m.client_name && ` – ${m.client_name}`}
+                                                </div>
+                                                {m.status === 'cancelled' ? (
+                                                    <span className="text-[9px] font-bold uppercase text-red-500 px-1.5 py-0.5 rounded bg-red-500/10 border border-red-500/20">Cancelada</span>
+                                                ) : (m.rsvp_status === 'declined' || m.rsvp_status === 'cancelled') ? (
+                                                    <span className="text-[9px] font-bold uppercase text-red-500 px-1.5 py-0.5 rounded bg-red-500/10 border border-red-500/20">Rechazada</span>
+                                                ) : null}
                                             </div>
                                         </div>
                                     </div>
@@ -138,7 +143,24 @@ export function DayView({
                                                 : 'border-[#FF7939]/60 text-[#FFB366] bg-[#FF7939]/5 hover:bg-[#FF7939] hover:text-black shadow-[0_4px_12px_rgba(255,121,57,0.2)]')
                                         }
                                     >
-                                        {isCancelled ? 'Cancelada' : 'Unirse'}
+                                        {(() => {
+                                            if (m.status === 'cancelled') return 'Cancelada'
+                                            if (m.rsvp_status === 'declined' || m.rsvp_status === 'cancelled') return 'Rechazada'
+                                            if (new Date(m.end_time || m.start_time) < new Date()) return 'Finalizada'
+                                            if (isToday(new Date(m.start_time))) return 'Unirse'
+
+                                            if (isPending) return 'Pendiente'
+
+                                            if (m.status === 'scheduled' || m.status === 'rescheduled') {
+                                                const confirmed = m.confirmed_participants || 0
+                                                const total = m.total_guests || 0
+                                                if (total > 0 && confirmed < total) {
+                                                    return total > 1 ? `Inv. enviada (${confirmed}/${total})` : 'Invitación enviada'
+                                                }
+                                                return 'Confirmada'
+                                            }
+                                            return 'Confirmada'
+                                        })()}
                                     </button>
                                 </div>
                             )

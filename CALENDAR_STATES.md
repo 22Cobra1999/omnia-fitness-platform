@@ -73,4 +73,40 @@ Si un usuario intenta modificar un turno que **él mismo creó** y que aún est�
 - **No se genera una nueva solicitud de reprogramación.**
 - Se actualiza directamente el `start_time` y `end_time` del evento original.
 - El ID del evento se mantiene, preservando la integridad de las relaciones en la base de datos.
-- Se requiere que el RLS de la tabla `calendar_events` permita el `UPDATE` al creador (`created_by_user_id`).
+---
+
+# Escenarios de Créditos y Cancelaciones
+
+Lógica de negocio para el manejo de créditos según quién inicie, acepte o cancele la sesión.
+
+### 1. Coach cancela Meet, Cliente organizó
+- **Escenario:** El cliente solicita una meet (consume crédito pendiente), el coach la recibe pero decide cancelarla/rechazarla.
+- **Deducción de Créditos:** NO debe ocurrir hasta que el coach acepte. Si ya se "apartó", debe devolverse íntegramente.
+- **Registro:** Se debe marcar `cancelled_by` con el ID del Coach.
+
+### 2. Coach aceptó Meet, Cliente luego cancela
+- **Escenario:** Ambos confirmaron la sesión. El cliente decide cancelarla después.
+- **Deducción de Créditos:** El crédito ya fue descontado al confirmar. 
+- **Política:** Dependerá de la política de cancelación (ej: si es con menos de 24hs, no se devuelve).
+- **Registro:** Se debe marcar `cancelled_by` con el ID del Cliente.
+
+### 3. Coach creó Meet, Cliente rechaza
+- **Escenario:** El coach propone un horario. El cliente no puede y rechaza (declined).
+- **Deducción de Créditos:** NO debe ocurrir. El crédito solo se descuenta si hay mutuo acuerdo (Aceptación del cliente).
+- **Registro:** El rsvp del cliente queda en `declined`.
+
+### 4. Coach creó Meet, Cliente aceptó y luego canceló
+- **Escenario:** El coach propone, el cliente acepta (se descuenta crédito). Luego el cliente cancela.
+- **Deducción de Créditos:** Ocurrió al momento de la aceptación.
+- **Política:** Aplica devolución total o parcial según el tiempo de antelación.
+- **Registro:** Se debe marcar `cancelled_by` con el ID del Cliente.
+
+---
+
+# Atributos de Auditoría de Cancelación
+
+Para soportar estas lógicas, los eventos y participaciones deben trackear:
+- `cancelled_by_user_id`: Quién efectuó la acción de cancelación.
+- `cancellation_reason`: Motivo (opcional).
+- `cancellation_at`: Marca de tiempo del evento.
+- `init_role`: Rol que inició la solicitud (Coach o Cliente).

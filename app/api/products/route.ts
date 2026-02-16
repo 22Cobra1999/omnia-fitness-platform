@@ -122,11 +122,26 @@ const calculateWorkshopStats = (schedule: any[]) => {
   const uniqueDays = new Set(schedule.map(s => s.date)).size
   const uniqueThemes = new Set(schedule.map(s => s.title).filter(Boolean)).size
 
+  // Calculate weeks from date range
+  const sortedDates = [...schedule]
+    .map(s => new Date(s.date))
+    .filter(d => !isNaN(d.getTime()))
+    .sort((a, b) => a.getTime() - b.getTime())
+
+  let weeks = 0
+  if (sortedDates.length > 0) {
+    const firstDate = sortedDates[0]
+    const lastDate = sortedDates[sortedDates.length - 1]
+    const diffTime = Math.abs(lastDate.getTime() - firstDate.getTime())
+    const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24))
+    weeks = Math.max(1, Math.ceil((diffDays + 1) / 7))
+  }
+
   return {
     items_totales: schedule.length,
     items_unicos: uniqueThemes,
     sesiones_dias_totales: uniqueDays,
-    semanas_totales: 0
+    semanas_totales: weeks
   }
 }
 
@@ -502,6 +517,8 @@ export async function GET(request: NextRequest) {
                 }
               })
 
+              const uniqueDaysCount = new Set(allDates).size
+
               if (allDates.length > 0) {
                 const fechas = allDates
                   .map((fecha: string) => new Date(fecha))
@@ -511,19 +528,24 @@ export async function GET(request: NextRequest) {
                 if (fechas.length > 0) {
                   const primeraFecha = fechas[0]
                   const ultimaFecha = fechas[fechas.length - 1]
-                  const diferenciaMs = ultimaFecha.getTime() - primeraFecha.getTime()
-                  cantidadDias = Math.ceil(diferenciaMs / (1000 * 60 * 60 * 24)) + 1 // +1 para incluir ambos días
+                  const diferenciaMs = Math.abs(ultimaFecha.getTime() - primeraFecha.getTime())
+                  const diferenciaDias = Math.ceil(diferenciaMs / (1000 * 60 * 60 * 24))
+                  cantidadDias = diferenciaDias + 1
+                  // Calulcar semanas span
+                  product.semanas_totales = Math.max(1, Math.ceil(cantidadDias / 7))
                 } else {
-                  cantidadDias = cantidadTemas // Fallback: cantidad de temas
+                  cantidadDias = cantidadTemas
+                  product.semanas_totales = 0
                 }
               } else {
                 cantidadDias = cantidadTemas // Fallback: cantidad de temas
+                product.semanas_totales = 0
               }
 
               exercisesCount = cantidadTemas
-              totalSessions = cantidadDias
+              totalSessions = uniqueDaysCount // Use session count, not date span
 
-              console.log(`📊 PRODUCTOS: Taller ${product.id} - Temas: ${cantidadTemas}, Días: ${cantidadDias}`)
+              console.log(`📊 PRODUCTOS: Taller ${product.id} - Temas: ${cantidadTemas}, Sesiones: ${uniqueDaysCount}, Semanas: ${product.semanas_totales}`)
             }
           } catch (error) {
             console.error(`❌ Error calculando estadísticas del taller ${product.id}:`, error)

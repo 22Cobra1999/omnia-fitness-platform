@@ -102,7 +102,7 @@ export function useCsvDataFetching({
                     const transformed = category === 'nutricion'
                         ? items.map((item: any) => {
                             let ingredientesValue = ''
-                            const rawIngredientes = item.ingredientes || item.ingredients || item['Ingredientes']
+                            const rawIngredientes = item.ingredientes ?? item.ingredients ?? item['Ingredientes']
 
                             if (rawIngredientes !== undefined && rawIngredientes !== null && rawIngredientes !== '') {
                                 if (Array.isArray(rawIngredientes)) {
@@ -123,38 +123,46 @@ export function useCsvDataFetching({
                                 }
                             }
 
+                            const proteinas = getNumberValue(item.proteinas ?? item.protein ?? item.proteins ?? item['Proteínas'] ?? item['Proteínas (g)'])
+                            const carbohidratos = getNumberValue(item.carbohidratos ?? item.carbs ?? item.carbohydrates ?? item['Carbohidratos'] ?? item['Carbohidratos (g)'])
+                            const grasas = getNumberValue(item.grasas ?? item.fat ?? item.fats ?? item['Grasas'] ?? item['Grasas (g)'])
+                            const calorias = getNumberValue(item.calorias ?? item.calories ?? item.kcal ?? item['Calorías'] ?? item.calorías)
+
                             return {
                                 ...item,
                                 'Nombre': item.nombre || item.nombre_plato || '',
                                 'Nombre de la Actividad': item.nombre || item.nombre_plato || '',
                                 tipo: item.tipo || '',
-                                'Receta': getStringValue(item.receta || item.descripcion),
-                                'Calorías': getNumberValue(item.calorias || item.calories || item.kcal || item['Calorías'] || item.calorías),
-                                'Proteínas (g)': getNumberValue(item.proteinas || item.protein || item.proteins || item['Proteínas'] || item['Proteínas (g)']),
-                                'Carbohidratos (g)': getNumberValue(item.carbohidratos || item.carbs || item.carbohydrates || item['Carbohidratos'] || item['Carbohidratos (g)']),
-                                'Grasas (g)': getNumberValue(item.grasas || item.fat || item.fats || item['Grasas'] || item['Grasas (g)']),
+                                'Receta': getStringValue(item.receta ?? item.descripcion),
+                                'Calorías': calorias,
+                                'Proteínas (g)': proteinas,
+                                'Carbohidratos (g)': carbohidratos,
+                                'Grasas (g)': grasas,
+                                'Proteínas': proteinas,
+                                'Carbohidratos': carbohidratos,
+                                'Grasas': grasas,
                                 'Ingredientes': ingredientesValue,
-                                'Porciones': getStringValue(item.porciones || item.portions),
-                                'Minutos': getStringValue(item.minutos || item.minutes || item.duration),
-                                'Descripción': getStringValue(item.descripcion || item.receta),
+                                'Porciones': getStringValue(item.porciones ?? item.portions),
+                                'Minutos': getStringValue(item.minutos ?? item.minutes ?? item.duration),
+                                'Descripción': getStringValue(item.descripcion ?? item.receta),
                                 isExisting: true,
                                 is_active: item.is_active !== false,
                                 activo: item.is_active !== false,
                                 activity_id_new: item.activity_id_new || item.activity_id || null,
                                 activity_id: item.activity_id || null,
                                 nombre: item.nombre || item.nombre_plato || '',
-                                receta: getStringValue(item.receta || item.descripcion),
-                                calorias: getNumberValue(item.calorias || item.calories || item.kcal || item['Calorías'] || item.calorías),
-                                proteinas: getNumberValue(item.proteinas || item.protein || item.proteins || item['Proteínas'] || item['Proteínas (g)']),
-                                carbohidratos: getNumberValue(item.carbohidratos || item.carbs || item.carbohydrates || item['Carbohidratos'] || item['Carbohidratos (g)']),
-                                grasas: getNumberValue(item.grasas || item.fat || item.fats || item['Grasas'] || item['Grasas (g)']),
+                                receta: getStringValue(item.receta ?? item.descripcion),
+                                calorias: calorias,
+                                proteinas: proteinas,
+                                carbohidratos: carbohidratos,
+                                grasas: grasas,
                                 ingredientes: ingredientesValue,
-                                porciones: getStringValue(item.porciones || item.portions),
-                                minutos: getStringValue(item.minutos || item.minutes || item.duration),
-                                dificultad: getValue(item.dificultad || item.difficulty || item.level, 'Principiante'),
+                                porciones: getStringValue(item.porciones ?? item.portions),
+                                minutos: getStringValue(item.minutos ?? item.minutes ?? item.duration),
+                                dificultad: getValue(item.dificultad ?? item.difficulty ?? item.level, 'Principiante'),
                                 video_url: item.video_url || item.video || '',
                                 video_file_name: item.video_file_name || null,
-                                'Dificultad': getValue(item.dificultad || item.difficulty || item.level, 'Principiante'),
+                                'Dificultad': getValue(item.dificultad ?? item.difficulty ?? item.level, 'Principiante'),
                                 'Video': item.video_url || item.video || ''
                             }
                         })
@@ -305,19 +313,27 @@ export function useCsvDataFetching({
                             }
                         }
 
+                        const proteinas = getNumberValue(item.proteinas ?? item.protein ?? item.proteins ?? item['Proteínas'] ?? item['Proteínas (g)'])
+                        const carbohidratos = getNumberValue(item.carbohidratos ?? item.carbs ?? item.carbohydrates ?? item['Carbohidratos'] ?? item['Carbohidratos (g)'])
+                        const grasas = getNumberValue(item.grasas ?? item.fat ?? item.fats ?? item['Grasas'] ?? item['Grasas (g)'])
+                        const calorias = getNumberValue(item.calorias ?? item.calories ?? item.kcal ?? item['Calorías'] ?? item.calorías)
+
                         return {
                             ...item,
                             'Nombre': item.nombre_plato || item['Nombre'] || item.nombre || '',
                             tipo: item.tipo || item['Tipo'] || 'otro',
-                            'Receta': getValue(item.receta || item['Receta'] || item.descripcion || item['Descripción'] || item.Descripción, ''),
-                            'Calorías': getNumberValue(item.calorias || item.calories || item.kcal || item['Calorías'] || item.calorías),
-                            'Proteínas (g)': getNumberValue(item.proteinas || item.protein || item.proteins || item['Proteínas'] || item['Proteínas (g)']),
-                            'Carbohidratos (g)': getNumberValue(item.carbohidratos || item.carbs || item.carbohydrates || item['Carbohidratos'] || item['Carbohidratos (g)']),
-                            'Grasas (g)': getNumberValue(item.grasas || item.fat || item.fats || item['Grasas'] || item['Grasas (g)']),
-                            'Dificultad': getValue(item.dificultad || item['Dificultad'], 'Principiante'),
+                            'Receta': getValue(item.receta ?? item.descripcion ?? '', ''),
+                            'Calorías': calorias,
+                            'Proteínas (g)': proteinas,
+                            'Carbohidratos (g)': carbohidratos,
+                            'Grasas (g)': grasas,
+                            'Proteínas': proteinas,
+                            'Carbohidratos': carbohidratos,
+                            'Grasas': grasas,
+                            'Dificultad': getValue(item.dificultad ?? item['Dificultad'], 'Principiante'),
                             'Ingredientes': ingredientesValue || item['Ingredientes'] || '',
-                            'Porciones': getValue(item.porciones || item['Porciones'], ''),
-                            'Minutos': getValue(item.minutos || item['Minutos'], ''),
+                            'Porciones': getValue(item.porciones ?? item['Porciones'], ''),
+                            'Minutos': getValue(item.minutos ?? item['Minutos'], ''),
                             isExisting: true,
                             is_active: item.is_active !== false && item.activo !== false,
                             activo: item.is_active !== false && item.activo !== false,
@@ -327,12 +343,12 @@ export function useCsvDataFetching({
                             nombre_plato: item.nombre_plato || item.nombre || '',
                             nombre: item.nombre || item.nombre_plato || '',
                             ingredientes: ingredientesValue || '',
-                            receta: getValue(item.receta || item['Receta'] || item.descripcion || item['Descripción'] || item.Descripción, ''),
-                            calorias: getNumberValue(item.calorias || item.calories || item.kcal || item['Calorías'] || item.calorías),
-                            proteinas: getNumberValue(item.proteinas || item.protein || item.proteins || item['Proteínas'] || item['Proteínas (g)']),
-                            carbohidratos: getNumberValue(item.carbohidratos || item.carbs || item.carbohydrates || item['Carbohidratos'] || item['Carbohidratos (g)']),
-                            grasas: getNumberValue(item.grasas || item.fat || item.fats || item['Grasas'] || item['Grasas (g)']),
-                            dificultad: getValue(item.dificultad || item['Dificultad'], 'Principiante'),
+                            receta: getValue(item.receta ?? item.descripcion ?? '', ''),
+                            calorias: calorias,
+                            proteinas: proteinas,
+                            carbohidratos: carbohidratos,
+                            grasas: grasas,
+                            dificultad: getValue(item.dificultad ?? item['Dificultad'], 'Principiante'),
                             porciones: getValue(item.porciones, ''),
                             minutos: getValue(item.minutos, '')
                         }

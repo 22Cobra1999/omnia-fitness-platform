@@ -12,9 +12,10 @@ interface CalendarDayDetailProps {
     selectedDayActivityItems: any[]
     activitiesByDate: Record<string, any[]>
     setSelectedMeetEvent: (evt: any) => void
-    onActivityClick: (activityId: string) => void
+    onActivityClick: (activityId: string, date?: Date) => void
     dayDetailRef: React.RefObject<HTMLDivElement | null>
     meetViewMode: string
+    authUserId?: string | null
 }
 
 export function CalendarDayDetail({
@@ -26,7 +27,8 @@ export function CalendarDayDetail({
     setSelectedMeetEvent,
     onActivityClick,
     dayDetailRef,
-    meetViewMode
+    meetViewMode,
+    authUserId
 }: CalendarDayDetailProps) {
 
     if (!selectedDate || meetViewMode !== 'month') return null
@@ -86,59 +88,60 @@ export function CalendarDayDetail({
                             const isTodayEvent = isToday(start)
 
                             // Status Logic
-                            let statusBadge = null
-                            let statusColor = 'text-white/50' // Default time color
+                            let statusLabel = null
+                            let statusColor = 'text-white/50'
 
-                            console.log(`[CalendarDayDetail] Item: ${m.title} (${m.id})`, {
-                                status,
-                                rsvp,
-                                pending_reschedule: (m as any).pending_reschedule
-                            })
+                            const isMeCancelled = m.cancelled_by_user_id === authUserId
+                            const coachParticipant = (m.participants || []).find((p: any) => p.user_id === m.coach_id)
+                            const coachName = coachParticipant ? (coachParticipant.name || coachParticipant.full_name) : 'el coach'
 
                             if (status === 'cancelled') {
-                                console.log(`[CalendarDayDetail] -> CANCELADA`)
-                                statusBadge = (
-                                    <div className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full border border-red-500/20 bg-red-500/10 text-red-400 text-[10px] font-bold uppercase">
-                                        CANCELADA
-                                    </div>
-                                )
-                                statusColor = 'text-red-500/50'
-                            } else if ((m as any).pending_reschedule) {
-                                console.log(`[CalendarDayDetail] -> CAMBIO SOLICITADO`)
-                                statusBadge = (
-                                    <div className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full border border-red-500/20 bg-red-500/10 text-red-400 text-[10px] font-bold uppercase shadow-[0_0_10px_rgba(239,68,68,0.1)]">
-                                        CAMBIO SOLICITADO
-                                    </div>
+                                statusColor = 'text-red-500'
+                                statusLabel = (
+                                    <span className="text-[10px] font-bold uppercase text-red-500">
+                                        {isMeCancelled ? 'Cancelaste meet' : 'Canceló meet'}
+                                    </span>
                                 )
                             } else if (rsvp === 'declined' || rsvp === 'cancelled') {
-                                console.log(`[CalendarDayDetail] -> RECHAZADA`)
-                                statusBadge = (
-                                    <div className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full border border-red-500/20 bg-red-500/10 text-red-400 text-[10px] font-bold uppercase">
-                                        RECHAZADA
-                                    </div>
+                                statusColor = 'text-red-500'
+                                statusLabel = (
+                                    <span className="text-[10px] font-bold uppercase text-red-500">
+                                        Rechazada
+                                    </span>
                                 )
-                            } else if (rsvp === 'pending') {
-                                console.log(`[CalendarDayDetail] -> PENDIENTE`)
-                                statusBadge = (
-                                    <div className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full border border-yellow-500/20 bg-yellow-500/10 text-yellow-500 text-[10px] font-bold uppercase">
-                                        PENDIENTE
-                                    </div>
+                            } else if (rsvp === 'pending' || (rsvp === 'confirmed' && status === 'scheduled' && (m.participants || []).some((p: any) => p.user_id === m.coach_id && (p.rsvp_status === 'pending' || p.rsvp_status === 'invited')))) {
+                                statusColor = 'text-[#FFB366]'
+                                const isCoachPending = (m.participants || []).some((p: any) => p.user_id === m.coach_id && (p.rsvp_status === 'pending' || p.rsvp_status === 'invited'))
+
+                                statusLabel = (
+                                    <span className="text-[10px] font-bold uppercase text-[#FFB366]">
+                                        {rsvp === 'pending'
+                                            ? (m.invited_by_user_id === authUserId ? 'Pendiente de que confirmes tú' : 'Solicitó meet')
+                                            : 'Pendiente de que confirme'}
+                                    </span>
                                 )
-                            } else if (status === 'rescheduled') {
-                                console.log(`[CalendarDayDetail] -> REPROGRAMADA`)
-                                statusBadge = (
-                                    <div className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full border border-blue-500/20 bg-blue-500/10 text-blue-400 text-[10px] font-bold uppercase">
+                            }
+                            else if (status === 'rescheduled') {
+                                statusLabel = (
+                                    <span className="text-[10px] font-bold uppercase text-blue-400 flex items-center gap-1">
                                         <RotateCcw className="h-3 w-3" />
                                         REPROGRAMADA
-                                    </div>
+                                    </span>
                                 )
                             } else if (rsvp === 'confirmed' || rsvp === 'accepted') {
-                                console.log(`[CalendarDayDetail] -> CONFIRMADA`)
-                                statusBadge = (
-                                    <div className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full border border-[#FF7939]/30 bg-[#FF7939]/10 text-[#FFB366] text-[10px] font-bold uppercase shadow-[0_0_15px_rgba(255,121,57,0.15)]">
+                                statusLabel = (
+                                    <span className="text-[10px] font-bold uppercase text-[#FF7939] flex items-center gap-1">
                                         <Video className="h-3 w-3" />
                                         CONFIRMADA
-                                    </div>
+                                    </span>
+                                )
+                            }
+
+                            if (m.pending_reschedule) {
+                                statusLabel = (
+                                    <span className="text-[10px] font-bold uppercase text-red-500 animate-pulse">
+                                        CAMBIO SOLICITADO
+                                    </span>
                                 )
                             }
 
@@ -181,50 +184,15 @@ export function CalendarDayDetail({
 
                             let displayParticipant = ''
                             if (!isGroup) {
-                                // Try to find the participant name that isn't the coach?
-                                // Or simply listing the other person.
-                                // If I am client, I see coach name? 
-                                // `m.coach_id` is an ID. We don't have coach name here easily unless we fetch it or it is in participants.
-                                // Note: `useCalendarData` fetches participants. The coach IS a participant usually?
-                                // If coach is not in participants list (because they are owner/organizer?), we might miss them.
-                                // BUT `calendar_event_participants` usually includes everyone.
-
-                                const pnames = (m.participants || []).map((p: any) => p.full_name)
-                                // If 1:1, we expect 2 names.
-                                // We want to show the one that is NOT "Me".
-                                // But "Me" is not passed.
-                                // Heuristic: Show the one that is NOT "Coach" if possible, or just show the *other* one.
-                                // If I am client, I want "Con [Coach]".
-                                // If I am coach, I want "Con [Client]".
-
-                                // Let's just join them? No, too long.
-                                // "Con Franco Pomati"
-
-                                // If we don't know who "Me" is, we can't perfectly allow "Con [Other]".
-                                // BUT events usually have `coach_id`.
-                                // If m.coach_id is present, we can try to find the participant that matches it?
-                                // Wait, simple approach:
-                                // "10:00 - 11:00 - Juan Perez"
-                                // Just list the *client* name?
-                                // For the client view, they want to see "Con [Coach]".
-                                // For coach view, "Con [Client]".
-
-                                // Let's try to display the non-host participant if available.
-                                const guests = (m.participants || []).filter((p: any) => p.user_id !== m.coach_id)
-                                if (guests.length > 0) {
-                                    displayParticipant = ` - ${guests[0].full_name}`
-                                } else {
-                                    // Maybe I am the guest? Show coach?
-                                    // If no guests found (maybe I am the guest and I filtered myself out if I mistakenly thought I was coach?),
-                                    // or simply only coach is in param?
-                                    // Let's fallback to showing the *first* participant if any.
-                                    if (m.participants?.length > 0) {
-                                        // displayParticipant = ` - ${m.participants[0].full_name}`
-                                    }
+                                // Find the participant that is NOT the current user
+                                const other = (m.participants || []).find((p: any) => p.user_id !== authUserId)
+                                if (other) {
+                                    displayParticipant = ` – ${other.full_name || other.name || 'Participante'}`
+                                } else if (m.coach_id !== authUserId) {
+                                    // Fallback: if we are the client and don't see the coach in participants, show coach name if we had it
+                                    const coach = (m.participants || []).find((p: any) => p.user_id === m.coach_id)
+                                    if (coach) displayParticipant = ` – ${coach.full_name || coach.name}`
                                 }
-
-                                // User request: "en la meet pone al lado del rango de horario - y con quien es la meet"
-                                // "nivel del nombre de la meet poner 1:1 ... y simbolo de personas si es grupal"
                             }
 
                             return (
@@ -264,7 +232,7 @@ export function CalendarDayDetail({
 
                                         {/* Status Badge pushed to the right */}
                                         <div className="ml-auto flex-shrink-0">
-                                            {!canJoin && statusBadge}
+                                            {!canJoin && statusLabel}
                                             {canJoin && (
                                                 <button
                                                     type="button"
@@ -297,7 +265,7 @@ export function CalendarDayDetail({
                                 <button
                                     key={it.activityId}
                                     type="button"
-                                    onClick={() => onActivityClick(it.activityId)}
+                                    onClick={() => onActivityClick(it.activityId, selectedDate || undefined)}
                                     className={`w-full text-left p-3 rounded-xl border relative ${it.borderClass} ${it.bgClass} hover:bg-white/5 transition-colors`}
                                 >
                                     <div className="flex items-center justify-between gap-3">

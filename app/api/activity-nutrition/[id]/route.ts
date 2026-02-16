@@ -317,7 +317,9 @@ export async function GET(
         activity_map: activityMap,
         activity_id: primaryActivityId,
         activity_assignments: activityMap,
-        ingredientes: plato.ingredientes || null
+        ingredientes: plato.ingredientes || null,
+        porciones: plato.porciones || '',
+        minutos: plato.minutos || 0
       }
     })
 

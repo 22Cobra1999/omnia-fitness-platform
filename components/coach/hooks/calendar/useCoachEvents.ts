@@ -1,4 +1,4 @@
-import { useState, useCallback } from "react"
+import { useState, useCallback, useRef } from "react"
 import { createClient } from "@/lib/supabase/supabase-client"
 import { startOfMonth, endOfMonth, subMonths, addMonths } from "date-fns"
 import { CalendarEvent } from "@/components/coach/coach-calendar-screen"
@@ -6,7 +6,7 @@ import { CalendarEvent } from "@/components/coach/coach-calendar-screen"
 export function useCoachEvents(currentDate: Date, googleConnected: boolean) {
     const [events, setEvents] = useState<CalendarEvent[]>([])
     const [loading, setLoading] = useState(true)
-    const [cachedEvents, setCachedEvents] = useState<Map<string, CalendarEvent[]>>(new Map())
+    const cachedEvents = useRef<Map<string, CalendarEvent[]>>(new Map()) // Use Ref to avoid re-renders
     const [coachId, setCoachId] = useState<string | null>(null)
     const [coachProfile, setCoachProfile] = useState<{ id: string, name: string, avatar_url: string | null } | null>(null)
 
@@ -16,8 +16,8 @@ export function useCoachEvents(currentDate: Date, googleConnected: boolean) {
         try {
             const cacheKey = `${currentDate.getFullYear()}-${currentDate.getMonth()}`
 
-            if (!force && cachedEvents.has(cacheKey)) {
-                const cached = cachedEvents.get(cacheKey) || []
+            if (!force && cachedEvents.current.has(cacheKey)) {
+                const cached = cachedEvents.current.get(cacheKey) || []
                 setEvents(cached)
                 setLoading(false)
 
@@ -26,7 +26,7 @@ export function useCoachEvents(currentDate: Date, googleConnected: boolean) {
                 const prevKey = `${prevMonth.getFullYear()}-${prevMonth.getMonth()}`
                 const nextKey = `${nextMonth.getFullYear()}-${nextMonth.getMonth()}`
 
-                if (cachedEvents.has(prevKey) && cachedEvents.has(nextKey)) {
+                if (cachedEvents.current.has(prevKey) && cachedEvents.current.has(nextKey)) {
                     return
                 }
             }
@@ -67,8 +67,9 @@ export function useCoachEvents(currentDate: Date, googleConnected: boolean) {
                 .from('calendar_events')
                 .select(`
                   id, title, start_time, end_time, event_type, status,
-                  description, coach_id, created_by_user_id,
-                  google_meet_data, pricing_data, relations_data, timing_data
+                  description, coach_id, created_by_user_id, invited_by_user_id,
+                  google_meet_data, pricing_data, relations_data, timing_data,
+                  cancelled_by_user_id, cancellation_reason, cancelled_at
                 `)
                 .eq('coach_id', currentCoachId)
                 .gte('start_time', monthStartISO)
@@ -80,8 +81,9 @@ export function useCoachEvents(currentDate: Date, googleConnected: boolean) {
                   event_id,
                   calendar_events!inner(
                     id, title, start_time, end_time, event_type, status,
-                    description, coach_id, created_by_user_id,
-                    google_meet_data, pricing_data, relations_data, timing_data
+                    description, coach_id, created_by_user_id, invited_by_user_id,
+                    google_meet_data, pricing_data, relations_data, timing_data,
+                    cancelled_by_user_id, cancellation_reason, cancelled_at
                   )
                 `)
                 .eq('client_id', currentCoachId)
@@ -111,6 +113,7 @@ export function useCoachEvents(currentDate: Date, googleConnected: boolean) {
             const confirmedCountByEvent = new Map<string, number>()
             const guestsCountByEvent = new Map<string, number>()
             const rsvpByEvent = new Map<string, string>()
+            const myRsvpByEvent = new Map<string, string>()
             let allParticipants: any[] = []
 
             if (omniaEventIds.length > 0) {
@@ -122,7 +125,7 @@ export function useCoachEvents(currentDate: Date, googleConnected: boolean) {
                     .order('created_at', { ascending: false })
 
                 if (reschedules) {
-                    console.log('🔍 [useCoachEvents] Total reschedules recuperados:', reschedules.length)
+                    // console.log('🔍 [useCoachEvents] Total reschedules recuperados:', reschedules.length)
                     reschedules.forEach((r: any) => {
                         const eid = String(r.event_id)
                         const current = reschedulesByEventId.get(eid)
@@ -161,6 +164,8 @@ export function useCoachEvents(currentDate: Date, googleConnected: boolean) {
                             } else if (!currentRsvp || currentRsvp === 'pending') {
                                 rsvpByEvent.set(eid, p.rsvp_status || 'pending')
                             }
+                        } else {
+                            myRsvpByEvent.set(eid, p.rsvp_status || 'pending')
                         }
                     })
                 }
@@ -175,11 +180,13 @@ export function useCoachEvents(currentDate: Date, googleConnected: boolean) {
                 const clientParticipant = participants.find((p: any) => p.role !== 'coach' && p.role !== 'host')
                 const clientId = clientParticipant ? clientParticipant.user_id : (e.created_by_user_id !== currentCoachId ? e.created_by_user_id : null)
 
+                /* 
                 if (eid === '7ca77961-fd5c-456a-96ed-7c76f60ea182' || e.start_time.includes('2024-02-18')) {
                     console.log('🔍 [useCoachEvents] Procesando evento del 18:', e.title, 'ID:', eid)
                     console.log('🔍 [useCoachEvents] Reschedule:', pendingReschedule?.status || 'NINGUNO')
                     console.log('🔍 [useCoachEvents] RSVP representativo:', rsvpByEvent.get(eid) || 'confirmed')
                 }
+                */
 
                 const enriched = {
                     ...e,
@@ -195,6 +202,7 @@ export function useCoachEvents(currentDate: Date, googleConnected: boolean) {
                     confirmed_participants: confirmedCountByEvent.get(eid) || 0,
                     total_guests: guestsCountByEvent.get(eid) || 0,
                     rsvp_status: rsvpByEvent.get(eid) || 'confirmed',
+                    my_rsvp: myRsvpByEvent.get(eid) || 'confirmed',
                     max_participants: e.relations_data?.max_participants ?? (count > 0 ? count : null),
                     pending_reschedule: pendingReschedule
                 }
@@ -252,7 +260,7 @@ export function useCoachEvents(currentDate: Date, googleConnected: boolean) {
             allEvents = [...allEvents, ...googleEvents]
             allEvents.sort((a, b) => new Date(a.start_time).getTime() - new Date(b.start_time).getTime())
 
-            const newCache = new Map(cachedEvents)
+            const newCache = new Map(cachedEvents.current)
             for (let i = -1; i <= 1; i++) {
                 const d = addMonths(currentDate, i)
                 const k = `${d.getFullYear()}-${d.getMonth()}`
@@ -263,7 +271,7 @@ export function useCoachEvents(currentDate: Date, googleConnected: boolean) {
                     return dt >= mS && dt <= mE
                 }))
             }
-            setCachedEvents(newCache)
+            cachedEvents.current = newCache
 
             const curStart = startOfMonth(currentDate)
             const curEnd = endOfMonth(currentDate)
@@ -301,7 +309,7 @@ export function useCoachEvents(currentDate: Date, googleConnected: boolean) {
         } finally {
             setLoading(false)
         }
-    }, [currentDate, cachedEvents, googleConnected, coachProfile, supabase])
+    }, [currentDate, googleConnected, coachProfile, supabase]) // cachedEvents is REF, so no dep
 
     return {
         events,

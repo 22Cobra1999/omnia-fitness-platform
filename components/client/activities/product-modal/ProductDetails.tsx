@@ -88,8 +88,8 @@ export function ProductDetails({ product, logic }: ProductDetailsProps) {
             </div>
 
             {/* 4. Stats Grid - Finer borders, more minimalist */}
-            <div className="grid grid-cols-3 gap-2 w-full pt-2">
-                <div className="flex flex-col gap-0.5 bg-white/[0.02] border border-white/5 p-2.5 rounded-xl">
+            <div className="grid grid-cols-3 gap-y-4 gap-x-2 w-full pt-2">
+                <div className="flex flex-col gap-0.5 p-2.5">
                     <div className="flex items-center gap-1.5 opacity-60">
                         {product.type === 'document' ? <Zap className="h-3 w-3 text-[#FF7939]" /> : <Calendar className="h-3 w-3 text-[#FF7939]" />}
                         <span className="text-gray-400 text-[9px] font-bold uppercase tracking-widest">{product.type === 'document' ? 'Temas' : 'Sesiones'}</span>
@@ -97,7 +97,7 @@ export function ProductDetails({ product, logic }: ProductDetailsProps) {
                     <div className="text-white font-black text-sm">{product.type === 'document' ? (product.items_unicos || 0) : (statsLoading ? '...' : totalSessions)}</div>
                 </div>
 
-                <div className={`flex flex-col gap-0.5 bg-white/[0.02] border p-2.5 rounded-xl ${exceedsWeeks ? 'border-red-500/50 bg-red-500/5' : 'border-white/5'}`}>
+                <div className={`flex flex-col gap-0.5 p-2.5 ${exceedsWeeks ? 'bg-red-500/5 rounded-xl' : ''}`}>
                     <div className="flex items-center gap-1.5 opacity-60">
                         {product.type === 'document' ? <Calendar className="h-3 w-3 text-[#FF7939]" /> : <Clock className={`h-3 w-3 ${exceedsWeeks ? 'text-red-500' : 'text-[#FF7939]'}`} />}
                         <span className={`text-[9px] font-bold uppercase tracking-widest ${exceedsWeeks ? 'text-red-500' : 'text-gray-400'}`}>{product.type === 'document' ? 'Duración' : 'Semanas'}</span>
@@ -107,16 +107,15 @@ export function ProductDetails({ product, logic }: ProductDetailsProps) {
                     </div>
                 </div>
 
-                <div className="flex flex-col gap-0.5 bg-white/[0.02] border border-white/5 p-2.5 rounded-xl">
+                <div className="flex flex-col gap-0.5 p-2.5">
                     <div className="flex items-center gap-1.5 opacity-60">
                         <Dumbbell className="h-3 w-3 text-[#FF7939]" />
-                        <span className="text-gray-400 text-[9px] font-bold uppercase tracking-widest">Items</span>
+                        <span className="text-gray-400 text-[9px] font-bold uppercase tracking-widest">Temas</span>
                     </div>
                     <div className="text-white font-black text-sm">{exercisesCount}</div>
                 </div>
 
-                {/* Row 2 */}
-                <div className="flex flex-col gap-0.5 bg-white/[0.02] border border-white/5 p-2.5 rounded-xl">
+                <div className="flex flex-col gap-0.5 p-2.5">
                     <div className="h-3 flex items-center justify-start mb-0.5 opacity-80">
                         {['nutricion', 'nutrition'].includes(product.categoria) ? getDietTypeDisplay(product.dieta) : getDifficultyFires(difficulty)}
                     </div>
@@ -127,7 +126,7 @@ export function ProductDetails({ product, logic }: ProductDetailsProps) {
                     </div>
                 </div>
 
-                <div className={`flex flex-col gap-0.5 bg-white/[0.02] border p-2.5 rounded-xl ${exceedsStock ? 'border-red-500/50 bg-red-500/5' : 'border-white/5'}`}>
+                <div className={`flex flex-col gap-0.5 p-2.5 ${exceedsStock ? 'bg-red-500/5 rounded-xl' : ''}`}>
                     <div className="flex items-center gap-1.5 opacity-60">
                         <Users className={`h-3 w-3 ${exceedsStock ? 'text-red-500' : 'text-[#FF7939]'}`} />
                         <span className={`text-[9px] font-bold uppercase tracking-widest ${exceedsStock ? 'text-red-500' : 'text-gray-400'}`}>Cupos</span>
@@ -137,13 +136,26 @@ export function ProductDetails({ product, logic }: ProductDetailsProps) {
                     </div>
                 </div>
 
-                <div className="flex flex-col gap-0.5 bg-white/[0.02] border border-white/5 p-2.5 rounded-xl">
+                <div className="flex flex-col gap-0.5 p-2.5">
                     <div className="flex items-center gap-1.5 opacity-60 mb-0.5">
                         <ModalityIcon className="h-3 w-3 text-[#FF7939]" />
                         <span className="text-gray-400 text-[9px] font-bold uppercase tracking-widest">Modalidad</span>
                     </div>
-                    <div className="text-white font-black text-[10px] uppercase truncate w-full">
-                        {product.location_name || (productModality === 'online' ? 'Online' : 'Presencial')}
+                    <div className="flex flex-col gap-1">
+                        <div className="text-white font-black text-[10px] uppercase truncate w-full">
+                            {product.location_name || (productModality === 'online' ? 'Online' : 'Presencial')}
+                        </div>
+                        {(productModality === 'presencial' || productModality === 'hibrido') && product.location_url && (
+                            <a
+                                href={product.location_url}
+                                target="_blank"
+                                rel="noopener noreferrer"
+                                className="text-[#FF7939] hover:text-[#FF7939]/80 text-[9px] font-bold uppercase tracking-widest flex items-center gap-0.5 w-fit"
+                            >
+                                <MapPin className="h-2 w-2" />
+                                Ver
+                            </a>
+                        )}
                     </div>
                 </div>
 
@@ -154,25 +166,30 @@ export function ProductDetails({ product, logic }: ProductDetailsProps) {
                 )}
             </div>
 
-            {/* 5. Google Maps Link (for Presencial/Híbrido) - More minimal button */}
-            {(productModality === 'presencial' || productModality === 'hibrido') && product.location_url && (
-                <div className="mt-1">
-                    <Button asChild variant="outline" className="w-full border-[#FF7939]/30 text-[#FF7939] hover:bg-[#FF7939]/10 rounded-xl font-bold text-[10px] uppercase tracking-widest h-10">
-                        <a href={product.location_url} target="_blank" rel="noopener noreferrer" className="flex items-center gap-2">
-                            <MapPin className="h-3 w-3" />
-                            Ver Ubicación
-                        </a>
-                    </Button>
-                </div>
-            )}
 
             {/* 6. Objetivos / Tags - Finer */}
             {product.objetivos?.length > 0 && (
-                <div className="space-y-2 pt-2">
-                    <h3 className="text-[9px] font-bold text-gray-500 uppercase tracking-widest">Logros</h3>
+                <div className="space-y-3 pt-4">
+                    <h3 className="text-[10px] font-bold text-gray-300 uppercase tracking-widest border-l-2 border-[#FF7939] pl-3">Objetivos</h3>
                     <div className="flex flex-wrap gap-2">
                         {product.objetivos.map((o: string, i: number) => (
-                            <span key={i} className="text-gray-400 text-[9px] font-medium uppercase tracking-wider">{o} {i < product.objetivos.length - 1 && '•'}</span>
+                            <div key={i} className="bg-[#FF7939]/15 border border-[#FF7939]/30 px-2.5 py-0.5 rounded-full">
+                                <span className="text-[#FF7939] text-[9px] font-black uppercase tracking-wider">{o}</span>
+                            </div>
+                        ))}
+                    </div>
+                </div>
+            )}
+
+            {/* 7. Restricciones - New section */}
+            {product.restricciones?.length > 0 && (
+                <div className="space-y-3 pt-4 pb-8">
+                    <h3 className="text-[10px] font-bold text-gray-300 uppercase tracking-widest border-l-2 border-[#FF7939] pl-3">Restricciones</h3>
+                    <div className="flex flex-wrap gap-2">
+                        {product.restricciones.map((r: string, i: number) => (
+                            <div key={i} className="bg-[#FF7939]/5 border border-[#FF7939]/10 px-2.5 py-0.5 rounded-full">
+                                <span className="text-[#FF7939]/60 text-[9px] font-black uppercase tracking-wider">{r}</span>
+                            </div>
                         ))}
                     </div>
                 </div>

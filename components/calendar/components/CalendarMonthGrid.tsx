@@ -169,24 +169,74 @@ export function CalendarMonthGrid({
                                                 else counts.confirmed++
                                             })
 
+                                            // Separate Workshops from Meets inside the 'meets' array if they are typed 'workshop'
+                                            // Actually, the 'meets' list might contain 'workshop' type events too.
+                                            const meetOnly = meets.filter(m => m.event_type !== 'workshop')
+                                            const workshopEvents = meets.filter(m => m.event_type === 'workshop')
+
+                                            const getMeetCounts = (evs: any[]) => {
+                                                const c = { pending: 0, confirmed: 0, cancelled: 0 }
+                                                evs.forEach((m: any) => {
+                                                    const rsvp = String(m?.rsvp_status || 'pending')
+                                                    const isCancelled = m.status === 'cancelled' || rsvp === 'declined'
+                                                    const isPending = !isCancelled && rsvp === 'pending'
+                                                    if (isCancelled) c.cancelled++
+                                                    else if (isPending) c.pending++
+                                                    else c.confirmed++
+                                                })
+                                                return c
+                                            }
+
+                                            const mCounts = getMeetCounts(meetOnly)
+                                            const wCounts = getMeetCounts(workshopEvents)
+
                                             return (
-                                                <div className="flex flex-wrap items-center justify-center gap-1 mt-0.5">
-                                                    {counts.confirmed > 0 && (
-                                                        <div className="flex items-center gap-0.5 px-1.5 py-0.5 rounded-full border leading-none bg-[#FF7939]/10 border-[#FF7939]/30 text-[#FF7939]">
-                                                            <Video className="w-2.5 h-2.5" />
-                                                            {counts.confirmed > 1 && <span className="text-[9px] font-bold">{counts.confirmed}</span>}
+                                                <div className="flex flex-col items-center gap-0.5 mt-0.5">
+                                                    {/* Workshop Event Bubbles (if any in meets array) */}
+                                                    {(wCounts.confirmed > 0 || wCounts.pending > 0 || wCounts.cancelled > 0) && (
+                                                        <div className="flex flex-wrap items-center justify-center gap-1">
+                                                            {wCounts.pending > 0 && (
+                                                                <div className="flex items-center gap-0.5 px-1.5 py-0.5 rounded-full border leading-none bg-yellow-500/10 border-yellow-500/30 text-yellow-500">
+                                                                    <GraduationCap className="w-2.5 h-2.5" />
+                                                                    {wCounts.pending > 1 && <span className="text-[9px] font-bold">{wCounts.pending}</span>}
+                                                                </div>
+                                                            )}
+                                                            {wCounts.confirmed > 0 && (
+                                                                <div className="flex items-center gap-0.5 px-1.5 py-0.5 rounded-full border leading-none bg-[#FF7939]/10 border-[#FF7939]/30 text-[#FF7939]">
+                                                                    <GraduationCap className="w-2.5 h-2.5" />
+                                                                    {wCounts.confirmed > 1 && <span className="text-[9px] font-bold">{wCounts.confirmed}</span>}
+                                                                </div>
+                                                            )}
+                                                            {wCounts.cancelled > 0 && (
+                                                                <div className="flex items-center gap-0.5 px-1.5 py-0.5 rounded-full border leading-none bg-red-500/10 border-red-500/30 text-red-500">
+                                                                    <GraduationCap className="w-2.5 h-2.5" />
+                                                                    {wCounts.cancelled > 1 && <span className="text-[9px] font-bold">{wCounts.cancelled}</span>}
+                                                                </div>
+                                                            )}
                                                         </div>
                                                     )}
-                                                    {counts.pending > 0 && (
-                                                        <div className="flex items-center gap-0.5 px-1.5 py-0.5 rounded-full border leading-none bg-yellow-500/10 border-yellow-500/30 text-yellow-500">
-                                                            <Video className="w-2.5 h-2.5" />
-                                                            {counts.pending > 1 && <span className="text-[9px] font-bold">{counts.pending}</span>}
-                                                        </div>
-                                                    )}
-                                                    {counts.cancelled > 0 && (
-                                                        <div className="flex items-center gap-0.5 px-1.5 py-0.5 rounded-full border leading-none bg-red-500/10 border-red-500/30 text-red-500">
-                                                            <Video className="w-2.5 h-2.5" />
-                                                            {counts.cancelled > 1 && <span className="text-[9px] font-bold">{counts.cancelled}</span>}
+
+                                                    {/* Meet Bubbles */}
+                                                    {(mCounts.confirmed > 0 || mCounts.pending > 0 || mCounts.cancelled > 0) && (
+                                                        <div className="flex flex-wrap items-center justify-center gap-1">
+                                                            {mCounts.pending > 0 && (
+                                                                <div className="flex items-center gap-0.5 px-1.5 py-0.5 rounded-full border leading-none bg-yellow-500/10 border-yellow-500/30 text-yellow-500">
+                                                                    <Video className="w-2.5 h-2.5" />
+                                                                    {mCounts.pending > 1 && <span className="text-[9px] font-bold">{mCounts.pending}</span>}
+                                                                </div>
+                                                            )}
+                                                            {mCounts.confirmed > 0 && (
+                                                                <div className="flex items-center gap-0.5 px-1.5 py-0.5 rounded-full border leading-none bg-[#FF7939]/10 border-[#FF7939]/30 text-[#FF7939]">
+                                                                    <Video className="w-2.5 h-2.5" />
+                                                                    {mCounts.confirmed > 1 && <span className="text-[9px] font-bold">{mCounts.confirmed}</span>}
+                                                                </div>
+                                                            )}
+                                                            {mCounts.cancelled > 0 && (
+                                                                <div className="flex items-center gap-0.5 px-1.5 py-0.5 rounded-full border leading-none bg-red-500/10 border-red-500/30 text-red-500">
+                                                                    <Video className="w-2.5 h-2.5" />
+                                                                    {mCounts.cancelled > 1 && <span className="text-[9px] font-bold">{mCounts.cancelled}</span>}
+                                                                </div>
+                                                            )}
                                                         </div>
                                                     )}
                                                 </div>

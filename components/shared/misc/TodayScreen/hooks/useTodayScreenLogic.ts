@@ -21,9 +21,21 @@ export function useTodayScreenLogic({ activityId, enrollmentId, onBack }: { acti
     const supabase = createClient();
 
     // 1. Centralized States
-    const [selectedDate, setSelectedDate] = React.useState<Date>(new Date());
+    const [selectedDate, setSelectedDate] = React.useState<Date>(() => {
+        if (typeof window !== 'undefined') {
+            const saved = localStorage.getItem('selectedActivityDate');
+            if (saved) {
+                const date = new Date(saved);
+                if (!isNaN(date.getTime())) {
+                    localStorage.removeItem('selectedActivityDate');
+                    return date;
+                }
+            }
+        }
+        return new Date();
+    });
     const [selectedVideo, setSelectedVideo] = React.useState<any>(null);
-    const [currentMonth, setCurrentMonth] = React.useState(new Date());
+    const [currentMonth, setCurrentMonth] = React.useState(selectedDate);
 
     // 2. Initialize Sub-hooks
     const ui = useTodayUiState();

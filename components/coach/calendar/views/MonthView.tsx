@@ -24,6 +24,9 @@ interface MonthViewProps {
     onNextMonth: () => void
     onMonthClick: () => void
     availabilityRules?: any[]
+    availableSlotsCountByDay?: Record<string, number>
+    showAvailability?: boolean
+    hideHeader?: boolean
 }
 
 export function MonthView({
@@ -34,7 +37,10 @@ export function MonthView({
     onPrevMonth,
     onNextMonth,
     onMonthClick,
-    availabilityRules = []
+    availabilityRules = [],
+    availableSlotsCountByDay = {},
+    showAvailability = false,
+    hideHeader = false
 }: MonthViewProps) {
     const monthStart = startOfMonth(currentDate)
     const monthEnd = endOfMonth(monthStart)
@@ -51,43 +57,45 @@ export function MonthView({
 
     return (
         <Card className="bg-zinc-900 border-zinc-800 w-full sm:max-w-none">
-            <CardHeader className="px-4 pt-4 pb-2">
-                <div className="flex items-center justify-between relative">
-                    <Button
-                        variant="ghost"
-                        size="sm"
-                        onClick={onPrevMonth}
-                        className="text-white hover:bg-zinc-800 w-10 h-10 p-0"
-                        title="Mes anterior"
-                    >
-                        <ChevronLeft className="h-5 w-5" />
-                    </Button>
+            {!hideHeader && (
+                <CardHeader className="px-4 pt-4 pb-2">
+                    <div className="flex items-center justify-between relative">
+                        <Button
+                            variant="ghost"
+                            size="sm"
+                            onClick={onPrevMonth}
+                            className="text-white hover:bg-zinc-800 w-10 h-10 p-0"
+                            title="Mes anterior"
+                        >
+                            <ChevronLeft className="h-5 w-5" />
+                        </Button>
 
-                    <button
-                        type="button"
-                        onClick={onMonthClick}
-                        className="text-white font-bold text-lg sm:text-2xl flex items-center gap-2 hover:text-[#FFB366] transition-colors capitalize px-4 py-2"
-                        title="Cambiar mes"
-                    >
-                        {format(currentDate, 'MMMM yyyy', { locale: es })}
-                        <ChevronDown className="h-5 w-5 opacity-50" />
-                    </button>
+                        <button
+                            type="button"
+                            onClick={onMonthClick}
+                            className="text-white font-bold text-lg sm:text-2xl flex items-center gap-2 hover:text-[#FFB366] transition-colors capitalize px-4 py-2"
+                            title="Cambiar mes"
+                        >
+                            {format(currentDate, 'MMMM yyyy', { locale: es })}
+                            <ChevronDown className="h-5 w-5 opacity-50" />
+                        </button>
 
-                    <Button
-                        variant="ghost"
-                        size="sm"
-                        onClick={onNextMonth}
-                        className="text-white hover:bg-zinc-800 w-10 h-10 p-0"
-                        title="Mes siguiente"
-                    >
-                        <ChevronRight className="h-5 w-5" />
-                    </Button>
-                </div>
-            </CardHeader>
+                        <Button
+                            variant="ghost"
+                            size="sm"
+                            onClick={onNextMonth}
+                            className="text-white hover:bg-zinc-800 w-10 h-10 p-0"
+                            title="Mes siguiente"
+                        >
+                            <ChevronRight className="h-5 w-5" />
+                        </Button>
+                    </div>
+                </CardHeader>
+            )}
 
-            <CardContent className="px-4 pb-4">
+            <CardContent className="px-4 pb-4 pt-6">
                 {/* Week Days Headers */}
-                <div className="grid grid-cols-7 gap-1 sm:gap-2 mb-2">
+                <div className="grid grid-cols-7 gap-1 sm:gap-2 mb-3">
                     {weekDays.map((day) => (
                         <div key={day} className="text-center text-sm font-semibold text-gray-400">
                             {day}
@@ -107,6 +115,10 @@ export function MonthView({
                         const isSelected = selectedDate && isSameDay(day, selectedDate)
                         const isTodayDate = isToday(day)
                         const isCurrentMonth = isSameMonth(day, monthStart)
+
+                        // Availability Logic (Smart Dots)
+                        const slotsCount = availableSlotsCountByDay[dateKey] || 0
+                        const hasSlots = showAvailability && slotsCount > 0
 
                         // Filtrar todos los eventos de tipo calendario
                         const calendarEvents = dayEvents.filter(e =>
@@ -135,11 +147,17 @@ export function MonthView({
                                     `${!isSelected && !isTodayDate ? 'text-gray-400 hover:bg-zinc-800/50 hover:border-white/5' : ''}`
                                 }
                             >
-                                <div className="w-full flex justify-between items-start">
+                                {hasSlots && !isSelected && !isTodayDate ? (
+                                    <div className={`w-6 h-6 rounded-full flex items-center justify-center ring-1 text-[11px] sm:text-sm font-bold ${slotsCount >= 120 ? 'ring-[#FF7939] text-[#FF7939] bg-[#FF7939]/10' : 'ring-red-500 text-red-500 bg-red-500/10'}`}>
+                                        {format(day, 'd')}
+                                    </div>
+                                ) : (
                                     <span className={`text-[11px] sm:text-sm ${isTodayDate ? 'text-[#FF7939] font-bold' : (hasUrgentEvent ? 'text-red-500 font-bold' : '')}`}>
                                         {format(day, 'd')}
                                     </span>
-                                </div>
+                                )}
+
+                                {/* Availability Dot Removed - using circle above */}
 
                                 {/* Nombres de eventos en Desktop */}
                                 <div className="hidden sm:flex flex-col gap-1 mt-2 w-full overflow-hidden text-left">
@@ -208,7 +226,7 @@ export function MonthView({
 
                                         // 2. Pendientes (Naranja)
                                         const orangeMeets = calendarEvents.filter(m =>
-                                            (m.is_ghost || m.rsvp_status === 'pending') &&
+                                            (m.is_ghost || m.rsvp_status === 'pending' || m.status === 'pending') &&
                                             !(m.status === 'cancelled' || m.rsvp_status === 'declined' || m.pending_reschedule?.status === 'pending')
                                         )
                                         if (orangeMeets.length > 0) {

@@ -22,15 +22,16 @@ type NotificationItem = {
     fromStartTime: string
     fromEndTime: string | null
     note: string | null
-    requestedByUserId: string | null // NEW
-    status?: 'pending' | 'accepted' | 'rejected' // NEW
+    requestedByUserId: string | null
+    status?: 'pending' | 'accepted' | 'rejected'
   } | null
   meetLink: string | null
   otherUserId: string
   otherUserName: string
   rsvpStatus: string
   invitedByRole: string | null
-  invitedByUserId: string | null // NEW
+  invitedByUserId: string | null
+  isCreator: boolean // NEW: to handle null invited_by_user_id
   updatedAt: string
 }
 
@@ -66,7 +67,7 @@ export function MeetNotificationsModal({
   const [items, setItems] = useState<NotificationItem[]>([])
   const [error, setError] = useState<string | null>(null)
   const [actingId, setActingId] = useState<string | null>(null)
-  const [filter, setFilter] = useState<'all' | 'pending' | 'accepted'>('all')
+  const [filter, setFilter] = useState<'all' | 'pending' | 'accepted'>('pending') // Default to actionable items
 
   const range = useMemo(() => {
     const now = new Date()
@@ -178,10 +179,9 @@ export function MeetNotificationsModal({
             // Participant or Creator
             const isCreator = String(ev.created_by_user_id) === userId
 
-            // Prioritize global event status if it's cancelled or rescheduled
-            let rsvpStatus = p ? String(p.rsvp_status || 'pending') : (isCreator ? 'confirmed' : 'pending')
-            if (ev.status === 'cancelled') rsvpStatus = 'cancelled'
-            else if (ev.status === 'rescheduled' && rsvpStatus !== 'pending') rsvpStatus = 'rescheduled'
+            // Use actual participant RSVP status, don't override based on event status
+            // If no participant record exists and user is creator, use 'pending' (waiting for other party)
+            let rsvpStatus = p ? String(p.rsvp_status || 'pending') : (isCreator ? 'pending' : 'pending')
 
             const updatedAt = p?.updated_at || ev.start_time
 
@@ -221,6 +221,7 @@ export function MeetNotificationsModal({
               rsvpStatus,
               invitedByRole,
               invitedByUserId: p?.invited_by_user_id || null,
+              isCreator,
               updatedAt: String(updatedAt),
             }
             itemsMap.set(eid, item)
@@ -253,12 +254,16 @@ export function MeetNotificationsModal({
 
       const { data: parts, error: partsError } = await supabase
         .from('calendar_event_participants')
-        .select('event_id, user_id, rsvp_status, updated_at, role, participant_role, invited_by_user_id')
+        .select('event_id, user_id, rsvp_status, updated_at, role, invited_by_user_id')
         .in('event_id', eventIds)
         .order('updated_at', { ascending: false })
 
+      if (partsError) {
+        console.error('[Coach Notifications] error fetching participants:', partsError)
+      }
+
       // Fetch ALL reschedules (pending and history)
-      const { data: reschedules } = await supabase
+      const { data: reschedules, error: reschedulesError } = await supabase
         .from('calendar_event_reschedule_requests')
         .select('*')
         .in('event_id', eventIds)
@@ -344,6 +349,7 @@ export function MeetNotificationsModal({
             rsvpStatus: rsvp,
             invitedByRole: clientPart?.invited_by_role,
             invitedByUserId: clientPart?.invited_by_user_id,
+            isCreator: String(ev.created_by_user_id) === String(userId),
             updatedAt: latestRs && new Date(latestRs.created_at) > new Date(updateTime) ? latestRs.created_at : updateTime
           }
 
@@ -390,6 +396,7 @@ export function MeetNotificationsModal({
             rsvpStatus: 'confirmed',
             invitedByRole: null,
             invitedByUserId: null,
+            isCreator: String(ev.created_by_user_id) === String(userId),
             updatedAt: r.created_at
           }
 
@@ -444,11 +451,16 @@ export function MeetNotificationsModal({
     }
 
     if (role === 'coach') {
+      // For coach, rsvpStatus represents the CLIENT's status
       if (it.rsvpStatus === 'pending') {
-        return isMe(it.invitedByUserId) ? `Enviaste una invitación a ${otherName}` : `${otherName} solicitó una meet`
+        // Client is pending - check if I sent the invitation or they requested
+        const iSentInvite = it.invitedByUserId ? isMe(it.invitedByUserId) : it.isCreator
+        return iSentInvite ? `Enviaste una invitación a ${otherName}` : `${otherName} solicitó una meet`
       }
-      if (it.rsvpStatus === 'confirmed') {
-        return isMe(it.invitedByUserId) ? `${otherName} aceptó la invitación` : `Confirmaste la meet con ${otherName}`
+      if (it.rsvpStatus === 'confirmed' || it.rsvpStatus === 'accepted') {
+        // Client accepted - check if I sent the invitation or they requested
+        const iSentInvite = it.invitedByUserId ? isMe(it.invitedByUserId) : it.isCreator
+        return iSentInvite ? `${otherName} aceptó la invitación` : `Confirmaste la meet con ${otherName}`
       }
       if (it.rsvpStatus === 'declined') {
         return isMe(it.invitedByUserId) ? `Rechazaste la solicitud de ${otherName}` : `${otherName} rechazó la meet`
@@ -461,17 +473,21 @@ export function MeetNotificationsModal({
 
     // Client role
     if (it.rsvpStatus === 'cancelled' || it.rsvpStatus === 'declined') {
-      return `Meet cancelada o rechazada`
+      // Use invited_by_user_id if available, fallback to isCreator
+      const wasCancelledByMe = it.invitedByUserId ? (it.invitedByUserId === userId) : it.isCreator
+      return wasCancelledByMe ? `Cancelaste tu solicitud a ${otherName}` : `${otherName} canceló la meet`
     }
 
     if (it.rsvpStatus === 'pending') {
-      const isInvitedByMe = it.invitedByUserId === userId
+      // Use invited_by_user_id if available, fallback to isCreator
+      const isInvitedByMe = it.invitedByUserId ? (it.invitedByUserId === userId) : it.isCreator
       return isInvitedByMe ? `Solicitaste una meet a ${otherName}` : `${otherName} te invitó a una meet`
     }
 
-    if (it.rsvpStatus === 'confirmed') {
-      const isInvitedByMe = it.invitedByUserId === userId || it.otherUserId !== userId
-      return isInvitedByMe ? `Tu solicitud fue aceptada por ${otherName}` : `Confirmaste la asistencia con ${otherName}`
+    if (it.rsvpStatus === 'confirmed' || it.rsvpStatus === 'accepted') {
+      // Use invited_by_user_id if available, fallback to isCreator
+      const isInvitedByMe = it.invitedByUserId ? (it.invitedByUserId === userId) : it.isCreator
+      return isInvitedByMe ? `${otherName} aceptó tu solicitud` : `Confirmaste la meet con ${otherName}`
     }
 
     return `Actualización de meet con ${otherName}`
@@ -480,7 +496,16 @@ export function MeetNotificationsModal({
   const filteredItems = useMemo(() => {
     if (filter === 'all') return items
     if (filter === 'pending') {
-      return items.filter(it => it.rsvpStatus === 'pending' || it.reschedulePending?.status === 'pending')
+      // Show ONLY actionable items:
+      // - Cancelled events
+      // - Pending reschedule requests
+      // - Pending RSVPs (I need to respond OR waiting for response)
+      return items.filter(it => {
+        if (it.rsvpStatus === 'cancelled') return true
+        if (it.reschedulePending?.status === 'pending') return true
+        if (it.rsvpStatus === 'pending') return true
+        return false
+      })
     }
     if (filter === 'accepted') {
       return items.filter(it => {
@@ -620,7 +645,7 @@ export function MeetNotificationsModal({
                         // 2. User is client AND invitedByRole is 'client' (client sent request to coach)
                         // 3. User requested the reschedule (for reschedule requests)
 
-                        const isSentByMe = it.invitedByUserId === userId
+                        const isSentByMe = it.invitedByUserId ? it.invitedByUserId === userId : it.isCreator
                         const isClientSentRequest = role === 'client' && it.invitedByRole === 'client'
                         const isMyRescheduleRequest = isRescheduleRequest && it.reschedulePending?.requestedByUserId === userId
 

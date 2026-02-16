@@ -211,15 +211,28 @@ export function useCoachMeetModal(coachId: string | null, onEventSuccess: () => 
     }
 
     const deleteMeeting = async () => {
-        if (meetModalMode !== 'edit' || !editingEventId) return
+        if (meetModalMode !== 'edit' || !editingEventId || !coachId) return
         setCreateEventLoading(true)
         try {
-            const { error } = await supabase.from('calendar_events').delete().eq('id', editingEventId)
+            // SOFT CANCEL: Update status and audit fields
+            const { error } = await supabase
+                .from('calendar_events')
+                .update({
+                    status: 'cancelled',
+                    cancelled_by_user_id: coachId,
+                    cancelled_at: new Date().toISOString(),
+                    lifecycle_data: {
+                        cancelled_at: new Date().toISOString(),
+                        cancelled_by: coachId
+                    }
+                } as any)
+                .eq('id', editingEventId)
+
             if (error) {
-                toast.error(error.message || 'No se pudo eliminar la reunión')
+                toast.error(error.message || 'No se pudo cancelar la reunión')
                 return
             }
-            toast.success('Reunión eliminada')
+            toast.success('Reunión cancelada')
             closeCreateEventModal()
             await onEventSuccess()
         } finally {

@@ -63,7 +63,7 @@ export const useMeetLogic = (
             try {
                 const { data: participants, error: pError } = await supabase
                     .from('calendar_event_participants')
-                    .select('id, user_id, rsvp_status, payment_status')
+                    .select('id, user_id, rsvp_status, payment_status, role, invited_by_user_id, is_creator')
                     .eq('event_id', selectedMeetEvent.id)
 
                 if (pError) throw pError
@@ -86,8 +86,11 @@ export const useMeetLogic = (
 
                 const parts = (participants || []).map((p: any) => ({
                     ...p,
-                    name: profileMap[p.user_id]?.full_name || 'Cliente',
+                    name: profileMap[p.user_id]?.full_name || 'Participante',
+                    full_name: profileMap[p.user_id]?.full_name || 'Participante',
                     avatar_url: profileMap[p.user_id]?.avatar_url,
+                    role: p.role || 'client', // Ensure role is passed
+                    is_organizer: p.is_creator || (p.invited_by_user_id && p.user_id === p.invited_by_user_id)
                 }))
 
                 setSelectedMeetParticipants(parts)
@@ -121,18 +124,62 @@ export const useMeetLogic = (
                     return
                 }
 
-                const { count, error } = await (supabase
-                    .from('calendar_event_participants') as any)
-                    .select('id', { count: 'exact' })
-                    .eq('user_id', authUserId)
-                    .eq('rsvp_status', 'pending')
+                const now = new Date().toISOString()
 
-                if (error) {
+                // 1. Get my participant records (pending or cancelled status)
+                const { data: myParts, error: partsError } = await supabase
+                    .from('calendar_event_participants')
+                    .select('event_id, rsvp_status')
+                    .eq('user_id', authUserId)
+                    .in('rsvp_status', ['pending', 'cancelled'])
+
+                if (partsError) {
                     setMeetNotificationsCount(0)
                     return
                 }
-                setMeetNotificationsCount(Number.isFinite(count as any) ? (count as any) : 0)
-            } catch {
+
+                // 2. Get event IDs and filter for future events
+                const eventIds = Array.from(new Set((myParts || []).map((p: any) => p.event_id).filter(Boolean)))
+
+                if (eventIds.length === 0) {
+                    setMeetNotificationsCount(0)
+                    return
+                }
+
+                const { data: events } = await supabase
+                    .from('calendar_events')
+                    .select('id, end_time, start_time')
+                    .in('id', eventIds)
+
+                const futureEventIds = new Set(
+                    (events || [])
+                        .filter((e: any) => {
+                            const endTime = e.end_time || e.start_time
+                            return endTime && endTime >= now
+                        })
+                        .map((e: any) => e.id)
+                )
+
+                // 3. Count pending reschedule requests for my events
+                const { data: reschedules } = await supabase
+                    .from('calendar_event_reschedule_requests')
+                    .select('event_id')
+                    .in('event_id', eventIds)
+                    .eq('status', 'pending')
+
+                const rescheduleEventIds = new Set((reschedules || []).map((r: any) => r.event_id))
+
+                // 4. Combine counts: participants with actionable status + pending reschedules
+                const actionableEventIds = new Set([
+                    ...(myParts || [])
+                        .filter((p: any) => futureEventIds.has(p.event_id))
+                        .map((p: any) => p.event_id),
+                    ...rescheduleEventIds
+                ])
+
+                setMeetNotificationsCount(actionableEventIds.size)
+            } catch (err) {
+                console.error('Error loading notification count:', err)
                 setMeetNotificationsCount(0)
             }
         }
@@ -266,6 +313,7 @@ export const useMeetLogic = (
         setSelectedMeetRsvpStatus,
         meetNotificationsCount,
         setMeetNotificationsCount,
-        openMeetById
+        openMeetById,
+        setSelectedMeetParticipants
     }
 }

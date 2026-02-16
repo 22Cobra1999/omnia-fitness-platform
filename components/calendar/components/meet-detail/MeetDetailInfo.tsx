@@ -10,6 +10,7 @@ interface MeetDetailInfoProps {
     pendingReschedule: any
     isCancelled: boolean
     isMyRequest?: boolean
+    selectedMeetEvent?: any
 }
 
 export const MeetDetailInfo: React.FC<MeetDetailInfoProps> = ({
@@ -17,8 +18,10 @@ export const MeetDetailInfo: React.FC<MeetDetailInfoProps> = ({
     timeLabel,
     pendingReschedule,
     isCancelled,
-    isMyRequest
+    isMyRequest,
+    selectedMeetEvent
 }) => {
+    const isGoogleCalendar = selectedMeetEvent?.source === 'google_calendar'
     return (
         <div className="space-y-8">
             <div className="flex items-start gap-4">
@@ -50,6 +53,13 @@ export const MeetDetailInfo: React.FC<MeetDetailInfoProps> = ({
                     </div>
                 </div>
             </div>
+
+            {isGoogleCalendar && (
+                <div className="flex items-center gap-2 px-3 py-2 rounded-xl bg-blue-500/5 border border-blue-500/10">
+                    <CalendarIcon className="h-3.5 w-3.5 text-blue-400" />
+                    <span className="text-[10px] font-bold text-blue-400 uppercase tracking-widest">Evento de Google Calendar</span>
+                </div>
+            )}
 
             {pendingReschedule?.status === 'pending' && (
                 <div className="flex flex-col gap-2 p-3 rounded-xl bg-[#FFB366]/5 border border-[#FFB366]/10 w-full">
