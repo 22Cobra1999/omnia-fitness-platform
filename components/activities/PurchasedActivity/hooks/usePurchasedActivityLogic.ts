@@ -8,6 +8,7 @@ interface UsePurchasedActivityLogicProps {
     overridePendingCount?: number
     overrideNextSessionDate?: string | null
     onActivityClick?: (activityId: string, enrollmentId: string) => void
+    isCoachView?: boolean
 }
 
 export function usePurchasedActivityLogic({
@@ -15,7 +16,8 @@ export function usePurchasedActivityLogic({
     realProgress,
     overridePendingCount,
     overrideNextSessionDate,
-    onActivityClick
+    onActivityClick,
+    isCoachView = false
 }: UsePurchasedActivityLogicProps) {
     const { activity } = enrollment
     const [isNavigating, setIsNavigating] = useState(false)
@@ -143,6 +145,9 @@ export function usePurchasedActivityLogic({
         e.preventDefault()
         e.stopPropagation()
 
+        // Restringir acceso si es vista de coach (solo lectura)
+        if (isCoachView) return
+
         if (daysInfo.isExpired && !hasStarted) return
         if (isNavigating) return
 
@@ -160,7 +165,7 @@ export function usePurchasedActivityLogic({
         } finally {
             setIsNavigating(false)
         }
-    }, [daysInfo.isExpired, hasStarted, isNavigating, onActivityClick, activity.id, enrollment.id])
+    }, [daysInfo.isExpired, hasStarted, isNavigating, onActivityClick, activity.id, enrollment.id, isCoachView])
 
     return {
         pendingCount,

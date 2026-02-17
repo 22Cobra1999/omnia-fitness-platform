@@ -19,6 +19,7 @@ interface CsvTableProps {
     activityImagesMap?: Record<number, string | null>
     duplicateNames?: string[]
     loadingExisting?: boolean
+    bunnyVideoTitles?: Record<string, string>
 }
 
 export function CsvTable({
@@ -32,6 +33,7 @@ export function CsvTable({
                     {...props}
                     duplicateNames={props.duplicateNames || []}
                     loadingExisting={!!props.loadingExisting}
+                    bunnyVideoTitles={props.bunnyVideoTitles}
                 />
             ) : (
                 <FitnessTable
@@ -41,6 +43,7 @@ export function CsvTable({
                     activityImagesMap={props.activityImagesMap || {}}
                     duplicateNames={props.duplicateNames || []}
                     loadingExisting={!!props.loadingExisting}
+                    bunnyVideoTitles={props.bunnyVideoTitles}
                 />
             )}
         </div>

@@ -203,9 +203,10 @@ export function useSearchScreenLogic() {
             if (selectedObjectives.length > 0) {
                 const specs = (coach.specialization || "").toLowerCase()
                 const bio = (coach.bio || "").toLowerCase()
-                const hasMatch = selectedObjectives.some(obj =>
-                    specs.includes(obj.toLowerCase()) || bio.includes(obj.toLowerCase())
-                )
+                const hasMatch = selectedObjectives.some(obj => {
+                    const lowObj = obj.toLowerCase()
+                    return specs.includes(lowObj) || bio.includes(lowObj)
+                })
                 if (!hasMatch) return false
             }
 
@@ -228,7 +229,9 @@ export function useSearchScreenLogic() {
             if (!matchesSearch) return false
 
             if (selectedCategory !== "all") {
-                if (activity.type !== selectedCategory) return false
+                const actCat = (activity.categoria || "").toLowerCase()
+                const targetCat = selectedCategory === "nutricion" ? "nutricion" : "fitness"
+                if (actCat !== targetCat && actCat !== (targetCat === "nutricion" ? "nutrition" : "fitness")) return false
             }
 
             if (selectedModality !== "all") {
@@ -255,9 +258,13 @@ export function useSearchScreenLogic() {
             }
 
             if (selectedObjectives.length > 0) {
-                const hasMatch = selectedObjectives.some(obj =>
-                    objetivos.some((aObj: any) => aObj.toLowerCase().includes(obj.toLowerCase()))
-                )
+                const hasMatch = selectedObjectives.some(obj => {
+                    const lowObj = obj.toLowerCase()
+                    return objetivos.some((aObj: any) => {
+                        const target = (typeof aObj === 'string' ? aObj : (aObj?.name || aObj?.title || '')).toLowerCase()
+                        return target.includes(lowObj)
+                    })
+                })
                 if (!hasMatch) return false
             }
 
@@ -313,7 +320,7 @@ export function useSearchScreenLogic() {
             setNavigationStack(prev => [...prev, {
                 type: 'coach',
                 data: coach,
-                context: { fromSearch: true } // Matched to original navigationStack context
+                context: { fromSearch: true }
             }])
             setSelectedCoachForProfile(coach)
             setIsCoachProfileModalOpen(true)
@@ -357,6 +364,19 @@ export function useSearchScreenLogic() {
             setSelectedCoachForProfile(null)
         }
     }, [navigationStack])
+
+    const clearAllFilters = useCallback(() => {
+        setSearchTerm("");
+        setSelectedCategory("all");
+        setSelectedModality("all");
+        setSelectedProgramType("all");
+        setSelectedWorkshopType("all");
+        setSelectedSportDiet("all");
+        setSelectedDuration("all");
+        setSelectedObjectives([]);
+        setExpandedSection(null);
+        setShowFilters(false);
+    }, []);
 
     // Initial Load & Reset Listener
     useEffect(() => {
@@ -409,7 +429,9 @@ export function useSearchScreenLogic() {
         selectedActivity,
         isPreviewModalOpen,
         isCoachProfileModalOpen,
+        setIsCoachProfileModalOpen,
         selectedCoachForProfile,
+        setSelectedCoachForProfile,
         navigationContext,
 
         // Actions
@@ -432,6 +454,7 @@ export function useSearchScreenLogic() {
         handleCoachClick,
         handleModalClose,
         handleRetry: () => { loadCoaches(); loadActivities(true); },
+        clearAllFilters,
         preloadCoach: (id: string, coach: any) => { }, // Mocked to match original usage
         setNavigationStack, // Directly expose for specific original usages
     }

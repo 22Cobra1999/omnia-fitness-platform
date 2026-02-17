@@ -611,7 +611,7 @@ export function useWeeklyPlanner({
                 name: row.name || row.nombre_ejercicio || `Ejercicio ${index + 1}`,
                 description: row.description || row.descripcion || '',
                 duration: parseInt(row.duration || row.duracion_min || '0') || null,
-                type: row.type || row.tipo || 'General',
+                type: row.type || row.tipo || 'general',
                 intensity: row.intensity || row.intensidad || 'Media',
                 equipment: row.equipment || row.equipo || 'Ninguno',
                 bodyParts: row.bodyParts || row.body_parts || '',

@@ -143,9 +143,11 @@ export function useProductActions(fetchProducts: () => Promise<void>, coachPhone
         setIsModalOpen(true)
     }, [])
 
-    const handleCloseModal = useCallback(async () => {
+    const handleCloseModal = useCallback(async (shouldRefresh?: boolean) => {
         setIsModalOpen(false)
-        await fetchProducts()
+        if (shouldRefresh === true) {
+            await fetchProducts()
+        }
         setEditingProduct(null)
         if (wasPreviewOpenBeforeEdit && selectedProduct) {
             setIsProductModalOpen(true)

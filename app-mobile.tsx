@@ -291,7 +291,7 @@ function MobileAppContent() {
 
       <div className="flex flex-col h-screen bg-black">
         {/* Header fijo */}
-        <div className="fixed top-0 left-0 right-0 z-50 bg-black rounded-b-[32px] px-5 py-3 flex justify-between items-center">
+        <div className="fixed top-0 left-0 right-0 z-[1000] bg-black rounded-b-[32px] px-5 py-3 flex justify-between items-center">
           {/* Settings Icon */}
           <div className="flex items-center">
             <SettingsIcon />

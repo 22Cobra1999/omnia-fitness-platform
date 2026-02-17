@@ -9,20 +9,20 @@ interface FitnessExerciseDetailCardProps {
   isEditable?: boolean
 }
 
-export function FitnessExerciseDetailCard({ 
-  detail, 
-  onEdit, 
-  onDelete, 
-  isEditable = false 
+export function FitnessExerciseDetailCard({
+  detail,
+  onEdit,
+  onDelete,
+  isEditable = false
 }: FitnessExerciseDetailCardProps) {
   return (
-    <div className="glass-card rounded-xl p-4 mb-3">
+    <div className="glass-card rounded-xl p-4 mb-3 w-full overflow-hidden">
       <div className="flex items-start justify-between">
         <div className="flex-1">
           <h4 className="exercise-title text-white mb-2">
             {detail.nombre_actividad || 'Ejercicio'}
           </h4>
-          
+
           {detail.descripción && (
             <p className="exercise-subtitle text-white/70 mb-3">
               {detail.descripción}
@@ -36,28 +36,28 @@ export function FitnessExerciseDetailCard({
                 <div className="exercise-meta text-white">{detail.duracion_min} min</div>
               </div>
             )}
-            
+
             {detail.one_rm && (
               <div className="glass-badge px-3 py-2 rounded-lg">
                 <div className="text-xs text-white/60">1RM</div>
                 <div className="exercise-meta text-white">{detail.one_rm} kg</div>
               </div>
             )}
-            
+
             {detail.tipo_ejercicio && (
               <div className="glass-badge px-3 py-2 rounded-lg">
                 <div className="text-xs text-white/60">Tipo</div>
                 <div className="exercise-meta text-white">{detail.tipo_ejercicio}</div>
               </div>
             )}
-            
+
             {detail.nivel_intensidad && (
               <div className="glass-badge px-3 py-2 rounded-lg">
                 <div className="text-xs text-white/60">Intensidad</div>
                 <div className="exercise-meta text-white">{detail.nivel_intensidad}</div>
               </div>
             )}
-            
+
             {detail.equipo_necesario && (
               <div className="glass-badge px-3 py-2 rounded-lg">
                 <div className="text-xs text-white/60">Equipo</div>
@@ -89,7 +89,7 @@ export function FitnessExerciseDetailCard({
                         </div>
                       ))}
                     </div>
-                    
+
                     {/* Resumen de series */}
                     <div className="mt-3 p-3 glass-badge rounded-lg">
                       <div className="text-xs text-white/60 mb-1">Resumen:</div>

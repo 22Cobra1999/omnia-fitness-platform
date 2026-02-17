@@ -17,7 +17,11 @@ interface CalendarMonthGridProps {
         fitnessMinutesPending: number
         nutritionMinutesPending: number
         pendingExercises?: number
+        totalExercises?: number
+        completedExercises?: number
         pendingPlates?: number
+        totalPlates?: number
+        completedPlates?: number
     }>
     meetEventsByDate: Record<string, any[]>
     availableSlotsCountByDay: Record<string, number>
@@ -83,8 +87,8 @@ export function CalendarMonthGrid({
                     const isBookingMode = Object.keys(availableSlotsCountByDay).length > 0;
 
                     // Check if day has fitness or nutrition activities
-                    const hasFitnessActivities = fitnessMinutes > 0 || (mins?.pendingExercises ?? 0) > 0
-                    const hasNutritionActivities = nutritionMinutes > 0 || (mins?.pendingPlates ?? 0) > 0
+                    const hasFitnessActivities = fitnessMinutes > 0 || (mins?.totalExercises ?? 0) > 0
+                    const hasNutritionActivities = nutritionMinutes > 0 || (mins?.totalPlates ?? 0) > 0
 
                     const totalPendingItems = (mins?.pendingExercises || 0)
                         + (mins?.pendingPlates || 0)
@@ -124,131 +128,124 @@ export function CalendarMonthGrid({
 
                             {/* Burbujas */}
                             <div className="flex flex-col gap-px mt-1 w-full items-center">
-                                {isBookingMode ? (
-                                    // Collapsed View for Booking Mode
-                                    totalPendingItems > 0 && (
-                                        <span className="flex items-center gap-1 text-[10px] bg-red-500/10 text-red-500 px-2 py-0.5 rounded-full font-bold leading-none border border-red-500/30">
-                                            <Flame className="w-2.5 h-2.5" />
-                                            {totalPendingItems}
+                                {/* Activities Summary (Always Detailed now) */}
+                                <div className="flex flex-col gap-0.5 w-full items-center">
+                                    {/* Fitness Bubble */}
+                                    {hasFitnessActivities && (mins.totalExercises ?? 0) > 0 && (
+                                        <span className={`flex items-center gap-1 text-[9px] px-1.5 py-0.5 rounded-full font-bold leading-none border shadow-sm ${mins.fitnessMinutesPending > 0 ? 'bg-[#FF7939]/10 text-[#FF7939] border-[#FF7939]/30' : 'bg-green-500/10 text-green-500 border-green-500/30'}`}>
+                                            <Zap className="w-2.5 h-2.5" />
+                                            {mins.completedExercises}/{mins.totalExercises}
+                                            {mins.fitnessMinutesPending > 0 && <span className="ml-0.5 opacity-70">({formatMinutes(mins.fitnessMinutesPending)})</span>}
                                         </span>
-                                    )
-                                ) : (
-                                    // Standard Detailed View
-                                    <>
-                                        {/* Fitness Minutes Bubble */}
-                                        {hasFitnessActivities && (mins?.fitnessMinutesPending > 0 || (mins?.pendingExercises ?? 0) > 0) && (
-                                            <span className="flex items-center gap-1 text-[10px] bg-[#FF7939]/10 text-[#FF7939] px-2 py-0.5 rounded-full font-bold leading-none border border-[#FF7939]/30 shadow-sm">
-                                                <Zap className="w-2.5 h-2.5" />
-                                                {mins?.fitnessMinutesPending > 0 ? formatMinutes(mins.fitnessMinutesPending) : `${mins?.pendingExercises}e`}
-                                            </span>
-                                        )}
+                                    )}
 
-                                        {hasNutritionActivities && (mins?.nutritionMinutesPending > 0 || (mins?.pendingPlates ?? 0) > 0) && (
-                                            <span className="flex items-center gap-1 text-[10px] bg-[#FFB366]/10 px-2 py-0.5 rounded-full text-[#FFB366] border border-[#FFB366]/30 leading-none font-bold">
-                                                <Utensils className="w-2.5 h-2.5" />
-                                                {mins?.nutritionMinutesPending > 0 ? formatMinutes(mins.nutritionMinutesPending) : `${mins?.pendingPlates}r`}
-                                            </span>
-                                        )}
+                                    {/* Nutrition Bubble */}
+                                    {hasNutritionActivities && (mins.totalPlates ?? 0) > 0 && (
+                                        <span className={`flex items-center gap-1 text-[9px] px-1.5 py-0.5 rounded-full font-bold border leading-none ${mins.nutritionMinutesPending > 0 ? 'bg-[#FFB366]/10 text-[#FFB366] border-[#FFB366]/30' : 'bg-green-500/10 text-green-500 border-green-500/30'}`}>
+                                            <Utensils className="w-2.5 h-2.5" />
+                                            {mins.completedPlates}/{mins.totalPlates}
+                                            {mins.nutritionMinutesPending > 0 && <span className="ml-0.5 opacity-70">({formatMinutes(mins.nutritionMinutesPending)})</span>}
+                                        </span>
+                                    )}
+                                </div>
 
-                                        {(mins?.workshopMinutesTotal > 0 || mins?.hasWorkshop) && (
-                                            <div className="flex items-center gap-1 mt-0.5 px-2 py-0.5 rounded-full border leading-none bg-blue-500/10 border-blue-500/30 text-blue-400 font-bold">
-                                                <GraduationCap className="w-2.5 h-2.5 text-blue-400" />
-                                                <span className="text-[10px]">{mins.workshopMinutesTotal > 0 ? formatMinutes(mins.workshopMinutesTotal) : 'Taller'}</span>
-                                            </div>
-                                        )}
+                                {(mins?.workshopMinutesTotal > 0 || mins?.hasWorkshop) && (
+                                    <div className="flex items-center gap-1 mt-0.5 px-2 py-0.5 rounded-full border leading-none bg-blue-500/10 border-blue-500/30 text-blue-400 font-bold">
+                                        <GraduationCap className="w-2.5 h-2.5 text-blue-400" />
+                                        <span className="text-[10px]">{mins.workshopMinutesTotal > 0 ? formatMinutes(mins.workshopMinutesTotal) : 'Taller'}</span>
+                                    </div>
+                                )}
 
-                                        {(() => {
-                                            const counts = { pending: 0, confirmed: 0, cancelled: 0 }
-                                            meets.forEach((m: any) => {
-                                                const rsvp = String(m?.rsvp_status || 'pending')
-                                                const isCancelled = m.status === 'cancelled' || rsvp === 'declined'
-                                                const isPending = !isCancelled && rsvp === 'pending'
+                                {(() => {
+                                    const counts = { pending: 0, confirmed: 0, cancelled: 0 }
+                                    meets.forEach((m: any) => {
+                                        const rsvp = String(m?.rsvp_status || 'pending')
+                                        const isCancelled = m.status === 'cancelled' || rsvp === 'declined'
+                                        const isPending = !isCancelled && rsvp === 'pending'
 
-                                                if (isCancelled) counts.cancelled++
-                                                else if (isPending) counts.pending++
-                                                else counts.confirmed++
-                                            })
+                                        if (isCancelled) counts.cancelled++
+                                        else if (isPending) counts.pending++
+                                        else counts.confirmed++
+                                    })
 
-                                            // Separate Workshops from Meets inside the 'meets' array if they are typed 'workshop'
-                                            // Actually, the 'meets' list might contain 'workshop' type events too.
-                                            const meetOnly = meets.filter(m => m.event_type !== 'workshop')
-                                            const workshopEvents = meets.filter(m => m.event_type === 'workshop')
+                                    // Separate Workshops from Meets inside the 'meets' array if they are typed 'workshop'
+                                    // Actually, the 'meets' list might contain 'workshop' type events too.
+                                    const meetOnly = meets.filter(m => m.event_type !== 'workshop')
+                                    const workshopEvents = meets.filter(m => m.event_type === 'workshop')
 
-                                            const getMeetCounts = (evs: any[]) => {
-                                                const c = { pending: 0, confirmed: 0, cancelled: 0 }
-                                                evs.forEach((m: any) => {
-                                                    const rsvp = String(m?.rsvp_status || 'pending')
-                                                    const isCancelled = m.status === 'cancelled' || rsvp === 'declined'
-                                                    const isPending = !isCancelled && rsvp === 'pending'
-                                                    if (isCancelled) c.cancelled++
-                                                    else if (isPending) c.pending++
-                                                    else c.confirmed++
-                                                })
-                                                return c
-                                            }
+                                    const getMeetCounts = (evs: any[]) => {
+                                        const c = { pending: 0, confirmed: 0, cancelled: 0 }
+                                        evs.forEach((m: any) => {
+                                            const rsvp = String(m?.rsvp_status || 'pending')
+                                            const isCancelled = m.status === 'cancelled' || rsvp === 'declined'
+                                            const isPending = !isCancelled && rsvp === 'pending'
+                                            if (isCancelled) c.cancelled++
+                                            else if (isPending) c.pending++
+                                            else c.confirmed++
+                                        })
+                                        return c
+                                    }
 
-                                            const mCounts = getMeetCounts(meetOnly)
-                                            const wCounts = getMeetCounts(workshopEvents)
+                                    const mCounts = getMeetCounts(meetOnly)
+                                    const wCounts = getMeetCounts(workshopEvents)
 
-                                            return (
-                                                <div className="flex flex-col items-center gap-0.5 mt-0.5">
-                                                    {/* Workshop Event Bubbles (if any in meets array) */}
-                                                    {(wCounts.confirmed > 0 || wCounts.pending > 0 || wCounts.cancelled > 0) && (
-                                                        <div className="flex flex-wrap items-center justify-center gap-1">
-                                                            {wCounts.pending > 0 && (
-                                                                <div className="flex items-center gap-0.5 px-1.5 py-0.5 rounded-full border leading-none bg-yellow-500/10 border-yellow-500/30 text-yellow-500">
-                                                                    <GraduationCap className="w-2.5 h-2.5" />
-                                                                    {wCounts.pending > 1 && <span className="text-[9px] font-bold">{wCounts.pending}</span>}
-                                                                </div>
-                                                            )}
-                                                            {wCounts.confirmed > 0 && (
-                                                                <div className="flex items-center gap-0.5 px-1.5 py-0.5 rounded-full border leading-none bg-[#FF7939]/10 border-[#FF7939]/30 text-[#FF7939]">
-                                                                    <GraduationCap className="w-2.5 h-2.5" />
-                                                                    {wCounts.confirmed > 1 && <span className="text-[9px] font-bold">{wCounts.confirmed}</span>}
-                                                                </div>
-                                                            )}
-                                                            {wCounts.cancelled > 0 && (
-                                                                <div className="flex items-center gap-0.5 px-1.5 py-0.5 rounded-full border leading-none bg-red-500/10 border-red-500/30 text-red-500">
-                                                                    <GraduationCap className="w-2.5 h-2.5" />
-                                                                    {wCounts.cancelled > 1 && <span className="text-[9px] font-bold">{wCounts.cancelled}</span>}
-                                                                </div>
-                                                            )}
+                                    return (
+                                        <div className="flex flex-col items-center gap-0.5 mt-0.5">
+                                            {/* Workshop Event Bubbles (if any in meets array) */}
+                                            {(wCounts.confirmed > 0 || wCounts.pending > 0 || wCounts.cancelled > 0) && (
+                                                <div className="flex flex-wrap items-center justify-center gap-1">
+                                                    {wCounts.pending > 0 && (
+                                                        <div className="flex items-center gap-0.5 px-1.5 py-0.5 rounded-full border leading-none bg-yellow-500/10 border-yellow-500/30 text-yellow-500">
+                                                            <GraduationCap className="w-2.5 h-2.5" />
+                                                            {wCounts.pending > 1 && <span className="text-[9px] font-bold">{wCounts.pending}</span>}
                                                         </div>
                                                     )}
-
-                                                    {/* Meet Bubbles */}
-                                                    {(mCounts.confirmed > 0 || mCounts.pending > 0 || mCounts.cancelled > 0) && (
-                                                        <div className="flex flex-wrap items-center justify-center gap-1">
-                                                            {mCounts.pending > 0 && (
-                                                                <div className="flex items-center gap-0.5 px-1.5 py-0.5 rounded-full border leading-none bg-yellow-500/10 border-yellow-500/30 text-yellow-500">
-                                                                    <Video className="w-2.5 h-2.5" />
-                                                                    {mCounts.pending > 1 && <span className="text-[9px] font-bold">{mCounts.pending}</span>}
-                                                                </div>
-                                                            )}
-                                                            {mCounts.confirmed > 0 && (
-                                                                <div className="flex items-center gap-0.5 px-1.5 py-0.5 rounded-full border leading-none bg-[#FF7939]/10 border-[#FF7939]/30 text-[#FF7939]">
-                                                                    <Video className="w-2.5 h-2.5" />
-                                                                    {mCounts.confirmed > 1 && <span className="text-[9px] font-bold">{mCounts.confirmed}</span>}
-                                                                </div>
-                                                            )}
-                                                            {mCounts.cancelled > 0 && (
-                                                                <div className="flex items-center gap-0.5 px-1.5 py-0.5 rounded-full border leading-none bg-red-500/10 border-red-500/30 text-red-500">
-                                                                    <Video className="w-2.5 h-2.5" />
-                                                                    {mCounts.cancelled > 1 && <span className="text-[9px] font-bold">{mCounts.cancelled}</span>}
-                                                                </div>
-                                                            )}
+                                                    {wCounts.confirmed > 0 && (
+                                                        <div className="flex items-center gap-0.5 px-1.5 py-0.5 rounded-full border leading-none bg-[#FF7939]/10 border-[#FF7939]/30 text-[#FF7939]">
+                                                            <GraduationCap className="w-2.5 h-2.5" />
+                                                            {wCounts.confirmed > 1 && <span className="text-[9px] font-bold">{wCounts.confirmed}</span>}
+                                                        </div>
+                                                    )}
+                                                    {wCounts.cancelled > 0 && (
+                                                        <div className="flex items-center gap-0.5 px-1.5 py-0.5 rounded-full border leading-none bg-red-500/10 border-red-500/30 text-red-500">
+                                                            <GraduationCap className="w-2.5 h-2.5" />
+                                                            {wCounts.cancelled > 1 && <span className="text-[9px] font-bold">{wCounts.cancelled}</span>}
                                                         </div>
                                                     )}
                                                 </div>
-                                            )
-                                        })()}
-                                    </>
-                                )}
+                                            )}
+
+                                            {/* Meet Bubbles */}
+                                            {(mCounts.confirmed > 0 || mCounts.pending > 0 || mCounts.cancelled > 0) && (
+                                                <div className="flex flex-wrap items-center justify-center gap-1">
+                                                    {mCounts.pending > 0 && (
+                                                        <div className="flex items-center gap-0.5 px-1.5 py-0.5 rounded-full border leading-none bg-yellow-500/10 border-yellow-500/30 text-yellow-500">
+                                                            <Video className="w-2.5 h-2.5" />
+                                                            {mCounts.pending > 1 && <span className="text-[9px] font-bold">{mCounts.pending}</span>}
+                                                        </div>
+                                                    )}
+                                                    {mCounts.confirmed > 0 && (
+                                                        <div className="flex items-center gap-0.5 px-1.5 py-0.5 rounded-full border leading-none bg-[#FF7939]/10 border-[#FF7939]/30 text-[#FF7939]">
+                                                            <Video className="w-2.5 h-2.5" />
+                                                            {mCounts.confirmed > 1 && <span className="text-[9px] font-bold">{mCounts.confirmed}</span>}
+                                                        </div>
+                                                    )}
+                                                    {mCounts.cancelled > 0 && (
+                                                        <div className="flex items-center gap-0.5 px-1.5 py-0.5 rounded-full border leading-none bg-red-500/10 border-red-500/30 text-red-500">
+                                                            <Video className="w-2.5 h-2.5" />
+                                                            {mCounts.cancelled > 1 && <span className="text-[9px] font-bold">{mCounts.cancelled}</span>}
+                                                        </div>
+                                                    )}
+                                                </div>
+                                            )}
+                                        </div>
+                                    );
+                                })()}
                             </div>
                         </button>
-                    )
+                    );
                 })}
             </div>
         </>
-    )
+    );
 }

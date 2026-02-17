@@ -1,4 +1,4 @@
-import { useState, useRef, useEffect } from "react"
+import { useState, useRef, useEffect, useMemo } from "react"
 import { Client } from "../types"
 
 // Helper
@@ -65,6 +65,50 @@ export function useClientDetailLogic(selectedClient: Client | null) {
     // Modals & Selection states
     const [selectedBiometric, setSelectedBiometric] = useState<any>(null)
     const [biometricsModalMode, setBiometricsModalMode] = useState<'register' | 'edit'>('register')
+
+    // Derived Data
+    const processedBiometrics = useMemo(() => {
+        const biometrics = clientDetail?.client?.biometrics || []
+        if (!Array.isArray(biometrics)) return []
+
+        const groups: { [key: string]: any[] } = {}
+        const profileMetrics = [
+            { name: 'Peso', value: clientDetail?.client?.physicalData?.weight, unit: 'kg', id: 'profile-weight', created_at: new Date().toISOString() },
+            { name: 'Altura', value: clientDetail?.client?.physicalData?.height, unit: 'cm', id: 'profile-height', created_at: new Date().toISOString() }
+        ]
+
+        const allBios = [...profileMetrics.filter(m => m.value), ...biometrics]
+
+        allBios.forEach(b => {
+            if (!groups[b.name]) groups[b.name] = []
+            groups[b.name].push(b)
+        })
+
+        return Object.keys(groups).map(name => {
+            const sorted = groups[name].sort((a, b) =>
+                new Date(b.created_at || 0).getTime() - new Date(a.created_at || 0).getTime()
+            )
+
+            const current = sorted[0]
+            const previous = sorted[1]
+
+            let trend = 'neutral'
+            let diff = 0
+
+            if (previous) {
+                diff = current.value - previous.value
+                if (diff > 0) trend = 'up'
+                else if (diff < 0) trend = 'down'
+            }
+
+            return {
+                ...current,
+                trend,
+                previousValue: previous?.value,
+                diff: Math.abs(diff)
+            }
+        })
+    }, [clientDetail])
 
     // Functions
     const fetchClientDetail = async (clientId: string) => {
@@ -320,6 +364,10 @@ export function useClientDetailLogic(selectedClient: Client | null) {
         }
     }, [selectedClient])
 
+    const handleNavigateToTab = (tab: string, section?: string) => {
+        window.dispatchEvent(new CustomEvent('navigateToTab', { detail: { tab, section } }))
+    }
+
     return {
         clientDetail,
         loadingDetail,
@@ -360,6 +408,7 @@ export function useClientDetailLogic(selectedClient: Client | null) {
         setSelectedBiometric,
         biometricsModalMode,
         setBiometricsModalMode,
+        processedBiometrics,
         handleSaveBiometricInternal,
         handleDeleteBiometricInternal,
         handleSaveInjuriesInternal,
@@ -382,6 +431,7 @@ export function useClientDetailLogic(selectedClient: Client | null) {
         // Refs & Utils
         calendarScrollRef,
         preserveModalScrollPosition,
-        calculateAge
+        calculateAge,
+        handleNavigateToTab
     }
 }

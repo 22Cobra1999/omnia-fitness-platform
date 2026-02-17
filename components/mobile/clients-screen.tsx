@@ -103,9 +103,9 @@ export function ClientsScreen() {
       </div>
 
       {/* Client list */}
-      <div className="grid grid-cols-3 gap-3 w-full">
+      <div className="grid grid-cols-2 sm:grid-cols-3 gap-3 w-full">
         {filteredClients.length === 0 ? (
-          <div className="text-center py-12 col-span-3">
+          <div className="text-center py-12 col-span-2 sm:col-span-3">
             <Users className="h-12 w-12 text-gray-500 mx-auto mb-4" />
             <p className="text-gray-400 mb-2">
               {searchTerm ? 'No se encontraron clientes' : 'No hay clientes'}

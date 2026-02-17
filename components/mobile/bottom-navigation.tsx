@@ -228,7 +228,7 @@ export function BottomNavigation({ activeTab, setActiveTab }: BottomNavigationPr
   // Don't render until component is mounted to avoid hydration mismatch
   if (!isMounted) {
     return (
-      <div className="fixed bottom-0 left-0 right-0 z-50 bg-[#1E1E1E] border-t border-gray-800 h-16 flex items-center justify-around">
+      <div className="fixed bottom-0 left-0 right-0 z-[1000] bg-[#1E1E1E] border-t border-gray-800 h-16 flex items-center justify-around">
         {/* Placeholder for hydration */}
         <div className="flex flex-col items-center justify-center w-1/5 h-full text-gray-400">
           <div className="h-5 w-5 mb-1"></div>
@@ -255,7 +255,7 @@ export function BottomNavigation({ activeTab, setActiveTab }: BottomNavigationPr
   }
 
   return (
-    <div className="fixed bottom-0 left-0 right-0 z-50 bg-[#1E1E1E] border-t border-gray-800 h-16 flex items-center justify-around">
+    <div className="fixed bottom-0 left-0 right-0 z-[1000] bg-[#1E1E1E] border-t border-gray-800 h-16 flex items-center justify-around">
       {renderTabs()}
     </div>
   )

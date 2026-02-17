@@ -7,7 +7,7 @@ import { Label } from "@/components/ui/label"
 import { Textarea } from "@/components/ui/textarea"
 import { Select, SelectContent, SelectGroup, SelectItem, SelectLabel, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Switch } from "@/components/ui/switch"
-import { ChevronLeft, ChevronRight, ChevronDown, Plus, X, Upload, Calendar, Clock, Users, FileText, Eye, Edit, Check, Video, Play, Image as ImageIcon, Globe, MapPin, Trash2, Target, DollarSign, Eye as EyeIcon, EyeOff, Pencil, Flame, Lock, Unlock, Coins, MonitorSmartphone, Loader2, RotateCcw, RefreshCw, ExternalLink, UtensilsCrossed, Zap, FileUp, Trash } from "lucide-react"
+import { ChevronDown, Plus, Upload, Calendar, FileText, Eye, Edit, Trash2, Eye as EyeIcon, EyeOff, Loader2 } from "lucide-react"
 import { motion, AnimatePresence } from "framer-motion"
 import { ProductPreviewCard } from '@/components/shared/products/product-preview-card'
 import ActivityCard from '@/components/shared/activities/ActivityCard'
@@ -20,6 +20,11 @@ import { StepGeneralForm } from './components/step-general-form'
 import { WorkshopMaterialStep } from './wizard-steps/workshop-material-step'
 import { DocumentMaterialStep } from './wizard-steps/document-material-step'
 import { PreviewStep } from './wizard-steps/preview-step'
+import { WeeklyPlanStep } from './wizard-steps/weekly-plan-step'
+import { WorkshopScheduleStep } from './wizard-steps/workshop-schedule-step'
+import { WizardHeader } from './components/wizard-header'
+import { WizardFooter } from './components/wizard-footer'
+import { SourceSelectionModal, PdfChoiceModal, CloseConfirmationModal } from './components/wizard-dialogs'
 import {
   PLAN_COMMISSIONS,
   PLAN_LABELS,
@@ -269,7 +274,7 @@ export default function CreateProductModal({ isOpen, onClose, editingProduct, in
           initial={{ opacity: 0 }}
           animate={{ opacity: 1 }}
           exit={{ opacity: 0 }}
-          className="fixed inset-0 bg-black z-[60] flex items-center justify-center px-4 pt-16 pb-16 sm:pt-16 sm:pb-16"
+          className="fixed inset-0 bg-black/40 backdrop-blur-[2px] z-[100] flex items-center justify-center px-4 pt-16 pb-16 sm:pt-20 sm:pb-20"
           onClick={(e) => {
             // Cerrar solo si se hace click en el overlay, no en el modal
             if (e.target === e.currentTarget) {
@@ -285,47 +290,15 @@ export default function CreateProductModal({ isOpen, onClose, editingProduct, in
             onClick={(e) => e.stopPropagation()}
           >
             {/* Header del modal */}
-            <div className="flex items-center justify-between p-4 sm:p-6 border-b border-white/10 bg-[#0b0b0b]">
-              <div className="flex items-center gap-4">
-                <button
-                  onClick={() => handleClose()}
-                  className="p-2 text-gray-400 hover:text-white transition-colors"
-                >
-                  <X className="h-6 w-6" />
-                </button>
-                <h2 className="text-xl font-bold text-white">
-                  {currentStep === 'type' ? 'Tipo de producto' :
-                    currentStep === 'programType' ? 'Categoría' :
-                      currentStep === 'general' ? 'Información General' :
-                        currentStep === 'weeklyPlan' ? 'Planificación' :
-                          currentStep === 'workshopSchedule' ? 'Organización' :
-                            currentStep === 'workshopMaterial' || currentStep === 'documentMaterial' ? 'Material' :
-                              currentStep === 'preview' ? 'Preview' :
-                                'Crear Producto'}
-                </h2>
-              </div>
-
-              {/* Progress Dots */}
-              <div className="flex items-center gap-1.5 px-2">
-                {Array.from({ length: totalSteps }).map((_, index) => {
-                  const stepNum = index + 1
-                  const isActive = stepNum === currentStepNumber
-                  const isPast = stepNum < currentStepNumber
-                  return (
-                    <div
-                      key={stepNum}
-                      className={`h-1.5 transition-all duration-300 rounded-full ${isActive ? 'w-10 bg-[#FF7939]' :
-                        isPast ? 'w-2 bg-[#FF7939]/40' :
-                          'w-2 bg-white/10'
-                        }`}
-                    />
-                  )
-                })}
-              </div>
-            </div>
+            <WizardHeader
+              currentStep={currentStep}
+              currentStepNumber={currentStepNumber}
+              totalSteps={totalSteps}
+              handleClose={handleClose}
+            />
 
             {/* Contenido del modal - Scrollable */}
-            <div className="flex-1 overflow-y-auto p-2 sm:p-4 bg-[#0b0b0b]">
+            <div className="flex-1 overflow-y-auto overflow-x-hidden p-2 sm:p-4 bg-[#0b0b0b] overscroll-contain touch-auto">
               {/* Paso 1: Tipo de Producto */}
               {currentStep === 'type' && (
                 <StepTypeSelector onSelect={handleTypeSelect} selected={selectedType} />
@@ -394,54 +367,28 @@ export default function CreateProductModal({ isOpen, onClose, editingProduct, in
 
               {/* Otros pasos (Material, etc) - se mantienen como estaban o se ajustan si es necesario */}
               {currentStep === 'weeklyPlan' && (
-                <div className="space-y-6">
-                  {coachCatalogError && (
-                    <div className="text-xs text-red-400">{coachCatalogError}</div>
-                  )}
-                  <WeeklyExercisePlanner
-                    activityId={editingProduct?.id}
-                    exercises={(persistentCsvData && persistentCsvData.length > 0 ? persistentCsvData : coachCatalogExercises) || []}
-                    productCategory={productCategory}
-                    initialSchedule={persistentCalendarSchedule}
-                    initialPeriods={periods}
-                    onScheduleChange={setPersistentCalendarSchedule}
-                    onPeriodsChange={setPeriods}
-                    onStatsChange={(stats: any) => {
-                      setWeeklyStats({
-                        semanas: stats?.totalWeeks ?? 0,
-                        sesiones: stats?.totalSessions ?? stats?.totalDays ?? 0,
-                        ejerciciosTotales: stats?.totalExercisesReplicated ?? stats?.totalExercises ?? 0,
-                        ejerciciosUnicos: stats?.uniqueExercises ?? 0
-                      })
-                    }}
-                    planLimits={{
-                      weeksLimit: getPlanLimit(planType, 'weeksPerProduct')
-                    }}
-                  />
-
-                  {coachCatalogLoading && (
-                    <div className="text-xs text-gray-500">Cargando ejercicios…</div>
-                  )}
-                </div>
+                <WeeklyPlanStep
+                  editingProduct={editingProduct}
+                  persistentCsvData={persistentCsvData}
+                  coachCatalogExercises={coachCatalogExercises}
+                  productCategory={productCategory}
+                  persistentCalendarSchedule={persistentCalendarSchedule}
+                  periods={periods}
+                  setPersistentCalendarSchedule={setPersistentCalendarSchedule}
+                  setPeriods={setPeriods}
+                  setWeeklyStats={setWeeklyStats}
+                  coachCatalogError={coachCatalogError}
+                  coachCatalogLoading={coachCatalogLoading}
+                  planType={planType}
+                />
               )}
 
               {currentStep === 'workshopSchedule' && (
-                <div className="space-y-6">
-                  <WorkshopSimpleScheduler
-                    sessions={workshopSchedule}
-                    onSessionsChange={(sessions) => {
-                      setWorkshopSchedule(sessions)
-                      // Update stats for workshops
-                      const uniqueDays = new Set(sessions.map(s => s.date)).size
-                      const uniqueThemes = new Set(sessions.map(s => s.title).filter(Boolean)).size
-                      setWeeklyStats(prev => ({
-                        ...prev,
-                        sesiones: uniqueDays,
-                        ejerciciosUnicos: uniqueThemes
-                      }))
-                    }}
-                  />
-                </div>
+                <WorkshopScheduleStep
+                  workshopSchedule={workshopSchedule}
+                  setWorkshopSchedule={setWorkshopSchedule}
+                  setWeeklyStats={setWeeklyStats}
+                />
               )}
 
               {currentStep === 'workshopMaterial' && selectedType === 'workshop' && (
@@ -486,118 +433,36 @@ export default function CreateProductModal({ isOpen, onClose, editingProduct, in
               )}
             </div>
 
-            {/* Footer con botones de navegación (Screenshot 1 Layout) */}
-            <div className="sticky bottom-0 z-50 bg-[#0b0b0b] h-20 flex items-center justify-between px-6 pb-[calc(env(safe-area-inset-bottom)+8px)] border-t border-white/5">
-              <Button
-                onClick={() => {
-                  const prevStepNumber = currentStepNumber - 1
-                  if (prevStepNumber >= 1) {
-                    goToStep(prevStepNumber)
-                  } else {
-                    onClose(false)
-                  }
-                }}
-                className="bg-[#FF7939] hover:bg-[#E66829] text-white font-bold px-6 h-11 rounded-xl shadow-lg flex items-center gap-2 border-none"
-              >
-                <ChevronLeft className="h-4 w-4" />
-                Atrás
-              </Button>
-
-              <div className="flex gap-3">
-                {currentStep === 'preview' ? (
-                  <Button
-                    onClick={handlePublishProduct}
-                    disabled={isPublishing}
-                    className="bg-[#FF7939] hover:bg-[#E66829] text-white font-bold px-8 h-11 rounded-xl"
-                  >
-                    {isPublishing ? (
-                      <>
-                        <Loader2 className="h-4 w-4 mr-2 animate-spin" />
-                        Publicando...
-                      </>
-                    ) : (
-                      'Publicar'
-                    )}
-                  </Button>
-                ) : (
-                  <button
-                    onClick={() => {
-                      const nextStepNumber = currentStepNumber + 1
-                      if (nextStepNumber <= totalSteps) {
-                        goToStep(nextStepNumber)
-                      }
-                    }}
-                    disabled={!selectedType || (currentStep === 'programType' && selectedType === 'program' && !selectedProgramType)}
-                    className="text-[#FF7939] font-bold hover:opacity-80 transition-opacity flex items-center gap-2 px-4 h-11 disabled:opacity-30"
-                  >
-                    Siguiente
-                    <ChevronRight className="h-4 w-4" />
-                  </button>
-                )}
-              </div>
-            </div>
+            {/* Footer con botones de navegación */}
+            <WizardFooter
+              currentStep={currentStep}
+              currentStepNumber={currentStepNumber}
+              totalSteps={totalSteps}
+              goToStep={goToStep}
+              onClose={onClose}
+              handlePublishProduct={handlePublishProduct}
+              isPublishing={isPublishing}
+              selectedType={selectedType}
+              selectedProgramType={selectedProgramType}
+            />
           </motion.div>
         </motion.div>
       )
       }
 
       {/* Modal de selección de fuente para medios (Foto/Video) */}
-      {showMediaSourceModal && (
-        <div key="media-source-modal" className="fixed inset-0 z-[60] flex items-center justify-center p-4 bg-black/80 backdrop-blur-sm">
-          <motion.div
-            initial={{ opacity: 0, scale: 0.95 }}
-            animate={{ opacity: 1, scale: 1 }}
-            className="bg-[#0A0A0A] border border-white/10 rounded-lg p-6 max-w-md w-full shadow-2xl mx-4"
-            onClick={(e) => e.stopPropagation()}
-          >
-            <h3 className="text-lg font-semibold text-white mb-4">Seleccionar fuente</h3>
-            <p className="text-sm text-gray-400 mb-6">
-              Elegí si querés usar un archivo existente o subir uno nuevo.
-            </p>
-
-            <div className="grid grid-cols-2 gap-3">
-              <button
-                type="button"
-                onClick={() => {
-                  setShowMediaSourceModal(false)
-                  setMediaModalType(inlineMediaType === 'video' ? 'video' : 'image')
-                  setIsMediaModalOpen(true)
-                }}
-                className="p-4 rounded-lg border border-white/10 bg-black hover:border-[#FF7939]/50 hover:bg-white/5 transition-all text-center group"
-              >
-                <ImageIcon className="h-6 w-6 mb-2 text-[#FF7939] mx-auto group-hover:scale-110 transition-transform" />
-                <div className="text-sm font-semibold text-white">Existentes</div>
-                <div className="text-xs text-gray-400 mt-1">De tu galería</div>
-              </button>
-
-              <div
-                className="relative p-4 rounded-lg border border-white/10 bg-black hover:border-[#FF7939]/50 hover:bg-white/5 transition-all text-center group overflow-hidden"
-              >
-                <input
-                  type="file"
-                  accept={inlineMediaType === 'image' ? 'image/*' : 'video/*'}
-                  onChange={(e) => {
-                    console.log('🖼️ [Overlay Media] Change detectado')
-                    handleInlineUploadChange(e)
-                  }}
-                  className="absolute inset-0 w-full h-full opacity-0 cursor-pointer z-10"
-                />
-                <Upload className="h-6 w-6 mb-2 text-[#FF7939] mx-auto group-hover:scale-110 transition-transform" />
-                <div className="text-sm font-semibold text-white">Nuevo</div>
-                <div className="text-xs text-gray-400 mt-1">Subir archivo</div>
-              </div>
-            </div>
-
-            <button
-              type="button"
-              onClick={() => setShowMediaSourceModal(false)}
-              className="mt-6 w-full px-4 py-2 rounded-lg border border-white/10 bg-white/5 hover:bg-white/10 transition-all text-white text-sm"
-            >
-              Cancelar
-            </button>
-          </motion.div>
-        </div>
-      )}
+      <SourceSelectionModal
+        key="source-selection-modal"
+        isOpen={showMediaSourceModal}
+        onClose={() => setShowMediaSourceModal(false)}
+        onSelectExisting={() => {
+          setShowMediaSourceModal(false)
+          setMediaModalType(inlineMediaType === 'video' ? 'video' : 'image')
+          setIsMediaModalOpen(true)
+        }}
+        handleInlineUploadChange={handleInlineUploadChange}
+        mediaType={inlineMediaType === 'video' ? 'video' : 'image'}
+      />
 
       {/* Modal de selección de archivos (Galería) */}
       <MediaSelectionModal
@@ -619,45 +484,12 @@ export default function CreateProductModal({ isOpen, onClose, editingProduct, in
       />
 
       {/* Choice Modal for PDF: Existing vs New */}
-      {showPdfSelectionModal && (
-        <div key="pdf-choice-modal" className="fixed inset-0 z-[70] flex items-center justify-center p-4 bg-black/60 backdrop-blur-md">
-          <motion.div
-            initial={{ opacity: 0, scale: 0.9 }}
-            animate={{ opacity: 1, scale: 1 }}
-            className="bg-[#0b0b0b] border border-white/10 p-6 rounded-2xl max-w-sm w-full shadow-2xl"
-          >
-            <h3 className="text-xl font-bold text-white mb-2">Asignar Documento</h3>
-            <p className="text-sm text-gray-400 mb-6">
-              Elegí cómo querés agregar el documento PDF.
-            </p>
-            <div className="grid grid-cols-1 gap-3">
-              <Button
-                onClick={() => handlePdfSelectionChoice('existing')}
-                className="bg-white/5 border border-white/10 text-white hover:bg-white/10 py-6 h-auto flex flex-col items-center gap-1"
-              >
-                <Check className="h-5 w-5 text-green-500" />
-                <span>Elegir Existente</span>
-                <span className="text-[10px] opacity-50 font-normal">De tu biblioteca de archivos</span>
-              </Button>
-              <Button
-                onClick={() => handlePdfSelectionChoice('new')}
-                className="bg-[#FF7939]/20 border border-[#FF7939]/30 text-white hover:bg-[#FF7939]/30 py-6 h-auto flex flex-col items-center gap-1"
-              >
-                <Upload className="h-5 w-5 text-[#FF7939]" />
-                <span>Subir Nuevo</span>
-                <span className="text-[10px] opacity-50 font-normal">Desde tu computadora</span>
-              </Button>
-              <Button
-                variant="ghost"
-                onClick={() => setShowPdfSelectionModal(false)}
-                className="text-gray-400 mt-2"
-              >
-                Cancelar
-              </Button>
-            </div>
-          </motion.div>
-        </div>
-      )}
+      <PdfChoiceModal
+        key="pdf-choice-modal"
+        isOpen={showPdfSelectionModal}
+        onClose={() => setShowPdfSelectionModal(false)}
+        onSelectChoice={handlePdfSelectionChoice}
+      />
 
       {/* Gallery Modal for PDFs */}
       <MediaSelectionModal
@@ -670,37 +502,12 @@ export default function CreateProductModal({ isOpen, onClose, editingProduct, in
       />
 
       {/* Modal de confirmación de cierre */}
-      {showCloseConfirmation && (
-        <div key="close-confirmation-modal" className="fixed inset-0 z-[60] flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm">
-          <motion.div
-            initial={{ opacity: 0, scale: 0.95 }}
-            animate={{ opacity: 1, scale: 1 }}
-            exit={{ opacity: 0, scale: 0.95 }}
-            className="bg-[#1C1C1E] border border-white/10 rounded-xl p-6 max-w-sm w-full shadow-2xl"
-            onClick={(e) => e.stopPropagation()}
-          >
-            <h3 className="text-lg font-bold text-white mb-2">¿Descartar cambios?</h3>
-            <p className="text-sm text-gray-400 mb-6">
-              Tienes cambios sin guardar. Si cierras ahora, se perderán.
-            </p>
-            <div className="flex gap-3">
-              <Button
-                variant="outline"
-                onClick={cancelClose}
-                className="flex-1 border-white/10 hover:bg-white/5 text-white"
-              >
-                Continuar editando
-              </Button>
-              <Button
-                onClick={confirmClose}
-                className="flex-1 bg-red-500 hover:bg-red-600 text-white border-none"
-              >
-                Descartar y cerrar
-              </Button>
-            </div>
-          </motion.div>
-        </div>
-      )}
+      <CloseConfirmationModal
+        key="close-confirmation-modal"
+        isOpen={showCloseConfirmation}
+        onCancel={cancelClose}
+        onConfirm={confirmClose}
+      />
     </AnimatePresence >
   )
 }

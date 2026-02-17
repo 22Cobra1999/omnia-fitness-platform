@@ -193,7 +193,7 @@ export function useCoachCalendarLogic() {
                         .select('id', { count: 'exact' })
                         .in('event_id', ids)
                         .eq('rsvp_status', 'pending')
-                        .neq('participant_role', 'coach')
+                        .neq('role', 'coach')
                     pendingRsvpCount = Number(count || 0)
                 }
 

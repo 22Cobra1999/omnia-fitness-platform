@@ -42,33 +42,37 @@ export const StepProgramType: React.FC<StepProgramTypeProps> = ({
             {/* Categoría */}
             <div className="space-y-4">
                 <h2 className="text-xl font-bold text-white px-2">¿En qué categoría se enfoca tu producto?</h2>
-                <div className="flex gap-3 px-2">
+                <div className="flex gap-4 px-2">
                     <button
                         onClick={() => onSelectCategory('fitness')}
-                        className={`flex-1 py-3 px-4 rounded-xl border flex items-center justify-center gap-2 font-bold transition-all ${selectedCategory === 'fitness'
-                            ? 'border-[#FF7939] bg-[#FF7939]/10 text-white'
-                            : 'border-white/10 bg-[#0A0A0A] text-gray-400'
+                        className={`flex-1 py-4 px-4 rounded-2xl border flex flex-col items-center justify-center gap-2 font-black transition-all duration-300 backdrop-blur-md ${selectedCategory === 'fitness'
+                            ? 'border-[#FF7939] bg-[#FF7939]/15 text-white shadow-[0_0_20px_rgba(255,121,57,0.15)] ring-1 ring-[#FF7939]/30'
+                            : 'border-white/10 bg-white/5 text-gray-400 hover:border-white/20 hover:bg-white/10'
                             }`}
                     >
-                        <Flame className={`h-5 w-5 ${selectedCategory === 'fitness' ? 'text-[#FF7939]' : ''}`} />
-                        Fitness
+                        <div className={`p-2 rounded-lg ${selectedCategory === 'fitness' ? 'bg-[#FF7939]/20' : 'bg-white/5'}`}>
+                            <Flame className={`h-6 w-6 ${selectedCategory === 'fitness' ? 'text-[#FF7939]' : 'text-gray-500'}`} />
+                        </div>
+                        <span className="text-xs uppercase tracking-widest">Fitness</span>
                     </button>
                     <button
                         onClick={() => onSelectCategory('nutrition')}
-                        className={`flex-1 py-3 px-4 rounded-xl border flex items-center justify-center gap-2 font-bold transition-all ${selectedCategory === 'nutrition'
-                            ? 'border-[#FF7939] bg-[#FF7939]/10 text-white'
-                            : 'border-white/10 bg-[#0A0A0A] text-gray-400'
+                        className={`flex-1 py-4 px-4 rounded-2xl border flex flex-col items-center justify-center gap-2 font-black transition-all duration-300 backdrop-blur-md ${selectedCategory === 'nutrition'
+                            ? 'border-[#FF7939] bg-[#FF7939]/15 text-white shadow-[0_0_20px_rgba(255,121,57,0.15)] ring-1 ring-[#FF7939]/30'
+                            : 'border-white/10 bg-white/5 text-gray-400 hover:border-white/20 hover:bg-white/10'
                             }`}
                     >
-                        <UtensilsCrossed className={`h-5 w-5 ${selectedCategory === 'nutrition' ? 'text-[#FF7939]' : ''}`} />
-                        Nutrición
+                        <div className={`p-2 rounded-lg ${selectedCategory === 'nutrition' ? 'bg-[#FF7939]/20' : 'bg-white/5'}`}>
+                            <UtensilsCrossed className={`h-6 w-6 ${selectedCategory === 'nutrition' ? 'text-[#FF7939]' : 'text-gray-500'}`} />
+                        </div>
+                        <span className="text-xs uppercase tracking-widest">Nutrición</span>
                     </button>
                 </div>
             </div>
 
             {/* Visibilidad */}
             <div className="px-2">
-                <div className="p-5 rounded-2xl border border-white/10 bg-[#0A0A0A] flex items-center justify-between">
+                <div className="p-5 rounded-2xl border border-white/10 bg-white/5 backdrop-blur-md flex items-center justify-between">
                     <div className="flex gap-4">
                         <div className="p-3 rounded-lg bg-white/5 border border-white/5">
                             <Lock className="h-5 w-5 text-[#FF7939]" />
@@ -95,18 +99,20 @@ export const StepProgramType: React.FC<StepProgramTypeProps> = ({
                     <p className="text-xs text-gray-500">Cómo lo recibe tu cliente.</p>
                 </div>
 
-                <div className="grid gap-3">
+                <div className="grid gap-4">
                     <button
                         onClick={() => onSelectModality('online')}
-                        className={`p-5 rounded-xl border text-left transition-all ${modality === 'online'
-                            ? 'border-[#FF7939] bg-[#FF7939]/10'
-                            : 'border-white/10 bg-[#0A0A0A]'
+                        className={`p-5 rounded-2xl border text-left transition-all duration-300 backdrop-blur-md ${modality === 'online'
+                            ? 'border-[#FF7939] bg-[#FF7939]/10 ring-1 ring-[#FF7939]/30 shadow-[0_0_20px_rgba(255,121,57,0.1)]'
+                            : 'border-white/10 bg-white/5 hover:border-white/20 hover:bg-white/10'
                             }`}
                     >
                         <div className="flex items-center gap-4">
-                            <Monitor className={`h-5 w-5 ${modality === 'online' ? 'text-[#FF7939]' : 'text-gray-400'}`} />
+                            <div className={`p-3 rounded-xl ${modality === 'online' ? 'bg-[#FF7939]/20' : 'bg-white/5 border border-white/5'}`}>
+                                <Monitor className={`h-6 w-6 ${modality === 'online' ? 'text-[#FF7939]' : 'text-gray-500'}`} />
+                            </div>
                             <div>
-                                <h4 className="text-base font-bold text-white">100% Online</h4>
+                                <h4 className="text-base font-bold text-white tracking-wide">100% Online</h4>
                                 <p className="text-xs text-gray-500">Acceso desde Omnia.</p>
                             </div>
                         </div>
@@ -114,15 +120,17 @@ export const StepProgramType: React.FC<StepProgramTypeProps> = ({
 
                     <button
                         onClick={() => onSelectModality('presencial')}
-                        className={`p-5 rounded-xl border text-left transition-all ${modality === 'presencial'
-                            ? 'border-[#FF7939] bg-[#FF7939]/10'
-                            : 'border-white/10 bg-[#0A0A0A]'
+                        className={`p-5 rounded-2xl border text-left transition-all duration-300 backdrop-blur-md ${modality === 'presencial'
+                            ? 'border-[#FF7939] bg-[#FF7939]/10 ring-1 ring-[#FF7939]/30 shadow-[0_0_20px_rgba(255,121,57,0.1)]'
+                            : 'border-white/10 bg-white/5 hover:border-white/20 hover:bg-white/10'
                             }`}
                     >
                         <div className="flex items-center gap-4">
-                            <Users className={`h-5 w-5 ${modality === 'presencial' ? 'text-[#FF7939]' : 'text-gray-400'}`} />
+                            <div className={`p-3 rounded-xl ${modality === 'presencial' ? 'bg-[#FF7939]/20' : 'bg-white/5 border border-white/5'}`}>
+                                <Users className={`h-6 w-6 ${modality === 'presencial' ? 'text-[#FF7939]' : 'text-gray-500'}`} />
+                            </div>
                             <div>
-                                <h4 className="text-base font-bold text-white">Presencial</h4>
+                                <h4 className="text-base font-bold text-white tracking-wide">Presencial</h4>
                                 <p className="text-xs text-gray-500">Se realiza en persona.</p>
                             </div>
                         </div>
@@ -130,15 +138,17 @@ export const StepProgramType: React.FC<StepProgramTypeProps> = ({
 
                     <button
                         onClick={() => onSelectModality('hibrido')}
-                        className={`p-5 rounded-xl border text-left transition-all ${modality === 'hibrido'
-                            ? 'border-[#FF7939] bg-[#FF7939]/10'
-                            : 'border-white/10 bg-[#0A0A0A]'
+                        className={`p-5 rounded-2xl border text-left transition-all duration-300 backdrop-blur-md ${modality === 'hibrido'
+                            ? 'border-[#FF7939] bg-[#FF7939]/10 ring-1 ring-[#FF7939]/30 shadow-[0_0_20px_rgba(255,121,57,0.1)]'
+                            : 'border-white/10 bg-white/5 hover:border-white/20 hover:bg-white/10'
                             }`}
                     >
                         <div className="flex items-center gap-4">
-                            <Monitor className={`h-5 w-5 ${modality === 'hibrido' ? 'text-[#FF7939]' : 'text-gray-400'}`} />
+                            <div className={`p-3 rounded-xl ${modality === 'hibrido' ? 'bg-[#FF7939]/20' : 'bg-white/5 border border-white/5'}`}>
+                                <Monitor className={`h-6 w-6 ${modality === 'hibrido' ? 'text-[#FF7939]' : 'text-gray-500'}`} />
+                            </div>
                             <div>
-                                <h4 className="text-base font-bold text-white">Híbrido</h4>
+                                <h4 className="text-base font-bold text-white tracking-wide">Híbrido</h4>
                                 <p className="text-xs text-gray-500">Sesiones presenciales y online.</p>
                             </div>
                         </div>
@@ -178,7 +188,7 @@ export const StepProgramType: React.FC<StepProgramTypeProps> = ({
 
             {/* Créditos del Coach */}
             <div className="px-2">
-                <div className="p-5 rounded-2xl border border-white/10 bg-[#0A0A0A] space-y-4">
+                <div className="p-5 rounded-3xl border border-white/10 bg-white/5 backdrop-blur-sm space-y-4">
                     <div className="flex items-center justify-between">
                         <div className="flex gap-4">
                             <div className="p-3 rounded-lg bg-white/5 border border-white/5">

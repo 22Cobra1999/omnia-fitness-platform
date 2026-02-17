@@ -5,12 +5,12 @@ import { startOfMonth, endOfMonth, addDays, startOfWeek } from 'date-fns'
 export const useCalendarData = (
     activityIds: string[],
     meetViewMode: 'month' | 'week' | 'day_split',
-    meetWeekStart: Date
+    meetWeekStart: Date,
+    currentDate: Date
 ) => {
     const supabase = useMemo(() => createClient(), [])
 
     // Core Date State
-    const [currentDate, setCurrentDate] = useState<Date>(new Date())
     const [selectedDate, setSelectedDate] = useState<Date | null>(new Date())
     const [authUserId, setAuthUserId] = useState<string | null>(null)
 
@@ -29,7 +29,11 @@ export const useCalendarData = (
                 hasWorkshop: boolean
                 meetsMinutes: number
                 pendingExercises: number
+                totalExercises: number
+                completedExercises: number
                 pendingPlates: number
+                totalPlates: number
+                completedPlates: number
             }
         >
     >({})
@@ -152,8 +156,8 @@ export const useCalendarData = (
                 endISO = bufferedEnd.toISOString().split('T')[0]
             }
 
-            // 1. Fetch Daily Progress from the new table
-            const anySupabase = supabase as any
+            console.log('[useCalendarData] FETCHING with params:', { authUserId, startISO, endISO });
+
             const { data: rows, error: progError } = await anySupabase
                 .from('progreso_diario_actividad')
                 .select('id, actividad_id, fecha, area, items_objetivo, items_completados, minutos, tipo, minutos_objetivo')
@@ -161,6 +165,8 @@ export const useCalendarData = (
                 .neq('tipo', 'documento')
                 .gte('fecha', startISO)
                 .lte('fecha', endISO)
+
+            console.log('[useCalendarData] FETCHED ROWS:', rows?.length || 0, rows);
 
             if (progError) {
                 console.error('Error fetching progreso_diario_actividad:', progError)
@@ -181,9 +187,15 @@ export const useCalendarData = (
                         hasWorkshop: false,
                         meetsMinutes: 0,
                         pendingExercises: 0,
+                        totalExercises: 0,
+                        completedExercises: 0,
                         pendingPlates: 0,
+                        totalPlates: 0,
+                        completedPlates: 0,
                     }
                 }
+
+                console.log(`[useCalendarData] PROCESSING ROW ${row.id}:`, { dayKey, tipo: row.tipo, area: row.area, obj: objCount, compl: complCount });
 
                 const foundIds = new Set<string>()
                 if (row.actividad_id) foundIds.add(String(row.actividad_id))
@@ -213,11 +225,17 @@ export const useCalendarData = (
                     if (row.area === 'fitness') {
                         agg[dayKey].fitnessMinutesTotal += mins_obj
                         agg[dayKey].pendingExercises += Math.max(0, pendingCount)
+                        agg[dayKey].totalExercises += objCount
+                        agg[dayKey].completedExercises += complCount
                         if (pendingCount > 0) agg[dayKey].fitnessMinutesPending += pendingMins
+                        console.log(`[useCalendarData]   -> AGGREDATED FITNESS for ${dayKey}: totalEx=${agg[dayKey].totalExercises}`);
                     } else if (row.area === 'nutricion') {
                         agg[dayKey].nutritionMinutesTotal += mins_obj
                         agg[dayKey].pendingPlates += Math.max(0, pendingCount)
+                        agg[dayKey].totalPlates += objCount
+                        agg[dayKey].completedPlates += complCount
                         if (pendingCount > 0) agg[dayKey].nutritionMinutesPending += pendingMins
+                        console.log(`[useCalendarData]   -> AGGREDATED NUTRITION for ${dayKey}: totalPlates=${agg[dayKey].totalPlates}`);
                     }
                 }
 
@@ -513,8 +531,6 @@ export const useCalendarData = (
 
     return {
         // State
-        currentDate,
-        setCurrentDate,
         selectedDate,
         setSelectedDate,
         authUserId,

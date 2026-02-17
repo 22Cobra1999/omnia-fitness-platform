@@ -51,13 +51,10 @@ export function ClientCard({ client, onClick }: ClientCardProps) {
             <div className="p-3 flex-1 flex flex-col">
                 <div className="text-center mb-3">
                     <h3 className="font-bold text-sm text-white truncate leading-tight mb-1">{client.name}</h3>
-                    <div className="flex items-center justify-center gap-1.5 text-[9px] text-gray-400">
-                        <span className="truncate">Última: {client.lastActive}</span>
+                    <div className="flex flex-col items-center justify-center gap-0.5 text-[8px] sm:text-[9px] text-gray-400">
+                        <span className="leading-tight text-center">Última: {client.lastActive}</span>
                         {(client.age || 0) > 0 && (
-                            <>
-                                <span className="opacity-40">•</span>
-                                <span>{client.age} años</span>
-                            </>
+                            <span className="opacity-60">{client.age} años</span>
                         )}
                     </div>
                 </div>
@@ -87,11 +84,11 @@ export function ClientCard({ client, onClick }: ClientCardProps) {
                         <span className="text-[7px] text-gray-500 uppercase font-medium">Tareas</span>
                     </div>
                     <div className="flex flex-col items-center border-l border-zinc-800/40">
-                        <span className="text-[11px] font-bold text-white">${(() => {
+                        <span className="text-[10px] sm:text-[11px] font-bold text-white">${(() => {
                             const val = Math.round(client.totalRevenue);
                             return val >= 1000 ? (val / 1000).toFixed(1) + 'k' : val;
                         })()}</span>
-                        <span className="text-[7px] text-gray-400 uppercase font-bold">Ingr</span>
+                        <span className="text-[7px] text-gray-400 uppercase font-black tracking-tighter">Ingr</span>
                     </div>
                 </div>
             </div>

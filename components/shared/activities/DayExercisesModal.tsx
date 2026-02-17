@@ -1,6 +1,6 @@
 
 import React, { useState, useEffect, useRef, useMemo, useCallback } from 'react'
-import { ChevronUp, ChevronDown, Flame } from 'lucide-react'
+import { ChevronUp, ChevronDown, Flame, Clock } from 'lucide-react'
 import { Exercise, DaySchedulePayload } from './planner-types'
 import {
     DAYS,
@@ -111,15 +111,19 @@ export function DayExercisesModal({
     }, [exercisesToUse, searchQuery])
 
     const availableExercisesMap = useMemo(() => {
-        const map = new Map<string, Exercise>()
-        exercisesToUse.forEach(ex => { if (ex && ex.id) map.set(String(ex.id), ex) })
+        const map: { [key: string]: Exercise } = {}
+        availableExercises.forEach(ex => {
+            if (ex.id !== undefined && ex.id !== null) {
+                map[ex.id.toString()] = ex
+            }
+        })
         return map
-    }, [exercisesToUse])
+    }, [availableExercises])
 
     const mergeExerciseData = useCallback((exercise: any, index: number): Exercise => {
         if (!exercise) return { id: `deleted - ${index} `, name: '', block: 1, type: 'general' }
-        const exIdStr = exercise.id ? String(exercise.id) : null
-        const source = exIdStr ? availableExercisesMap.get(exIdStr) : undefined
+        const source = (exercise.id !== undefined && exercise.id !== null ? availableExercisesMap[exercise.id.toString()] : null) ||
+            (exercise.exercise_id !== undefined && exercise.exercise_id !== null ? availableExercisesMap[exercise.exercise_id.toString()] : null)
 
         const rawName = exercise.name || exercise.nombre_ejercicio || ''
         const isGenericName = !rawName || /^Ejercicio\s+\d+$/i.test(rawName) || /^Plato\s+\d+$/i.test(rawName)
@@ -128,8 +132,8 @@ export function DayExercisesModal({
         const preferredDescription = exercise.description || exercise.descripcion || source?.description || ''
 
         // Improve type resolution: source takes precedence if current is generic/missing
-        const currentType = exercise.type || exercise.tipo
-        const sourceType = source?.type
+        const currentType = (exercise.type || exercise.tipo || '').toString().toLowerCase()
+        const sourceType = (source?.type || '').toString().toLowerCase()
         const resolvedType = currentType && currentType !== 'general' && currentType !== 'otro' ? currentType : (sourceType || currentType || '')
 
         const preferredType = isNutrition
@@ -278,7 +282,7 @@ export function DayExercisesModal({
     }
 
     return (
-        <div className="fixed inset-0 bg-black/95 z-[100] flex items-center justify-center p-0 sm:p-4 overflow-hidden">
+        <div className="fixed inset-0 bg-black/40 backdrop-blur-[2px] z-[110] flex items-center justify-center p-0 sm:p-4 overflow-hidden">
             <div className="bg-black p-4 md:p-6 pt-20 w-screen h-full max-w-4xl mx-auto overflow-hidden flex flex-col relative">
                 <div className="flex justify-between items-center mb-4">
                     <div>
@@ -366,7 +370,7 @@ export function DayExercisesModal({
                                             const inactive = ex.is_active === false || ex.activo === false
                                             const title = ex.name || `Ejercicio ${idx + 1} `
                                             if (!title.trim()) return null
-                                            const typeLabel = ex.type || ex.tipo || (isNutrition ? 'otro' : 'General')
+                                            const typeLabel = (ex.type || ex.tipo || (isNutrition ? 'otro' : 'general')).toString().toLowerCase()
                                             const scheme = getTypeColorScheme(typeLabel, isNutrition)
                                             // Find global index for removal/move
                                             const globalIdx = exercisesLocal.indexOf(ex)
@@ -392,11 +396,16 @@ export function DayExercisesModal({
                                                                     })()
                                                                 ) :
                                                                     <>
-                                                                        <span className="px-2 py-0.5 rounded border font-medium" style={inactive ? undefined : { color: scheme.hex, borderColor: scheme.hex, backgroundColor: scheme.soft }}>{typeLabel}</span>
+                                                                        <span className="px-2 py-0.5 rounded border font-medium capitalize" style={inactive ? undefined : { color: scheme.hex, borderColor: scheme.hex, backgroundColor: scheme.soft }}>{typeLabel}</span>
                                                                         {formatSeriesDisplay(ex) && <span>{formatSeriesDisplay(ex)}</span>}
                                                                         {(() => {
                                                                             const norm = normalizeExerciseData(ex, false)
-                                                                            return norm.calories > 0 && <span className="text-[#FF7939] flex items-center gap-0.5"><Flame className="w-3 h-3" /> {norm.calories}</span>
+                                                                            return (
+                                                                                <>
+                                                                                    {(norm?.calories ?? 0) > 0 && <span className="text-[#FF7939] flex items-center gap-0.5"><Flame className="w-3 h-3" /> {norm.calories}</span>}
+                                                                                    {(norm?.duration ?? 0) > 0 && <span className="text-orange-200/80 flex items-center gap-0.5"><Clock className="w-3 h-3" /> {norm.duration}'</span>}
+                                                                                </>
+                                                                            )
                                                                         })()}
                                                                     </>
                                                                 }
@@ -420,12 +429,20 @@ export function DayExercisesModal({
                         {isNutrition && <div className="mb-3 flex items-center gap-2"><button onClick={() => { setShowSearchBar(!showSearchBar); if (!showSearchBar) setSearchQuery('') }} className="text-[#FF7939] p-1.5"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5"><circle cx="11" cy="11" r="8"></circle><path d="m21 21-4.35-4.35"></path></svg></button>{showSearchBar && <input type="text" value={searchQuery} onChange={e => setSearchQuery(e.target.value)} placeholder="Buscar plato..." className="flex-1 bg-gray-800 border border-gray-600 rounded-md px-3 py-1.5 text-white text-sm focus:border-[#FF7939]" autoFocus />}</div>}
                         {showAvailableExercises && <div className="grid grid-cols-2 md:grid-cols-4 gap-2 max-h-96 overflow-y-auto">{filteredExercisesToUse.map(ex => {
                             const inactive = ex.is_active === false || ex.activo === false
-                            const type = ex.type || ex.tipo || (isNutrition ? 'otro' : 'General')
+                            const type = ex.type || ex.tipo || (isNutrition ? 'otro' : 'general')
                             const scheme = getTypeColorScheme(type, isNutrition)
                             return (
                                 <div key={ex.id} onClick={() => !inactive && setExercisesLocal(p => [...p, { ...ex, block: 1, orden: p.length + 1 }])} className={`rounded - lg p - 2 transition - colors ${inactive ? 'bg-gray-800/10 opacity-50 cursor-not-allowed border border-gray-700/50' : 'bg-gray-800/30 cursor-pointer hover:bg-gray-800/50'} `}>
-                                    <div className="flex items-start justify-between gap-3"><div className="min-w-0 flex-1"><p className={`text - xs font - medium truncate ${inactive ? 'text-gray-500 line-through' : 'text-white'} `}>{ex.name}</p>
-                                        {isNutrition && ex.proteinas !== undefined ? <p className="text-[10px] text-gray-400">P:{ex.proteinas} C:{ex.carbohidratos} G:{ex.grasas} {ex.calorias}k</p> : <span className="px-1.5 py-0.5 rounded border text-[10px]" style={inactive ? undefined : { color: scheme.hex, borderColor: scheme.hex, backgroundColor: scheme.soft }}>{type}</span>}</div></div>
+                                    <div className="flex items-start justify-between gap-3">
+                                        <div className="min-w-0 flex-1">
+                                            <p className={`text-xs font-medium truncate ${inactive ? 'text-gray-500 line-through' : 'text-white'}`}>{ex.name}</p>
+                                            {isNutrition && (ex.proteinas !== undefined || ex.calorias !== undefined) ? (
+                                                <p className="text-[10px] text-gray-400">P:{ex.proteinas || 0} C:{ex.carbohidratos || 0} G:{ex.grasas || 0} {ex.calorias || 0}k</p>
+                                            ) : (
+                                                <span className="px-1.5 py-0.5 rounded border text-[10px] capitalize" style={inactive ? undefined : { color: scheme.hex, borderColor: scheme.hex, backgroundColor: scheme.soft }}>{type}</span>
+                                            )}
+                                        </div>
+                                    </div>
                                 </div>
                             )
                         })}</div>}</div>

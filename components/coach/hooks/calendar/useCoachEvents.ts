@@ -86,7 +86,7 @@ export function useCoachEvents(currentDate: Date, googleConnected: boolean) {
                     cancelled_by_user_id, cancellation_reason, cancelled_at
                   )
                 `)
-                .eq('client_id', currentCoachId)
+                .eq('user_id', currentCoachId)
                 .gte('calendar_events.start_time', monthStartISO)
                 .lte('calendar_events.start_time', monthEndISO)
 

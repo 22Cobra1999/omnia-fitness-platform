@@ -443,6 +443,7 @@ export function CSVManagerEnhanced({
         activityImagesMap={activityImagesMap}
         duplicateNames={duplicateNames}
         loadingExisting={loadingExisting}
+        bunnyVideoTitles={bunnyVideoTitles}
       />
 
       {allData.length > itemsPerPage && (

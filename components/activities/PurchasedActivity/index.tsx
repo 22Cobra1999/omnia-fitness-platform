@@ -41,7 +41,8 @@ export function PurchasedActivityCard(props: PurchasedActivityCardProps) {
         realProgress,
         overridePendingCount,
         overrideNextSessionDate,
-        onActivityClick
+        onActivityClick,
+        isCoachView
     })
 
     const imageUrl = activity.media?.image_url || activity.image_url || null

@@ -447,6 +447,43 @@
     datos, consultas críticas y procesos de carga tanto para el Cliente como para el Coach.</p>
   <hr />
 
+  <h2 id="business-idea">💡 Idea de Negocio: OMNIA</h2>
+  <div class="logic-container" style="background: #0f1218; border: 1px solid #30363d;">
+    <div class="logic-title" style="color: #FF7939; border-color: #FF7939;">🎯 MISIÓN: POTENCIAR EL FITNESS DIGITAL
+    </div>
+    <p style="margin-top: 10px; color: #ccc;">
+      <strong>OMNIA</strong> es una plataforma premium diseñada para conectar a los mejores Coaches de fitness con
+      Clientes
+      que buscan resultados reales.
+    </p>
+    <ul style="color: #bbb; list-style-type: disc; margin-left: 20px;">
+      <li><strong>Para Coaches:</strong> Herramientas profesionales de gestión, monetización automatizada, y branding
+        personal. Eliminamos el caos administrativo para que puedan enfocarse en entrenar.</li>
+      <li><strong>Para Clientes:</strong> Una experiencia de entrenamiento inmersiva, seguimiento de progreso en tiempo
+        real y acceso a un marketplace curado de servicios de salud.</li>
+      <li><strong>Modelo de Negocio:</strong> SaaS + Marketplace. Suscripciones para Coaches (Free, Básico, Black,
+        Premium) y comisiones por transacciones seguras vía Mercado Pago.</li>
+    </ul>
+  </div>
+
+  <h2 id="ux-philosophy">✨ Filosofía UX: "Premium & Fluid"</h2>
+  <div class="logic-container" style="background: #0f1218; border: 1px solid #30363d;">
+    <div class="logic-title" style="color: #a371f7; border-color: #a371f7;">💎 PILARES DE DISEÑO</div>
+    <div class="logic-layer">
+      <span class="layer-label">ESTÉTICA</span>
+      <div class="node ux-node">Dark Mode Nativo • Glassmorphism (Blur 20px+) • Acentos Neón (#FF7939)</div>
+    </div>
+    <div class="logic-layer">
+      <span class="layer-label">INTERACCIÓN</span>
+      <div class="node ux-node">Feedback Háptico • Transiciones Framer Motion • Carga Skeleton "Shimmer"</div>
+    </div>
+    <div class="logic-layer">
+      <span class="layer-label">ACCESIBILIDAD</span>
+      <div class="node ux-node">Contraste Alto • Áreas de Toque >44px • Tipografía Inter/Outfit</div>
+    </div>
+  </div>
+
+
   <h2 id="sala-de-trofeos">🏆 Sala de Trofeos (Monsters Hunted)</h2>
   <div class="logic-container" style="background: #0f1218; border: 1px solid #30363d;">
     <div class="logic-title" style="color: #e3b341; border-color: #e3b341;">💀 MONSTRUOS ABATIDOS</div>
@@ -560,6 +597,47 @@
         <div class="node pill-green">Reducido a ~350 líneas (66% de compresión). Lógica extraída a 7 hooks
           especializados
           y UI modularizada en componentes atómicos.</div>
+      </div>
+    </div>
+
+    <div class="logic-layer">
+      <span class="layer-label">EL MONSTRUO DE LAS REGLAS</span>
+      <div class="node" style="background: #da3633; color: white;">RuleEditor.tsx (Original: ~600 líneas)</div>
+      <div class="branch">
+        <span class="arrow">⬇️ DOMADO</span>
+        <div class="node pill-green">Orquestador de ~100 líneas. Lógica en useRuleEditorLogic. UI en 5 sub-componentes.
+        </div>
+      </div>
+    </div>
+
+    <div class="logic-layer">
+      <span class="layer-label">EL GIGANTE DEL PREVIEW</span>
+      <div class="node" style="background: #da3633; color: white;">ProductPreviewCard.tsx (Original: ~600 líneas)</div>
+      <div class="branch">
+        <span class="arrow">⬇️ DOMADO</span>
+        <div class="node pill-green">Orquestador de ~100 líneas. Lógica de Drag-to-Buy en hook. UI en 4 sub-componentes.
+        </div>
+      </div>
+    </div>
+
+    <div class="logic-layer">
+      <span class="layer-label">EL ADMINISTRADOR DE PRECIOS</span>
+      <div class="node" style="background: #da3633; color: white;">plan-management.tsx (Original: ~615 líneas)</div>
+      <div class="branch">
+        <span class="arrow">⬇️ DOMADO</span>
+        <div class="node pill-green">Orquestador de ~140 líneas. Data estática separada. UI en 4 sub-componentes
+          modulares.</div>
+      </div>
+    </div>
+
+    <div class="logic-layer">
+      <span class="layer-label">EL OVERLAY DE LOS DETALLES</span>
+      <div class="node" style="background: #da3633; color: white;">ActivityDetailOverlay.tsx (Original: ~570 líneas)
+      </div>
+      <div class="branch">
+        <span class="arrow">⬇️ DOMADO</span>
+        <div class="node pill-green">Orquestador de ~194 líneas. Lógica en Hook. UI modularizada en 4 componentes
+          especializados.</div>
       </div>
     </div>
   </div>
@@ -1395,6 +1473,33 @@
         <td style="text-align: left;"><strong>CENTRALIZADO.</strong> Maneja wizard de 7 pasos, uploads de avatar y
           múltiples upserts en DB.</td>
       </tr>
+      <tr class="odd">
+        <td style="text-align: left;"><code>RuleEditor.tsx</code></td>
+        <td style="text-align: center;">1 (MODULAR)</td>
+        <td style="text-align: center;">ALTA</td>
+        <td style="text-align: center;">BAJA</td>
+        <td style="text-align: center;">🔵 10/10</td>
+        <td style="text-align: left;"><strong>DOMADO.</strong> Monstruo de reglas dividido en 5 sub-componentes UI y
+          hook de lógica useRuleEditorLogic.</td>
+      </tr>
+      <tr class="even">
+        <td style="text-align: left;"><code>ProductPreviewCard.tsx</code></td>
+        <td style="text-align: center;">~100 (MODULAR)</td>
+        <td style="text-align: center;">ALTA</td>
+        <td style="text-align: center;">BAJA</td>
+        <td style="text-align: center;">🔵 10/10</td>
+        <td style="text-align: left;"><strong>DOMADO.</strong> Preview gigante dividido en sub-componentes (Image, Info,
+          Details, Action) y hook de lógica.</td>
+      </tr>
+      <tr class="odd">
+        <td style="text-align: left;"><code>plan-management.tsx</code></td>
+        <td style="text-align: center;">~140 (MODULAR)</td>
+        <td style="text-align: center;">CRÍTICA</td>
+        <td style="text-align: center;">BAJA</td>
+        <td style="text-align: center;">🔵 10/10</td>
+        <td style="text-align: left;"><strong>DOMADO.</strong> Gestión de precios simplificada. Data estática en utils,
+          UI atomizada en sub-componentes.</td>
+      </tr>
       <tr class="even">
         <td style="text-align: left;"><code>messages-screen.tsx</code></td>
         <td style="text-align: center;">~80 (MODULAR)</td>
@@ -1689,6 +1794,51 @@
     </div>
   </div>
   <p><a href="#indice-de-navegacion">Volver al índice</a></p>
+  <hr />
+  <h2 id="core-data-structure">🗄️ Estructura de Datos Core (Schema)</h2>
+  <div class="logic-container" style="background: #0f1218; border: 1px solid #30363d;">
+    <div class="logic-title" style="color: #4faaff; border-color: #4faaff;">TABLAS CRÍTICAS DE OMNIA</div>
+
+    <div class="logic-layer">
+      <span class="layer-label">Identity & Roles</span>
+      <div class="node state-node">users (id, email, role: 'coach'|'client')</div>
+      <div class="branch">
+        <span class="arrow">└──</span>
+        <div class="node state-node">user_profiles (bio, avatar_url, biometrics)</div>
+      </div>
+    </div>
+
+    <div class="logic-layer">
+      <span class="layer-label">Marketplace & Content</span>
+      <div class="node api-node">products (Title, Price, Type: 'workshop'|'program'|'document')</div>
+      <div class="branch">
+        <span class="arrow">├──</span>
+        <div class="node api-node">activities (Instancia comprada, progress_tracking)</div>
+      </div>
+      <div class="branch">
+        <span class="arrow">└──</span>
+        <div class="node api-node">activity_enrollments (Link User-Activity, status: 'active'|'completed')</div>
+      </div>
+    </div>
+
+    <div class="logic-layer">
+      <span class="layer-label">Calendar System</span>
+      <div class="node hook-node">calendar_events (Start/End, Type: 'meet'|'workshop')</div>
+      <div class="branch">
+        <span class="arrow">└──</span>
+        <div class="node hook-node">calendar_event_participants (RSVP Status: 'pending'|'confirmed'|'cancelled')</div>
+      </div>
+    </div>
+
+    <div class="logic-layer">
+      <span class="layer-label">Monetization</span>
+      <div class="node pill-yellow">plans (Suscripción del Coach: 'free', 'basic', 'black', 'premium')</div>
+      <div class="branch">
+        <span class="arrow">└──</span>
+        <div class="node pill-yellow">mercadopago_subscriptions (External ID, Status)</div>
+      </div>
+    </div>
+  </div>
 </body>
 
 </html>

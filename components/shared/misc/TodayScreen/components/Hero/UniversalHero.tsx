@@ -52,8 +52,8 @@ export function UniversalHero({
             borderTopRightRadius: 0,
             borderBottomLeftRadius: 24,
             borderBottomRightRadius: 24,
-            padding: '16px 28px 28px',
-            marginBottom: 32,
+            padding: '8px 24px 24px',
+            marginBottom: 24,
             marginTop: -10,
             marginLeft: '-24px',
             marginRight: '-24px',
@@ -63,7 +63,7 @@ export function UniversalHero({
         }}>
             {/* Flecha de retorno y botón de calificación al mismo nivel */}
             <div style={{
-                marginBottom: 20,
+                marginBottom: 8,
                 display: 'flex',
                 alignItems: 'center',
                 justifyContent: 'space-between',

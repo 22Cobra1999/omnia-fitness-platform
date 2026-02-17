@@ -345,10 +345,10 @@ const ActivityCard: React.FC<ActivityCardProps> = ({
           )}
 
           <div className="flex justify-between items-center mb-4 -mx-1">
-            <span className={`bg-black/20 ${getCategoryColor(activity.categoria || 'fitness')} text-[9px] px-1.5 py-0.5 rounded-full font-bold border border-[#FF7939]/30`}>
+            <span className={`bg-white/10 backdrop-blur-md ${getCategoryColor(activity.categoria || 'fitness')} text-[9px] px-2 py-1 rounded-full font-extrabold border border-white/20 uppercase tracking-wider`}>
               {getCategoryBadge(activity.categoria || 'fitness')}
             </span>
-            <span className={`bg-black/20 ${getTypeColor(activity.type || 'program')} text-[9px] px-1.5 py-0.5 rounded-full font-bold border border-[#FF7939]/30`}>
+            <span className={`bg-white/10 backdrop-blur-md ${getTypeColor(activity.type || 'program')} text-[9px] px-2 py-1 rounded-full font-extrabold border border-white/20 uppercase tracking-wider`}>
               {getTypeBadge(activity.type || 'program')}
             </span>
           </div>
@@ -364,16 +364,20 @@ const ActivityCard: React.FC<ActivityCardProps> = ({
               {activity.type === 'workshop' && (() => {
                 const workshopMode = (activity as any).workshop_mode || 'grupal'
                 return workshopMode === 'individual' ? (
-                  <span className="bg-yellow-500/10 text-yellow-500 text-[8px] px-1 py-0.5 rounded font-black border border-yellow-500/20">1:1</span>
+                  <span className="bg-[#FF7939]/10 backdrop-blur-sm text-[#FF7939] text-[9px] px-2 py-1 rounded-full font-black border border-[#FF7939]/30 shadow-[0_0_10px_rgba(255,121,57,0.2)]">1:1</span>
                 ) : (
-                  <div className="relative flex items-center justify-center text-gray-500"><Users className="h-3 w-3" /></div>
+                  <div className="relative flex items-center justify-center text-red-500 mr-2">
+                    <Users className="h-4 w-4" />
+                  </div>
                 )
               })()}
               {activity.type !== 'workshop' && includedMeetCredits > 0 && (
-                <Video className="h-3 w-3 text-orange-200/50" />
+                <div className="flex items-center justify-center">
+                  <Video className="h-4 w-4 text-white/90" />
+                </div>
               )}
             </div>
-            <div className="flex items-center gap-1.5 opacity-80">
+            <div className="flex items-center gap-1.5 opacity-80 min-w-[20px] justify-end">
               {getModalityIcon(activity.modality || 'online')}
             </div>
           </div>
@@ -412,8 +416,10 @@ const ActivityCard: React.FC<ActivityCardProps> = ({
             ) : <div className="h-6"></div>}
           </div>
 
-          <div className="border-t border-gray-700 text-center mt-auto pt-2">
-            <span className="text-orange-300 font-bold text-xl">{formatPrice(activity.price)}</span>
+          <div className="border-t border-gray-700/30 text-center mt-auto pt-3">
+            <span className="text-white/90 font-bold text-xl tracking-tight">
+              {formatPrice(activity.price)}
+            </span>
           </div>
         </div>
 

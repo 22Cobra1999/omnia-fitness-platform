@@ -92,13 +92,13 @@ export function SearchScreen({ onTabChange }: SearchScreenProps) {
     displayedCoaches: filteredCoaches,
     activities: filteredActivities,
     allActivities,
-    showAllActivities,
     setShowAllActivities,
     showAllCoaches,
     setShowAllCoaches,
     coachesError: error,
     activitiesError,
     handleRetry,
+    clearAllFilters,
     handleSearchChange,
     handleSuggestionClick,
     handleActivityClick,
@@ -137,11 +137,11 @@ export function SearchScreen({ onTabChange }: SearchScreenProps) {
   const displayedCoaches = filteredCoaches
 
   return (
-    <div className="flex flex-col h-full bg-[#121212] text-white overflow-y-auto pb-4 no-scrollbar">
-      <div className="px-4 pt-4">
+    <div className="flex flex-col h-full bg-[#121212] text-white overflow-y-auto pt-4 pb-32 overscroll-auto touch-pan-y selection:bg-[#FF7939]/30">
+      <div className="px-4">
         {/* Header inicial compacto cuando NO está expandido */}
         {!expandedSection && (
-          <div className="mb-6 mt-2">
+          <div className="mb-4 mt-0.5">
             <div className="flex items-center gap-3">
               {/* Buscador Compacto */}
               <div className="relative flex-1 group">
@@ -160,13 +160,19 @@ export function SearchScreen({ onTabChange }: SearchScreenProps) {
 
               {/* Botón de Filtro */}
               <button
-                onClick={() => setShowFilters(!showFilters)}
+                onClick={() => {
+                  if (showFilters) {
+                    clearAllFilters();
+                  } else {
+                    setShowFilters(true);
+                  }
+                }}
                 className={`w-11 h-11 rounded-2xl border transition-all flex items-center justify-center flex-shrink-0 ${showFilters
-                  ? 'bg-[#FF7939] border-[#FF7939] text-white shadow-[0_0_15px_rgba(255,121,57,0.3)]'
+                  ? 'bg-red-500 border-red-500 text-white'
                   : 'bg-white/5 border-white/10 text-white/40 hover:bg-white/10'
                   }`}
               >
-                <Filter className="w-5 h-5" />
+                {showFilters ? <X className="w-5 h-5" /> : <Filter className="w-5 h-5" />}
               </button>
             </div>
 
@@ -361,10 +367,10 @@ export function SearchScreen({ onTabChange }: SearchScreenProps) {
         )}
 
         {(expandedSection === null || expandedSection === 'coaches') && (
-          <div className="mb-8">
-            <div className="flex items-center justify-between mb-4">
-              <h2 className="text-md font-medium flex items-center">
-                <User className="h-5 w-5 mr-2 text-[#FF7939]" />
+          <div className="mb-4">
+            <div className="flex items-center justify-between mb-3">
+              <h2 className="text-sm font-semibold flex items-center text-white/60 uppercase tracking-wider">
+                <User className="h-4 w-4 mr-1.5 text-[#FF7939]/70" />
                 Coaches
               </h2>
             </div>
@@ -410,11 +416,11 @@ export function SearchScreen({ onTabChange }: SearchScreenProps) {
         )}
 
         {(expandedSection === null || expandedSection === 'activities') && (
-          <div className="px-4 pt-4">
-            <div className="mb-8">
-              <div className="flex justify-between items-center mb-4">
-                <h2 className="text-md font-medium flex items-center">
-                  <ShoppingCart className="h-5 w-5 mr-2 text-[#FF7939]" />
+          <div className="mt-2">
+            <div className="mb-6">
+              <div className="flex justify-between items-center mb-3">
+                <h2 className="text-sm font-semibold flex items-center text-white/60 uppercase tracking-wider">
+                  <ShoppingCart className="h-4 w-4 mr-1.5 text-[#FF7939]/70" />
                   Actividades
                 </h2>
               </div>
