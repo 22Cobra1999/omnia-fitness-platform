@@ -1,5 +1,5 @@
 import { Badge } from "@/components/ui/badge"
-import { Star, Calendar, Clock, CheckCircle2, Flame, Play } from "lucide-react"
+import { Star, Calendar, Clock, CheckCircle2, Flame, Play, Video } from "lucide-react"
 import { cn } from "@/lib/utils/utils"
 import { getCategoryBadge, getTypeBadge, formatDate } from "../utils"
 
@@ -46,17 +46,20 @@ export function PurchasedActivityCardContent({
     itemsPendingToday
 }: PurchasedActivityCardContentProps) {
     return (
-        <div className={cn("flex-1 flex flex-col h-full min-h-0 relative", size === "small" ? "p-2.5" : "p-4")}>
-            {/* 1. Título */}
-            <div className="mb-2">
+        <div className={cn(
+            "flex-1 flex flex-col h-full min-h-0 relative",
+            size === "small" ? "p-2.5" : "p-4"
+        )}>
+            {/* 1. Título con filtro condicional */}
+            <div className={cn("mb-2", daysInfo.isExpired && "grayscale opacity-60")}>
                 <h3 className="text-white font-bold leading-tight text-base h-[2.5em] overflow-hidden line-clamp-2">
                     {activity.title}
                 </h3>
             </div>
 
-            {/* 2. Coach Info */}
+            {/* 2. Coach Info con filtro */}
             {!isCoachView && (
-                <div className="border-t border-b border-gray-700/30 py-2 mb-3">
+                <div className={cn("border-t border-b border-gray-700/30 py-2 mb-3", daysInfo.isExpired && "grayscale opacity-60")}>
                     <div className="flex items-center gap-2">
                         <div className="flex-1 min-w-0 flex items-center gap-2">
                             <p className="text-xs font-medium text-gray-300 truncate">{activity.coach_name || 'Coach'}</p>
@@ -71,18 +74,25 @@ export function PurchasedActivityCardContent({
                 </div>
             )}
 
-            {/* 3. Badges */}
-            <div className="flex flex-row items-center gap-2 mb-3 overflow-hidden whitespace-nowrap">
+
+            {/* 3. Badges com filtro */}
+            <div className={cn("flex flex-row items-center gap-2 mb-3 overflow-hidden whitespace-nowrap", daysInfo.isExpired && "grayscale opacity-60")}>
                 <Badge variant="outline" className="bg-transparent border-[#FF7939] text-[#FF7939] text-[9px] px-1.5 h-4 font-bold tracking-wider uppercase shrink-0">
                     {getCategoryBadge(activity.categoria)}
                 </Badge>
-                <Badge variant="outline" className="bg-zinc-800 border-zinc-700 text-zinc-300 text-[9px] px-1.5 h-4 font-bold tracking-wider uppercase shrink-0">
-                    {getTypeBadge(activity.type)}
-                </Badge>
+                {getTypeBadge(activity.type) === 'TALLER' ? (
+                    <Badge variant="outline" className="bg-zinc-800/50 border-[#FADADD] text-[#FADADD] text-[9px] px-1.5 h-4 font-bold tracking-wider uppercase shrink-0">
+                        TALLER
+                    </Badge>
+                ) : (
+                    <Badge variant="outline" className="bg-zinc-800 border-zinc-700 text-zinc-300 text-[9px] px-1.5 h-4 font-bold tracking-wider uppercase shrink-0">
+                        {getTypeBadge(activity.type)}
+                    </Badge>
+                )}
             </div>
 
             {/* 4. Info Dinámica (Progreso / Fechas / Pendientes) */}
-            <div className="flex-1 flex flex-col gap-2 text-[11px] text-gray-300">
+            <div className={cn("flex-1 flex flex-col gap-2 text-[11px] text-gray-300", daysInfo.isExpired && "grayscale opacity-60")}>
                 {isCoachView && (
                     <CoachViewStats
                         activity={activity}
@@ -101,7 +111,7 @@ export function PurchasedActivityCardContent({
                     {enrollment.start_date && (
                         <div className="flex items-center justify-between text-[10px]">
                             <div className="flex items-center gap-1 text-gray-500 font-bold uppercase tracking-tighter">
-                                <Calendar className="w-2.5 h-2.5" />
+                                <Calendar className="w-2.5 h-2.5 text-blue-500" />
                                 <span>Inicio</span>
                             </div>
                             <span className="text-zinc-300 font-medium">{formatDate(enrollment.start_date)}</span>
@@ -147,7 +157,7 @@ export function PurchasedActivityCardContent({
 
                         {nextSessionDate && (
                             <div className="flex items-center gap-1.5 text-[10px] text-gray-400">
-                                <Calendar className="w-3 h-3" />
+                                <Calendar className="w-3 h-3 text-blue-500" />
                                 <span>Sig: <span className="text-white font-medium">{formatDate(nextSessionDate)}</span></span>
                             </div>
                         )}

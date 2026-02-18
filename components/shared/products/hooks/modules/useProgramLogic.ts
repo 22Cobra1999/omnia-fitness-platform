@@ -159,6 +159,95 @@ export function useProgramLogic(
 
     // ... (existing code)
 
+    const handleVideoSelection = useCallback((selection: any) => {
+        if (!selection) {
+            setIsVideoModalOpen(false)
+            return
+        }
+        if (!persistentCsvData || persistentCsvData.length === 0) {
+            setIsVideoModalOpen(false)
+            return
+        }
+
+        const selectedIndices = Array.from(persistentSelectedRows)
+        const { videoUrl, videoFile, fileName, bunnyVideoId, bunnyLibraryId, thumbnailUrl } = selection
+
+        if (!videoUrl || videoUrl.trim() === '') {
+            setIsVideoModalOpen(false)
+            return
+        }
+
+        const updatedCsvData = persistentCsvData.map((exercise, index) => {
+            if (!selectedIndices.includes(index)) return exercise
+            if (!exercise || typeof exercise !== 'object') return exercise
+
+            const updatedExercise = { ...exercise }
+            updatedExercise.video_url = videoUrl
+            if (videoFile) {
+                updatedExercise.video_file_name = fileName || videoFile.name
+                updatedExercise.video_source = 'local'
+            } else {
+                updatedExercise.video_file_name = fileName
+                updatedExercise.video_source = 'existing'
+                updatedExercise.bunny_video_id = bunnyVideoId
+                updatedExercise.bunny_library_id = bunnyLibraryId
+                updatedExercise.video_thumbnail_url = thumbnailUrl
+            }
+            return updatedExercise
+        })
+
+        setPersistentCsvData(updatedCsvData)
+
+        // Handle file storage
+        if (videoFile) {
+            setExerciseVideoFiles(prev => {
+                const next = { ...prev }
+                selectedIndices.forEach(idx => {
+                    const ex = updatedCsvData[idx]
+                    const key = getExerciseVideoKey(ex, idx)
+                    if (key) next[key] = videoFile
+                })
+                return next
+            })
+        }
+
+        setPersistentSelectedRows(new Set())
+        setIsVideoModalOpen(false)
+    }, [persistentCsvData, persistentSelectedRows, getExerciseVideoKey])
+
+    const handleClearExerciseVideo = useCallback((index: number, exercise: any, meta?: any) => {
+        setExerciseVideoFiles(prev => {
+            const next = { ...prev }
+            const key = getExerciseVideoKey(exercise, index)
+            if (key && next[key]) delete next[key]
+            return next
+        })
+
+        if (meta?.bunnyVideoId) {
+            setVideosPendingDeletion(prev => [
+                ...prev,
+                {
+                    exerciseId: exercise?.id,
+                    bunnyVideoId: meta.bunnyVideoId,
+                    bunnyLibraryId: meta.bunnyLibraryId,
+                    videoUrl: meta.videoUrl
+                }
+            ])
+        }
+    }, [getExerciseVideoKey])
+
+    const openVideoModal = useCallback(() => {
+        if (persistentSelectedRows.size === 0) {
+            return
+        }
+        setIsVideoModalOpen(true)
+    }, [persistentSelectedRows.size])
+
+    const getStoredExerciseVideoFile = useCallback((exercise: any, index: number) => {
+        const key = getExerciseVideoKey(exercise, index)
+        return exerciseVideoFiles[key] || null
+    }, [exerciseVideoFiles, getExerciseVideoKey])
+
     return {
         // State
         persistentCsvData,
@@ -185,6 +274,10 @@ export function useProgramLogic(
 
         // Handlers
         loadPlanningFromDB,
-        getExerciseVideoKey
+        getExerciseVideoKey,
+        handleVideoSelection,
+        handleClearExerciseVideo,
+        openVideoModal,
+        getStoredExerciseVideoFile
     }
 }

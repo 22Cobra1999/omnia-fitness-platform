@@ -2,7 +2,9 @@ import * as React from 'react';
 import { createClient } from '@/lib/supabase/supabase-client';
 import {
     getBuenosAiresDateString,
-    createBuenosAiresDate
+    createBuenosAiresDate,
+    getCurrentBuenosAiresDate,
+    getTodayBuenosAiresString
 } from '@/utils/date-utils';
 import { Activity } from '../types';
 import { calculateExerciseDayForDate, loadDayStatusesAsMap } from '../utils/calendar-utils';
@@ -31,8 +33,71 @@ export function useTodayDataLoaders(user: any, activityId: string) {
             const result = await response.json();
             if (result.success && result.data.enrollments?.length > 0) {
                 const enr = result.data.enrollments[0];
-                setEnrollment(enr);
-                setIsRated(Boolean(enr.is_rated || enr.rated));
+
+                // Buscar calificación si existe
+                const { data: survey } = await supabase
+                    .from('activity_surveys')
+                    .select('*')
+                    .eq('enrollment_id', enr.id)
+                    .maybeSingle();
+
+                const enrichedEnrollment = {
+                    ...enr,
+                    rating_coach: survey?.coach_method_rating || null,
+                    feedback_text: survey?.comments || null,
+                    difficulty_rating: survey?.difficulty_rating || null,
+                    would_repeat: survey?.would_repeat,
+                    calificacion_omnia: survey?.calificacion_omnia || null,
+                    comentarios_omnia: survey?.comentarios_omnia || null,
+                    workshop_version: survey?.workshop_version || null
+                };
+
+                setEnrollment(enrichedEnrollment);
+                setIsRated(Boolean(enr.is_rated || enr.rated || enrichedEnrollment.rating_coach));
+
+                // Check for expiration and snapshot
+                if (enr.expiration_date) {
+                    const todayStr = getTodayBuenosAiresString();
+                    if (enr.expiration_date < todayStr) {
+                        // Attempt to snapshot
+                        fetch(`/api/activities/${activityId}/snapshot-expired`, { method: 'POST' })
+                            .catch(err => console.error("Error creating snapshot", err));
+                    }
+                }
+            } else {
+                // Fallback: Buscar cualquier enrollment (incluso vencido/finalizado)
+                const { data: fallbackEnrollment } = await supabase
+                    .from('activity_enrollments')
+                    .select('*')
+                    .eq('client_id', user.id)
+                    .eq('activity_id', activityId)
+                    .order('created_at', { ascending: false })
+                    .limit(1)
+                    .single();
+
+                if (fallbackEnrollment) {
+                    console.log("✅ [TodayDataLoaders] Fallback enrollment found:", fallbackEnrollment.id);
+                    // Buscar calificación si existe (reusing logic)
+                    const { data: survey } = await supabase
+                        .from('activity_surveys')
+                        .select('*')
+                        .eq('enrollment_id', fallbackEnrollment.id)
+                        .maybeSingle();
+
+                    const enrichedFallback = {
+                        ...fallbackEnrollment,
+                        rating_coach: survey?.coach_method_rating || null,
+                        feedback_text: survey?.comments || null,
+                        difficulty_rating: survey?.difficulty_rating || null,
+                        would_repeat: survey?.would_repeat,
+                        calificacion_omnia: survey?.calificacion_omnia || null,
+                        comentarios_omnia: survey?.comentarios_omnia || null,
+                        workshop_version: survey?.workshop_version || null
+                    };
+
+                    setEnrollment(enrichedFallback);
+                    setIsRated(Boolean(enrichedFallback.is_rated || enrichedFallback.rated || enrichedFallback.rating_coach));
+                }
             }
         } catch (e) {
             console.error("Error loading enrollment", e);

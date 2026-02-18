@@ -1,4 +1,5 @@
 import { MediaItem } from './MediaItem'
+import { PdfSelectionItem } from './PdfSelectionItem'
 import { CoachMedia, MediaType, SourceFilter } from '../types'
 
 interface MediaGalleryProps {
@@ -28,6 +29,22 @@ export function MediaGallery({
         if (sourceFilter === 'catalog') return isCatalog
         return !isCatalog
     })
+
+    if (mediaType === 'pdf') {
+        return (
+            <div className="flex-1 overflow-y-auto pr-1 space-y-2 min-h-0 custom-scrollbar">
+                {filteredMedia.map((item, index) => (
+                    <PdfSelectionItem
+                        key={`${item.id}-${index}`}
+                        item={item}
+                        isSelected={selectedMediaId === item.id}
+                        onSelect={() => onSelect(item.id)}
+                        onPreview={() => setPreviewImage(item)}
+                    />
+                ))}
+            </div>
+        )
+    }
 
     return (
         <div className="overflow-x-auto overflow-y-hidden flex-shrink-0">

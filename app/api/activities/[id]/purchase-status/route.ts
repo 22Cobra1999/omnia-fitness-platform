@@ -35,7 +35,7 @@ export async function GET(
     // Buscar todas las compras del cliente para esta actividad
     const { data: enrollments, error: enrollmentsError } = await supabase
       .from('activity_enrollments')
-      .select('id, start_date, status, created_at, updated_at, expiration_date')
+      .select('id, start_date, status, created_at, updated_at, expiration_date, is_rated, rated, activity_surveys(coach_method_rating, comments)')
       .eq('activity_id', activityId)
       .eq('client_id', user.id)
       .order('created_at', { ascending: false })
@@ -69,7 +69,7 @@ export async function GET(
       purchaseStatus.lastPurchase = enrollments[0]
 
       // Verificar si tiene alguna compra activa
-      const activeEnrollment = enrollments.find(e =>
+      const activeEnrollment = enrollments.find((e: any) =>
         e.status === 'activa' || e.status === 'active' || e.status === 'enrolled' || e.status === 'pending'
       )
 
@@ -80,8 +80,8 @@ export async function GET(
         purchaseStatus.buttonText = 'Ver Actividad'
       } else {
         // Solo tiene compras finalizadas/canceladas
-        const completedEnrollment = enrollments.find(e => e.status === 'completed')
-        const cancelledEnrollment = enrollments.find(e => e.status === 'cancelled')
+        const completedEnrollment = enrollments.find((e: any) => e.status === 'completed')
+        const cancelledEnrollment = enrollments.find((e: any) => e.status === 'cancelled')
 
         if (completedEnrollment) {
           purchaseStatus.hasCompletedPurchase = true

@@ -1,28 +1,11 @@
-"use client"
-
-import { useState } from "react"
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
-import { Button } from "@/components/ui/button"
-import { Progress } from "@/components/ui/progress"
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from "@/components/ui/dialog"
-import { ChatWithFitnessCoach } from "@/components/chat-with-fitness-coach"
-import { ModifyFitnessCalendar } from '@/components/shared/calendar/modify-fitness-calendar'
-import { BarChart, Bar, LineChart, Line, XAxis, YAxis, Tooltip, ResponsiveContainer } from "recharts"
-import {
-  Moon,
-  Heart,
-  Activity,
-  MessageSquare,
-  Calendar,
-  TrendingUp,
-  Brain,
-  RotateCcw,
-  Play,
-  Dumbbell,
-} from "lucide-react"
-import Image from "next/image"
 import { motion } from "framer-motion"
+
+// Shared Tracker Components
+import { useTrackerState } from "./hooks/useTrackerState"
+import { TrackerChartCard } from "./components/Tracker/TrackerChartCard"
+import { TrackerInsightItem } from "./components/Tracker/TrackerInsightItem"
+import { TrackerActionGrid } from "./components/Tracker/TrackerActionGrid"
+import { TrackerWorkoutSection } from "./components/Tracker/TrackerWorkoutSection"
 
 const sleepData = [
   { day: "Mon", hours: 7.5, quality: 85 },
@@ -184,18 +167,23 @@ const workoutSections = [
 ]
 
 export function FitnessTracker() {
-  const [timeframe, setTimeframe] = useState("week")
-  const [openDialog, setOpenDialog] = useState<string | null>(null)
+  const { timeframe, setTimeframe, openDialog, setOpenDialog } = useTrackerState()
+
+  const quickActions = [
+    { icon: Dumbbell, label: "Log Activity", color: "#FF7939" },
+    { icon: MessageSquare, label: "Chat with Coach", color: "#FFB56B" },
+    { icon: Calendar, label: "Modify Calendar", color: "#FFD700" },
+  ]
 
   return (
     <div className="space-y-6 p-6">
       <div className="flex justify-between items-center">
-        <h2 className="text-2xl font-bold">Fitness Overview</h2>
+        <h2 className="text-2xl font-bold text-white">Fitness Overview</h2>
         <Select value={timeframe} onValueChange={setTimeframe}>
-          <SelectTrigger className="w-32">
+          <SelectTrigger className="w-32 bg-secondary/50 border-none text-white">
             <SelectValue placeholder="Select timeframe" />
           </SelectTrigger>
-          <SelectContent>
+          <SelectContent className="bg-secondary border-none text-white">
             <SelectItem value="day">Day</SelectItem>
             <SelectItem value="week">Week</SelectItem>
             <SelectItem value="month">Month</SelectItem>
@@ -205,150 +193,63 @@ export function FitnessTracker() {
 
       {/* Monitoring Cards */}
       <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-        <Card className="bg-[#1E1E1E] border-none">
-          <CardHeader>
-            <CardTitle className="flex items-center gap-2">
-              <Moon className="h-5 w-5 text-blue-400" />
-              Sleep
-            </CardTitle>
-          </CardHeader>
-          <CardContent>
-            <div className="h-[200px]">
-              <ResponsiveContainer width="100%" height="100%">
-                <LineChart data={sleepData}>
-                  <XAxis dataKey="day" stroke="#888888" />
-                  <YAxis stroke="#888888" />
-                  <Tooltip
-                    contentStyle={{
-                      backgroundColor: "#1E1E1E",
-                      border: "none",
-                      borderRadius: "8px",
-                    }}
-                  />
-                  <Line type="monotone" dataKey="hours" stroke="#8884d8" strokeWidth={2} dot={false} />
-                  <Line type="monotone" dataKey="quality" stroke="#82ca9d" strokeWidth={2} dot={false} />
-                </LineChart>
-              </ResponsiveContainer>
-            </div>
-            <div className="mt-4">
-              <div className="flex justify-between text-sm text-muted-foreground mb-2">
-                <span>Last night's sleep quality</span>
-                <span>7.5 hrs | 82%</span>
-              </div>
-              <Progress value={82} className="h-2" />
-            </div>
-          </CardContent>
-        </Card>
-
-        <Card className="bg-[#1E1E1E] border-none">
-          <CardHeader>
-            <CardTitle className="flex items-center gap-2">
-              <Heart className="h-5 w-5 text-red-400" />
-              Recovery
-            </CardTitle>
-          </CardHeader>
-          <CardContent>
-            <div className="h-[200px]">
-              <ResponsiveContainer width="100%" height="100%">
-                <LineChart data={recoveryData}>
-                  <XAxis dataKey="day" stroke="#888888" />
-                  <YAxis stroke="#888888" />
-                  <Tooltip
-                    contentStyle={{
-                      backgroundColor: "#1E1E1E",
-                      border: "none",
-                      borderRadius: "8px",
-                    }}
-                  />
-                  <Line type="monotone" dataKey="value" stroke="#FF7939" strokeWidth={2} dot={false} />
-                </LineChart>
-              </ResponsiveContainer>
-            </div>
-            <div className="mt-4">
-              <div className="flex justify-between text-sm text-muted-foreground mb-2">
-                <span>Today's recovery score</span>
-                <span>75%</span>
-              </div>
-              <Progress value={75} className="h-2" />
-            </div>
-          </CardContent>
-        </Card>
-
-        <Card className="bg-[#1E1E1E] border-none">
-          <CardHeader>
-            <CardTitle className="flex items-center gap-2">
-              <Activity className="h-5 w-5 text-yellow-400" />
-              Strain
-            </CardTitle>
-          </CardHeader>
-          <CardContent>
-            <div className="h-[200px]">
-              <ResponsiveContainer width="100%" height="100%">
-                <LineChart data={strainData}>
-                  <XAxis dataKey="day" stroke="#888888" />
-                  <YAxis stroke="#888888" />
-                  <Tooltip
-                    contentStyle={{
-                      backgroundColor: "#1E1E1E",
-                      border: "none",
-                      borderRadius: "8px",
-                    }}
-                  />
-                  <Line type="monotone" dataKey="value" stroke="#FFD700" strokeWidth={2} dot={false} />
-                </LineChart>
-              </ResponsiveContainer>
-            </div>
-            <div className="mt-4">
-              <div className="flex justify-between text-sm text-muted-foreground mb-2">
-                <span>Today's strain</span>
-                <span>13.7</span>
-              </div>
-              <Progress value={68} className="h-2" />
-            </div>
-          </CardContent>
-        </Card>
+        <TrackerChartCard
+          title="Sleep"
+          icon={Moon}
+          iconColor="text-blue-400"
+          data={sleepData}
+          mainDataKey="hours"
+          secondaryDataKey="quality"
+          mainLineColor="#8884d8"
+          secondaryLineColor="#82ca9d"
+          footerLabel="Last night's sleep quality"
+          footerValue="7.5 hrs | 82%"
+          progressValue={82}
+        />
+        <TrackerChartCard
+          title="Recovery"
+          icon={Heart}
+          iconColor="text-red-400"
+          data={recoveryData}
+          mainDataKey="value"
+          mainLineColor="#FF7939"
+          footerLabel="Today's recovery score"
+          footerValue="75%"
+          progressValue={75}
+        />
+        <TrackerChartCard
+          title="Strain"
+          icon={Activity}
+          iconColor="text-yellow-400"
+          data={strainData}
+          mainDataKey="value"
+          mainLineColor="#FFD700"
+          footerLabel="Today's strain"
+          footerValue="13.7"
+          progressValue={68}
+        />
       </div>
 
       {/* Activity Overview */}
       <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-        <Card className="bg-[#1E1E1E] border-none">
-          <CardHeader>
-            <CardTitle>Top 3 Activities</CardTitle>
-          </CardHeader>
-          <CardContent>
-            <div className="h-[200px]">
-              <ResponsiveContainer width="100%" height="100%">
-                <BarChart data={topActivities}>
-                  <XAxis dataKey="name" stroke="#888888" />
-                  <YAxis stroke="#888888" />
-                  <Tooltip
-                    contentStyle={{
-                      backgroundColor: "#1E1E1E",
-                      border: "none",
-                      borderRadius: "8px",
-                    }}
-                  />
-                  <Bar dataKey="duration" fill="#FF7939" radius={[4, 4, 0, 0]} />
-                  <Bar dataKey="calories" fill="#FFB56B" radius={[4, 4, 0, 0]} />
-                </BarChart>
-              </ResponsiveContainer>
-            </div>
-            <div className="mt-4 space-y-2">
-              {topActivities.map((activity, index) => (
-                <div key={index} className="flex justify-between items-center">
-                  <span className="text-sm text-gray-400">{activity.name}</span>
-                  <span className="text-sm font-medium">
-                    {activity.duration} min | {activity.calories} cal
-                  </span>
-                </div>
-              ))}
-            </div>
-          </CardContent>
-        </Card>
+        <TrackerChartCard
+          title="Top 3 Activities"
+          icon={Activity}
+          iconColor="text-[#FF7939]"
+          data={topActivities}
+          mainDataKey="duration"
+          secondaryDataKey="calories"
+          mainLineColor="#FF7939"
+          secondaryLineColor="#FFB56B"
+          footerLabel="Activities"
+          footerValue={`${topActivities.length} programs`}
+          progressValue={100}
+          type="bar"
+        />
 
         <Card className="bg-[#1E1E1E] border-none">
           <CardHeader>
-            <CardTitle>Performance</CardTitle>
+            <CardTitle className="text-white">Performance</CardTitle>
           </CardHeader>
           <CardContent>
             <div className="space-y-4">
@@ -367,122 +268,27 @@ export function FitnessTracker() {
       </div>
 
       {/* Smart Insights */}
-      <Card className="bg-[#1E1E1E] border-none mb-8">
+      <Card className="bg-[#1E1E1E] border-none">
         <CardHeader>
-          <CardTitle>Smart Insights</CardTitle>
+          <CardTitle className="text-white">Smart Insights</CardTitle>
         </CardHeader>
         <CardContent>
           <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
             {smartInsights.map((insight, index) => (
-              <div key={index} className="p-4 rounded-lg" style={{ backgroundColor: `${insight.color}10` }}>
-                <div className="flex items-start space-x-3">
-                  <div className="p-2 rounded-lg" style={{ backgroundColor: `${insight.color}20` }}>
-                    <insight.icon className="h-5 w-5" style={{ color: insight.color }} />
-                  </div>
-                  <div>
-                    <h4 className="font-medium text-sm mb-1">{insight.title}</h4>
-                    <p className="text-sm text-gray-400">{insight.description}</p>
-                  </div>
-                </div>
-              </div>
+              <TrackerInsightItem key={index} {...insight} />
             ))}
           </div>
         </CardContent>
       </Card>
 
       {/* Quick Actions */}
-      <Card className="bg-[#1E1E1E] border-none">
-        <CardHeader>
-          <CardTitle className="text-lg font-semibold">Quick Actions</CardTitle>
-        </CardHeader>
-        <CardContent>
-          <div className="grid grid-cols-3 gap-4">
-            {[
-              { icon: Dumbbell, label: "Log Activity", color: "#FF7939" },
-              { icon: MessageSquare, label: "Chat with Coach", color: "#FFB56B" },
-              { icon: Calendar, label: "Modify Calendar", color: "#FFD700" },
-            ].map((action, index) => (
-              <motion.button
-                key={index}
-                whileHover={{ scale: 1.05 }}
-                whileTap={{ scale: 0.95 }}
-                className="p-4 rounded-lg flex flex-col items-center justify-center space-y-2"
-                style={{ backgroundColor: `${action.color}20` }}
-                onClick={() => setOpenDialog(action.label)}
-              >
-                <action.icon className="w-6 h-6" style={{ color: action.color }} />
-                <span className="text-sm font-medium">{action.label}</span>
-              </motion.button>
-            ))}
-          </div>
-        </CardContent>
-      </Card>
+      <TrackerActionGrid actions={quickActions} onActionClick={setOpenDialog} />
 
       {/* Activity Videos */}
       <div className="space-y-8">
-        <h2 className="text-3xl font-bold">DAY 1 - 2000 CAL</h2>
-        {workoutSections.map((section, sectionIndex) => (
-          <div key={sectionIndex} className="space-y-4">
-            <div className="flex justify-between items-center">
-              <h3 className="text-2xl font-bold text-white">{section.title}</h3>
-              <Button
-                variant="ghost"
-                size="sm"
-                className="text-[#FF7939] hover:text-[#FF7939]/80"
-                onClick={() => {
-                  // Refresh options logic
-                  console.log(`Refreshing ${section.title} options`)
-                }}
-              >
-                <RotateCcw className="w-4 h-4 mr-2" />
-                Refresh Options
-              </Button>
-            </div>
-
-            <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
-              <div className="md:col-span-3">
-                <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                  {section.options.map((option, index) => (
-                    <Card
-                      key={index}
-                      className="bg-[#1E1E1E] overflow-hidden border-none hover:shadow-lg transition-shadow"
-                    >
-                      <div className="relative aspect-[4/3]">
-                        <Image
-                          src={option.image || "/placeholder.svg"}
-                          alt={option.title}
-                          layout="fill"
-                          objectFit="cover"
-                        />
-                        {option.videoUrl && (
-                          <div className="absolute inset-0 flex items-center justify-center bg-black/30 opacity-0 hover:opacity-100 transition-opacity">
-                            <Play className="w-12 h-12 text-white" />
-                          </div>
-                        )}
-                      </div>
-                      <CardContent className="p-4">
-                        <h4 className="font-semibold text-white mb-2">{option.title}</h4>
-                        <div className="flex justify-between items-center">
-                          <span className="text-sm text-gray-400">{option.calories} Cal / Session</span>
-                          <span className="text-sm text-[#FF7939]">{option.type}</span>
-                        </div>
-                      </CardContent>
-                    </Card>
-                  ))}
-                </div>
-              </div>
-
-              <Card className="bg-[#1E1E1E]/50 border-none">
-                <CardHeader>
-                  <CardTitle className="text-sm font-medium text-[#FF7939]">Coach's Note</CardTitle>
-                </CardHeader>
-                <CardContent>
-                  <h4 className="text-white font-medium mb-2">{section.coachNote.title}</h4>
-                  <p className="text-sm text-gray-400">{section.coachNote.description}</p>
-                </CardContent>
-              </Card>
-            </div>
-          </div>
+        <h2 className="text-3xl font-bold text-white uppercase tracking-tighter">DAY 1 - 2000 CAL</h2>
+        {workoutSections.map((section, index) => (
+          <TrackerWorkoutSection key={index} {...section} />
         ))}
       </div>
 

@@ -608,8 +608,11 @@ export async function GET(_request: NextRequest) {
         name: activityMap.get(id) || `Actividad ${id}`
       }))
 
-      // Si no tiene actividades asociadas pero existe en storage, tiene usesCount = 1
-      const usesCount = pdf.activities.size > 0 ? pdf.activities.size : 1
+      // Obtener URL pública del PDF
+      const { data: urlData } = supabase.storage
+        .from('product-media')
+        .getPublicUrl(`coaches/${coachId}/pdfs/${fileName}`)
+      const pdfUrl = urlData.publicUrl
 
       files.push({
         fileId: `pdf-${fileName}`,
@@ -618,7 +621,8 @@ export async function GET(_request: NextRequest) {
         sizeBytes: pdf.sizeBytes,
         sizeGB: pdf.sizeBytes / (1024 * 1024 * 1024),
         usesCount,
-        activities: activityList
+        activities: activityList,
+        url: pdfUrl
       })
     })
 

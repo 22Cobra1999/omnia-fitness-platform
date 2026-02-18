@@ -148,7 +148,12 @@ export function usePurchasedActivityLogic({
         // Restringir acceso si es vista de coach (solo lectura)
         if (isCoachView) return
 
-        if (daysInfo.isExpired && !hasStarted) return
+        // Bloquear acceso si está vencida
+        if (daysInfo.isExpired) {
+            console.warn("Acceso bloqueado: Actividad vencida.")
+            return
+        }
+
         if (isNavigating) return
 
         setIsNavigating(true)

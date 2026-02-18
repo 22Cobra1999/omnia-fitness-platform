@@ -68,16 +68,24 @@ export const MeetDetailParticipants: React.FC<MeetDetailParticipantsProps> = ({
                     {(() => {
                         // Show organizer's individual RSVP status text
                         const organizerRsvp = hostParticipant?.rsvp_status || 'pending';
-                        const statusText = (organizerRsvp === 'confirmed' || organizerRsvp === 'accepted')
+                        let statusText = (organizerRsvp === 'confirmed' || organizerRsvp === 'accepted')
                             ? 'Confirmado'
                             : (organizerRsvp === 'declined' || organizerRsvp === 'cancelled'
                                 ? 'Cancelado'
                                 : 'Pendiente');
-                        const statusColor = (organizerRsvp === 'confirmed' || organizerRsvp === 'accepted')
+                        let statusColor = (organizerRsvp === 'confirmed' || organizerRsvp === 'accepted')
                             ? 'text-[#FF7939]'
                             : (organizerRsvp === 'declined' || organizerRsvp === 'cancelled'
                                 ? 'text-red-500'
                                 : 'text-[#FFB366]');
+
+                        if (isEventCancelled) {
+                            if (organizerRsvp !== 'declined' && organizerRsvp !== 'cancelled') {
+                                statusText = 'Confirmado'; // Keep original but maybe fade it?
+                                statusColor = 'text-gray-600';
+                            }
+                        }
+
                         return <div className={`text-xs font-bold ${statusColor}`}>{statusText}</div>;
                     })()}
                 </div>
@@ -90,9 +98,16 @@ export const MeetDetailParticipants: React.FC<MeetDetailParticipantsProps> = ({
                     // Show individual RSVP status, not event-level status
                     const pRsvp = p.rsvp_status;
 
-                    const statusColor = (pRsvp === 'confirmed' || pRsvp === 'accepted') ? 'bg-[#FF7939]' : (pRsvp === 'declined' || pRsvp === 'cancelled' ? 'bg-red-500' : 'bg-[#FFB366]');
-                    const statusText = (pRsvp === 'confirmed' || pRsvp === 'accepted') ? 'Confirmado' : (pRsvp === 'declined' || pRsvp === 'cancelled' ? 'Cancelado' : 'Pendiente');
-                    const statusTextColor = (pRsvp === 'confirmed' || pRsvp === 'accepted') ? 'text-[#FF7939]' : (pRsvp === 'declined' || pRsvp === 'cancelled' ? 'text-red-500' : 'text-[#FFB366]');
+                    let statusColor = (pRsvp === 'confirmed' || pRsvp === 'accepted') ? 'bg-[#FF7939]' : (pRsvp === 'declined' || pRsvp === 'cancelled' ? 'bg-red-500' : 'bg-[#FFB366]');
+                    let statusText = (pRsvp === 'confirmed' || pRsvp === 'accepted') ? 'Confirmado' : (pRsvp === 'declined' || pRsvp === 'cancelled' ? 'Cancelado' : 'Pendiente');
+                    let statusTextColor = (pRsvp === 'confirmed' || pRsvp === 'accepted') ? 'text-[#FF7939]' : (pRsvp === 'declined' || pRsvp === 'cancelled' ? 'text-red-500' : 'text-[#FFB366]');
+
+                    if (isEventCancelled) {
+                        if (pRsvp !== 'declined' && pRsvp !== 'cancelled') {
+                            statusTextColor = 'text-gray-600';
+                            statusColor = 'bg-gray-600';
+                        }
+                    }
 
                     return (
                         <div key={p.id} className="flex items-center justify-between group">

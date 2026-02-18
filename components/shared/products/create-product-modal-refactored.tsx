@@ -134,6 +134,8 @@ export default function CreateProductModal({ isOpen, onClose, editingProduct, in
     handleInlineUploadChange,
     handleMediaSelection,
     openPdfGallery,
+    openPdfLibrary,
+    uploadNewPdf,
     handlePdfSelectionChoice,
     handlePdfSelected,
     handleClose,
@@ -307,6 +309,7 @@ export default function CreateProductModal({ isOpen, onClose, editingProduct, in
               {/* Paso 2: Categoría del Programa */}
               {currentStep === 'programType' && (
                 <StepProgramType
+                  selectedType={selectedType!}
                   selectedCategory={selectedProgramType}
                   onSelectCategory={handleProgramTypeSelect}
                   isPrivate={!generalForm.is_public}
@@ -321,6 +324,8 @@ export default function CreateProductModal({ isOpen, onClose, editingProduct, in
                   onChangeLocationName={(val) => setGeneralForm(prev => ({ ...prev, location_name: val }))}
                   locationUrl={generalForm.location_url}
                   onChangeLocationUrl={(val) => setGeneralForm(prev => ({ ...prev, location_url: val }))}
+                  workshopMode={generalForm.workshop_mode}
+                  onSelectWorkshopMode={(val) => setGeneralForm(prev => ({ ...prev, workshop_mode: val }))}
                 />
               )}
 
@@ -396,10 +401,9 @@ export default function CreateProductModal({ isOpen, onClose, editingProduct, in
                   workshopMaterial={workshopMaterial}
                   setWorkshopMaterial={setWorkshopMaterial}
                   workshopSchedule={workshopSchedule}
-                  openPdfGallery={(context: PdfSelectionContext) => {
-                    setPendingPdfContext(context)
-                    setShowPdfSelectionModal(true)
-                  }}
+                  openPdfLibrary={openPdfLibrary}
+                  uploadNewPdf={uploadNewPdf}
+                  openPdfGallery={openPdfGallery}
                 />
               )}
 
@@ -410,10 +414,9 @@ export default function CreateProductModal({ isOpen, onClose, editingProduct, in
                   setDocumentMaterial={setDocumentMaterial}
                   selectedTopics={selectedTopics}
                   setSelectedTopics={setSelectedTopics}
-                  openPdfGallery={(context: PdfSelectionContext) => {
-                    setPendingPdfContext(context)
-                    setShowPdfSelectionModal(true)
-                  }}
+                  openPdfLibrary={openPdfLibrary}
+                  uploadNewPdf={uploadNewPdf}
+                  openPdfGallery={openPdfGallery}
                   uploadingPdf={uploadingPdf}
                 />
               )}
@@ -471,7 +474,7 @@ export default function CreateProductModal({ isOpen, onClose, editingProduct, in
         onClose={() => setIsMediaModalOpen(false)}
         onMediaSelected={handleMediaSelection}
         mediaType={mediaModalType}
-        className="z-[80]"
+        className="z-[150]"
       />
 
       {/* Modal de selección de videos de ejercicios */}
@@ -498,7 +501,7 @@ export default function CreateProductModal({ isOpen, onClose, editingProduct, in
         onClose={() => setIsPdfModalOpen(false)}
         onMediaSelected={(url, type, file, name) => handlePdfSelected(url, type, file, name)}
         mediaType="pdf"
-        className="z-[80]"
+        className="z-[150]"
       />
 
       {/* Modal de confirmación de cierre */}

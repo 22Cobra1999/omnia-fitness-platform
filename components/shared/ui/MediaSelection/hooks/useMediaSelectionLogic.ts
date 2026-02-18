@@ -124,7 +124,11 @@ export function useMediaSelectionLogic(
     useEffect(() => {
         if (pendingUploadUrl && media.length > 0) {
             const uploadedItem = media.find(item => {
-                const itemUrl = mediaType === 'image' ? item.image_url : item.video_url
+                const itemUrl = mediaType === 'image'
+                    ? item.image_url
+                    : mediaType === 'video'
+                        ? item.video_url
+                        : item.pdf_url
                 return itemUrl === pendingUploadUrl || item.filename === pendingUploadFileName
             })
 
@@ -161,6 +165,7 @@ export function useMediaSelectionLogic(
                 activity_id: 0,
                 image_url: mediaType === 'image' ? data.url : undefined,
                 video_url: mediaType === 'video' ? data.url : undefined,
+                pdf_url: mediaType === 'pdf' ? data.url : undefined,
                 activity_title: '',
                 created_at: new Date().toISOString(),
                 filename: (data.originalFileName || file.name) as string,
@@ -223,6 +228,7 @@ export function useMediaSelectionLogic(
     }
 
     const handleConfirm = () => {
+        console.log('✅ [useMediaSelectionLogic] handleConfirm triggered', { mediaType, selectedMedia, hasNewFile: !!newMediaFile })
         if (mediaType === 'video' && newMediaFile) {
             onMediaSelected(URL.createObjectURL(newMediaFile), 'video', newMediaFile, newMediaFile.name)
             onClose()
@@ -231,13 +237,17 @@ export function useMediaSelectionLogic(
 
         if (selectedMedia) {
             const selectedItem = media.find(item => item.id === selectedMedia)
+            console.log('✅ [useMediaSelectionLogic] Found selected item', selectedItem)
             const url = selectedItem
                 ? (mediaType === 'image' ? selectedItem.image_url : mediaType === 'video' ? selectedItem.video_url : selectedItem.pdf_url)
                 : null
 
             if (url) {
+                console.log('✅ [useMediaSelectionLogic] Calling onMediaSelected with:', url)
                 onMediaSelected(url, mediaType, undefined, selectedItem?.filename)
                 onClose()
+            } else {
+                console.error('❌ [useMediaSelectionLogic] No URL found for selected item')
             }
         } else if (newMediaFile) {
             onMediaSelected(URL.createObjectURL(newMediaFile), mediaType, newMediaFile, newMediaFile.name)

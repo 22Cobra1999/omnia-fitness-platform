@@ -65,6 +65,12 @@ export function WorkshopTopicList({
     isRated
 }: WorkshopTopicListProps) {
 
+    const [isClient, setIsClient] = React.useState(false);
+
+    React.useEffect(() => {
+        setIsClient(true);
+    }, []);
+
     const formatDate = (dateStr: string) => {
         if (!dateStr) return '';
         try {
@@ -128,7 +134,7 @@ export function WorkshopTopicList({
             )}
 
             {/* Upcoming Sessions */}
-            {!isDocument && temasCubiertos.filter(tema => {
+            {isClient && !isDocument && temasCubiertos.filter(tema => {
                 if (tema.asistio) return false;
                 if (!tema.fecha_seleccionada) return false;
                 const date = new Date(tema.fecha_seleccionada + 'T23:59:59');

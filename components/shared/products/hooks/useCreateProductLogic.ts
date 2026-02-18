@@ -10,6 +10,7 @@ import {
     FITNESS_RESTRICTION_GROUPS,
     NUTRITION_RESTRICTION_GROUPS,
     groupsToSelectItems,
+    PdfSelectionContext,
 } from '../product-constants'
 import { getPlanLimit, type PlanType } from '@/lib/utils/plan-limits'
 import { toast } from 'sonner'
@@ -20,6 +21,8 @@ import { useWorkshopLogic } from './modules/useWorkshopLogic'
 import { useDocumentLogic } from './modules/useDocumentLogic'
 import { useProductMediaLogic } from './modules/useProductMediaLogic'
 import { useProductSubmission } from './modules/useProductSubmission'
+import { useProductNavigation } from './modules/useProductNavigation'
+import { useProductPreviewStats } from './modules/useProductPreviewStats'
 
 // Export types used by the modal
 export type { InlineMediaType } from '../product-constants'
@@ -53,12 +56,19 @@ export function useCreateProductLogic({
     }
 
     const [selectedType, setSelectedType] = useState<ProductType | null>(getInitialType())
-    const [selectedProgramType, setSelectedProgramType] = useState<ProgramSubType | null>(
-        (editingProduct?.categoria === 'nutricion' || editingProduct?.categoria === 'nutrition' || editingProduct?.category === 'nutricion' || editingProduct?.category === 'nutrition') ? 'nutrition' :
-            editingProduct?.type === 'program' ? 'fitness' : null // Default to fitness if program but no category
-    )
+    const getInitialCategory = (): ProgramSubType | null => {
+        if (!editingProduct) return null
+        const cat = (editingProduct.categoria || editingProduct.category || '').toLowerCase()
+        if (cat === 'nutricion' || cat === 'nutrition') return 'nutrition'
+        if (cat === 'fitness') return 'fitness'
+        // Default based on type
+        if (editingProduct.type === 'program') return 'fitness'
+        return null
+    }
+
+    const [selectedProgramType, setSelectedProgramType] = useState<ProgramSubType | null>(getInitialCategory())
     const [productCategory, setProductCategory] = useState<'fitness' | 'nutricion'>(
-        (editingProduct?.categoria === 'nutricion' || editingProduct?.categoria === 'nutrition' || editingProduct?.category === 'nutricion' || editingProduct?.category === 'nutrition') ? 'nutricion' : 'fitness'
+        getInitialCategory() === 'nutrition' ? 'nutricion' : 'fitness'
     )
 
     useEffect(() => {
@@ -71,33 +81,16 @@ export function useCreateProductLogic({
     }, [editingProduct, productCategory])
 
 
-    // Helper for steps
-    const getStepNumber = (step: string) => {
-        if (selectedType === 'workshop') {
-            const workshopStepMap: { [key: string]: number } = {
-                'type': 1, 'programType': 2, 'general': 3, 'workshopSchedule': 4, 'workshopMaterial': 5, 'preview': 6
-            }
-            return workshopStepMap[step] || 1
-        } else if (selectedType === 'document') {
-            const documentStepMap: { [key: string]: number } = {
-                'type': 1, 'programType': 2, 'general': 3, 'documentMaterial': 4, 'preview': 5
-            }
-            return documentStepMap[step] || 1
-        } else {
-            const programStepMap: { [key: string]: number } = {
-                'type': 1, 'programType': 2, 'general': 3, 'weeklyPlan': 4, 'preview': 5
-            }
-            return programStepMap[step] || 1
-        }
-    }
-
-    const getInitialStep = () => {
-        if (initialStep) return initialStep
-        if (editingProduct) return 'general'
-        return 'type'
-    }
-
-    const [currentStep, setCurrentStep] = useState<string>(getInitialStep())
+    const {
+        currentStep,
+        setCurrentStep,
+        getStepNumber,
+        goToStep
+    } = useProductNavigation({
+        selectedType,
+        initialStep,
+        editingProduct
+    })
 
     // --- SUB-HOOKS ---
     const planType = (user as any)?.subscription_plan || 'free'
@@ -137,7 +130,11 @@ export function useCreateProductLogic({
         videosPendingDeletion, setVideosPendingDeletion,
         weeklyStats, setWeeklyStats,
         getExerciseVideoKey,
-        isVideoModalOpen, setIsVideoModalOpen
+        isVideoModalOpen, setIsVideoModalOpen,
+        handleVideoSelection: handleVideoSelectionWrapper,
+        handleClearExerciseVideo,
+        openVideoModal,
+        getStoredExerciseVideoFile
     } = useProgramLogic(isOpen, selectedType, editingProduct, productCategory)
 
     // Workshop Logic
@@ -162,7 +159,47 @@ export function useCreateProductLogic({
         inlineFileInputRef, isInlineUploading, setIsInlineUploading, uploadProgress, setUploadProgress,
         pendingImageFile, setPendingImageFile, pendingVideoFile, setPendingVideoFile,
         loadInlineMedia, handleInlineUploadChange, handleMediaSelection,
+        handlePdfSelectionChoice, handlePdfSelected: handlePdfSelectedBase
     } = useProductMediaLogic()
+
+    const handlePdfSelectionChoiceWrapper = (choice: 'existing' | 'new', context?: PdfSelectionContext) => {
+        const targetContext = context || pendingPdfContext
+        if (!targetContext) return
+
+        if (choice === 'new') {
+            setShowPdfSelectionModal(false)
+            uploadNewPdf(targetContext)
+        } else {
+            handlePdfSelectionChoice(choice, targetContext)
+        }
+    }
+
+    const openPdfLibrary = (context: PdfSelectionContext) => {
+        setPdfModalContext(context)
+        setIsPdfModalOpen(true)
+    }
+
+    const uploadNewPdf = (context: PdfSelectionContext) => {
+        const input = document.createElement('input')
+        input.type = 'file'
+        input.accept = 'application/pdf'
+        input.onchange = (e: any) => {
+            const file = e.target.files?.[0]
+            if (file) {
+                handlePdfSelectedBase(
+                    URL.createObjectURL(file),
+                    'pdf',
+                    file,
+                    file.name,
+                    selectedType,
+                    setDocumentMaterial,
+                    setWorkshopMaterial,
+                    context // Pass context directly
+                )
+            }
+        }
+        input.click()
+    }
 
     // Submission Logic
     const {
@@ -171,23 +208,13 @@ export function useCreateProductLogic({
     } = useProductSubmission()
 
     // --- NAVIGATION HELPERS ---
-    const goToStep = (stepNumber: number) => {
-        let stepMap: { [key: number]: string }
-        if (selectedType === 'workshop') {
-            stepMap = { 1: 'type', 2: 'programType', 3: 'general', 4: 'workshopSchedule', 5: 'workshopMaterial', 6: 'preview' }
-        } else if (selectedType === 'document') {
-            stepMap = { 1: 'type', 2: 'programType', 3: 'general', 4: 'documentMaterial', 5: 'preview' }
-        } else {
-            stepMap = { 1: 'type', 2: 'programType', 3: 'general', 4: 'weeklyPlan', 5: 'preview' }
-        }
-        const targetStep = stepMap[stepNumber]
-        if (targetStep) {
-            const currentStepNumber = getStepNumber(currentStep)
-            if (stepNumber <= currentStepNumber || stepNumber === currentStepNumber + 1) {
-                setCurrentStep(targetStep as any)
-            }
-        }
-    }
+    // Preview Stats Logic
+    const { derivedPreviewStats } = useProductPreviewStats({
+        selectedType,
+        workshopSchedule,
+        persistentCalendarSchedule,
+        periods
+    })
 
     // --- OPTIONS & DERIVED STATE ---
     const objectiveOptions = useMemo(() => {
@@ -202,72 +229,16 @@ export function useCreateProductLogic({
             : groupsToSelectItems(FITNESS_RESTRICTION_GROUPS)
     }, [productCategory])
 
-    const derivedPreviewStats = useMemo(() => {
-        if (selectedType === 'workshop') {
-            if (!workshopSchedule || workshopSchedule.length === 0) {
-                return { sesiones: 0, ejerciciosTotales: 0, ejerciciosUnicos: 0, semanas: 0 }
-            }
-
-            const uniqueDays = new Set(workshopSchedule.map(s => s.date)).size
-            const uniqueThemes = new Set(workshopSchedule.map(s => s.title).filter(Boolean)).size
-
-            // Calculate weeks from date range
-            const sortedDates = [...workshopSchedule]
-                .map(s => new Date(s.date))
-                .sort((a, b) => a.getTime() - b.getTime())
-
-            let weeks = 0
-            if (sortedDates.length > 0) {
-                const firstDate = sortedDates[0]
-                const lastDate = sortedDates[sortedDates.length - 1]
-                const diffTime = Math.abs(lastDate.getTime() - firstDate.getTime())
-                const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24))
-                weeks = Math.max(1, Math.ceil((diffDays + 1) / 7))
-            }
-
-            return {
-                sesiones: uniqueDays,
-                ejerciciosTotales: workshopSchedule.length,
-                ejerciciosUnicos: uniqueThemes,
-                semanas: weeks
-            }
-        }
-
-        const schedule = persistentCalendarSchedule
-        if (!schedule || typeof schedule !== 'object') return { sesiones: 0, ejerciciosTotales: 0, ejerciciosUnicos: 0, semanas: 0 }
-        const uniqueIds = new Set<string>()
-        let totalEntries = 0
-        let totalDaysWithExercises = 0
-        for (const weekKey in schedule) {
-            const weekData = schedule[weekKey]
-            if (!weekData || typeof weekData !== 'object') continue
-            for (const dayKey in weekData) {
-                const dayData = weekData[dayKey]
-                if (!dayData) continue
-                let dayExercises = Array.isArray(dayData) ? dayData : ((dayData as any).ejercicios || (dayData as any).exercises || [])
-                if (dayExercises.length > 0) {
-                    totalDaysWithExercises += 1
-                    dayExercises.forEach((ex: any) => {
-                        if (ex && ex.id) uniqueIds.add(String(ex.id))
-                        totalEntries += 1
-                    })
-                }
-            }
-        }
-        const mul = periods || 1
-        return {
-            sesiones: totalDaysWithExercises * mul,
-            ejerciciosTotales: totalEntries * mul,
-            ejerciciosUnicos: uniqueIds.size,
-            semanas: 0 // Will be handled by weeklyPlan logic if needed
-        }
-    }, [persistentCalendarSchedule, periods, selectedType, workshopSchedule])
 
 
     // --- HANDLERS WRAPPERS ---
 
     const handlePublishProduct = () => {
-        if (!selectedType) return
+        console.log('🏁 [useCreateProductLogic] handlePublishProduct triggered', { selectedType })
+        if (!selectedType) {
+            console.error('❌ [useCreateProductLogic] No selectedType found')
+            return
+        }
 
         submitProduct({
             generalForm,
@@ -354,97 +325,6 @@ export function useCreateProductLogic({
         }
     }
 
-    // Video Selection from Modal for Exercises
-    const handleVideoSelectionWrapper = (selection: any) => {
-        if (!selection) {
-            setIsVideoModalOpen(false)
-            return
-        }
-        if (!persistentCsvData || persistentCsvData.length === 0) {
-            setIsVideoModalOpen(false)
-            return
-        }
-
-        const selectedIndices = Array.from(persistentSelectedRows)
-        const { videoUrl, videoFile, fileName, bunnyVideoId, bunnyLibraryId, thumbnailUrl } = selection
-
-        if (!videoUrl || videoUrl.trim() === '') {
-            setIsVideoModalOpen(false)
-            return
-        }
-
-        const updatedCsvData = persistentCsvData.map((exercise, index) => {
-            if (!selectedIndices.includes(index)) return exercise
-            if (!exercise || typeof exercise !== 'object') return exercise
-
-            const updatedExercise = { ...exercise }
-            updatedExercise.video_url = videoUrl
-            if (videoFile) {
-                updatedExercise.video_file_name = fileName || videoFile.name
-                updatedExercise.video_source = 'local'
-            } else {
-                updatedExercise.video_file_name = fileName
-                updatedExercise.video_source = 'existing'
-                updatedExercise.bunny_video_id = bunnyVideoId
-                updatedExercise.bunny_library_id = bunnyLibraryId
-                updatedExercise.video_thumbnail_url = thumbnailUrl
-            }
-            return updatedExercise
-        })
-
-        setPersistentCsvData(updatedCsvData)
-
-        // Handle file storage
-        if (videoFile) {
-            setExerciseVideoFiles(prev => {
-                const next = { ...prev }
-                selectedIndices.forEach(idx => {
-                    const ex = updatedCsvData[idx]
-                    const key = getExerciseVideoKey(ex, idx)
-                    if (key) next[key] = videoFile
-                })
-                return next
-            })
-        }
-
-        setPersistentSelectedRows(new Set())
-        setIsVideoModalOpen(false)
-    }
-
-    const handleClearExerciseVideo = (index: number, exercise: any, meta?: any) => {
-        setExerciseVideoFiles(prev => {
-            const next = { ...prev }
-            const key = getExerciseVideoKey(exercise, index)
-            if (key && next[key]) delete next[key]
-            return next
-        })
-
-        if (meta?.bunnyVideoId) {
-            setVideosPendingDeletion(prev => [
-                ...prev,
-                {
-                    exerciseId: exercise?.id,
-                    bunnyVideoId: meta.bunnyVideoId,
-                    bunnyLibraryId: meta.bunnyLibraryId,
-                    videoUrl: meta.videoUrl
-                }
-            ])
-        }
-    }
-
-    const openVideoModal = () => {
-        if (persistentSelectedRows.size === 0) {
-            // toast.error('Selecciona al menos una fila para asignar video')
-            return
-        }
-        setIsVideoModalOpen(true)
-    }
-
-    const getStoredExerciseVideoFile = (exercise: any, index: number) => {
-        const key = getExerciseVideoKey(exercise, index)
-        return exerciseVideoFiles[key] || null
-    }
-
     // Helpers
     const truncateInlineFileName = (name: string, maxLength = 50) => {
         if (!name) return ''
@@ -468,6 +348,7 @@ export function useCreateProductLogic({
     }
 
     const openPdfGallery = (context: any) => {
+        // Deprecated but kept for compatibility if needed elsewhere
         setPendingPdfContext(context)
         setShowPdfSelectionModal(true)
     }
@@ -522,64 +403,16 @@ export function useCreateProductLogic({
         handleInlineUploadChange: handleInlineUploadChangeWrapper,
         handleMediaSelection: handleMediaSelectionWrapper,
         openPdfGallery,
+        openPdfLibrary,
+        uploadNewPdf,
 
-        handlePdfSelectionChoice: (choice: 'existing' | 'new') => {
-            setShowPdfSelectionModal(false)
-            if (choice === 'existing' && pendingPdfContext) {
-                setPdfModalContext(pendingPdfContext)
-                setIsPdfModalOpen(true)
-            } else if (choice === 'new') {
-                // The 'new' logic was creating an input element dynamically
-                const input = document.createElement('input')
-                input.type = 'file'
-                input.accept = 'application/pdf'
-                input.onchange = async (e) => {
-                    const file = (e.target as HTMLInputElement).files?.[0]
-                    if (file && pendingPdfContext) {
-                        // This is where real upload logic would go or handled via useEffect like in original
-                        // For now simplified compatibility
-                        console.log('PDF File selected for new upload', file.name)
-                        // Trigger update in documentMaterial/workshopMaterial directly if needed
-                    }
-                }
-                input.click()
-            }
-        },
-        handlePdfSelected: (url: string, type: string, file?: File, name?: string) => {
-            if (!pdfModalContext) { setIsPdfModalOpen(false); return }
-            const fileName = file ? file.name : (name || url.split('/').pop()?.split('?')[0] || 'PDF')
+        handlePdfSelectionChoice: handlePdfSelectionChoiceWrapper,
+        handlePdfSelected: (url: string, type: string, file?: File, name?: string) =>
+            handlePdfSelectedBase(url, type, file, name, selectedType, setDocumentMaterial, setWorkshopMaterial, pdfModalContext || undefined),
 
-            if (selectedType === 'document') {
-                if ((pdfModalContext as any).scope === 'general') {
-                    setDocumentMaterial(prev => ({ ...prev, pdfFile: file || null, pdfUrl: file ? null : url, pdfFileName: fileName }))
-                } else {
-                    const topicId = (pdfModalContext as any).topicTitle
-                    setDocumentMaterial(prev => {
-                        const newPdfs = { ...prev.topicPdfs }
-                        if (topicId === 'bulk-selection') {
-                            selectedTopics.forEach(tid => { newPdfs[tid] = { file: file || null, url: file ? null : url, fileName } })
-                            setSelectedTopics(new Set()) // Clear selection after assignment
-                        } else { newPdfs[topicId] = { file: file || null, url: file ? null : url, fileName } }
-                        return { ...prev, topicPdfs: newPdfs }
-                    })
-                }
-            } else if (selectedType === 'workshop') {
-                if ((pdfModalContext as any).scope === 'general') {
-                    setWorkshopMaterial(prev => ({ ...prev, pdfFile: file || null, pdfUrl: file ? null : url }))
-                } else {
-                    const topicId = (pdfModalContext as any).topicTitle
-                    setWorkshopMaterial(prev => {
-                        const newPdfs = { ...prev.topicPdfs }
-                        newPdfs[topicId] = { file: file || null, url: file ? null : url, fileName }
-                        return { ...prev, topicPdfs: newPdfs }
-                    })
-                }
-            }
-            setIsPdfModalOpen(false)
-            setPdfModalContext(null)
-        },
-
-        loadInlineMedia, getBunnyEmbedUrl, truncateInlineFileName,
+        loadInlineMedia,
+        getBunnyEmbedUrl,
+        truncateInlineFileName,
 
         // Data & Logic
         derivedPreviewStats,
@@ -611,6 +444,6 @@ export function useCreateProductLogic({
 
         coachCatalogError, coachCatalogExercises, coachCatalogLoading,
 
-        user, planType
+        user, planType: planType as PlanType
     }
 }

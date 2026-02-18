@@ -1,5 +1,6 @@
 import * as React from 'react';
-import { Flame, ChevronDown, ChevronUp } from 'lucide-react';
+import { Flame, ChevronDown, ChevronUp, MessageSquare } from 'lucide-react';
+import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog"
 import { parseSeries } from '../../utils/parsers';
 
 // Helper for sorting blocks (extracted or inline)
@@ -64,6 +65,9 @@ interface TodayActivityListProps {
     enrollment: any;
     openVideo: (url: string, ...args: any[]) => void;
     toggleExerciseSimple: (id: string) => void;
+    isExpired?: boolean;
+    isRated?: boolean;
+    handleOpenSurveyModal?: () => void;
 }
 
 export function TodayActivityList({
@@ -76,11 +80,19 @@ export function TodayActivityList({
     programInfo,
     enrollment,
     openVideo,
-    toggleExerciseSimple
+    toggleExerciseSimple,
+    isExpired = false,
+    isRated = false,
+    handleOpenSurveyModal
 }: TodayActivityListProps) {
 
     const activeBlock = getActiveBlock(activities);
     const blocks = getActivitiesByBlocks(activities);
+    const [showFeedback, setShowFeedback] = React.useState(false);
+
+    const survey = enrollment?.activity_surveys?.[0] || enrollment?.activity_surveys;
+    const rating = survey?.coach_method_rating || 0;
+    const feedback = survey?.comments || '';
 
     return (
         <div style={{ marginBottom: 20 }}>
@@ -97,7 +109,8 @@ export function TodayActivityList({
                             padding: '12px 16px',
                             background: isActiveBlock ? 'rgba(255, 107, 53, 0.15)' : 'rgba(255, 255, 255, 0.08)',
                             border: `1px solid ${isActiveBlock ? 'rgba(255, 107, 53, 0.3)' : 'rgba(255, 255, 255, 0.1)'}`,
-                            borderRadius: 12, cursor: 'default', transition: 'all 0.2s ease'
+                            borderRadius: 12, cursor: 'default', transition: 'all 0.2s ease',
+                            filter: isExpired ? 'grayscale(1) opacity(0.8)' : 'none'
                         }}>
                             <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
                                 <span style={{ fontSize: 14, fontWeight: 600, color: isActiveBlock ? '#FF6B35' : '#FFFFFF' }}>
@@ -128,18 +141,100 @@ export function TodayActivityList({
                                     openVideo={openVideo}
                                     toggleExerciseSimple={toggleExerciseSimple}
                                     isNutri={programInfo?.categoria === 'nutricion' || enrollment?.activity?.categoria === 'nutricion'}
+                                    isExpired={isExpired}
                                 />
                             </div>
                         )}
                     </div>
                 );
             })}
+
+            {/* Calificado / Enviar Calificación Button */}
+            {(isExpired || isRated) && (
+                <div style={{ marginTop: 24, padding: '0 4px' }}>
+                    {isRated ? (
+                        <button
+                            onClick={() => setShowFeedback(true)}
+                            style={{
+                                width: '100%',
+                                display: 'flex', alignItems: 'center', gap: 10,
+                                padding: '12px 16px', background: 'rgba(255, 121, 57, 0.1)',
+                                border: '1px solid rgba(255, 121, 57, 0.3)', borderRadius: 16,
+                                cursor: 'pointer', textAlign: 'left'
+                            }}
+                        >
+                            <div style={{ display: 'flex', gap: 2 }}>
+                                {[1, 2, 3, 4, 5].map(i => (
+                                    <Flame
+                                        key={i}
+                                        size={16}
+                                        fill={i <= rating ? "#FF7939" : "none"}
+                                        color={i <= rating ? "#FF7939" : "rgba(255, 121, 57, 0.3)"}
+                                    />
+                                ))}
+                            </div>
+                            <span style={{ fontSize: 14, fontWeight: 700, color: '#FF7939', flex: 1 }}>Calificado</span>
+                            <MessageSquare size={16} color="#FF7939" style={{ opacity: 0.7 }} />
+                        </button>
+                    ) : (
+                        <button
+                            onClick={handleOpenSurveyModal}
+                            style={{
+                                width: '100%', padding: '12px',
+                                background: 'transparent', border: '1px solid rgba(255, 255, 255, 0.2)',
+                                borderRadius: 16, color: 'white', fontWeight: 600, fontSize: 14,
+                                cursor: 'pointer'
+                            }}
+                        >
+                            Enviar Calificación
+                        </button>
+                    )}
+                </div>
+            )}
+
+            {/* Feedback Dialog */}
+            <Dialog open={showFeedback} onOpenChange={setShowFeedback}>
+                <DialogContent className="bg-[#111111] border-none shadow-2xl text-white w-[92%] max-w-sm rounded-[32px] p-8">
+                    <DialogHeader className="items-center text-center space-y-4">
+                        <div className="w-12 h-12 bg-[#FF7939]/10 rounded-full flex items-center justify-center">
+                            <MessageSquare className="w-6 h-6 text-[#FF7939]" />
+                        </div>
+                        <DialogTitle className="text-2xl font-bold">Feedback de tu actividad</DialogTitle>
+                    </DialogHeader>
+
+                    <div className="mt-6 flex flex-col items-center gap-4">
+                        <div className="flex gap-2">
+                            {[1, 2, 3, 4, 5].map(i => (
+                                <Flame
+                                    key={i}
+                                    size={24}
+                                    fill={i <= rating ? "#FF7939" : "none"}
+                                    color={i <= rating ? "#FF7939" : "rgba(255, 121, 57, 0.3)"}
+                                />
+                            ))}
+                        </div>
+
+                        <div className="w-full bg-white/5 p-4 rounded-2xl border border-white/10 mt-2 text-center italic text-gray-300">
+                            "{feedback || 'No dejaste comentarios en esta calificación.'}"
+                        </div>
+                    </div>
+
+                    <div className="flex flex-col gap-3 mt-8">
+                        <button
+                            onClick={() => setShowFeedback(false)}
+                            className="w-full bg-[#FF7939] hover:bg-[#E66829] text-white py-4 rounded-2xl font-bold text-lg shadow-lg shadow-[#FF7939]/20 transition-all"
+                        >
+                            Cerrar
+                        </button>
+                    </div>
+                </DialogContent>
+            </Dialog>
         </div>
     );
 }
 
 // Subcomponent for Rendering List Items
-function ActivityItemsList({ activities, openVideo, toggleExerciseSimple, isNutri }: { activities: any[], openVideo: any, toggleExerciseSimple: any, isNutri: boolean }) {
+function ActivityItemsList({ activities, openVideo, toggleExerciseSimple, isNutri, isExpired }: { activities: any[], openVideo: any, toggleExerciseSimple: any, isNutri: boolean, isExpired: boolean }) {
     return (
         <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
             {activities.map((activity, index) => {
@@ -155,10 +250,25 @@ function ActivityItemsList({ activities, openVideo, toggleExerciseSimple, isNutr
 
                 return (
                     <button key={activity.id} onClick={handleOpenVideo}
-                        style={{ width: '100%', padding: '10px 12px', background: 'transparent', border: 'none', borderRadius: 8, textAlign: 'left', cursor: 'pointer', transition: 'all 0.2s ease' }}
-                        onMouseEnter={(e) => e.currentTarget.style.background = 'rgba(255, 255, 255, 0.05)'}
-                        onMouseLeave={(e) => e.currentTarget.style.background = 'transparent'}
+                        style={{
+                            width: '100%', padding: '10px 12px', background: 'transparent',
+                            border: 'none', borderRadius: 8, textAlign: 'left',
+                            cursor: isExpired ? 'default' : 'pointer',
+                            filter: isExpired ? 'grayscale(1) opacity(0.6)' : 'none',
+                            pointerEvents: isExpired ? 'none' : 'auto',
+                            position: 'relative',
+                            overflow: 'hidden'
+                        }}
+                        onMouseEnter={(e) => !isExpired && (e.currentTarget.style.background = 'rgba(255, 255, 255, 0.05)')}
+                        onMouseLeave={(e) => !isExpired && (e.currentTarget.style.background = 'transparent')}
                     >
+                        {isExpired && (
+                            <div style={{
+                                position: 'absolute', inset: 0,
+                                background: 'rgba(0,0,0,0.05)', zIndex: 5,
+                                pointerEvents: 'none'
+                            }} />
+                        )}
                         <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12, width: '100%' }}>
                             {/* Left Side: Flame + Text */}
                             <div style={{ display: 'flex', alignItems: 'center', gap: 12, flex: 1, minWidth: 0 }}>

@@ -61,6 +61,7 @@ export default function TodayScreen({ activityId, enrollmentId, onBack }: { acti
                             onScheduleMeet={handleScheduleMeet}
                             onOpenSurvey={actions.handleOpenSurveyModal}
                             onBack={onBack}
+                            isExpired={state.isExpired}
                         />
 
                         {isSpecialType ? (
@@ -110,6 +111,7 @@ export default function TodayScreen({ activityId, enrollmentId, onBack }: { acti
                                     setShowConfirmModal={actions.setShowConfirmModal}
                                     calendarMessage={state.calendarMessage}
                                     setCalendarMessage={actions.setCalendarMessage}
+                                    isExpired={state.isExpired}
                                 />
                             </div>
                         )}
@@ -126,6 +128,8 @@ export default function TodayScreen({ activityId, enrollmentId, onBack }: { acti
                             enrollment={state.enrollment}
                             isDayLoading={state.isDayLoading}
                             nextAvailableActivity={state.nextAvailableActivity}
+                            isExpired={state.isExpired}
+                            isRated={state.isRated}
 
                             goToToday={actions.goToToday}
                             goToNextActivity={actions.goToNextActivity}
@@ -163,6 +167,7 @@ export default function TodayScreen({ activityId, enrollmentId, onBack }: { acti
                     enrollment={state.enrollment}
                     onNext={actions.onNext}
                     onPrev={actions.onPrev}
+                    isExpired={state.isExpired}
                 />
             )}
 

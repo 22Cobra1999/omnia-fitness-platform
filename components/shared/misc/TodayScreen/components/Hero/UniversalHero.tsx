@@ -9,6 +9,7 @@ interface UniversalHeroProps {
     onScheduleMeet: () => void;
     onOpenSurvey: () => void;
     onBack?: () => void;
+    isExpired?: boolean;
 }
 
 export function UniversalHero({
@@ -18,7 +19,8 @@ export function UniversalHero({
     hasUserSubmittedSurvey,
     onScheduleMeet,
     onOpenSurvey,
-    onBack
+    onBack,
+    isExpired = false
 }: UniversalHeroProps) {
     const [descriptionExpanded, setDescriptionExpanded] = React.useState(false);
 
@@ -52,14 +54,15 @@ export function UniversalHero({
             borderTopRightRadius: 0,
             borderBottomLeftRadius: 24,
             borderBottomRightRadius: 24,
-            padding: '8px 24px 24px',
+            padding: '65px 24px 24px',
             marginBottom: 24,
-            marginTop: -10,
+            marginTop: -55,
             marginLeft: '-24px',
             marginRight: '-24px',
             width: 'calc(100% + 48px)',
             position: 'relative',
-            boxShadow: '0 12px 40px rgba(0, 0, 0, 0.4), inset 0 1px 0 rgba(255, 255, 255, 0.05)'
+            boxShadow: '0 12px 40px rgba(0, 0, 0, 0.4), inset 0 1px 0 rgba(255, 255, 255, 0.05)',
+            filter: isExpired ? 'grayscale(1) opacity(0.8)' : 'none'
         }}>
             {/* Flecha de retorno y botón de calificación al mismo nivel */}
             <div style={{
@@ -188,6 +191,23 @@ export function UniversalHero({
                 }}>
                     {programInfo?.title || 'Actividad'}
                 </h1>
+
+                {isExpired && (
+                    <div style={{
+                        marginTop: -4,
+                        background: 'rgba(239, 68, 68, 0.1)',
+                        border: '1px solid rgba(239, 68, 68, 0.3)',
+                        borderRadius: 12,
+                        padding: '2px 10px',
+                        color: '#EF4444',
+                        fontSize: 10,
+                        fontWeight: 700,
+                        letterSpacing: '0.1em',
+                        textTransform: 'uppercase'
+                    }}>
+                        Programa Expirado
+                    </div>
+                )}
 
                 {/* Categoría y Tags */}
                 <div style={{

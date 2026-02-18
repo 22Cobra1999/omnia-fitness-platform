@@ -87,13 +87,75 @@ export const normalizeNutritionType = (rawType: string): string => {
     return 'otro'
 }
 
+export const parseSeries = (seriesData?: any) => {
+    if (!seriesData || seriesData === '' || seriesData === 'undefined' || seriesData === 'null') {
+        return [];
+    }
+
+    console.log('[parseSeries] Input:', typeof seriesData, seriesData);
+
+    // Si es un string, usar el formato anterior (reps-kg-sets; reps-kg-sets...)
+    if (typeof seriesData === 'string') {
+        const cleanData = seriesData.trim().replace(/^["']|["']$/g, '');
+        const groups = cleanData.split(';').filter(g => g.trim() !== '');
+        if (groups.length === 0) return [];
+
+        const result = groups.map((group, index) => {
+            // Clean more aggressively and handle potential double quotes inside string
+            const cleanGroup = group.trim().replace(/[()"' ]/g, '');
+            const parts = cleanGroup.split('-');
+
+            return {
+                id: index + 1,
+                kg: parts[0] || '0',
+                reps: parts[1] || '0',
+                sets: parts[2] || '1'
+            };
+        });
+        console.log('[parseSeries] Parsed:', result);
+        return result;
+    }
+
+    // Si es un array de objetos (nuevo formato)
+    if (Array.isArray(seriesData)) {
+        return seriesData.map((block, index) => ({
+            id: index + 1,
+            reps: block.reps || block.repeticiones || '',
+            kg: block.kg || block.peso || '',
+            sets: block.sets || block.series || block.series_num || '1'
+        }));
+    }
+
+    return [];
+};
+
 export const formatSeriesDisplay = (exercise: Exercise) => {
     if (!exercise) return null
-    if (typeof exercise.series === 'string' && exercise.series.includes('-')) {
-        return exercise.series
+
+    // Usar detalle_series o series como fuente principal (formato concatenado)
+    const seriesData = exercise.detalle_series || exercise.series;
+
+    console.log(`[formatSeriesDisplay] Exercise: ${exercise.name}, seriesData:`, seriesData);
+
+    const parsed = parseSeries(seriesData);
+    if (parsed.length > 0) {
+        const res = parsed.map(first => `P:${first.kg || 0}kg | R:${first.reps || 0} | S:${first.sets || 1}`).join(' || ');
+        console.log(`[formatSeriesDisplay] Multi-block result:`, res);
+        return res;
     }
-    const parts = [exercise.peso, exercise.reps, exercise.series].filter(Boolean)
-    return parts.length > 0 ? parts.join('-') : null
+
+    // Fallback a campos individuales (priorizando los ya normalizados)
+    const p = exercise.peso || (exercise as any).peso_kg || (exercise as any).weight || '0'
+    const r = exercise.reps || (exercise as any).repeticiones || '0'
+    const s = exercise.series || (exercise as any).series_num || (exercise as any).sets || '1'
+
+    // Retornamos siempre el formato P | R | S para asegurar visibilidad en la UI de planificación
+    const displayS = (typeof s === 'string' && (s.includes('-') || s.includes('('))) ? (parseSeries(s)[0]?.sets || '1') : s
+    const displayP = p.toString().toLowerCase().includes('kg') ? p : `${p}kg`
+
+    const fallbackRes = `P:${displayP} | R:${r} | S:${displayS}`;
+    console.log(`[formatSeriesDisplay] Fallback result:`, fallbackRes);
+    return fallbackRes;
 }
 
 export const getTypeColorScheme = (type: string | undefined | null, isNutrition: boolean = false) => {
@@ -200,8 +262,9 @@ export const normalizeExerciseData = (data: any, isNutrition: boolean): Exercise
         image_url,
         block: data.block || data.bloque,
         orden: data.orden,
-        series: data.series,
-        reps: data.reps,
-        peso: data.peso
+        series: data.series || data.series_num || data.sets || '',
+        detalle_series: data.detalle_series || '',
+        reps: data.reps || data.repeticiones || '',
+        peso: data.peso || data.peso_kg || data.weight || ''
     }
 }

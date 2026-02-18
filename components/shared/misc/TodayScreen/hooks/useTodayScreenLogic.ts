@@ -3,7 +3,8 @@ import { useAuth } from "@/contexts/auth-context";
 import { createClient } from '@/lib/supabase/supabase-client';
 import {
     createBuenosAiresDate,
-    getCurrentBuenosAiresDate
+    getCurrentBuenosAiresDate,
+    getTodayBuenosAiresString
 } from '@/utils/date-utils';
 
 // Sub-hooks
@@ -21,19 +22,20 @@ export function useTodayScreenLogic({ activityId, enrollmentId, onBack }: { acti
     const supabase = createClient();
 
     // 1. Centralized States
-    const [selectedDate, setSelectedDate] = React.useState<Date>(() => {
+    const [selectedDate, setSelectedDate] = React.useState<Date>(new Date());
+
+    React.useEffect(() => {
         if (typeof window !== 'undefined') {
             const saved = localStorage.getItem('selectedActivityDate');
             if (saved) {
                 const date = new Date(saved);
                 if (!isNaN(date.getTime())) {
                     localStorage.removeItem('selectedActivityDate');
-                    return date;
+                    setSelectedDate(date);
                 }
             }
         }
-        return new Date();
-    });
+    }, []);
     const [selectedVideo, setSelectedVideo] = React.useState<any>(null);
     const [currentMonth, setCurrentMonth] = React.useState(selectedDate);
 
@@ -118,9 +120,13 @@ export function useTodayScreenLogic({ activityId, enrollmentId, onBack }: { acti
 
         const numericEjId = getNumericId(activity);
 
+        const targetFecha = activity.date || selectedDate.toISOString().split('T')[0];
+        const todayStr = getTodayBuenosAiresString();
+        const isPast = targetFecha < todayStr;
+
         setSelectedVideo({
-            url: videoUrl,
-            exerciseName: activity.title || activity.nombre_ejercicio || activity.nombre,
+            url: videoUrl || activity.video_url || activity.url,
+            exerciseName: activity.title || activity.nombre_ejercicio || activity.nombre || activity.nombre_plato,
             exerciseId: numericEjId,
             activity_id: activity.activity_id || activity.actividad_id || activityId,
             id: activity.id,
@@ -134,10 +140,16 @@ export function useTodayScreenLogic({ activityId, enrollmentId, onBack }: { acti
             done: Boolean(activity.done || activity.completed),
             completed: Boolean(activity.done || activity.completed),
             calorias: activity.calorias,
-            minutos: activity.minutos || activity.duracion_min || activity.duration,
-            duration: activity.minutos || activity.duracion_min || activity.duration,
+            minutos: activity.minutos || activity.duracion_min || activity.duration || activity.duracion_minutos,
+            duration: activity.minutos || activity.duracion_min || activity.duration || activity.duracion_minutos,
             tipo: activity.tipo || activity.type,
-            type: activity.tipo || activity.type
+            type: activity.tipo || activity.type,
+            proteinas: activity.proteinas,
+            carbohidratos: activity.carbohidratos,
+            grasas: activity.grasas,
+            receta: activity.receta,
+            ingredientes: activity.ingredientes || activity.ingredients,
+            isPast
         });
         ui.setIsVideoExpanded(true);
     };
@@ -146,8 +158,14 @@ export function useTodayScreenLogic({ activityId, enrollmentId, onBack }: { acti
         if (!selectedVideo || !data.activities || data.activities.length === 0) return;
 
         // Find current index using multiple potential ID fields for better robustness
-        const targetId = selectedVideo.id || selectedVideo.exerciseId;
-        const currentIndex = data.activities.findIndex((a: any) => a.id === targetId || a.exerciseId === targetId);
+        const targetId = selectedVideo.id;
+        const targetExId = selectedVideo.exerciseId;
+        const currentIndex = data.activities.findIndex((a: any) =>
+            a.id === targetId ||
+            a.exercise_id === targetExId ||
+            a.exerciseId === targetExId ||
+            (a.id === selectedVideo.exerciseId && selectedVideo.exerciseId)
+        );
 
         if (currentIndex === -1) {
             console.warn("Could not find current activity in list", targetId);
@@ -245,6 +263,13 @@ export function useTodayScreenLogic({ activityId, enrollmentId, onBack }: { acti
         return expDate < new Date();
     };
 
+    const isProgramExpired = React.useMemo(() => {
+        if (!data.enrollment?.expiration_date) return false;
+        const expDateStr = data.enrollment.expiration_date; // YYYY-MM-DD
+        const todayStr = getTodayBuenosAiresString();
+        return todayStr > expDateStr;
+    }, [data.enrollment?.expiration_date]);
+
     const finalActions = {
         ...actions,
         setSelectedDate,
@@ -281,7 +306,29 @@ export function useTodayScreenLogic({ activityId, enrollmentId, onBack }: { acti
         setShowStartModal: ui.setShowStartModal,
         handleOpenSurveyModal: () => ui.setShowSurveyModal(true),
         handleCloseSurveyModal: () => ui.setShowSurveyModal(false),
-        handleSurveyComplete: () => { ui.setShowSurveyModal(false); },
+        handleSurveyComplete: async (activityRating: number, coachRating: number, feedback: string) => {
+            if (!user || !activityId || !data.enrollment) return;
+
+            try {
+                const response = await fetch(`/api/activities/${activityId}/save-survey`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        activityRating,
+                        coachRating,
+                        feedback,
+                        enrollmentId: data.enrollment.id
+                    })
+                });
+
+                if (response.ok) {
+                    data.setIsRated(true);
+                    ui.setShowSurveyModal(false);
+                }
+            } catch (error) {
+                console.error('Error saving survey:', error);
+            }
+        },
         handleStartToday: () => { ui.setShowStartInfoModal(false); },
         handleStartOnFirstDay: () => { ui.setShowStartInfoModal(false); },
         setCalendarMessage: ui.setCalendarMessage,
@@ -321,6 +368,7 @@ export function useTodayScreenLogic({ activityId, enrollmentId, onBack }: { acti
             calendarMessage: ui.calendarMessage,
             isUpdating: ui.isUpdating,
             isRated: data.isRated,
+            isExpired: isProgramExpired,
             selectedHorario: ui.selectedHorario,
             programInfo: data.programInfo,
             enrollment: data.enrollment,

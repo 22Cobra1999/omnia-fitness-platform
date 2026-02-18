@@ -51,58 +51,50 @@ export function DayExercisesModal({
 
     const isNutrition = productCategory === 'nutricion' || productCategory === 'nutrition'
 
-    const blockNameOptions = isNutrition
+    const blockNameOptions = useMemo(() => isNutrition
         ? ['Desayuno', 'Almuerzo', 'Merienda', 'Cena', 'Colación', 'Pre-entreno', 'Post-entreno']
-        : Array.from({ length: Math.max(blockCount, 12) }, (_, i) => `Bloque ${i + 1} `)
+        : Array.from({ length: Math.max(blockCount, 12) }, (_, i) => `Bloque ${i + 1} `), [isNutrition, blockCount])
 
-    const logicalOrder = isNutrition ? ['Desayuno', 'Almuerzo', 'Merienda', 'Cena', 'Colación', 'Pre-entreno', 'Post-entreno'] : []
-    const repeatableNames = isNutrition ? ['Pre-entreno', 'Post-entreno'] : []
+    const logicalOrder = useMemo(() => isNutrition ? ['Desayuno', 'Almuerzo', 'Merienda', 'Cena', 'Colación', 'Pre-entreno', 'Post-entreno'] : [], [isNutrition])
+    const repeatableNames = useMemo(() => isNutrition ? ['Pre-entreno', 'Post-entreno'] : [], [isNutrition])
 
     useEffect(() => {
-        if (isNutrition) {
-            const loadAllCoachExercises = async () => {
-                try {
-                    const response = await fetch('/api/coach/exercises?category=nutricion')
-                    if (response.ok) {
-                        const result = await response.json()
-                        if (result.success && Array.isArray(result.data)) {
-                            setAllCoachExercisesInModal(result.data.map((plato: any) => ({
-                                id: String(plato.id),
-                                name: plato.nombre || plato.Nombre || plato.name || `Plato ID ${plato.id}`,
-                                description: plato.receta || plato.descripcion || '',
-                                type: plato.tipo || 'otro',
-                                tipo: plato.tipo || 'otro',
-                                calories: Number(plato.calorias || plato.calories || plato.kcal || plato['Calorías'] || plato.macros?.calories || plato.macros?.calorias || 0),
-                                calorias: Number(plato.calorias || plato.calories || plato.kcal || plato['Calorías'] || plato.macros?.calories || plato.macros?.calorias || 0),
-                                proteinas: Number(plato.proteinas || plato.protein || plato.proteins || plato['Proteínas'] || plato['Proteínas (g)'] || plato.macros?.protein || plato.macros?.proteinas || 0),
-                                carbohidratos: Number(plato.carbohidratos || plato.carbs || plato.carbohydrates || plato['Carbohidratos'] || plato['Carbohidratos (g)'] || plato.macros?.carbs || plato.macros?.carbohidratos || 0),
-                                grasas: Number(plato.grasas || plato.fat || plato.fats || plato['Grasas'] || plato['Grasas (g)'] || plato.macros?.fat || plato.macros?.grasas || 0),
-                                duration: Number(plato.minutos || plato.minutes || plato.duration || 0),
-                                duracion_min: Number(plato.minutos || plato.minutes || plato.duration || 0),
-                                is_active: plato.is_active !== false && plato.activo !== false,
-                                activo: plato.activo !== false && plato.is_active !== false,
-                                dificultad: plato.dificultad || 'Principiante',
-                                macros: plato.macros // Keep original macros object just in case
-                            })))
-                        }
+        const loadAllCoachExercises = async () => {
+            try {
+                const category = isNutrition ? 'nutricion' : 'fitness'
+                const response = await fetch(`/api/coach/exercises?category=${category}&all=true`)
+                if (response.ok) {
+                    const result = await response.json()
+                    if (result.success && Array.isArray(result.data)) {
+                        const mapped = result.data.map((ex: any) => ({
+                            ...normalizeExerciseData(ex, isNutrition),
+                            // Asegurarnos de que detalle_series se preserva explícitamente si existe
+                            detalle_series: ex.detalle_series || ex.detalle_ejercicio || ''
+                        }))
+                        console.log(`[DayExercisesModal] Loaded ${mapped.length} ${category} exercises`);
+                        setAllCoachExercisesInModal(mapped)
                     }
-                } catch (error) { }
+                }
+            } catch (error) {
+                console.error('[DayExercisesModal] Error loading exercises:', error);
             }
-            loadAllCoachExercises()
         }
+        loadAllCoachExercises()
     }, [isNutrition])
 
     const exercisesToUse = useMemo(() => {
         // Combine both sources to ensure we match IDs if they exist in either list
-        // This handles mixed content or cases where one source is incomplete
         const combined = [...availableExercises, ...allCoachExercisesInModal]
-        // Deduplicate by ID
+        // Deduplicate and normalize
         const unique = new Map<string, Exercise>()
         combined.forEach(ex => {
-            if (ex && ex.id) unique.set(String(ex.id), ex)
+            if (ex && ex.id) {
+                const norm = normalizeExerciseData(ex, isNutrition)
+                unique.set(String(norm.id), norm)
+            }
         })
         return Array.from(unique.values())
-    }, [availableExercises, allCoachExercisesInModal])
+    }, [availableExercises, allCoachExercisesInModal, isNutrition])
 
     const filteredExercisesToUse = useMemo(() => {
         if (!searchQuery.trim()) return exercisesToUse
@@ -112,18 +104,24 @@ export function DayExercisesModal({
 
     const availableExercisesMap = useMemo(() => {
         const map: { [key: string]: Exercise } = {}
-        availableExercises.forEach(ex => {
+        exercisesToUse.forEach(ex => {
             if (ex.id !== undefined && ex.id !== null) {
                 map[ex.id.toString()] = ex
             }
         })
+        console.log(`[DayExercisesModal] availableExercisesMap size: ${Object.keys(map).length}`);
         return map
-    }, [availableExercises])
+    }, [exercisesToUse])
 
     const mergeExerciseData = useCallback((exercise: any, index: number): Exercise => {
         if (!exercise) return { id: `deleted - ${index} `, name: '', block: 1, type: 'general' }
         const source = (exercise.id !== undefined && exercise.id !== null ? availableExercisesMap[exercise.id.toString()] : null) ||
             (exercise.exercise_id !== undefined && exercise.exercise_id !== null ? availableExercisesMap[exercise.exercise_id.toString()] : null)
+
+        if (exercise.nombre_ejercicio === 'Yoga restaurativo' || exercise.name === 'Yoga restaurativo') {
+            console.log('[mergeExerciseData] Yoga restaurativo:', { exercise, source, sourceId: exercise.id || exercise.exercise_id });
+            console.log('[mergeExerciseData] Available IDs:', Object.keys(availableExercisesMap));
+        }
 
         const rawName = exercise.name || exercise.nombre_ejercicio || ''
         const isGenericName = !rawName || /^Ejercicio\s+\d+$/i.test(rawName) || /^Plato\s+\d+$/i.test(rawName)
@@ -140,7 +138,9 @@ export function DayExercisesModal({
             ? normalizeNutritionType(resolvedType)
             : normalizeExerciseType(resolvedType)
 
-        const preferredSeries = exercise.series || exercise.detalle_series || source?.series || ''
+        const preferredSeries = exercise.series || exercise.detalle_series || source?.series || source?.detalle_series || ''
+        const preferredReps = exercise.reps || (exercise as any).repeticiones || source?.reps || (source as any)?.repeticiones || ''
+        const preferredPeso = exercise.peso || (exercise as any).peso_kg || source?.peso || (source as any)?.peso_kg || ''
         const preferredDuration = Number(exercise.duration ?? exercise.duracion_min ?? source?.duration ?? source?.duracion_min ?? 0)
 
         // Robust nutrition extraction
@@ -186,6 +186,10 @@ export function DayExercisesModal({
             tipo: preferredType,
             series: preferredSeries,
             detalle_series: preferredSeries,
+            reps: preferredReps,
+            repeticiones: preferredReps,
+            peso: preferredPeso,
+            peso_kg: preferredPeso,
             duration: preferredDuration,
             duracion_min: preferredDuration,
             calories: preferredCalories,
@@ -220,28 +224,25 @@ export function DayExercisesModal({
 
     useEffect(() => {
         const base = (exercises || []).map((ex, idx) => mergeExerciseData(ex, idx)).filter(ex => {
-            const name = ex.name || ''
             const deleted = String(ex.id).startsWith('deleted-')
             if (deleted) return false
-            // Allow mostly anything to be shown in the modal if it's there? 
-            // The issue might be that stored data has "Plato 1" as name because it wasn't updated with full data.
-            // But we already try to matching with allCoachExercisesInModal in mergeExerciseData.
             return true
         })
 
         // Check if we really need to update to avoid infinite loops
-        const currentSignature = exercisesLocal.map(e => `${e.id}| ${e.name}| ${e.type}| ${e.series} `).join('||')
-        const newSignature = base.map(e => `${e.id}| ${e.name}| ${e.type}| ${e.series} `).join('||')
+        // Include volume fields in signature to ensure updates show up
+        const currentSignature = exercisesLocal.map(e => `${e.id}|${e.name}|${e.type}|${e.series}|${e.reps}|${e.peso}`).join('||')
+        const newSignature = base.map(e => `${e.id}|${e.name}|${e.type}|${e.series}|${e.reps}|${e.peso}`).join('||')
 
         // Only update if signature changed or we have no local exercises yet
-        if (currentSignature !== newSignature || exercisesLocal.length === 0) {
+        if (currentSignature !== newSignature) {
             setExercisesLocal(base)
             const maxB = base.length > 0 ? Math.max(...base.map(e => e.block || 1)) : 1
             const finalCount = Math.max(blockCountStored || 1, maxB)
             setBlockCount(finalCount)
             setLocalBlockNames(assignBlockNames(blockNames, finalCount))
         }
-    }, [exercises, blockNames, blockCountStored, mergeExerciseData, assignBlockNames, availableExercisesMap])
+    }, [exercises, blockNames, blockCountStored, mergeExerciseData, assignBlockNames])
 
     const distributeEvenly = (newCount: number) => {
         const n = Math.max(1, newCount)
@@ -298,21 +299,29 @@ export function DayExercisesModal({
                                 const norm = normalizeExerciseData(ex, isNutrition)
                                 return {
                                     calories: acc.calories + (norm.calories || 0),
+                                    duration: acc.duration + (norm.duration || norm.duracion_min || 0),
                                     proteinas: acc.proteinas + (norm.proteinas || 0),
                                     carbohidratos: acc.carbohidratos + (norm.carbohidratos || 0),
                                     grasas: acc.grasas + (norm.grasas || 0)
                                 }
-                            }, { calories: 0, proteinas: 0, carbohidratos: 0, grasas: 0 })
+                            }, { calories: 0, duration: 0, proteinas: 0, carbohidratos: 0, grasas: 0 })
 
                             // Show calories if > 0 OR if it's a nutrition plan (so user sees 0 kcal instead of nothing)
                             if (dailyTotals.calories === 0 && !isNutrition) return null
 
                             return (
-                                <div className="flex flex-col sm:flex-row items-end sm:items-center gap-2 mr-4">
-                                    <div className="bg-[#FF7939]/10 border border-[#FF7939]/30 text-[#FF7939] rounded-2xl px-3 py-1 text-xs font-bold flex items-center gap-1 shadow-sm w-fit">
+                                <div className="flex flex-row items-center gap-2 mr-4">
+                                    <div className="bg-[#FF7939]/10 border border-[#FF7939]/30 text-[#FF7939] rounded-2xl px-3 py-1 text-xs font-bold flex items-center gap-1 shadow-sm w-fit whitespace-nowrap">
                                         <Flame className="w-3.5 h-3.5" />
                                         {Math.round(dailyTotals.calories)} kcal
                                     </div>
+
+                                    {dailyTotals.duration > 0 && (
+                                        <div className="bg-orange-200/10 border border-orange-200/30 text-orange-200 rounded-2xl px-3 py-1 text-xs font-bold flex items-center gap-1 shadow-sm w-fit whitespace-nowrap">
+                                            <Clock className="w-3.5 h-3.5" strokeWidth={2.5} />
+                                            {dailyTotals.duration}'
+                                        </div>
+                                    )}
 
                                     {isNutrition && (
                                         <div className="bg-gray-800/50 border border-gray-700/50 text-gray-300 rounded-2xl px-3 py-1 text-xs font-medium flex items-center gap-2 w-fit">
@@ -335,120 +344,189 @@ export function DayExercisesModal({
                     <div className="flex items-center justify-between mb-4 w-full">
                         <div className="flex items-center gap-2 flex-1"><span className="text-white text-sm">Bloques:</span><button onClick={() => distributeEvenly(blockCount - 1)} className="w-7 h-7 rounded-md border border-[#FF7939] text-[#FF7939]">-</button><span className="text-[#FF7939] text-sm w-6 text-center">{blockCount}</span><button onClick={() => distributeEvenly(isNutrition ? Math.min(blockNameOptions.length, blockCount + 1) : blockCount + 1)} className="w-7 h-7 rounded-md border border-[#FF7939] text-[#FF7939]">+</button></div>
                     </div>
-                    <div className="mb-6 grid grid-cols-1 gap-4 w-full px-0">
+                    <hr className="border-white/10 mb-6" />
+
+                    <div className="space-y-4">
                         {exercisesLocal.length === 0 && <div className="text-gray-400 text-sm">No hay {isNutrition ? 'platos' : 'ejercicios'} en este día.</div>}
-                        {Array.from({ length: blockCount }, (_, i) => i + 1).map(bId => {
+                        {Array.from({ length: blockCount }, (_, i) => i + 1).map((bId, blockIdx) => {
                             const items = exercisesLocal.filter(ex => (ex.block || 1) === bId)
-                            // if (items.length === 0) return null // Don't hide empty blocks so user can add to them? Actually currently logic hides them. Let's keep it consistent.
 
                             return (
-                                <div key={bId} className="w-full mb-6">
-                                    <div className="flex items-center justify-between mb-2">
-                                        {isNutrition ? (
-                                            <div className="flex-1">
-                                                <select
-                                                    value={localBlockNames[bId] || blockNameOptions[Math.min(bId - 1, blockNameOptions.length - 1)]}
-                                                    onChange={e => {
-                                                        const val = e.target.value
-                                                        setLocalBlockNames(prev => ({ ...prev, [bId]: val }))
-                                                    }}
-                                                    className="bg-gray-800 border border-gray-600 rounded-md px-2 py-1 text-white text-sm focus:border-[#FF7939] outline-none"
-                                                >
-                                                    {blockNameOptions.map(o => <option key={o} value={o}>{o}</option>)}
-                                                </select>
+                                <React.Fragment key={bId}>
+                                    {blockIdx > 0 && <hr className="border-white/10 my-6" />}
+                                    <div className="w-full">
+                                        <div className="flex items-center justify-between mb-2">
+                                            {isNutrition ? (
+                                                <div className="flex-1">
+                                                    <select
+                                                        value={localBlockNames[bId] || blockNameOptions[Math.min(bId - 1, blockNameOptions.length - 1)]}
+                                                        onChange={e => {
+                                                            const val = e.target.value
+                                                            setLocalBlockNames(prev => ({ ...prev, [bId]: val }))
+                                                        }}
+                                                        className="bg-gray-800 border border-gray-600 rounded-md px-2 py-1 text-white text-sm focus:border-[#FF7939] outline-none"
+                                                    >
+                                                        {blockNameOptions.map(o => <option key={o} value={o}>{o}</option>)}
+                                                    </select>
+                                                </div>
+                                            ) : (
+                                                <span className="text-sm text-white font-medium">{localBlockNames[bId] || `Bloque ${bId}`}</span>
+                                            )}
+                                            <div className="text-xs text-gray-400 ml-4 flex items-center gap-1">
+                                                {items.length} {isNutrition ? 'platos' : 'ejercicios'}
                                             </div>
-                                        ) : (
-                                            <span className="text-sm text-white font-medium">{localBlockNames[bId] || `Bloque ${bId} `}</span>
-                                        )}
-                                        <div className="text-xs text-gray-400 ml-4 flex items-center gap-1">
-                                            {items.length} {isNutrition ? 'platos' : 'ejercicios'}
-                                            {/* Button to remove block if empty? */}
                                         </div>
-                                    </div>
-                                    <div className="space-y-2">
-                                        {items.map((ex, idx) => {
-                                            const inactive = ex.is_active === false || ex.activo === false
-                                            const title = ex.name || `Ejercicio ${idx + 1} `
-                                            if (!title.trim()) return null
-                                            const typeLabel = (ex.type || ex.tipo || (isNutrition ? 'otro' : 'general')).toString().toLowerCase()
-                                            const scheme = getTypeColorScheme(typeLabel, isNutrition)
-                                            // Find global index for removal/move
-                                            const globalIdx = exercisesLocal.indexOf(ex)
+                                        <div className="space-y-2">
+                                            {items.map((ex, idx) => {
+                                                const inactive = ex.is_active === false || ex.activo === false
+                                                const title = ex.name || `Ejercicio ${idx + 1}`
+                                                if (!title.trim()) return null
+                                                const typeLabel = (ex.type || ex.tipo || (isNutrition ? 'otro' : 'general')).toString().toLowerCase()
+                                                const scheme = getTypeColorScheme(typeLabel, isNutrition)
+                                                const globalIdx = exercisesLocal.indexOf(ex)
 
-                                            return (
-                                                <div key={idx} className={`w-full py-3 border-b border-white/5 last:border-0 ${inactive ? 'opacity-50' : ''}`}>
-                                                    <div className="flex items-center gap-3">
-                                                        <div className="flex-1 min-w-0">
-                                                            <p className={`text-base font-medium truncate ${inactive ? 'text-gray-500 line-through' : 'text-gray-100'}`}>{title}</p>
-                                                            <div className={`flex flex-wrap items-center gap-2 text-xs mt-1 ${inactive ? 'text-gray-500' : 'text-gray-400'}`}>
-                                                                {isNutrition ? (
-                                                                    (() => {
-                                                                        const norm = normalizeExerciseData(ex, true)
-                                                                        return (
-                                                                            <div className="flex items-center gap-2">
-                                                                                <span className="text-rose-400">P: {norm.proteinas}g</span>
-                                                                                <span className="text-orange-400">C: {norm.carbohidratos}g</span>
-                                                                                <span className="text-yellow-400">G: {norm.grasas}g</span>
-                                                                                <span className="text-gray-500">|</span>
-                                                                                <span className="text-white font-medium">{norm.calories} kcal</span>
-                                                                            </div>
-                                                                        )
-                                                                    })()
-                                                                ) :
-                                                                    <>
-                                                                        <span className="px-2 py-0.5 rounded border font-medium capitalize" style={inactive ? undefined : { color: scheme.hex, borderColor: scheme.hex, backgroundColor: scheme.soft }}>{typeLabel}</span>
-                                                                        {formatSeriesDisplay(ex) && <span>{formatSeriesDisplay(ex)}</span>}
-                                                                        {(() => {
-                                                                            const norm = normalizeExerciseData(ex, false)
+                                                return (
+                                                    <div key={idx} className={`w-full py-3 border-b border-white/5 last:border-0 ${inactive ? 'opacity-50' : ''}`}>
+                                                        <div className="flex items-center gap-3">
+                                                            <div className="flex-1 min-w-0">
+                                                                <p className={`text-base font-medium truncate ${inactive ? 'text-gray-500 line-through' : 'text-gray-100'}`}>{title}</p>
+                                                                <div className={`flex flex-wrap items-center gap-2 text-xs mt-1 ${inactive ? 'text-gray-500' : 'text-gray-400'}`}>
+                                                                    {isNutrition ? (
+                                                                        (() => {
+                                                                            const norm = normalizeExerciseData(ex, true)
                                                                             return (
-                                                                                <>
-                                                                                    {(norm?.calories ?? 0) > 0 && <span className="text-[#FF7939] flex items-center gap-0.5"><Flame className="w-3 h-3" /> {norm.calories}</span>}
-                                                                                    {(norm?.duration ?? 0) > 0 && <span className="text-orange-200/80 flex items-center gap-0.5"><Clock className="w-3 h-3" /> {norm.duration}'</span>}
-                                                                                </>
+                                                                                <div className="flex items-center gap-2">
+                                                                                    <span className="text-rose-400">P: {norm.proteinas}g</span>
+                                                                                    <span className="text-orange-400">C: {norm.carbohidratos}g</span>
+                                                                                    <span className="text-yellow-400">G: {norm.grasas}g</span>
+                                                                                    <span className="text-gray-500">|</span>
+                                                                                    <span className="text-white font-medium">{norm.calories} kcal</span>
+                                                                                </div>
                                                                             )
-                                                                        })()}
-                                                                    </>
-                                                                }
+                                                                        })()
+                                                                    ) : (
+                                                                        <>
+                                                                            <span className="px-2 py-0.5 rounded border font-medium capitalize" style={inactive ? undefined : { color: scheme.hex, borderColor: scheme.hex, backgroundColor: scheme.soft }}>{typeLabel}</span>
+                                                                            {(() => {
+                                                                                const norm = normalizeExerciseData(ex, false)
+                                                                                return (
+                                                                                    <>
+                                                                                        {(norm?.calories ?? 0) > 0 && <span className="text-[#FF7939] flex items-center gap-0.5"><Flame className="w-3 h-3" /> {norm.calories}</span>}
+                                                                                        {(norm?.duration ?? 0) > 0 && <span className="text-orange-200/80 flex items-center gap-0.5"><Clock className="w-3 h-3" /> {norm.duration}'</span>}
+                                                                                    </>
+                                                                                )
+                                                                            })()}
+                                                                        </>
+                                                                    )}
+                                                                </div>
+                                                                {!isNutrition && formatSeriesDisplay(ex) && (
+                                                                    <div className="flex flex-wrap gap-1.5 mt-2">
+                                                                        {formatSeriesDisplay(ex)!.split(' || ').map((block, bIdx) => (
+                                                                            <span key={bIdx} className="font-mono text-[10px] tracking-tight text-white/90 bg-white/5 px-2 py-0.5 rounded border border-white/10">
+                                                                                {block}
+                                                                            </span>
+                                                                        ))}
+                                                                    </div>
+                                                                )}
+                                                            </div>
+                                                            <div className="flex items-center gap-1">
+                                                                <button onClick={() => moveUpInBlock(globalIdx)} className="w-8 h-8 rounded-full border border-gray-800 text-gray-400 flex items-center justify-center hover:bg-white/5 hover:text-white"><ChevronUp className="w-4 h-4" /></button>
+                                                                <button onClick={() => moveDownInBlock(globalIdx)} className="w-8 h-8 rounded-full border border-gray-800 text-gray-400 flex items-center justify-center hover:bg-white/5 hover:text-white"><ChevronDown className="w-4 h-4" /></button>
+                                                                <button onClick={() => setExercisesLocal(p => p.filter((_, i) => i !== globalIdx))} className="w-8 h-8 rounded-full border border-red-900/30 text-red-500 flex items-center justify-center hover:bg-red-900/20">✕</button>
                                                             </div>
                                                         </div>
-                                                        <div className="flex items-center gap-1">
-                                                            <button onClick={() => moveUpInBlock(globalIdx)} className="w-8 h-8 rounded-full border border-gray-800 text-gray-400 flex items-center justify-center hover:bg-white/5 hover:text-white"><ChevronUp className="w-4 h-4" /></button>
-                                                            <button onClick={() => moveDownInBlock(globalIdx)} className="w-8 h-8 rounded-full border border-gray-800 text-gray-400 flex items-center justify-center hover:bg-white/5 hover:text-white"><ChevronDown className="w-4 h-4" /></button>
-                                                            <button onClick={() => setExercisesLocal(p => p.filter((_, i) => i !== globalIdx))} className="w-8 h-8 rounded-full border border-red-900/30 text-red-500 flex items-center justify-center hover:bg-red-900/20">✕</button>
-                                                        </div>
                                                     </div>
-                                                </div>
-                                            )
-                                        })}
+                                                )
+                                            })}
+                                        </div>
                                     </div>
-                                </div>
+                                </React.Fragment>
                             )
                         })}
                     </div>
-                    <div className="mb-6"><div className="flex items-center justify-between mb-3"><h4 className="text-white text-base font-bold uppercase tracking-wider">{isNutrition ? 'Selecciona platos' : 'Selecciona ejercicios'}</h4><button onClick={() => setShowAvailableExercises(!showAvailableExercises)} className="flex items-center gap-2 text-[#FF7939]"><span className="text-xl">+</span><span>{isNutrition ? 'platos' : 'ejercicios'}</span></button></div>
-                        {isNutrition && <div className="mb-3 flex items-center gap-2"><button onClick={() => { setShowSearchBar(!showSearchBar); if (!showSearchBar) setSearchQuery('') }} className="text-[#FF7939] p-1.5"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5"><circle cx="11" cy="11" r="8"></circle><path d="m21 21-4.35-4.35"></path></svg></button>{showSearchBar && <input type="text" value={searchQuery} onChange={e => setSearchQuery(e.target.value)} placeholder="Buscar plato..." className="flex-1 bg-gray-800 border border-gray-600 rounded-md px-3 py-1.5 text-white text-sm focus:border-[#FF7939]" autoFocus />}</div>}
-                        {showAvailableExercises && <div className="grid grid-cols-2 md:grid-cols-4 gap-2 max-h-96 overflow-y-auto">{filteredExercisesToUse.map(ex => {
-                            const inactive = ex.is_active === false || ex.activo === false
-                            const type = ex.type || ex.tipo || (isNutrition ? 'otro' : 'general')
-                            const scheme = getTypeColorScheme(type, isNutrition)
-                            return (
-                                <div key={ex.id} onClick={() => !inactive && setExercisesLocal(p => [...p, { ...ex, block: 1, orden: p.length + 1 }])} className={`rounded - lg p - 2 transition - colors ${inactive ? 'bg-gray-800/10 opacity-50 cursor-not-allowed border border-gray-700/50' : 'bg-gray-800/30 cursor-pointer hover:bg-gray-800/50'} `}>
-                                    <div className="flex items-start justify-between gap-3">
-                                        <div className="min-w-0 flex-1">
-                                            <p className={`text-xs font-medium truncate ${inactive ? 'text-gray-500 line-through' : 'text-white'}`}>{ex.name}</p>
-                                            {isNutrition && (ex.proteinas !== undefined || ex.calorias !== undefined) ? (
-                                                <p className="text-[10px] text-gray-400">P:{ex.proteinas || 0} C:{ex.carbohidratos || 0} G:{ex.grasas || 0} {ex.calorias || 0}k</p>
-                                            ) : (
-                                                <span className="px-1.5 py-0.5 rounded border text-[10px] capitalize" style={inactive ? undefined : { color: scheme.hex, borderColor: scheme.hex, backgroundColor: scheme.soft }}>{type}</span>
-                                            )}
+                    <div className="mb-6">
+                        <div className="flex items-center justify-between mb-3">
+                            <h4 className="text-white text-base font-bold uppercase tracking-wider">{isNutrition ? 'Selecciona platos' : 'Selecciona ejercicios'}</h4>
+                            <button onClick={() => setShowAvailableExercises(!showAvailableExercises)} className="flex items-center gap-2 text-[#FF7939]">
+                                <span className="text-xl">+</span>
+                                <span>{isNutrition ? 'platos' : 'ejercicios'}</span>
+                            </button>
+                        </div>
+                        {isNutrition && (
+                            <div className="mb-3 flex items-center gap-2">
+                                <button onClick={() => { setShowSearchBar(!showSearchBar); if (!showSearchBar) setSearchQuery('') }} className="text-[#FF7939] p-1.5">
+                                    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5">
+                                        <circle cx="11" cy="11" r="8"></circle>
+                                        <path d="m21 21-4.35-4.35"></path>
+                                    </svg>
+                                </button>
+                                {showSearchBar && (
+                                    <input
+                                        type="text"
+                                        value={searchQuery}
+                                        onChange={e => setSearchQuery(e.target.value)}
+                                        placeholder="Buscar plato..."
+                                        className="flex-1 bg-gray-800 border border-gray-600 rounded-md px-3 py-1.5 text-white text-sm focus:border-[#FF7939]"
+                                        autoFocus
+                                    />
+                                )}
+                            </div>
+                        )}
+                        {showAvailableExercises && (
+                            <div className="grid grid-cols-2 md:grid-cols-4 gap-2 max-h-96 overflow-y-auto">
+                                {filteredExercisesToUse.map(ex => {
+                                    const inactive = ex.is_active === false || ex.activo === false
+                                    const type = ex.type || ex.tipo || (isNutrition ? 'otro' : 'general')
+                                    const scheme = getTypeColorScheme(type, isNutrition)
+                                    return (
+                                        <div
+                                            key={ex.id}
+                                            onClick={() => !inactive && setExercisesLocal(p => [...p, { ...ex, block: 1, orden: p.length + 1 }])}
+                                            className={`rounded-lg p-2 transition-colors ${inactive ? 'bg-gray-800/10 opacity-50 cursor-not-allowed border border-gray-700/50' : 'bg-gray-800/30 cursor-pointer hover:bg-gray-800/50'}`}
+                                        >
+                                            <div className="flex items-start justify-between gap-3">
+                                                <div className="min-w-0 flex-1">
+                                                    <p className={`text-xs font-medium truncate ${inactive ? 'text-gray-500 line-through' : 'text-white'}`}>{ex.name}</p>
+                                                    {isNutrition && (ex.proteinas !== undefined || ex.calorias !== undefined) ? (
+                                                        <p className="text-[10px] text-gray-400">P:{ex.proteinas || 0} C:{ex.carbohidratos || 0} G:{ex.grasas || 0} {ex.calorias || 0}k</p>
+                                                    ) : (
+                                                        <span className="px-1.5 py-0.5 rounded border text-[10px] capitalize" style={inactive ? undefined : { color: scheme.hex, borderColor: scheme.hex, backgroundColor: scheme.soft }}>{type}</span>
+                                                    )}
+                                                </div>
+                                            </div>
                                         </div>
-                                    </div>
-                                </div>
-                            )
-                        })}</div>}</div>
-                    {similarDays.length > 0 && <div className="text-sm text-gray-400 mb-4 text-center">También aplica a: {similarDays.map(d => { const [w, dn] = d.split('-'); return `Semana ${w} - ${DAYS.find(o => o.key === parseInt(dn))?.fullLabel || dn} ` }).join(', ')}</div>}
+                                    )
+                                })}
+                            </div>
+                        )}
+                    </div>
+                    {similarDays.length > 0 && (
+                        <div className="text-sm text-gray-400 mb-4 text-center">
+                            También aplica a: {similarDays.map(d => {
+                                const [w, dn] = d.split('-')
+                                return `Semana ${w} - ${DAYS.find(o => o.key === parseInt(dn))?.fullLabel || dn}`
+                            }).join(', ')}
+                        </div>
+                    )}
                 </div>
-                <div className="absolute bottom-0 left-0 right-0 bg-black/95 pt-6 pb-24 border-t border-white/10 flex items-center justify-center z-[110]"><div className="flex items-center gap-3">{similarDays.length > 0 && <button onClick={() => { onApplyToSimilarDays?.(localBlockNames, exercisesLocal, blockCount); onClose() }} className="px-4 py-1.5 rounded-full bg-black text-[#FF7939] border border-[#FF7939]/40 text-sm">Aplicar a similares</button>}<button onClick={saveChanges} className="px-4 py-1.5 rounded-full bg-black text-[#FF7939] border border-[#FF7939]/40 text-sm">Guardar</button></div></div>
+                <div className="absolute bottom-0 left-0 right-0 bg-black/95 pt-6 pb-24 border-t border-white/10 flex items-center justify-center z-[110]">
+                    <div className="flex items-center gap-3">
+                        {similarDays.length > 0 && (
+                            <button
+                                onClick={() => { onApplyToSimilarDays?.(localBlockNames, exercisesLocal, blockCount); onClose() }}
+                                className="px-4 py-1.5 rounded-full bg-black text-[#FF7939] border border-[#FF7939]/40 text-sm"
+                            >
+                                Aplicar a similares
+                            </button>
+                        )}
+                        <button
+                            onClick={saveChanges}
+                            className="px-4 py-1.5 rounded-full bg-black text-[#FF7939] border border-[#FF7939]/40 text-sm"
+                        >
+                            Guardar
+                        </button>
+                    </div>
+                </div>
             </div>
         </div>
     )

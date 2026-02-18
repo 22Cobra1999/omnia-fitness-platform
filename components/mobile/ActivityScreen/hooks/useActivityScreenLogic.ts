@@ -209,6 +209,33 @@ export function useActivityScreenLogic({ initialTab = "purchased" }: UseActivity
 
             setEnrollments(formattedEnrollments)
 
+            // 1.5 Fetch Surveys for these enrollments
+            const enrollmentIds = formattedEnrollments.map(e => e.id)
+            const { data: surveys } = await supabase
+                .from('activity_surveys')
+                .select('*') // Select all fields to ensure we get everything
+                .in('enrollment_id', enrollmentIds)
+
+            if (surveys && surveys.length > 0) {
+                const updatedEnrollments = formattedEnrollments.map(enr => {
+                    const survey = surveys.find((s: any) => s.enrollment_id === enr.id)
+                    if (survey) {
+                        return {
+                            ...enr,
+                            rating_coach: survey.coach_method_rating || null,
+                            feedback_text: survey.comments || null,
+                            difficulty_rating: survey.difficulty_rating || null,
+                            would_repeat: survey.would_repeat,
+                            calificacion_omnia: survey.calificacion_omnia || null,
+                            comentarios_omnia: survey.comentarios_omnia || null,
+                            workshop_version: survey.workshop_version || null
+                        }
+                    }
+                    return enr
+                })
+                setEnrollments(updatedEnrollments)
+            }
+
             // Trigger Progress Fetch
             fetchEnrollmentProgresses(formattedEnrollments)
 

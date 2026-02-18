@@ -38,7 +38,7 @@ export function FitnessSeriesList({
     return (
         <div style={{ display: 'flex', flexDirection: 'column', gap: 10, alignItems: 'center', position: 'relative' }}>
             {/* Edit Button (Top Right) */}
-            {!isEditingSeries && (
+            {!isEditingSeries && !selectedVideo.isPast && (
                 <div style={{ position: 'absolute', top: 5, right: 0, zIndex: 10 }}>
                     <button
                         onClick={(e) => { e.stopPropagation(); handleStartEditing(); }}

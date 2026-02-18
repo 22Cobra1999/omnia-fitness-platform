@@ -40,6 +40,7 @@ export function useProductSubmission() {
 
         if (isPublishing) return
 
+        console.log('🚀 [useProductSubmission] handlePublishProduct started', { generalForm, selectedType })
         setIsPublishing(true)
         setValidationErrors([])
         setFieldErrors({})
@@ -149,10 +150,10 @@ export function useProductSubmission() {
                 location_url: generalForm.location_url,
                 workshop_mode: generalForm.workshop_mode,
                 participants_per_class: generalForm.participants_per_class,
-                semanas_totales: weeklyStats.semanas,
-                sesiones_dias_totales: weeklyStats.sesiones,
-                items_totales: weeklyStats.ejerciciosTotales,
-                items_unicos: weeklyStats.ejerciciosUnicos
+                semanas_totales: weeklyStats?.semanas || 0,
+                sesiones_dias_totales: weeklyStats?.sesiones || 0,
+                items_totales: weeklyStats?.ejerciciosTotales || 0,
+                items_unicos: weeklyStats?.ejerciciosUnicos || 0,
             }
 
             console.log('🚀 [useProductSubmission] Submit Payload:', {

@@ -179,6 +179,15 @@ export interface Enrollment {
   remaining_consultations: number | null
   start_date: string | null
   program_end_date: string | null // Última fecha de progreso + 6 días
+  rating_coach?: number | null // Calificación del coach
+  feedback_text?: string | null // Comentario/Feedback del cliente
+
+  // New survey fields
+  difficulty_rating?: number | null
+  would_repeat?: boolean | null // Repetiría
+  calificacion_omnia?: number | null
+  comentarios_omnia?: string | null
+  workshop_version?: string | null
   activity: Activity // Nested activity object
 }
 

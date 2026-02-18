@@ -43,6 +43,7 @@ interface WeeklyCalendarProps {
     setShowConfirmModal: (v: boolean) => void;
     calendarMessage: string | null;
     setCalendarMessage: (m: string | null) => void;
+    isExpired?: boolean;
 }
 
 export function WeeklyCalendar({
@@ -64,7 +65,8 @@ export function WeeklyCalendar({
     setTargetDate,
     setShowConfirmModal,
     calendarMessage,
-    setCalendarMessage
+    setCalendarMessage,
+    isExpired = false
 }: WeeklyCalendarProps) {
 
     const [isMonthPickerOpen, setIsMonthPickerOpen] = React.useState(false);
@@ -117,7 +119,8 @@ export function WeeklyCalendar({
             marginRight: '-24px',
             width: 'calc(100% + 48px)',
             position: 'relative',
-            boxShadow: '0 12px 40px rgba(0, 0, 0, 0.4), inset 0 1px 0 rgba(255, 255, 255, 0.05)'
+            boxShadow: '0 12px 40px rgba(0, 0, 0, 0.4), inset 0 1px 0 rgba(255, 255, 255, 0.05)',
+            filter: isExpired ? 'grayscale(1) opacity(0.8)' : 'none'
         }}>
             {/* Calendar content */}
             <div style={{

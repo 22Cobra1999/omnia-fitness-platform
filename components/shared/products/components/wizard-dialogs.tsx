@@ -85,40 +85,55 @@ export const PdfChoiceModal: React.FC<PdfChoiceModalProps> = ({
     if (!isOpen) return null
 
     return (
-        <div className="fixed inset-0 z-[120] flex items-center justify-center p-4 bg-black/60 backdrop-blur-md">
+        <div className="fixed inset-0 z-[160] flex items-center justify-center p-4 bg-black/80 backdrop-blur-md">
             <motion.div
-                initial={{ opacity: 0, scale: 0.9 }}
-                animate={{ opacity: 1, scale: 1 }}
-                className="bg-[#0b0b0b] border border-white/10 p-6 rounded-2xl max-w-sm w-full shadow-2xl"
+                initial={{ opacity: 0, scale: 0.95, y: 20 }}
+                animate={{ opacity: 1, scale: 1, y: 0 }}
+                className="bg-[#0b0b0b] border border-white/5 p-8 rounded-[32px] max-w-sm w-full shadow-2xl relative overflow-hidden"
             >
-                <h3 className="text-xl font-bold text-white mb-2">Asignar Documento</h3>
-                <p className="text-sm text-gray-400 mb-6">
-                    Elegí cómo querés agregar el documento PDF.
+                {/* Decorative Background Glow */}
+                <div className="absolute -top-24 -right-24 w-48 h-48 bg-[#FF7939]/10 blur-[60px] rounded-full pointer-events-none" />
+
+                <h3 className="text-2xl font-black text-white mb-2 tracking-tight">Asignar PDF</h3>
+                <p className="text-sm text-gray-500 mb-8 leading-relaxed">
+                    Elegí cómo querés agregar el documento a tu producto.
                 </p>
-                <div className="grid grid-cols-1 gap-3">
-                    <Button
+
+                <div className="space-y-3">
+                    <button
                         onClick={() => onSelectChoice('existing')}
-                        className="bg-white/5 border border-white/10 text-white hover:bg-white/10 py-6 h-auto flex flex-col items-center gap-1"
+                        className="w-full group relative flex items-center gap-4 p-5 rounded-2xl border border-white/5 bg-white/[0.03] hover:bg-white/[0.08] hover:border-[#FF7939]/30 transition-all duration-300 overflow-hidden"
                     >
-                        <Check className="h-5 w-5 text-green-500" />
-                        <span>Elegir Existente</span>
-                        <span className="text-[10px] opacity-50 font-normal">De tu biblioteca de archivos</span>
-                    </Button>
-                    <Button
+                        <div className="absolute inset-0 bg-gradient-to-r from-[#FF7939]/0 to-[#FF7939]/5 opacity-0 group-hover:opacity-100 transition-opacity" />
+                        <div className="relative p-3 rounded-xl bg-white/5 border border-white/5 group-hover:bg-[#FF7939]/10 group-hover:border-[#FF7939]/20 transition-all">
+                            <ImageIcon className="h-5 w-5 text-[#FF7939]" />
+                        </div>
+                        <div className="relative text-left">
+                            <div className="text-sm font-bold text-white group-hover:text-[#FF7939] transition-colors">Mi Biblioteca</div>
+                            <div className="text-[10px] text-gray-500 font-medium">Archivos existentes</div>
+                        </div>
+                    </button>
+
+                    <button
                         onClick={() => onSelectChoice('new')}
-                        className="bg-[#FF7939]/20 border border-[#FF7939]/30 text-white hover:bg-[#FF7939]/30 py-6 h-auto flex flex-col items-center gap-1"
+                        className="w-full group relative flex items-center gap-4 p-5 rounded-2xl border border-white/5 bg-white/[0.03] hover:bg-white/[0.08] hover:border-[#FF7939]/30 transition-all duration-300 overflow-hidden"
                     >
-                        <Upload className="h-5 w-5 text-[#FF7939]" />
-                        <span>Subir Nuevo</span>
-                        <span className="text-[10px] opacity-50 font-normal">Desde tu computadora</span>
-                    </Button>
-                    <Button
-                        variant="ghost"
+                        <div className="absolute inset-0 bg-gradient-to-r from-[#FF7939]/0 to-[#FF7939]/5 opacity-0 group-hover:opacity-100 transition-opacity" />
+                        <div className="relative p-3 rounded-xl bg-white/5 border border-white/5 group-hover:bg-[#FF7939]/10 group-hover:border-[#FF7939]/20 transition-all">
+                            <Upload className="h-5 w-5 text-[#FF7939]" />
+                        </div>
+                        <div className="relative text-left">
+                            <div className="text-sm font-bold text-white group-hover:text-[#FF7939] transition-colors">Subir Nuevo</div>
+                            <div className="text-[10px] text-gray-500 font-medium">Desde tu dispositivo</div>
+                        </div>
+                    </button>
+
+                    <button
                         onClick={onClose}
-                        className="text-gray-400 mt-2"
+                        className="w-full mt-4 py-3 text-xs font-black text-gray-500 hover:text-white transition-colors uppercase tracking-widest"
                     >
                         Cancelar
-                    </Button>
+                    </button>
                 </div>
             </motion.div>
         </div>

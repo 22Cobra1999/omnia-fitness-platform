@@ -1,5 +1,6 @@
 import Image from "next/image"
 import { Flame } from "lucide-react"
+import { cn } from "@/lib/utils/utils"
 import { getImageHeightClass } from "../utils"
 
 interface PurchasedActivityCardHeaderProps {
@@ -7,13 +8,17 @@ interface PurchasedActivityCardHeaderProps {
     title: string
     size: "small" | "medium" | "large"
     isCoachView: boolean
+    isExpired?: boolean
 }
 
-export function PurchasedActivityCardHeader({ imageUrl, title, size, isCoachView }: PurchasedActivityCardHeaderProps) {
+export function PurchasedActivityCardHeader({ imageUrl, title, size, isCoachView, isExpired }: PurchasedActivityCardHeaderProps) {
     if (isCoachView) return null
 
     return (
-        <div className={`relative w-full ${getImageHeightClass(size, isCoachView)} flex-shrink-0`}>
+        <div className={cn(
+            `relative w-full ${getImageHeightClass(size, isCoachView)} flex-shrink-0 transition-all`,
+            isExpired && "grayscale opacity-50"
+        )}>
             {imageUrl ? (
                 <Image
                     src={imageUrl}
@@ -22,9 +27,14 @@ export function PurchasedActivityCardHeader({ imageUrl, title, size, isCoachView
                     className="object-cover"
                 />
             ) : (
-                <div className="w-full h-full bg-[rgba(255,255,255,0.02)] flex items-center justify-center flex-col gap-3">
-                    <div className="w-16 h-16 bg-[#FF7939] rounded-xl flex items-center justify-center">
-                        <Flame className="w-8 h-8 text-black" />
+                <div className="w-full h-full bg-[#111] flex items-center justify-center flex-col gap-3">
+                    <div className="w-20 h-20 relative opacity-40">
+                        <Image
+                            src="/omnia-logo-bubbly-exact.svg"
+                            alt="OMNIA Logo"
+                            fill
+                            className="object-contain"
+                        />
                     </div>
                 </div>
             )}

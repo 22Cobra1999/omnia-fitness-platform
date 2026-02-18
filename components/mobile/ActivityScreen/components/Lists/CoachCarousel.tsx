@@ -18,7 +18,7 @@ export function CoachCarousel({ coaches, loading, meetCredits, onCoachClick }: C
     if (coaches.length === 0) return null
 
     return (
-        <div className="mb-8">
+        <div className="mb-2">
             <div className="flex items-center justify-between px-6 mb-3">
                 <h3 className="text-lg font-semibold text-white">Tus Coaches</h3>
             </div>

@@ -11,16 +11,17 @@ export function useWorkshopLogic(user: any, activityId: string, enrollment: any,
     const [cuposOcupados, setCuposOcupados] = React.useState<Record<string, number>>({});
     const [expandedTema, setExpandedTema] = React.useState<number | null>(null);
 
+    React.useEffect(() => {
+        // Init logic if needed
+    }, [activityId, enrollment?.id, user?.id, programInfo]);
+
     const loadWorkshopData = React.useCallback(async () => {
-        if (!user || !activityId || !programInfo || !enrollment?.id) return;
-
-        const type = (programInfo?.type || programInfo?.categoria || '').toLowerCase();
-        const isWorkshop = type.includes('workshop') || type.includes('taller');
-        const isDoc = type.includes('document');
-
-        if (!isWorkshop && !isDoc) return;
+        if (!user || !activityId || !enrollment) {
+            return;
+        }
 
         try {
+            const isDoc = (programInfo?.type || '').toLowerCase().includes('document');
             let temasData: any[] = [];
 
             if (isDoc) {
@@ -41,19 +42,34 @@ export function useWorkshopLogic(user: any, activityId: string, enrollment: any,
                     setDocumentProgress(progressMap);
                 }
             } else {
-                const { data: workshopTemas } = await supabase.from('taller_detalles').select('*').eq('actividad_id', activityId).order('id');
-                temasData = workshopTemas || [];
+                const response = await fetch(`/api/taller-detalles?actividad_id=${activityId}`);
+                if (response.ok) {
+                    const result = await response.json();
+                    temasData = result.data || [];
+                } else {
+                    const { data: workshopTemas } = await supabase.from('taller_detalles').select('*').eq('actividad_id', activityId).order('id');
+                    temasData = workshopTemas || [];
+                }
             }
 
             setWorkshopTemas(temasData);
 
             if (!isDoc) {
                 let ejecId: number | null = null;
-                const { data: summary } = await supabase.from('taller_progreso_temas').select('ejecucion_id').eq('cliente_id', user.id).eq('enrollment_id', enrollment.id).limit(1);
+                // RELAXED QUERY: Look for ANY execution for this user+activity, taking the most recent one.
+                // RELAXED QUERY: Look for ANY execution for this user+activity, taking the most recent one.
+                const { data: summary, error: summaryError } = await supabase
+                    .from('taller_progreso_temas')
+                    .select('ejecucion_id')
+                    .eq('cliente_id', user.id)
+                    .eq('actividad_id', activityId)
+                    .order('updated_at', { ascending: false })
+                    .limit(1);
 
                 if (summary?.length) {
                     ejecId = summary[0].ejecucion_id;
                 } else {
+                    // Si no hay ejecución, intentamos recuperarla o crearla
                     const { data: max } = await supabase.from('taller_progreso_temas').select('ejecucion_id').order('ejecucion_id', { ascending: false }).limit(1);
                     ejecId = max?.length ? (max[0] as any).ejecucion_id + 1 : 1;
                     if (temasData.length) {
@@ -91,13 +107,14 @@ export function useWorkshopLogic(user: any, activityId: string, enrollment: any,
                         });
                         setTemasCubiertos(cubiertos);
                         setTemasPendientes(pendientes);
+                        console.error('🔥 [WorkshopLogic] Processed Topics:', { cubiertos: cubiertos.length, pendientes: pendientes.length });
                     }
                 }
             }
         } catch (e) {
-            console.error("Error loading workshop data", e);
+            console.error("🔥 [WorkshopLogic] Error loading workshop data", e);
         }
-    }, [user, activityId, enrollment, programInfo]);
+    }, [user, activityId, enrollment, programInfo, supabase]);
 
     const loadCuposOcupados = React.useCallback(async () => {
         try {

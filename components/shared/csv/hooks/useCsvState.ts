@@ -27,6 +27,12 @@ export function useCsvState(parentSelectedRows?: Set<number>) {
     const [editingExerciseIndex, setEditingExerciseIndex] = useState<number | null>(null)
     const [currentPage, setCurrentPage] = useState(1)
 
+    const [recipeSteps, setRecipeSteps] = useState<string[]>([])
+    const [bodyParts, setBodyParts] = useState<string[]>([])
+    const [equipoList, setEquipoList] = useState<string[]>([])
+    const [seriesList, setSeriesList] = useState<any[]>([])
+    const [showAssignedVideoPreview, setShowAssignedVideoPreview] = useState(false)
+
     const [manualForm, setManualForm] = useState<ManualFormState>({
         nombre: '',
         descripcion: '',
@@ -79,6 +85,11 @@ export function useCsvState(parentSelectedRows?: Set<number>) {
         mode, setMode,
         editingExerciseIndex, setEditingExerciseIndex,
         currentPage, setCurrentPage,
+        recipeSteps, setRecipeSteps,
+        bodyParts, setBodyParts,
+        equipoList, setEquipoList,
+        seriesList, setSeriesList,
+        showAssignedVideoPreview, setShowAssignedVideoPreview,
         manualForm, setManualForm
     }
 }

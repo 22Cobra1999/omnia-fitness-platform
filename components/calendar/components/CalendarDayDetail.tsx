@@ -36,8 +36,9 @@ export function CalendarDayDetail({
     const key = format(selectedDate, 'yyyy-MM-dd')
     const mins = dayMinutesByDate[key]
     const meets = meetEventsByDate[key] || []
-    const pendingMinutes = (mins?.fitnessMinutesPending ?? 0) + (mins?.nutritionMinutesPending ?? 0)
+    const pendingMinutes = (mins?.fitnessMinutesPending ?? 0)
     const pendingExercises = mins?.pendingExercises ?? 0
+    const pendingPlates = mins?.pendingPlates ?? 0
     const meetMinutes = mins?.meetsMinutes ?? 0
     const dateLabel = format(selectedDate, "EEEE dd 'de' MMMM yy", { locale: es })
 
@@ -49,7 +50,7 @@ export function CalendarDayDetail({
                         {dateLabel.charAt(0).toUpperCase() + dateLabel.slice(1)}
                     </h3>
                 </div>
-                {(pendingMinutes > 0 || meetMinutes > 0 || pendingExercises > 0) && (
+                {(pendingMinutes > 0 || meetMinutes > 0 || pendingExercises > 0 || pendingPlates > 0) && (
                     <div className="mt-2 flex flex-wrap gap-2">
                         {(mins?.fitnessMinutesPending > 0 || (mins?.pendingExercises ?? 0) > 0) && (
                             <div className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full border border-[#FF7939]/40 bg-[#FF7939]/10 text-[#FFB366] text-[10px] font-bold">
@@ -59,10 +60,10 @@ export function CalendarDayDetail({
                                     : `${mins?.pendingExercises} ejercicios`}
                             </div>
                         )}
-                        {mins?.nutritionMinutesPending > 0 && (
+                        {pendingPlates > 0 && (
                             <div className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full border border-[#FFB873]/40 bg-[#FFB873]/10 text-[#FFB366] text-[10px] font-bold">
                                 <Utensils className="h-3 w-3" />
-                                Nutrición {formatMinutes(mins.nutritionMinutesPending)}
+                                {pendingPlates}
                             </div>
                         )}
                         {meetMinutes > 0 && (
@@ -184,14 +185,12 @@ export function CalendarDayDetail({
 
                             let displayParticipant = ''
                             if (!isGroup) {
-                                // Find the participant that is NOT the current user
-                                const other = (m.participants || []).find((p: any) => p.user_id !== authUserId)
-                                if (other) {
-                                    displayParticipant = ` – ${other.full_name || other.name || 'Participante'}`
-                                } else if (m.coach_id !== authUserId) {
-                                    // Fallback: if we are the client and don't see the coach in participants, show coach name if we had it
-                                    const coach = (m.participants || []).find((p: any) => p.user_id === m.coach_id)
-                                    if (coach) displayParticipant = ` – ${coach.full_name || coach.name}`
+                                const isMeCoach = String(m.coach_id) === String(authUserId)
+                                if (isMeCoach) {
+                                    const other = (m.participants || []).find((p: any) => String(p.user_id) !== String(authUserId))
+                                    if (other) displayParticipant = ` – ${other.full_name || other.name || 'Cliente'}`
+                                } else {
+                                    displayParticipant = ` – ${m.coach_name || 'Coach'}`
                                 }
                             }
 
@@ -209,13 +208,13 @@ export function CalendarDayDetail({
                                     onClick={handleOpenDetail}
                                 >
                                     <div className="flex items-center gap-3 w-full">
-                                        <div className={`w-10 h-10 rounded-full flex items-center justify-center flex-shrink-0 ${isCancelled ? 'bg-red-500/10 text-red-400 border border-red-500/30' : (rsvp === 'pending' ? 'bg-yellow-500/10 text-yellow-500 border border-yellow-500/20' : 'bg-[#FF7939]/10 text-[#FF7939] border border-[#FF7939]/20')}`}>
+                                        <div className={`w-10 h-10 rounded-full flex items-center justify-center flex-shrink-0 ${m.event_type === 'workshop' ? 'bg-[#FADADD]/10 text-[#FADADD] border border-[#FADADD]/30' : (isCancelled ? 'bg-red-500/10 text-red-400 border border-red-500/30' : (rsvp === 'pending' ? 'bg-yellow-500/10 text-yellow-500 border border-yellow-500/20' : 'bg-[#FF7939]/10 text-[#FF7939] border border-[#FF7939]/20'))}`}>
                                             {m.event_type === 'workshop' ? <GraduationCap className="h-5 w-5" /> : <Video className="h-5 w-5" />}
                                         </div>
                                         <div className="min-w-0 flex-1">
                                             <div className="flex items-center gap-2">
                                                 <div className="text-sm font-bold text-white truncate leading-snug">
-                                                    {m.title ? String(m.title) : (m.event_type === 'workshop' ? 'Taller' : 'Meet')}
+                                                    {m.title ? String(m.title) : (m.event_type === 'workshop' ? '' : 'Meet')}
                                                 </div>
                                                 {isGroup ? (
                                                     <Users className="w-3 h-3 text-white/50" />
@@ -271,7 +270,7 @@ export function CalendarDayDetail({
                                     <div className="flex items-center justify-between gap-3">
                                         <div className="flex items-center gap-3 min-w-0">
                                             {it.tipo === 'taller' || it.activityTypeLabel === 'TALLER' ? (
-                                                <div className="w-10 h-10 rounded-full flex items-center justify-center flex-shrink-0 bg-blue-500/10 text-blue-400 border border-blue-500/30">
+                                                <div className="w-10 h-10 rounded-full flex items-center justify-center flex-shrink-0 bg-[#FADADD]/10 text-[#FADADD] border border-[#FADADD]/30">
                                                     <GraduationCap className="h-5 w-5" />
                                                 </div>
                                             ) : isNutri ? (
@@ -290,7 +289,10 @@ export function CalendarDayDetail({
                                                         {String(it.area || '').toUpperCase()} · {String(it.tipo || '').toUpperCase()}
                                                     </span>
                                                     <span className="text-[#FFB366] bg-[#FF7939]/10 px-1.5 rounded text-[10px] font-bold">
-                                                        {(formatMinutes(it.pendingMinutes) || '0m') + ' restante'}
+                                                        {isNutri
+                                                            ? `${it.pendingCount}`
+                                                            : (formatMinutes(it.pendingMinutes) || '0m') + ' restante'
+                                                        }
                                                     </span>
                                                 </div>
                                             </div>

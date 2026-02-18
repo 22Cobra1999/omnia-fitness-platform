@@ -24,6 +24,8 @@ interface DraggableSheetProps {
     // Sheet State
     isDayLoading?: boolean;
     nextAvailableActivity?: any;
+    isExpired?: boolean;
+    isRated?: boolean;
 
     // Actions
     goToToday?: () => void;
@@ -57,7 +59,7 @@ interface DraggableSheetProps {
 export function DraggableSheet({
     y, dragControls, vh,
     activities = [], selectedDate = new Date(), programInfo, enrollment,
-    isDayLoading = false, nextAvailableActivity,
+    isDayLoading = false, nextAvailableActivity, isExpired = false, isRated = false,
     goToToday, goToNextActivity, handlePrevDay, handleNextDay, handleOpenSurveyModal,
     selectedVideo, setSelectedVideo, isVideoExpanded = false, setIsVideoExpanded,
     blockNames, collapsedBlocks, toggleBlock, toggleBlockCompletion, isBlockCompleted, toggleExerciseSimple, openVideo,
@@ -155,6 +157,8 @@ export function DraggableSheet({
                                         toggleBlock={toggleBlock} toggleBlockCompletion={toggleBlockCompletion}
                                         isBlockCompleted={isBlockCompleted} programInfo={programInfo} enrollment={enrollment}
                                         openVideo={openVideo} toggleExerciseSimple={toggleExerciseSimple}
+                                        isExpired={isExpired} isRated={isRated}
+                                        handleOpenSurveyModal={handleOpenSurveyModal}
                                     />
                                 )}
                             </>

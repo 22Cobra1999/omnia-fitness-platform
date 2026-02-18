@@ -132,27 +132,25 @@ export function CalendarMonthGrid({
                                 <div className="flex flex-col gap-0.5 w-full items-center">
                                     {/* Fitness Bubble */}
                                     {hasFitnessActivities && (mins.totalExercises ?? 0) > 0 && (
-                                        <span className={`flex items-center gap-1 text-[9px] px-1.5 py-0.5 rounded-full font-bold leading-none border shadow-sm ${mins.fitnessMinutesPending > 0 ? 'bg-[#FF7939]/10 text-[#FF7939] border-[#FF7939]/30' : 'bg-green-500/10 text-green-500 border-green-500/30'}`}>
+                                        <span className={`flex items-center gap-1 text-[9px] px-1.5 py-0.5 rounded-full font-bold leading-none border shadow-sm bg-[#FF7939]/10 text-[#FF7939] border-[#FF7939]/30`}>
                                             <Zap className="w-2.5 h-2.5" />
-                                            {mins.completedExercises}/{mins.totalExercises}
-                                            {mins.fitnessMinutesPending > 0 && <span className="ml-0.5 opacity-70">({formatMinutes(mins.fitnessMinutesPending)})</span>}
+                                            {mins.fitnessMinutesPending > 0 ? formatMinutes(mins.fitnessMinutesPending) : `${mins.pendingExercises ?? 0} ejs`}
                                         </span>
                                     )}
 
                                     {/* Nutrition Bubble */}
                                     {hasNutritionActivities && (mins.totalPlates ?? 0) > 0 && (
-                                        <span className={`flex items-center gap-1 text-[9px] px-1.5 py-0.5 rounded-full font-bold border leading-none ${mins.nutritionMinutesPending > 0 ? 'bg-[#FFB366]/10 text-[#FFB366] border-[#FFB366]/30' : 'bg-green-500/10 text-green-500 border-green-500/30'}`}>
+                                        <span className={`flex items-center gap-1 text-[9px] px-1.5 py-0.5 rounded-full font-bold border leading-none shadow-sm bg-[#FFB366]/10 text-[#FFB366] border-[#FFB366]/30`}>
                                             <Utensils className="w-2.5 h-2.5" />
-                                            {mins.completedPlates}/{mins.totalPlates}
-                                            {mins.nutritionMinutesPending > 0 && <span className="ml-0.5 opacity-70">({formatMinutes(mins.nutritionMinutesPending)})</span>}
+                                            {`${mins.pendingPlates ?? 0}`}
                                         </span>
                                     )}
                                 </div>
 
                                 {(mins?.workshopMinutesTotal > 0 || mins?.hasWorkshop) && (
-                                    <div className="flex items-center gap-1 mt-0.5 px-2 py-0.5 rounded-full border leading-none bg-blue-500/10 border-blue-500/30 text-blue-400 font-bold">
-                                        <GraduationCap className="w-2.5 h-2.5 text-blue-400" />
-                                        <span className="text-[10px]">{mins.workshopMinutesTotal > 0 ? formatMinutes(mins.workshopMinutesTotal) : 'Taller'}</span>
+                                    <div className="flex items-center gap-1 mt-0.5 px-2 py-0.5 rounded-full border leading-none bg-[#FADADD]/10 border-[#FADADD]/30 text-[#FADADD] font-bold">
+                                        <GraduationCap className="w-2.5 h-2.5 text-[#FADADD]" />
+                                        {mins.workshopMinutesTotal > 0 && <span className="text-[10px]">{formatMinutes(mins.workshopMinutesTotal)}</span>}
                                     </div>
                                 )}
 

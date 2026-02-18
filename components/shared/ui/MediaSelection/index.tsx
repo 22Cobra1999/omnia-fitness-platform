@@ -41,7 +41,7 @@ export function MediaSelectionModal({
 
     return (
         <Dialog open={isOpen} onOpenChange={onClose}>
-            <DialogContent className={`max-w-2xl max-h-[70vh] bg-[#0A0A0A] border-[#1A1A1A] overflow-hidden flex flex-col ${className || ''}`}>
+            <DialogContent className={`max-w-2xl max-h-[85vh] bg-[#0A0A0A] border-[#1A1A1A] overflow-hidden flex flex-col ${className || ''}`}>
                 <DialogHeader>
                     <DialogTitle className="text-white text-xl font-semibold">
                         Seleccionar {getMediaTypeLabel(mediaType)} de Portada
@@ -50,7 +50,7 @@ export function MediaSelectionModal({
                         Galería para seleccionar media existente o subir nuevo contenido.
                     </DialogDescription>
                     <p className="text-gray-400 text-sm mt-2">
-                        Selecciona solo una {getMediaTypeLabel(mediaType).toLowerCase()} para usar como portada de tu producto
+                        Selecciona solo un {getMediaTypeLabel(mediaType).toLowerCase()} para usar como portada de tu producto
                     </p>
 
                     {mediaType === 'video' && (
@@ -72,7 +72,7 @@ export function MediaSelectionModal({
                     )}
                 </DialogHeader>
 
-                <div className="space-y-4 flex flex-col h-full">
+                <div className="space-y-4 flex flex-col flex-1 min-h-0 mt-4">
                     {uploading || loading ? (
                         <div className="flex items-center justify-center py-8">
                             <Loader2 className="h-8 w-8 animate-spin text-[#FF7939]" />
@@ -114,24 +114,27 @@ export function MediaSelectionModal({
                                 sourceFilter={sourceFilter}
                             />
 
-                            <div className="flex items-center justify-center gap-3 py-2">
+                            <div className="flex items-center justify-center gap-3 py-4 border-t border-white/5 bg-[#0A0A0A]/50 backdrop-blur-sm -mx-6 px-6">
                                 <motion.button
                                     whileHover={{ scale: 1.1 }}
                                     whileTap={{ scale: 0.9 }}
                                     onClick={() => document.getElementById(`media-upload-${mediaType}`)?.click()}
-                                    className="bg-[#FF7939]/20 text-[#FF7939] border border-[#FF7939]/30 rounded-full w-8 h-8 flex items-center justify-center hover:bg-[#FF7939]/30"
+                                    className="bg-white/5 text-gray-400 border border-white/10 rounded-full w-10 h-10 flex items-center justify-center hover:bg-[#FF7939]/10 hover:text-[#FF7939] hover:border-[#FF7939]/30 transition-all"
+                                    title="Subir nuevo"
                                 >
-                                    <Plus className="h-4 w-4" />
+                                    <Plus className="h-5 w-5" />
                                 </motion.button>
 
-                                {(selectedMedia || newMediaFile) && (
-                                    <Button
-                                        onClick={handleConfirm}
-                                        className="bg-[#FF7939]/30 text-[#FF7939] border border-[#FF7939]/40 rounded-full px-6 hover:bg-[#FF7939]/40"
-                                    >
-                                        Guardar
-                                    </Button>
-                                )}
+                                <Button
+                                    onClick={handleConfirm}
+                                    disabled={!selectedMedia && !newMediaFile}
+                                    className={`rounded-full px-10 h-10 font-black uppercase tracking-widest transition-all ${selectedMedia || newMediaFile
+                                            ? 'bg-[#FF7939] text-white hover:bg-[#FF7939]/90 shadow-lg shadow-orange-500/20'
+                                            : 'bg-white/5 text-gray-600 border border-white/5'
+                                        }`}
+                                >
+                                    Confirmar Selección
+                                </Button>
                             </div>
                         </div>
                     )}

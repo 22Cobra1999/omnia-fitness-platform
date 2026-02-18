@@ -60,7 +60,7 @@ export async function GET(
     })
 
     // 4. PARALLEL DATA FETCH
-    const [profileRes, injuriesRes, biometricsRes, objectivesRes, meetRes, progressRes, fitnessRes, nutriRes, docsRes, tallerRes, clientTableRes, bancoRes, onboardingRes] = await Promise.all([
+    const [profileRes, injuriesRes, biometricsRes, objectivesRes, meetRes, progressRes, fitnessRes, nutriRes, docsRes, tallerRes, clientTableRes, bancoRes, onboardingRes, expiredRes] = await Promise.all([
       adminSupabase.from('user_profiles').select('*').eq('id', clientId).single(),
       adminSupabase.from('user_injuries').select('*').eq('user_id', clientId),
       adminSupabase.from('user_biometrics').select('*').eq('user_id', clientId),
@@ -73,7 +73,8 @@ export async function GET(
       adminSupabase.from('taller_progreso_temas').select('*').eq('cliente_id', clientId),
       adminSupabase.from('clients').select('*').eq('id', clientId).maybeSingle(),
       adminSupabase.from('banco').select('*').eq('client_id', clientId),
-      adminSupabase.from('client_onboarding_responses').select('*').eq('client_id', clientId).maybeSingle()
+      adminSupabase.from('client_onboarding_responses').select('*').eq('client_id', clientId).maybeSingle(),
+      adminSupabase.from('actividades_vencidas').select('*').eq('client_id', clientId)
     ])
 
     const workshopFutureMap = new Map<number, number>()
@@ -126,6 +127,14 @@ export async function GET(
       if (b.enrollment_id) bancoByEnrollment.set(Number(b.enrollment_id), b)
       if (b.activity_id) bancoByActivity.set(Number(b.activity_id), b)
     })
+
+    // Map expired activities for quick lookup
+    const expiredByEnrollment = new Map<number, any>()
+    if (expiredRes.data) {
+      expiredRes.data.forEach((e: any) => {
+        if (e.enrollment_id) expiredByEnrollment.set(Number(e.enrollment_id), e)
+      })
+    }
 
     // To avoid double counting, we will use a Map to keep track of items per enrollment and date
     // We will prioritize progreso_diario_actividad as it's the unified source
@@ -319,6 +328,29 @@ export async function GET(
         amountPaid = parseFloat(bancoRecord.amount_paid)
       } else if (e.amount_paid) {
         amountPaid = parseFloat(e.amount_paid)
+      }
+
+      // --- ARCHIVED SNAPSHOT OVERRIDE ---
+      const expiredSnapshot = expiredByEnrollment.get(eidNum)
+      if (expiredSnapshot) {
+        return {
+          ...act,
+          enrollment_id: e.id,
+          created_at: e.created_at,
+          status: e.status,
+          amount_paid: amountPaid,
+          start_date: e.start_date,
+          program_end_date: e.program_end_date,
+          progressPercent: expiredSnapshot.progreso_porcentaje || progressPercent,
+          upToDate: (expiredSnapshot.items_no_logrados || 0) === 0,
+          daysCompleted: expiredSnapshot.dias_completados,
+          daysPassed: expiredSnapshot.dias_en_curso,
+          daysMissed: expiredSnapshot.dias_ausente,
+          daysRemainingFuture: expiredSnapshot.dias_proximos,
+          itemsCompletedTotal: expiredSnapshot.items_completados,
+          itemsDebtPast: expiredSnapshot.items_no_logrados,
+          itemsPendingToday: expiredSnapshot.items_restantes
+        }
       }
 
       return {

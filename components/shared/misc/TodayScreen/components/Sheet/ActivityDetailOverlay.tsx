@@ -16,6 +16,7 @@ interface ActivityDetailOverlayProps {
     // Navigation
     onNext: () => void;
     onPrev: () => void;
+    isExpired?: boolean;
 }
 
 export function ActivityDetailOverlay({
@@ -26,7 +27,8 @@ export function ActivityDetailOverlay({
     enrollment,
     activityId,
     onNext,
-    onPrev
+    onPrev,
+    isExpired = false
 }: ActivityDetailOverlayProps) {
 
     const {
@@ -86,11 +88,11 @@ export function ActivityDetailOverlay({
 
                 {/* Completion Status (Top Right) */}
                 <div
-                    onClick={handleToggleStatus}
+                    onClick={isExpired ? undefined : handleToggleStatus}
                     style={{
                         display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 4,
-                        cursor: isToggling ? 'default' : 'pointer', paddingRight: 4, zIndex: 100,
-                        opacity: isToggling ? 0.7 : 1
+                        cursor: (isToggling || isExpired) ? 'default' : 'pointer', paddingRight: 4, zIndex: 100,
+                        opacity: (isToggling || isExpired) ? 0.7 : 1
                     }}
                 >
                     <Flame
@@ -100,8 +102,8 @@ export function ActivityDetailOverlay({
                         strokeWidth={2}
                         className={isToggling ? "animate-pulse" : ""}
                     />
-                    <span style={{ color: 'rgba(255, 255, 255, 0.7)', fontSize: 10, fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.04em' }}>
-                        {(selectedVideo.done || selectedVideo.completed) ? 'Completado' : 'Pendiente'}
+                    <span style={{ color: isExpired ? 'rgba(255, 255, 255, 0.4)' : 'rgba(255, 255, 255, 0.7)', fontSize: 10, fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.04em' }}>
+                        {isExpired ? 'Expirado' : ((selectedVideo.done || selectedVideo.completed) ? 'Completado' : 'Pendiente')}
                     </span>
                 </div>
             </div>
