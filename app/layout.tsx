@@ -22,14 +22,14 @@ const anton = Anton({
 
 export const metadata: Metadata = {
   title: {
-    default: "OMNIA | Fitness & Wellness Platform",
-    template: "%s | OMNIA"
+    default: "OMNIA | The All-in-One Fitness, Nutrition & Wellness Platform for Coaches and Clients",
+    template: "%s | OMNIA Fitness"
   },
-  description: "Transform your life with OMNIA. Personalized fitness programs, nutrition plans, and expert coaching access.",
-  keywords: ["fitness", "wellness", "nutrition", "coaching", "gym", "workout", "health", "omnia"],
+  description: "Transform your life with OMNIA. Access personalized fitness programs, custom nutrition plans, and expert coaching. Join the community and start your wellness journey today with top-tier professionals.",
+  keywords: ["fitness platform", "online coaching", "nutrition plans", "workout app", "gym companion", "wellness community", "personal trainer software", "omnia fitness"],
   authors: [{ name: "OMNIA Team" }],
-  creator: "OMNIA",
-  publisher: "OMNIA",
+  creator: "OMNIA Fitness",
+  publisher: "OMNIA Fitness",
   formatDetection: {
     email: false,
     address: false,
@@ -39,14 +39,14 @@ export const metadata: Metadata = {
     type: "website",
     locale: "es_ES",
     url: "https://omnia-fitness.vercel.app",
-    title: "OMNIA | Fitness & Wellness Platform",
-    description: "Transform your life with OMNIA. Personalized fitness programs, nutrition plans, and expert coaching access.",
-    siteName: "OMNIA",
+    title: "OMNIA | The All-in-One Fitness, Nutrition & Wellness Platform",
+    description: "Transform your life with OMNIA. Access personalized fitness programs, custom nutrition plans, and expert coaching. Join the community and start your journey today.",
+    siteName: "OMNIA Fitness",
   },
   twitter: {
     card: "summary_large_image",
-    title: "OMNIA | Fitness & Wellness Platform",
-    description: "Transform your life with OMNIA. Personalized fitness programs, nutrition plans, and expert coaching access.",
+    title: "OMNIA | The All-in-One Fitness, Nutrition & Wellness Platform",
+    description: "Transform your life with OMNIA. Access personalized fitness programs, custom nutrition plans, and expert coaching. Join the community today.",
     creator: "@omniafitness"
   },
   appleWebApp: {
