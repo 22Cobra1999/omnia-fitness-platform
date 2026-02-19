@@ -1,26 +1,17 @@
 "use client"
 
-import React, { Suspense } from "react"
+import React, { Suspense, useState } from "react"
 import { Flame } from "lucide-react"
-import { format } from 'date-fns'
-import { es } from 'date-fns/locale'
 import { useCoachCalendarLogic } from "./hooks/calendar/useCoachCalendarLogic"
 import { useCoachMeetDetail } from "./hooks/calendar/useCoachMeetDetail"
 import { useCoachCalendarDerivedData } from "./hooks/calendar/useCoachCalendarDerivedData"
-import { CoachCalendarHeader } from "./calendar/common/CoachCalendarHeader"
-import { CoachCalendarClientSelector } from "./calendar/common/CoachCalendarClientSelector"
-import { CoachCalendarMonthPicker } from "./calendar/common/CoachCalendarMonthPicker"
-import { MonthView } from "./calendar/views/MonthView"
-import { AvailabilityEditor } from "./calendar/views/AvailabilityEditor"
-import { InlineMeetScheduler } from "./calendar/views/InlineMeetScheduler"
-import { CoachCalendarEventList } from "./calendar/views/CoachCalendarEventList"
-import { MeetCreateEditModal } from "./calendar/modals/MeetCreateEditModal"
-import { MeetConfirmationModal } from "./calendar/modals/MeetConfirmationModal"
-import { MeetDetailModal } from "@/components/calendar/MeetDetailModal"
-import { MeetNotificationsModal } from "@/components/shared/meet-notifications-modal"
 import { createClient } from "@/lib/supabase/supabase-client"
 
-// Definición de interfaces para mantener compatibilidad
+// Modular Components
+import { CoachCalendarTopSection } from "./calendar/CoachCalendarScreen/CoachCalendarTopSection"
+import { CoachCalendarViews } from "./calendar/CoachCalendarScreen/CoachCalendarViews"
+import { CoachCalendarModals } from "./calendar/CoachCalendarScreen/CoachCalendarModals"
+
 export interface CalendarEvent {
   id: string
   title: string
@@ -61,152 +52,68 @@ export interface CalendarEvent {
 function CoachCalendarContent() {
   const {
     // UI State
-    viewMode,
-    setViewMode,
-    calendarMode,
-    setCalendarMode,
-    currentDate,
-    selectedDate,
-    showMonthSelector,
-    setShowMonthSelector,
-    monthPickerYear,
-    setMonthPickerYear,
-    goToToday,
-    changeMonth,
-    showAddMenu,
-    setShowAddMenu,
-    showMeetNotifications,
-    setShowMeetNotifications,
-    meetNotificationsCount,
-    eventsByDate,
-    loading,
+    viewMode, setViewMode, calendarMode, setCalendarMode, currentDate, selectedDate,
+    showMonthSelector, setShowMonthSelector, monthPickerYear, setMonthPickerYear,
+    goToToday, changeMonth, showAddMenu, setShowAddMenu, showMeetNotifications,
+    setShowMeetNotifications, meetNotificationsCount, eventsByDate, loading,
 
-    // Logic Hooks/Handlers
-    events,
-    coachId,
-
-    // Availability
-    availabilityRules,
-    availabilityDrafts,
-    availabilitySaving,
-    saveAvailability,
-    deleteAvailabilityRule,
-    setAvailabilityRules,
-    setAvailabilityDrafts,
+    // Logic Hooks
+    events, coachId, availabilityRules, availabilityDrafts, availabilitySaving,
+    saveAvailability, deleteAvailabilityRule, setAvailabilityRules, setAvailabilityDrafts,
 
     // Meet Modal
-    showCreateEventModal,
-    setShowCreateEventModal,
-    createEventLoading,
-    meetModalMode,
-    newEventTitle,
-    setNewEventTitle,
-    newEventNotes,
-    setNewEventNotes,
-    newEventDate,
-    setNewEventDate,
-    newEventStartTime,
-    setNewEventStartTime,
-    newEventEndTime,
-    setNewEventEndTime,
-    newEventIsFree,
-    setNewEventIsFree,
-    newEventPrice,
-    setNewEventPrice,
-    clientsForMeet,
-    selectedClientIds,
-    setSelectedClientIds,
-    showClientPicker,
-    setShowClientPicker,
-    clientSearch,
-    setClientSearch,
+    showCreateEventModal, setShowCreateEventModal, meetModalMode, createEventLoading,
+    newEventTitle, setNewEventTitle, newEventNotes, setNewEventNotes, newEventDate,
+    setNewEventDate, newEventStartTime, setNewEventStartTime, newEventEndTime,
+    setNewEventEndTime, newEventIsFree, setNewEventIsFree, newEventPrice,
+    setNewEventPrice, clientsForMeet, selectedClientIds, setSelectedClientIds,
+    showClientPicker, setShowClientPicker, clientSearch, setClientSearch,
 
     // Actions
-    goToPreviousMonth,
-    goToNextMonth,
-    handleCreateEvent,
-    deleteMeeting,
-    openMeetById,
-    syncing,
+    goToPreviousMonth, goToNextMonth, handleCreateEvent, deleteMeeting,
+    openMeetById, syncing,
 
     // Quick Scheduler
-    showQuickScheduler,
-    setShowQuickScheduler,
-    quickSchedulerDate,
-    handleDayClickForScheduler,
-    handleActivateScheduler,
-    handleQuickSchedulerConfirm,
+    showQuickScheduler, setShowQuickScheduler, quickSchedulerDate,
+    handleDayClickForScheduler, handleActivateScheduler, handleQuickSchedulerConfirm,
     handleQuickSchedulerCancel,
 
     // Confirmation Modal
-    showConfirmationModal,
-    setShowConfirmationModal,
-    pendingMeetData,
-    handleConfirmMeet,
-    handleCancelConfirmation,
-    handleEditTime,
+    showConfirmationModal, setShowConfirmationModal, pendingMeetData,
+    handleConfirmMeet, handleCancelConfirmation, handleEditTime,
 
-    // Rescheduling
-    isRescheduling,
-    meetToReschedule,
-    handleStartReschedule,
-    handleRescheduleConfirm,
-    handleCancelReschedule,
-    handleCancelRescheduleRequest,
-    checkOverlap,
-    clientEvents,
-    availableSlotsCountByDay,
-    showAvailability,
-    setViewedClientId
+    // Rescheduling & Data
+    isRescheduling, meetToReschedule, handleStartReschedule, handleRescheduleConfirm,
+    handleCancelReschedule, handleCancelRescheduleRequest, checkOverlap,
+    clientEvents, availableSlotsCountByDay, showAvailability, setViewedClientId
   } = useCoachCalendarLogic()
 
-  const [selectedMeetEvent, setSelectedMeetEvent] = React.useState<any>(null)
-  const [isSelectingClient, setIsSelectingClient] = React.useState(false)
-  const [selectedClientForQuickMeet, setSelectedClientForQuickMeet] = React.useState<any>(null)
+  const [selectedMeetEvent, setSelectedMeetEvent] = useState<any>(null)
+  const [isSelectingClient, setIsSelectingClient] = useState(false)
+  const [selectedClientForQuickMeet, setSelectedClientForQuickMeet] = useState<any>(null)
 
-  // Externalized Detail Logic
   const {
-    selectedMeetParticipants,
-    setSelectedMeetParticipants,
-    pendingReschedule,
-    setPendingReschedule,
-    selectedMeetRsvpStatus,
-    setSelectedMeetRsvpStatus,
-    selectedMeetRsvpLoading,
-    setSelectedMeetRsvpLoading
+    selectedMeetParticipants, setSelectedMeetParticipants, pendingReschedule,
+    setPendingReschedule, selectedMeetRsvpStatus, setSelectedMeetRsvpStatus,
+    selectedMeetRsvpLoading, setSelectedMeetRsvpLoading
   } = useCoachMeetDetail(selectedMeetEvent, coachId)
 
-  const supabase = createClient()
-
-  // Externalized Derived Data
   const {
-    dayEvents,
-    meetEvents,
-    otherEvents,
-    dateLabel,
-    clientDayEvents,
-    clientSelectedDateEvents,
-    activeClientData
+    dayEvents, meetEvents, otherEvents, dateLabel, clientDayEvents,
+    clientSelectedDateEvents, activeClientData
   } = useCoachCalendarDerivedData(
-    selectedDate,
-    eventsByDate,
-    quickSchedulerDate,
-    clientEvents,
-    selectedClientForQuickMeet,
-    meetToReschedule,
-    clientsForMeet
+    selectedDate, eventsByDate, quickSchedulerDate, clientEvents,
+    selectedClientForQuickMeet, meetToReschedule, clientsForMeet
   )
+
+  const supabase = createClient()
 
   if (loading && !events.length) {
     return (
       <div className="flex flex-col items-center justify-center min-h-screen bg-[#0F1012] gap-4">
         <div className="relative flex items-center justify-center w-[120px] h-[120px]">
-          <div className="absolute opacity-60 scale-[1.5] blur-[20px]">
-            <Flame size={80} color="#FF7939" fill="#FF7939" />
-          </div>
-          <div className="relative z-10 animate-pulse">
-            <Flame size={80} color="#FF7939" fill="#FF7939" />
-          </div>
+          <Flame size={80} className="absolute opacity-60 blur-[20px] text-[#FF7939] fill-[#FF7939]" />
+          <Flame size={80} className="relative z-10 animate-pulse text-[#FF7939] fill-[#FF7939]" />
         </div>
         <div className="text-[18px] font-semibold text-[#FF7939] text-center">Cargando Agenda</div>
       </div>
@@ -216,250 +123,91 @@ function CoachCalendarContent() {
   return (
     <div className="min-h-screen bg-[#0A0A0B] text-white pb-32">
       <div className="w-full mx-auto p-4 sm:p-8 space-y-6">
-
-        {/* Selected Client (Positioned above the + button) */}
-        {(showQuickScheduler || isRescheduling || isSelectingClient) && (
-          <div className="flex justify-end mb-8 mr-1 relative z-30">
-            <CoachCalendarClientSelector
-              clients={clientsForMeet}
-              selectedClientId={activeClientData?.id || (isRescheduling ? meetToReschedule?.client_id : null)}
-              onSelectClient={(client) => {
-                setSelectedClientForQuickMeet(client)
-                setViewedClientId(client.id)
-                setIsSelectingClient(false)
-                if (!showQuickScheduler) handleActivateScheduler()
-              }}
-              onClear={() => {
-                handleQuickSchedulerCancel()
-                if (isRescheduling) handleCancelReschedule()
-                setSelectedClientForQuickMeet(null)
-                setViewedClientId(null)
-                setIsSelectingClient(true)
-              }}
-              isSelecting={isSelectingClient}
-            />
-          </div>
-        )}
-
-        <CoachCalendarHeader
-          viewMode={viewMode as any}
+        <CoachCalendarTopSection
+          showQuickScheduler={showQuickScheduler}
+          isRescheduling={isRescheduling}
+          isSelectingClient={isSelectingClient}
+          clientsForMeet={clientsForMeet}
+          activeClientData={activeClientData}
+          meetToReschedule={meetToReschedule}
+          setSelectedClientForQuickMeet={setSelectedClientForQuickMeet}
+          setViewedClientId={setViewedClientId}
+          setIsSelectingClient={setIsSelectingClient}
+          handleActivateScheduler={handleActivateScheduler}
+          handleQuickSchedulerCancel={handleQuickSchedulerCancel}
+          handleCancelReschedule={handleCancelReschedule}
+          viewMode={viewMode}
           calendarMode={calendarMode}
-          notificationsCount={meetNotificationsCount}
-          onShowNotifications={() => setShowMeetNotifications(true)}
-          onToggleAddMenu={() => setShowAddMenu(!showAddMenu)}
-          onToggleMode={() => setCalendarMode(calendarMode === 'events' ? 'availability' : 'events')}
+          meetNotificationsCount={meetNotificationsCount}
+          setShowMeetNotifications={setShowMeetNotifications}
+          setShowAddMenu={setShowAddMenu}
           showAddMenu={showAddMenu}
-          onCreateMeet={() => {
-            setShowAddMenu(false)
-            setCalendarMode('events')
-            setIsSelectingClient(true)
-          }}
-          onEditAvailability={() => {
-            setShowAddMenu(false)
-            setCalendarMode('availability')
-            setViewMode('month')
-          }}
-          isCreating={showQuickScheduler || isSelectingClient || isRescheduling}
-          onCancelCreation={() => {
-            if (isSelectingClient) setIsSelectingClient(false)
-            if (showQuickScheduler) handleQuickSchedulerCancel()
-            if (isRescheduling) handleCancelReschedule()
-            setSelectedClientForQuickMeet(null)
-          }}
-          currentDateLabel={format(currentDate, 'MMMM yyyy', { locale: es })}
-          onPrevMonth={goToPreviousMonth}
-          onNextMonth={goToNextMonth}
+          setCalendarMode={setCalendarMode}
+          setViewMode={setViewMode}
+          currentDate={currentDate}
+          goToPreviousMonth={goToPreviousMonth}
+          goToNextMonth={goToNextMonth}
         />
 
-        {calendarMode === 'events' ? (
-          <>
-            <MonthView
-              currentDate={currentDate}
-              selectedDate={selectedDate}
-              eventsByDate={eventsByDate}
-              onDateClick={(date) => handleDayClickForScheduler(date)}
-              onPrevMonth={goToPreviousMonth}
-              onNextMonth={goToNextMonth}
-              onMonthClick={() => setShowMonthSelector(true)}
-              availableSlotsCountByDay={availableSlotsCountByDay}
-              showAvailability={showAvailability}
-              hideHeader={true}
-            />
-
-            {selectedDate && (
-              <div className="mt-4">
-                <div className="mb-3">
-                  {showQuickScheduler && quickSchedulerDate && !isSelectingClient && (
-                    <div className="mb-4">
-                      <InlineMeetScheduler
-                        selectedDate={quickSchedulerDate}
-                        existingEvents={[...dayEvents, ...clientDayEvents]}
-                        onConfirm={handleQuickSchedulerConfirm}
-                        onCancel={handleQuickSchedulerCancel}
-                        checkOverlap={checkOverlap}
-                        meetTitle={meetToReschedule?.title || 'Meet nueva'}
-                        isRescheduling={isRescheduling}
-                        previewClientName={selectedClientForQuickMeet?.full_name}
-                      />
-                    </div>
-                  )}
-
-                  {!showQuickScheduler && !isSelectingClient && (
-                    <CoachCalendarEventList
-                      dateLabel={dateLabel}
-                      showAvailability={showAvailability}
-                      meetEvents={meetEvents as CalendarEvent[]}
-                      otherEvents={otherEvents as CalendarEvent[]}
-                      clientSelectedDateEvents={clientSelectedDateEvents as CalendarEvent[]}
-                      coachId={coachId}
-                      setSelectedMeetEvent={setSelectedMeetEvent}
-                    />
-                  )}
-                </div>
-              </div>
-            )}
-          </>
-        ) : (
-          <AvailabilityEditor
-            rules={availabilityRules}
-            drafts={availabilityDrafts}
-            isSaving={availabilitySaving}
-            onAddRule={() => {
-              const newId = `new-${Date.now()}`
-              setAvailabilityRules(prev => [...prev, {
-                id: newId,
-                start: '09:00',
-                end: '18:00',
-                days: [1, 2, 3, 4, 5],
-                scope: 'always'
-              }])
-              setAvailabilityDrafts(prev => ({
-                ...prev,
-                [newId]: {
-                  start: '09:00',
-                  end: '18:00',
-                  days: [1, 2, 3, 4, 5],
-                  months: Array.from({ length: 12 }, (_, i) => i)
-                }
-              }))
-            }}
-            onDeleteRule={deleteAvailabilityRule}
-            onUpdateDraft={(id, data) => {
-              setAvailabilityDrafts(prev => ({
-                ...prev,
-                [id]: { ...(prev[id] || {}), ...data }
-              }))
-            }}
-            onSave={() => saveAvailability(currentDate.getFullYear())}
-            onCancel={() => setCalendarMode('events')}
-          />
-        )}
+        <CoachCalendarViews
+          calendarMode={calendarMode}
+          currentDate={currentDate}
+          selectedDate={selectedDate}
+          eventsByDate={eventsByDate}
+          handleDayClickForScheduler={handleDayClickForScheduler}
+          goToPreviousMonth={goToPreviousMonth}
+          goToNextMonth={goToNextMonth}
+          setShowMonthSelector={setShowMonthSelector}
+          availableSlotsCountByDay={availableSlotsCountByDay}
+          showAvailability={showAvailability}
+          showQuickScheduler={showQuickScheduler}
+          quickSchedulerDate={quickSchedulerDate}
+          isSelectingClient={isSelectingClient}
+          dayEvents={dayEvents}
+          clientDayEvents={clientDayEvents}
+          handleQuickSchedulerConfirm={handleQuickSchedulerConfirm}
+          handleQuickSchedulerCancel={handleQuickSchedulerCancel}
+          checkOverlap={checkOverlap}
+          meetToReschedule={meetToReschedule}
+          isRescheduling={isRescheduling}
+          selectedClientForQuickMeet={selectedClientForQuickMeet}
+          dateLabel={dateLabel}
+          meetEvents={meetEvents as CalendarEvent[]}
+          otherEvents={otherEvents as CalendarEvent[]}
+          clientSelectedDateEvents={clientSelectedDateEvents as CalendarEvent[]}
+          coachId={coachId}
+          setSelectedMeetEvent={setSelectedMeetEvent}
+          availabilityRules={availabilityRules}
+          availabilityDrafts={availabilityDrafts}
+          availabilitySaving={availabilitySaving}
+          setAvailabilityRules={setAvailabilityRules}
+          setAvailabilityDrafts={setAvailabilityDrafts}
+          saveAvailability={saveAvailability}
+          setCalendarMode={setCalendarMode}
+          deleteAvailabilityRule={deleteAvailabilityRule}
+        />
       </div>
 
-      {/* Modals */}
-      <MeetCreateEditModal
-        open={showCreateEventModal}
-        onClose={() => setShowCreateEventModal(false)}
-        mode={meetModalMode}
-        loading={createEventLoading}
-        title={newEventTitle}
-        setTitle={setNewEventTitle}
-        notes={newEventNotes}
-        setNotes={setNewEventNotes}
-        date={newEventDate}
-        setDate={setNewEventDate}
-        startTime={newEventStartTime}
-        setStartTime={setNewEventStartTime}
-        endTime={newEventEndTime}
-        setEndTime={setNewEventEndTime}
-        isFree={newEventIsFree}
-        setIsFree={setNewEventIsFree}
-        price={newEventPrice}
-        setPrice={setNewEventPrice}
-        clients={clientsForMeet}
-        selectedClientIds={selectedClientIds}
-        setSelectedClientIds={setSelectedClientIds}
-        showClientPicker={showClientPicker}
-        setShowClientPicker={setShowClientPicker}
-        clientSearch={clientSearch}
-        setClientSearch={setClientSearch}
-        onSave={handleCreateEvent}
-        onDelete={deleteMeeting}
-      />
-
-      <MeetNotificationsModal
-        open={showMeetNotifications}
-        onClose={() => setShowMeetNotifications(false)}
-        role="coach"
-        supabase={supabase}
-        userId={coachId || ''}
-        coachId={coachId || ''}
-        onOpenMeet={async (eventId) => {
-          const event = await openMeetById(eventId)
-          if (event) {
-            setSelectedMeetEvent(event)
-            setShowMeetNotifications(false)
-          }
+      <CoachCalendarModals
+        {...{
+          showCreateEventModal, setShowCreateEventModal, meetModalMode, createEventLoading,
+          newEventTitle, setNewEventTitle, newEventNotes, setNewEventNotes, newEventDate,
+          setNewEventDate, newEventStartTime, setNewEventStartTime, newEventEndTime,
+          setNewEventEndTime, newEventIsFree, setNewEventIsFree, newEventPrice,
+          setNewEventPrice, clientsForMeet, selectedClientIds, setSelectedClientIds,
+          showClientPicker, setShowClientPicker, clientSearch, setClientSearch,
+          handleCreateEvent, deleteMeeting, showMeetNotifications, setShowMeetNotifications,
+          supabase, coachId, openMeetById, setSelectedMeetEvent, selectedMeetEvent,
+          pendingReschedule, setPendingReschedule, setSelectedMeetParticipants,
+          selectedMeetParticipants, handleStartReschedule, handleCancelRescheduleRequest,
+          eventsByDate, selectedMeetRsvpStatus, setSelectedMeetRsvpStatus,
+          selectedMeetRsvpLoading, setSelectedMeetRsvpLoading, showConfirmationModal,
+          handleCancelConfirmation, quickSchedulerDate, pendingMeetData, isRescheduling,
+          handleRescheduleConfirm, handleConfirmMeet, handleEditTime, meetToReschedule,
+          showMonthSelector, setShowMonthSelector, currentDate, monthPickerYear,
+          setMonthPickerYear, changeMonth, goToToday
         }}
       />
-
-      {selectedMeetEvent && (
-        <MeetDetailModal
-          selectedMeetEvent={selectedMeetEvent}
-          setSelectedMeetEvent={setSelectedMeetEvent}
-          pendingReschedule={pendingReschedule}
-          setPendingReschedule={setPendingReschedule}
-          setSelectedMeetParticipants={setSelectedMeetParticipants}
-          selectedMeetParticipants={selectedMeetParticipants}
-          coachProfiles={[]}
-          authUserId={coachId}
-          onReschedule={(meet) => {
-            const guestIds = selectedMeetParticipants
-              .filter(p => String(p.user_id) !== String(coachId))
-              .map(p => p.user_id)
-
-            handleStartReschedule(meet, {
-              description: meet.description,
-              clientIds: guestIds
-            })
-            setSelectedMeetEvent(null)
-          }}
-          onCancelRescheduleRequest={handleCancelRescheduleRequest}
-          meetEventsByDate={eventsByDate}
-          setMeetEventsByDate={() => { }}
-          selectedMeetRsvpStatus={selectedMeetRsvpStatus}
-          setSelectedMeetRsvpStatus={setSelectedMeetRsvpStatus}
-          selectedMeetRsvpLoading={selectedMeetRsvpLoading}
-          setSelectedMeetRsvpLoading={setSelectedMeetRsvpLoading}
-          setRescheduleContext={() => { }}
-          handlePickCoachForMeet={() => { }}
-          setMeetViewMode={() => { }}
-          setMeetWeekStart={() => { }}
-        />
-      )}
-
-      {showConfirmationModal && quickSchedulerDate && pendingMeetData && (
-        <MeetConfirmationModal
-          isOpen={showConfirmationModal}
-          onClose={handleCancelConfirmation}
-          selectedDate={quickSchedulerDate}
-          startTime={pendingMeetData.startTime}
-          durationMinutes={pendingMeetData.durationMinutes}
-          onConfirm={isRescheduling ? handleRescheduleConfirm : handleConfirmMeet}
-          availableClients={clientsForMeet}
-          isRescheduling={isRescheduling}
-          onEditTime={handleEditTime}
-          originalMeet={meetToReschedule ? {
-            title: meetToReschedule.title,
-            start_time: meetToReschedule.start_time,
-            end_time: meetToReschedule.end_time || '',
-            description: meetToReschedule.description,
-            clientIds: [meetToReschedule.client_id].filter(Boolean) as string[],
-            isFree: meetToReschedule.pricing_data?.is_free,
-            price: meetToReschedule.pricing_data?.price
-          } : undefined}
-        />
-      )}
 
       {syncing && (
         <div className="fixed inset-0 bg-black/60 backdrop-blur-sm z-[9999] flex flex-col items-center justify-center gap-4">
@@ -467,23 +215,13 @@ function CoachCalendarContent() {
           <p className="text-sm font-bold tracking-widest uppercase">Sincronizando con Google...</p>
         </div>
       )}
-
-      <CoachCalendarMonthPicker
-        isOpen={showMonthSelector}
-        onClose={() => setShowMonthSelector(false)}
-        currentDate={currentDate}
-        monthPickerYear={monthPickerYear}
-        setMonthPickerYear={setMonthPickerYear}
-        changeMonth={changeMonth}
-        goToToday={goToToday}
-      />
     </div>
   )
 }
 
 export default function CoachCalendarScreen() {
   return (
-    <Suspense fallback={<div>Cargando...</div>}>
+    <Suspense fallback={<div className="min-h-screen bg-[#0A0A0B] flex items-center justify-center">Cargando...</div>}>
       <CoachCalendarContent />
     </Suspense>
   )

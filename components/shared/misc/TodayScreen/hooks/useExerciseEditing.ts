@@ -9,20 +9,20 @@ export function useExerciseEditing() {
     const [targetDate, setTargetDate] = React.useState<Date | null>(null);
     const [applyToAllSameDays, setApplyToAllSameDays] = React.useState(false);
 
-    const startEditing = (series: any[], blockIndex: number) => {
+    const startEditing = React.useCallback((series: any[], blockIndex: number) => {
         setOriginalSeries(series);
         setEditableSeries([...series]);
         setEditingBlockIndex(blockIndex);
         setIsEditing(true);
-    };
+    }, []);
 
-    const cancelEditing = () => {
+    const cancelEditing = React.useCallback(() => {
         setEditableSeries([]);
         setEditingBlockIndex(null);
         setIsEditing(false);
-    };
+    }, []);
 
-    return {
+    return React.useMemo(() => ({
         editableSeries,
         setEditableSeries,
         editingBlockIndex,
@@ -39,5 +39,15 @@ export function useExerciseEditing() {
         setApplyToAllSameDays,
         startEditing,
         cancelEditing
-    };
+    }), [
+        editableSeries,
+        editingBlockIndex,
+        originalSeries,
+        isEditing,
+        sourceDate,
+        targetDate,
+        applyToAllSameDays,
+        startEditing,
+        cancelEditing
+    ]);
 }

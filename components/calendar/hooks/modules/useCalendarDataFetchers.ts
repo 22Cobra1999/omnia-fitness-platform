@@ -94,7 +94,17 @@ export const useCalendarDataFetchers = ({
             setDayMinutesByDate(agg)
 
             if (discoveredIds.length > 0) {
-                setDiscoveredActivityIds(prev => Array.from(new Set([...prev, ...discoveredIds])))
+                setDiscoveredActivityIds(prev => {
+                    const newSet = new Set(prev)
+                    let hasChanges = false
+                    discoveredIds.forEach((id: string) => {
+                        if (!newSet.has(id)) {
+                            newSet.add(id)
+                            hasChanges = true
+                        }
+                    })
+                    return hasChanges ? Array.from(newSet) : prev
+                })
             }
 
             // 2. Fetch Meets

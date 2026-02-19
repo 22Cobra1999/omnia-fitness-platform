@@ -489,6 +489,47 @@
     <div class="logic-title" style="color: #e3b341; border-color: #e3b341;">💀 MONSTRUOS ABATIDOS</div>
 
     <div class="logic-layer">
+      <span class="layer-label">EL PERFIL HOLÍSTICO</span>
+      <div class="node" style="background: #da3633; color: white;">ClientProfileView.tsx (Original: ~469 líneas)</div>
+      <div class="branch">
+        <span class="arrow">⬇️ CAZADO Y FRAGMENTADO</span>
+        <div class="node pill-blue">Reducido a ~140 líneas (70% de compresión). Modularizado en Header, Activity,
+          Metrics y History.</div>
+      </div>
+    </div>
+
+    <div class="logic-layer">
+      <span class="layer-label">EL BUSCADOR SUPREMO</span>
+      <div class="node" style="background: #da3633; color: white;">search-screen.tsx (Original: ~473 líneas)</div>
+      <div class="branch">
+        <span class="arrow">⬇️ DOMADO</span>
+        <div class="node pill-blue">Reducido a ~150 líneas. Lógica en useSearchScreenLogic. UI en SearchHeader, Filters
+          y Results.</div>
+      </div>
+    </div>
+
+    <div class="logic-layer">
+      <span class="layer-label">EL ORÁCULO DEL CHAT</span>
+      <div class="node" style="background: #da3633; color: white;">messages/page.tsx (Original: ~501 líneas)</div>
+      <div class="branch">
+        <span class="arrow">⬇️ DOMADO</span>
+        <div class="node pill-blue">Reducido a ~98 líneas (80% de compresión). Lógica Real-time en useMessagesLogic. UI
+          en 4 componentes.</div>
+      </div>
+    </div>
+
+    <div class="logic-layer">
+      <span class="layer-label">EL MERCADER DE PAGOS</span>
+      <div class="node" style="background: #da3633; color: white;">PurchaseActivityModal.tsx (Original: ~503 líneas)
+      </div>
+      <div class="branch">
+        <span class="arrow">⬇️ DOMADO</span>
+        <div class="node pill-blue">Reducido a ~120 líneas (76% de compresión). Lógica en usePurchaseActivityLogic. UI
+          en 4 componentes especializados.</div>
+      </div>
+    </div>
+
+    <div class="logic-layer">
       <span class="layer-label">EL LEVIATÁN (ORIGINAL)</span>
       <div class="node" style="background: #da3633; color: white;">TodayScreen_OLD.tsx (ELIMINADO 🗑️)</div>
       <div class="branch">
@@ -529,10 +570,12 @@
 
     <div class="logic-layer">
       <span class="layer-label">EL COLOSO DEL COACH</span>
-      <div class="node" style="background: #da3633; color: white;">CoachCalendarScreen.tsx (3,142 líneas de CAOS)</div>
+      <div class="node" style="background: #da3633; color: white;">coach-calendar-screen.tsx (Original: ~3,142 líneas)
+      </div>
       <div class="branch">
         <span class="arrow">⬇️ FRAGMENTADO Y DOMADO</span>
-        <div class="node pill-blue">Modularizado en 5 Hooks + 4 Vistas Especializadas (~798 líneas UI + Logic Hooks)
+        <div class="node pill-blue">Reducido a ~160 líneas (95% compresión). Lógica en 5 Hooks especializados. UI en 3
+          componentes modulares.
         </div>
       </div>
     </div>
@@ -542,8 +585,8 @@
       <div class="node" style="background: #da3633; color: white;">CalendarView.tsx (Original: ~4,000 líneas)</div>
       <div class="branch">
         <span class="arrow">⬇️ CAZADO Y FRAGMENTADO</span>
-        <div class="node pill-blue">Reducido a ~1,000 líneas. Lógica extraída a 3 Hooks (Data, Logic, CoachAvailability)
-          y UI modularizada en 7 sub-componentes.</div>
+        <div class="node pill-green">Reducido a ~450 líneas (88% compresión). Arquitectura Manager-View con 5 Vistas
+          Modulares.</div>
       </div>
     </div>
 
@@ -1264,6 +1307,14 @@
     </thead>
     <tbody>
       <tr class="odd">
+        <td style="text-align: left;"><code>PurchaseActivityModal.tsx</code></td>
+        <td style="text-align: center;">~120 (MODULAR)</td>
+        <td style="text-align: center;">CRÍTICA</td>
+        <td style="text-align: center;">BAJA</td>
+        <td style="text-align: center;">🔵 10/10</td>
+        <td style="text-align: left;"><strong>DOMADO.</strong> Lógica de pagos extraída. UI fragmentada.</td>
+      </tr>
+      <tr class="odd">
         <td style="text-align: left;"><code>ProductsManagement (Refactored)</code></td>
         <td style="text-align: center;">~1000</td>
         <td style="text-align: center;">CRÍTICA</td>
@@ -1323,21 +1374,22 @@
       </tr>
       <tr class="even">
         <td style="text-align: left;"><code>coach-calendar-screen.tsx</code></td>
-        <td style="text-align: center;">3141</td>
+        <td style="text-align: center;">~160 (MODULAR)</td>
         <td style="text-align: center;">ALTA</td>
-        <td style="text-align: center;">MEDIA</td>
-        <td style="text-align: center;">🟢 7/10</td>
-        <td style="text-align: left;">Manejo de estados de eMeet funcional pero complejo.</td>
+        <td style="text-align: center;">BAJA</td>
+        <td style="text-align: center;">🔵 10/10</td>
+        <td style="text-align: left;"><strong>DOMADO.</strong> Monolito de 3k líneas fragmentado. Lógica en hooks y UI
+          en sub-componentes.</td>
       </tr>
 
       <tr class="even">
-        <td style="text-align: left;"><s>products-management-screen_OLD.tsx</s></td>
-        <td style="text-align: center;">0</td>
-        <td style="text-align: center;">-</td>
-        <td style="text-align: center;">-</td>
-        <td style="text-align: center;">🔴 ELIMINADO</td>
-        <td style="text-align: left;"><strong>ZOMBIE ELIMINADO.</strong> Archivo legacy borrado del repositorio.
-        </td>
+        <td style="text-align: left;"><code>ClientProfileView.tsx</code></td>
+        <td style="text-align: center;">~140 (MODULAR)</td>
+        <td style="text-align: center;">ALTA</td>
+        <td style="text-align: center;">BAJA</td>
+        <td style="text-align: center;">🔵 10/10</td>
+        <td style="text-align: left;"><strong>DOMADO.</strong> Perfil fragmentado en Header, Activity, Metrics y
+          History.</td>
       </tr>
       <tr class="odd">
         <td style="text-align: left;"><code>profile-screen.tsx</code></td>
@@ -1399,12 +1451,12 @@
       </tr>
       <tr class="even">
         <td style="text-align: left;"><code>search-screen.tsx</code></td>
-        <td style="text-align: center;">466</td>
+        <td style="text-align: center;">~150 (MODULAR)</td>
         <td style="text-align: center;">ALTA</td>
         <td style="text-align: center;">BAJA</td>
-        <td style="text-align: center;">🔵 9/10</td>
-        <td style="text-align: left;"><strong>MODULARIZADO.</strong> UI dividida y lógica extraída. Mantenible pero
-          con UI de filtros compleja.</td>
+        <td style="text-align: center;">🔵 10/10</td>
+        <td style="text-align: left;"><strong>DOMADO.</strong> Filtros y resultados extraídos. Lógica centralizada en
+          hook.</td>
       </tr>
       <tr class="odd">
         <td style="text-align: left;"><code>workshop-client-view.tsx</code></td>
@@ -1501,14 +1553,13 @@
           UI atomizada en sub-componentes.</td>
       </tr>
       <tr class="even">
-        <td style="text-align: left;"><code>messages-screen.tsx</code></td>
-        <td style="text-align: center;">~80 (MODULAR)</td>
+        <td style="text-align: left;"><code>messages/page.tsx</code></td>
+        <td style="text-align: center;">~98 (MODULAR)</td>
         <td style="text-align: center;">ALTA</td>
         <td style="text-align: center;">BAJA</td>
         <td style="text-align: center;">🔵 10/10</td>
-        <td style="text-align: left;"><strong>MODULARIZADO.</strong> Chat segmentado en componentes de UI (List,
-          Header,
-          Input). Lógica extraída a hook.</td>
+        <td style="text-align: left;"><strong>DOMADO.</strong> Chat segmentado en componentes de UI. Lógica Real-time en
+          hook.</td>
       </tr>
       <tr class="odd">
         <td style="text-align: left;"><code>useMessagesScreenLogic.ts</code></td>
@@ -1616,9 +1667,9 @@
       <div class="tree-branch">
         <span class="tree-action">Buscar Servicios y Coaches</span>
         <div class="tree-detail">
-          <span class="status-pill pill-blue">🔵 MODULAR</span>
+          <span class="status-pill pill-blue">🔵 DOMADO</span>
           <code>search-screen.tsx</code>
-          <span class="line-count">466 lines</span>
+          <span class="line-count">~150 lines</span>
         </div>
         <span class="tree-action">Planificación de Talleres (Modular)</span>
         <div class="tree-detail">
@@ -1629,10 +1680,10 @@
         </div>
         <span class="tree-action">Mis Actividades (Modular)</span>
         <div class="tree-detail">
-          <span class="status-pill pill-blue">🔵 CAZADO</span>
-          <code>PurchasedActivity/</code>
-          <span class="line-count">~600 lines (Refactored)</span>
-          <span class="hook-ref">🪝 usePurchasedActivityLogic</span>
+          <span class="status-pill pill-blue">🔵 DOMADO</span>
+          <code>PurchaseActivityModal.tsx</code>
+          <span class="line-count">~120 lines</span>
+          <span class="hook-ref">🪝 usePurchaseActivityLogic</span>
         </div>
         <span class="tree-action">Detalle de Producto (Modal)</span>
         <div class="tree-detail">
@@ -1664,10 +1715,10 @@
       <div class="tree-branch">
         <span class="tree-action">Comunicación Coach-Client</span>
         <div class="tree-detail">
-          <span class="status-pill pill-blue">🔵 MODULAR</span>
-          <code>messages-screen.tsx</code>
-          <span class="line-count">~80 lines</span>
-          <span class="hook-ref">🪝 useMessagesScreenLogic</span>
+          <span class="status-pill pill-blue">🔵 DOMADO</span>
+          <code>messages/page.tsx</code>
+          <span class="line-count">~98 lines</span>
+          <span class="hook-ref">🪝 useMessagesLogic</span>
         </div>
       </div>
 
@@ -1684,6 +1735,11 @@
 
       <span class="tree-tab">👤 PERFIL</span>
       <div class="tree-branch">
+        <div class="tree-detail">
+          <span class="status-pill pill-blue">🔵 DOMADO</span>
+          <code>ClientProfileView.tsx</code>
+          <span class="line-count">~140 lines</span>
+        </div>
         <div class="tree-detail">
           <span class="status-pill pill-green">🟢 SALUDABLE</span>
           <code>biometrics-modal.tsx</code>
@@ -1763,6 +1819,17 @@
           <span class="status-pill pill-blue">🔵 OPTIMIZADO</span>
           <code>DayExercisesModal.tsx</code>
           <span class="line-count">~430 lines</span>
+        </div>
+      </div>
+
+      <span class="tree-tab">📅 CALENDARIO</span>
+      <div class="tree-branch">
+        <span class="tree-action">Gestión de Agenda y eMeets</span>
+        <div class="tree-detail">
+          <span class="status-pill pill-blue">🔵 DOMADO</span>
+          <code>coach-calendar-screen.tsx</code>
+          <span class="line-count">~160 lines</span>
+          <span class="hook-ref">🪝 useCoachCalendarLogic, useCoachEvents</span>
         </div>
       </div>
 

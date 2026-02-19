@@ -131,7 +131,7 @@ export function useWorkshopLogic(user: any, activityId: string, enrollment: any,
         } catch (error) { console.error(error); }
     }, [activityId]);
 
-    const handleToggleDocumentProgress = async (topicId: number) => {
+    const handleToggleDocumentProgress = React.useCallback(async (topicId: number) => {
         if (!user || !enrollment) return;
         const newStatus = !documentProgress[topicId];
         setDocumentProgress(prev => ({ ...prev, [topicId]: newStatus }));
@@ -147,9 +147,9 @@ export function useWorkshopLogic(user: any, activityId: string, enrollment: any,
         } catch (e) {
             setDocumentProgress(prev => ({ ...prev, [topicId]: !newStatus }));
         }
-    };
+    }, [user, enrollment, documentProgress, activityId, supabase]);
 
-    return {
+    return React.useMemo(() => ({
         workshopTemas,
         temasCubiertos,
         temasPendientes,
@@ -163,5 +163,16 @@ export function useWorkshopLogic(user: any, activityId: string, enrollment: any,
         handleToggleDocumentProgress,
         setTemasCubiertos,
         setTemasPendientes
-    };
+    }), [
+        workshopTemas,
+        temasCubiertos,
+        temasPendientes,
+        documentProgress,
+        ejecucionId,
+        cuposOcupados,
+        expandedTema,
+        loadWorkshopData,
+        loadCuposOcupados,
+        handleToggleDocumentProgress
+    ]);
 }

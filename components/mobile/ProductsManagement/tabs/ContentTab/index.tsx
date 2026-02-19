@@ -1,4 +1,6 @@
 import React, { memo } from 'react'
+import { Zap, UtensilsCrossed } from 'lucide-react'
+import { motion } from 'framer-motion'
 import { CSVManagerEnhanced } from '@/components/shared/csv/csv-manager-enhanced'
 
 interface ContentTabProps {
@@ -9,27 +11,46 @@ interface ContentTabProps {
 
 export const ContentTab: React.FC<ContentTabProps> = memo(({ userId, activeSubTab, setActiveSubTab }) => {
     return (
-        <div className="bg-[#0F0F0F] rounded-2xl border border-[#1A1A1A] overflow-hidden">
-            <div className="p-4 border-b border-[#1A1A1A]">
-                <div className="flex gap-2 bg-[#050505] p-1 rounded-xl w-full">
+        <div className="bg-transparent overflow-hidden">
+            {/* Sub-tabs: Fitness / Nutrición - Elongated Design */}
+            <div className="mb-6 flex justify-center">
+                <div className="flex bg-white/5 backdrop-blur-md p-1.5 rounded-full border border-white/10 shadow-lg gap-6">
                     <button
                         onClick={() => setActiveSubTab('fitness')}
-                        className={`flex-1 py-2 text-xs font-bold rounded-lg transition-all ${activeSubTab === 'fitness' ? 'bg-[#FF7939] text-white shadow-lg' : 'text-gray-500 hover:text-gray-300'
+                        className={`relative flex items-center justify-center w-24 h-11 rounded-full transition-all duration-300 ${activeSubTab === 'fitness'
+                            ? 'bg-[#FF7939] text-white shadow-[0_0_15px_rgba(255,121,57,0.3)] z-10'
+                            : 'text-gray-400 hover:text-white'
                             }`}
                     >
-                        FITNESS
+                        <Zap className={`${activeSubTab === 'fitness' ? 'w-5 h-5' : 'w-4 h-4 opacity-50'}`} />
+                        {activeSubTab === 'fitness' && (
+                            <motion.div
+                                layoutId="active-tab-content"
+                                className="absolute inset-0 rounded-full border border-white/10"
+                                transition={{ type: "spring", bounce: 0.2, duration: 0.4 }}
+                            />
+                        )}
                     </button>
                     <button
                         onClick={() => setActiveSubTab('nutrition')}
-                        className={`flex-1 py-2 text-xs font-bold rounded-lg transition-all ${activeSubTab === 'nutrition' ? 'bg-[#FF7939] text-white shadow-lg' : 'text-gray-500 hover:text-gray-300'
+                        className={`relative flex items-center justify-center w-24 h-11 rounded-full transition-all duration-300 ${activeSubTab === 'nutrition'
+                            ? 'bg-[#FF7939] text-white shadow-[0_0_15px_rgba(255,121,57,0.3)] z-10'
+                            : 'text-gray-400 hover:text-white'
                             }`}
                     >
-                        NUTRICIÓN
+                        <UtensilsCrossed className={`${activeSubTab === 'nutrition' ? 'w-5 h-5' : 'w-4 h-4 opacity-50'}`} />
+                        {activeSubTab === 'nutrition' && (
+                            <motion.div
+                                layoutId="active-tab-content"
+                                className="absolute inset-0 rounded-full border border-white/10"
+                                transition={{ type: "spring", bounce: 0.2, duration: 0.4 }}
+                            />
+                        )}
                     </button>
                 </div>
             </div>
 
-            <div className="p-4 min-h-[400px]">
+            <div className="p-0 min-h-[400px]">
                 {userId ? (
                     <CSVManagerEnhanced
                         activityId={0} // 0 indica carga general de librería

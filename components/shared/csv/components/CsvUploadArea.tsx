@@ -21,11 +21,11 @@ export function CsvUploadArea({
     const isNutricion = productCategory === 'nutricion'
 
     return (
-        <div className="mb-6">
+        <div className="mb-4">
             <div
-                className={`border-2 border-dashed rounded-xl p-8 text-center transition-colors ${mode === 'csv'
-                        ? 'border-[#FF7939] bg-[#FF7939]/5'
-                        : 'border-zinc-800 hover:border-zinc-700 bg-black'
+                className={`border-2 border-dashed rounded-xl p-6 text-center transition-colors ${mode === 'csv'
+                    ? 'border-[#FF7939] bg-[#FF7939]/5'
+                    : 'border-zinc-800 hover:border-zinc-700 bg-black'
                     }`}
                 onDragOver={(e) => {
                     e.preventDefault()
@@ -51,34 +51,22 @@ export function CsvUploadArea({
                     }
                 }}
             >
-                <div className="flex flex-col items-center justify-center gap-3">
-                    <div className={`p-4 rounded-full ${mode === 'csv' ? 'bg-[#FF7939]/10' : 'bg-zinc-900'}`}>
-                        <Upload className={`h-8 w-8 ${mode === 'csv' ? 'text-[#FF7939]' : 'text-zinc-500'}`} />
+                <div className="flex flex-col items-center justify-center gap-1">
+                    <div className={`p-1.5 rounded-full ${mode === 'csv' ? 'bg-[#FF7939]/10' : 'bg-zinc-900'}`}>
+                        <Upload className={`h-4 w-4 ${mode === 'csv' ? 'text-[#FF7939]' : 'text-zinc-600'}`} />
                     </div>
                     <div>
-                        <h3 className="text-lg font-medium text-white mb-1">
-                            {isNutricion ? 'Subir archivo de platos' : 'Subir archivo de ejercicios'}
+                        <h3 className="text-[13px] font-medium text-white">
+                            {isNutricion ? 'Subir platos' : 'Subir ejercicios'}
                         </h3>
-                        <p className="text-sm text-zinc-400 max-w-sm mx-auto mb-4">
-                            Arrastra y suelta tu archivo CSV o Excel aquí
-                        </p>
                     </div>
 
-                    <div className="flex gap-3 items-center flex-wrap justify-center">
-                        {onDownloadTemplate && (
-                            <Button
-                                variant="outline"
-                                onClick={onDownloadTemplate}
-                                className="bg-transparent border-zinc-700 hover:bg-zinc-800 text-zinc-400 hover:text-white"
-                            >
-                                <Download className="h-4 w-4 mr-2" />
-                                Descargar Plantilla
-                            </Button>
-                        )}
+                    <div className="flex gap-4 items-center flex-wrap justify-center">
                         <Button
                             variant="outline"
+                            size="sm"
                             onClick={() => fileInputRef.current?.click()}
-                            className="bg-transparent border-zinc-700 hover:bg-zinc-800 text-white"
+                            className="bg-transparent border-zinc-800 hover:bg-zinc-900 text-zinc-300 text-xs h-8 border-dashed"
                         >
                             Seleccionar archivo
                         </Button>
@@ -90,20 +78,18 @@ export function CsvUploadArea({
                             onChange={onFileSelect}
                         />
 
-                        <span className="text-zinc-600 flex items-center">- o -</span>
-
-                        <Button
-                            variant="default"
-                            onClick={onManualEntrySelect}
-                            className="bg-[#FF7939] hover:bg-[#FF6B35] text-white border-0"
-                        >
-                            Carga Manual
-                        </Button>
+                        {onDownloadTemplate && (
+                            <Button
+                                variant="ghost"
+                                size="sm"
+                                onClick={onDownloadTemplate}
+                                className="text-zinc-500 hover:text-white text-[10px] h-7 px-2"
+                            >
+                                <Download className="h-3 w-3 mr-1" />
+                                Plantilla
+                            </Button>
+                        )}
                     </div>
-
-                    <p className="text-xs text-zinc-600 mt-2">
-                        Formatos soportados: CSV, Excel (.xlsx)
-                    </p>
                 </div>
             </div>
         </div>

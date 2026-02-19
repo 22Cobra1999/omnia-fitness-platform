@@ -18,7 +18,7 @@ export const useCalendarData = (
     const calcs = useCalendarDataCalculations()
 
     // 3. Data Fetchers
-    const fetchers = useCalendarDataFetchers({
+    const fetchers = useMemo(() => useCalendarDataFetchers({
         supabase: state.supabase,
         authUserId: state.authUserId,
         currentDate,
@@ -33,7 +33,22 @@ export const useCalendarData = (
         setDiscoveredActivityIds: state.setDiscoveredActivityIds,
         calculateAggregates: calcs.calculateAggregates,
         calculateBreakdown: calcs.calculateBreakdown
-    })
+    }), [
+        state.supabase,
+        state.authUserId,
+        currentDate,
+        meetViewMode,
+        meetWeekStart,
+        state.activitiesInfo,
+        state.setActivitiesInfo,
+        state.setActivitiesByDate,
+        state.setDayMinutesByDate,
+        state.setMeetEventsByDate,
+        state.setSelectedDayActivityItems,
+        state.setDiscoveredActivityIds,
+        calcs.calculateAggregates,
+        calcs.calculateBreakdown
+    ])
 
     // --- Derived State ---
     const allRelevantIds = useMemo(() => {

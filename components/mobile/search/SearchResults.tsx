@@ -1,133 +1,118 @@
-"use client"
-
-import React from 'react'
-import { ChevronRight, Star, Clock, Zap, Dumbbell, ChefHat } from 'lucide-react'
-import Image from 'next/image'
+import React from "react"
+import { User, ShoppingCart, Loader2 } from "lucide-react"
+import CoachProfileCard from '@/components/coach/clients/CoachProfileCard'
 import ActivityCard from '@/components/shared/activities/ActivityCard'
-import { CoachCardSkeleton, ActivityCardSkeleton } from '@/components/shared/ui/global-loading'
 import { NoCoachesFallback, NoActivitiesFallback } from '@/components/shared/misc/fallback-states'
 
 interface SearchResultsProps {
-    displayedCoaches: any[]
-    activities: any[]
+    expandedSection: 'coaches' | 'activities' | null
     isLoadingCoaches: boolean
     isLoadingActivities: boolean
-    handleCoachClick: (coachId: string) => void
+    coachesError: Error | null
+    activitiesError: Error | null
+    displayedCoaches: any[]
+    activities: any[]
+    handleRetry: () => void
+    handleCoachClick: (id: string) => void
     handleActivityClick: (activity: any) => void
-    showAllCoaches: boolean
-    setShowAllCoaches: (val: boolean) => void
-    showAllActivities: boolean
-    setShowAllActivities: (val: boolean) => void
 }
 
-export function SearchResults({
-    displayedCoaches,
-    activities,
+export const SearchResults: React.FC<SearchResultsProps> = ({
+    expandedSection,
     isLoadingCoaches,
     isLoadingActivities,
+    coachesError,
+    activitiesError,
+    displayedCoaches,
+    activities,
+    handleRetry,
     handleCoachClick,
     handleActivityClick,
-    showAllCoaches,
-    setShowAllCoaches,
-    showAllActivities,
-    setShowAllActivities
-}: SearchResultsProps) {
-
-    const visibleCoaches = showAllCoaches ? displayedCoaches : displayedCoaches.slice(0, 4)
-    const visibleActivities = showAllActivities ? activities : activities.slice(0, 6)
-
-    const renderSpecialtyIcon = (specialty?: string) => {
-        const s = specialty?.toLowerCase() || ""
-        if (s.includes('nutricion')) return <ChefHat className="h-4 w-4 text-[#FF7939]" />
-        if (s.includes('gym')) return <Dumbbell className="h-4 w-4 text-[#FF7939]" />
-        return <Zap className="h-4 w-4 text-[#FF7939]" />
-    }
-
+}) => {
     return (
-        <div className="space-y-10 pb-20">
+        <div className="px-4">
             {/* Coaches Section */}
-            <section>
-                <div className="flex justify-between items-center mb-5">
-                    <h3 className="text-xl font-bold text-white/90 tracking-tight">Coaches Expertos</h3>
-                    {displayedCoaches.length > 4 && (
-                        <button
-                            onClick={() => setShowAllCoaches(!showAllCoaches)}
-                            className="text-sm font-medium text-[#FF7939] hover:opacity-80 transition-opacity"
-                        >
-                            {showAllCoaches ? 'Ver menos' : 'Ver todos'}
-                        </button>
+            {(expandedSection === null || expandedSection === 'coaches') && (
+                <div className="mb-4">
+                    <div className="flex items-center justify-between mb-3">
+                        <h2 className="text-sm font-semibold flex items-center text-white/60 uppercase tracking-wider">
+                            <User className="h-4 w-4 mr-1.5 text-[#FF7939]/70" />
+                            Coaches
+                        </h2>
+                    </div>
+
+                    {isLoadingCoaches && !displayedCoaches.length && (
+                        <div className="flex flex-col items-center justify-center py-10">
+                            <Loader2 className="h-8 w-8 text-[#FF7939] animate-spin mb-2" />
+                            <p className="text-gray-400 animate-pulse">Cargando coaches...</p>
+                        </div>
+                    )}
+
+                    {!isLoadingCoaches && coachesError && (
+                        <div className="text-center py-10">
+                            <p className="text-red-400 mb-4">Error al cargar coaches</p>
+                            <button
+                                onClick={handleRetry}
+                                className="bg-[#FF7939] hover:bg-[#FF6B00] text-white px-4 py-2 rounded-lg transition-colors"
+                            >
+                                Intentar de nuevo
+                            </button>
+                        </div>
+                    )}
+
+                    {!isLoadingCoaches && !coachesError && displayedCoaches.length === 0 && (
+                        <NoCoachesFallback onRetry={handleRetry} />
+                    )}
+
+                    {!isLoadingCoaches && !coachesError && displayedCoaches.length > 0 && (
+                        <div className="overflow-x-auto no-scrollbar">
+                            <div className="flex gap-4 pb-4 px-1" style={{ minWidth: "min-content" }}>
+                                {displayedCoaches.map((coach) => (
+                                    <CoachProfileCard
+                                        key={coach.id}
+                                        coach={coach}
+                                        size="small"
+                                        onClick={() => handleCoachClick(coach.id)}
+                                    />
+                                ))}
+                            </div>
+                        </div>
                     )}
                 </div>
-
-                {isLoadingCoaches ? (
-                    <div className="grid grid-cols-2 gap-4">
-                        {[1, 2, 3, 4].map(i => <CoachCardSkeleton key={i} />)}
-                    </div>
-                ) : displayedCoaches.length > 0 ? (
-                    <div className="grid grid-cols-2 gap-4">
-                        {visibleCoaches.map((coach) => (
-                            <button
-                                key={coach.id}
-                                onClick={() => handleCoachClick(coach.id)}
-                                className="group bg-[#1A1C1F] p-4 rounded-3xl border border-white/5 hover:border-[#FF7939]/30 transition-all text-left relative overflow-hidden"
-                            >
-                                <div className="absolute top-0 right-0 p-3 opacity-20 group-hover:opacity-100 transition-opacity">
-                                    {renderSpecialtyIcon(coach.specialization)}
-                                </div>
-                                <div className="relative w-16 h-16 rounded-2xl overflow-hidden mb-4 border-2 border-[#FF7939]/20 shadow-lg">
-                                    <Image
-                                        src={coach.avatar_url || '/placeholder.svg'}
-                                        alt={coach.name}
-                                        fill
-                                        className="object-cover group-hover:scale-110 transition-transform duration-500"
-                                    />
-                                </div>
-                                <h4 className="text-white font-bold leading-tight mb-1 truncate">{coach.name}</h4>
-                                <p className="text-gray-500 text-xs mb-3 truncate">{coach.specialization || 'Performance Coach'}</p>
-                                <div className="flex items-center gap-1 bg-[#FF7939]/10 w-fit px-2 py-1 rounded-lg">
-                                    <Star className="h-3 w-3 text-[#FF7939] fill-current" />
-                                    <span className="text-[#FF7939] text-xs font-bold">{coach.rating?.toFixed(1) || 'N/A'}</span>
-                                </div>
-                            </button>
-                        ))}
-                    </div>
-                ) : (
-                    <NoCoachesFallback />
-                )}
-            </section>
+            )}
 
             {/* Activities Section */}
-            <section>
-                <div className="flex justify-between items-center mb-5">
-                    <h3 className="text-xl font-bold text-white/90 tracking-tight">Descubre Rutinas</h3>
-                    {activities.length > 6 && (
-                        <button
-                            onClick={() => setShowAllActivities(!showAllActivities)}
-                            className="text-sm font-medium text-[#FF7939] hover:opacity-80 transition-opacity"
-                        >
-                            {showAllActivities ? 'Ver menos' : 'Ver todas'}
-                        </button>
-                    )}
-                </div>
+            {(expandedSection === null || expandedSection === 'activities') && (
+                <div className="mt-2">
+                    <div className="mb-6">
+                        <div className="flex justify-between items-center mb-3">
+                            <h2 className="text-sm font-semibold flex items-center text-white/60 uppercase tracking-wider">
+                                <ShoppingCart className="h-4 w-4 mr-1.5 text-[#FF7939]/70" />
+                                Actividades
+                            </h2>
+                        </div>
 
-                {isLoadingActivities ? (
-                    <div className="grid grid-cols-1 gap-4">
-                        {[1, 2, 3].map(i => <ActivityCardSkeleton key={i} />)}
+                        {isLoadingActivities || !activities ? (
+                            <div className="flex justify-center py-8">
+                                <Loader2 className="h-8 w-8 text-[#FF7939] animate-spin" />
+                            </div>
+                        ) : (
+                            <div className="overflow-x-auto no-scrollbar">
+                                <div className="flex gap-4 pb-4 px-1" style={{ minWidth: "min-content" }}>
+                                    {activities.map((activity) => (
+                                        <ActivityCard
+                                            key={activity.id}
+                                            activity={activity}
+                                            size="small"
+                                            onClick={() => handleActivityClick(activity)}
+                                        />
+                                    ))}
+                                </div>
+                            </div>
+                        )}
                     </div>
-                ) : activities.length > 0 ? (
-                    <div className="grid grid-cols-1 gap-4">
-                        {visibleActivities.map((activity) => (
-                            <ActivityCard
-                                key={activity.id}
-                                activity={activity}
-                                onClick={() => handleActivityClick(activity)}
-                            />
-                        ))}
-                    </div>
-                ) : (
-                    <NoActivitiesFallback />
-                )}
-            </section>
+                </div>
+            )}
         </div>
     )
 }

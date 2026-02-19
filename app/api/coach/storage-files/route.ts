@@ -601,12 +601,14 @@ export async function GET(_request: NextRequest) {
       console.error('Error obteniendo PDFs de storage:', error)
     }
 
-    // Convertir PDFs a StorageFile
     pdfMap.forEach((pdf, fileName) => {
       const activityList = Array.from(pdf.activities).map(id => ({
         id,
         name: activityMap.get(id) || `Actividad ${id}`
       }))
+
+      // Si no tiene actividades asociadas pero existe en storage, tiene usesCount = 1
+      const usesCount = pdf.activities.size > 0 ? pdf.activities.size : 1
 
       // Obtener URL pública del PDF
       const { data: urlData } = supabase.storage

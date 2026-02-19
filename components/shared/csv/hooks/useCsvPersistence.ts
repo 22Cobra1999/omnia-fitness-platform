@@ -208,14 +208,24 @@ export function useCsvPersistence({
         updateErrorState(null)
 
         try {
-            const response = await fetch('/api/process-csv-simple', {
+            const endpoint = productCategory === 'nutricion'
+                ? '/api/activity-nutrition/bulk'
+                : '/api/activities/exercises/bulk'
+
+            const payload = {
+                activityId,
+                coachId,
+                [productCategory === 'nutricion' ? 'plates' : 'exercises']: csvData
+            }
+
+            const response = await fetch(endpoint, {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ csvData, activityId, coachId }),
+                body: JSON.stringify(payload),
             })
 
             const result = await response.json()
-            if (!response.ok) throw new Error(result.error || 'Error al procesar el CSV')
+            if (!response.ok) throw new Error(result.error || 'Error al procesar los datos')
 
             setResult(result)
             await loadExistingData()

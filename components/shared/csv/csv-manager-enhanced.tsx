@@ -149,9 +149,9 @@ export function CSVManagerEnhanced({
       combined.push(item)
     }
 
-    existing.forEach((item, idx) => registerItem(item, idx))
-    csv.forEach((item, idx) => registerItem(item, idx + existing.length))
-    parent.forEach((item: any, idx: number) => registerItem(item, idx + existing.length + csv.length))
+    csv.forEach((item, idx) => registerItem(item, idx))
+    parent.forEach((item: any, idx: number) => registerItem(item, idx + csv.length))
+    existing.forEach((item, idx) => registerItem(item, idx + csv.length + parent.length))
 
     return combined.map((item) => {
       if (typeof item?.id === 'number' && existingActiveMap.has(item.id)) {
@@ -244,14 +244,11 @@ export function CSVManagerEnhanced({
   // Duplicate logic removal and sync effects
   useEffect(() => {
     if (!coachId || coachId === '') return
-    if (activityId === 0 && !isLoadingDataRef.current) {
-      isLoadingDataRef.current = true
+    if (activityId === 0) {
       setCsvData([])
       setExistingData([])
       setExerciseUsage({})
-      loadExistingData().finally(() => {
-        isLoadingDataRef.current = false
-      })
+      loadExistingData()
     }
   }, [productCategory, activityId, coachId, loadExistingData, setCsvData, setExistingData, setExerciseUsage])
 
@@ -292,20 +289,20 @@ export function CSVManagerEnhanced({
   const exceedsActivitiesLimit = planLimits?.activitiesLimit !== undefined && allData.length > planLimits.activitiesLimit
 
   return (
-    <div className="text-white p-4 w-full max-w-none pb-24">
+    <div className="text-white p-2 w-full max-w-none pb-24">
       {/* Selector de modo */}
-      <div className="mb-6 flex justify-center">
-        <div className="inline-flex items-center bg-zinc-900/80 border border-zinc-800 rounded-xl p-1 shadow-inner gap-2">
+      <div className="mb-4 flex justify-center">
+        <div className="inline-flex items-center bg-zinc-900/40 border border-zinc-800/50 rounded-full p-1 gap-1">
           {([
-            { key: 'manual', label: productCategory === 'nutricion' ? 'Crear platos manualmente' : 'Crear ejercicios manualmente' },
-            { key: 'csv', label: 'Subir Archivo' }
+            { key: 'manual', label: 'Carga Manual' },
+            { key: 'csv', label: 'Importar CSV' }
           ] as const).map((tab) => (
             <button
               key={tab.key}
               onClick={() => setMode(tab.key)}
-              className={`px-6 py-2.5 text-sm rounded-lg transition-all ${mode === tab.key
-                ? 'bg-gradient-to-r from-orange-600 to-orange-500 text-white shadow-md'
-                : 'text-zinc-300 hover:text-white hover:bg-zinc-800'
+              className={`px-5 py-1.5 text-xs rounded-full transition-all ${mode === tab.key
+                ? 'bg-zinc-100 text-black font-medium shadow-sm'
+                : 'text-zinc-500 hover:text-white hover:bg-zinc-800/50'
                 }`}
             >
               {tab.label}
@@ -324,7 +321,7 @@ export function CSVManagerEnhanced({
       {mode === 'csv' && (
         <CsvUploadArea
           onFileSelect={handleFileChange}
-          onManualEntrySelect={() => setMode('manual')}
+          onManualEntrySelect={() => { }} // No longer used inside
           onDownloadTemplate={handleDownloadTemplate}
           productCategory={productCategory as any}
           mode={mode}
@@ -365,53 +362,59 @@ export function CSVManagerEnhanced({
         productCategory={productCategory}
       />
 
-      {limitWarning && (
-        <div className="mb-4 rounded border border-red-500/40 bg-red-500/10 px-3 py-2 text-xs text-red-300">
-          {limitWarning}
-        </div>
-      )}
+      {
+        limitWarning && (
+          <div className="mb-4 rounded border border-red-500/40 bg-red-500/10 px-3 py-2 text-xs text-red-300">
+            {limitWarning}
+          </div>
+        )
+      }
 
       {loading && <div className="text-center py-8"><div className="animate-spin rounded-full h-6 w-6 border-b-2 border-orange-500 mr-3 inline-block"></div>Parseando CSV...</div>}
       {loadingExisting && <div className="text-center py-4"><div className="animate-spin rounded-full h-4 w-4 border-b-2 border-orange-500 mr-2 inline-block"></div>Cargando datos...</div>}
 
-      {error && (
-        <div className="mb-4">
-          <p className="text-red-500 text-sm">{error}</p>
-          {invalidRows.length > 0 && (
-            <div className="mt-2 text-xs text-gray-400 space-y-1">
-              <ul className="list-disc pl-4">{invalidRows.map((issue, idx) => <li key={idx}>{issue}</li>)}</ul>
-            </div>
-          )}
-        </div>
-      )}
+      {
+        error && (
+          <div className="mb-4">
+            <p className="text-red-500 text-sm">{error}</p>
+            {invalidRows.length > 0 && (
+              <div className="mt-2 text-xs text-gray-400 space-y-1">
+                <ul className="list-disc pl-4">{invalidRows.map((issue, idx) => <li key={idx}>{issue}</li>)}</ul>
+              </div>
+            )}
+          </div>
+        )
+      }
 
       {result && <div className="text-green-500 mb-6 bg-green-900/20 border border-green-500/50 rounded-lg p-4 flex items-center gap-2"><CheckCircle className="h-5 w-5" /> {result.message}</div>}
 
-      {allData.length > 0 && (
-        <div className="flex items-center justify-end gap-4 mb-4">
-          <button onClick={() => setShowRulesPanel(true)} className="flex items-center gap-2 text-[#FF7939]">
-            <Settings2 className="h-5 w-5" /> Condicionar
-            {rulesCount > 0 && <span className="bg-[#FF7939] text-white text-[8px] px-1 rounded-full w-4 h-4 flex items-center justify-center">{rulesCount}</span>}
-          </button>
+      {
+        allData.length > 0 && (
+          <div className="flex items-center justify-end gap-4 mb-4">
+            <button onClick={() => setShowRulesPanel(true)} className="flex items-center gap-2 text-[#FF7939]">
+              <Settings2 className="h-5 w-5" /> Condicionar
+              {rulesCount > 0 && <span className="bg-[#FF7939] text-white text-[8px] px-1 rounded-full w-4 h-4 flex items-center justify-center">{rulesCount}</span>}
+            </button>
 
-          <button onClick={() => { if (selectedRows.size > 0) setShowMediaSourceModal(true) }} disabled={selectedRows.size === 0} className="text-[#FF7939] disabled:text-gray-500 hover:text-[#FF6B35]">
-            <Video className="h-5 w-5" />
-          </button>
+            <button onClick={() => { if (selectedRows.size > 0) setShowMediaSourceModal(true) }} disabled={selectedRows.size === 0} className="text-[#FF7939] disabled:text-gray-500 hover:text-[#FF6B35]">
+              <Video className="h-5 w-5" />
+            </button>
 
-          <button onClick={handleDeleteSelected} disabled={selectedRows.size === 0} className="text-red-400 disabled:text-gray-500 hover:text-red-300">
-            <Trash2 className="h-5 w-5" />
-          </button>
+            <button onClick={handleDeleteSelected} disabled={selectedRows.size === 0} className="text-red-400 disabled:text-gray-500 hover:text-red-300">
+              <Trash2 className="h-5 w-5" />
+            </button>
 
-          {(() => {
-            const selectedItems = Array.from(selectedRows).map(index => allData[index])
-            const allInactive = selectedItems.length > 0 && selectedItems.every(item => item?.is_active === false)
-            if (allInactive) {
-              return <button onClick={handleReactivateSelected} disabled={selectedRows.size === 0} className="text-green-400 disabled:text-gray-500 hover:text-green-300"><Power className="h-5 w-5" /></button>
-            }
-            return <button onClick={handleDeleteSelected} disabled={selectedRows.size === 0} className="text-[#FF7939] disabled:text-gray-500 hover:text-[#FF6B35]"><PowerOff className="h-5 w-5" /></button>
-          })()}
-        </div>
-      )}
+            {(() => {
+              const selectedItems = Array.from(selectedRows).map(index => allData[index])
+              const allInactive = selectedItems.length > 0 && selectedItems.every(item => item?.is_active === false)
+              if (allInactive) {
+                return <button onClick={handleReactivateSelected} disabled={selectedRows.size === 0} className="text-green-400 disabled:text-gray-500 hover:text-green-300"><Power className="h-5 w-5" /></button>
+              }
+              return <button onClick={handleDeleteSelected} disabled={selectedRows.size === 0} className="text-[#FF7939] disabled:text-gray-500 hover:text-[#FF6B35]"><PowerOff className="h-5 w-5" /></button>
+            })()}
+          </div>
+        )
+      }
 
       <CsvTable
         data={paginatedData as any[]}
@@ -446,13 +449,15 @@ export function CSVManagerEnhanced({
         bunnyVideoTitles={bunnyVideoTitles}
       />
 
-      {allData.length > itemsPerPage && (
-        <div className="flex items-center justify-center gap-2 mt-4 pb-4">
-          <button onClick={() => setCurrentPage(prev => Math.max(1, prev - 1))} disabled={currentPage === 1} className="text-[#FF7939] disabled:text-gray-500 hover:text-[#FF6B35]"><ChevronLeft className="h-5 w-5" /></button>
-          <span className="text-gray-400 text-sm">Página {currentPage} de {totalPages}</span>
-          <button onClick={() => setCurrentPage(prev => Math.min(totalPages, prev + 1))} disabled={currentPage === totalPages} className="text-[#FF7939] disabled:text-gray-500 hover:text-[#FF6B35]"><ChevronRight className="h-5 w-5" /></button>
-        </div>
-      )}
+      {
+        allData.length > itemsPerPage && (
+          <div className="flex items-center justify-center gap-2 mt-4 pb-4">
+            <button onClick={() => setCurrentPage(prev => Math.max(1, prev - 1))} disabled={currentPage === 1} className="text-[#FF7939] disabled:text-gray-500 hover:text-[#FF6B35]"><ChevronLeft className="h-5 w-5" /></button>
+            <span className="text-gray-400 text-sm">Página {currentPage} de {totalPages}</span>
+            <button onClick={() => setCurrentPage(prev => Math.min(totalPages, prev + 1))} disabled={currentPage === totalPages} className="text-[#FF7939] disabled:text-gray-500 hover:text-[#FF6B35]"><ChevronRight className="h-5 w-5" /></button>
+          </div>
+        )
+      }
 
       {renderAfterTable && <div className="flex justify-end mt-3 mb-2">{renderAfterTable}</div>}
 
@@ -474,6 +479,6 @@ export function CSVManagerEnhanced({
           return []
         })()}
       />
-    </div>
+    </div >
   )
 }

@@ -3,7 +3,8 @@
 import { useState } from "react"
 import { CSVManagerEnhanced } from "@/components/shared/csv/csv-manager-enhanced"
 import { useUser } from "@/contexts/user-context"
-import { Dumbbell, UtensilsCrossed } from "lucide-react"
+import { Zap, UtensilsCrossed } from "lucide-react"
+import { motion } from "framer-motion"
 
 export default function ExercisesPlatesManagementScreen() {
   const { user } = useUser()
@@ -17,36 +18,51 @@ export default function ExercisesPlatesManagementScreen() {
         <p className="text-gray-400 text-sm">Administra tu biblioteca de ejercicios y platos</p>
       </div>
 
-      {/* Sub-tabs: Fitness / Nutrición - Centrados y más separados */}
-      <div className="mb-6 flex justify-center">
-        <div className="inline-flex items-center bg-zinc-900/80 border border-zinc-800 rounded-xl p-1 shadow-inner gap-2">
+      {/* Sub-tabs: Fitness / Nutrición - Elongated Design */}
+      <div className="mb-4 flex justify-center">
+        <div className="flex bg-white/5 backdrop-blur-md p-1.5 rounded-full border border-white/10 shadow-lg gap-6">
           <button
             onClick={() => setActiveSubTab('fitness')}
-            className={`px-8 py-2.5 text-sm rounded-lg transition-all flex items-center gap-2 ${
-              activeSubTab === 'fitness'
-                ? 'bg-gradient-to-r from-orange-600 to-orange-500 text-white shadow-md'
-                : 'text-zinc-300 hover:text-white hover:bg-zinc-800'
-            }`}
+            className={`relative flex items-center justify-center w-24 h-11 rounded-full transition-all duration-300 ${activeSubTab === 'fitness'
+              ? 'bg-[#FF7939] text-white shadow-[0_0_15px_rgba(255,121,57,0.3)] z-10'
+              : 'text-gray-400 hover:text-white'
+              }`}
           >
-            <Dumbbell className="w-4 h-4" />
-            Fitness
+            <Zap className={`${activeSubTab === 'fitness' ? 'w-5 h-5' : 'w-4 h-4 opacity-50'}`} />
+            {activeSubTab === 'fitness' && (
+              <motion.div
+                layoutId="active-tab"
+                className="absolute inset-0 rounded-full border border-white/10"
+                transition={{ type: "spring", bounce: 0.2, duration: 0.4 }}
+              />
+            )}
           </button>
           <button
             onClick={() => setActiveSubTab('nutrition')}
-            className={`px-8 py-2.5 text-sm rounded-lg transition-all flex items-center gap-2 ${
-              activeSubTab === 'nutrition'
-                ? 'bg-gradient-to-r from-orange-600 to-orange-500 text-white shadow-md'
-                : 'text-zinc-300 hover:text-white hover:bg-zinc-800'
-            }`}
+            className={`relative flex items-center justify-center w-24 h-11 rounded-full transition-all duration-300 ${activeSubTab === 'nutrition'
+              ? 'bg-[#FF7939] text-white shadow-[0_0_15px_rgba(255,121,57,0.3)] z-10'
+              : 'text-gray-400 hover:text-white'
+              }`}
           >
-            <UtensilsCrossed className="w-4 h-4" />
-            Nutrición
+            <UtensilsCrossed className={`${activeSubTab === 'nutrition' ? 'w-5 h-5' : 'w-4 h-4 opacity-50'}`} />
+            {activeSubTab === 'nutrition' && (
+              <motion.div
+                layoutId="active-tab"
+                className="absolute inset-0 rounded-full border border-white/10"
+                transition={{ type: "spring", bounce: 0.2, duration: 0.4 }}
+              />
+            )}
           </button>
         </div>
       </div>
 
       {/* Contenido según sub-tab activo */}
-      <div key={activeSubTab}>
+      <motion.div
+        key={activeSubTab}
+        initial={{ opacity: 0, y: 10 }}
+        animate={{ opacity: 1, y: 0 }}
+        transition={{ duration: 0.3 }}
+      >
         <CSVManagerEnhanced
           activityId={0} // 0 = modo genérico (sin actividad específica)
           coachId={user?.id || ""}
@@ -55,9 +71,7 @@ export default function ExercisesPlatesManagementScreen() {
             console.log('Ejercicios/platos actualizados exitosamente')
           }}
         />
-      </div>
+      </motion.div>
     </div>
   )
 }
-
-

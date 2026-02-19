@@ -178,7 +178,7 @@ export function useTodayDataLoaders(user: any, activityId: string) {
         if (data) setMeetCreditsAvailable(data.meet_credits || 0);
     }, [user, programInfo]);
 
-    return {
+    return React.useMemo(() => ({
         programInfo,
         enrollment,
         setEnrollment,
@@ -196,5 +196,19 @@ export function useTodayDataLoaders(user: any, activityId: string) {
         loadTodayActivities,
         refreshDayStatuses,
         loadMeetCredits
-    };
+    }), [
+        programInfo,
+        enrollment,
+        backgroundImage,
+        activities,
+        blockNames,
+        dayStatuses,
+        dayCounts,
+        meetCreditsAvailable,
+        isRated,
+        loadProgramInfo,
+        loadTodayActivities,
+        refreshDayStatuses,
+        loadMeetCredits
+    ]);
 }

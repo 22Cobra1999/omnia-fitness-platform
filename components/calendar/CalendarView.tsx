@@ -1,31 +1,31 @@
 "use client"
 
-import { useState, useEffect, useMemo, useRef, useCallback } from "react"
+import { useState, useEffect, useMemo, useRef } from "react"
 import { createClient } from '@/lib/supabase/supabase-client'
-import { format, isToday, startOfWeek } from "date-fns"
+import { format, startOfWeek } from "date-fns"
 import { useToast } from "@/components/ui/use-toast"
-import { Card, CardContent } from "@/components/ui/card"
 import { createCheckoutProPreference, redirectToMercadoPagoCheckout } from '@/lib/mercadopago/checkout-pro'
 import { OmniaLoader } from "@/components/shared/ui/omnia-loader"
 import { useCalendarData } from "./hooks/useCalendarData"
 import { useMeetLogic } from "./hooks/useMeetLogic"
 import { useCoachAvailability } from "./hooks/useCoachAvailability"
-import { CalendarHeader } from "./components/CalendarHeader"
-import { CalendarMonthGrid } from "./components/CalendarMonthGrid"
-import { START_HOUR, TOTAL_MINS, toMins } from "./utils"
-import { CalendarDaySplitView } from "./components/CalendarDaySplitView"
-import { CalendarWeekView } from "./components/CalendarWeekView"
-import { CalendarDayDetail } from "./components/CalendarDayDetail"
+import { snapTo15Mins } from "./CalendarViewHelpers"
+
+// Modular Views
+import { CalendarHeader } from "./views/CalendarHeader"
+import { CalendarMonthView } from "./views/CalendarMonthView"
+import { CalendarWeekView } from "./views/CalendarWeekView"
+import { CalendarDayView } from "./views/CalendarDayView"
+import { CalendarModals } from "./views/CalendarModals"
+
+// Components needed for logic
 import { CalendarCoachSelector } from "./components/CalendarCoachSelector"
-import { CalendarEditOverlay } from "./components/CalendarEditOverlay"
 
 // Refactored Hooks & Helpers
 import { useCalendarViewNavigation } from "./hooks/useCalendarViewNavigation"
 import { useCalendarEditMode } from "./hooks/useCalendarEditMode"
 import { useCalendarCoachPicker } from "./hooks/useCalendarCoachPicker"
-import { getSmartLayout, snapTo15Mins } from "./CalendarViewHelpers"
 import { renderClientEvents } from "./config/event-layout"
-import { CalendarModalsWrapper } from "./modals/CalendarModalsWrapper"
 
 interface CalendarViewProps {
   activityIds: string[]
@@ -315,96 +315,83 @@ export default function CalendarView({ activityIds, onActivityClick, scheduleMee
             isAddSectionOpen={showCoachRow}
           />
 
-          <Card className="bg-zinc-900 border-zinc-800 w-full sm:max-w-none mt-4">
-            <CardContent className="p-4">
-              <CalendarEditOverlay
-                isEditing={isEditing}
-                sourceDate={sourceDate}
-              />
-              <div className="mt-4">
-                {meetViewMode === 'month' ? (
-                  <CalendarMonthGrid
-                    currentDate={currentDate}
-                    activitiesByDate={activitiesByDate}
-                    dayMinutesByDate={dayMinutesByDate}
-                    meetEventsByDate={meetEventsByDate}
-                    availableSlotsCountByDay={availableSlotsCountByDay}
-                    selectedDate={selectedDate!!}
-                    onSelectDate={handleDateClick}
-                    isEditing={isEditing}
-                    sourceDate={sourceDate}
-                  />
-                ) : meetViewMode === 'week' && selectedCoachId ? (
-                  <CalendarWeekView
-                    meetWeekStart={meetWeekStart}
-                    setMeetWeekStart={setMeetWeekStart}
-                    selectedDate={selectedDate!!}
-                    setSelectedDate={setSelectedDate}
-                    setMeetViewMode={setMeetViewMode}
-                    getSlotsForDate={getSlotsForDate}
-                    handleTimelineClick={handleTimelineClick}
-                    renderClientEvents={handleRenderClientEvents}
-                    dayMinutesByDate={dayMinutesByDate}
-                    selectedMeetRequest={selectedMeetRequest}
-                    setSelectedMeetRequest={setSelectedMeetRequest}
-                    setSelectedMeetEvent={setSelectedMeetEvent}
-                  />
-                ) : meetViewMode === 'day_split' && selectedCoachId && selectedDate ? (
-                  <CalendarDaySplitView
-                    selectedDate={selectedDate}
-                    setSelectedDate={setSelectedDate}
-                    setMeetViewMode={setMeetViewMode}
-                    rescheduleContext={rescheduleContext}
-                    setRescheduleContext={setRescheduleContext}
-                    setSelectedMeetRequest={setSelectedMeetRequest}
-                    setSelectedMeetEvent={setSelectedMeetEvent}
-                    activitiesByDate={activitiesByDate}
-                    dayMinutesByDate={dayMinutesByDate}
-                    renderClientEvents={handleRenderClientEvents}
-                    getSlotsForDate={getSlotsForDate}
-                    handleTimelineClick={handleTimelineClick}
-                    selectedMeetRequest={selectedMeetRequest}
-                    selectedConsultationType={selectedConsultationType}
-                    setSelectedConsultationType={setSelectedConsultationType}
-                    coachConsultations={coachConsultations}
-                    isPaidMeetFlow={isPaidMeetFlow}
-                    meetCreditsByCoachId={meetCreditsByCoachId}
-                    meetPurchasePaid={meetPurchasePaid}
-                    scheduleMeetContext={scheduleMeetContext}
-                    coachProfiles={coachProfiles}
-                    selectedCoachId={selectedCoachId}
-                    authUserId={authUserId}
-                    supabase={supabase}
-                    setSuccessModalData={setSuccessModalData}
-                    setShowSuccessModal={setShowSuccessModal}
-                    setSelectedMeetRsvpLoading={setSelectedMeetRsvpLoading}
-                    handleClearCoachForMeet={handleClearCoachForMeet}
-                    createCheckoutProPreference={createCheckoutProPreference}
-                    redirectToMercadoPagoCheckout={redirectToMercadoPagoCheckout}
-                    onSetScheduleMeetContext={onSetScheduleMeetContext}
-                    selectedMeetRsvpLoading={selectedMeetRsvpLoading}
-                    onEventUpdated={() => loadDayMinutes()}
-                    setMeetEventsByDate={setMeetEventsByDate}
-                  />
-                ) : null}
-              </div>
-            </CardContent>
-          </Card>
+          {meetViewMode === 'month' && (
+            <CalendarMonthView
+              currentDate={currentDate}
+              activitiesByDate={activitiesByDate}
+              dayMinutesByDate={dayMinutesByDate}
+              meetEventsByDate={meetEventsByDate}
+              availableSlotsCountByDay={availableSlotsCountByDay}
+              selectedDate={selectedDate!!}
+              onSelectDate={handleDateClick}
+              isEditing={isEditing}
+              sourceDate={sourceDate}
+              selectedDayActivityItems={selectedDayActivityItems}
+              setSelectedMeetEvent={setSelectedMeetEvent}
+              onActivityClick={onActivityClick}
+              dayDetailRef={dayDetailRef}
+              meetViewMode={meetViewMode}
+              authUserId={authUserId}
+            />
+          )}
 
-          <CalendarDayDetail
-            selectedDate={selectedDate}
-            dayMinutesByDate={dayMinutesByDate}
-            meetEventsByDate={meetEventsByDate}
-            selectedDayActivityItems={selectedDayActivityItems}
-            activitiesByDate={activitiesByDate}
-            setSelectedMeetEvent={setSelectedMeetEvent}
-            onActivityClick={onActivityClick}
-            dayDetailRef={dayDetailRef}
-            meetViewMode={meetViewMode}
-            authUserId={authUserId}
-          />
+          {meetViewMode === 'week' && selectedCoachId && (
+            <CalendarWeekView
+              meetWeekStart={meetWeekStart}
+              setMeetWeekStart={setMeetWeekStart}
+              selectedDate={selectedDate!!}
+              setSelectedDate={setSelectedDate}
+              setMeetViewMode={setMeetViewMode}
+              getSlotsForDate={getSlotsForDate}
+              handleTimelineClick={handleTimelineClick}
+              renderClientEvents={handleRenderClientEvents}
+              dayMinutesByDate={dayMinutesByDate}
+              selectedMeetRequest={selectedMeetRequest}
+              setSelectedMeetRequest={setSelectedMeetRequest}
+              setSelectedMeetEvent={setSelectedMeetEvent}
+            />
+          )}
 
-          <CalendarModalsWrapper
+          {meetViewMode === 'day_split' && selectedCoachId && selectedDate && (
+            <CalendarDayView
+              selectedDate={selectedDate}
+              setSelectedDate={setSelectedDate}
+              setMeetViewMode={setMeetViewMode}
+              rescheduleContext={rescheduleContext}
+              setRescheduleContext={setRescheduleContext}
+              setSelectedMeetRequest={setSelectedMeetRequest}
+              setSelectedMeetEvent={setSelectedMeetEvent}
+              activitiesByDate={activitiesByDate}
+              dayMinutesByDate={dayMinutesByDate}
+              renderClientEvents={handleRenderClientEvents}
+              getSlotsForDate={getSlotsForDate}
+              handleTimelineClick={handleTimelineClick}
+              selectedMeetRequest={selectedMeetRequest}
+              selectedConsultationType={selectedConsultationType}
+              setSelectedConsultationType={setSelectedConsultationType}
+              coachConsultations={coachConsultations}
+              isPaidMeetFlow={isPaidMeetFlow}
+              meetCreditsByCoachId={meetCreditsByCoachId}
+              meetPurchasePaid={meetPurchasePaid}
+              scheduleMeetContext={scheduleMeetContext}
+              coachProfiles={coachProfiles}
+              selectedCoachId={selectedCoachId}
+              authUserId={authUserId}
+              supabase={supabase}
+              setSuccessModalData={setSuccessModalData}
+              setShowSuccessModal={setShowSuccessModal}
+              setSelectedMeetRsvpLoading={setSelectedMeetRsvpLoading}
+              handleClearCoachForMeet={handleClearCoachForMeet}
+              createCheckoutProPreference={createCheckoutProPreference}
+              redirectToMercadoPagoCheckout={redirectToMercadoPagoCheckout}
+              onSetScheduleMeetContext={onSetScheduleMeetContext}
+              selectedMeetRsvpLoading={selectedMeetRsvpLoading}
+              onEventUpdated={() => loadDayMinutes()}
+              setMeetEventsByDate={setMeetEventsByDate}
+            />
+          )}
+
+          <CalendarModals
             supabase={supabase}
             authUserId={authUserId}
             showMeetNotifications={showMeetNotifications}
@@ -462,3 +449,5 @@ export default function CalendarView({ activityIds, onActivityClick, scheduleMee
     </div>
   )
 }
+
+

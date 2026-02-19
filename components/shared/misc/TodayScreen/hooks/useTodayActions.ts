@@ -12,7 +12,7 @@ export function useTodayActions({
     fetchActivities
 }: any) {
 
-    const toggleExerciseSimple = async (activityKey: string, selectedDate: Date) => {
+    const toggleExerciseSimple = React.useCallback(async (activityKey: string, selectedDate: Date) => {
         if (!user) return;
 
         // Robust lookup: try direct ID match, then composite key match
@@ -63,9 +63,9 @@ export function useTodayActions({
             console.error('❌ [toggleExerciseSimple] Error:', e);
             // Revert on error if needed
         }
-    };
+    }, [user, activities, activityId, enrollment, programInfo, setActivities, refreshDayStatuses, fetchActivities]);
 
-    const toggleBlockCompletion = async (blockNumber: number, selectedDate: Date) => {
+    const toggleBlockCompletion = React.useCallback(async (blockNumber: number, selectedDate: Date) => {
         const blockActivities = activities.filter((a: any) => a.bloque === blockNumber);
         const isCurrentlyCompleted = blockActivities.length > 0 && blockActivities.every((a: any) => a.done);
 
@@ -75,35 +75,42 @@ export function useTodayActions({
                 await toggleExerciseSimple(act.id, selectedDate);
             }
         }
-    };
+    }, [activities, toggleExerciseSimple]);
 
-    const handlePrevDay = (currentDate: Date) => {
+    const handlePrevDay = React.useCallback((currentDate: Date) => {
         const d = new Date(currentDate);
         d.setDate(d.getDate() - 1);
         setSelectedDate(d);
-    };
+    }, [setSelectedDate]);
 
-    const handleNextDay = (currentDate: Date) => {
+    const handleNextDay = React.useCallback((currentDate: Date) => {
         const d = new Date(currentDate);
         d.setDate(d.getDate() + 1);
         setSelectedDate(d);
-    };
+    }, [setSelectedDate]);
 
-    const goToToday = () => {
+    const goToToday = React.useCallback(() => {
         setSelectedDate(new Date());
-    };
+    }, [setSelectedDate]);
 
-    const isBlockCompleted = (blockNumber: number) => {
+    const isBlockCompleted = React.useCallback((blockNumber: number) => {
         const blockActivities = activities.filter((a: any) => a.bloque === blockNumber);
         return blockActivities.length > 0 && blockActivities.every((a: any) => a.done);
-    };
+    }, [activities]);
 
-    return {
+    return React.useMemo(() => ({
         toggleExerciseSimple,
         toggleBlockCompletion,
         isBlockCompleted,
         handlePrevDay,
         handleNextDay,
         goToToday
-    };
+    }), [
+        toggleExerciseSimple,
+        toggleBlockCompletion,
+        isBlockCompleted,
+        handlePrevDay,
+        handleNextDay,
+        goToToday
+    ]);
 }

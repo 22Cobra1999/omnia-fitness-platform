@@ -92,7 +92,7 @@ export function FitnessTable({
     loadingExisting,
     bunnyVideoTitles = {}
 }: FitnessTableProps) {
-    const [previewVideo, setPreviewVideo] = React.useState<{ url: string; title: string } | null>(null)
+    const [previewVideo, setPreviewVideo] = React.useState<{ url: string; title: string; libraryId?: string | number } | null>(null)
 
     return (
         <>
@@ -122,7 +122,7 @@ export function FitnessTable({
                         <th className="px-3 py-3 text-left text-xs font-medium text-white border-b border-gray-600 w-32">Partes</th>
                         <th className="px-3 py-3 text-left text-xs font-medium text-white border-b border-gray-600 w-20">Calorías</th>
                         <th className="px-3 py-3 text-left text-xs font-medium text-white border-b border-gray-600 w-24">Intensidad</th>
-                        <th className="px-3 py-3 text-left text-xs font-medium text-white border-b border-gray-600 w-32">Video</th>
+                        <th className="px-3 py-3 text-left text-xs font-medium text-white border-b border-gray-600 w-32">Video File Name</th>
                     </tr>
                 </thead>
                 <tbody>
@@ -281,33 +281,51 @@ export function FitnessTable({
                                     </td>
                                     <td className="px-3 py-3 text-xs text-white break-words">
                                         {(() => {
-                                            const url = item.video_url || item.video || ''
                                             const bunnyId = item.bunny_video_id || item.bunnyVideoId
-                                            const fileName = item.video_file_name || (bunnyId && bunnyVideoTitles ? bunnyVideoTitles[bunnyId] : null)
+                                            const rawUrl = item.video_url || item.video || ''
+                                            const url = bunnyId || rawUrl || ''
+                                            const libId = item.bunny_library_id || item.bunnyLibraryId
 
-                                            if (fileName) {
-                                                return (
-                                                    <button
-                                                        onClick={() => setPreviewVideo({ url, title: fileName })}
-                                                        className="text-yellow-400 hover:text-yellow-300 flex items-center gap-1 text-left"
-                                                    >
-                                                        <Play className="h-3 w-3 fill-current" />
-                                                        <span className="truncate max-w-[120px]">{fileName}</span>
-                                                    </button>
-                                                )
+                                            console.log('--- FitnessTable Video Item ---', {
+                                                nombre: item.nombre_ejercicio,
+                                                video_file_name: item.video_file_name,
+                                                bunnyId,
+                                                rawUrl,
+                                                url,
+                                                libId
+                                            })
+
+                                            let fileName = item.video_file_name || (bunnyId && bunnyVideoTitles ? bunnyVideoTitles[bunnyId] : null)
+
+                                            // Extract from URL if still missing
+                                            if (!fileName && rawUrl && rawUrl.includes('/')) {
+                                                const parts = rawUrl.split('/')
+                                                const lastPart = parts[parts.length - 1]
+                                                fileName = lastPart.split('?')[0]
                                             }
+
                                             if (url) {
+                                                const displayName = fileName || 'Video Asignado'
                                                 return (
                                                     <button
-                                                        onClick={() => setPreviewVideo({ url, title: 'Video Asignado' })}
-                                                        className="text-blue-400 hover:text-blue-300 flex items-center gap-1 text-left"
+                                                        onClick={(e) => {
+                                                            e.stopPropagation()
+                                                            setPreviewVideo({
+                                                                url,
+                                                                title: displayName,
+                                                                libraryId: item.bunny_library_id || item.bunnyLibraryId
+                                                            })
+                                                        }}
+                                                        className="text-[#FF7939] hover:text-[#FF6B35] flex items-center gap-1.5 text-left group transition-colors"
                                                     >
-                                                        <Play className="h-3 w-3 fill-current" />
-                                                        <span className="truncate max-w-[120px]">Video Asignado</span>
+                                                        <Play className="h-3.5 w-3.5 fill-[#FF7939] group-hover:fill-[#FF6B35]" />
+                                                        <span className="truncate max-w-[150px] border-b border-transparent group-hover:border-[#FF6B35] font-medium">
+                                                            {displayName}
+                                                        </span>
                                                     </button>
                                                 )
                                             }
-                                            return '-'
+                                            return <span className="text-zinc-500">-</span>
                                         })()}
                                     </td>
                                 </tr>
@@ -321,6 +339,7 @@ export function FitnessTable({
                 onClose={() => setPreviewVideo(null)}
                 videoUrl={previewVideo?.url || ''}
                 title={previewVideo?.title || ''}
+                libraryId={previewVideo?.libraryId}
             />
         </>
     )

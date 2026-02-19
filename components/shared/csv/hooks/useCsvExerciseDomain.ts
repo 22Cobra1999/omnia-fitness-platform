@@ -56,9 +56,11 @@ export function useCsvExerciseDomain({
     const handleEditExercise = useCallback((exercise: ExerciseData, index: number) => {
         setMode('manual')
 
+        const descripcionValue = exercise['Descripción'] || exercise.descripcion || ''
         const exerciseData: any = {
             nombre: getExerciseName(exercise),
-            descripcion: exercise['Descripción'] || exercise.descripcion || '',
+            descripcion: descripcionValue,
+            receta: descripcionValue,
             duracion_min: exercise['Duración (min)'] || exercise.duracion_min || '',
             tipo_ejercicio: normalizeExerciseType(exercise['Tipo de Ejercicio'] || exercise.tipo_ejercicio || ''),
             nivel_intensidad: exercise['Nivel de Intensidad'] || exercise.intensidad || '',
@@ -137,16 +139,33 @@ export function useCsvExerciseDomain({
         }
 
         const editingRow = editingExerciseIndex !== null ? allData[editingExerciseIndex] : null
+        const rowId = editingRow?.id
+        const tempId = editingRow?.tempRowId
+
         item = {
             ...item,
-            tempRowId: editingRow?.tempRowId || `manual-${Date.now()}-${Math.random().toString(36).slice(2, 10)}`,
-            csvRowId: editingRow?.csvRowId || (item as any).csvRowId
+            id: rowId || item.id,
+            tempRowId: tempId || `manual-${Date.now()}-${Math.random().toString(36).slice(2, 10)}`,
+            csvRowId: editingRow?.csvRowId || (item as any).csvRowId,
+            isExisting: editingRow ? !!editingRow.isExisting : false
         }
 
-        if (editingExerciseIndex !== null) {
-            setCsvData((prev: any) => prev.map((row: any, idx: number) => idx === editingExerciseIndex ? { ...row, ...item } : row))
+        if (editingRow) {
+            const updater = (prev: any[]) => {
+                const identifierMatch = (r: any) =>
+                    (rowId && r.id === rowId) || (tempId && r.tempRowId === tempId)
+
+                const exists = prev.some(identifierMatch)
+                if (exists) {
+                    return prev.map((r: any) => identifierMatch(r) ? { ...r, ...item } : r)
+                } else {
+                    return [...prev, item]
+                }
+            }
+
+            setCsvData(updater)
             if (parentSetCsvData) {
-                parentSetCsvData((parentCsvData || []).map((row: any, idx: number) => idx === editingExerciseIndex ? { ...row, ...item } : row))
+                parentSetCsvData(updater(parentCsvData || []))
             }
             cancelEdit()
             return

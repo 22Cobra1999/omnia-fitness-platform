@@ -1,5 +1,6 @@
 
 import { useCallback, useRef } from 'react'
+import { createClient } from '@/lib/supabase/supabase-client'
 import { normalizeActivityMap } from '@/lib/utils/exercise-activity-map'
 import {
     normalizeExerciseType,
@@ -41,13 +42,31 @@ export function useCsvDataFetching({
     updateErrorState
 }: UseCsvDataFetchingProps) {
     const isLoadingDataRef = useRef(false)
+    const lastCategoryRef = useRef('')
+    const supabase = createClient()
 
     const loadExistingData = useCallback(async () => {
-        // Prevenir llamadas múltiples simultáneas
-        if (isLoadingDataRef.current) {
+        const currentCategory = productCategory === 'nutricion' ? 'nutricion' : 'fitness'
+
+        // Prevenir llamadas múltiples simultáneas para la misma categoría
+        if (isLoadingDataRef.current && lastCategoryRef.current === currentCategory) {
             return
         }
         isLoadingDataRef.current = true
+        lastCategoryRef.current = currentCategory
+
+        // Fetch Rule Count from DB
+        if (coachId) {
+            try {
+                const { data: rulesData } = await supabase
+                    .from("product_conditional_rules")
+                    .select("id")
+                    .eq("coach_id", coachId)
+                if (rulesData) setRulesCount(rulesData.length)
+            } catch (err) {
+                console.warn('⚠️ Error fetching rules count:', err)
+            }
+        }
 
         // Modo genérico: activityId = 0 significa cargar todos los ejercicios/platos del coach
         if (activityId === 0) {
@@ -95,15 +114,17 @@ export function useCsvDataFetching({
                 }
 
                 const catalogJson = await catalogResponse.json().catch(() => null)
+                console.log(`[useCsvDataFetching] Generic Load (${category}):`, { success: catalogJson?.success, count: catalogJson?.data?.length })
 
                 if (catalogJson && catalogJson.success && Array.isArray(catalogJson.data)) {
                     const items = catalogJson.data
 
                     const transformed = category === 'nutricion'
                         ? items.map((item: any) => {
-                            let ingredientesValue = ''
-                            const rawIngredientes = item.ingredientes ?? item.ingredients ?? item['Ingredientes']
+                            const rawIngredientes = item.ingredientes ?? item.ingredients ?? item['Ingredientes'] ?? item['ingredients'] ?? item.composition
+                            const rawPorciones = item.porciones ?? item.portions ?? item['Porciones'] ?? item['portions'] ?? item.servings
 
+                            let ingredientesValue = ''
                             if (rawIngredientes !== undefined && rawIngredientes !== null && rawIngredientes !== '') {
                                 if (Array.isArray(rawIngredientes)) {
                                     ingredientesValue = rawIngredientes.join('; ')
@@ -142,7 +163,7 @@ export function useCsvDataFetching({
                                 'Carbohidratos': carbohidratos,
                                 'Grasas': grasas,
                                 'Ingredientes': ingredientesValue,
-                                'Porciones': getStringValue(item.porciones ?? item.portions),
+                                'Porciones': getStringValue(rawPorciones),
                                 'Minutos': getStringValue(item.minutos ?? item.minutes ?? item.duration),
                                 'Descripción': getStringValue(item.descripcion ?? item.receta),
                                 isExisting: true,
@@ -157,11 +178,13 @@ export function useCsvDataFetching({
                                 carbohidratos: carbohidratos,
                                 grasas: grasas,
                                 ingredientes: ingredientesValue,
-                                porciones: getStringValue(item.porciones ?? item.portions),
+                                porciones: getStringValue(rawPorciones),
                                 minutos: getStringValue(item.minutos ?? item.minutes ?? item.duration),
                                 dificultad: getValue(item.dificultad ?? item.difficulty ?? item.level, 'Principiante'),
                                 video_url: item.video_url || item.video || '',
                                 video_file_name: item.video_file_name || null,
+                                bunny_video_id: item.bunny_video_id || item.bunnyVideoId || null,
+                                bunny_library_id: item.bunny_library_id || item.bunnyLibraryId || null,
                                 'Dificultad': getValue(item.dificultad ?? item.difficulty ?? item.level, 'Principiante'),
                                 'Video': item.video_url || item.video || ''
                             }
@@ -190,7 +213,11 @@ export function useCsvDataFetching({
                             is_active: item.is_active !== false,
                             activo: item.is_active !== false,
                             activity_id_new: item.activity_id_new || item.activity_id || null,
-                            activity_id: item.activity_id || null
+                            activity_id: item.activity_id || null,
+                            video_url: item.video_url || item.video || '',
+                            video_file_name: item.video_file_name || null,
+                            bunny_video_id: item.bunny_video_id || item.bunnyVideoId || null,
+                            bunny_library_id: item.bunny_library_id || item.bunnyLibraryId || null
                         }))
 
                     setExistingData(transformed)
@@ -288,14 +315,17 @@ export function useCsvDataFetching({
                     )
 
                     if (productCategory === 'nutricion') {
+                        const rawIngredientes = item.ingredientes ?? item.ingredients ?? item['Ingredientes'] ?? item['ingredients'] ?? item.composition
+                        const rawPorciones = item.porciones ?? item.portions ?? item['Porciones'] ?? item['portions'] ?? item.servings
+
                         let ingredientesValue = ''
-                        if (item.ingredientes !== undefined && item.ingredientes !== null && item.ingredientes !== '') {
-                            if (Array.isArray(item.ingredientes)) {
-                                ingredientesValue = item.ingredientes.join('; ')
-                            } else if (typeof item.ingredientes === 'object') {
-                                ingredientesValue = JSON.stringify(item.ingredientes)
+                        if (rawIngredientes !== undefined && rawIngredientes !== null && rawIngredientes !== '') {
+                            if (Array.isArray(rawIngredientes)) {
+                                ingredientesValue = rawIngredientes.join('; ')
+                            } else if (typeof rawIngredientes === 'object') {
+                                ingredientesValue = JSON.stringify(rawIngredientes)
                             } else {
-                                const strValue = String(item.ingredientes).trim()
+                                const strValue = String(rawIngredientes).trim()
                                 if (strValue.startsWith('[') && strValue.endsWith(']')) {
                                     try {
                                         const parsed = JSON.parse(strValue)
@@ -331,9 +361,9 @@ export function useCsvDataFetching({
                             'Carbohidratos': carbohidratos,
                             'Grasas': grasas,
                             'Dificultad': getValue(item.dificultad ?? item['Dificultad'], 'Principiante'),
-                            'Ingredientes': ingredientesValue || item['Ingredientes'] || '',
-                            'Porciones': getValue(item.porciones ?? item['Porciones'], ''),
-                            'Minutos': getValue(item.minutos ?? item['Minutos'], ''),
+                            'Ingredientes': ingredientesValue || '',
+                            'Porciones': getValue(rawPorciones, ''),
+                            'Minutos': getValue(item.minutos ?? item.minutes ?? item.duration, ''),
                             isExisting: true,
                             is_active: item.is_active !== false && item.activo !== false,
                             activo: item.is_active !== false && item.activo !== false,
@@ -349,8 +379,8 @@ export function useCsvDataFetching({
                             carbohidratos: carbohidratos,
                             grasas: grasas,
                             dificultad: getValue(item.dificultad ?? item['Dificultad'], 'Principiante'),
-                            porciones: getValue(item.porciones, ''),
-                            minutos: getValue(item.minutos, '')
+                            porciones: getValue(rawPorciones, ''),
+                            minutos: getValue(item.minutos ?? item.minutes ?? item.duration, '')
                         }
                     } else {
                         const normalizedType = normalizeExerciseType(item.tipo || item['Tipo de Ejercicio'] || '', allowedExerciseTypes)
@@ -370,7 +400,10 @@ export function useCsvDataFetching({
                             activo: item.is_active !== false,
                             tipo_ejercicio: normalizedType,
                             activity_assignments: activityAssignments,
-                            video_file_name: item.video_file_name || item['video_file_name'] || null
+                            video_file_name: item.video_file_name || item['video_file_name'] || null,
+                            video_url: item.video_url || item.video || '',
+                            bunny_video_id: item.bunny_video_id || item.bunnyVideoId || null,
+                            bunny_library_id: item.bunny_library_id || item.bunnyLibraryId || null
                         }
                     }
                 })
@@ -468,7 +501,8 @@ export function useCsvDataFetching({
         setActivityNamesMap,
         setActivityImagesMap,
         setRulesCount,
-        updateErrorState
+        updateErrorState,
+        supabase
     ])
 
     return { loadExistingData }

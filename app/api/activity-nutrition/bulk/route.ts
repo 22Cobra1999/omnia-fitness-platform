@@ -17,6 +17,9 @@ type IncomingPlato = {
   receta?: string
   video_url?: string | null
   video_file_name?: string | null
+  bunny_video_id?: string | null
+  bunny_library_id?: number | string | null
+  video_thumbnail_url?: string | null
 }
 
 type BulkRequest = {
@@ -172,7 +175,10 @@ export async function POST(request: NextRequest) {
         grasas,
         receta,
         video_url,
-        video_file_name
+        video_file_name,
+        bunny_video_id,
+        bunny_library_id,
+        video_thumbnail_url
       } = plato
 
       const tempIdValue = (plato as any).tempId
@@ -228,7 +234,7 @@ export async function POST(request: NextRequest) {
       // Validar que la dificultad sea un valor permitido
       const dificultadesValidas = ['Bajo', 'Medio', 'Alto', 'Principiante', 'Intermedio', 'Avanzado']
       const dificultad = dificultadesValidas.includes(rawDificultad) ? rawDificultad : 'Principiante'
-      
+
       const recetaText = coerceTextNullable(receta || (plato as any)['Receta'] || (plato as any)['Descripción'] || (plato as any).Descripción)
       let receta_id: number | null = null
 
@@ -271,6 +277,9 @@ export async function POST(request: NextRequest) {
         dificultad: dificultad,
         video_url: sanitizeNullable(video_url ? sanitizeText(video_url) : null),
         video_file_name: coerceTextNullable(video_file_name),
+        bunny_video_id: sanitizeNullable(bunny_video_id || (plato as any).bunny_video_id),
+        bunny_library_id: NORMALIZE_NUMBER(bunny_library_id || (plato as any).bunny_library_id),
+        video_thumbnail_url: sanitizeNullable(video_thumbnail_url || (plato as any).video_thumbnail_url),
         coach_id: user.id,
         activity_id: activityId
       }
@@ -278,7 +287,7 @@ export async function POST(request: NextRequest) {
       if (receta_id) {
         record.receta_id = receta_id
       }
-      
+
       // Agregar campos opcionales si existen
       if ((plato as any).ingredientes !== undefined && (plato as any).ingredientes !== null) {
         // Si ingredientes es un string, intentar parsearlo como JSON
@@ -293,21 +302,21 @@ export async function POST(request: NextRequest) {
           record.ingredientes = (plato as any).ingredientes
         }
       }
-      
+
       if ((plato as any).porciones !== undefined && (plato as any).porciones !== null) {
         const porcionesNum = NORMALIZE_NUMBER((plato as any).porciones)
         if (porcionesNum !== null) {
           record.porciones = Math.floor(porcionesNum)
         }
       }
-      
+
       if ((plato as any).minutos !== undefined && (plato as any).minutos !== null) {
         const minutosNum = NORMALIZE_NUMBER((plato as any).minutos)
         if (minutosNum !== null) {
           record.minutos = Math.floor(minutosNum)
         }
       }
-      
+
       // ✅ Intentar agregar activity_id_new solo si existe la columna (opcional)
       // Si falla la inserción, se intentará sin activity_id_new
       try {
@@ -315,7 +324,7 @@ export async function POST(request: NextRequest) {
       } catch (e) {
         // Ignorar si no se puede agregar
       }
-      
+
       console.log('📝 BULK NUTRITION: Record preparado para inserción:', {
         nombre: record.nombre,
         activity_id: record.activity_id,
@@ -365,10 +374,10 @@ export async function POST(request: NextRequest) {
         // Actualizar el mapa de actividades: agregar o actualizar la actividad actual
         // ✅ Manejar tanto activity_id (integer) como activity_id_new (JSONB)
         const existingActivityIdNew = (existingRow as any).activity_id_new
-        const existingMap = existingActivityIdNew 
-          ? (existingActivityIdNew as Record<string, { activo?: boolean }>) 
+        const existingMap = existingActivityIdNew
+          ? (existingActivityIdNew as Record<string, { activo?: boolean }>)
           : {}
-        
+
         // Agregar/actualizar la actividad actual en el mapa JSONB
         existingMap[activityId.toString()] = { activo: is_active !== false }
 
@@ -377,7 +386,7 @@ export async function POST(request: NextRequest) {
           activity_id: activityId, // Siempre actualizar como integer
           activity_id_new: existingMap // Actualizar el mapa JSONB
         }
-        
+
         console.log('🔄 BULK NUTRITION: Actualizando plato existente:', {
           id: existingId,
           nombre: record.nombre,
@@ -400,11 +409,11 @@ export async function POST(request: NextRequest) {
             hint: updateError.hint
           }
           console.error('❌ BULK NUTRITION: Error actualizando plato existente:', errorDetails)
-          
-          const errorMessage = updateError.hint 
+
+          const errorMessage = updateError.hint
             ? `${updateError.message} (${updateError.hint})`
             : updateError.message
-          
+
           failures.push({
             tempId,
             rawId: existingId,
@@ -424,7 +433,7 @@ export async function POST(request: NextRequest) {
           hasActivityIdNew: !!record.activity_id_new,
           coach_id: record.coach_id
         })
-        
+
         // ✅ Intentar insertar con activity_id_new primero
         let { data: inserted, error: insertError } = await supabaseService
           .from('nutrition_program_details')
@@ -434,24 +443,24 @@ export async function POST(request: NextRequest) {
 
         // ✅ Si falla y tiene activity_id_new, verificar si es por columna inexistente
         if (insertError && record.activity_id_new) {
-          const isColumnError = insertError.code === '42703' || 
-                                insertError.message?.includes('column "activity_id_new" does not exist') ||
-                                insertError.message?.includes('does not exist')
-          
+          const isColumnError = insertError.code === '42703' ||
+            insertError.message?.includes('column "activity_id_new" does not exist') ||
+            insertError.message?.includes('does not exist')
+
           if (isColumnError) {
             console.log('⚠️ BULK NUTRITION: Columna activity_id_new no existe, reintentando sin ella:', insertError.message)
             const recordWithoutNew = { ...record }
             delete recordWithoutNew.activity_id_new
-            
+
             const retryResult = await supabaseService
               .from('nutrition_program_details')
               .insert(recordWithoutNew)
               .select('id')
               .single()
-            
+
             inserted = retryResult.data
             insertError = retryResult.error
-            
+
             if (!insertError) {
               console.log('✅ BULK NUTRITION: Insertado exitosamente sin activity_id_new')
             } else {
@@ -471,12 +480,12 @@ export async function POST(request: NextRequest) {
             record: JSON.stringify(record, null, 2)
           }
           console.error('❌ BULK NUTRITION: Error insertando plato nuevo:', errorDetails)
-          
+
           // Incluir más detalles en el error para debugging
-          const errorMessage = insertError.hint 
+          const errorMessage = insertError.hint
             ? `${insertError.message} (${insertError.hint})`
             : insertError.message
-          
+
           failures.push({
             tempId,
             rawId: id,
@@ -503,7 +512,7 @@ export async function POST(request: NextRequest) {
 
     const successCount = results.filter((r) => r.id !== null).length
     const failureCount = failures.length
-    
+
     console.log('📊 BULK NUTRITION: Resumen de operación:', {
       total: platesPayload.length,
       exitosos: successCount,

@@ -9,7 +9,7 @@ export const Header: React.FC<HeaderProps> = ({ activeMainTab, onTabChange }) =>
     return (
         <div className="mt-8 mb-10">
             <div className="flex items-center justify-between mb-4 relative">
-                <div className="absolute left-1/2 transform -translate-x-1/2 flex items-center gap-6">
+                <div className="absolute left-1/2 transform translate-x-[-45%] flex items-center gap-6">
                     <button
                         onClick={() => onTabChange('products')}
                         className={`text-sm transition-all ${activeMainTab === 'products'

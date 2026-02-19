@@ -207,6 +207,7 @@ export async function POST(request: NextRequest) {
         calorias: NORMALIZE_NUMBER(calorias),
         intensidad: normalizeIntensity(rawIntensity),
         video_url: sanitizeNullable(video_url ? sanitizeText(video_url) : null),
+        video_file_name: sanitizeNullable((exercise as any).video_file_name),
         bunny_video_id: sanitizeNullable((exercise as any).bunny_video_id),
         bunny_library_id: sanitizeNullable((exercise as any).bunny_library_id),
         video_thumbnail_url: sanitizeNullable((exercise as any).video_thumbnail_url),

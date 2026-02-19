@@ -9,26 +9,42 @@ interface PreviewVideoModalProps {
     onClose: () => void
     videoUrl: string
     title: string
+    libraryId?: string | number
 }
 
-export function PreviewVideoModal({ isOpen, onClose, videoUrl, title }: PreviewVideoModalProps) {
+export function PreviewVideoModal({ isOpen, onClose, videoUrl, title, libraryId }: PreviewVideoModalProps) {
     if (!isOpen) return null
 
     // Determine if it's a Bunny ID or a direct URL
     const isBunnyId = videoUrl && !videoUrl.includes('://') && !videoUrl.includes('/')
+    const libId = libraryId || '236113'
     const finalSrc = isBunnyId
-        ? `https://iframe.mediadelivery.net/embed/236113/${videoUrl}?autoplay=true`
+        ? `https://iframe.mediadelivery.net/embed/${libId}/${videoUrl}?autoplay=true`
         : videoUrl
+
+    console.log('--- PreviewVideoModal Debug ---', {
+        title,
+        videoUrl,
+        libraryId,
+        libId,
+        isBunnyId,
+        finalSrc
+    })
 
     return (
         <Dialog open={isOpen} onOpenChange={onClose}>
-            <DialogContent className="max-w-4xl p-0 overflow-hidden bg-black border-zinc-800 rounded-[32px] sm:rounded-[32px]">
-                <DialogHeader className="p-6 pb-0 absolute top-0 left-0 right-0 z-10 bg-gradient-to-b from-black/80 to-transparent">
+            <DialogContent className="max-w-4xl p-0 overflow-hidden bg-black border-zinc-800 rounded-[32px] sm:rounded-[32px] [&>button]:hidden">
+                <DialogHeader className="p-6 pb-0 absolute top-0 left-0 right-0 z-20 bg-gradient-to-b from-black/80 to-transparent">
                     <div className="flex items-center justify-between">
-                        <DialogTitle className="text-white text-lg font-bold truncate pr-8">{title}</DialogTitle>
+                        <DialogTitle className="text-white text-lg font-bold truncate pr-14">{title}</DialogTitle>
                         <button
-                            onClick={onClose}
-                            className="p-2 hover:bg-white/10 rounded-full transition-colors text-white"
+                            onClick={(e) => {
+                                e.preventDefault()
+                                e.stopPropagation()
+                                console.log('--- PreviewVideoModal Close Clicked ---')
+                                onClose()
+                            }}
+                            className="p-2 hover:bg-white/10 rounded-full transition-colors text-white pointer-events-auto z-30"
                         >
                             <X className="h-6 w-6" />
                         </button>

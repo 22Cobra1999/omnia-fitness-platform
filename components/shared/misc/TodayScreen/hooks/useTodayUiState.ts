@@ -42,16 +42,16 @@ export function useTodayUiState() {
         return () => window.removeEventListener('resize', updateVh);
     }, []);
 
-    const toggleBlock = (blockNumber: number) => {
+    const toggleBlock = React.useCallback((blockNumber: number) => {
         setCollapsedBlocks(prev => {
             const newSet = new Set(prev);
             if (newSet.has(blockNumber)) newSet.delete(blockNumber);
             else newSet.add(blockNumber);
             return newSet;
         });
-    };
+    }, []);
 
-    return {
+    return React.useMemo(() => ({
         vh,
         loading,
         setLoading,
@@ -88,5 +88,26 @@ export function useTodayUiState() {
         touchEnd,
         setTouchEnd,
         toggleBlock
-    };
+    }), [
+        vh,
+        loading,
+        isDayLoading,
+        isVideoExpanded,
+        activeExerciseTab,
+        collapsedBlocks,
+        calendarExpanded,
+        videoExpandY,
+        videoExpandX,
+        showStartModal,
+        showStartInfoModal,
+        showSurveyModal,
+        showConfirmModal,
+        selectedHorario,
+        isRatingModalOpen,
+        calendarMessage,
+        isUpdating,
+        touchStart,
+        touchEnd,
+        toggleBlock
+    ]);
 }
