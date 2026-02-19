@@ -38,7 +38,7 @@ export const metadata: Metadata = {
   openGraph: {
     type: "website",
     locale: "es_ES",
-    url: "https://omnia-fitness.vercel.app",
+    url: "https://omnia-app.vercel.app",
     title: "OMNIA | The All-in-One Fitness, Nutrition & Wellness Platform",
     description: "Transform your life with OMNIA. Access personalized fitness programs, custom nutrition plans, and expert coaching. Join the community and start your journey today.",
     siteName: "OMNIA Fitness",

@@ -4,4 +4,4 @@ Disallow: /api/
 Disallow: /admin/
 Disallow: /coach/storage/
 
-Sitemap: https://omnia-fitness.vercel.app/sitemap.xml
+Sitemap: https://omnia-app.vercel.app/sitemap.xml
