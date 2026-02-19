@@ -1,30 +1,32 @@
-import { createRouteHandlerClient } from '@supabase/auth-helpers-nextjs'
-import { cookies } from 'next/headers'
 import { NextResponse } from 'next/server'
+import { createRouteHandlerClient } from "../../../../../lib/supabase/supabase-server"
 
 export async function POST(
     request: Request,
-    { params }: { params: { id: string } }
+    { params }: { params: Promise<{ id: string }> }
 ) {
-    const activityId = params.id
-    const supabase = createRouteHandlerClient({ cookies })
-
     try {
+        const resolvedParams = await params
+        const activityId = resolvedParams.id
+        const supabase = await createRouteHandlerClient()
+
         const { data: { user }, error: authError } = await supabase.auth.getUser()
         if (authError || !user) {
-            return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+            return NextResponse.json({ error: 'Usuario no autenticado' }, { status: 401 })
         }
 
+        console.log(`📸 [snapshot-expired] Procesando actividad ${activityId} para usuario ${user.id}`)
+
         // 1. Check if snapshot already exists
-        const { data: existing } = await supabase
+        const { data: existing, error: existingError } = await supabase
             .from('actividades_vencidas')
             .select('id')
             .eq('activity_id', activityId)
             .eq('client_id', user.id)
-            .single()
+            .maybeSingle()
 
         if (existing) {
-            return NextResponse.json({ success: true, message: 'Snapshot already exists', id: existing.id })
+            return NextResponse.json({ success: true, message: 'Snapshot ya existe', id: existing.id })
         }
 
         // 2. Fetch enrollment info to ensure it exists
@@ -35,26 +37,29 @@ export async function POST(
             .eq('client_id', user.id)
             .order('created_at', { ascending: false })
             .limit(1)
-            .single()
+            .maybeSingle()
 
         if (enrError || !enrollment) {
-            console.error('Error fetching enrollment for snapshot:', enrError)
-            return NextResponse.json({ error: 'Enrollment not found' }, { status: 404 })
+            console.error('❌ [snapshot-expired] Error buscando enrollment:', enrError)
+            return NextResponse.json({ error: 'Enrollment no encontrado' }, { status: 404 })
         }
 
         // 3. Call the archive RPC
-        // This calculates analytics, upserts into actividades_vencidas, AND cleans up raw tables.
+        console.log(`📦 [snapshot-expired] Ejecutando RPC para enrollment ${enrollment.id}`)
         const { data: archiveResult, error: rpcError } = await supabase
             .rpc('archive_expired_enrollment', { p_enrollment_id: enrollment.id })
 
         if (rpcError) {
-            console.error('Error calling archive_expired_enrollment RPC:', rpcError)
-            return NextResponse.json({ error: 'Error during archival process' }, { status: 500 })
+            console.error('❌ [snapshot-expired] Error en RPC archive_expired_enrollment:', rpcError)
+            return NextResponse.json({ error: 'Error durante el proceso de archivado', details: rpcError }, { status: 500 })
         }
 
         return NextResponse.json({ success: true, data: archiveResult })
     } catch (error) {
-        console.error('Unexpected error in snapshot API:', error)
-        return NextResponse.json({ error: 'Internal Server Error' }, { status: 500 })
+        console.error('❌ [snapshot-expired] Error inesperado:', error)
+        return NextResponse.json({
+            error: 'Error interno del servidor',
+            details: error instanceof Error ? error.message : String(error)
+        }, { status: 500 })
     }
 }

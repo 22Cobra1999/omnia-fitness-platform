@@ -35,15 +35,15 @@ export async function GET(
     // Buscar todas las compras del cliente para esta actividad
     const { data: enrollments, error: enrollmentsError } = await supabase
       .from('activity_enrollments')
-      .select('id, start_date, status, created_at, updated_at, expiration_date, is_rated, rated, activity_surveys(coach_method_rating, comments)')
+      .select('id, start_date, status, created_at, updated_at, expiration_date, activity_surveys(coach_method_rating, comments)')
       .eq('activity_id', activityId)
       .eq('client_id', user.id)
       .order('created_at', { ascending: false })
 
     if (enrollmentsError) {
-      console.error('Error verificando enrollments:', enrollmentsError)
+      console.error('❌ [purchase-status] Error fetching enrollments:', enrollmentsError)
       return NextResponse.json(
-        { success: false, error: "Error verificando estado de compra" },
+        { success: false, error: "Error verificando estado de compra", details: enrollmentsError },
         { status: 500 }
       )
     }

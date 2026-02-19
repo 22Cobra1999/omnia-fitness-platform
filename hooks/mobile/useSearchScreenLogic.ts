@@ -1,7 +1,7 @@
 "use client"
 
 import { useState, useEffect, useMemo, useCallback, useRef } from "react"
-import { useRouter } from "next/navigation"
+import { useRouter, useSearchParams } from "next/navigation"
 import { useToast } from "@/hooks/shared/use-toast"
 import { trackComponent, trackAPI } from "@/lib/logging/usage-tracker"
 import type { Activity } from "@/types/activity"
@@ -47,7 +47,8 @@ export const DURATIONS = [
 
 const CACHE_DURATION = 5 * 60 * 1000
 
-export function useSearchScreenLogic() {
+export function useSearchScreenLogic(initialData?: any) {
+    const searchParams = useSearchParams()
     const { toast } = useToast()
     const router = useRouter()
 
@@ -383,6 +384,15 @@ export function useSearchScreenLogic() {
         loadCoaches()
         loadActivities()
 
+        // Deep Linking Logic
+        const params = new URLSearchParams(window.location.search)
+        const activityId = params.get('id')
+        if (activityId) {
+            // We need to wait for activities to load, or fetch this specific one if not in list (though list is all)
+            // Ideally, we wait for 'allActivities' to be populated.
+            // However, since loadActivities sets state, we can depend on it.
+        }
+
         const handleReset = (event: CustomEvent) => {
             if (event.detail?.tab === 'search') {
                 setSearchTerm("")
@@ -393,12 +403,54 @@ export function useSearchScreenLogic() {
                 setNavigationStack([])
                 setIsPreviewModalOpen(false)
                 setIsCoachProfileModalOpen(false)
+
+                // Clear ID from URL when resetting tab
+                const url = new URL(window.location.href)
+                url.searchParams.delete('id')
+                window.history.replaceState({ tab: 'search' }, '', url.toString())
+
                 window.scrollTo({ top: 0, behavior: 'smooth' })
             }
         }
         window.addEventListener('reset-tab-to-origin', handleReset as EventListener)
         return () => window.removeEventListener('reset-tab-to-origin', handleReset as EventListener)
     }, [loadCoaches, loadActivities])
+
+    // Deep Link Effect: Open Modal when Activities Load or initialData provided
+    useEffect(() => {
+        const params = new URLSearchParams(window.location.search)
+        const activityId = params.get('id')
+
+        if (activityId) {
+            console.log("🔗 [useSearchScreenLogic] Deep Link detected in URL:", activityId, {
+                hasInitialData: !!initialData,
+                allActivitiesCount: allActivities.length,
+                isPreviewModalOpen,
+                selectedActivityId: selectedActivity?.id
+            })
+        }
+
+        // 1. Prefer initialData if it matches the ID (avoids waiting for search fetch or missing items)
+        if (initialData && String(initialData.id) === String(activityId) && !isPreviewModalOpen && !selectedActivity) {
+            console.log("🚀 [useSearchScreenLogic] Deep Link MATCH (Initial Data)! Opening modal for:", initialData.title)
+            setSelectedActivity(initialData)
+            setIsPreviewModalOpen(true)
+            return
+        }
+
+        // 2. Fallback to searching in allActivities list
+        if (activityId && allActivities.length > 0 && !isPreviewModalOpen && !selectedActivity) {
+            // Ensure ID comparison is robust (string vs potential number in DB)
+            const targetActivity = allActivities.find(a => String(a.id) === String(activityId))
+            if (targetActivity) {
+                console.log("🚀 [useSearchScreenLogic] Deep Link MATCH (List)! Opening modal for:", targetActivity.title)
+                setSelectedActivity(targetActivity)
+                setIsPreviewModalOpen(true)
+            } else {
+                console.log("❌ [useSearchScreenLogic] Deep Link activity NOT found in list. Searched for:", activityId)
+            }
+        }
+    }, [allActivities, isPreviewModalOpen, selectedActivity, searchParams, initialData])
 
     return {
         // State

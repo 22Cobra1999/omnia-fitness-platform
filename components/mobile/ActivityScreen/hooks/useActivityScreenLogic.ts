@@ -72,6 +72,12 @@ export function useActivityScreenLogic({ initialTab = "purchased" }: UseActivity
         setSelectedActivityId(activityId)
         if (enrollmentId) {
             setSelectedEnrollmentId(enrollmentId)
+
+            // Sync URL with Enrollment ID (UUID) instead of Activity ID to avoid ambiguity
+            const url = new URL(window.location.href)
+            url.searchParams.set('id', enrollmentId)
+            window.history.replaceState({ tab: 'activity', id: enrollmentId }, '', url.toString())
+            console.log("🔗 [useActivityScreenLogic] URL synced with enrollment ID:", enrollmentId)
         }
         setShowTodayScreen(true)
     }, [])
@@ -81,6 +87,11 @@ export function useActivityScreenLogic({ initialTab = "purchased" }: UseActivity
         setShowTodayScreen(false)
         setSelectedActivityId(null)
         setSelectedEnrollmentId(null)
+
+        // Clear ID from URL when going back to list
+        const url = new URL(window.location.href)
+        url.searchParams.delete('id')
+        window.history.replaceState({ tab: 'activity' }, '', url.toString())
     }, [])
 
     // Handle Coach Click
@@ -366,11 +377,45 @@ export function useActivityScreenLogic({ initialTab = "purchased" }: UseActivity
             const params = new URLSearchParams(window.location.search)
             const activityIdParam = params.get('id')
 
-            if (activityIdParam) {
-                console.log("🔗 Deep Link detected for Activity:", activityIdParam)
-                setSelectedActivityId(activityIdParam)
-                setShowTodayScreen(true)
-                // We don't remove the param immediately to allow bookmarking/refreshing
+            if (activityIdParam && enrollments.length > 0) {
+                console.log("🔗 [useActivityScreenLogic] Deep Link detected for Activity:", activityIdParam)
+
+                // Determine if ID is an Enrollment UUID or an Activity ID (Number)
+                const isEnrollmentUuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(activityIdParam)
+
+                // Find matching enrollment
+                const matchingEnrollment = enrollments.find(e =>
+                    isEnrollmentUuid
+                        ? String(e.id) === String(activityIdParam)
+                        : String(e.activity_id) === String(activityIdParam)
+                )
+
+                if (matchingEnrollment) {
+                    const progress = enrollmentProgresses[matchingEnrollment.id] || 0
+                    const { calculateEnrollmentStatus } = require('../utils')
+                    const status = calculateEnrollmentStatus(matchingEnrollment, progress)
+
+                    if (status === 'finalizada' || status === 'expirada') {
+                        console.log("🚩 [useActivityScreenLogic] Activity is FINISHED/EXPIRED. Bouncing to list.")
+                        setActivityStatusTab("finalizadas")
+                        setShowTodayScreen(false)
+                        setSelectedActivityId(null)
+                    } else {
+                        console.log("✅ [useActivityScreenLogic] Activity found. Opening detail.")
+                        setSelectedActivityId(String(matchingEnrollment.activity_id))
+                        setSelectedEnrollmentId(matchingEnrollment.id)
+                        setShowTodayScreen(true)
+                    }
+                } else {
+                    // Fallback: If not found in current list, but it's not a UUID, it might be a new purchase or something we don't have yet
+                    if (!isEnrollmentUuid) {
+                        console.log("❓ [useActivityScreenLogic] Deep link activity ID not found in current enrollments. Attempting open.")
+                        setSelectedActivityId(activityIdParam)
+                        setShowTodayScreen(true)
+                    } else {
+                        console.log("❌ [useActivityScreenLogic] Enrollment UUID not found in list.")
+                    }
+                }
                 return
             }
 

@@ -53,7 +53,7 @@ export function useTodayDataLoaders(user: any, activityId: string) {
                 };
 
                 setEnrollment(enrichedEnrollment);
-                setIsRated(Boolean(enr.is_rated || enr.rated || enrichedEnrollment.rating_coach));
+                setIsRated(Boolean(enrichedEnrollment.rating_coach || enrichedEnrollment.feedback_text));
 
                 // Check for expiration and snapshot
                 if (enr.expiration_date) {
@@ -96,7 +96,7 @@ export function useTodayDataLoaders(user: any, activityId: string) {
                     };
 
                     setEnrollment(enrichedFallback);
-                    setIsRated(Boolean(enrichedFallback.is_rated || enrichedFallback.rated || enrichedFallback.rating_coach));
+                    setIsRated(Boolean(enrichedFallback.rating_coach || enrichedFallback.feedback_text));
                 }
             }
         } catch (e) {

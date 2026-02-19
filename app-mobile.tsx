@@ -28,14 +28,22 @@ import { trackComponent } from '@/lib/logging/usage-tracker'
 import { logUsage } from '@/lib/logging/usage-logger'
 
 
-function MobileAppContent() {
+interface MobileAppProps {
+  initialTab?: string
+  initialCategoryId?: string
+  initialActivityId?: string
+  initialActivityData?: any
+}
+
+function MobileAppContent({ initialTab, initialCategoryId, initialActivityId, initialActivityData }: MobileAppProps) {
   // Rastrear componente principal
   useEffect(() => {
+    console.log('🧩 [MobileApp] Initial props:', { initialTab, initialCategoryId, initialActivityId })
     trackComponent('MobileApp')
-  }, [])
+  }, [initialTab, initialCategoryId, initialActivityId])
   const { isAuthenticated, user, loading, showWelcomeMessage, setShowWelcomeMessage } = useAuth()
   const { isAuthPopupOpen, authPopupDefaultTab, hideAuthPopup, showAuthPopup } = usePopup()
-  const [activeTab, setActiveTab] = useState("community")
+  const [activeTab, setActiveTab] = useState(initialTab || "community")
   const userRole = user?.level || "client"
   const searchParams = useSearchParams()
 
@@ -47,26 +55,84 @@ function MobileAppContent() {
   // ✅ Inicialización automática de storage para coaches
   const { initialized: storageInitialized, loading: storageLoading } = useCoachStorageInitialization()
 
-  // Manejar parámetro tab de la URL
+  // Manejar parámetro tab de la URL (solo si no se proveyó initialTab)
   useEffect(() => {
+    if (initialTab) return
     const tabParam = searchParams.get('tab')
     if (tabParam && urlTabs.includes(tabParam)) {
       setActiveTab(tabParam)
     }
-  }, [searchParams])
+  }, [searchParams, initialTab])
 
-  // Mantener la URL consistente con el tab activo
-  // Evita casos donde a veces queda /?tab=profile y otras veces / (sin query).
+  const [forcedId, setForcedId] = useState<string | undefined>(initialActivityId)
+
+  // Listen to Tab Reset from BottomNavigation to clear forced ID
+  useEffect(() => {
+    const handleTabReset = (event: Event) => {
+      const customEvent = event as CustomEvent<{ tab: string }>
+      if (customEvent.detail.tab === activeTab) {
+        console.log(`🔗 [MobileApp] Reset detected for ${activeTab}. Clearing forced ID.`)
+        setForcedId(undefined)
+      }
+    }
+
+    window.addEventListener('reset-tab-to-origin', handleTabReset as EventListener)
+    return () => {
+      window.removeEventListener('reset-tab-to-origin', handleTabReset as EventListener)
+    }
+  }, [activeTab])
+
+  // ==========================================
+  // ESTABLE: Sincronización de URL (Deep Linking)
+  // ==========================================
   useEffect(() => {
     if (typeof window === 'undefined') return
-    const tab = activeTab
-    // Solo reflejar tabs navegables por URL
-    if (!urlTabs.includes(tab)) return
 
-    const newUrl = new URL(window.location.href)
-    newUrl.searchParams.set('tab', tab)
-    window.history.replaceState({}, '', newUrl.toString())
-  }, [activeTab])
+    // Obtenemos estado actual directo de window para evitar bucle con searchParams
+    const url = new URL(window.location.href)
+    const currentTabInUrl = url.searchParams.get('tab')
+    const currentIdInUrl = url.searchParams.get('id')
+
+    // El ID objetivo es el que tenemos forzado o el que ya está en la URL
+    const targetId = forcedId || currentIdInUrl
+
+    let needsUpdate = false
+
+    // 1. Sincronizar Tab
+    if (urlTabs.includes(activeTab) && currentTabInUrl !== activeTab) {
+      url.searchParams.set('tab', activeTab)
+      needsUpdate = true
+    }
+
+    // 2. Sincronizar ID (Preservar si estamos en Search o Activity)
+    // Si targetId es null/undefined pero currentIdInUrl existe, significa que debemos limpiar el URL
+    if (activeTab === 'search' || activeTab === 'activity') {
+      if (targetId) {
+        if (currentIdInUrl !== String(targetId)) {
+          console.log('🔗 [MobileApp] Sync logic - Setting ID:', targetId)
+          url.searchParams.set('id', String(targetId))
+          needsUpdate = true
+        }
+      } else if (currentIdInUrl) {
+        console.log('🔗 [MobileApp] Sync logic - Clearing ID from URL')
+        url.searchParams.delete('id')
+        needsUpdate = true
+      }
+    }
+
+    // 3. Normalizar path si es necesario (ej: de /activity/48 a /)
+    // Esto asegura que el SPA mantenga un estado limpio
+    if (url.pathname !== '/') {
+      console.log('🔗 [MobileApp] Normalizing path from', url.pathname, 'to /')
+      url.pathname = '/'
+      needsUpdate = true
+    }
+
+    if (needsUpdate) {
+      console.log('🔗 [MobileApp] URL Sync - New URL:', url.toString())
+      window.history.replaceState({}, '', url.toString())
+    }
+  }, [activeTab, forcedId])
 
   // Manejar parámetro mp_auth para mostrar notificaciones
   useEffect(() => {
@@ -235,7 +301,7 @@ function MobileAppContent() {
 
       // Client screens
       case "search":
-        return <SearchScreen onTabChange={setActiveTab} />
+        return <SearchScreen onTabChange={setActiveTab} initialActivityData={initialActivityData} />
       case "activity":
         return <ActivityScreen />
 
@@ -324,12 +390,12 @@ function MobileAppContent() {
   )
 }
 
-export default function MobileApp() {
+export default function MobileApp(props: MobileAppProps) {
   return (
     <Suspense fallback={<div className="flex items-center justify-center min-h-screen bg-black">
       <p className="text-white">Cargando...</p>
     </div>}>
-      <MobileAppContent />
+      <MobileAppContent {...props} />
     </Suspense>
   )
 }

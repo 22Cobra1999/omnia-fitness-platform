@@ -107,7 +107,7 @@ export function useWorkshopLogic(user: any, activityId: string, enrollment: any,
                         });
                         setTemasCubiertos(cubiertos);
                         setTemasPendientes(pendientes);
-                        console.error('🔥 [WorkshopLogic] Processed Topics:', { cubiertos: cubiertos.length, pendientes: pendientes.length });
+                        console.log('🔥 [WorkshopLogic] Processed Topics:', { cubiertos: cubiertos.length, pendientes: pendientes.length });
                     }
                 }
             }

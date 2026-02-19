@@ -38,10 +38,11 @@ export async function POST(
             return NextResponse.json({ error: 'Error saving survey' }, { status: 500 })
         }
 
-        // 2. Update activity_enrollments to mark as rated
+        // 2. marking as rated is implicit by the survey presence
+        // We can still touch the enrollment if needed, but let's avoid non-existent columns
         const { error: enrollmentError } = await supabase
             .from('activity_enrollments')
-            .update({ is_rated: true, rated: true })
+            .update({ updated_at: new Date().toISOString() })
             .eq('id', enrollmentId)
             .eq('client_id', user.id)
 

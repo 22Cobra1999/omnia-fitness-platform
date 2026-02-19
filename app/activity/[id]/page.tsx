@@ -8,31 +8,36 @@ import { headers } from 'next/headers'
 export const dynamic = 'force-dynamic'
 
 type Props = {
-    params: { id: string }
-    searchParams: { [key: string]: string | string[] | undefined }
+    params: Promise<{ id: string }>
+    searchParams: Promise<{ [key: string]: string | string[] | undefined }>
 }
 
 async function getActivity(id: string) {
-    const supabase = createClient()
+    const supabase = await createClient()
 
-    const { data: activity } = await supabase
+    const { data: activity, error } = await supabase
         .from('activities')
         .select(`
       *,
-      coaches (full_name),
-      activity_media (image_url)
+      coaches!activities_coach_id_fkey (full_name),
+      activity_media!activity_media_activity_id_fkey (image_url)
     `)
         .eq('id', id)
         .single()
+
+    if (error && error.code !== 'PGRST116') { // PGRST116 is code for no rows found
+        console.error('❌ [getActivity] Error fetching activity:', error)
+    }
 
     return activity
 }
 
 export async function generateMetadata(
-    { params }: Props,
+    { params, searchParams }: Props,
     parent: ResolvingMetadata
 ): Promise<Metadata> {
-    const activity = await getActivity(params.id)
+    const resolvedParams = await params
+    const activity = await getActivity(resolvedParams.id)
 
     if (!activity) {
         return {
@@ -52,7 +57,7 @@ export async function generateMetadata(
             title: activity.title,
             description: activity.description,
             images: [activityImage, ...previousImages],
-            url: `https://omnia-app.vercel.app/activity/${params.id}`,
+            url: `https://omnia-app.vercel.app/activity/${resolvedParams.id}`,
             type: 'website',
         },
         twitter: {
@@ -64,13 +69,21 @@ export async function generateMetadata(
     }
 }
 
-export default async function ActivityPage({ params }: Props) {
-    const activity = await getActivity(params.id)
+export default async function ActivityPage({ params, searchParams }: Props) {
+    const resolvedParams = await params
+    const activityId = resolvedParams.id
+
+    console.log('🚀 [ActivityPage] Rendering for ID:', activityId)
+
+    const activity = await getActivity(activityId)
 
     if (!activity) {
+        console.warn('⚠️ [ActivityPage] Activity not found for ID:', activityId)
         // In case of 404, we let MobileApp handle it or show a generic view
         return <MobileApp />
     }
+
+    console.log('✅ [ActivityPage] Activity found:', activity.title)
 
     // Define Schema.org Product/Course Data
     const jsonLd = {
@@ -87,7 +100,7 @@ export default async function ActivityPage({ params }: Props) {
         offers: {
             '@type': 'Offer',
             url: `https://omnia-app.vercel.app/activity/${activity.id}`,
-            priceCurrency: 'USD', // Adjust currency as needed (e.g. ARS, USD)
+            priceCurrency: 'USD',
             price: activity.price || 0,
             availability: 'https://schema.org/InStock',
             seller: {
@@ -104,8 +117,15 @@ export default async function ActivityPage({ params }: Props) {
                 type="application/ld+json"
                 dangerouslySetInnerHTML={{ __html: JSON.stringify(jsonLd) }}
             />
-            <DeepLinkSync id={activity.id} />
-            <MobileApp />
+            {/* Inject a script to log on client side for final confirmation */}
+            <Script id="deep-link-debug">
+                {`console.log("🔗 [ActivityPage] Server-side rendered for ID: ${activity.id}")`}
+            </Script>
+            <MobileApp
+                initialTab="search"
+                initialActivityId={String(activity.id)}
+                initialActivityData={activity}
+            />
         </>
     )
 }

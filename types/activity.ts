@@ -157,7 +157,7 @@ export interface Activity extends ActivityBase {
 
 // Interface for ActivityEnrollment, including the joined Activity data
 export interface Enrollment {
-  id: number
+  id: string
   activity_id: number
   client_id: string
   status: string

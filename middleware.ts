@@ -38,6 +38,7 @@ export async function middleware(request: NextRequest) {
     path.startsWith("/static") ||
     // Permitir acceso a actividades públicas
     path.startsWith("/activities/") ||
+    path.startsWith("/activity/") ||
     // Permitir acceso a la API de perfil para usuarios no autenticados
     path.startsWith("/api/profile") ||
     path === "/robots.txt" ||

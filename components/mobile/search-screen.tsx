@@ -12,9 +12,10 @@ import { SearchModals } from "./search/SearchModals"
 
 interface SearchScreenProps {
   onTabChange?: (tab: string) => void;
+  initialActivityData?: any;
 }
 
-export function SearchScreen({ onTabChange }: SearchScreenProps) {
+export function SearchScreen({ onTabChange, initialActivityData }: SearchScreenProps) {
   const {
     searchTerm,
     setSearchTerm,
@@ -54,7 +55,7 @@ export function SearchScreen({ onTabChange }: SearchScreenProps) {
     isCoachProfileModalOpen,
     selectedCoachForProfile,
     navigationContext,
-  } = useSearchScreenLogic()
+  } = useSearchScreenLogic(initialActivityData)
 
   useEffect(() => {
     trackComponent('SearchScreen')

@@ -182,18 +182,36 @@ export function ProductDetails({ product, logic }: ProductDetailsProps) {
             )}
 
             {/* 7. Restricciones - New section */}
-            {product.restricciones?.length > 0 && (
-                <div className="space-y-3 pt-4 pb-8">
-                    <h3 className="text-[10px] font-bold text-gray-300 uppercase tracking-widest border-l-2 border-[#FF7939] pl-3">Restricciones</h3>
-                    <div className="flex flex-wrap gap-2">
-                        {product.restricciones.map((r: string, i: number) => (
-                            <div key={i} className="bg-[#FF7939]/5 border border-[#FF7939]/10 px-2.5 py-0.5 rounded-full">
-                                <span className="text-[#FF7939]/60 text-[9px] font-black uppercase tracking-wider">{r}</span>
-                            </div>
-                        ))}
+            {/* 7. Restricciones - New section */}
+            {(() => {
+                let restrictions: string[] = []
+                if (Array.isArray(product.restricciones)) {
+                    restrictions = product.restricciones
+                } else if (typeof product.restricciones === 'string') {
+                    try {
+                        const parsed = JSON.parse(product.restricciones)
+                        if (Array.isArray(parsed)) restrictions = parsed
+                        else restrictions = [product.restricciones]
+                    } catch (e) {
+                        restrictions = product.restricciones.split(',').map(s => s.trim())
+                    }
+                }
+
+                if (restrictions.length === 0) return null
+
+                return (
+                    <div className="space-y-3 pt-4 pb-8">
+                        <h3 className="text-[10px] font-bold text-gray-300 uppercase tracking-widest border-l-2 border-[#FF7939] pl-3">Restricciones</h3>
+                        <div className="flex flex-wrap gap-2">
+                            {restrictions.map((r: string, i: number) => (
+                                <div key={i} className="bg-[#FF7939]/5 border border-[#FF7939]/10 px-2.5 py-0.5 rounded-full">
+                                    <span className="text-[#FF7939]/60 text-[9px] font-black uppercase tracking-wider">{r}</span>
+                                </div>
+                            ))}
+                        </div>
                     </div>
-                </div>
-            )}
+                )
+            })()}
         </div>
     )
 }
