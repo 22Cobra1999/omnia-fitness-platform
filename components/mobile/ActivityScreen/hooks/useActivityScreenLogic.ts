@@ -356,11 +356,25 @@ export function useActivityScreenLogic({ initialTab = "purchased" }: UseActivity
 
     // --- EFFECTS ---
 
-    // Check for Pending Navigation (LocalStorage)
+    // Check for Pending Navigation (LocalStorage or URL)
     useEffect(() => {
         const checkForPendingNavigation = () => {
             if (typeof window === 'undefined') return
 
+            // 1. Check URL Params (Deep Linking / SEO)
+            // This is crucial for the /activity/[id] landing page
+            const params = new URLSearchParams(window.location.search)
+            const activityIdParam = params.get('id')
+
+            if (activityIdParam) {
+                console.log("🔗 Deep Link detected for Activity:", activityIdParam)
+                setSelectedActivityId(activityIdParam)
+                setShowTodayScreen(true)
+                // We don't remove the param immediately to allow bookmarking/refreshing
+                return
+            }
+
+            // 2. Check LocalStorage (Internal Navigation)
             const selectedActivityFromCalendar = localStorage.getItem('selectedActivityFromCalendar')
             if (selectedActivityFromCalendar) {
                 setSelectedActivityId(selectedActivityFromCalendar)

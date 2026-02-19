@@ -1,6 +1,7 @@
 import type React from "react"
 import "./globals.css"
 import type { Metadata } from "next"
+import Script from "next/script"
 import { AuthProvider } from "@/contexts/auth-context"
 import { PopupProvider } from "@/contexts/popup-context"
 import { UserProvider } from "@/contexts/user-context"
@@ -64,6 +65,23 @@ export default function RootLayout({
   return (
     <html lang="en" suppressHydrationWarning className={`${inter.className} ${anton.variable}`}>
       <head>
+        <Script
+          id="organization-schema"
+          type="application/ld+json"
+          dangerouslySetInnerHTML={{
+            __html: JSON.stringify({
+              "@context": "https://schema.org",
+              "@type": "Organization",
+              "name": "OMNIA Fitness",
+              "url": "https://omnia-app.vercel.app",
+              "logo": "https://omnia-app.vercel.app/images/omnia-logo.png",
+              "sameAs": [
+                "https://twitter.com/omniafitness",
+                "https://instagram.com/omniafitness"
+              ]
+            })
+          }}
+        />
         {/* Script para prevenir registro automático de Service Workers en entornos no soportados */}
 
       </head>
