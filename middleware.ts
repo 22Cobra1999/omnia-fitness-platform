@@ -39,7 +39,9 @@ export async function middleware(request: NextRequest) {
     // Permitir acceso a actividades públicas
     path.startsWith("/activities/") ||
     // Permitir acceso a la API de perfil para usuarios no autenticados
-    path.startsWith("/api/profile")
+    path.startsWith("/api/profile") ||
+    path === "/robots.txt" ||
+    path === "/sitemap.xml"
 
   // Si es una ruta pública, permitir acceso sin verificación
   if (isPublicPath) {
