@@ -1,0 +1,7 @@
+User-Agent: *
+Allow: /
+Disallow: /api/
+Disallow: /admin/
+Disallow: /coach/storage/
+
+Sitemap: https://omnia-fitness.vercel.app/sitemap.xml
