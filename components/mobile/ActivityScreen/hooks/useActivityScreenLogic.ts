@@ -383,12 +383,13 @@ export function useActivityScreenLogic({ initialTab = "purchased" }: UseActivity
                 // Determine if ID is an Enrollment UUID or an Activity ID (Number)
                 const isEnrollmentUuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(activityIdParam)
 
-                // Find matching enrollment
-                const matchingEnrollment = enrollments.find(e =>
-                    isEnrollmentUuid
-                        ? String(e.id) === String(activityIdParam)
-                        : String(e.activity_id) === String(activityIdParam)
-                )
+                // Priority: Match by Enrollment ID (works for UUIDs in prod and numeric IDs in local)
+                let matchingEnrollment = enrollments.find(e => String(e.id) === String(activityIdParam))
+
+                // Fallback: Match by Activity ID if not found and not a UUID
+                if (!matchingEnrollment && !isEnrollmentUuid) {
+                    matchingEnrollment = enrollments.find(e => String(e.activity_id) === String(activityIdParam))
+                }
 
                 if (matchingEnrollment) {
                     const progress = enrollmentProgresses[matchingEnrollment.id] || 0
