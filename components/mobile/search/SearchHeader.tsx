@@ -40,6 +40,7 @@ export const SearchHeader: React.FC<SearchHeaderProps> = ({
                             setShowAllCoaches(false)
                             setShowAllActivities(false)
                         }}
+                        aria-label="Volver"
                         className="flex items-center justify-center w-10 h-10 rounded-full bg-white/5 border border-white/10 text-[#FF7939] hover:bg-white/10 transition-all"
                     >
                         <ArrowLeft className="h-5 w-5" />
@@ -87,7 +88,10 @@ export const SearchHeader: React.FC<SearchHeaderProps> = ({
                     {searchTerm && (
                         <div className="flex items-center gap-2 bg-[#FF7939]/10 border border-[#FF7939]/20 px-3 py-1 rounded-full">
                             <span className="text-[11px] font-bold text-[#FF7939]">{searchTerm}</span>
-                            <button onClick={() => handleSearchChange("")}>
+                            <button
+                                onClick={() => handleSearchChange("")}
+                                aria-label="Limpiar búsqueda"
+                            >
                                 <X className="w-3 h-3" />
                             </button>
                         </div>

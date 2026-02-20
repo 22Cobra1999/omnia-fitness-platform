@@ -89,7 +89,12 @@ export function ProductDetails({ product, logic }: ProductDetailsProps) {
                 <div className="text-gray-400 text-xs font-medium leading-relaxed">
                     <p className={!isDescriptionExpanded ? "line-clamp-2" : ""}>{product.description}</p>
                     {product.description?.length > 100 && (
-                        <button onClick={() => setIsDescriptionExpanded(!isDescriptionExpanded)} className="text-[#FF7939] hover:text-[#FF6B00] text-[10px] mt-1 font-bold uppercase tracking-wider">
+                        <button
+                            onClick={() => setIsDescriptionExpanded(!isDescriptionExpanded)}
+                            aria-expanded={isDescriptionExpanded}
+                            aria-label={isDescriptionExpanded ? "Ver menos descripción" : "Leer más descripción"}
+                            className="text-[#FF7939] hover:text-[#FF6B00] text-[10px] mt-1 font-bold uppercase tracking-wider"
+                        >
                             {isDescriptionExpanded ? 'ver menos' : 'leer más'}
                         </button>
                     )}

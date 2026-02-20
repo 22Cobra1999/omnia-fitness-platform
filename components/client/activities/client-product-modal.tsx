@@ -74,46 +74,48 @@ export default function ClientProductModal({
             className="bg-[#0F1012] rounded-3xl w-full max-w-2xl border border-white/5 overflow-hidden mb-10 shadow-2xl"
             onClick={(e) => e.stopPropagation()}
           >
-            {/* Aviso Taller Finalizado */}
-            {product?.type === 'workshop' && isWorkshopInactive && !isDateChangeNoticeClosed && (
-              <div className="bg-[#FF7939]/10 border-b border-[#FF7939]/20 p-4 flex items-center justify-between">
-                <div className="flex items-center gap-3">
-                  <Calendar className="h-5 w-5 text-[#FF7939]" />
-                  <p className="text-sm text-gray-300">Taller finalizado. Necesitas nuevas fechas para reactivar las ventas.</p>
+            <main>
+              {/* Aviso Taller Finalizado */}
+              {product?.type === 'workshop' && isWorkshopInactive && !isDateChangeNoticeClosed && (
+                <div className="bg-[#FF7939]/10 border-b border-[#FF7939]/20 p-4 flex items-center justify-between">
+                  <div className="flex items-center gap-3">
+                    <Calendar className="h-5 w-5 text-[#FF7939]" />
+                    <p className="text-sm text-gray-300">Taller finalizado. Necesitas nuevas fechas para reactivar las ventas.</p>
+                  </div>
+                  <button onClick={() => setIsDateChangeNoticeClosed(true)} aria-label="Cerrar aviso" className="text-gray-500 hover:text-white transition-colors">✕</button>
                 </div>
-                <button onClick={() => setIsDateChangeNoticeClosed(true)} className="text-gray-500 hover:text-white transition-colors">✕</button>
-              </div>
-            )}
+              )}
 
-            <ProductHero product={product} logic={logic} onEdit={onEdit} onDelete={onDelete} showEditButton={showEditButton} />
+              <ProductHero product={product} logic={logic} onEdit={onEdit} onDelete={onDelete} showEditButton={showEditButton} />
 
-            <ProductDetails product={product} logic={logic} />
+              <ProductDetails product={product} logic={logic} />
 
-            {product.type === 'workshop' && (
-              <WorkshopTopics topics={workshopTopics} loading={loadingWorkshopTopics} />
-            )}
+              {product.type === 'workshop' && (
+                <WorkshopTopics topics={workshopTopics} loading={loadingWorkshopTopics} />
+              )}
 
-            <ProductComments
-              comments={comments}
-              loading={loadingComments}
-              rating={product.program_rating}
-              ratingCount={product.total_program_reviews}
-              salesCount={totalSales}
-            />
+              <ProductComments
+                comments={comments}
+                loading={loadingComments}
+                rating={product.program_rating}
+                ratingCount={product.total_program_reviews}
+                salesCount={totalSales}
+              />
 
-            {/* Upgrade Banner for Coaches */}
-            {showEditButton && (exceedsActivities || exceedsWeeks || exceedsStock) && (
-              <div className="p-6">
-                <div className="bg-gradient-to-r from-orange-600/20 to-red-600/20 border border-orange-500/30 rounded-2xl p-4 text-center">
-                  <Zap className="h-6 w-6 text-[#FF7939] mx-auto mb-2" />
-                  <p className="text-white font-bold mb-2">Producto Excede los Límites</p>
-                  <p className="text-gray-400 text-xs mb-4">Pasa a un plan superior para activar este producto.</p>
-                  <Button className="w-full bg-[#FF7939] hover:bg-[#FF6B00] text-white font-bold border-none">Subir de Plan</Button>
+              {/* Upgrade Banner for Coaches */}
+              {showEditButton && (exceedsActivities || exceedsWeeks || exceedsStock) && (
+                <div className="p-6">
+                  <div className="bg-gradient-to-r from-orange-600/20 to-red-600/20 border border-orange-500/30 rounded-2xl p-4 text-center">
+                    <Zap className="h-6 w-6 text-[#FF7939] mx-auto mb-2" />
+                    <p className="text-white font-bold mb-2">Producto Excede los Límites</p>
+                    <p className="text-gray-400 text-xs mb-4">Pasa a un plan superior para activar este producto.</p>
+                    <Button className="w-full bg-[#FF7939] hover:bg-[#FF6B00] text-white font-bold border-none">Subir de Plan</Button>
+                  </div>
                 </div>
-              </div>
-            )}
+              )}
 
-            <div className="h-32" /> {/* Bottom Spacer */}
+              <div className="h-32" /> {/* Bottom Spacer */}
+            </main>
           </motion.div>
 
           <ProductPurchaseSection product={product} logic={logic} />

@@ -5,7 +5,12 @@ import Image from 'next/image'
 import { Button } from '@/components/ui/button'
 import { Switch } from '@/components/ui/switch'
 import { X, Edit, Trash2, Clock, Flame } from 'lucide-react'
-import { UniversalVideoPlayer } from '@/components/shared/video/universal-video-player'
+import dynamic from 'next/dynamic'
+
+const UniversalVideoPlayer = dynamic(() => import('@/components/shared/video/universal-video-player').then(mod => mod.UniversalVideoPlayer), {
+    ssr: false,
+    loading: () => <div className="w-full h-full bg-black/20 animate-pulse flex items-center justify-center text-white/20 text-xs">Cargando reproductor...</div>
+})
 
 interface ProductHeroProps {
     product: any
@@ -72,6 +77,7 @@ export function ProductHero({ product, logic, onEdit, onDelete, showEditButton }
                     <Button
                         variant="ghost" size="sm"
                         onClick={(e) => { e.stopPropagation(); onEdit(product); }}
+                        aria-label="Editar producto"
                         className="bg-black/50 hover:bg-black/70 text-white"
                     >
                         <Edit className="h-4 w-4" />
@@ -81,6 +87,7 @@ export function ProductHero({ product, logic, onEdit, onDelete, showEditButton }
                     <Button
                         variant="ghost" size="sm"
                         onClick={(e) => { e.stopPropagation(); onDelete(product); }}
+                        aria-label="Eliminar producto"
                         className="bg-black/50 hover:bg-black/70 text-red-400"
                     >
                         <Trash2 className="h-4 w-4" />
@@ -89,6 +96,7 @@ export function ProductHero({ product, logic, onEdit, onDelete, showEditButton }
                 <Button
                     variant="ghost" size="sm"
                     onClick={(e) => { e.stopPropagation(); handleClose(); }}
+                    aria-label="Cerrar modal"
                     className="bg-black/50 hover:bg-black/70 text-white"
                 >
                     <X className="h-5 w-5" />
@@ -107,8 +115,12 @@ export function ProductHero({ product, logic, onEdit, onDelete, showEditButton }
                         />
                     ) : getValidImageUrl() ? (
                         <>
-                            <Image src={getValidImageUrl()!} alt={product.title} fill className="object-cover" />
-                            <button onClick={handleVideoClick} className="absolute inset-0 flex items-center justify-center bg-black/30 backdrop-blur-sm transition hover:bg-black/40">
+                            <Image src={getValidImageUrl()!} alt={product.title} fill className="object-cover" priority />
+                            <button
+                                onClick={handleVideoClick}
+                                aria-label="Reproducir video"
+                                className="absolute inset-0 flex items-center justify-center bg-black/30 backdrop-blur-sm transition hover:bg-black/40"
+                            >
                                 <div className="flex items-center justify-center rounded-full bg-white/10 border border-white/30 backdrop-blur-md p-3">
                                     <svg className="w-8 h-8 text-[#FF7939]" fill="currentColor" viewBox="0 0 24 24"><path d="M8 5v14l11-7z" /></svg>
                                 </div>
@@ -122,7 +134,7 @@ export function ProductHero({ product, logic, onEdit, onDelete, showEditButton }
                     )}
                 </div>
             ) : getValidImageUrl() ? (
-                <Image src={getValidImageUrl()!} alt={product.title || 'Imagen'} fill className="object-cover" />
+                <Image src={getValidImageUrl()!} alt={product.title || 'Imagen'} fill className="object-cover" priority />
             ) : (
                 <div className="w-full h-full bg-white/5 flex flex-center flex-col gap-3 justify-center items-center">
                     <div className="w-20 h-20 bg-[#FF7939] rounded-xl flex items-center justify-center"><Flame className="w-10 h-10 text-black" /></div>

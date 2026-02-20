@@ -146,7 +146,13 @@ export const SearchFilters: React.FC<SearchFiltersProps> = ({
                     {selectedObjectives.map(obj => (
                         <span key={obj} className="flex items-center gap-1 bg-[#FF7939]/10 border border-[#FF7939]/20 px-2 py-0.5 rounded-lg text-[9px] font-bold text-[#FF7939]">
                             {obj}
-                            <X className="w-2.5 h-2.5 cursor-pointer" onClick={() => setSelectedObjectives(prev => prev.filter(o => o !== obj))} />
+                            <button
+                                onClick={() => setSelectedObjectives(prev => prev.filter(o => o !== obj))}
+                                aria-label={`Eliminar objetivo ${obj}`}
+                                className="hover:text-red-500 transition-colors"
+                            >
+                                <X className="w-2.5 h-2.5" />
+                            </button>
                         </span>
                     ))}
                 </div>
