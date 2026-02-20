@@ -6,13 +6,13 @@ import { Card, CardContent } from "@/components/ui/card"
 import { useFitnessInsights } from "./useFitnessInsights"
 
 // Sub-components
-import { FitnessMetrics } from "./fitness-insights/FitnessMetrics"
-import { FitnessVideoPlayer } from "./fitness-insights/FitnessVideoPlayer"
-import { FitnessJourney } from "./fitness-insights/FitnessJourney"
-import { FitnessInfo } from "./fitness-insights/FitnessInfo"
-import { FitnessCategories } from "./fitness-insights/FitnessCategories"
-import { FitnessFolders } from "./fitness-insights/FitnessFolders"
-import { FitnessModals } from "./fitness-insights/FitnessModals"
+import { FitnessMetrics } from "./fitness-insights-base/FitnessMetrics"
+import { FitnessVideoPlayer } from "./fitness-insights-base/FitnessVideoPlayer"
+import { FitnessJourney } from "./fitness-insights-base/FitnessJourney"
+import { FitnessInfo } from "./fitness-insights-base/FitnessInfo"
+import { FitnessCategories } from "./fitness-insights-base/FitnessCategories"
+import { FitnessFolders } from "./fitness-insights-base/FitnessFolders"
+import { FitnessModals } from "./fitness-insights-base/FitnessModals"
 
 export function FitnessInsights() {
   const { state, actions } = useFitnessInsights()

@@ -2,11 +2,11 @@ import React, { useEffect } from "react"
 import { AnimatePresence } from "framer-motion"
 import type { ConditionalRule } from "../conditional-rules-data"
 import { useRuleEditorLogic } from "./hooks/useRuleEditorLogic"
-import { RuleProgress } from "./RuleEditor/RuleProgress"
-import { RuleStepNameType } from "./RuleEditor/RuleStepNameType"
-import { RuleStepScope } from "./RuleEditor/RuleStepScope"
-import { RuleStepCriteria } from "./RuleEditor/RuleStepCriteria"
-import { RuleStepAdjustments } from "./RuleEditor/RuleStepAdjustments"
+import { RuleProgress } from "./RuleEditorBase/RuleProgress"
+import { RuleStepNameType } from "./RuleEditorBase/RuleStepNameType"
+import { RuleStepScope } from "./RuleEditorBase/RuleStepScope"
+import { RuleStepCriteria } from "./RuleEditorBase/RuleStepCriteria"
+import { RuleStepAdjustments } from "./RuleEditorBase/RuleStepAdjustments"
 
 interface RuleEditorProps {
     currentStep: number // Controlled by parent

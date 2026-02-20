@@ -3,9 +3,9 @@
 import React from "react"
 import { Edit, ChevronRight } from "lucide-react"
 import { useGoalsProgress } from "./useGoalsProgress"
-import { ActivityTagCard } from "./goals-progress/ActivityTagCard"
-import { PersonalBestCard } from "./goals-progress/PersonalBestCard"
-import { GoalsModals } from "./goals-progress/GoalsModals"
+import { ActivityTagCard } from "./goals-progress-base/ActivityTagCard"
+import { PersonalBestCard } from "./goals-progress-base/PersonalBestCard"
+import { GoalsModals } from "./goals-progress-base/GoalsModals"
 
 export function GoalsProgress() {
   const { state, actions } = useGoalsProgress()
