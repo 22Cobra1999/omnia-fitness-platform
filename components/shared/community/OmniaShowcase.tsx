@@ -280,15 +280,78 @@ export function OmniaShowcase() {
                     {/* 2-Column Product Display */}
                     <div className="grid grid-cols-2 gap-4 items-stretch min-h-[420px] relative">
                         {/* Fake Floating Comments over the gutter */}
-                        <div className="absolute top-[40%] left-[30%] -translate-x-1/2 -translate-y-1/2 flex flex-col gap-2 z-20 pointer-events-none">
-                            <div className="bg-[#1e1e1e] backdrop-blur-md rounded-xl p-2 border border-white/10 shadow-2xl scale-[0.85] origin-center -ml-8">
-                                <div className="flex gap-0.5 text-[#FF7939] mb-0.5"><Star size={8} fill="currentColor" /><Star size={8} fill="currentColor" /><Star size={8} fill="currentColor" /><Star size={8} fill="currentColor" /><Star size={8} fill="currentColor" /></div>
-                                <p className="text-[9px] text-white font-semibold italic">"Brillante."</p>
-                            </div>
-                            <div className="bg-[#1e1e1e] backdrop-blur-md rounded-xl p-2 border border-white/10 shadow-2xl scale-[0.75] origin-center opacity-80 mt-1 ml-4">
-                                <div className="flex gap-0.5 text-[#FF7939] mb-0.5"><Star size={8} fill="currentColor" /><Star size={8} fill="currentColor" /><Star size={8} fill="currentColor" /><Star size={8} fill="currentColor" /><Star size={8} fill="currentColor" /></div>
-                                <p className="text-[9px] text-white font-semibold italic">"Muy superior."</p>
-                            </div>
+                        <div className="absolute top-1/2 left-[32%] -translate-x-1/2 -translate-y-1/2 w-0 h-full z-20 pointer-events-none flex items-center justify-center">
+                            <AnimatePresence mode="popLayout">
+                                <motion.div
+                                    key={`${filterType}-${filterCategory}`}
+                                    initial="hidden"
+                                    animate="visible"
+                                    exit="exit"
+                                    variants={{
+                                        hidden: { opacity: 0 },
+                                        visible: { opacity: 1, transition: { staggerChildren: 0.15, delayChildren: 0.2 } },
+                                        exit: { opacity: 0, transition: { duration: 0.2 } }
+                                    }}
+                                    className="relative w-full h-full"
+                                >
+                                    {/* Select reviews based on category/type */}
+                                    {(() => {
+                                        const reviewsSet = filterCategory === 'nutricion'
+                                            ? filterType === 'workshop'
+                                                ? [
+                                                    { text: "¡Me encantó la charla!", top: "20%", left: "-80px", scale: 1.1 },
+                                                    { text: "Súper claro todo.", top: "45%", left: "40px", scale: 1.0 },
+                                                    { text: "10/10.", top: "70%", left: "-50px", scale: 0.95 }
+                                                ]
+                                                : filterType === 'document'
+                                                    ? [
+                                                        { text: "Muy fácil de leer.", top: "25%", left: "-60px", scale: 1.05 },
+                                                        { text: "Recetas increíbles.", top: "50%", left: "30px", scale: 1.15 },
+                                                        { text: "Me cambió la vida.", top: "80%", left: "-40px", scale: 0.9 }
+                                                    ]
+                                                    : [
+                                                        { text: "Dieta top.", top: "15%", left: "-90px", scale: 1.2 },
+                                                        { text: "Resultados reales.", top: "40%", left: "10px", scale: 1.05 },
+                                                        { text: "Cero hambre.", top: "65%", left: "-60px", scale: 1.0 },
+                                                        { text: "Riquísimo.", top: "85%", left: "20px", scale: 0.85 }
+                                                    ]
+                                            : filterType === 'workshop'
+                                                ? [
+                                                    { text: "Técnica impecable.", top: "25%", left: "-70px", scale: 1.1 },
+                                                    { text: "Aprendí muchísimo.", top: "55%", left: "30px", scale: 1.0 },
+                                                    { text: "El coach es un genio.", top: "80%", left: "-50px", scale: 0.95 }
+                                                ]
+                                                : filterType === 'document'
+                                                    ? [
+                                                        { text: "La rutina perfecta.", top: "20%", left: "-80px", scale: 1.05 },
+                                                        { text: "Directo al grano.", top: "50%", left: "50px", scale: 1.1 },
+                                                        { text: "Excelente guía.", top: "75%", left: "-40px", scale: 0.95 }
+                                                    ]
+                                                    : [
+                                                        { text: "Programa brutal.", top: "15%", left: "-100px", scale: 1.25 },
+                                                        { text: "Mis mejores marcas.", top: "35%", left: "20px", scale: 1.1 },
+                                                        { text: "Muy superior.", top: "60%", left: "-60px", scale: 1.05 },
+                                                        { text: "Brillante.", top: "85%", left: "10px", scale: 0.9 }
+                                                    ]
+
+                                        return reviewsSet.map((rev, idx) => (
+                                            <motion.div
+                                                key={idx}
+                                                variants={{
+                                                    hidden: { opacity: 0, scale: 0.5, x: -20, y: 10 },
+                                                    visible: { opacity: 1, scale: rev.scale, x: 0, y: 0, transition: { type: 'spring', stiffness: 200, damping: 15 } },
+                                                    exit: { opacity: 0, scale: 0.8, x: 20, transition: { duration: 0.2 } }
+                                                }}
+                                                style={{ position: 'absolute', top: rev.top, left: rev.left, zIndex: 10 + idx }}
+                                                className="bg-[#1e1e1e] backdrop-blur-md rounded-2xl p-3 border border-white/10 shadow-2xl origin-left"
+                                            >
+                                                <div className="flex gap-0.5 text-[#FF7939] mb-1"><Star size={10} fill="currentColor" /><Star size={10} fill="currentColor" /><Star size={10} fill="currentColor" /><Star size={10} fill="currentColor" /><Star size={10} fill="currentColor" /></div>
+                                                <p className="text-[12px] text-white font-semibold italic">"{rev.text}"</p>
+                                            </motion.div>
+                                        ))
+                                    })()}
+                                </motion.div>
+                            </AnimatePresence>
                         </div>
 
                         <div className="relative z-10">
