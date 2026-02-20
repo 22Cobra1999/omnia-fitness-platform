@@ -41,6 +41,15 @@ export function ProductDetails({ product, logic }: ProductDetailsProps) {
         }
     }
 
+    const getDifficultyUtensils = (diff?: string) => {
+        switch (diff?.toLowerCase()) {
+            case 'beginner': return <UtensilsCrossed className="w-4 h-4 text-orange-300" />
+            case 'intermediate': return <div className="flex gap-1"><UtensilsCrossed className="w-4 h-4 text-[#FF7939]" /><UtensilsCrossed className="w-4 h-4 text-[#FF7939]" /></div>
+            case 'advanced': return <div className="flex gap-1"><UtensilsCrossed className="w-4 h-4 text-red-500" /><UtensilsCrossed className="w-4 h-4 text-red-500" /><UtensilsCrossed className="w-4 h-4 text-red-500" /></div>
+            default: return <UtensilsCrossed className="w-4 h-4 text-orange-300" />
+        }
+    }
+
     const getDietTypeDisplay = (diet?: string) => {
         if (!diet) return null
         const friendly = {
@@ -117,12 +126,10 @@ export function ProductDetails({ product, logic }: ProductDetailsProps) {
 
                 <div className="flex flex-col gap-0.5 p-2.5">
                     <div className="h-3 flex items-center justify-start mb-0.5 opacity-80">
-                        {['nutricion', 'nutrition'].includes(product.categoria) ? getDietTypeDisplay(product.dieta) : getDifficultyFires(difficulty)}
+                        {['nutricion', 'nutrition'].includes(product.categoria) ? getDifficultyUtensils(difficulty) : getDifficultyFires(difficulty)}
                     </div>
                     <div className="text-gray-500 text-[9px] font-bold uppercase tracking-widest h-3 flex items-end">
-                        {!['nutricion', 'nutrition'].includes(product.categoria) && (
-                            difficulty === 'beginner' ? 'Principiante' : difficulty === 'advanced' ? 'Avanzado' : 'Intermedio'
-                        )}
+                        {difficulty === 'beginner' ? 'Principiante' : difficulty === 'advanced' ? 'Avanzado' : 'Intermedio'}
                     </div>
                 </div>
 

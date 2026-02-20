@@ -51,7 +51,8 @@ export default function ClientProductModal({
     loadingComments,
     exceedsActivities,
     exceedsWeeks,
-    exceedsStock
+    exceedsStock,
+    totalSales
   } = logic
 
   if (!isOpen || !product) return null
@@ -97,6 +98,7 @@ export default function ClientProductModal({
               loading={loadingComments}
               rating={product.program_rating}
               ratingCount={product.total_program_reviews}
+              salesCount={totalSales}
             />
 
             {/* Upgrade Banner for Coaches */}

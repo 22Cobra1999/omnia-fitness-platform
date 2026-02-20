@@ -61,6 +61,7 @@ export function useClientProductLogic({
     const [planningStatsLoading, setPlanningStatsLoading] = useState(false)
     const [refreshTrigger, setRefreshTrigger] = useState(0)
     const [purchaseStatus, setPurchaseStatus] = useState<any>(null)
+    const [totalSales, setTotalSales] = useState<number>(0)
 
     const abortControllerRef = useRef<AbortController | null>(null)
     const planLimitsAbortControllerRef = useRef<AbortController | null>(null)
@@ -93,6 +94,7 @@ export function useClientProductLogic({
             if (response.ok && result.success) {
                 setPurchaseStatus(result.data)
                 setIsAlreadyPurchased(!result.data.hasNeverPurchased)
+                setTotalSales(result.data.totalSales || 0)
             } else {
                 const purchasedActivities = JSON.parse(localStorage.getItem('purchasedActivities') || '[]')
                 setIsAlreadyPurchased(purchasedActivities.includes(product.id))
@@ -394,6 +396,7 @@ export function useClientProductLogic({
         weeksFromPlanning,
         planningStatsLoading,
         purchaseStatus,
+        totalSales,
         setIsExpanded,
         setIsVideoRevealed,
         setIsDescriptionExpanded,

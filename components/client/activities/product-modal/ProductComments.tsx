@@ -9,20 +9,23 @@ interface ProductCommentsProps {
     loading: boolean
     rating?: number
     ratingCount?: number
+    salesCount?: number
 }
 
-export function ProductComments({ comments, loading, rating, ratingCount }: ProductCommentsProps) {
+export function ProductComments({ comments, loading, rating, ratingCount, salesCount }: ProductCommentsProps) {
     if (loading) return <div className="text-gray-400 text-sm p-6">Cargando comentarios...</div>
 
     return (
         <div className="px-6 border-t border-gray-800 pt-4 space-y-4">
             <div className="flex items-center justify-between mb-3">
-                <h4 className="text-white font-semibold">Comentarios</h4>
+                <div className="flex items-center gap-3">
+                    <h4 className="text-white font-semibold">Comentarios <span className="text-gray-500 font-normal">({ratingCount ?? comments.length})</span></h4>
+                    <span className="text-gray-500 text-xs font-medium">Ventas {salesCount || 0}</span>
+                </div>
                 {rating && rating > 0 && (
                     <div className="flex items-center space-x-1.5">
                         <Star className="h-4 w-4 text-yellow-400 fill-current" />
                         <span className="text-white font-medium text-sm">{rating.toFixed(1)}</span>
-                        <span className="text-gray-400 text-xs font-normal">({ratingCount ?? comments.length})</span>
                     </div>
                 )}
             </div>

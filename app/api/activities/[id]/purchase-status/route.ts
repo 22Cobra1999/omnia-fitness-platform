@@ -100,13 +100,25 @@ export async function GET(
     }
 
 
+    // Obtener recuento total de ventas (enrollments) para esta actividad
+    const { count: totalSales, error: salesError } = await supabase
+      .from('activity_enrollments')
+      .select('*', { count: 'exact', head: true })
+      .eq('activity_id', activityId)
+
+    if (salesError) {
+      console.error('❌ [purchase-status] Error fetching total sales:', salesError)
+      // No fallamos por esto, solo logueamos
+    }
+
     return NextResponse.json({
       success: true,
       data: {
         activityId,
         userId: user.id,
         ...purchaseStatus,
-        enrollments: enrollments || []
+        enrollments: enrollments || [],
+        totalSales: totalSales || 0
       }
     })
 

@@ -238,6 +238,28 @@ const ActivityCard: React.FC<ActivityCardProps> = ({
     }
   }
 
+  const getDifficultyUtensils = (difficulty?: string) => {
+    switch (difficulty?.toLowerCase()) {
+      case 'beginner': return <UtensilsCrossed className="w-4 h-4 text-orange-300" />
+      case 'intermediate':
+        return (
+          <div className="flex gap-1">
+            <UtensilsCrossed className="w-4 h-4 text-[#FF7939]" />
+            <UtensilsCrossed className="w-4 h-4 text-[#FF7939]" />
+          </div>
+        )
+      case 'advanced':
+        return (
+          <div className="flex gap-1">
+            <UtensilsCrossed className="w-4 h-4 text-red-500" />
+            <UtensilsCrossed className="w-4 h-4 text-red-500" />
+            <UtensilsCrossed className="w-4 h-4 text-red-500" />
+          </div>
+        )
+      default: return <UtensilsCrossed className="w-4 h-4 text-orange-300" />
+    }
+  }
+
   const getFriendlyDietName = (diet: string) => {
     switch (diet.toLowerCase()) {
       case 'baja_carbohidratos': return 'Baja en carbohidratos'
@@ -358,10 +380,11 @@ const ActivityCard: React.FC<ActivityCardProps> = ({
 
           <div className="flex items-center justify-between mb-4">
             <div className="flex items-center gap-2 text-[#FF7939]">
-              {activity.categoria === 'nutricion' || activity.categoria === 'nutrition' ?
-                getDietTypeDisplay(((activity as any).dieta ?? undefined) as string | undefined) :
+              {activity.categoria === 'nutricion' || activity.categoria === 'nutrition' ? (
+                <div className="flex items-center gap-0.5 opacity-80">{getDifficultyUtensils(activity.difficulty || undefined)}</div>
+              ) : (
                 <div className="flex items-center gap-0.5 opacity-80">{getDifficultyFires(activity.difficulty || undefined)}</div>
-              }
+              )}
             </div>
             <div className="flex items-center justify-center flex-1">
               {activity.type === 'workshop' && (() => {
@@ -419,8 +442,8 @@ const ActivityCard: React.FC<ActivityCardProps> = ({
             ) : <div className="h-6"></div>}
           </div>
 
-          <div className="border-t border-gray-700/30 text-center mt-auto pt-3">
-            <span className="text-white/90 font-bold text-xl tracking-tight">
+          <div className="border-t border-gray-700/30 text-center mt-auto pt-2 pb-14">
+            <span className="text-white/85 font-bold text-xl tracking-tight">
               {formatPrice(activity.price)}
             </span>
           </div>
