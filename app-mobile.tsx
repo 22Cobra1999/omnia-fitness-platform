@@ -419,12 +419,11 @@ function MobileAppContent({ initialTab, initialCategoryId, initialActivityId, in
 
           {/* OMNIA Logo - Morphing from Hero */}
           <motion.div
-            className="absolute left-1/2 origin-top"
+            className="absolute left-1/2"
             style={{
               x: "-50%",
               scale: headerState.logoScale,
-              y: headerState.logoY,
-              transformOrigin: "top center"
+              y: headerState.logoY
             }}
           >
             <OmniaLogoText size="text-3xl" className={activeTab === 'community' && headerState.logoScale > 1.5 ? "drop-shadow-[0_20px_25px_rgba(255,121,57,0.15)] filter" : ""} />
