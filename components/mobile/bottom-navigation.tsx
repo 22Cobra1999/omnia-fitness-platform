@@ -131,6 +131,7 @@ export function BottomNavigation({ activeTab, setActiveTab }: BottomNavigationPr
               activeTab === "community" ? "text-[#FF7939]" : "text-gray-400",
             )}
             onClick={() => handleTabClick("community")}
+            aria-label="Community"
           >
             <div className="relative -top-5">
               <div className="bg-[#FF7939] rounded-full p-3 shadow-lg">
@@ -199,6 +200,7 @@ export function BottomNavigation({ activeTab, setActiveTab }: BottomNavigationPr
               activeTab === "community" ? "text-[#FF7939]" : "text-gray-400",
             )}
             onClick={() => handleTabClick("community")}
+            aria-label="Community"
           >
             <div className="relative -top-5">
               <div className="bg-[#FF7939] rounded-full p-3 shadow-lg">

@@ -9,6 +9,7 @@ import { DebugLink } from '@/components/shared/admin/debug-link'
 import { AsyncErrorBoundary } from '@/components/shared/misc/error-boundary'
 import { LogThrottleIndicator } from '@/components/shared/admin/log-throttle-monitor'
 import { ConsoleSilencer } from '@/components/shared/misc/console-silencer'
+import { LazyMotion, domAnimation } from 'framer-motion'
 
 
 
@@ -88,17 +89,19 @@ export default function RootLayout({
       <body>
         {/* Silenciar logs en cliente (excepto errores) */}
         <ConsoleSilencer />
-        <AsyncErrorBoundary>
-          <PopupProvider>
-            <AuthProvider>
-              <UserProvider>
-                {children}
-                <DebugLink />
-                <LogThrottleIndicator />
-              </UserProvider>
-            </AuthProvider>
-          </PopupProvider>
-        </AsyncErrorBoundary>
+        <LazyMotion features={domAnimation}>
+          <AsyncErrorBoundary>
+            <PopupProvider>
+              <AuthProvider>
+                <UserProvider>
+                  {children}
+                  <DebugLink />
+                  <LogThrottleIndicator />
+                </UserProvider>
+              </AuthProvider>
+            </PopupProvider>
+          </AsyncErrorBoundary>
+        </LazyMotion>
       </body>
     </html>
   )

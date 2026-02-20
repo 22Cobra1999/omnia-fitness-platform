@@ -1,7 +1,8 @@
 "use client"
 
-import { useState, useEffect, Suspense } from "react"
+import { useState, useEffect, Suspense, useRef } from "react"
 import { useSearchParams } from "next/navigation"
+import { motion, AnimatePresence } from "framer-motion"
 import ErrorBoundary from '@/components/shared/misc/ErrorBoundary'
 import { useErrorHandler } from '@/components/shared/misc/error-boundary'
 import { BottomNavigation } from "@/components/mobile/bottom-navigation"
@@ -298,6 +299,38 @@ function MobileAppContent({ initialTab, initialCategoryId, initialActivityId, in
     }
   }, [])
 
+  // Scroll listener for header logo sync (mostly for Community Showcase)
+  const [headerLogoOpacity, setHeaderLogoOpacity] = useState(activeTab === 'community' ? 0 : 1)
+  const scrollRef = useRef<HTMLDivElement>(null)
+
+  useEffect(() => {
+    if (activeTab !== 'community') {
+      setHeaderLogoOpacity(1)
+      return
+    }
+
+    const handleScroll = () => {
+      if (!scrollRef.current) return
+      const scrollTop = scrollRef.current.scrollTop
+      // Fade in header logo between 50px and 120px of scroll
+      const opacity = Math.min(1, Math.max(0, (scrollTop - 50) / 70))
+      setHeaderLogoOpacity(opacity)
+    }
+
+    const container = scrollRef.current
+    if (container) {
+      container.addEventListener('scroll', handleScroll)
+      // Initial check
+      handleScroll()
+    }
+
+    return () => {
+      if (container) {
+        container.removeEventListener('scroll', handleScroll)
+      }
+    }
+  }, [activeTab])
+
   const renderScreen = () => {
     switch (activeTab) {
       // Coach screens
@@ -370,10 +403,14 @@ function MobileAppContent({ initialTab, initialCategoryId, initialActivityId, in
             <SettingsIcon />
           </div>
 
-          {/* OMNIA Logo */}
-          <div className="absolute left-1/2 transform -translate-x-1/2">
+          {/* OMNIA Logo - With dynamic opacity */}
+          <motion.div
+            className="absolute left-1/2 transform -translate-x-1/2"
+            animate={{ opacity: headerLogoOpacity }}
+            transition={{ duration: 0.2 }}
+          >
             <OmniaLogoText size="text-3xl" />
-          </div>
+          </motion.div>
 
           {/* Messages Icon */}
           <div className="flex items-center">
@@ -381,7 +418,12 @@ function MobileAppContent({ initialTab, initialCategoryId, initialActivityId, in
           </div>
         </div>
 
-        <div className="flex-1 overflow-y-auto overflow-x-hidden pt-14 pb-16">{renderScreen()}</div>
+        <div
+          ref={scrollRef}
+          className="flex-1 overflow-y-auto overflow-x-hidden pt-14 pb-16"
+        >
+          {renderScreen()}
+        </div>
         <BottomNavigation activeTab={activeTab} setActiveTab={setActiveTab} />
 
         {/* Auth Popup */}

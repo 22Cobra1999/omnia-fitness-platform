@@ -55,6 +55,7 @@ export const ActivityDetailView: React.FC<ActivityDetailViewProps> = ({
             <div style={{ padding: '12px 20px 0', zIndex: 10, display: 'flex', alignItems: 'center' }}>
                 <button
                     onClick={onClose}
+                    aria-label="Cerrar detalle"
                     style={{
                         width: 40, height: 40, display: 'flex', alignItems: 'center', justifyContent: 'center',
                         background: 'rgba(255,255,255,0.05)', border: 'none', borderRadius: 12, cursor: 'pointer',
@@ -87,6 +88,7 @@ export const ActivityDetailView: React.FC<ActivityDetailViewProps> = ({
                     <div className="flex justify-center mt-4 mb-4">
                         <button
                             onClick={() => setIsVideoPanelExpanded(true)}
+                            aria-label="Reproducir video de técnica"
                             style={{
                                 width: 64, height: 64, borderRadius: '50%', background: 'rgba(255, 106, 26, 0.2)',
                                 border: '2px solid rgba(255, 106, 26, 0.5)', display: 'flex', alignItems: 'center', justifyContent: 'center',
@@ -117,6 +119,7 @@ export const ActivityDetailView: React.FC<ActivityDetailViewProps> = ({
                             />
                             <button
                                 onClick={() => setIsVideoPanelExpanded(false)}
+                                aria-label="Cerrar reproductor de video"
                                 className="absolute top-2 right-2 p-1 bg-black/50 rounded-full text-white/70 hover:text-white"
                             >
                                 <X size={20} />

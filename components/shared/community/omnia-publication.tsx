@@ -18,7 +18,7 @@ export function OmniaPublication({ post }: { post: Post }) {
               <p className="font-semibold text-white">{post.user.name}</p>
               <p className="text-sm text-gray-400">@{post.user.username}</p>
             </div>
-            <Button variant="ghost" size="icon">
+            <Button variant="ghost" size="icon" aria-label="Opciones de publicación">
               <MoreHorizontal className="h-5 w-5 text-gray-400" />
             </Button>
           </div>

@@ -128,7 +128,7 @@ export function PurchasedActivityCardContent({
                         </div>
                     )}
 
-                    {daysInfo.expirationDate && (
+                    {daysInfo.expirationDate instanceof Date && !isNaN(daysInfo.expirationDate.getTime()) && (
                         <div className="flex items-center justify-between text-[10px]">
                             <div className="flex items-center gap-1 text-gray-500 font-bold uppercase tracking-tighter">
                                 <Clock className="w-2.5 h-2.5" />
