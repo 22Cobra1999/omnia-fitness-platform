@@ -70,7 +70,7 @@ export async function GET(
 
       // Verificar si tiene alguna compra activa
       const activeEnrollment = enrollments.find((e: any) =>
-        e.status === 'activa' || e.status === 'active' || e.status === 'enrolled' || e.status === 'pending'
+        e.status === 'activa' || e.status === 'active' || e.status === 'enrolled'
       )
 
       if (activeEnrollment) {

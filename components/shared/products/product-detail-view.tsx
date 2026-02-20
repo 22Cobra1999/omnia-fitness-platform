@@ -75,7 +75,7 @@ export function ProductDetailView({ activityId }: ProductDetailViewProps) {
             .select("id")
             .eq("client_id", user.user.id)
             .eq("activity_id", activityId)
-            .in("status", ["active", "enrolled", "pending"])
+            .in("status", ["active", "enrolled"])
             .single()
 
           if (enrollmentError && enrollmentError.code !== "PGRST116") {
