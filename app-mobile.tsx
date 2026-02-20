@@ -299,27 +299,36 @@ function MobileAppContent({ initialTab, initialCategoryId, initialActivityId, in
     }
   }, [])
 
-  // Scroll listener for header logo sync (mostly for Community Showcase)
-  const [headerLogoOpacity, setHeaderLogoOpacity] = useState(activeTab === 'community' ? 0 : 1)
+  // Scroll listener for header logo sync
+  const [headerState, setHeaderState] = useState({
+    bgOpacity: activeTab === 'community' ? 0 : 1,
+    logoScale: activeTab === 'community' ? 2.5 : 1,
+    logoY: activeTab === 'community' ? 120 : 0
+  })
   const scrollRef = useRef<HTMLDivElement>(null)
 
   useEffect(() => {
     if (activeTab !== 'community') {
-      setHeaderLogoOpacity(1)
+      setHeaderState({ bgOpacity: 1, logoScale: 1, logoY: 0 })
       return
     }
 
     const handleScroll = () => {
       if (!scrollRef.current) return
       const scrollTop = scrollRef.current.scrollTop
-      // Fade in header logo between 50px and 120px of scroll
-      const opacity = Math.min(1, Math.max(0, (scrollTop - 50) / 70))
-      setHeaderLogoOpacity(opacity)
+
+      const bgOpacity = Math.min(1, Math.max(0, (scrollTop - 50) / 70))
+      // Decrease scale from 2.5 to 1 smoothly over 160px of scroll
+      const logoScale = Math.max(1, 2.5 - (scrollTop / 160) * 1.5)
+      // Move Y from 120 to 0 smoothly over 160px of scroll
+      const logoY = Math.max(0, 120 - scrollTop * (120 / 160))
+
+      setHeaderState({ bgOpacity, logoScale, logoY })
     }
 
     const container = scrollRef.current
     if (container) {
-      container.addEventListener('scroll', handleScroll)
+      container.addEventListener('scroll', handleScroll, { passive: true })
       // Initial check
       handleScroll()
     }
@@ -397,26 +406,35 @@ function MobileAppContent({ initialTab, initialCategoryId, initialActivityId, in
 
       <div className="flex flex-col h-screen bg-black">
         {/* Header fijo */}
-        <div className="fixed top-0 left-0 right-0 z-[1000] bg-black rounded-b-[32px] px-5 py-3 flex justify-between items-center">
+        <motion.div
+          className="fixed top-0 left-0 right-0 z-[1000] rounded-b-[32px] px-5 py-3 flex justify-between items-center"
+          style={{
+            backgroundColor: `rgba(0, 0, 0, ${headerState.bgOpacity})`
+          }}
+        >
           {/* Settings Icon */}
           <div className="flex items-center">
             <SettingsIcon />
           </div>
 
-          {/* OMNIA Logo - With dynamic opacity */}
+          {/* OMNIA Logo - Morphing from Hero */}
           <motion.div
-            className="absolute left-1/2 transform -translate-x-1/2"
-            animate={{ opacity: headerLogoOpacity }}
-            transition={{ duration: 0.2 }}
+            className="absolute left-1/2 origin-top"
+            style={{
+              x: "-50%",
+              scale: headerState.logoScale,
+              y: headerState.logoY,
+              transformOrigin: "top center"
+            }}
           >
-            <OmniaLogoText size="text-3xl" />
+            <OmniaLogoText size="text-3xl" className={activeTab === 'community' && headerState.logoScale > 1.5 ? "drop-shadow-[0_20px_25px_rgba(255,121,57,0.15)] filter" : ""} />
           </motion.div>
 
           {/* Messages Icon */}
           <div className="flex items-center">
             <MessagesIcon />
           </div>
-        </div>
+        </motion.div>
 
         <div
           ref={scrollRef}

@@ -2,7 +2,7 @@
 
 import React from 'react'
 import Image from 'next/image'
-import { Star, Calendar, Users, Globe, Dumbbell, Zap, Lock, Unlock, UtensilsCrossed, Flame, MapPin, RotateCcw, Pause, MonitorSmartphone, Video, FileText } from 'lucide-react'
+import { Star, Calendar, Users, User, Globe, Dumbbell, Zap, Lock, Unlock, UtensilsCrossed, Flame, MapPin, RotateCcw, Pause, MonitorSmartphone, Video, FileText, Scale } from 'lucide-react'
 import type { Activity } from '@/types/activity'
 
 interface ActivityCardProps {
@@ -199,7 +199,7 @@ const ActivityCard: React.FC<ActivityCardProps> = ({
       case 'online': return <Globe className="w-5 h-5" />
       case 'presencial': return <MapPin className="w-5 h-5" />
       case 'híbrido':
-      case 'hibrido': return <MonitorSmartphone className="w-5 h-5" />
+      case 'hibrido': return <Scale className="w-5 h-5" />
       default: return <Globe className="w-5 h-5" />
     }
   }
@@ -390,10 +390,14 @@ const ActivityCard: React.FC<ActivityCardProps> = ({
               {activity.type === 'workshop' && (() => {
                 const workshopMode = (activity as any).workshop_mode || 'grupal'
                 return workshopMode === 'individual' ? (
-                  <span className="bg-[#FF7939]/10 backdrop-blur-sm text-[#FF7939] text-[9px] px-2 py-1 rounded-full font-black border border-[#FF7939]/30 shadow-[0_0_10px_rgba(255,121,57,0.2)]">1:1</span>
+                  <div className="flex items-center gap-1.5 text-[#FF7939]">
+                    <User className="h-4 w-4" />
+                    <span className="text-[9px] font-black uppercase">1:1</span>
+                  </div>
                 ) : (
-                  <div className="relative flex items-center justify-center text-red-500 mr-2">
+                  <div className="flex items-center gap-1.5 text-red-500">
                     <Users className="h-4 w-4" />
+                    <span className="text-[9px] font-black uppercase">Grupal</span>
                   </div>
                 )
               })()}

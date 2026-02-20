@@ -2,7 +2,7 @@
 
 import React from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
-import { Flame, Clock, Play, GraduationCap, Utensils, Video, Zap, Globe, Users, Bell, Plus, Minus, Star, UtensilsCrossed } from 'lucide-react'
+import { Flame, Clock, Play, GraduationCap, Utensils, Video, Zap, Globe, Users, Bell, Plus, Minus, Star, UtensilsCrossed, Layers, ShieldAlert } from 'lucide-react'
 import { cn } from '@/lib/utils/utils'
 
 /**
@@ -139,54 +139,112 @@ export const ShowcaseIngredients = () => {
  * ShowcaseConcept: Interactive concept section (Intensity, Modality, Objectives)
  */
 export const ShowcaseConcept = () => {
+    const [intensity, setIntensity] = React.useState(2)
+    const [modality, setModality] = React.useState<'online' | 'hybrid' | 'presencial'>('online')
+
+    const intensityLegend = [
+        "Nivel 1: Recuperación y Movilidad",
+        "Nivel 2: Entrenamiento estándar OMNIA",
+        "Nivel 3: Alta Intensidad / Competencia"
+    ]
+
+    const modalityLegend = {
+        online: "Escalabilidad Total: Rutinas y seguimiento 100% digital.",
+        hybrid: "Lo mejor de ambos mundos: Presencial + soporte OMNIA.",
+        presencial: "Experiencia Premium: Entrenamiento directo con tu coach."
+    }
+
     return (
-        <div className="w-full flex flex-col gap-6">
-            <div className="flex flex-col gap-4">
-                <div className="flex flex-col gap-1">
+        <div className="w-full flex flex-col gap-5">
+            <div className="flex flex-col gap-2">
+                <div className="flex flex-col gap-0.5">
                     <span className="text-[10px] font-black text-[#FF7939] uppercase tracking-[0.2em] italic">Concepto</span>
-                    <h2 className="text-3xl font-black text-white uppercase tracking-tighter leading-none italic">
-                        Personalización<br />Extrema
+                    <h2 className="text-xl font-black text-white uppercase tracking-tighter leading-none italic">
+                        Personalización Extrema
                     </h2>
                 </div>
-                <p className="text-sm text-white/40 font-medium leading-relaxed max-w-[280px]">
-                    Cada cliente es un mundo. Por eso OMNIA se adapta a cada objetivo, restricción y preferencia.
+                <p className="text-[10px] text-white/30 font-medium leading-tight max-w-[260px]">
+                    OMNIA se adapta a cada objetivo, restricción y preferencia. Prueba la interactividad debajo.
                 </p>
             </div>
 
-            <div className="space-y-4">
-                {/* Objectives */}
-                <div className="flex items-start gap-4 p-5 rounded-[24px] bg-white/[0.02] border border-white/5 group hover:bg-white/[0.04] transition-all">
-                    <div className="w-10 h-10 rounded-full bg-[#FF7939]/10 flex items-center justify-center border border-[#FF7939]/20 shrink-0">
-                        <Zap className="h-5 w-5 text-[#FF7939]" fill="currentColor" />
-                    </div>
-                    <div className="flex flex-col gap-1">
-                        <span className="text-xs font-black text-white uppercase italic">Objetivos Claros</span>
-                        <div className="flex flex-wrap gap-1.5 mt-1">
-                            {['Masa Muscular', 'Resistencia', 'Flexibilidad'].map((tag) => (
-                                <span key={tag} className="px-2 py-0.5 rounded-full bg-white/5 border border-white/10 text-[9px] font-bold text-white/40 uppercase">
-                                    {tag}
-                                </span>
+            <div className="grid grid-cols-1 gap-4">
+                {/* Intensity Interactive */}
+                <div className="flex flex-col gap-2 p-4 rounded-2xl bg-white/[0.02] border border-white/5">
+                    <div className="flex items-center justify-between">
+                        <span className="text-[9px] font-black text-white uppercase italic">Intensidad Sugerida</span>
+                        <div className="flex gap-1.5">
+                            {[1, 2, 3].map((lvl) => (
+                                <button
+                                    key={lvl}
+                                    onClick={() => setIntensity(lvl)}
+                                    className="transition-transform active:scale-90"
+                                >
+                                    <Zap
+                                        className={cn(
+                                            "h-4 w-4 transition-all",
+                                            intensity >= lvl ? "text-[#FF7939] drop-shadow-[0_0_8px_rgba(255,121,57,0.4)]" : "text-white/10"
+                                        )}
+                                        fill={intensity >= lvl ? "currentColor" : "none"}
+                                    />
+                                </button>
                             ))}
                         </div>
                     </div>
+                    <span className="text-[9px] font-bold text-[#FF7939] uppercase tracking-wider animate-in fade-in slide-in-from-left-2">
+                        {intensityLegend[intensity - 1]}
+                    </span>
                 </div>
 
-                {/* Restrictions */}
-                <div className="flex items-start gap-4 p-5 rounded-[24px] bg-white/[0.02] border border-white/5 group hover:bg-white/[0.04] transition-all">
-                    <div className="w-10 h-10 rounded-full bg-orange-500/10 flex items-center justify-center border border-orange-500/20 shrink-0">
-                        <Star className="h-5 w-5 text-orange-400" fill="currentColor" />
-                    </div>
-                    <div className="flex flex-col gap-1">
-                        <span className="text-xs font-black text-white uppercase italic">Restricciones</span>
-                        <div className="flex flex-wrap gap-1.5 mt-1">
-                            {['Alguna lesión', 'Alergia al gluten'].map((tag) => (
-                                <span key={tag} className="px-2 py-0.5 rounded-full bg-orange-500/10 border border-orange-500/20 text-[9px] font-bold text-orange-400 uppercase">
-                                    {tag}
-                                </span>
-                            ))}
+                {/* Modality Interactive */}
+                <div className="flex flex-col gap-2 p-4 rounded-2xl bg-white/[0.02] border border-white/5">
+                    <div className="flex items-center justify-between">
+                        <span className="text-[9px] font-black text-white uppercase italic">Modalidad Flex</span>
+                        <div className="flex gap-2">
+                            <button onClick={() => setModality('online')} className={cn("p-1.5 rounded-lg border transition-all", modality === 'online' ? "bg-blue-500/10 border-blue-500/40 text-blue-400" : "bg-white/5 border-white/10 text-white/20")}>
+                                <Globe className="h-4 w-4" />
+                            </button>
+                            <button onClick={() => setModality('hybrid')} className={cn("p-1.5 rounded-lg border transition-all", modality === 'hybrid' ? "bg-purple-500/10 border-purple-500/40 text-purple-400" : "bg-white/5 border-white/10 text-white/20")}>
+                                <Layers className="h-4 w-4" />
+                            </button>
+                            <button onClick={() => setModality('presencial')} className={cn("p-1.5 rounded-lg border transition-all", modality === 'presencial' ? "bg-[#FF7939]/10 border-[#FF7939]/40 text-[#FF7939]" : "bg-white/5 border-white/10 text-white/20")}>
+                                <Users className="h-4 w-4" />
+                            </button>
                         </div>
                     </div>
+                    <span className="text-[9px] font-medium text-white/40 leading-tight animate-in fade-in slide-in-from-left-2">
+                        {modalityLegend[modality]}
+                    </span>
                 </div>
+
+                {/* Meet & Restrictions (Explainers) */}
+                <div className="grid grid-cols-2 gap-2">
+                    <div className="flex flex-col gap-1 p-3 rounded-xl bg-white/[0.01] border border-white/5">
+                        <div className="flex items-center gap-2">
+                            <Video className="h-3.5 w-3.5 text-orange-400" />
+                            <span className="text-[8px] font-black text-white uppercase italic">Meet Incluida</span>
+                        </div>
+                        <p className="text-[7px] text-white/20 leading-none">Sesiones 1:1 agendadas desde el calendario.</p>
+                    </div>
+                    <div className="flex flex-col gap-1 p-3 rounded-xl bg-white/[0.01] border border-white/5">
+                        <div className="flex items-center gap-2">
+                            <ShieldAlert className="h-3.5 w-3.5 text-red-400/60" />
+                            <span className="text-[8px] font-black text-white uppercase italic">Restricciones</span>
+                        </div>
+                        <p className="text-[7px] text-white/20 leading-none">Bloqueo automático de ejercicios incompatibles.</p>
+                    </div>
+                </div>
+            </div>
+
+            <div className="flex flex-wrap gap-2 mt-1 opacity-50">
+                {['Gluten Free', 'Sin Lactosa', 'Masa Muscular'].map((tag, i) => (
+                    <span key={tag} className={cn(
+                        "px-2 py-0.5 rounded-full border text-[7px] font-bold uppercase tracking-wider",
+                        i === 2 ? "bg-green-500/10 border-green-500/20 text-green-400" : "bg-white/5 border-white/10 text-white/40"
+                    )}>
+                        {tag}
+                    </span>
+                ))}
             </div>
         </div>
     )
@@ -195,7 +253,7 @@ export const ShowcaseConcept = () => {
 /**
  * ShowcaseCalendarDetail: A realistic replica of the client calendar detail view
  */
-export const ShowcaseCalendarDetail = ({ type, day }: { type: 'fitness' | 'nutrition' | 'special' | 'workshop', day: number }) => {
+export const ShowcaseCalendarDetail = ({ day, activities = [] }: { day: number, activities?: any[] }) => {
     const dateLabel = `Viernes ${day.toString().padStart(2, '0')} de enero 26`
 
     return (
@@ -212,140 +270,101 @@ export const ShowcaseCalendarDetail = ({ type, day }: { type: 'fitness' | 'nutri
                 </div>
 
                 <div className="flex flex-wrap gap-2">
-                    {day === 15 ? (
-                        <>
-                            <div className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full border border-orange-500/40 bg-orange-500/10 text-orange-400 text-[10px] font-black uppercase italic">
+                    {activities.map((act, i) => {
+                        if (act.type === 'meet') return (
+                            <div key={i} className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full border border-orange-500/40 bg-orange-500/10 text-orange-400 text-[10px] font-black uppercase italic">
                                 <Video className="h-3 w-3" />
-                                1h
+                                {act.duration || '1h'}
                             </div>
-                            <div className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full border border-[#FF7939]/40 bg-[#FF7939]/10 text-[#FFB366] text-[10px] font-black uppercase italic">
+                        )
+                        if (act.type === 'fitness') return (
+                            <div key={i} className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full border border-[#FF7939]/40 bg-[#FF7939]/10 text-[#FFB366] text-[10px] font-black uppercase italic">
                                 <Zap className="h-3 w-3" />
-                                Fitness 2m
+                                Fitness {act.duration || '45m'}
                             </div>
-                            <div className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full border border-[#FFB366]/40 bg-[#FFB366]/10 text-[#FFB366] text-[10px] font-black uppercase italic">
+                        )
+                        if (act.type === 'nutrition') return (
+                            <div key={i} className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full border border-[#FFB366]/40 bg-[#FFB366]/10 text-[#FFB366] text-[10px] font-black uppercase italic">
                                 <Utensils className="h-3 w-3" />
-                                Nutrición 5
+                                Nutrición {act.count || '5'}
                             </div>
-                        </>
-                    ) : (
-                        <>
-                            {(type === 'fitness' || type === 'special') && (
-                                <div className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full border border-[#FF7939]/40 bg-[#FF7939]/10 text-[#FFB366] text-[10px] font-black uppercase italic">
-                                    <Zap className="h-3 w-3" />
-                                    Fitness 45m
-                                </div>
-                            )}
-                            {(type === 'nutrition' || type === 'special') && (
-                                <div className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full border border-[#FFB873]/40 bg-[#FFB873]/10 text-[#FFB366] text-[10px] font-black uppercase italic">
-                                    <Utensils className="h-3 w-3" />
-                                    Nutrición 5
-                                </div>
-                            )}
-                            {type === 'workshop' && (
-                                <div className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full border border-pink-500/40 bg-pink-500/10 text-pink-400 text-[10px] font-black uppercase italic">
-                                    <GraduationCap className="h-3 w-3" />
-                                    Taller
-                                </div>
-                            )}
-                        </>
-                    )}
+                        )
+                        if (act.type === 'workshop') return (
+                            <div key={i} className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full border border-[#F8BBD0]/40 bg-[#F8BBD0]/10 text-[#F8BBD0] text-[10px] font-black uppercase italic">
+                                <GraduationCap className="h-3 w-3" />
+                                Taller
+                            </div>
+                        )
+                        return null
+                    })}
                 </div>
             </div>
 
-            {(type === 'special' || type === 'workshop' || day === 15) && (
-                <div className="mb-6">
-                    <div className="text-[10px] font-black tracking-widest text-white/30 mb-3 uppercase italic">Meet</div>
-                    <div className="w-full bg-white/5 rounded-2xl border border-white/10 p-4 flex items-center justify-between gap-4 backdrop-blur-xl">
-                        <div className="flex items-center gap-4">
-                            <div className="w-10 h-10 rounded-full flex items-center justify-center bg-orange-500/10 text-orange-500 border border-orange-500/20">
-                                {type === 'workshop' ? <GraduationCap size={18} /> : <Video size={18} />}
-                            </div>
-                            <div className="flex flex-col">
-                                <div className="flex items-center gap-2">
-                                    <span className="text-sm font-black text-white tracking-tighter">
-                                        {day === 15 ? 'Evaluación inicial · Objetivos' : (type === 'workshop' ? 'Taller de Biomecánica' : 'Coaching 1:1 · Seguimiento')}
-                                    </span>
-                                    <span className="text-[8px] font-black text-white/40 bg-white/10 px-1 rounded uppercase tracking-widest">{type === 'workshop' ? 'GRUPO' : '1:1'}</span>
+            <div className="mb-4">
+                <div className="text-[10px] font-black tracking-widest text-white/30 mb-3 uppercase italic">Actividades</div>
+                <div className="space-y-3">
+                    {activities.map((act, i) => (
+                        <div key={i} className={cn(
+                            "w-full bg-white/5 rounded-2xl border border-white/10 p-4 flex items-center justify-between gap-4 backdrop-blur-xl group transition-all cursor-pointer",
+                            act.type === 'fitness' ? "hover:border-[#FF7939]/30" :
+                                act.type === 'nutrition' ? "hover:border-[#FFB366]/30" :
+                                    act.type === 'workshop' ? "hover:border-[#F8BBD0]/30" : "hover:border-orange-500/30"
+                        )}>
+                            <div className="flex items-center gap-4">
+                                <div className={cn(
+                                    "w-10 h-10 rounded-full flex items-center justify-center border",
+                                    act.type === 'fitness' ? "bg-[#FF7939]/10 text-[#FF7939] border-[#FF7939]/20" :
+                                        act.type === 'nutrition' ? "bg-[#FFB366]/10 text-[#FFB366] border-[#FFB366]/20" :
+                                            act.type === 'workshop' ? "bg-[#F8BBD0]/10 text-[#F8BBD0] border-[#F8BBD0]/20" :
+                                                "bg-orange-500/10 text-orange-500 border-orange-500/20"
+                                )}>
+                                    {act.type === 'fitness' ? <Zap size={18} /> :
+                                        act.type === 'nutrition' ? <Utensils size={18} /> :
+                                            act.type === 'workshop' ? <GraduationCap size={18} /> :
+                                                <Video size={18} />}
                                 </div>
-                                <span className="text-[10px] font-bold text-white/40">
-                                    {day === 15 ? '18:00 – 19:00' : '10:00 – 11:00'}
+                                <div className="flex flex-col">
+                                    <div className="flex items-center gap-2">
+                                        <span className="text-sm font-black text-white tracking-tighter">{act.title}</span>
+                                        {act.is1on1 && <span className="text-[8px] font-black text-white/40 bg-white/10 px-1 rounded uppercase tracking-widest">1:1</span>}
+                                        {act.isGroup && <span className="text-[8px] font-black text-white/40 bg-white/10 px-1 rounded uppercase tracking-widest">GRUPO</span>}
+                                    </div>
+                                    <div className="flex items-center gap-2">
+                                        <span className="text-[9px] font-black text-white/30 uppercase tracking-widest leading-none">
+                                            {act.type === 'fitness' ? 'Fitness · Programa' :
+                                                act.type === 'nutrition' ? 'Nutrición · Programa' :
+                                                    act.type === 'workshop' ? 'Workshop · Vivo' : 'Meet · Video'}
+                                        </span>
+                                        <span className={cn(
+                                            "text-[9px] font-black px-1.5 py-0.5 rounded italic",
+                                            act.type === 'fitness' ? "text-[#FFB366] bg-[#FF7939]/10" :
+                                                act.type === 'nutrition' ? "text-[#FFB366] bg-[#FF7939]/10" :
+                                                    act.type === 'workshop' ? "text-[#F8BBD0] bg-[#F8BBD0]/10" : "text-orange-500 bg-orange-500/10"
+                                        )}>
+                                            {act.subtitle || act.time}
+                                        </span>
+                                    </div>
+                                </div>
+                            </div>
+                            <div className="flex items-center gap-0.5">
+                                {act.type === 'fitness' ? <Flame size={14} className="text-[#FF7939]" /> :
+                                    act.type === 'nutrition' ? <UtensilsCrossed size={14} className="text-[#FFB366]" /> :
+                                        act.type === 'workshop' ? <Star size={14} className="text-pink-400" /> :
+                                            <Video size={14} className="text-orange-500" />}
+                                <span className={cn(
+                                    "text-[11px] font-black",
+                                    act.type === 'fitness' ? "text-[#FF7939]" :
+                                        act.type === 'nutrition' ? "text-[#FFB366]" :
+                                            act.type === 'workshop' ? "text-pink-400" : "text-orange-500"
+                                )}>
+                                    {act.metric || '1'}
                                 </span>
                             </div>
                         </div>
-                        <span className="text-[9px] font-black text-orange-500 uppercase tracking-widest flex items-center gap-1">
-                            <Video size={10} /> CONFIRMADA
-                        </span>
-                    </div>
-                </div>
-            )}
-
-            <div className="mb-4">
-                <div className="text-[10px] font-black tracking-widest text-white/30 mb-3 uppercase italic">Programación</div>
-                <div className="space-y-3">
-                    {(type === 'fitness' || type === 'special' || day === 15) && (
-                        <div className="w-full bg-white/5 rounded-2xl border border-white/10 p-4 flex items-center justify-between gap-4 backdrop-blur-xl group hover:border-[#FF7939]/30 transition-all cursor-pointer">
-                            <div className="flex items-center gap-4">
-                                <div className="w-10 h-10 rounded-full flex items-center justify-center bg-[#FF7939]/10 text-[#FF7939] border border-[#FF7939]/20">
-                                    <Zap size={18} />
-                                </div>
-                                <div className="flex flex-col">
-                                    <span className="text-sm font-black text-white tracking-tighter">
-                                        {day === 15 ? 'Pliométricos de Ronaldinho' : 'Fuerza Explosiva'}
-                                    </span>
-                                    <div className="flex items-center gap-2">
-                                        <span className="text-[9px] font-black text-white/30 uppercase tracking-widest leading-none">Fitness · Programa</span>
-                                        <span className="text-[9px] font-black text-[#FFB366] bg-[#FF7939]/10 px-1.5 py-0.5 rounded italic">2m restante</span>
-                                    </div>
-                                </div>
-                            </div>
-                            {/* Refined Flame icon without frame to match ActivityCard style */}
-                            <div className="flex items-center gap-0.5">
-                                <Flame size={14} className="text-[#FF7939]" />
-                                <span className="text-[11px] font-black text-[#FF7939]">1</span>
-                            </div>
-                        </div>
-                    )}
-
-                    {(type === 'nutrition' || type === 'special' || day === 15) && (
-                        <div className="w-full bg-white/5 rounded-2xl border border-white/10 p-4 flex items-center justify-between gap-4 backdrop-blur-xl group hover:border-[#FFB366]/30 transition-all cursor-pointer">
-                            <div className="flex items-center gap-4">
-                                <div className="w-10 h-10 rounded-full flex items-center justify-center bg-[#FFB366]/10 text-[#FFB366] border border-[#FFB366]/20">
-                                    <Utensils size={18} />
-                                </div>
-                                <div className="flex flex-col">
-                                    <span className="text-sm font-black text-white tracking-tighter">Programa de Nutrición</span>
-                                    <div className="flex items-center gap-2">
-                                        <span className="text-[9px] font-black text-white/30 uppercase tracking-widest leading-none">Nutrición · Programa</span>
-                                        <span className="text-[9px] font-black text-[#FFB366] bg-[#FF7939]/10 px-1.5 py-0.5 rounded italic">5</span>
-                                    </div>
-                                </div>
-                            </div>
-                            {/* Refined UtensilsCrossed icon without frame to match ActivityCard style */}
-                            <div className="flex items-center gap-0.5">
-                                <UtensilsCrossed size={14} className="text-[#FFB366]" />
-                                <span className="text-[11px] font-black text-[#FFB366]">5</span>
-                            </div>
-                        </div>
-                    )}
-
-                    {type === 'workshop' && (
-                        <div className="w-full bg-white/5 rounded-2xl border border-white/10 p-4 flex items-center justify-between gap-4 backdrop-blur-xl group hover:border-pink-500/30 transition-all cursor-pointer">
-                            <div className="flex items-center gap-4">
-                                <div className="w-10 h-10 rounded-full flex items-center justify-center bg-pink-500/10 text-pink-500 border border-pink-500/20">
-                                    <GraduationCap size={18} />
-                                </div>
-                                <div className="flex flex-col">
-                                    <span className="text-sm font-black text-white tracking-tighter">Biomecánica Aplicada</span>
-                                    <div className="flex items-center gap-2">
-                                        <span className="text-[9px] font-black text-white/30 uppercase tracking-widest leading-none">Workshop · Vivo</span>
-                                        <span className="text-[9px] font-black text-pink-400 bg-pink-500/10 px-1.5 py-0.5 rounded italic">Taller</span>
-                                    </div>
-                                </div>
-                            </div>
-                            <div className="flex items-center gap-0.5">
-                                <Star size={14} className="text-pink-400" />
-                                <span className="text-[11px] font-black text-pink-400">1</span>
-                            </div>
+                    ))}
+                    {activities.length === 0 && (
+                        <div className="py-8 text-center bg-white/5 rounded-2xl border border-dashed border-white/10">
+                            <span className="text-xs font-bold text-white/20 uppercase tracking-widest">Sin actividades programadas</span>
                         </div>
                     )}
                 </div>
@@ -373,17 +392,45 @@ export const MockCalendar = () => {
     const today = 15
     const [selectedDay, setSelectedDay] = React.useState<number>(15)
 
-    const activityData: Record<number, { type: 'fitness' | 'nutrition' | 'special' | 'workshop' }> = {
-        5: { type: 'fitness' },
-        6: { type: 'nutrition' },
-        8: { type: 'fitness' },
-        12: { type: 'nutrition' },
-        15: { type: 'special' },
-        18: { type: 'fitness' },
-        20: { type: 'workshop' },
-        22: { type: 'nutrition' },
-        25: { type: 'special' },
-        28: { type: 'workshop' }
+    const activityData: Record<number, any[]> = {
+        2: [
+            { type: 'fitness', title: 'Fuerza Explosiva', duration: '45m', subtitle: 'Programa', metric: '1' }
+        ],
+        5: [
+            { type: 'fitness', title: 'Cardio HIIT', duration: '30m', subtitle: 'Programa', metric: '1' },
+            { type: 'nutrition', title: 'Plan de Macronutrientes', count: '3', subtitle: 'Programa', metric: '3' }
+        ],
+        8: [
+            { type: 'nutrition', title: 'Guía de Suplementación', count: '5', subtitle: 'Nutrición', metric: '5' }
+        ],
+        12: [
+            { type: 'meet', title: 'Check-in Nutricional', is1on1: true, subtitle: 'Meet · Video', time: '14:00 – 14:30', metric: '1' },
+            { type: 'fitness', title: 'Movilidad Articular', duration: '20m', subtitle: 'Programa', metric: '1' }
+        ],
+        15: [
+            { type: 'workshop', title: 'Evaluación inicial · Objetivos', isGroup: true, subtitle: 'Workshop · Vivo', time: '18:00 – 19:00', metric: '1' },
+            { type: 'meet', title: 'Coaching 1:1 · Seguimiento', is1on1: true, subtitle: 'Meet · Video', time: '10:00 – 11:00', metric: '1' }
+        ],
+        16: [
+            { type: 'fitness', title: 'Pliométricos de Ronaldinho', duration: '2m', subtitle: 'Programa', metric: '1' },
+            { type: 'nutrition', title: 'Programa de Nutrición', count: '5', subtitle: 'Programa', metric: '5' }
+        ],
+        18: [
+            { type: 'fitness', title: 'Resistencia Muscular', duration: '50m', subtitle: 'Programa', metric: '1' }
+        ],
+        20: [
+            { type: 'workshop', title: 'Taller de Biomecánica', isGroup: true, subtitle: 'Taller', time: '19:00 – 20:30', metric: '1' }
+        ],
+        22: [
+            { type: 'nutrition', title: 'Cena de Proteína Alta', count: '1', subtitle: 'Programa', metric: '1' }
+        ],
+        25: [
+            { type: 'meet', title: 'Sesión de Feedback', is1on1: true, subtitle: 'Video sesión', time: '16:00 – 17:00', metric: '1' },
+            { type: 'fitness', title: 'Entrenamiento de Core', duration: '30m', subtitle: 'Programa', metric: '1' }
+        ],
+        28: [
+            { type: 'workshop', title: 'Masterclass Nutrición', isGroup: true, subtitle: 'Workshop', time: '20:00 – 21:00', metric: '1' }
+        ]
     }
 
     return (
@@ -421,7 +468,7 @@ export const MockCalendar = () => {
                         <span key={d} className="text-[10px] font-black text-white/20 uppercase tracking-widest mb-2 italic">{d}</span>
                     ))}
                     {Array.from({ length: 31 }, (_, i) => i + 1).map(day => {
-                        const hasActivity = activityData[day]
+                        const activities = activityData[day] || []
                         const isSelected = selectedDay === day
                         const isToday = day === today
 
@@ -440,27 +487,41 @@ export const MockCalendar = () => {
                                 </div>
 
                                 {/* Activity Indicators (Bubbles) */}
-                                <div className="flex flex-col gap-0.5 h-4 justify-center">
-                                    {day === 15 ? (
-                                        <>
-                                            <div className="w-1.5 h-3.5 rounded-full bg-pink-500/40" title="Workshop" />
-                                            <div className="flex gap-0.5">
-                                                <div className="w-1.5 h-1.5 rounded-full bg-orange-500" title="Meet" />
-                                                <div className="w-1.5 h-1.5 rounded-full bg-orange-500" title="Meet" />
-                                            </div>
-                                        </>
-                                    ) : hasActivity?.type === 'fitness' ? (
-                                        <div className="w-1.5 h-3.5 rounded-full bg-orange-500/40" />
-                                    ) : hasActivity?.type === 'nutrition' ? (
-                                        <div className="w-1.5 h-1.5 rounded-full bg-yellow-500" />
-                                    ) : hasActivity?.type === 'special' ? (
-                                        <div className="flex flex-col gap-0.5 items-center">
-                                            <div className="w-1.5 h-3.5 rounded-full bg-orange-500/40" />
-                                            <div className="w-1.5 h-1.5 rounded-full bg-orange-500" />
-                                        </div>
-                                    ) : hasActivity?.type === 'workshop' ? (
-                                        <div className="w-1.5 h-3.5 rounded-full bg-pink-500/40" />
-                                    ) : null}
+                                <div className="flex flex-col gap-0.5 mt-1 w-full items-center">
+                                    {(() => {
+                                        const grouped = activities.reduce((acc: Record<string, number>, act: any) => {
+                                            acc[act.type] = (acc[act.type] || 0) + 1
+                                            return acc
+                                        }, {} as Record<string, number>)
+
+                                        return (Object.entries(grouped) as [string, number][]).map(([type, count], idx) => {
+                                            if (type === 'fitness') return (
+                                                <span key={idx} className="flex items-center gap-1 text-[9px] px-1.5 py-0.5 rounded-full font-bold leading-none border shadow-sm bg-[#FF7939]/10 text-[#FF7939] border-[#FF7939]/30">
+                                                    <Zap className="w-2.5 h-2.5" />
+                                                    {(count as number) > 1 ? count : activities.find(a => a.type === 'fitness')?.duration}
+                                                </span>
+                                            )
+                                            if (type === 'nutrition') return (
+                                                <span key={idx} className="flex items-center gap-1 text-[9px] px-1.5 py-0.5 rounded-full font-bold border leading-none shadow-sm bg-[#FFB366]/10 text-[#FFB366] border-[#FFB366]/30">
+                                                    <Utensils className="w-2.5 h-2.5" />
+                                                    {(count as number) > 1 ? count : activities.find(a => a.type === 'nutrition')?.count}
+                                                </span>
+                                            )
+                                            if (type === 'workshop') return (
+                                                <div key={idx} className="flex items-center gap-1 px-1.5 py-0.5 rounded-full border leading-none bg-[#FCE4EC]/30 border-[#FCE4EC]/50 text-[#F06292] font-bold">
+                                                    <GraduationCap className="w-2.5 h-2.5" />
+                                                    {(count as number) > 1 && <span className="text-[8px] ml-0.5">{count}</span>}
+                                                </div>
+                                            )
+                                            if (type === 'meet') return (
+                                                <div key={idx} className="flex items-center gap-1 px-1.5 py-0.5 rounded-full border leading-none bg-orange-500/10 border-orange-500/30 text-orange-400">
+                                                    <Video className="w-2.5 h-2.5" />
+                                                    {(count as number) > 1 && <span className="text-[9px] font-bold ml-0.5">{count}</span>}
+                                                </div>
+                                            )
+                                            return null
+                                        })
+                                    })()}
                                 </div>
                             </div>
                         )
@@ -473,7 +534,7 @@ export const MockCalendar = () => {
                         <ShowcaseCalendarDetail
                             key={selectedDay}
                             day={selectedDay}
-                            type={activityData[selectedDay]?.type || 'fitness'}
+                            activities={activityData[selectedDay]}
                         />
                     )}
                 </AnimatePresence>

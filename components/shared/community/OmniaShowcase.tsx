@@ -2,7 +2,7 @@
 
 import React, { useState, useRef, useEffect } from 'react'
 import { motion, AnimatePresence, useScroll, useTransform } from 'framer-motion'
-import { Flame, Star, Zap, ShoppingCart, Users, Briefcase, ChevronRight, Play, Utensils } from 'lucide-react'
+import { Flame, Star, Zap, ShoppingCart, Users, User, Briefcase, ChevronRight, Play, Utensils, Globe, Layers, Video, ShieldAlert, Scale, MapPin } from 'lucide-react'
 import { ShowcaseBubble, ShowcaseProgressRing, ShowcaseFeatureCard, ShowcaseIngredients, MockCalendar, ShowcaseShelf, ShowcaseConcept } from './ShowcaseComponents'
 import { Button } from '@/components/ui/button'
 import { cn } from '@/lib/utils/utils'
@@ -38,15 +38,14 @@ export function OmniaShowcase() {
         offset: ["start start", "end start"]
     })
 
-    const logoScale = useTransform(scrollYProgress, [0, 0.1], [1.8, 0.45])
-    const logoOpacity = useTransform(scrollYProgress, [0, 0.12, 0.15], [1, 1, 0])
-    const logoY = useTransform(scrollYProgress, [0, 0.12], [0, -118])
-
     // Stepped Tagline movement (more pronounced offsets for a 'stepped' feel)
     const titleY1 = useTransform(scrollYProgress, [0, 0.15], [0, -50])
     const titleY2 = useTransform(scrollYProgress, [0, 0.08, 0.22], [0, 0, -90])
     const titleY3 = useTransform(scrollYProgress, [0, 0.12, 0.28], [0, 0, -130])
     const titleOpacity = useTransform(scrollYProgress, [0, 0.18, 0.35], [1, 1, 0])
+
+    const taglineX2 = useTransform(scrollYProgress, [0, 0.15], [40, 0])
+    const taglineX3 = useTransform(scrollYProgress, [0, 0.15], [80, 0])
 
     // Mock activities data matching real Search results
     const mockActivities = [
@@ -132,6 +131,12 @@ export function OmniaShowcase() {
         activity: a
     })) as any[]
 
+    const [filterType, setFilterType] = useState<'workshop' | 'document' | 'program'>('program')
+    const [filterCategory, setFilterCategory] = useState<'fitness' | 'nutricion'>('fitness')
+    const [intensity, setIntensity] = useState(2)
+    const [modality, setModality] = useState<'online' | 'hybrid' | 'presencial'>('online')
+    const [workshopMode, setWorkshopMode] = useState<'grupal' | 'individual'>('grupal')
+
     const containerVariants = {
         hidden: { opacity: 0 },
         visible: {
@@ -148,43 +153,56 @@ export function OmniaShowcase() {
     return (
         <div ref={containerRef} className="flex flex-col gap-12 pb-32 pt-4 px-4 overflow-hidden">
             {/* 0. Hero Section - Shrinking Logo to Header */}
-            <motion.section
-                style={{ scale: logoScale, opacity: logoOpacity, y: logoY }}
-                className="flex flex-col items-center justify-center py-20 relative pointer-events-none z-[1001]"
+            <section
+                className="flex flex-col items-center justify-center py-20 relative pointer-events-none z-[1001] h-[160px]"
             >
                 {/* Under-logo shadow for dimension */}
-                <div className="absolute bottom-12 left-1/2 -translate-x-1/2 w-32 h-6 bg-black/60 blur-xl rounded-full" />
+                <div className="absolute bottom-4 left-1/2 -translate-x-1/2 w-32 h-6 bg-black/60 blur-xl rounded-full" />
 
                 {/* Shadow at the feet effect */}
-                <div className="absolute bottom-10 left-1/2 -translate-x-1/2 w-48 h-10 bg-[#FF7939]/10 blur-3xl rounded-full" />
+                <div className="absolute bottom-2 left-1/2 -translate-x-1/2 w-48 h-10 bg-[#FF7939]/10 blur-3xl rounded-full" />
 
-                <div className="relative">
-                    <OmniaLogoText
-                        size="text-6xl"
-                        className="drop-shadow-[0_20px_25px_rgba(255,121,57,0.15)] filter"
-                    />
-                </div>
-            </motion.section>
+                {/* The Logo itself is now managed globally in app-mobile.tsx to ensure a seamless transition into the fixed header */}
+            </section>
 
-            {/* Scrolling Staggered Title */}
+            {/* Scrolling Staggered Title with Straightening Staircase Effect */}
             <motion.div
+                initial="hidden"
+                whileInView="visible"
+                viewport={{ once: false, amount: 0.2 }}
+                variants={{
+                    visible: { transition: { staggerChildren: 0.15 } },
+                    hidden: { transition: { staggerChildren: 0.1, staggerDirection: -1 } }
+                }}
                 style={{ opacity: titleOpacity }}
-                className="text-center -mt-10 mb-8 flex flex-col items-center"
+                className="w-full max-w-lg mx-auto mb-8 flex flex-col items-start px-8"
             >
                 <motion.h1
                     style={{ y: titleY1 }}
+                    variants={{
+                        hidden: { opacity: 0, x: -30, filter: 'blur(10px)' },
+                        visible: { opacity: 1, x: 0, filter: 'blur(0px)', transition: { duration: 0.8, ease: "easeOut" } }
+                    }}
                     className="text-3xl font-black text-white italic uppercase tracking-tighter leading-none"
                 >
                     La plataforma de
                 </motion.h1>
                 <motion.h1
-                    style={{ y: titleY2 }}
+                    style={{ y: titleY2, x: taglineX2 }}
+                    variants={{
+                        hidden: { opacity: 0, x: -30, filter: 'blur(10px)' },
+                        visible: { opacity: 1, x: 40, filter: 'blur(0px)', transition: { duration: 0.8, ease: "easeOut" } }
+                    }}
                     className="text-3xl font-black text-[#FF7939] italic uppercase tracking-tighter leading-none"
                 >
                     los mejores coaches
                 </motion.h1>
                 <motion.h1
-                    style={{ y: titleY3 }}
+                    style={{ y: titleY3, x: taglineX3 }}
+                    variants={{
+                        hidden: { opacity: 0, x: -30, filter: 'blur(10px)' },
+                        visible: { opacity: 1, x: 80, filter: 'blur(0px)', transition: { duration: 0.8, ease: "easeOut" } }
+                    }}
                     className="text-3xl font-black text-white italic uppercase tracking-tighter leading-none"
                 >
                     que siempre quisiste.
@@ -193,7 +211,8 @@ export function OmniaShowcase() {
                 <motion.p
                     initial={{ opacity: 0 }}
                     whileInView={{ opacity: 1 }}
-                    className="text-white/40 text-[10px] font-bold uppercase mt-8 tracking-widest"
+                    transition={{ delay: 1 }}
+                    className="text-white/40 text-[10px] font-bold uppercase mt-12 tracking-widest w-full text-center"
                 >
                     +10k alumnos reales transformados
                 </motion.p>
@@ -207,51 +226,243 @@ export function OmniaShowcase() {
                 variants={containerVariants}
                 className="space-y-12"
             >
-                {/* Horizontal Activities Scroll */}
-                <div className="space-y-4">
-                    <div className="flex items-center justify-between px-2">
-                        <h2 className="text-xs font-black text-white/40 uppercase tracking-widest italic">Explorá lo Nuevo</h2>
-                        <div className="w-12 h-px bg-white/10" />
-                    </div>
-                    <div className="flex gap-4 overflow-x-auto pb-4 hide-scrollbar snap-x px-2 items-stretch">
-                        <AnimatePresence mode="wait">
-                            {isLoadingReal ? (
-                                // Quick skeleton
-                                [...Array(4)].map((_, i) => (
-                                    <div key={`skeleton-${i}`} className="w-64 h-96 bg-white/5 animate-pulse rounded-[32px] border border-white/10 shrink-0" />
-                                ))
-                            ) : realActivities.length > 0 ? (
-                                realActivities.map((act, i) => (
-                                    <motion.div
-                                        key={`search-${act.id}`}
-                                        initial={{ opacity: 0, x: 20 }}
-                                        animate={{ opacity: 1, x: 0 }}
-                                        exit={{ opacity: 0, x: -20 }}
-                                        transition={{ delay: i * 0.1 }}
-                                        className="snap-start h-full"
-                                    >
-                                        <ActivityCard
-                                            activity={act}
-                                            size="small"
-                                            variant="blurred"
-                                        />
-                                    </motion.div>
-                                ))
-                            ) : (
-                                <div className="text-white/40 text-sm font-bold uppercase py-10 px-4">No hay actividades disponibles actualmente.</div>
-                            )}
-                        </AnimatePresence>
+                {/* Filtered Products Section (Explora lo Nuevo) */}
+                <div className="space-y-6">
+                    <div className="flex flex-col gap-5 px-2">
+                        <h2 className="text-xs font-black text-white italic uppercase tracking-[0.2em]">Explora lo Nuevo</h2>
+
+                        {/* Unified Filters Row (Type + Category) */}
+                        <div className="flex gap-2 overflow-x-auto hide-scrollbar pb-2">
+                            {/* Category Filters */}
+                            <div className="flex items-center gap-2 bg-white/5 p-1 rounded-2xl border border-white/5 mr-2">
+                                <button
+                                    onClick={() => setFilterCategory('fitness')}
+                                    className={cn(
+                                        "p-2.5 rounded-xl transition-all",
+                                        filterCategory === 'fitness' ? "bg-[#FF7939] text-black shadow-lg shadow-[#FF7939]/20" : "text-white/20 hover:text-white/40 bg-white/[0.03]"
+                                    )}
+                                >
+                                    <Zap size={18} fill={filterCategory === 'fitness' ? 'currentColor' : 'none'} />
+                                </button>
+                                <button
+                                    onClick={() => setFilterCategory('nutricion')}
+                                    className={cn(
+                                        "p-2.5 rounded-xl transition-all",
+                                        filterCategory === 'nutricion' ? "bg-orange-300 text-black shadow-lg shadow-orange-300/20" : "text-white/20 hover:text-white/40 bg-white/[0.03]"
+                                    )}
+                                >
+                                    <Utensils size={18} fill={filterCategory === 'nutricion' ? 'currentColor' : 'none'} />
+                                </button>
+                            </div>
+
+                            {/* Type Filters */}
+                            {[
+                                { id: 'workshop', label: 'Taller' },
+                                { id: 'document', label: 'Documento' },
+                                { id: 'program', label: 'Programa' }
+                            ].map((t) => (
+                                <button
+                                    key={t.id}
+                                    onClick={() => setFilterType(t.id as any)}
+                                    className={cn(
+                                        "px-5 py-2.5 rounded-2xl text-xs font-black uppercase italic transition-all whitespace-nowrap border flex-shrink-0",
+                                        filterType === t.id
+                                            ? "bg-white text-black border-white shadow-lg scale-105"
+                                            : "bg-white/5 text-white/40 border-white/5 hover:bg-white/10"
+                                    )}
+                                >
+                                    {t.label}
+                                </button>
+                            ))}
+                        </div>
                     </div>
 
-                    {/* New Interactive Concept Section */}
-                    <motion.div
-                        initial={{ opacity: 0, y: 20 }}
-                        whileInView={{ opacity: 1, y: 0 }}
-                        viewport={{ once: true }}
-                        className="px-2"
-                    >
-                        <ShowcaseConcept />
-                    </motion.div>
+                    {/* 2-Column Product Display */}
+                    <div className="grid grid-cols-2 gap-4 items-stretch min-h-[420px]">
+                        <div className="relative">
+                            <AnimatePresence mode="wait">
+                                {(() => {
+                                    // Filter real activities if they exist, fallback to mock
+                                    const source = realActivities.length > 0 ? realActivities : mockActivities
+                                    const filtered = source.filter(a =>
+                                        a.type === filterType && a.categoria === filterCategory
+                                    )
+                                    // If no perfect match, show the first available of that category
+                                    const act = filtered[0] || source.find(a => a.categoria === filterCategory) || source[0]
+
+                                    return (
+                                        <motion.div
+                                            key={act.id}
+                                            initial={{ opacity: 0, scale: 0.95 }}
+                                            animate={{ opacity: 1, scale: 1 }}
+                                            exit={{ opacity: 0, scale: 1.05 }}
+                                            transition={{ duration: 0.3, ease: "circOut" }}
+                                            className="h-full"
+                                        >
+                                            <ActivityCard
+                                                activity={act}
+                                                size="small"
+                                                variant="blurred"
+                                            />
+                                        </motion.div>
+                                    )
+                                })()}
+                            </AnimatePresence>
+                        </div>
+
+                        {/* Product Type Description & Interactive Controls */}
+                        <div className="flex flex-col justify-center gap-6 p-6 rounded-[32px] bg-white/[0.01] border border-white/5 relative overflow-hidden backdrop-blur-3xl">
+                            <div className="absolute top-0 right-0 w-40 h-40 bg-white/5 blur-[80px] -z-10" />
+
+                            <div className="flex flex-col gap-1">
+                                <div className="flex items-center justify-between">
+                                    <span className="text-[10px] font-black text-[#FF7939] uppercase italic tracking-[0.2em]">
+                                        {filterType === 'workshop' ? 'Taller' : filterType === 'document' ? 'Documento' : 'Programa'}
+                                    </span>
+                                </div>
+                                {/* Title & Interactive Mode Badge */}
+                                <div className="flex flex-col">
+                                    <div className="flex items-center justify-between">
+                                        <h3 className="text-xl font-black text-white italic uppercase leading-none">
+                                            {filterType === 'workshop' ? 'Experiencia Viva' : filterType === 'document' ? 'Conocimiento Directo' : 'Plan Maestro'}
+                                        </h3>
+                                    </div>
+
+                                    {filterType === 'workshop' && (
+                                        <div className="flex items-center gap-2 mt-4">
+                                            {[
+                                                { id: 'grupal', label: 'Grupal', icon: Users },
+                                                { id: 'individual', label: '1:1', icon: User }
+                                            ].map((m) => (
+                                                <button
+                                                    key={m.id}
+                                                    onClick={() => setWorkshopMode(m.id as any)}
+                                                    className={cn(
+                                                        "flex items-center gap-2 px-4 py-2 rounded-xl transition-all border",
+                                                        workshopMode === m.id
+                                                            ? "bg-white/10 border-[#FF7939]/50 text-white shadow-lg"
+                                                            : "bg-white/5 border-white/5 text-white/30 hover:bg-white/10"
+                                                    )}
+                                                >
+                                                    <m.icon size={14} className={workshopMode === m.id ? "text-[#FF7939]" : "text-white/20"} />
+                                                    <span className="text-[10px] font-black uppercase italic">{m.label}</span>
+                                                </button>
+                                            ))}
+                                        </div>
+                                    )}
+
+                                    <p className="text-[13px] text-white/50 font-semibold leading-tight mt-3">
+                                        {filterType === 'workshop'
+                                            ? (workshopMode === 'grupal' ? 'Sesiones grupales con feedback real.' : 'Atención focalizada y exclusiva.')
+                                            : filterType === 'document'
+                                                ? 'PDFs optimizados para aplicar hoy.'
+                                                : 'Programas de transformación total.'}
+                                    </p>
+                                </div>
+                            </div>
+
+                            {/* Intensity Selector (Fuegos Hollow) */}
+                            <div className="flex flex-col gap-2">
+                                <div className="flex items-center justify-between">
+                                    <span className="text-[12px] font-black text-white/60 uppercase italic">Intensidad</span>
+                                    <div className="flex gap-1">
+                                        {[1, 2, 3].map((lvl) => (
+                                            <button
+                                                key={lvl}
+                                                onClick={() => setIntensity(lvl)}
+                                                className="transition-all active:scale-95"
+                                            >
+                                                <Flame
+                                                    size={18}
+                                                    className={cn(
+                                                        "transition-all duration-300",
+                                                        intensity >= lvl
+                                                            ? (intensity === 1 ? "text-[#F7E16B] drop-shadow-[0_0_10px_rgba(247,225,107,0.4)]"
+                                                                : intensity === 2 ? "text-[#FF7939] drop-shadow-[0_0_10px_rgba(255,121,57,0.4)]"
+                                                                    : "text-[#FF4D4D] drop-shadow-[0_0_10px_rgba(255,77,77,0.4)]")
+                                                            : "text-white/[0.03]"
+                                                    )}
+                                                    fill="none"
+                                                    strokeWidth={intensity >= lvl ? 2.5 : 1.5}
+                                                />
+                                            </button>
+                                        ))}
+                                    </div>
+                                </div>
+                                <div className={cn(
+                                    "text-[12px] font-black uppercase tracking-widest italic animate-in fade-in slide-in-from-left-2",
+                                    intensity === 1 ? "text-[#F7E16B]" : intensity === 2 ? "text-[#FF7939]" : "text-[#FF4D4D]"
+                                )}>
+                                    {intensity === 1 ? 'Básico' : intensity === 2 ? 'Intermedio' : 'Avanzado'}
+                                </div>
+                            </div>
+
+                            {/* Modality Selector with Descriptions */}
+                            <div className="flex flex-col gap-3 pt-3 border-t border-white/5">
+                                <div className="flex items-center justify-between">
+                                    <span className="text-[12px] font-black text-white/60 uppercase italic">Modalidad Flex</span>
+                                    <div className="flex gap-1.5">
+                                        {[
+                                            { id: 'online', icon: Globe, color: 'text-white', bg: 'bg-white/10', border: 'border-white/20', label: '100% Digital' },
+                                            { id: 'hybrid', icon: Scale, color: 'text-purple-400', bg: 'bg-purple-500/10', border: 'border-purple-500/30', label: 'Mix Presencial' },
+                                            { id: 'presencial', icon: MapPin, color: 'text-red-500', bg: 'bg-red-500/10', border: 'border-red-500/30', label: 'Face to Face' }
+                                        ].map((m) => (
+                                            <button
+                                                key={m.id}
+                                                onClick={() => setModality(m.id as any)}
+                                                className={cn(
+                                                    "p-2 rounded-xl border transition-all duration-300",
+                                                    modality === m.id
+                                                        ? `${m.bg} ${m.border} ${m.color} shadow-lg scale-110`
+                                                        : "bg-white/[0.02] border-white/5 text-white/20 hover:border-white/10"
+                                                )}
+                                            >
+                                                <m.icon size={16} />
+                                            </button>
+                                        ))}
+                                    </div>
+                                </div>
+                                <p className="text-[13px] font-semibold text-white/50 leading-tight italic animate-in fade-in slide-in-from-bottom-1">
+                                    {modality === 'online' ? "Acceso global desde cualquier dispositivo." :
+                                        modality === 'hybrid' ? "Soporte digital + encuentros físicos." :
+                                            "Atención directa y personalizada en gimnasio."}
+                                </p>
+                            </div>
+
+                            {/* Features Explainers */}
+                            <div className="grid grid-cols-2 gap-2 pt-3 border-t border-white/5">
+                                <div className="flex flex-col gap-1 p-2.5 rounded-2xl bg-white/[0.01] border border-white/10 group hover:bg-white/[0.03] transition-all">
+                                    <div className="flex items-center gap-2">
+                                        <Video size={16} className="text-[#FF7939]" />
+                                        <span className="text-[11px] font-black text-white uppercase italic">Meet Incluida</span>
+                                    </div>
+                                    <p className="text-[10px] text-white/40 leading-none">Opcional: sesiones agendadas.</p>
+                                </div>
+                                <div className="flex flex-col gap-2 p-2.5 rounded-2xl bg-white/[0.01] border border-white/10 group hover:bg-white/[0.03] transition-all">
+                                    <div className="flex flex-wrap gap-x-4 gap-y-2">
+                                        <div className="flex items-center gap-2">
+                                            <ShieldAlert size={16} className="text-red-400/60" />
+                                            <span className="text-[11px] font-black text-white uppercase italic">Restricciones</span>
+                                        </div>
+                                        <div className="flex items-center gap-2">
+                                            <Star size={16} className="text-yellow-400/60" />
+                                            <span className="text-[11px] font-black text-white uppercase italic">Objetivos</span>
+                                        </div>
+                                    </div>
+                                    <p className="text-[10px] text-white/40 leading-tight">Filtro de salud y metas definidas para que coincidan con tu compra.</p>
+                                </div>
+                            </div>
+
+                            <div className="flex gap-2">
+                                {['Gluten Free', 'Muscular'].map((tag) => (
+                                    <span key={tag} className="px-3 py-1 rounded-full border border-white/10 bg-white/[0.02] text-[10px] font-black text-white/40 uppercase tracking-widest">
+                                        {tag}
+                                    </span>
+                                ))}
+                            </div>
+                        </div>
+                    </div>
+
                 </div>
 
                 {/* Calendar Preview */}
