@@ -404,12 +404,12 @@ export const MockCalendar = () => {
             { type: 'nutrition', title: 'Guía de Suplementación', count: '5', subtitle: 'Nutrición', metric: '5' }
         ],
         12: [
-            { type: 'meet', title: 'Check-in Nutricional', is1on1: true, subtitle: 'Meet · Video', time: '14:00 – 14:30', metric: '1' },
+            { type: 'meet', title: 'Check-in Nutricional', is1on1: true, subtitle: '14:00 – 14:30 con Laura S.', time: '14:00 – 14:30', metric: '1' },
             { type: 'fitness', title: 'Movilidad Articular', duration: '20m', subtitle: 'Programa', metric: '1' }
         ],
         15: [
-            { type: 'workshop', title: 'Evaluación inicial · Objetivos', isGroup: true, subtitle: 'Workshop · Vivo', time: '18:00 – 19:00', metric: '1' },
-            { type: 'meet', title: 'Coaching 1:1 · Seguimiento', is1on1: true, subtitle: 'Meet · Video', time: '10:00 – 11:00', metric: '1' }
+            { type: 'workshop', title: 'Evaluación inicial · Objetivos', isGroup: true, subtitle: '18:00 – 19:00 con Nico M.', time: '18:00 – 19:00', metric: '1' },
+            { type: 'meet', title: 'Coaching 1:1 · Seguimiento', is1on1: true, subtitle: '10:00 – 11:00 con Franco P.', time: '10:00 – 11:00', metric: '1' }
         ],
         16: [
             { type: 'fitness', title: 'Pliométricos de Ronaldinho', duration: '2m', subtitle: 'Programa', metric: '1' },
@@ -419,17 +419,17 @@ export const MockCalendar = () => {
             { type: 'fitness', title: 'Resistencia Muscular', duration: '50m', subtitle: 'Programa', metric: '1' }
         ],
         20: [
-            { type: 'workshop', title: 'Taller de Biomecánica', isGroup: true, subtitle: 'Taller', time: '19:00 – 20:30', metric: '1' }
+            { type: 'workshop', title: 'Taller de Biomecánica', isGroup: true, subtitle: '19:00 – 20:30 con Carlos', time: '19:00 – 20:30', metric: '1' }
         ],
         22: [
             { type: 'nutrition', title: 'Cena de Proteína Alta', count: '1', subtitle: 'Programa', metric: '1' }
         ],
         25: [
-            { type: 'meet', title: 'Sesión de Feedback', is1on1: true, subtitle: 'Video sesión', time: '16:00 – 17:00', metric: '1' },
+            { type: 'meet', title: 'Sesión de Feedback', is1on1: true, subtitle: '16:00 – 17:00 con Martín', time: '16:00 – 17:00', metric: '1' },
             { type: 'fitness', title: 'Entrenamiento de Core', duration: '30m', subtitle: 'Programa', metric: '1' }
         ],
         28: [
-            { type: 'workshop', title: 'Masterclass Nutrición', isGroup: true, subtitle: 'Workshop', time: '20:00 – 21:00', metric: '1' }
+            { type: 'workshop', title: 'Masterclass Nutrición', isGroup: true, subtitle: '20:00 – 21:00 con Ana', time: '20:00 – 21:00', metric: '1' }
         ]
     }
 

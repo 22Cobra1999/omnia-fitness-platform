@@ -366,27 +366,30 @@ export function OmniaShowcase() {
                                 <div className="flex items-center justify-between">
                                     <span className="text-[12px] font-black text-white/60 uppercase italic">Intensidad</span>
                                     <div className="flex gap-1">
-                                        {[1, 2, 3].map((lvl) => (
-                                            <button
-                                                key={lvl}
-                                                onClick={() => setIntensity(lvl)}
-                                                className="transition-all active:scale-95"
-                                            >
-                                                <Flame
-                                                    size={18}
-                                                    className={cn(
-                                                        "transition-all duration-300",
-                                                        intensity >= lvl
-                                                            ? (intensity === 1 ? "text-[#F7E16B] drop-shadow-[0_0_10px_rgba(247,225,107,0.4)]"
-                                                                : intensity === 2 ? "text-[#FF7939] drop-shadow-[0_0_10px_rgba(255,121,57,0.4)]"
-                                                                    : "text-[#FF4D4D] drop-shadow-[0_0_10px_rgba(255,77,77,0.4)]")
-                                                            : "text-white/[0.03]"
-                                                    )}
-                                                    fill="none"
-                                                    strokeWidth={intensity >= lvl ? 2.5 : 1.5}
-                                                />
-                                            </button>
-                                        ))}
+                                        {[1, 2, 3].map((lvl) => {
+                                            const IconMatch = filterCategory === 'nutricion' ? Utensils : Flame;
+                                            return (
+                                                <button
+                                                    key={lvl}
+                                                    onClick={() => setIntensity(lvl)}
+                                                    className="transition-all active:scale-95"
+                                                >
+                                                    <IconMatch
+                                                        size={18}
+                                                        className={cn(
+                                                            "transition-all duration-300",
+                                                            intensity >= lvl
+                                                                ? (intensity === 1 ? "text-[#F7E16B] drop-shadow-[0_0_10px_rgba(247,225,107,0.4)]"
+                                                                    : intensity === 2 ? "text-[#FF7939] drop-shadow-[0_0_10px_rgba(255,121,57,0.4)]"
+                                                                        : "text-[#FF4D4D] drop-shadow-[0_0_10px_rgba(255,77,77,0.4)]")
+                                                                : "text-white/[0.03]"
+                                                        )}
+                                                        fill="none"
+                                                        strokeWidth={intensity >= lvl ? 2.5 : 1.5}
+                                                    />
+                                                </button>
+                                            )
+                                        })}
                                     </div>
                                 </div>
                                 <div className={cn(
