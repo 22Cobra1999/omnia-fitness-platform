@@ -117,7 +117,7 @@ export function ProductHero({ product, logic, onEdit, onDelete, showEditButton }
                     ) : (
                         <div className="w-full h-full bg-white/5 flex flex-center flex-col gap-3 justify-center items-center">
                             <div className="w-20 h-20 bg-[#FF7939] rounded-xl flex items-center justify-center"><Flame className="w-10 h-10 text-black" /></div>
-                            <h1 className="text-gray-400 text-2xl font-bold">OMNIA</h1>
+                            <span className="text-gray-400 text-2xl font-bold">OMNIA</span>
                         </div>
                     )}
                 </div>
@@ -126,7 +126,7 @@ export function ProductHero({ product, logic, onEdit, onDelete, showEditButton }
             ) : (
                 <div className="w-full h-full bg-white/5 flex flex-center flex-col gap-3 justify-center items-center">
                     <div className="w-20 h-20 bg-[#FF7939] rounded-xl flex items-center justify-center"><Flame className="w-10 h-10 text-black" /></div>
-                    <h1 className="text-gray-400 text-2xl font-bold">OMNIA</h1>
+                    <span className="text-gray-400 text-2xl font-bold">OMNIA</span>
                 </div>
             )}
         </div>

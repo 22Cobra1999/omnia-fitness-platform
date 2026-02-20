@@ -19,7 +19,7 @@ async function getActivity(id: string) {
         .from('activities')
         .select(`
       *,
-      coaches!activities_coach_id_fkey (full_name),
+      coaches!activities_coach_id_fkey (full_name, avatar_url, rating),
       activity_media!activity_media_activity_id_fkey (image_url)
     `)
         .eq('id', id)
@@ -27,6 +27,16 @@ async function getActivity(id: string) {
 
     if (error && error.code !== 'PGRST116') { // PGRST116 is code for no rows found
         console.error('❌ [getActivity] Error fetching activity:', error)
+    }
+
+    if (activity) {
+        // Normalize coach data for UI compatibility
+        return {
+            ...activity,
+            coach_name: activity.coaches?.full_name || null,
+            coach_avatar_url: activity.coaches?.avatar_url || null,
+            coach_rating: activity.coaches?.rating || null
+        }
     }
 
     return activity

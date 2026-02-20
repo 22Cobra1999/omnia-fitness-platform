@@ -282,6 +282,13 @@ export function useSearchScreenLogic(initialData?: any) {
 
     // Interaction Handlers
     const handleActivityClick = useCallback((activity: Activity, fromCoachProfile = false, coachId?: string) => {
+        // Al hacer click, sincronizar ID con la URL
+        if (typeof window !== 'undefined') {
+            const url = new URL(window.location.href)
+            url.searchParams.set('id', String(activity.id))
+            window.history.replaceState({ tab: 'search', activityId: activity.id }, '', url.toString())
+        }
+
         setNavigationStack(prev => {
             let newStack = [...prev]
             if (fromCoachProfile && coachId && selectedCoachForProfile) {
@@ -330,6 +337,13 @@ export function useSearchScreenLogic(initialData?: any) {
     }, [allCoaches])
 
     const handleModalClose = useCallback(() => {
+        // Al cerrar modal, limpiar ID de la URL
+        if (typeof window !== 'undefined') {
+            const url = new URL(window.location.href)
+            url.searchParams.delete('id')
+            window.history.replaceState({ tab: 'search' }, '', url.toString())
+        }
+
         if (navigationStack.length === 0) {
             setIsPreviewModalOpen(false)
             setIsCoachProfileModalOpen(false)

@@ -76,6 +76,13 @@ function MobileAppContent({ initialTab, initialCategoryId, initialActivityId, in
       }
     }
 
+    // Al cambiar de pestaña (no solo reset), también queremos limpiar el forcedId
+    // para que no arrastre el ID de la actividad inicial a otras pestañas
+    if (forcedId) {
+      console.log(`🔗 [MobileApp] Tab changed to ${activeTab}. Clearing initial forced ID.`)
+      setForcedId(undefined)
+    }
+
     window.addEventListener('reset-tab-to-origin', handleTabReset as EventListener)
     return () => {
       window.removeEventListener('reset-tab-to-origin', handleTabReset as EventListener)

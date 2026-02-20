@@ -98,7 +98,7 @@ export const SearchHeader: React.FC<SearchHeaderProps> = ({
     }
 
     return (
-        <div className="mb-4 mt-0.5">
+        <div className="mb-2 mt-0.5">
             <div className="flex items-center gap-3">
                 {/* Buscador Compacto */}
                 <div className="relative flex-1 group">
@@ -124,6 +124,7 @@ export const SearchHeader: React.FC<SearchHeaderProps> = ({
                             setShowFilters(true);
                         }
                     }}
+                    aria-label={showFilters ? "Cerrar filtros" : "Abrir filtros"}
                     className={`w-11 h-11 rounded-2xl border transition-all flex items-center justify-center flex-shrink-0 ${showFilters
                         ? 'bg-red-500 border-red-500 text-white'
                         : 'bg-white/5 border-white/10 text-white/40 hover:bg-white/10'

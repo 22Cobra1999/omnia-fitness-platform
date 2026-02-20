@@ -2,7 +2,7 @@ import React from "react"
 import { User, ShoppingCart, Loader2 } from "lucide-react"
 import CoachProfileCard from '@/components/coach/clients/CoachProfileCard'
 import ActivityCard from '@/components/shared/activities/ActivityCard'
-import { NoCoachesFallback, NoActivitiesFallback } from '@/components/shared/misc/fallback-states'
+import { NoCoachesFallback, NoActivitiesFallback, CompactNoCoachesFallback } from '@/components/shared/misc/fallback-states'
 
 interface SearchResultsProps {
     expandedSection: 'coaches' | 'activities' | null
@@ -61,18 +61,19 @@ export const SearchResults: React.FC<SearchResultsProps> = ({
                     )}
 
                     {!isLoadingCoaches && !coachesError && displayedCoaches.length === 0 && (
-                        <NoCoachesFallback onRetry={handleRetry} />
+                        <CompactNoCoachesFallback onRetry={handleRetry} />
                     )}
 
                     {!isLoadingCoaches && !coachesError && displayedCoaches.length > 0 && (
                         <div className="overflow-x-auto no-scrollbar">
                             <div className="flex gap-4 pb-4 px-1" style={{ minWidth: "min-content" }}>
-                                {displayedCoaches.map((coach) => (
+                                {displayedCoaches.map((coach, index) => (
                                     <CoachProfileCard
                                         key={coach.id}
                                         coach={coach}
                                         size="small"
                                         onClick={() => handleCoachClick(coach.id)}
+                                        priority={index < 4}
                                     />
                                 ))}
                             </div>
@@ -99,12 +100,13 @@ export const SearchResults: React.FC<SearchResultsProps> = ({
                         ) : (
                             <div className="overflow-x-auto no-scrollbar">
                                 <div className="flex gap-4 pb-4 px-1" style={{ minWidth: "min-content" }}>
-                                    {activities.map((activity) => (
+                                    {activities.map((activity, index) => (
                                         <ActivityCard
                                             key={activity.id}
                                             activity={activity}
                                             size="small"
                                             onClick={() => handleActivityClick(activity)}
+                                            priority={index < 4}
                                         />
                                     ))}
                                 </div>

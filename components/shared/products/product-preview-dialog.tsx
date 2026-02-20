@@ -4,6 +4,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/u
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import { VimeoPlayer } from '@/components/shared/video/vimeo-player'
+import Image from "next/image"
 import { FileText, Video, Users, Clock, CalendarIcon } from "lucide-react"
 
 interface Activity {
@@ -182,11 +183,13 @@ export function ProductPreviewDialog({ isOpen, onClose, activity }: ProductPrevi
               <VimeoPlayer videoId={previewVimeoId} title={activity.title} className="w-full" />
             </div>
           ) : activity.image_url ? (
-            <div className="aspect-video rounded-md overflow-hidden bg-gray-100 dark:bg-gray-800">
-              <img
+            <div className="aspect-video relative rounded-md overflow-hidden bg-gray-100 dark:bg-gray-800">
+              <Image
                 src={activity.image_url || "/placeholder.svg"}
                 alt={activity.title}
-                className="w-full h-full object-cover"
+                fill
+                className="object-cover"
+                sizes="(max-width: 600px) 100vw, 600px"
               />
             </div>
           ) : (
@@ -199,7 +202,7 @@ export function ProductPreviewDialog({ isOpen, onClose, activity }: ProductPrevi
           {/* Título y precio */}
           <div className="space-y-2">
             <div className="flex justify-between items-center">
-              <h3 className="text-xl font-bold">{activity.title}</h3>
+              <h1 className="text-xl font-bold">{activity.title}</h1>
               <div className="text-xl font-bold text-green-600">${activity.price.toFixed(2)}</div>
             </div>
 

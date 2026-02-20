@@ -23,9 +23,10 @@ interface CoachProfileCardProps {
   onClick?: () => void
   size?: 'small' | 'medium'
   variant?: 'default' | 'meet' | 'compact'
+  priority?: boolean
 }
 
-export default function CoachProfileCard({ coach, onClick, size = 'small', variant = 'default' }: CoachProfileCardProps) {
+export default function CoachProfileCard({ coach, onClick, size = 'small', variant = 'default', priority = false }: CoachProfileCardProps) {
   const cardClasses = (() => {
     const base = 'group relative overflow-hidden cursor-pointer transition-all duration-300'
 
@@ -39,10 +40,8 @@ export default function CoachProfileCard({ coach, onClick, size = 'small', varia
     return `${base} ${standardBase} ${heightClass}`
   })()
 
-  // Debug logging
-  if (variant === 'meet') {
-    console.log(`🔍 [CoachProfileCard] ${coach.name} (ID: ${coach.id}) - Variant: meet, Available: ${coach.available_meets}, Valid: ${(Number(coach.available_meets) || 0) > 0}`)
-  }
+  // Debug logging - Removed for performance in production
+
 
   const ratingValue = typeof coach.rating === 'number' ? coach.rating : 0
   const showRating = ratingValue > 0
@@ -57,7 +56,7 @@ export default function CoachProfileCard({ coach, onClick, size = 'small', varia
         <div className="flex h-full items-center gap-3 px-3">
           <div className="h-10 w-10 rounded-full overflow-hidden bg-[#141414] border border-white/10">
             {coach.avatar_url ? (
-              <Image src={coach.avatar_url} alt={displayName} width={40} height={40} className="h-full w-full object-cover" />
+              <Image src={coach.avatar_url} alt={displayName} width={40} height={40} className="h-full w-full object-cover" priority={priority} />
             ) : (
               <div className="flex h-full w-full items-center justify-center">
                 <User className="h-4 w-4 text-[#B0B0B0]" />
@@ -120,7 +119,7 @@ export default function CoachProfileCard({ coach, onClick, size = 'small', varia
 
             <div className="h-[54px] w-[54px] rounded-full overflow-hidden bg-[#141414]">
               {coach.avatar_url ? (
-                <Image src={coach.avatar_url} alt={displayName} width={54} height={54} className="h-full w-full object-cover" />
+                <Image src={coach.avatar_url} alt={displayName} width={54} height={54} className="h-full w-full object-cover" priority={priority} />
               ) : (
                 <div className="flex h-full w-full items-center justify-center">
                   <User className="h-6 w-6 text-[#B0B0B0]" />

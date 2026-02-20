@@ -54,7 +54,7 @@ export function ProductDetails({ product, logic }: ProductDetailsProps) {
         <div className="px-6 space-y-5">
             {/* 1. Title - Minimalist and smaller */}
             <div>
-                <h2 className="text-2xl font-black text-white tracking-tight leading-tight">{product.title}</h2>
+                <h1 className="text-2xl font-black text-white tracking-tight leading-tight">{product.title}</h1>
             </div>
 
             {/* 2. Coach Intro - Very compact, below title */}
@@ -66,10 +66,10 @@ export function ProductDetails({ product, logic }: ProductDetailsProps) {
                     <Image src={product.coach_avatar_url || '/placeholder.svg'} alt="Coach" width={24} height={24} className="object-cover" />
                 </div>
                 <div className="flex items-center gap-2">
-                    <h3 className="text-gray-300 font-bold text-xs">{product.coach_name || product.coach?.name || 'Coach'}</h3>
+                    <h3 className="text-gray-300 font-bold text-xs">{product.coach_name || product.full_name || product.coaches?.full_name || product.coach?.name || 'Coach'}</h3>
                     <div className="flex items-center space-x-0.5 opacity-80">
                         <Star className="h-2.5 w-2.5 text-yellow-400 fill-current" />
-                        <span className="text-gray-400 font-bold text-[10px]">{product.coach_avg_rating?.toFixed(1) || '-'}</span>
+                        <span className="text-gray-400 font-bold text-[10px]">{product.coach_rating?.toFixed(1) || '-'}</span>
                     </div>
                 </div>
                 {!navigationContext?.fromCoachProfile && <ChevronRight className="h-3 w-3 text-gray-600" />}
@@ -193,7 +193,7 @@ export function ProductDetails({ product, logic }: ProductDetailsProps) {
                         if (Array.isArray(parsed)) restrictions = parsed
                         else restrictions = [product.restricciones]
                     } catch (e) {
-                        restrictions = product.restricciones.split(',').map(s => s.trim())
+                        restrictions = product.restricciones.split(',').map((s: string) => s.trim())
                     }
                 }
 

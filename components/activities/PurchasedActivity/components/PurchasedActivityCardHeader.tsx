@@ -25,6 +25,7 @@ export function PurchasedActivityCardHeader({ imageUrl, title, size, isCoachView
                     alt={title || 'Actividad'}
                     fill
                     className="object-cover"
+                    sizes="(max-width: 768px) 50vw, 33vw"
                 />
             ) : (
                 <div className="w-full h-full bg-[#111] flex items-center justify-center flex-col gap-3">

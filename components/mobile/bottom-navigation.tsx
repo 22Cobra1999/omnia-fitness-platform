@@ -35,6 +35,16 @@ export function BottomNavigation({ activeTab, setActiveTab }: BottomNavigationPr
       return
     }
 
+    // Al cambiar de tab, limpiar el ID de la URL para evitar persistencia cruzada
+    if (typeof window !== 'undefined') {
+      const url = new URL(window.location.href)
+      if (url.searchParams.has('id')) {
+        console.log('🔗 [BottomNavigation] Changing tab. Clearing ID from URL.')
+        url.searchParams.delete('id')
+        window.history.replaceState({}, '', url.toString())
+      }
+    }
+
     setActiveTab(tab)
 
     if (tab === "clients") {

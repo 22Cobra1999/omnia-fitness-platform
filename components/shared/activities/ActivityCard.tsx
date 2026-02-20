@@ -10,13 +10,15 @@ interface ActivityCardProps {
   size?: 'small' | 'medium' | 'large'
   variant?: 'default' | 'blurred'
   onClick?: (activity: Activity) => void
+  priority?: boolean
 }
 
 const ActivityCard: React.FC<ActivityCardProps> = ({
   activity,
   size = 'medium',
   variant = 'default',
-  onClick
+  onClick,
+  priority = false
 }) => {
   const loading = false
 
@@ -295,9 +297,10 @@ const ActivityCard: React.FC<ActivityCardProps> = ({
             <Image
               src={getValidImageUrl(activity)!}
               alt={activity.title || 'Imagen de actividad'}
-              width={200} height={200}
-              className="object-cover w-full h-full"
-              loading="lazy" priority={false}
+              fill
+              className="object-cover"
+              sizes="(max-width: 768px) 30vw, (max-width: 1200px) 20vw, 15vw"
+              priority={priority}
             />
           ) : (
             <div className="w-full h-full bg-[rgba(255,255,255,0.02)] flex items-center justify-center flex-col gap-3">

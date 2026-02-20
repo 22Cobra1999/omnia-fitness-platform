@@ -4,11 +4,20 @@ import { useEffect } from "react"
 import { trackComponent } from '@/lib/logging/usage-tracker'
 import { useSearchScreenLogic } from '@/hooks/mobile/useSearchScreenLogic'
 
+import dynamic from 'next/dynamic'
+
 // Modular Components
 import { SearchHeader } from "./search/SearchHeader"
-import { SearchFilters } from "./search/SearchFilters"
 import { SearchResults } from "./search/SearchResults"
-import { SearchModals } from "./search/SearchModals"
+
+const SearchFilters = dynamic(() => import("./search/SearchFilters").then(mod => mod.SearchFilters), {
+  ssr: false,
+  loading: () => <div className="h-10 animate-pulse bg-white/5 rounded-xl mx-4 my-2" />
+})
+
+const SearchModals = dynamic(() => import("./search/SearchModals").then(mod => mod.SearchModals), {
+  ssr: false
+})
 
 interface SearchScreenProps {
   onTabChange?: (tab: string) => void;
@@ -72,7 +81,7 @@ export function SearchScreen({ onTabChange, initialActivityData }: SearchScreenP
   ]
 
   return (
-    <div className="flex flex-col h-full bg-[#121212] text-white overflow-y-auto pt-4 pb-32 overscroll-auto touch-pan-y selection:bg-[#FF7939]/30">
+    <main className="flex flex-col h-full bg-[#121212] text-white overflow-y-auto pt-4 pb-32 overscroll-auto touch-pan-y selection:bg-[#FF7939]/30">
       <SearchHeader
         expandedSection={expandedSection}
         searchTerm={searchTerm}
@@ -134,6 +143,6 @@ export function SearchScreen({ onTabChange, initialActivityData }: SearchScreenP
         handleActivityClick={handleActivityClick}
         allActivities={allActivities}
       />
-    </div>
+    </main>
   )
 }
