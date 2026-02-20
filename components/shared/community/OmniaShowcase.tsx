@@ -280,12 +280,12 @@ export function OmniaShowcase() {
                     {/* 2-Column Product Display */}
                     <div className="grid grid-cols-2 gap-4 items-stretch min-h-[420px] relative">
                         {/* Fake Floating Comments over the gutter */}
-                        <div className="absolute top-[40%] left-1/2 -translate-x-1/2 -translate-y-1/2 flex flex-col gap-2 z-20 pointer-events-none">
-                            <div className="bg-[#1e1e1e] backdrop-blur-md rounded-xl p-2 border border-white/10 shadow-2xl scale-[0.85] -translate-x-6 origin-center">
+                        <div className="absolute top-[40%] left-[30%] -translate-x-1/2 -translate-y-1/2 flex flex-col gap-2 z-20 pointer-events-none">
+                            <div className="bg-[#1e1e1e] backdrop-blur-md rounded-xl p-2 border border-white/10 shadow-2xl scale-[0.85] origin-center -ml-8">
                                 <div className="flex gap-0.5 text-[#FF7939] mb-0.5"><Star size={8} fill="currentColor" /><Star size={8} fill="currentColor" /><Star size={8} fill="currentColor" /><Star size={8} fill="currentColor" /><Star size={8} fill="currentColor" /></div>
                                 <p className="text-[9px] text-white font-semibold italic">"Brillante."</p>
                             </div>
-                            <div className="bg-[#1e1e1e] backdrop-blur-md rounded-xl p-2 border border-white/10 shadow-2xl scale-[0.75] translate-x-6 origin-center opacity-80">
+                            <div className="bg-[#1e1e1e] backdrop-blur-md rounded-xl p-2 border border-white/10 shadow-2xl scale-[0.75] origin-center opacity-80 mt-1 ml-4">
                                 <div className="flex gap-0.5 text-[#FF7939] mb-0.5"><Star size={8} fill="currentColor" /><Star size={8} fill="currentColor" /><Star size={8} fill="currentColor" /><Star size={8} fill="currentColor" /><Star size={8} fill="currentColor" /></div>
                                 <p className="text-[9px] text-white font-semibold italic">"Muy superior."</p>
                             </div>
@@ -448,17 +448,17 @@ export function OmniaShowcase() {
                             <div className="flex flex-col gap-3 pt-3 border-t border-white/5">
                                 <span className="text-[12px] font-black text-white/60 uppercase italic">Esta actividad tiene:</span>
                                 <div className="grid grid-cols-3 gap-2">
-                                    <div className="flex flex-col gap-1 items-center justify-center p-3 rounded-2xl bg-white/[0.02] border border-white/5">
+                                    <div className="flex flex-col gap-1 items-center justify-center py-2">
                                         <span className="text-2xl font-black text-white italic leading-none">24</span>
-                                        <span className="text-[8px] font-bold text-white/40 uppercase tracking-widest text-center">Días</span>
+                                        <span className="text-[8px] font-bold text-white/40 uppercase tracking-widest text-center mt-1">Días</span>
                                     </div>
-                                    <div className="flex flex-col gap-1 items-center justify-center p-3 rounded-2xl bg-white/[0.02] border border-white/5">
+                                    <div className="flex flex-col gap-1 items-center justify-center py-2">
                                         <span className="text-2xl font-black text-white italic leading-none">{filterCategory === 'nutricion' ? "10" : "15"}</span>
-                                        <span className="text-[8px] font-bold text-white/40 uppercase tracking-widest text-center">{filterCategory === 'nutricion' ? 'Platos' : 'Ejercicios'} únicos</span>
+                                        <span className="text-[8px] font-bold text-white/40 uppercase tracking-widest text-center mt-1">{filterCategory === 'nutricion' ? 'Platos' : 'Ejercicios'} únicos</span>
                                     </div>
-                                    <div className="flex flex-col gap-1 items-center justify-center p-3 rounded-2xl bg-white/[0.02] border border-white/5">
+                                    <div className="flex flex-col gap-1 items-center justify-center py-2">
                                         <span className="text-2xl font-black text-white italic leading-none">∞</span>
-                                        <span className="text-[8px] font-bold text-white/40 uppercase tracking-widest text-center">Cupos</span>
+                                        <span className="text-[8px] font-bold text-white/40 uppercase tracking-widest text-center mt-1">Cupos</span>
                                     </div>
                                 </div>
                             </div>
