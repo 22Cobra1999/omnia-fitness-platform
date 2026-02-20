@@ -19,11 +19,11 @@ import {
 } from '@/components/ui/dialog'
 
 import { usePlanManagementLogic, type PlanType } from './hooks/usePlanManagementLogic'
-import { PlanHeader } from './PlanManagement/PlanHeader'
-import { PlanCard } from './PlanManagement/PlanCard'
-import { PlanFeaturesTable } from './PlanManagement/PlanFeaturesTable'
-import { PlanPaymentSummary } from './PlanManagement/PlanPaymentSummary'
-import { PLAN_NAMES } from './PlanManagement/data/plan-data'
+import { PlanHeader } from './PlanManagementBase/PlanHeader'
+import { PlanCard } from './PlanManagementBase/PlanCard'
+import { PlanFeaturesTable } from './PlanManagementBase/PlanFeaturesTable'
+import { PlanPaymentSummary } from './PlanManagementBase/PlanPaymentSummary'
+import { PLAN_NAMES } from './PlanManagementBase/data/plan-data'
 
 function PlanManagement() {
   const {
