@@ -2,7 +2,7 @@
 
 import { useState, useEffect, Suspense, useRef } from "react"
 import { useSearchParams } from "next/navigation"
-import { motion, AnimatePresence } from "framer-motion"
+import { motion, AnimatePresence, useScroll, useTransform, useMotionValue, useSpring } from "framer-motion"
 import ErrorBoundary from '@/components/shared/misc/ErrorBoundary'
 import { useErrorHandler } from '@/components/shared/misc/error-boundary'
 import { BottomNavigation } from "@/components/mobile/bottom-navigation"
@@ -299,46 +299,32 @@ function MobileAppContent({ initialTab, initialCategoryId, initialActivityId, in
     }
   }, [])
 
-  // Scroll listener for header logo sync
-  const [headerState, setHeaderState] = useState({
-    bgOpacity: activeTab === 'community' ? 0 : 1,
-    logoScale: activeTab === 'community' ? 2.5 : 1,
-    logoY: activeTab === 'community' ? 120 : 0
-  })
   const scrollRef = useRef<HTMLDivElement>(null)
 
+  // Smooth scroll tracking via framer-motion
+  const { scrollY } = useScroll({ container: scrollRef })
+
+  // Create transforms directly from scrollY
+  const bgOpacity = useTransform(scrollY, [50, 120], [0, 1])
+
+  // Decrease scale from 2.5 to 1 smoothly over 160px of scroll
+  const logoScale = useTransform(scrollY, [0, 160], [2.5, 1])
+
+  // Move Y from 120 to 0 smoothly over 160px of scroll
+  const logoY = useTransform(scrollY, [0, 160], [120, 0])
+
+  // Use motion values that fallback to defaults if not in community tab
+  const actualBgOpacity = useTransform(bgOpacity, v => activeTab === 'community' ? v : 1)
+  const actualLogoScale = useTransform(logoScale, v => activeTab === 'community' ? v : 1)
+  const actualLogoY = useTransform(logoY, v => activeTab === 'community' ? v : 0)
+
+  // Use a spring or derived state for the drop shadow to avoid re-rendering
+  const [isLogoLarge, setIsLogoLarge] = useState(activeTab === 'community')
   useEffect(() => {
-    if (activeTab !== 'community') {
-      setHeaderState({ bgOpacity: 1, logoScale: 1, logoY: 0 })
-      return
-    }
-
-    const handleScroll = () => {
-      if (!scrollRef.current) return
-      const scrollTop = scrollRef.current.scrollTop
-
-      const bgOpacity = Math.min(1, Math.max(0, (scrollTop - 50) / 70))
-      // Decrease scale from 2.5 to 1 smoothly over 160px of scroll
-      const logoScale = Math.max(1, 2.5 - (scrollTop / 160) * 1.5)
-      // Move Y from 120 to 0 smoothly over 160px of scroll
-      const logoY = Math.max(0, 120 - scrollTop * (120 / 160))
-
-      setHeaderState({ bgOpacity, logoScale, logoY })
-    }
-
-    const container = scrollRef.current
-    if (container) {
-      container.addEventListener('scroll', handleScroll, { passive: true })
-      // Initial check
-      handleScroll()
-    }
-
-    return () => {
-      if (container) {
-        container.removeEventListener('scroll', handleScroll)
-      }
-    }
-  }, [activeTab])
+    return logoScale.on("change", (latest) => {
+      setIsLogoLarge(activeTab === 'community' && latest > 1.5)
+    })
+  }, [logoScale, activeTab])
 
   const renderScreen = () => {
     switch (activeTab) {
@@ -407,9 +393,9 @@ function MobileAppContent({ initialTab, initialCategoryId, initialActivityId, in
       <div className="flex flex-col h-screen bg-black">
         {/* Header fijo */}
         <motion.div
-          className="fixed top-0 left-0 right-0 z-[1000] rounded-b-[32px] px-5 py-3 flex justify-between items-center"
+          className="fixed top-0 left-0 right-0 z-[1000] rounded-b-[32px] px-5 py-3 flex justify-between items-center bg-black"
           style={{
-            backgroundColor: `rgba(0, 0, 0, ${headerState.bgOpacity})`
+            backgroundColor: useTransform(actualBgOpacity, o => `rgba(0, 0, 0, ${o})`)
           }}
         >
           {/* Settings Icon */}
@@ -422,11 +408,11 @@ function MobileAppContent({ initialTab, initialCategoryId, initialActivityId, in
             className="absolute left-1/2"
             style={{
               x: "-50%",
-              scale: headerState.logoScale,
-              y: headerState.logoY
+              scale: actualLogoScale,
+              y: actualLogoY
             }}
           >
-            <OmniaLogoText size="text-3xl" className={activeTab === 'community' && headerState.logoScale > 1.5 ? "drop-shadow-[0_20px_25px_rgba(255,121,57,0.15)] filter" : ""} />
+            <OmniaLogoText size="text-3xl" className={isLogoLarge ? "drop-shadow-[0_20px_25px_rgba(255,121,57,0.15)] filter" : ""} />
           </motion.div>
 
           {/* Messages Icon */}
