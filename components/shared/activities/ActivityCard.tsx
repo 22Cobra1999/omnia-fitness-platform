@@ -397,7 +397,6 @@ const ActivityCard: React.FC<ActivityCardProps> = ({
                 ) : (
                   <div className="flex items-center gap-1.5 text-red-500">
                     <Users className="h-4 w-4" />
-                    <span className="text-[9px] font-black uppercase">Grupal</span>
                   </div>
                 )
               })()}

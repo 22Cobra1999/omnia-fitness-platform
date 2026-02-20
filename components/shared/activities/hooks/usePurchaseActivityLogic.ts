@@ -159,12 +159,16 @@ export function usePurchaseActivityLogic({
             const useMercadoPago = paymentMethod === 'mercadopago';
 
             if (useMercadoPago) {
+                console.log("[MercadoPago] Inicializando importación dinámica de módulos MP...");
                 const { createCheckoutProPreference, redirectToMercadoPagoCheckout, getCheckoutProErrorMessage } = await import('@/lib/mercadopago/checkout-pro');
+                console.log("[MercadoPago] Módulos importados correctamente. Creando preferencia para:", activity.id);
 
                 try {
                     const response = await createCheckoutProPreference(activity.id);
+                    console.log("[MercadoPago] Respuesta de createCheckoutProPreference:", response);
 
                     if (response.success && response.initPoint) {
+                        console.log("[MercadoPago] Preferencia creada exitosamente. Redirigiendo a:", response.initPoint);
                         toast({
                             title: "Redirigiendo a Mercado Pago",
                             description: "Serás redirigido para completar el pago...",
@@ -177,9 +181,11 @@ export function usePurchaseActivityLogic({
                         );
                         return;
                     } else {
-                        throw new Error(response.error || 'Error desconocido');
+                        console.error("[MercadoPago] La respuesta no contiene éxito o initPoint válido:", response);
+                        throw new Error(response.error || 'Error desconocido generando preferencia MP');
                     }
                 } catch (error: any) {
+                    console.error("[MercadoPago] Error capturado en el try-catch:", error);
                     const errorMessage = getCheckoutProErrorMessage(error);
                     toast({
                         title: "Error al procesar el pago",
