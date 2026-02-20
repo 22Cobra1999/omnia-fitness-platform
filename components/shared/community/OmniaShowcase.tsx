@@ -299,39 +299,37 @@ export function OmniaShowcase() {
                                         const reviewsSet = filterCategory === 'nutricion'
                                             ? filterType === 'workshop'
                                                 ? [
-                                                    { text: "¡Me encantó la charla!", top: "20%", left: "-80px", scale: 1.1 },
-                                                    { text: "Súper claro todo.", top: "45%", left: "40px", scale: 1.0 },
-                                                    { text: "10/10.", top: "70%", left: "-50px", scale: 0.95 }
+                                                    { text: "¡Me encantó la charla!", top: "30%", left: "-40px" },
+                                                    { text: "Súper claro todo.", top: "50%", left: "20px" },
+                                                    { text: "10/10.", top: "70%", left: "-30px" }
                                                 ]
                                                 : filterType === 'document'
                                                     ? [
-                                                        { text: "Muy fácil de leer.", top: "25%", left: "-60px", scale: 1.05 },
-                                                        { text: "Recetas increíbles.", top: "50%", left: "30px", scale: 1.15 },
-                                                        { text: "Me cambió la vida.", top: "80%", left: "-40px", scale: 0.9 }
+                                                        { text: "Muy fácil de leer.", top: "35%", left: "-30px" },
+                                                        { text: "Recetas increíbles.", top: "50%", left: "30px" },
+                                                        { text: "Me cambió la vida.", top: "65%", left: "-20px" }
                                                     ]
                                                     : [
-                                                        { text: "Dieta top.", top: "15%", left: "-90px", scale: 1.2 },
-                                                        { text: "Resultados reales.", top: "40%", left: "10px", scale: 1.05 },
-                                                        { text: "Cero hambre.", top: "65%", left: "-60px", scale: 1.0 },
-                                                        { text: "Riquísimo.", top: "85%", left: "20px", scale: 0.85 }
+                                                        { text: "Dieta top.", top: "30%", left: "-50px" },
+                                                        { text: "Resultados reales.", top: "50%", left: "10px" },
+                                                        { text: "Cero hambre.", top: "70%", left: "-40px" }
                                                     ]
                                             : filterType === 'workshop'
                                                 ? [
-                                                    { text: "Técnica impecable.", top: "25%", left: "-70px", scale: 1.1 },
-                                                    { text: "Aprendí muchísimo.", top: "55%", left: "30px", scale: 1.0 },
-                                                    { text: "El coach es un genio.", top: "80%", left: "-50px", scale: 0.95 }
+                                                    { text: "Técnica impecable.", top: "35%", left: "-40px" },
+                                                    { text: "Aprendí muchísimo.", top: "50%", left: "20px" },
+                                                    { text: "El coach es un genio.", top: "65%", left: "-30px" }
                                                 ]
                                                 : filterType === 'document'
                                                     ? [
-                                                        { text: "La rutina perfecta.", top: "20%", left: "-80px", scale: 1.05 },
-                                                        { text: "Directo al grano.", top: "50%", left: "50px", scale: 1.1 },
-                                                        { text: "Excelente guía.", top: "75%", left: "-40px", scale: 0.95 }
+                                                        { text: "La rutina perfecta.", top: "35%", left: "-50px" },
+                                                        { text: "Directo al grano.", top: "50%", left: "30px" },
+                                                        { text: "Excelente guía.", top: "65%", left: "-40px" }
                                                     ]
                                                     : [
-                                                        { text: "Programa brutal.", top: "15%", left: "-100px", scale: 1.25 },
-                                                        { text: "Mis mejores marcas.", top: "35%", left: "20px", scale: 1.1 },
-                                                        { text: "Muy superior.", top: "60%", left: "-60px", scale: 1.05 },
-                                                        { text: "Brillante.", top: "85%", left: "10px", scale: 0.9 }
+                                                        { text: "Programa brutal.", top: "30%", left: "-60px" },
+                                                        { text: "Mis mejores marcas.", top: "50%", left: "20px" },
+                                                        { text: "Muy superior.", top: "70%", left: "-50px" }
                                                     ]
 
                                         return reviewsSet.map((rev, idx) => (
@@ -339,11 +337,11 @@ export function OmniaShowcase() {
                                                 key={idx}
                                                 variants={{
                                                     hidden: { opacity: 0, scale: 0.5, x: -20, y: 10 },
-                                                    visible: { opacity: 1, scale: rev.scale, x: 0, y: 0, transition: { type: 'spring', stiffness: 200, damping: 15 } },
+                                                    visible: { opacity: 1, scale: 1.0, x: 0, y: 0, transition: { type: 'spring', stiffness: 200, damping: 15 } },
                                                     exit: { opacity: 0, scale: 0.8, x: 20, transition: { duration: 0.2 } }
                                                 }}
                                                 style={{ position: 'absolute', top: rev.top, left: rev.left, zIndex: 10 + idx }}
-                                                className="bg-[#1e1e1e] backdrop-blur-md rounded-2xl p-3 border border-white/10 shadow-2xl origin-left"
+                                                className="bg-[#1e1e1e] backdrop-blur-md rounded-2xl p-3 px-4 border border-white/10 shadow-2xl origin-left min-w-[140px]"
                                             >
                                                 <div className="flex gap-0.5 text-[#FF7939] mb-1"><Star size={10} fill="currentColor" /><Star size={10} fill="currentColor" /><Star size={10} fill="currentColor" /><Star size={10} fill="currentColor" /><Star size={10} fill="currentColor" /></div>
                                                 <p className="text-[12px] text-white font-semibold italic">"{rev.text}"</p>
@@ -507,24 +505,6 @@ export function OmniaShowcase() {
                                 </p>
                             </div>
 
-                            {/* Vertical Spec Breakdown */}
-                            <div className="flex flex-col gap-3 pt-3 border-t border-white/5">
-                                <span className="text-[12px] font-black text-white/60 uppercase italic">Esta actividad tiene:</span>
-                                <div className="grid grid-cols-3 gap-2">
-                                    <div className="flex flex-col gap-1 items-center justify-center py-2">
-                                        <span className="text-2xl font-black text-white italic leading-none">24</span>
-                                        <span className="text-[8px] font-bold text-white/40 uppercase tracking-widest text-center mt-1">Días</span>
-                                    </div>
-                                    <div className="flex flex-col gap-1 items-center justify-center py-2">
-                                        <span className="text-2xl font-black text-white italic leading-none">{filterCategory === 'nutricion' ? "10" : "15"}</span>
-                                        <span className="text-[8px] font-bold text-white/40 uppercase tracking-widest text-center mt-1">{filterCategory === 'nutricion' ? 'Platos' : 'Ejercicios'} únicos</span>
-                                    </div>
-                                    <div className="flex flex-col gap-1 items-center justify-center py-2">
-                                        <span className="text-2xl font-black text-white italic leading-none">∞</span>
-                                        <span className="text-[8px] font-bold text-white/40 uppercase tracking-widest text-center mt-1">Cupos</span>
-                                    </div>
-                                </div>
-                            </div>
 
                             {/* Features Explainers */}
                             <div className="grid grid-cols-2 gap-2 pt-3 border-t border-white/5">
@@ -550,13 +530,7 @@ export function OmniaShowcase() {
                                 </div>
                             </div>
 
-                            <div className="flex gap-2">
-                                {['Gluten Free', 'Muscular'].map((tag) => (
-                                    <span key={tag} className="px-3 py-1 rounded-full border border-white/10 bg-white/[0.02] text-[10px] font-black text-white/40 uppercase tracking-widest">
-                                        {tag}
-                                    </span>
-                                ))}
-                            </div>
+
                         </div>
                     </div>
 
