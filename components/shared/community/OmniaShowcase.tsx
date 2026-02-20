@@ -314,6 +314,18 @@ export function OmniaShowcase() {
                         <div className="flex flex-col justify-center gap-6 p-6 rounded-[32px] bg-white/[0.01] border border-white/5 relative overflow-hidden backdrop-blur-3xl">
                             <div className="absolute top-0 right-0 w-40 h-40 bg-white/5 blur-[80px] -z-10" />
 
+                            {/* Fake Floating Comments over the gutter */}
+                            <div className="absolute top-12 -left-6 flex flex-col gap-2 z-20 pointer-events-none">
+                                <div className="bg-[#1e1e1e] backdrop-blur-md rounded-xl p-2 border border-white/10 shadow-2xl scale-[0.85] origin-left">
+                                    <div className="flex gap-0.5 text-[#FF7939] mb-0.5"><Star size={8} fill="currentColor" /><Star size={8} fill="currentColor" /><Star size={8} fill="currentColor" /><Star size={8} fill="currentColor" /><Star size={8} fill="currentColor" /></div>
+                                    <p className="text-[9px] text-white font-semibold italic">"Brillante."</p>
+                                </div>
+                                <div className="bg-[#1e1e1e] backdrop-blur-md rounded-xl p-2 border border-white/10 shadow-2xl scale-[0.75] origin-left translate-x-4 opacity-80">
+                                    <div className="flex gap-0.5 text-[#FF7939] mb-0.5"><Star size={8} fill="currentColor" /><Star size={8} fill="currentColor" /><Star size={8} fill="currentColor" /><Star size={8} fill="currentColor" /><Star size={8} fill="currentColor" /></div>
+                                    <p className="text-[9px] text-white font-semibold italic">"Muy superior."</p>
+                                </div>
+                            </div>
+
                             <div className="flex flex-col gap-1">
                                 <div className="flex items-center justify-between">
                                     <span className="text-[10px] font-black text-[#FF7939] uppercase italic tracking-[0.2em]">
@@ -432,11 +444,30 @@ export function OmniaShowcase() {
                                 </p>
                             </div>
 
+                            {/* Vertical Spec Breakdown */}
+                            <div className="flex flex-col gap-3 pt-3 border-t border-white/5">
+                                <span className="text-[12px] font-black text-white/60 uppercase italic">Esta actividad tiene:</span>
+                                <div className="flex flex-col gap-2 border-l-2 border-white/10 pl-4 w-fit">
+                                    <div className="flex items-center gap-3">
+                                        <span className="text-[14px] font-black text-white italic min-w-[20px] text-right">24</span>
+                                        <span className="text-[10px] font-bold text-white/40 uppercase tracking-widest">Días</span>
+                                    </div>
+                                    <div className="flex items-center gap-3">
+                                        <span className="text-[14px] font-black text-white italic min-w-[20px] text-right">{filterCategory === 'nutricion' ? "10" : "15"}</span>
+                                        <span className="text-[10px] font-bold text-white/40 uppercase tracking-widest">{filterCategory === 'nutricion' ? 'Platos' : 'Ejercicios'} únicos</span>
+                                    </div>
+                                    <div className="flex items-center gap-3">
+                                        <span className="text-[14px] font-black text-white italic min-w-[20px] text-right">∞</span>
+                                        <span className="text-[10px] font-bold text-white/40 uppercase tracking-widest">Cupos</span>
+                                    </div>
+                                </div>
+                            </div>
+
                             {/* Features Explainers */}
                             <div className="grid grid-cols-2 gap-2 pt-3 border-t border-white/5">
                                 <div className="flex flex-col gap-1 p-2.5 rounded-2xl bg-white/[0.01] border border-white/10 group hover:bg-white/[0.03] transition-all">
                                     <div className="flex items-center gap-2">
-                                        <Video size={16} className="text-[#FF7939]" />
+                                        <Video size={16} className="text-white" />
                                         <span className="text-[11px] font-black text-white uppercase italic">Meet Incluida</span>
                                     </div>
                                     <p className="text-[10px] text-white/40 leading-none">Opcional: sesiones agendadas.</p>
