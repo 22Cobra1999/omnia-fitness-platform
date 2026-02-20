@@ -17,9 +17,9 @@ export async function GET(request: NextRequest) {
     const actividadIdNumber = actividad_id ? parseInt(actividad_id, 10) : NaN
 
     if (!actividad_id || Number.isNaN(actividadIdNumber)) {
-      return NextResponse.json({ 
-        success: false, 
-        error: 'actividad_id es requerido' 
+      return NextResponse.json({
+        success: false,
+        error: 'actividad_id es requerido'
       }, { status: 400 })
     }
 
@@ -39,9 +39,9 @@ export async function GET(request: NextRequest) {
 
     if (actividadError) {
       console.error('Error obteniendo información de la actividad:', actividadError)
-      return NextResponse.json({ 
-        success: false, 
-        error: 'Error obteniendo información de la actividad' 
+      return NextResponse.json({
+        success: false,
+        error: 'Error obteniendo información de la actividad'
       }, { status: 500 })
     }
 
@@ -58,9 +58,9 @@ export async function GET(request: NextRequest) {
 
     if (planificacionError) {
       console.error('Error obteniendo planificación:', planificacionError)
-      return NextResponse.json({ 
-        success: false, 
-        error: 'Error obteniendo planificación' 
+      return NextResponse.json({
+        success: false,
+        error: 'Error obteniendo planificación'
       }, { status: 500 })
     }
 
@@ -236,7 +236,7 @@ export async function GET(request: NextRequest) {
     const exerciseIds = new Set<number>()
 
     if (planificacion && planificacion.length > 0) {
-      planificacion.forEach((semana) => {
+      planificacion.forEach((semana: any) => {
         const semanaKey = semana.numero_semana.toString()
         parsedPlanByWeek[semanaKey] = {}
 
@@ -262,14 +262,14 @@ export async function GET(request: NextRequest) {
       // Consultar la tabla correcta según la categoría
       const camposSelect = isNutrition
         ? 'id, nombre_plato, tipo, descripcion, calorias, proteinas, carbohidratos, grasas, video_url, receta, is_active, activity_id'
-        : 'id, nombre_ejercicio, tipo, descripcion, calorias, intensidad, video_url, equipo, body_parts, detalle_series, duracion_min, is_active, activity_id'
-      
+        : 'id, nombre_ejercicio, tipo, descripcion, calorias, intensidad, video_url, equipo, body_parts, detalle_series, duracion_min, activity_id'
+
       const { data: ejercicios, error: ejerciciosError } = await supabase
         .from(tableName)
         .select(camposSelect)
         .in('id', Array.from(exerciseIds))
 
-    if (ejerciciosError) {
+      if (ejerciciosError) {
         console.error('Error obteniendo ejercicios por IDs:', ejerciciosError)
       } else if (ejercicios) {
         console.log('[get-product-planning] ejercicios encontrados:', {
@@ -278,9 +278,9 @@ export async function GET(request: NextRequest) {
           primeros: ejercicios.slice(0, 5)
         })
         ejercicios.forEach((ejercicio) => {
-        const activityMap = normalizeActivityMap(ejercicio.activity_id)
+          const activityMap = normalizeActivityMap(ejercicio.activity_id)
           const hasActivity = !!activityMap[String(actividadIdNumber)]
-          
+
           if (!hasActivity) {
             console.warn('[get-product-planning] Ejercicio NO tiene activity_id correcto:', {
               ejercicioId: ejercicio.id,
@@ -293,31 +293,31 @@ export async function GET(request: NextRequest) {
             // NO hacer return, agregar igualmente al mapa para que tenga los datos
             // El filtro de activity_id es solo para el flag is_active
           }
-          
-        const isActive = hasActivity ? getActiveFlagForActivity(
-          activityMap,
+
+          const isActive = hasActivity ? getActiveFlagForActivity(
+            activityMap,
             actividadIdNumber,
-          ejercicio.is_active !== false
-        ) : true // Si no tiene el activity_id, asumir activo por defecto
+            ejercicio.is_active !== false
+          ) : true // Si no tiene el activity_id, asumir activo por defecto
 
           ejerciciosMap.set(String(ejercicio.id), {
-          ...ejercicio,
-          activity_map: activityMap,
-          is_active: isActive
+            ...ejercicio,
+            activity_map: activityMap,
+            is_active: isActive
+          })
         })
-      })
-      
-      console.log('[get-product-planning] ejerciciosMap construido:', {
-        mapSize: ejerciciosMap.size,
-        mapKeys: Array.from(ejerciciosMap.keys()),
-        sampleEntries: Array.from(ejerciciosMap.entries()).slice(0, 3).map(([key, val]) => ({
-          key,
-          id: val.id,
-          nombre_ejercicio: val.nombre_ejercicio,
-          tipo: val.tipo,
-          activity_id: val.activity_id
-        }))
-      })
+
+        console.log('[get-product-planning] ejerciciosMap construido:', {
+          mapSize: ejerciciosMap.size,
+          mapKeys: Array.from(ejerciciosMap.keys()),
+          sampleEntries: Array.from(ejerciciosMap.entries()).slice(0, 3).map(([key, val]) => ({
+            key,
+            id: val.id,
+            nombre_ejercicio: val.nombre_ejercicio,
+            tipo: val.tipo,
+            activity_id: val.activity_id
+          }))
+        })
       }
     }
 
@@ -325,7 +325,7 @@ export async function GET(request: NextRequest) {
     const weeklySchedule: { [weekNumber: string]: { [dayNumber: string]: any[] } } = {}
     let totalSessions = 0
     const uniqueExercises = new Set<string>()
-    
+
     // Primero, identificar todos los ejercicios que no están en el mapa
     const ejerciciosFaltantes = new Set<number>()
     Object.entries(parsedPlanByWeek).forEach(([semanaKey, days]) => {
@@ -344,15 +344,15 @@ export async function GET(request: NextRequest) {
     if (ejerciciosFaltantes.size > 0) {
       const camposSelectFaltantes = isNutrition
         ? 'id, nombre_plato, tipo, descripcion, calorias, proteinas, carbohidratos, grasas, video_url, receta, is_active, activity_id'
-        : 'id, nombre_ejercicio, tipo, descripcion, calorias, intensidad, video_url, equipo, body_parts, detalle_series, duracion_min, is_active, activity_id'
-      
+        : 'id, nombre_ejercicio, tipo, descripcion, calorias, intensidad, video_url, equipo, body_parts, detalle_series, duracion_min, activity_id'
+
       const { data: ejerciciosFromDb, error: ejerciciosError } = await supabase
         .from(tableName)
         .select(camposSelectFaltantes)
         .in('id', Array.from(ejerciciosFaltantes))
 
       if (!ejerciciosError && ejerciciosFromDb) {
-        ejerciciosFromDb.forEach((ejercicioFromDb) => {
+        ejerciciosFromDb.forEach((ejercicioFromDb: any) => {
           const activityMap = normalizeActivityMap(ejercicioFromDb.activity_id)
           const hasActivity = !!activityMap[String(actividadIdNumber)]
           const isActive = hasActivity ? getActiveFlagForActivity(
@@ -360,7 +360,7 @@ export async function GET(request: NextRequest) {
             actividadIdNumber,
             ejercicioFromDb.is_active !== false
           ) : true
-          
+
           const nombreItem = isNutrition ? ejercicioFromDb.nombre_plato : ejercicioFromDb.nombre_ejercicio
           const ejercicioInfo = {
             ...ejercicioFromDb,
@@ -370,7 +370,7 @@ export async function GET(request: NextRequest) {
             activity_map: activityMap,
             is_active: isActive
           }
-          
+
           ejerciciosMap.set(String(ejercicioFromDb.id), ejercicioInfo)
         })
       }
@@ -384,7 +384,7 @@ export async function GET(request: NextRequest) {
           const ejercicioIdStr = String(ejercicioData.id ?? '')
           const ejercicioIdNum = Number(ejercicioData.id)
           let ejercicioInfo = ejerciciosMap.get(ejercicioIdStr) || ejerciciosMap.get(String(ejercicioIdNum))
-          
+
           if (!ejercicioInfo) {
             console.warn('[get-product-planning] ⚠️ Ejercicio NO encontrado después de consultar BD', {
               ejercicioId: ejercicioData.id,
@@ -394,7 +394,7 @@ export async function GET(request: NextRequest) {
               dia: diaKey
             })
           }
-          
+
           const blockFromData =
             ejercicioData.block ?? ejercicioData.bloque ?? 1
           const ordenDesdeData =
@@ -423,12 +423,12 @@ export async function GET(request: NextRequest) {
 
             const finalActivo =
               explicitActivo !== undefined
-                    ? explicitActivo
+                ? explicitActivo
                 : ejercicioInfo.is_active !== false
-            
+
             const nombreItem = ejercicioInfo.nombre_plato || ejercicioInfo.nombre_ejercicio || (isNutrition ? `Plato ${ordenDesdeData}` : `Ejercicio ${ordenDesdeData}`)
             uniqueExercises.add(nombreItem)
-            
+
             if (isNutrition) {
               // Formato para platos
               todosEjercicios.push({
@@ -497,67 +497,67 @@ export async function GET(request: NextRequest) {
               seriesValue = JSON.stringify(detalleSeriesRaw)
             }
 
-                    // Usar datos del fallback pero incluir el ID para que el frontend pueda buscarlo
-                    if (isNutrition) {
-                      todosEjercicios.push({
-                        id: ejercicioData.id,
-                        name: fallbackName,
-                        nombre_plato: fallbackName,
-                        nombre_ejercicio: fallbackName,
-                        type: ejercicioData.type || ejercicioData.tipo || 'General',
-                        tipo: ejercicioData.type || ejercicioData.tipo || 'General',
-                        description: ejercicioData.description || ejercicioData.descripcion || ejercicioData.receta || '',
-                        descripcion: ejercicioData.description || ejercicioData.descripcion || ejercicioData.receta || '',
-                        receta: ejercicioData.receta || '',
-                        calories: ejercicioData.calories || ejercicioData.calorias || 0,
-                        calorias: ejercicioData.calories || ejercicioData.calorias || 0,
-                        proteinas: ejercicioData.proteinas || 0,
-                        carbohidratos: ejercicioData.carbohidratos || 0,
-                        grasas: ejercicioData.grasas || 0,
-                        video_url: ejercicioData.video_url || null,
-                        block: blockFromData,
-                        orden: ordenDesdeData,
-                        activo: finalActivo,
-                        is_active: finalActivo
-                      })
-                    } else {
-                      todosEjercicios.push({
-                        id: ejercicioData.id,
-                        name: fallbackName,
-                        nombre_ejercicio: fallbackName,
-                        type: ejercicioData.type || ejercicioData.tipo || 'General',
-                        tipo: ejercicioData.type || ejercicioData.tipo || 'General',
-                        description: ejercicioData.description || ejercicioData.descripcion || '',
-                        descripcion: ejercicioData.description || ejercicioData.descripcion || '',
-                        calories: ejercicioData.calories || ejercicioData.calorias || 0,
-                        calorias: ejercicioData.calories || ejercicioData.calorias || 0,
-                        intensity: ejercicioData.intensity || ejercicioData.intensidad || 'Medio',
-                        intensidad: ejercicioData.intensity || ejercicioData.intensidad || 'Medio',
-                        video_url: ejercicioData.video_url || null,
-                        equipo: ejercicioData.equipo || ejercicioData.equipment || '',
-                        body_parts: ejercicioData.body_parts || '',
-                        detalle_series: detalleSeriesRaw ?? null,
-                        duracion_min: ejercicioData.duracion_min ?? null,
-                        duration: ejercicioData.duracion_min ?? null,
-                        series: seriesValue,
-                        block: blockFromData,
-                        orden: ordenDesdeData,
-                        activo: finalActivo,
-                        is_active: finalActivo
-                      })
-                    }
-                  }
-                })
+            // Usar datos del fallback pero incluir el ID para que el frontend pueda buscarlo
+            if (isNutrition) {
+              todosEjercicios.push({
+                id: ejercicioData.id,
+                name: fallbackName,
+                nombre_plato: fallbackName,
+                nombre_ejercicio: fallbackName,
+                type: ejercicioData.type || ejercicioData.tipo || 'General',
+                tipo: ejercicioData.type || ejercicioData.tipo || 'General',
+                description: ejercicioData.description || ejercicioData.descripcion || ejercicioData.receta || '',
+                descripcion: ejercicioData.description || ejercicioData.descripcion || ejercicioData.receta || '',
+                receta: ejercicioData.receta || '',
+                calories: ejercicioData.calories || ejercicioData.calorias || 0,
+                calorias: ejercicioData.calories || ejercicioData.calorias || 0,
+                proteinas: ejercicioData.proteinas || 0,
+                carbohidratos: ejercicioData.carbohidratos || 0,
+                grasas: ejercicioData.grasas || 0,
+                video_url: ejercicioData.video_url || null,
+                block: blockFromData,
+                orden: ordenDesdeData,
+                activo: finalActivo,
+                is_active: finalActivo
+              })
+            } else {
+              todosEjercicios.push({
+                id: ejercicioData.id,
+                name: fallbackName,
+                nombre_ejercicio: fallbackName,
+                type: ejercicioData.type || ejercicioData.tipo || 'General',
+                tipo: ejercicioData.type || ejercicioData.tipo || 'General',
+                description: ejercicioData.description || ejercicioData.descripcion || '',
+                descripcion: ejercicioData.description || ejercicioData.descripcion || '',
+                calories: ejercicioData.calories || ejercicioData.calorias || 0,
+                calorias: ejercicioData.calories || ejercicioData.calorias || 0,
+                intensity: ejercicioData.intensity || ejercicioData.intensidad || 'Medio',
+                intensidad: ejercicioData.intensity || ejercicioData.intensidad || 'Medio',
+                video_url: ejercicioData.video_url || null,
+                equipo: ejercicioData.equipo || ejercicioData.equipment || '',
+                body_parts: ejercicioData.body_parts || '',
+                detalle_series: detalleSeriesRaw ?? null,
+                duracion_min: ejercicioData.duracion_min ?? null,
+                duration: ejercicioData.duracion_min ?? null,
+                series: seriesValue,
+                block: blockFromData,
+                orden: ordenDesdeData,
+                activo: finalActivo,
+                is_active: finalActivo
+              })
+            }
+          }
+        })
 
         todosEjercicios.sort(
-          (a, b) => (a.orden ?? index + 1) - (b.orden ?? index + 1)
+          (a, b) => (a.orden ?? 0) - (b.orden ?? 0)
         )
 
         if (todosEjercicios.length > 0) {
           if (!weeklySchedule[semanaKey]) {
             weeklySchedule[semanaKey] = {}
-                  }
-                weeklySchedule[semanaKey][diaKey] = {
+          }
+          weeklySchedule[semanaKey][diaKey] = {
             ejercicios: todosEjercicios,
             blockNames: dayData.blockNames || {},
             blockCount:
@@ -570,9 +570,9 @@ export async function GET(request: NextRequest) {
                     : 1
                 )
               )
-                }
-                totalSessions++
-              }
+          }
+          totalSessions++
+        }
       })
     })
 
@@ -607,12 +607,12 @@ export async function GET(request: NextRequest) {
           return {
             dia: primerDiaKey,
             estructura: Array.isArray(primerDia) ? 'array' : typeof primerDia,
-            tieneEjercicios: Array.isArray(primerDia) 
-              ? primerDia.length 
+            tieneEjercicios: Array.isArray(primerDia)
+              ? primerDia.length
               : (primerDia?.ejercicios?.length || primerDia?.exercises?.length || 0),
             primerosEjercicios: (() => {
-              const ejercicios = Array.isArray(primerDia) 
-                ? primerDia 
+              const ejercicios = Array.isArray(primerDia)
+                ? primerDia
                 : (primerDia?.ejercicios || primerDia?.exercises || [])
               return ejercicios.slice(0, 2).map((ex: any) => ({
                 id: ex.id,
@@ -634,8 +634,8 @@ export async function GET(request: NextRequest) {
     const errorMessage = error instanceof Error ? error.message : 'Error interno del servidor'
     const errorStack = error instanceof Error ? error.stack : undefined
     console.error('❌ Stack trace:', errorStack)
-    return NextResponse.json({ 
-      success: false, 
+    return NextResponse.json({
+      success: false,
       error: errorMessage,
       details: process.env.NODE_ENV === 'development' ? errorStack : undefined
     }, { status: 500 })
