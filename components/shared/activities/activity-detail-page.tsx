@@ -8,7 +8,7 @@ import { Button } from "@/components/ui/button"
 import { VimeoPlayer } from '@/components/shared/video/vimeo-player'
 import { extractVimeoId } from "@/utils/vimeo-utils"
 import { ScheduleActivityButton } from '@/components/shared/calendar/schedule-activity-button'
-import { PurchaseActivityModal } from '@/components/shared/activities/purchase-activity-modal'
+import { PurchaseActivityModal } from '@/components/shared/activities/PurchaseActivityModal'
 import type { Activity } from "@/types/activity"
 
 interface ActivityDetailPageProps {
@@ -46,7 +46,7 @@ export function ActivityDetailPage({ activity }: ActivityDetailPageProps) {
           <ChevronLeft className="h-5 w-5" />
           <span>Volver</span>
         </button>
-        
+
         <div className="flex items-center space-x-2">
           <Star className="h-4 w-4 text-yellow-400 fill-current" />
           <span className="text-sm font-medium">{activity.coach_rating?.toFixed(1) || 'N/A'}</span>
@@ -59,7 +59,7 @@ export function ActivityDetailPage({ activity }: ActivityDetailPageProps) {
         {/* Hero Image/Video */}
         <div className="relative h-64 md:h-80 bg-gray-900">
           {vimeoId ? (
-            <VimeoPlayer 
+            <VimeoPlayer
               videoId={vimeoId}
               autoplay={false}
               className="w-full h-full"
@@ -76,10 +76,10 @@ export function ActivityDetailPage({ activity }: ActivityDetailPageProps) {
               <span className="text-2xl font-bold">🎯</span>
             </div>
           )}
-          
+
           {/* Overlay */}
           <div className="absolute inset-0 bg-gradient-to-t from-black/60 to-transparent" />
-          
+
           {/* Price Badge */}
           <div className="absolute top-4 right-4">
             <div className="bg-[#FF7939] text-white px-3 py-1 rounded-full font-bold">
@@ -93,7 +93,7 @@ export function ActivityDetailPage({ activity }: ActivityDetailPageProps) {
           {/* Title and Coach */}
           <div>
             <h1 className="text-2xl md:text-3xl font-bold mb-2">{activity.title}</h1>
-            
+
             {/* Coach Info */}
             <button
               onClick={handleCoachClick}

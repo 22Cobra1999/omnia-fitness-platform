@@ -11,7 +11,7 @@ import { Clock, Star, Video, DollarSign, MessageCircle, CheckCircle, AlertCircle
 import { VimeoEmbed } from '@/components/shared/video/vimeo-embed'
 import { extractVimeoId } from "@/utils/vimeo-utils"
 import { useToast } from "@/components/ui/use-toast"
-import { PurchaseActivityModal } from '@/components/shared/activities/purchase-activity-modal'
+import { PurchaseActivityModal } from '@/components/shared/activities/PurchaseActivityModal'
 import { getSupabaseClient } from '@/lib/supabase/supabase-client'
 import type { Activity } from "@/types/activity"
 

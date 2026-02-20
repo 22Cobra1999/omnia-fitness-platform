@@ -5,7 +5,7 @@ import { Button } from "@/components/ui/button"
 import { X } from "lucide-react"
 import { motion, AnimatePresence } from "framer-motion"
 import ClientProductModal from "@/components/client/activities/client-product-modal"
-import { PurchaseActivityModal } from "@/components/shared/activities/purchase-activity-modal"
+import { PurchaseActivityModal } from "@/components/shared/activities/PurchaseActivityModal"
 import { useCoachProfileLogic } from "./hooks/useCoachProfileLogic"
 
 // Refactored Components
