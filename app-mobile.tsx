@@ -319,6 +319,8 @@ function MobileAppContent({ initialTab, initialCategoryId, initialActivityId, in
 
   // Use motion values that fallback to defaults if not in community tab
   const actualBgOpacity = useTransform(bgOpacity, v => activeTab === 'community' ? v : 1)
+  const headerBgColor = useTransform(actualBgOpacity, o => `rgba(0, 0, 0, ${o})`)
+
   const actualLogoScale = useTransform(logoScale, v => activeTab === 'community' ? v : 1)
   const actualLogoY = useTransform(logoY, v => activeTab === 'community' ? v : 0)
 
@@ -402,7 +404,7 @@ function MobileAppContent({ initialTab, initialCategoryId, initialActivityId, in
         <motion.div
           className="fixed top-0 left-0 right-0 z-[1000] rounded-b-[32px] px-5 py-3 flex justify-between items-center bg-black"
           style={{
-            backgroundColor: useTransform(actualBgOpacity, o => `rgba(0, 0, 0, ${o})`)
+            backgroundColor: headerBgColor
           }}
         >
           {/* Settings Icon */}
