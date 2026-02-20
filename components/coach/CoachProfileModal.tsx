@@ -9,11 +9,11 @@ import { PurchaseActivityModal } from "@/components/shared/activities/purchase-a
 import { useCoachProfileLogic } from "./hooks/useCoachProfileLogic"
 
 // Refactored Components
-import { CoachProfileHeader } from "./CoachProfileModal/components/CoachProfileHeader"
-import { CoachProfileCertifications } from "./CoachProfileModal/components/CoachProfileCertifications"
-import { CoachProfileStats } from "./CoachProfileModal/components/CoachProfileStats"
-import { CoachProfileProducts } from "./CoachProfileModal/components/CoachProfileProducts"
-import { CoachProfileConsultations } from "./CoachProfileModal/components/CoachProfileConsultations"
+import { CoachProfileHeader } from "./CoachProfileModalBase/components/CoachProfileHeader"
+import { CoachProfileCertifications } from "./CoachProfileModalBase/components/CoachProfileCertifications"
+import { CoachProfileStats } from "./CoachProfileModalBase/components/CoachProfileStats"
+import { CoachProfileProducts } from "./CoachProfileModalBase/components/CoachProfileProducts"
+import { CoachProfileConsultations } from "./CoachProfileModalBase/components/CoachProfileConsultations"
 
 interface CoachProfileModalProps {
   isOpen: boolean
