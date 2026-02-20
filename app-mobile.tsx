@@ -301,8 +301,12 @@ function MobileAppContent({ initialTab, initialCategoryId, initialActivityId, in
 
   const scrollRef = useRef<HTMLDivElement>(null)
 
-  // Smooth scroll tracking via framer-motion
-  const { scrollY } = useScroll({ container: scrollRef })
+  // Smooth scroll tracking via framer-motion manually avoiding SSR hydration errors
+  const scrollY = useMotionValue(0)
+
+  const handleScroll = (e: React.UIEvent<HTMLDivElement>) => {
+    scrollY.set(e.currentTarget.scrollTop)
+  }
 
   // Create transforms directly from scrollY
   const bgOpacity = useTransform(scrollY, [50, 120], [0, 1])
@@ -319,8 +323,11 @@ function MobileAppContent({ initialTab, initialCategoryId, initialActivityId, in
   const actualLogoY = useTransform(logoY, v => activeTab === 'community' ? v : 0)
 
   // Use a spring or derived state for the drop shadow to avoid re-rendering
-  const [isLogoLarge, setIsLogoLarge] = useState(activeTab === 'community')
+  const [isLogoLarge, setIsLogoLarge] = useState(false)
   useEffect(() => {
+    // Check initial state gracefully (helps hydration mismatch)
+    setIsLogoLarge(activeTab === 'community' && logoScale.get() > 1.5)
+
     return logoScale.on("change", (latest) => {
       setIsLogoLarge(activeTab === 'community' && latest > 1.5)
     })
@@ -423,6 +430,7 @@ function MobileAppContent({ initialTab, initialCategoryId, initialActivityId, in
 
         <div
           ref={scrollRef}
+          onScroll={handleScroll}
           className="flex-1 overflow-y-auto overflow-x-hidden pt-14 pb-16"
         >
           {renderScreen()}
