@@ -29,7 +29,10 @@ export function ProductPurchaseSection({ product, logic }: ProductPurchaseSectio
 
     return (
         <>
-            <div className="fixed bottom-24 right-4 z-[9999] flex flex-col items-end gap-2">
+            <div
+                className="fixed bottom-24 right-4 z-[9999] flex flex-col items-end gap-2"
+                onClick={(e) => e.stopPropagation()}
+            >
                 {purchaseCompleted && (
                     <div className="bg-green-600/20 border border-green-500/30 rounded-full px-4 py-2 flex items-center space-x-2">
                         <div className="w-2 h-2 bg-green-500 rounded-full animate-pulse"></div>
@@ -38,7 +41,10 @@ export function ProductPurchaseSection({ product, logic }: ProductPurchaseSectio
                 )}
 
                 <button
-                    onClick={purchaseCompleted ? handleGoToActivity : handlePurchase}
+                    onClick={(e) => {
+                        e.stopPropagation();
+                        purchaseCompleted ? handleGoToActivity() : handlePurchase();
+                    }}
                     disabled={isProcessingPurchase}
                     className="bg-[#FF7939] hover:bg-[#FF6B00] text-white rounded-full px-6 py-4 shadow-2xl transition-all active:scale-95 disabled:bg-gray-700 flex items-center space-x-3"
                 >
