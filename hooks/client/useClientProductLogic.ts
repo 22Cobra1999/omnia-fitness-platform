@@ -337,28 +337,33 @@ export function useClientProductLogic({
 
         try {
             if (method === 'mercadopago') {
-                console.log("[MercadoPago ClientLogic] Importando módulos de MP dinámicamente...");
-                const mpModules = await import('@/lib/mercadopago/checkout-pro')
-                const { createCheckoutProPreference, redirectToMercadoPagoCheckout, getCheckoutProErrorMessage } = mpModules;
-
                 console.log("[MercadoPago ClientLogic] Enviando solicitud al backend para crear preferencia...");
                 try {
-                    const response = await createCheckoutProPreference(product.id)
-                    console.log("[MercadoPago ClientLogic] Respuesta del backend:", response);
+                    const response = await fetch('/api/mercadopago/checkout-pro/create-preference', {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({ activityId: product.id })
+                    })
 
-                    if (response.success && response.initPoint) {
-                        console.log("[MercadoPago ClientLogic] Éxito. Redirigiendo a:", response.initPoint);
-                        redirectToMercadoPagoCheckout(response.initPoint, product.id, response.preferenceId)
+                    const responseData = await response.json()
+                    console.log("[MercadoPago ClientLogic] Respuesta del backend:", responseData);
+
+                    if (response.ok && responseData.success && responseData.initPoint) {
+                        console.log("[MercadoPago ClientLogic] Éxito. Redirigiendo a:", responseData.initPoint);
+                        // Make sure to cleanly import just the redirect logic or handle it directly
+                        window.location.href = responseData.initPoint
                         return
                     } else {
-                        console.error("[MercadoPago ClientLogic] Falló la creación. Response:", response);
-                        toast.error(getCheckoutProErrorMessage(response.error || 'Error inesperado'));
+                        console.error("[MercadoPago ClientLogic] Falló la creación. Response:", responseData);
+                        toast.error(responseData.error || 'Error inesperado al crear preferencia');
                         return;
                     }
                 } catch (mpError: any) {
                     console.error("[MercadoPago ClientLogic] Excepción al crear/redirigir:", mpError);
-                    toast.error(getCheckoutProErrorMessage(mpError));
+                    toast.error(mpError.message || 'Error de conexión');
                     return;
+                } finally {
+                    setIsProcessingPurchase(false)
                 }
             }
 

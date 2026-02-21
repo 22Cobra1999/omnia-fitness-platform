@@ -1,6 +1,7 @@
 "use client"
 
-import React from 'react'
+import React, { useState, useEffect } from 'react'
+import { createPortal } from 'react-dom'
 import { ShoppingCart, Calendar, ShoppingBag } from 'lucide-react'
 import { motion, AnimatePresence } from 'framer-motion'
 import { PaymentMethodsModal } from '@/components/shared/payments/payment-methods-modal'
@@ -11,6 +12,8 @@ interface ProductPurchaseSectionProps {
 }
 
 export function ProductPurchaseSection({ product, logic }: ProductPurchaseSectionProps) {
+    const [mounted, setMounted] = useState(false)
+
     const {
         purchaseCompleted,
         isProcessingPurchase,
@@ -25,38 +28,45 @@ export function ProductPurchaseSection({ product, logic }: ProductPurchaseSectio
         handleConfirmRepurchase
     } = logic
 
-    if (product.isOwnProduct || isPaymentModalOpen) return null
+    useEffect(() => {
+        setMounted(true)
+    }, [])
 
-    return (
-        <>
-            <div
-                className="fixed bottom-24 right-4 z-[9999] flex flex-col items-end gap-2"
-                onClick={(e) => e.stopPropagation()}
-            >
-                {purchaseCompleted && (
-                    <div className="bg-green-600/20 border border-green-500/30 rounded-full px-4 py-2 flex items-center space-x-2">
-                        <div className="w-2 h-2 bg-green-500 rounded-full animate-pulse"></div>
-                        <span className="text-green-400 text-xs font-medium">¡Compra exitosa!</span>
-                    </div>
-                )}
+    if (product.isOwnProduct || !mounted) return null
 
-                <button
-                    onClick={(e) => {
-                        e.stopPropagation();
-                        purchaseCompleted ? handleGoToActivity() : handlePurchase();
-                    }}
-                    disabled={isProcessingPurchase}
-                    className="bg-[#FF7939] hover:bg-[#FF6B00] text-white rounded-full px-6 py-4 shadow-2xl transition-all active:scale-95 disabled:bg-gray-700 flex items-center space-x-3"
+    // Portal content
+    const content = (
+        <div className="product-purchase-portal-container" style={{ zIndex: 99999, position: 'relative' }}>
+            {!isPaymentModalOpen && (
+                <div
+                    className="fixed bottom-24 right-4 z-[99999] flex flex-col items-end gap-2 pointer-events-none"
                 >
-                    {purchaseCompleted ? (
-                        <><Calendar className="h-5 w-5" /><span className="text-sm font-bold">Ir a Actividad</span></>
-                    ) : isProcessingPurchase ? (
-                        <><div className="w-5 h-5 border-2 border-white border-t-transparent rounded-full animate-spin" /><span className="text-sm font-bold">Procesando...</span></>
-                    ) : (
-                        <><ShoppingBag className="h-5 w-5" /><span className="text-sm font-black whitespace-nowrap">{`$${product.price || 0}.00`}</span></>
+                    {purchaseCompleted && (
+                        <div className="bg-green-600/20 border border-green-500/30 rounded-full px-4 py-2 flex items-center space-x-2 pointer-events-auto">
+                            <div className="w-2 h-2 bg-green-500 rounded-full animate-pulse"></div>
+                            <span className="text-green-400 text-xs font-medium">¡Compra exitosa!</span>
+                        </div>
                     )}
-                </button>
-            </div>
+
+                    <button
+                        onClick={(e) => {
+                            e.preventDefault();
+                            e.stopPropagation();
+                            purchaseCompleted ? handleGoToActivity() : handlePurchase();
+                        }}
+                        disabled={isProcessingPurchase}
+                        className="bg-[#FF7939] hover:bg-[#FF6B00] text-white rounded-full px-6 py-4 shadow-2xl transition-all active:scale-95 disabled:bg-gray-700 flex items-center space-x-3 pointer-events-auto"
+                    >
+                        {purchaseCompleted ? (
+                            <><Calendar className="h-5 w-5" /><span className="text-sm font-bold">Ir a Actividad</span></>
+                        ) : isProcessingPurchase ? (
+                            <><div className="w-5 h-5 border-2 border-white border-t-transparent rounded-full animate-spin" /><span className="text-sm font-bold">Procesando...</span></>
+                        ) : (
+                            <><ShoppingBag className="h-5 w-5" /><span className="text-sm font-black whitespace-nowrap">{`$${product.price || 0}.00`}</span></>
+                        )}
+                    </button>
+                </div>
+            )}
 
             <PaymentMethodsModal
                 isOpen={isPaymentModalOpen}
@@ -91,6 +101,8 @@ export function ProductPurchaseSection({ product, logic }: ProductPurchaseSectio
                     </motion.div>
                 )}
             </AnimatePresence>
-        </>
+        </div>
     )
+
+    return createPortal(content, document.body)
 }
