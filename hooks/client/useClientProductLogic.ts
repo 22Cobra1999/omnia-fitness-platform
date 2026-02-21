@@ -333,15 +333,36 @@ export function useClientProductLogic({
 
     const executePurchase = useCallback(async (method: string = 'credit_card') => {
         setIsProcessingPurchase(true)
+        console.log(`[MercadoPago ClientLogic] Iniciando executePurchase con método: ${method} para actividad: ${product?.id}`)
+
         try {
             if (method === 'mercadopago') {
-                const { createCheckoutProPreference, redirectToMercadoPagoCheckout } = await import('@/lib/mercadopago/checkout-pro')
-                const response = await createCheckoutProPreference(product.id)
-                if (response.success && response.initPoint) {
-                    redirectToMercadoPagoCheckout(response.initPoint, product.id, response.preferenceId)
-                    return
+                console.log("[MercadoPago ClientLogic] Importando módulos de MP dinámicamente...");
+                const mpModules = await import('@/lib/mercadopago/checkout-pro')
+                const { createCheckoutProPreference, redirectToMercadoPagoCheckout, getCheckoutProErrorMessage } = mpModules;
+
+                console.log("[MercadoPago ClientLogic] Enviando solicitud al backend para crear preferencia...");
+                try {
+                    const response = await createCheckoutProPreference(product.id)
+                    console.log("[MercadoPago ClientLogic] Respuesta del backend:", response);
+
+                    if (response.success && response.initPoint) {
+                        console.log("[MercadoPago ClientLogic] Éxito. Redirigiendo a:", response.initPoint);
+                        redirectToMercadoPagoCheckout(response.initPoint, product.id, response.preferenceId)
+                        return
+                    } else {
+                        console.error("[MercadoPago ClientLogic] Falló la creación. Response:", response);
+                        toast.error(getCheckoutProErrorMessage(response.error || 'Error inesperado'));
+                        return;
+                    }
+                } catch (mpError: any) {
+                    console.error("[MercadoPago ClientLogic] Excepción al crear/redirigir:", mpError);
+                    toast.error(getCheckoutProErrorMessage(mpError));
+                    return;
                 }
             }
+
+            console.log(`[Purchase ClientLogic] Procesando con método alternativo: ${method}`);
             const response = await fetch('/api/enrollments/direct', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
