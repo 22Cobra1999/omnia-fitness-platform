@@ -17,7 +17,6 @@ export function RegisterForm({ onSuccess, onLoginClick }: RegisterFormProps) {
   const [password, setPassword] = useState("")
   const [confirmPassword, setConfirmPassword] = useState("")
   const [fullName, setFullName] = useState("")
-  const [age, setAge] = useState("")
   const [height, setHeight] = useState("")
   const [weight, setWeight] = useState("")
   const [birthDate, setBirthDate] = useState("")
@@ -38,21 +37,29 @@ export function RegisterForm({ onSuccess, onLoginClick }: RegisterFormProps) {
     }
 
     // Validar campos físicos
-    if (!age || !height || !weight || !birthDate) {
+    if (!height || !weight || !birthDate) {
       setError("Por favor completá todos los campos")
       setLoading(false)
       return
     }
 
-    const ageNum = parseInt(age)
-    const heightNum = parseInt(height)
-    const weightNum = parseFloat(weight)
+    // Calcular edad automáticamente
+    const today = new Date()
+    const birth = new Date(birthDate)
+    let ageNum = today.getFullYear() - birth.getFullYear()
+    const m = today.getMonth() - birth.getMonth()
+    if (m < 0 || (m === 0 && today.getDate() < birth.getDate())) {
+      ageNum--
+    }
 
     if (ageNum < 13 || ageNum > 120) {
-      setError("La edad debe estar entre 13 y 120 años")
+      setError("Debes tener entre 13 y 120 años para registrarte")
       setLoading(false)
       return
     }
+
+    const heightNum = parseInt(height)
+    const weightNum = parseFloat(weight)
 
     if (heightNum < 100 || heightNum > 250) {
       setError("La altura debe estar entre 100 y 250 cm")
@@ -100,7 +107,7 @@ export function RegisterForm({ onSuccess, onLoginClick }: RegisterFormProps) {
       )}
 
       <div className="space-y-2">
-        <Label htmlFor="fullName">Nombre completo</Label>
+        <Label htmlFor="fullName" className="text-gray-400">Nombre completo</Label>
         <Input
           id="fullName"
           type="text"
@@ -108,29 +115,14 @@ export function RegisterForm({ onSuccess, onLoginClick }: RegisterFormProps) {
           value={fullName}
           onChange={(e) => setFullName(e.target.value)}
           required
-          className="bg-[#252525] border-gray-700 text-white"
+          className="bg-white/5 border-white/10 text-white h-11"
         />
       </div>
 
       {/* Datos físicos en grid */}
-      <div className="grid grid-cols-3 gap-3">
+      <div className="grid grid-cols-2 gap-4">
         <div className="space-y-2">
-          <Label htmlFor="age" className="text-xs">Edad</Label>
-          <Input
-            id="age"
-            type="number"
-            placeholder="25"
-            value={age}
-            onChange={(e) => setAge(e.target.value)}
-            required
-            min="13"
-            max="120"
-            className="bg-[#252525] border-gray-700 text-white"
-          />
-        </div>
-
-        <div className="space-y-2">
-          <Label htmlFor="height" className="text-xs">Altura (cm)</Label>
+          <Label htmlFor="height" className="text-xs text-gray-400">Altura (cm)</Label>
           <Input
             id="height"
             type="number"
@@ -140,12 +132,12 @@ export function RegisterForm({ onSuccess, onLoginClick }: RegisterFormProps) {
             required
             min="100"
             max="250"
-            className="bg-[#252525] border-gray-700 text-white"
+            className="bg-white/5 border-white/10 text-white h-11"
           />
         </div>
 
         <div className="space-y-2">
-          <Label htmlFor="weight" className="text-xs">Peso (kg)</Label>
+          <Label htmlFor="weight" className="text-xs text-gray-400">Peso (kg)</Label>
           <Input
             id="weight"
             type="number"
@@ -156,25 +148,25 @@ export function RegisterForm({ onSuccess, onLoginClick }: RegisterFormProps) {
             required
             min="30"
             max="300"
-            className="bg-[#252525] border-gray-700 text-white"
+            className="bg-white/5 border-white/10 text-white h-11"
           />
         </div>
       </div>
 
       <div className="space-y-2">
-        <Label htmlFor="birthDate">Fecha de nacimiento</Label>
+        <Label htmlFor="birthDate" className="text-gray-400">Fecha de nacimiento</Label>
         <Input
           id="birthDate"
           type="date"
           value={birthDate}
           onChange={(e) => setBirthDate(e.target.value)}
           required
-          className="bg-[#252525] border-gray-700 text-white"
+          className="bg-white/5 border-white/10 text-white h-11"
         />
       </div>
 
       <div className="space-y-2">
-        <Label htmlFor="email">Email</Label>
+        <Label htmlFor="email" className="text-gray-400">Email</Label>
         <Input
           id="email"
           type="email"
@@ -182,7 +174,7 @@ export function RegisterForm({ onSuccess, onLoginClick }: RegisterFormProps) {
           value={email}
           onChange={(e) => setEmail(e.target.value)}
           required
-          className="bg-[#252525] border-gray-700 text-white"
+          className="bg-white/5 border-white/10 text-white h-11"
         />
       </div>
 
@@ -195,7 +187,7 @@ export function RegisterForm({ onSuccess, onLoginClick }: RegisterFormProps) {
           value={password}
           onChange={(e) => setPassword(e.target.value)}
           required
-          className="bg-[#252525] border-gray-700 text-white"
+          className="bg-white/5 border-white/10 text-white h-11"
         />
       </div>
 
@@ -208,7 +200,7 @@ export function RegisterForm({ onSuccess, onLoginClick }: RegisterFormProps) {
           value={confirmPassword}
           onChange={(e) => setConfirmPassword(e.target.value)}
           required
-          className="bg-[#252525] border-gray-700 text-white"
+          className="bg-white/5 border-white/10 text-white h-11"
         />
       </div>
 

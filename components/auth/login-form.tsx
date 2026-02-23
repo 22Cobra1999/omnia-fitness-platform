@@ -54,7 +54,7 @@ export function LoginForm({ onSuccess, onRegisterClick }: LoginFormProps) {
       )}
 
       <div className="space-y-2">
-        <Label htmlFor="email">Email</Label>
+        <Label htmlFor="email" className="text-gray-400">Email</Label>
         <Input
           id="email"
           type="email"
@@ -62,12 +62,12 @@ export function LoginForm({ onSuccess, onRegisterClick }: LoginFormProps) {
           value={email}
           onChange={(e) => setEmail(e.target.value)}
           required
-          className="bg-[#252525] border-gray-700 text-white"
+          className="bg-white/5 border-white/10 text-white h-11 focus:border-[#FF7939]/50 transition-all shadow-lg"
         />
       </div>
 
       <div className="space-y-2">
-        <Label htmlFor="password">Contraseña</Label>
+        <Label htmlFor="password" className="text-gray-400">Contraseña</Label>
         <Input
           id="password"
           type="password"
@@ -75,7 +75,7 @@ export function LoginForm({ onSuccess, onRegisterClick }: LoginFormProps) {
           value={password}
           onChange={(e) => setPassword(e.target.value)}
           required
-          className="bg-[#252525] border-gray-700 text-white"
+          className="bg-white/5 border-white/10 text-white h-11 focus:border-[#FF7939]/50 transition-all shadow-lg"
         />
       </div>
 

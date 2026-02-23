@@ -21,6 +21,14 @@ interface ProductsTabProps {
     onPreviewProduct: (product: Product) => void
     renderConsultationSection: (type: 'express' | 'puntual' | 'profunda') => React.ReactNode
     pendingConsultations: any[]
+    // Conditioning Props
+    isConditioningMode: boolean
+    setIsConditioningMode: (val: boolean) => void
+    selectedProductsForConditioning: number[]
+    toggleProductConditioning: (id: number) => void
+    resetConditioning: () => void
+    handleApplyConditioning: () => void
+    handleSaveConditioning: (rules: any) => void
 }
 
 export const ProductsTab: React.FC<ProductsTabProps> = memo((props) => {

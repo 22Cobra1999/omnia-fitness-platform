@@ -15,9 +15,9 @@ La arquitectura se basa en separar la **Definición** (Coach) de la **Instancia*
     *   **`planificacion_ejercicios`** (y `planificacion_platos`): Define **QUÉ** se hace **CUÁNDO**.
     *   Estructura: `semana`, `dia`, `bloque`, `orden`.
     *   Contenido: JSON que referencia IDs de la librería (`{ id: 101, reps: 10, series: 4 }`).
-4.  **Reglas Condicionales (Personalización)**:
-    *   **`product_conditional_rules`**: Lógica de adaptación.
-    *   Ejemplo: "Si es Mujer y tiene < 25 años -> Aumentar repeticiones 10%, reducir peso 5%".
+4.  **Configuración Adaptativa (Motor OMNIA v3.0)**:
+    *   **`activities.adaptive_config`**: Almacena el "Whitelist" de reglas activadas por el coach en la Matriz de Reglas.
+    *   Lógica: El Motor Adaptativo (`lib/omnia-adaptive-motor.ts`) usa esta config para decidir qué multiplicadores aplicar al perfil del cliente.
 
 ### B. Instancia (Lado del Cliente)
 1.  **`activity_enrollments`**: Vincula al Cliente con la Actividad y define la fecha de inicio (`start_date`).

@@ -10,11 +10,13 @@ export interface ConditionalRule {
         activityLevel?: string[]
         programLevel?: string[]
         fitnessGoals?: string[]
+        injuries?: string[]
     }
     adjustments: {
         weight?: number // percentage
         reps?: number // percentage
         series?: number // percentage
+        rest?: number // percentage
         portions?: number // percentage (nutrition)
     }
     affectedItems: "all" | string[]
@@ -38,4 +40,18 @@ export const FITNESS_GOALS_OPTIONS = [
     "Salud articular",
 ]
 
+
 export const ACTIVITY_LEVEL_OPTIONS = ["Sedentario", "Ligero", "Moderado", "Activo", "Muy Activo"]
+
+export const INJURY_OPTIONS = [
+    "Espalda (Lumbalgia)",
+    "Rodilla",
+    "Hombro",
+    "Cervicales",
+    "Muñeca / Mano",
+    "Tobillo",
+    "Cadera",
+    "Hernia Discal",
+    "Escoliosis",
+    "Tendinitis",
+]

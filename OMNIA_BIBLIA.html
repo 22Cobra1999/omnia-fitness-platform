@@ -683,6 +683,24 @@
           especializados.</div>
       </div>
     </div>
+
+    <div class="logic-layer">
+      <span class="layer-label">MOTOR ADAPTATIVO OMNIA v3.0</span>
+      <div class="node" style="background: #238636; color: white;">lib/omnia-adaptive-motor.ts (EVOLUCIONADO 🚀)</div>
+      <div class="branch">
+        <span class="arrow">⬇️ INTEGRACIÓN TOTAL</span>
+        <div class="node pill-green">Sustituye la tabla legacy `product_conditional_rules` por `activities.adaptive_config`. Soporte para blindajes de seguridad, acumulacion de riesgos y motor whitelisted.</div>
+      </div>
+    </div>
+    <div class="logic-layer">
+      <span class="layer-label">EL TITÁN DE LA INICIALIZACIÓN</span>
+      <div class="node" style="background: #da3633; color: white;">initialize-progress/route.ts (ADAPTADO v3.0)</div>
+      <div class="branch">
+        <span class="arrow">⬇️ DOMADO</span>
+        <div class="node pill-green">Ahora utiliza el Motor Adaptativo v3.0 para inyectar prescripciones personalizadas whitelisted durante la compra del producto.
+        </div>
+      </div>
+    </div>
   </div>
   <h2 id="índice-de-navegación">📑 Índice de Navegación</h2>
   <h3 id="aplicación-del-cliente-client-app">👤 Aplicación del Cliente (Client App)</h3>
@@ -719,6 +737,8 @@
     <li><a href="#logic-map"><strong>Mapa de Salud Operativa y Estructura</strong></a>: Arquitectura Visual de
       Omnia.
     </li>
+    <li><a href="#master-purchase-flow"><strong>Flujo Maestro de Compra Personalizada</strong></a>: El Core de la
+      Plataforma.</li>
   </ol>
   <p><a name="explorar-marketplace"></a> ## 1. 🔍 Explorar / Marketplace (Client)</p>
   <div class="logic-container">
@@ -1228,61 +1248,104 @@
     señal.</p>
   <p><a href="#indice-de-navegacion">Volver al índice</a></p>
   <hr />
-  <p><a name="progreso-logic"></a> ## 14. ⚙️ Generación de Progreso (Technical)</p>
+  <p><a name="progreso-logic"></a> ## 14. ⚙️ Arquitectura Core: Compras y Progreso</p>
   <div class="logic-container">
-    <div class="logic-title">🌀 Workflow: El Motor de Instanciación</div>
+    <div class="logic-title">🌐 1. El Evento Gatillo: Validación y Pago Exitoso</div>
     <div class="logic-layer">
-      <span class="layer-label">UX → Trigger</span>
-      <div class="node ux-node">System: Detection of "Purchase Completed"</div>
+      <span class="layer-label">Notificación</span>
+      <div class="node ux-node">Mercado Pago / Stripe: Envia Webhook (pago_aprobado)</div>
     </div>
     <div class="logic-layer">
-      <span class="layer-label">Frontend Logic → Trigger</span>
-      <div class="node hook-node">client-product-modal.tsx: handlePurchase() → activation_trigger</div>
-    </div>
-    <div class="logic-layer">
-      <span class="layer-label">Backend Logic → API/DB</span>
-      <div class="node api-node">API /api/initialize-progress (The Oracle)</div>
+      <span class="layer-label">Doble Check Antifraude</span>
+      <div class="node api-node">API: GET /payments/{id} directo a Mercado Pago</div>
       <div class="branch">
         <span class="arrow">└──</span>
-        <div class="node api-node">Fetch definition (planificacion_ejercicios)</div>
-        <div class="branch">
-          <span class="arrow">└──</span>
-          <div class="node api-node">Apply Onboarding Filters (Conditionals: injuries/level)</div>
-          <span class="arrow">└──</span>
-          <div class="node api-node">INSERT: progreso_cliente (The massive persistent list)</div>
+        <div class="node state-node">API MP Devuelve: status real, fees, net_amount</div>
+      </div>
+    </div>
+    <div class="logic-layer">
+      <span class="layer-label">Registro Indestructible (banco)</span>
+      <div class="node api-node">UPDATE tabla: banco (Guarda comprobantes exactos de MP)</div>
+    </div>
+    <div class="logic-layer">
+      <span class="layer-label">Creación de Compra (enrollment_id)</span>
+      <div class="node hook-node">INSERT tabla: activity_enrollments</div>
+      <div class="branch">
+        <span class="arrow">└──</span>
+        <div class="node state-node">Se genera UUID único (enrollment_id) y fechas: dias_hasta_empezar, start_date
+          (null), end_date</div>
+      </div>
+    </div>
+  </div>
+
+  <div class="logic-container">
+    <div class="logic-title">🌀 2A. Flujo de Programas (Fitness y Nutrición)</div>
+    <div class="logic-layer">
+      <span class="layer-label">Activación del Cliente</span>
+      <div class="node ux-node">Cliente evalúa y presiona "Empezar Actividad" -> setea start_date y end_date reales
+      </div>
+    </div>
+    <div class="logic-layer">
+      <span class="layer-label">Reglas Dinámicas</span>
+      <div class="node api-node">Motor lee: product_conditional_rules (Filtra por lesiones, nivel, etc.)</div>
+    </div>
+    <div class="logic-layer">
+      <span class="layer-label">Lectura y Duplicación Estructural</span>
+      <div class="node hook-node">RPC: duplicate_program_details_on_enrollment</div>
+      <div class="branch">
+        <span class="arrow">├──</span>
+        <div class="node api-node">Lee: periodos -> planificacion_ejercicios -> ejercicios_detalles</div>
+        <span class="arrow">└──</span>
+        <div class="node api-node">Copia masiva generada a: progreso_cliente / progreso_cliente_nutricion</div>
+      </div>
+    </div>
+    <div class="logic-layer">
+      <span class="layer-label">Consolidación Diaria (Triggers)</span>
+      <div class="node state-node">Trigger de DB (ej. update_daily_progress_from_program) calcula sumatorias (kcal,
+        mins) y UPSERT -> progreso_diario_actividad cruzado por enrollment_id</div>
+    </div>
+  </div>
+
+  <div class="logic-container">
+    <div class="logic-title">🌀 2B. Flujo de Talleres, Documentos y Sesiones</div>
+    <div class="logic-layer">
+      <span class="layer-label">Talleres (Workshops)</span>
+      <div class="node hook-node">Al comprar: Habilita tabla taller_progreso_temas</div>
+      <div class="branch">
+        <span class="arrow">└──</span>
+        <div class="node state-node">Consolidación: Si el coach marca asistencia o cliente termina módulo, API lo
+          inserta en progreso_diario_actividad</div>
+      </div>
+    </div>
+    <div class="logic-layer">
+      <span class="layer-label">Documentos / Sesiones</span>
+      <div class="node hook-node">Al comprar: Otorga acceso directo reactivo</div>
+      <div class="branch">
+        <span class="arrow">└──</span>
+        <div class="node state-node">Consumo a destajo (document_progress) o Agendamiento de citas en el calendario
         </div>
       </div>
     </div>
-    <div class="logic-layer">
-      <span class="layer-label">Data State → UI</span>
-      <div class="node state-node">state: progression_initialized = true</div>
-    </div>
   </div>
-  <p><strong>⚠️ Scan de Vulnerabilidad:</strong> Tiempo de ejecución excesivo en programas de +6 meses.
-    <em>Optimización:</em> Ejecutar el motor en un **Background Queue** y notificar al cliente vía Push/Email cuando
-    su
-    plan esté listo.
-  </p>
 
-  <h3 id="progreso-diario-actividad">📊 Tabla de Consolidación: progreso_diario_actividad</h3>
   <div class="logic-container">
-    <div class="logic-title">🛡️ Fuente de Verdad Unificada</div>
+    <div class="logic-title">🧹 3. Vencimiento y Purga de Datos (Cosecha del Progreso)</div>
     <div class="logic-layer">
-      <span class="layer-label">Propósito</span>
-      <div class="node ux-node">Consolidar fitness y nutrición en una sola tabla para optimizar rings y calendario.
+      <span class="layer-label">Vencimiento</span>
+      <div class="node ux-node">La fecha actual cruza el "end_date" del activity_enrollment</div>
+    </div>
+    <div class="logic-layer">
+      <span class="layer-label">Extracción y Limpieza</span>
+      <div class="node api-node">Las tablas pesadas y detalladas (progreso_cliente, nutricion) son eliminadas para
+        liberar espacio de BD.</div>
+      <div class="branch">
+        <span class="arrow">└──</span>
+        <div class="node state-node">La Semilla Eterna: El progreso resumido queda congelado históricamente en la tabla
+          progreso_diario_actividad usando enrollment_id para diferenciar recompras del mismo producto.</div>
       </div>
     </div>
-    <div class="logic-layer">
-      <span class="layer-label">Columnas Clave</span>
-      <div class="node api-node">cliente_id, fecha, area (fitness/nutricion), items_objetivo, items_completados,
-        minutos, calorias, proteinas, carbohidratos, grasas</div>
-    </div>
-    <div class="logic-layer">
-      <span class="layer-label">Sincronización</span>
-      <div class="node state-node">Trigger: update_daily_progress_from_program() - Se dispara al tocar progreso_cliente
-        o progreso_cliente_nutricion.</div>
-    </div>
   </div>
+
   <hr />
   <p><a name="script-audit"></a> ## 15. 🧪 Auditoría de Scripts y Eficiencia (QA Dashboard) Análisis de los archivos
     críticos del sistema para evaluación de rendimiento, deuda técnica y estabilidad.</p>
@@ -1900,12 +1963,257 @@
     <div class="logic-layer">
       <span class="layer-label">Monetization</span>
       <div class="node pill-yellow">plans (Suscripción del Coach: 'free', 'basic', 'black', 'premium')</div>
+    </div>
+  </div>
+
+  <hr />
+  <h2 id="master-purchase-flow">🚀 17. Flujo Maestro de Compra Personalizada</h2>
+  <div class="logic-container" style="background: #0f1218; border: 1px solid #30363d;">
+    <div class="logic-title" style="color: #FF7939; border-color: #FF7939;">🌀 WORKFLOW: DE PAGO A PROGRESO</div>
+
+    <div class="logic-layer">
+      <span class="layer-label">STEP 1: PURCHASE (MERCADO PAGO)</span>
+      <div class="node ux-node">Client: Realiza Pago → Webhook / Success Redirect</div>
       <div class="branch">
         <span class="arrow">└──</span>
-        <div class="node pill-yellow">mercadopago_subscriptions (External ID, Status)</div>
+        <div class="node api-node">DB: Insert activity_enrollments (Status: active, start_date: chosen)</div>
+      </div>
+    </div>
+
+    <div class="logic-layer">
+      <span class="layer-label">STEP 2: ADAPTIVE DATA RETRIEVAL (VIEW)</span>
+      <div class="node api-node">SELECT * FROM client_full_profile WHERE client_id = ...</div>
+      <div class="node state-node">Context: Biometrics + Injuries + Onboarding Answers (Unified JSON)</div>
+    </div>
+
+    <div class="logic-layer">
+      <span class="layer-label">STEP 3: PERSONALIZATION ENGINE</span>
+      <div class="node hook-node">PersonalizationEngine: applyPersonalization(baseItem, profile, rules)</div>
+      <div class="node pill-blue">Logic: Matcheo de JSONB Criteria (Gender, Age, Weight, Injury detection)</div>
+    </div>
+
+    <div class="logic-layer">
+      <span class="layer-label">STEP 4: INSTANTIATION (INITIALIZE-PROGRESS)</span>
+      <div class="node api-node">Router: api/activities/initialize-progress</div>
+      <div class="branch">
+        <span class="arrow">├──</span>
+        <div class="node pill-green">FITNESS: Insert into progreso_cliente (detalles_series)</div>
+      </div>
+      <div class="branch">
+        <span class="arrow">└──</span>
+        <div class="node pill-green">NUTRITION: Insert into progreso_cliente_nutricion (macros)</div>
       </div>
     </div>
   </div>
-</body>
 
+  <div class="tree-container">
+    <div class="tree-title">📋 DIAGRAMA DE SECUENCIA TÉCNICA</div>
+    <div style="font-family: monospace; white-space: pre; color: #81c784; line-height: 1.4;">
+      Cliente (App) initialize-progress Supabase (View/Tables) Engine
+      | | | |
+      |--- POST (activity)--| | |
+      | |--- SELECT Profile/Rules ->| |
+      | |&lt;--- [Data Context] -------| |
+      | | | |
+      | |--- APPLY RULES -------------------------------->|
+      | |&lt;------------------------- [Personalized Items]-|
+      | | | |
+      | |--- INSERT PROGRESO ------>| |
+      | |&lt;--- [Success Confirm] ----| |
+      |&lt;-- [FINALIZADO] ----| | |
+    </div>
+    <p style="margin-top: 20px; color: #8b949e;"><em>Nota: Se agregó soporte para enrollment_id segregado, permitiendo
+        el historial de recompras sin colisión de datos.</em></p>
+  </div>
+
+  <!-- ═══════════════════════════════════════════════════════════════════ -->
+  <hr/>
+  <h2 id="motor-adaptativo-omv2">⚙️ Motor Adaptativo OMNIA Om_v2</h2>
+  <div class="logic-container" style="background:#0d1117;border:1px solid #30363d;">
+    <div class="logic-title" style="color:#FF7939;border-color:#FF7939;">🧠 ARQUITECTURA: REGLAS ID-CENTRIC</div>
+    <p style="color:#ccc;">El Motor Adaptativo Om_v2 personaliza cada ejercicio de un programa en el momento de compra.
+    En lugar de lógica hardcodeada, extrae multiplicadores de la tabla <code>adaptive_rules_catalog</code> y los cruza con el perfil del cliente.</p>
+    <div class="logic-layer">
+      <span class="layer-label">TABLAS CLAVE</span>
+      <div class="node" style="background:rgba(255,121,57,0.1);border:1px solid #FF7939;color:#FF7939;">
+        <strong>adaptive_rules_catalog</strong> — Catálogo de reglas con multiplicadores kg/series/reps<br/>
+        <strong>activities.adaptive_rule_ids integer[]</strong> — IDs de reglas que el Coach activó para el programa<br/>
+        <strong>clients.profile_rule_ids integer[]</strong> — IDs de reglas que describen el perfil del cliente<br/>
+        <strong>clients.injury_rule_ids integer[]</strong> — IDs de lesiones del cliente
+      </div>
+    </div>
+    <div class="logic-layer">
+      <span class="layer-label">FLUJO DE COMPRA ADAPTATIVA</span>
+      <div class="node" style="background:rgba(35,134,54,0.1);border:1px solid #4caf50;color:#81c784;">
+        1. Coach configura Matriz (Baja/Media/Alta) → se guardan IDs reales en <code>activities.adaptive_rule_ids</code><br/>
+        2. Cliente compra el programa → se llama <code>initialize-progress/route.ts</code><br/>
+        3. El API cruza <code>adaptive_rule_ids ∩ (profile_rule_ids ∪ injury_rule_ids)</code> del cliente<br/>
+        4. Se acumulan multiplicadores k×s×r via producto: exp(SUM(ln(factor)))<br/>
+        5. Se aplica sobre <code>detalle_series</code> de cada ejercicio → se persiste en <code>progreso_cliente</code>
+      </div>
+    </div>
+  </div>
+
+  <h3>📊 Tabla Maestra de Multiplicadores (Intensidad Media)</h3>
+  <div class="logic-container" style="background:#0d1117;border:1px solid #30363d;">
+    <div class="logic-title" style="color:#a371f7;border-color:#a371f7;">FASE 1: NIVEL DE ENTRENAMIENTO</div>
+    <table style="color:#ccc;width:100%;font-family:monospace;font-size:12px;">
+      <tr style="border-bottom:1px solid #333;"><th>Categoría</th><th>Rango</th><th>k (Peso)</th><th>s (Series)</th><th>r (Reps)</th></tr>
+      <tr><td>Nivel</td><td>Beginner</td><td>0.85</td><td>0.80</td><td>0.85</td></tr>
+      <tr><td>Nivel</td><td>Intermediate</td><td>1.00</td><td>1.00</td><td>1.00</td></tr>
+      <tr><td>Nivel</td><td>Advanced</td><td>1.15</td><td>1.20</td><td>1.10</td></tr>
+    </table>
+    <div class="logic-title" style="color:#a371f7;border-color:#a371f7;margin-top:15px;">FASE 2: CARACTERÍSTICAS METABÓLICAS</div>
+    <table style="color:#ccc;width:100%;font-family:monospace;font-size:12px;">
+      <tr style="border-bottom:1px solid #333;"><th>Categoría</th><th>Rango</th><th>k (Peso)</th><th>s (Series)</th><th>r (Reps)</th></tr>
+      <tr><td>Edad</td><td>Joven (&lt;18)</td><td>0.80</td><td>0.85</td><td>0.90</td></tr>
+      <tr><td>Edad</td><td>Joven Adulto (18-25)</td><td>1.00</td><td>1.00</td><td>1.00</td></tr>
+      <tr><td>Edad</td><td>Plenitud (26-35)</td><td>1.05</td><td>1.00</td><td>1.00</td></tr>
+      <tr><td>Edad</td><td>Maduro I (36-45)</td><td>1.00</td><td>0.95</td><td>0.95</td></tr>
+      <tr><td>Edad</td><td>Maduro II (46-55)</td><td>0.90</td><td>0.90</td><td>0.95</td></tr>
+      <tr><td>Edad</td><td>Master I (56-65)</td><td>0.85</td><td>0.85</td><td>0.90</td></tr>
+      <tr><td>Edad</td><td>Senior (&gt;65)</td><td>0.75</td><td>0.80</td><td>0.85</td></tr>
+      <tr><td>Peso</td><td>Muy Ligero (&lt;50kg)</td><td>0.80</td><td>1.00</td><td>1.00</td></tr>
+      <tr><td>Peso</td><td>Ligero (50-65kg)</td><td>0.90</td><td>1.00</td><td>1.00</td></tr>
+      <tr><td>Peso</td><td>Medio (66-80kg)</td><td>1.00</td><td>1.00</td><td>1.00</td></tr>
+      <tr><td>Peso</td><td>Pesado (81-95kg)</td><td>1.05</td><td>1.00</td><td>1.00</td></tr>
+      <tr><td>Peso</td><td>Intenso (96-110kg)</td><td>1.10</td><td>0.95</td><td>0.95</td></tr>
+      <tr><td>Peso</td><td>Muy Pesado (&gt;110kg)</td><td>1.15</td><td>0.90</td><td>0.90</td></tr>
+      <tr><td>BMI</td><td>Bajo Peso (&lt;18.5)</td><td>0.90</td><td>1.00</td><td>1.00</td></tr>
+      <tr><td>BMI</td><td>Normal (18.5-29.9)</td><td>1.00</td><td>1.00</td><td>1.00</td></tr>
+      <tr><td>BMI</td><td>Sobrepeso (25-29.9)</td><td>1.00</td><td>0.95</td><td>0.95</td></tr>
+      <tr><td>BMI</td><td>Obesidad (≥30)</td><td>1.00</td><td>1.00</td><td>1.00</td></tr>
+    </table>
+    <div class="logic-title" style="color:#f85149;border-color:#f85149;margin-top:15px;">FASE 3: LESIONES (CLÍNICO)</div>
+    <table style="color:#ccc;width:100%;font-family:monospace;font-size:12px;">
+      <tr style="border-bottom:1px solid #333;"><th>Lesión</th><th>k (Peso)</th><th>s (Series)</th><th>r (Reps)</th></tr>
+      <tr><td>Lumbalgia Crónica</td><td>0.75</td><td>0.85</td><td>0.85</td></tr>
+      <tr><td>Hernia Discal L4-L5/S1</td><td>0.65</td><td>0.75</td><td>0.80</td></tr>
+      <tr><td>Escoliosis</td><td>0.80</td><td>0.85</td><td>0.90</td></tr>
+      <tr><td>Rodilla</td><td>0.80</td><td>0.85</td><td>0.90</td></tr>
+      <tr><td>Hombro</td><td>0.80</td><td>0.85</td><td>0.90</td></tr>
+      <tr><td>Cervicales</td><td>0.80</td><td>0.85</td><td>0.90</td></tr>
+      <tr><td>Muñeca / Mano</td><td>0.85</td><td>0.95</td><td>0.90</td></tr>
+      <tr><td>Tobillo</td><td>0.85</td><td>0.95</td><td>0.90</td></tr>
+      <tr><td>Cadera</td><td>0.80</td><td>0.85</td><td>0.90</td></tr>
+      <tr><td>Tendinitis</td><td>0.85</td><td>0.90</td><td>0.90</td></tr>
+    </table>
+    <p style="color:#666;font-size:11px;margin-top:10px;">
+      Escalado de Rigidez: <strong>Baja</strong> = factor×0.3 | <strong>Media</strong> = factor×1.0 | <strong>Alta</strong> = factor×1.5
+      aplicado sobre la fórmula: <code>1 + (val - 1) × escala</code>
+    </p>
+  </div>
+
+  <h3>🔍 Query de Auditoría: Impacto de Reglas por Cliente/Programa</h3>
+  <div class="logic-container" style="background:#0d1117;border:1px solid #30363d;">
+    <div class="logic-title" style="color:#58a6ff;border-color:#58a6ff;">AUDIT QUERY — Cruce Programa vs Cliente</div>
+    <pre style="color:#c9d1d9;font-size:11px;background:#161b22;padding:15px;border-radius:8px;overflow-x:auto;">
+-- ¿Qué reglas del Programa impactan al Cliente?
+WITH simulacion AS (
+    SELECT r.name, r.kg, r.series, r.repetiiiciones as reps,
+           (r.id = ANY(c.profile_rule_ids) OR r.id = ANY(c.injury_rule_ids)) as match
+    FROM public.activities a
+    JOIN public.adaptive_rules_catalog r ON r.id = ANY(a.adaptive_rule_ids)
+    CROSS JOIN public.clients c
+    WHERE a.id = [ACTIVITY_ID] AND c.id = [CLIENT_UUID]
+)
+SELECT
+    regla as "Regla en el Programa",
+    CASE WHEN match THEN '✅ IMPACTA' ELSE '❌ No aplica' END as "Estado",
+    kg as "K", series as "S", reps as "R"
+FROM simulacion ORDER BY match DESC;</pre>
+  </div>
+
+  <h3>🚀 Query de Simulación de Compra: Progresión Adaptada por Ejercicio</h3>
+  <div class="logic-container" style="background:#0d1117;border:1px solid #30363d;">
+    <div class="logic-title" style="color:#58a6ff;border-color:#58a6ff;">SIMULATION QUERY — Progresión Base vs Adaptada</div>
+    <pre style="color:#c9d1d9;font-size:11px;background:#161b22;padding:15px;border-radius:8px;overflow-x:auto;">
+WITH multiplicadores AS (
+    SELECT
+        exp(sum(ln(r.kg)))::numeric            as k_total,
+        exp(sum(ln(r.series)))::numeric         as s_total,
+        exp(sum(ln(r.repetiiiciones)))::numeric as r_total
+    FROM public.activities a
+    JOIN public.adaptive_rules_catalog r ON r.id = ANY(a.adaptive_rule_ids)
+    CROSS JOIN public.clients c
+    WHERE a.id = [ACTIVITY_ID] AND c.id = [CLIENT_UUID]
+      AND (r.id = ANY(c.profile_rule_ids) OR r.id = ANY(c.injury_rule_ids))
+),
+dias_planificados AS (
+    SELECT numero_semana, 'lunes' as dia, lunes as ej FROM public.planificacion_ejercicios
+    WHERE actividad_id = [ACTIVITY_ID] AND lunes IS NOT NULL AND lunes::text != '{}'
+    UNION ALL SELECT numero_semana, 'martes',    martes    FROM public.planificacion_ejercicios WHERE actividad_id = [ACTIVITY_ID] AND martes IS NOT NULL AND martes::text != '{}'
+    /* ... demás días ... */
+),
+ejercicios_del_dia AS (
+    SELECT DISTINCT d.numero_semana, d.dia, (ej_item->>'id')::int as ejercicio_id
+    FROM dias_planificados d,
+         jsonb_array_elements(CASE WHEN jsonb_typeof(d.ej->'ejercicios')='array' THEN d.ej->'ejercicios' ELSE '[]'::jsonb END) as ej_item
+),
+ejercicios_con_detalle AS (
+    SELECT e.numero_semana, e.dia, ed.nombre_ejercicio,
+           TRIM(BOTH '"' FROM ed.detalle_series::text) as ds_texto
+    FROM ejercicios_del_dia e JOIN public.ejercicios_detalles ed ON ed.id = e.ejercicio_id
+    WHERE ed.detalle_series IS NOT NULL
+),
+sets_unnested AS (
+    SELECT numero_semana, dia, nombre_ejercicio, ds_texto,
+           ordinality as set_num,
+           TRIM(BOTH ' ()' FROM set_text) as set_clean
+    FROM ejercicios_con_detalle,
+         unnest(string_to_array(ds_texto, ';')) WITH ORDINALITY AS t(set_text, ordinality)
+),
+sets_adaptados AS (
+    SELECT numero_semana, dia, nombre_ejercicio, ds_texto, set_num,
+        '(' ||
+            CASE WHEN split_part(set_clean,'-',1)::numeric=0 THEN '0'
+                 ELSE (ROUND(split_part(set_clean,'-',1)::numeric * m.k_total / 2.5)*2.5)::text END
+        || '-' || ROUND(split_part(set_clean,'-',2)::numeric * m.r_total)::text
+        || '-' || ROUND(split_part(set_clean,'-',3)::numeric * m.s_total)::text
+        || ')' as set_adaptado
+    FROM sets_unnested, multiplicadores m
+    WHERE set_clean != '' AND set_clean ~ '^[0-9]'
+)
+SELECT
+    'S' || numero_semana || ' - ' || initcap(dia)        as "📅 Planificación",
+    nombre_ejercicio                                       as "🏋️ Ejercicio",
+    ds_texto                                               as "📋 Progresión Base",
+    string_agg(set_adaptado, '; ' ORDER BY set_num)       as "⚡ Progresión Adaptada"
+FROM sets_adaptados
+GROUP BY numero_semana, dia, nombre_ejercicio, ds_texto
+ORDER BY numero_semana,
+    CASE dia WHEN 'lunes' THEN 1 WHEN 'martes' THEN 2 WHEN 'miercoles' THEN 3
+             WHEN 'jueves' THEN 4 WHEN 'viernes' THEN 5 WHEN 'sabado' THEN 6 ELSE 7 END,
+    nombre_ejercicio;</pre>
+    <p style="color:#8b949e;font-size:11px;margin-top:10px;">
+      Formato de <code>detalle_series</code>: <code>(peso_kg-reps-sets); (peso_kg-reps-sets)</code><br/>
+      Redondeo de peso: múltiplos de 2.5kg para compatibilidad con discos de gimnasio real.
+    </p>
+  </div>
+
+  <h3>🗄️ Estructura de Columnas Clave</h3>
+  <div class="logic-container" style="background:#0d1117;border:1px solid #30363d;">
+    <div class="logic-title" style="color:#e3b341;border-color:#e3b341;">SCHEMA REFERENCE</div>
+    <pre style="color:#c9d1d9;font-size:11px;background:#161b22;padding:15px;border-radius:8px;">
+-- activities (Programas del Coach)
+adaptive_rule_ids  integer[]   -- IDs del catálogo que el Coach activó en la Matriz
+-- (adaptive_config ELIMINADO — se usa solo adaptive_rule_ids)
+
+-- clients (Perfil del Cliente)
+profile_rule_ids   integer[]   -- Nivel, Edad, Peso, BMI, Sexo
+injury_rule_ids    integer[]   -- Lesiones activas del cliente
+
+-- adaptive_rules_catalog (Catálogo maestro)
+id          serial            -- ID único de la regla
+name        text              -- "Edad: Plenitud (26-35) (Media)"
+category    text              -- level | age | weight | bmi | gender | injury
+intensity   text              -- baja | media | alta
+phase       integer           -- 1: Nivel, 2: Características, 3: Lesiones
+kg          numeric           -- Multiplicador de carga
+series      numeric           -- Multiplicador de series
+repetiiiciones numeric        -- Multiplicador de repeticiones (nota: typo legacy en DB)</pre>
+    <p style="color:#f85149;font-size:11px;"><strong>⚠️ NOTA TÉCNICA:</strong> El campo <code>repetiiiciones</code> tiene un typo triple-i en la DB. No cambiar para evitar breaking change.</p>
+  </div>
+
+</body>
 </html>

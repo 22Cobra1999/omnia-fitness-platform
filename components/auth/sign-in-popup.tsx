@@ -31,14 +31,14 @@ export function SignInPopup({ isOpen, onClose, defaultTab = "login" }: SignInPop
   }
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black bg-opacity-70 p-4">
-      <div className="relative w-full max-w-md rounded-lg bg-[#1E1E1E] p-6 shadow-xl border border-[#333333] text-white">
+    <div className="fixed inset-0 z-[200] flex items-center justify-center bg-black/40 backdrop-blur-md p-4">
+      <div className="relative w-full max-w-md max-h-[90vh] overflow-y-auto rounded-2xl bg-[#0a0a0a]/80 p-8 shadow-2xl border border-white/10 text-white scrollbar-hide">
         <button
           onClick={onClose}
-          className="absolute right-4 top-4 text-gray-400 hover:text-white transition-colors"
+          className="absolute right-6 top-6 text-gray-400 hover:text-white transition-colors bg-white/5 p-1 rounded-full"
           aria-label="Close"
         >
-          <X className="h-5 w-5" />
+          <X className="h-4 w-4" />
         </button>
 
         <div className="mb-6">
@@ -50,19 +50,21 @@ export function SignInPopup({ isOpen, onClose, defaultTab = "login" }: SignInPop
           </p>
         </div>
 
-        <div className="mb-6 flex">
+        <div className="mb-8 flex p-1 bg-white/5 rounded-xl border border-white/5">
           <button
-            className={`flex-1 border-b-2 pb-2 text-center font-medium transition-colors ${
-              activeTab === "login" ? "border-[#FF7939] text-[#FF7939]" : "border-transparent text-gray-400"
-            }`}
+            className={`flex-1 py-2.5 text-sm font-medium rounded-lg transition-all duration-300 ${activeTab === "login"
+              ? "bg-[#FF7939] text-white shadow-lg shadow-[#FF7939]/20"
+              : "text-gray-400 hover:text-white hover:bg-white/5"
+              }`}
             onClick={() => setActiveTab("login")}
           >
             Login
           </button>
           <button
-            className={`flex-1 border-b-2 pb-2 text-center font-medium transition-colors ${
-              activeTab === "register" ? "border-[#FF7939] text-[#FF7939]" : "border-transparent text-gray-400"
-            }`}
+            className={`flex-1 py-2.5 text-sm font-medium rounded-lg transition-all duration-300 ${activeTab === "register"
+              ? "bg-[#FF7939] text-white shadow-lg shadow-[#FF7939]/20"
+              : "text-gray-400 hover:text-white hover:bg-white/5"
+              }`}
             onClick={() => setActiveTab("register")}
           >
             Register

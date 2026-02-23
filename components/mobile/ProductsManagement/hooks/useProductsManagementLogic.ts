@@ -11,11 +11,18 @@ import { useProductActions } from "../tabs/ProductsTab/hooks/useProductActions"
 
 export function useProductsManagementLogic() {
     const { user, loading: authLoading } = useAuth()
+
+    // UI Tabs State
     const [activeMainTab, setActiveMainTab] = useState<'products' | 'exercises' | 'storage'>('products')
     const [activeSubTab, setActiveSubTab] = useState<'fitness' | 'nutrition'>('fitness')
     const [products, setProducts] = useState<Product[]>([])
     const [loading, setLoading] = useState(true)
     const [editingPrice, setEditingPrice] = useState<string | null>(null)
+
+    // OMNIA Adaptive Mode State
+    const [isConditioningMode, setIsConditioningMode] = useState(false)
+    const [selectedProductsForConditioning, setSelectedProductsForConditioning] = useState<number[]>([])
+    const [isConditionalRulesPanelOpen, setIsConditionalRulesPanelOpen] = useState(false)
 
     // Hook 1: Consultation Logic
     const consultation = useConsultationLogic(user?.id)
@@ -43,6 +50,53 @@ export function useProductsManagementLogic() {
     }, [])
 
     const productActions = useProductActions(fetchProducts, consultation.state.coachPhone)
+
+    // Adaptive Motor Logic
+    const toggleProductConditioning = (productId: number) => {
+        setSelectedProductsForConditioning(prev =>
+            prev.includes(productId)
+                ? prev.filter(id => id !== productId)
+                : [...prev, productId]
+        )
+    }
+
+    const resetConditioning = () => {
+        setIsConditioningMode(false)
+        setSelectedProductsForConditioning([])
+        setIsConditionalRulesPanelOpen(false)
+    }
+
+    const handleApplyConditioning = () => {
+        if (selectedProductsForConditioning.length > 0) {
+            setIsConditionalRulesPanelOpen(true)
+        }
+    }
+
+    const handleSaveConditioning = async (rules: any) => {
+        console.log("💾 [OMNIA_RECONSTRUCTOR] Saving rules to programs:", selectedProductsForConditioning, rules)
+        try {
+            const response = await fetch('/api/activities/apply-adaptive-config', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    productIds: selectedProductsForConditioning,
+                    config: rules
+                })
+            })
+
+            const result = await response.json()
+            if (result.success) {
+                toast.success('Configuración aplicada correctamente')
+                resetConditioning()
+                fetchProducts()
+            } else {
+                throw new Error(result.error || 'Error desconocido')
+            }
+        } catch (error: any) {
+            console.error('Error saving adaptive config:', error)
+            toast.error(error.message || 'Error al aplicar configuración')
+        }
+    }
 
     // Initial Data Load
     useEffect(() => {
@@ -96,6 +150,9 @@ export function useProductsManagementLogic() {
             activeSubTab,
             editingPrice,
             user,
+            isConditioningMode,
+            selectedProductsForConditioning,
+            isConditionalRulesPanelOpen
         },
         actions: {
             ...consultation.actions,
@@ -104,7 +161,13 @@ export function useProductsManagementLogic() {
             setActiveMainTab,
             setActiveSubTab,
             setEditingPrice,
-            fetchProducts
+            fetchProducts,
+            setIsConditioningMode,
+            toggleProductConditioning,
+            resetConditioning,
+            setIsConditionalRulesPanelOpen,
+            handleApplyConditioning,
+            handleSaveConditioning
         }
     }
 }
