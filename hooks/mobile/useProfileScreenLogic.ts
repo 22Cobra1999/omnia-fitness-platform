@@ -172,14 +172,20 @@ export function useProfileScreenLogic() {
         } else if (section === "injuries") {
             setShowInjuriesModal(true)
         } else if (section === "profile") {
-            if (!isEditingProfile) {
-                setEditName(managedProfile?.full_name || '')
-                setEditLocation(managedProfile?.location || '')
-                setEditBirthDate(managedProfile?.birth_date || '')
-                setEditGoals(managedProfile?.fitness_goals || [])
-                setEditSports(managedProfile?.sports || [])
+            if (isCoach) {
+                // Para el coach, abrimos el modal
+                setEditingSection("profile")
+                setIsEditModalOpen(true)
+            } else {
+                if (!isEditingProfile) {
+                    setEditName(managedProfile?.full_name || '')
+                    setEditLocation(managedProfile?.location || '')
+                    setEditBirthDate(managedProfile?.birth_date || '')
+                    setEditGoals(managedProfile?.fitness_goals || [])
+                    setEditSports(managedProfile?.sports || [])
+                }
+                setIsEditingProfile(prev => !prev)
             }
-            setIsEditingProfile(prev => !prev)
         } else {
             setEditingSection(section)
             setIsEditModalOpen(true)

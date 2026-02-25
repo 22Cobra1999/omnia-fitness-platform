@@ -204,12 +204,6 @@ export default function TodayScreen({ activityId, enrollmentId, onBack }: { acti
                 onComplete={actions.handleSurveyComplete}
             />
 
-            <StartActivityModal
-                isOpen={state.showStartModal}
-                onClose={() => actions.setShowStartModal(false)}
-                onStartActivity={actions.handleStartActivity}
-                activityTitle={state.programInfo?.title || "Actividad"}
-            />
 
             <StartActivityInfoModal
                 isOpen={state.showStartInfoModal}
@@ -217,8 +211,9 @@ export default function TodayScreen({ activityId, enrollmentId, onBack }: { acti
                 onStartToday={actions.handleStartToday}
                 onStartOnFirstDay={actions.handleStartOnFirstDay}
                 activityTitle={state.programInfo?.title || "Actividad"}
-                firstDay={state.firstDayOfActivity}
+                firstDay={state.firstDayOfActivity || 'lunes'}
                 currentDay={state.dayName}
+                startDeadline={state.enrollment?.start_deadline}
             />
 
             {/* Confirm Move Activity Dialog */}
@@ -251,8 +246,27 @@ export default function TodayScreen({ activityId, enrollmentId, onBack }: { acti
                     </div>
                 </DialogContent>
             </Dialog>
+            {/* Initialization Overlay */}
+            {state.isInitializing && state.activities.length === 0 && (
+                <div className="fixed inset-0 z-[1000] flex items-center justify-center p-4">
+                    <div className="absolute inset-0 bg-black/90 backdrop-blur-md" />
+                    <div className="relative flex flex-col items-center gap-6 text-center">
+                        <div style={{ position: 'relative' }}>
+                            <Flame size={64} color="#FF7939" className="animate-pulse" />
+                            <div className="absolute inset-0 blur-3xl bg-[#FF7939]/30 animate-pulse" />
+                        </div>
+                        <div className="flex flex-col gap-3">
+                            <span className="text-xl font-black text-white uppercase tracking-[0.2em] animate-pulse">Configurando tu progreso</span>
+                            <span className="text-xs font-bold text-white/40 uppercase tracking-[0.3em] leading-relaxed max-w-[280px]">
+                                Uniendo ejercicios del coach con tu perfil adaptativo...
+                            </span>
+                        </div>
+                    </div>
+                </div>
+            )}
         </div>
     );
 }
 
 import { es } from 'date-fns/locale';
+import { Flame } from 'lucide-react';

@@ -64,6 +64,7 @@ export function ProfileScreen() {
           setEditingSection(null)
         }}
         editingSection={editingSection}
+        isCoach={isCoach}
       />
 
       <ObjectivesModal

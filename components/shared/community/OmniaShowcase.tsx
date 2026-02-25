@@ -1,7 +1,7 @@
 "use client"
 
 import React, { useState, useRef, useEffect } from 'react'
-import { motion, AnimatePresence, useScroll, useTransform } from 'framer-motion'
+import { motion, AnimatePresence, useScroll, useTransform, MotionValue, useMotionValue } from 'framer-motion'
 import { Flame, Star, Zap, ShoppingCart, Users, User, Briefcase, ChevronRight, Play, Utensils, Globe, Layers, Video, ShieldAlert, Scale, MapPin } from 'lucide-react'
 import { ShowcaseBubble, ShowcaseProgressRing, ShowcaseFeatureCard, ShowcaseIngredients, MockCalendar, ShowcaseShelf, ShowcaseConcept } from './ShowcaseComponents'
 import { Button } from '@/components/ui/button'
@@ -10,7 +10,11 @@ import { OmniaLogo, OmniaLogoText } from '@/components/shared/ui/omnia-logo'
 import ActivityCard from '@/components/shared/activities/ActivityCard'
 import { Activity } from "@/types/activity"
 
-export function OmniaShowcase() {
+interface OmniaShowcaseProps {
+    scrollY?: MotionValue<number>
+}
+
+export function OmniaShowcase({ scrollY }: OmniaShowcaseProps) {
     const [role, setRole] = useState<'client' | 'coach'>('client')
     const [realActivities, setRealActivities] = useState<Activity[]>([])
     const [isLoadingReal, setIsLoadingReal] = useState(true)
@@ -33,10 +37,13 @@ export function OmniaShowcase() {
         fetchRealActivities()
     }, [])
     const containerRef = useRef(null)
-    const { scrollYProgress } = useScroll({
-        target: containerRef,
-        offset: ["start start", "end start"]
-    })
+
+    // Optimized scroll tracking: use passed scrollY if available (from app-mobile.tsx scroll container)
+    const backupScrollY = useMotionValue(0)
+    const effectiveScrollY = scrollY || backupScrollY
+
+    // Progress for title animations (normalized over 400px of scroll)
+    const scrollYProgress = useTransform(effectiveScrollY, [0, 400], [0, 1])
 
     // Stepped Tagline movement (more pronounced offsets for a 'stepped' feel)
     const titleY1 = useTransform(scrollYProgress, [0, 0.15], [0, -50])
@@ -168,8 +175,7 @@ export function OmniaShowcase() {
             {/* Scrolling Staggered Title with Straightening Staircase Effect */}
             <motion.div
                 initial="hidden"
-                whileInView="visible"
-                viewport={{ once: false, amount: 0.2 }}
+                animate="visible"
                 variants={{
                     visible: { transition: { staggerChildren: 0.15 } },
                     hidden: { transition: { staggerChildren: 0.1, staggerDirection: -1 } }
@@ -210,7 +216,7 @@ export function OmniaShowcase() {
 
                 <motion.p
                     initial={{ opacity: 0 }}
-                    whileInView={{ opacity: 1 }}
+                    animate={{ opacity: 1 }}
                     transition={{ delay: 1 }}
                     className="text-white/40 text-[10px] font-bold uppercase mt-12 tracking-widest w-full text-center"
                 >
@@ -221,8 +227,7 @@ export function OmniaShowcase() {
             {/* 1. Feature Previews: Activities & Calendar */}
             <motion.section
                 initial="hidden"
-                whileInView="visible"
-                viewport={{ once: true }}
+                animate="visible"
                 variants={containerVariants}
                 className="space-y-12"
             >

@@ -149,6 +149,7 @@ export function DraggableSheet({
                                 <EmptyState
                                     isDayLoading={isDayLoading} activities={activities} nextAvailableActivity={nextAvailableActivity}
                                     goToNextActivity={goToNextActivity || (() => { })} snapToCollapsed={() => snapTo(collapsedY)} handleOpenSurveyModal={handleOpenSurveyModal || (() => { })}
+                                    isExpired={isExpired}
                                 />
 
                                 {activities.length > 0 && (

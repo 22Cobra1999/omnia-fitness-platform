@@ -36,7 +36,7 @@ export function FitnessSeriesList({
         : parseSeries(selectedVideo.detalle_series || selectedVideo.series);
 
     return (
-        <div style={{ display: 'flex', flexDirection: 'column', gap: 10, alignItems: 'center', position: 'relative' }}>
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 8, width: '100%', position: 'relative' }}>
             {/* Edit Button (Top Right) */}
             {!isEditingSeries && !selectedVideo.isPast && (
                 <div style={{ position: 'absolute', top: 5, right: 0, zIndex: 10 }}>
@@ -57,7 +57,7 @@ export function FitnessSeriesList({
 
             {/* Editing Controls */}
             {isEditingSeries && (
-                <div style={{ display: 'flex', flexDirection: 'column', width: '100%', maxWidth: 360, marginBottom: 16, gap: 12 }}>
+                <div style={{ display: 'flex', flexDirection: 'column', width: '100%', marginBottom: 16, gap: 12 }}>
                     <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 10 }}>
                         <button onClick={() => setIsEditingSeries(false)} style={{ background: 'rgba(255, 255, 255, 0.05)', border: 'none', borderRadius: 8, padding: '8px 16px', color: '#fff', fontSize: 13, fontWeight: 600, cursor: 'pointer' }}>Cancelar</button>
                         <button onClick={handleSaveSeries} disabled={isSaving} style={{ background: '#FF6A1A', border: 'none', borderRadius: 8, padding: '8px 16px', color: '#fff', fontSize: 13, fontWeight: 700, cursor: 'pointer', opacity: isSaving ? 0.7 : 1 }}>
@@ -83,8 +83,7 @@ export function FitnessSeriesList({
                     background: 'rgba(255, 255, 255, 0.05)',
                     borderRadius: 14,
                     border: '1px solid rgba(255, 255, 255, 0.05)',
-                    width: '100%',
-                    maxWidth: 330
+                    width: '100%'
                 }}>
                     {/* Index */}
                     <div style={{ width: 24, height: 24, borderRadius: '50%', background: 'rgba(255, 106, 26, 0.15)', color: '#FF6A1A', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 12, fontWeight: 700, flexShrink: 0 }}>{idx + 1}</div>

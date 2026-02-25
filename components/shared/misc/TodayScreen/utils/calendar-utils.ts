@@ -133,7 +133,7 @@ export async function loadDayStatusesAsMap(userId: string, activityId: string, e
             .from('progreso_diario_actividad')
             .select('fecha, items_objetivo, items_completados')
             .eq('cliente_id', userId)
-            .eq('actividad_id', Number(activityId));
+            .eq('enrollment_id', enrollment.id);
 
         if (error) {
             console.error('Error fetching progreso_diario_actividad:', error);

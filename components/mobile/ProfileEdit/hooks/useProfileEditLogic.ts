@@ -56,7 +56,7 @@ export function useProfileEditLogic(isOpen: boolean, onClose: () => void) {
                     ? profile.gender
                     : ""
 
-            const data = {
+            const data: ProfileData = {
                 full_name: profile.full_name || "",
                 email: profile.email || "",
                 phone: profile.phone || "",
@@ -66,7 +66,21 @@ export function useProfileEditLogic(isOpen: boolean, onClose: () => void) {
                 weight: profile.weight?.toString() || "",
                 height: profile.height?.toString() || "",
                 gender: normalizedGender,
-                level: profile.level || "Principiante"
+                level: profile.level || "Principiante",
+                // Coach fields
+                specialization: (profile as any).specialization || "",
+                experience_years: (profile as any).experience_years?.toString() || "",
+                certifications: (profile as any).certifications || [],
+                whatsapp: (profile as any).whatsapp?.toString() || "",
+                instagram_username: (profile as any).instagram_username || "",
+                bio: (profile as any).bio || "",
+                cafe: (profile as any).cafe?.toString() || "",
+                cafe_enabled: (profile as any).cafe_enabled || false,
+                meet_1: (profile as any).meet_1?.toString() || "",
+                meet_30: (profile as any).meet_30?.toString() || "",
+                meet_1_enabled: (profile as any).meet_1_enabled || false,
+                meet_30_enabled: (profile as any).meet_30_enabled || false,
+                category: (profile as any).category || "general"
             }
             setProfileData(data)
             setPreviewImage(profile.avatar_url || null)
@@ -105,7 +119,13 @@ export function useProfileEditLogic(isOpen: boolean, onClose: () => void) {
     const hasChanges = useCallback(() => {
         if (!initialData) return false
 
-        const fields: (keyof ProfileData)[] = ['full_name', 'email', 'phone', 'location', 'emergency_contact', 'birth_date', 'weight', 'height', 'gender', 'level']
+        const fields: (keyof ProfileData)[] = [
+            'full_name', 'email', 'phone', 'location', 'emergency_contact',
+            'birth_date', 'weight', 'height', 'gender', 'level',
+            'specialization', 'experience_years', 'whatsapp', 'instagram_username',
+            'bio', 'cafe', 'cafe_enabled', 'meet_1', 'meet_30',
+            'meet_1_enabled', 'meet_30_enabled', 'category'
+        ]
         for (const field of fields) {
             if (profileData[field] !== initialData[field]) return true
         }
@@ -154,7 +174,13 @@ export function useProfileEditLogic(isOpen: boolean, onClose: () => void) {
                 weight: profileData.weight ? Number(profileData.weight) : 0,
                 height: profileData.height ? Number(profileData.height) : 0,
                 fitness_goals: goals,
-                sports: sports
+                sports: sports,
+                // Coach numeric fields
+                experience_years: profileData.experience_years ? parseInt(profileData.experience_years) : 0,
+                whatsapp: profileData.whatsapp ? Number(profileData.whatsapp) : null,
+                cafe: profileData.cafe ? Number(profileData.cafe) : null,
+                meet_1: profileData.meet_1 ? Number(profileData.meet_1) : 0,
+                meet_30: profileData.meet_30 ? Number(profileData.meet_30) : 0
             }
 
             // @ts-ignore

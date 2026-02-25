@@ -59,7 +59,9 @@ export const DaySummaryRow: React.FC<DaySummaryRowProps> = ({
     const minutes = Number(row.total_mins ?? 0) || 0
     const isDirectOwner = currentCoachId && row.coach_id && String(row.coach_id) === String(currentCoachId)
     const isClientOwner = row.coach_id && String(row.coach_id) === String(clientId)
-    const isOwned = isDirectOwner || (!!row.calendar_event_id && isClientOwner)
+    // rows from progreso_diario_actividad have null coach_id — treat as owned by this coach
+    const isNullCoachRow = row.coach_id === null || row.coach_id === undefined
+    const isOwned = isDirectOwner || (!!row.calendar_event_id && isClientOwner) || (!row.calendar_event_id && isNullCoachRow)
     const isMeet = !!row.calendar_event_id
 
     let title = row.activity_title || (row.activity_id ? `Actividad ${row.activity_id}` : 'Evento')

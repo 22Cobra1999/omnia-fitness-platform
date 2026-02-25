@@ -1,5 +1,5 @@
 import * as React from 'react';
-import { Flame } from 'lucide-react';
+import { Flame, Clock, Zap } from 'lucide-react';
 import { getWeekNumber } from '../../utils/calendar-utils';
 
 interface SheetHeaderProps {
@@ -30,9 +30,25 @@ export function SheetHeader({
                     </div>
                 </div>
                 {activities.length > 0 && (
-                    <div style={{ display: 'flex', alignItems: 'center', gap: 6, background: 'rgba(255, 121, 57, 0.2)', padding: '6px 12px', borderRadius: 20, border: '1px solid rgba(255, 121, 57, 0.3)', marginLeft: 32, backdropFilter: 'blur(10px)', WebkitBackdropFilter: 'blur(10px)' }}>
-                        <Flame size={18} color="#FF7939" fill="none" strokeWidth={2} />
-                        <span style={{ fontSize: 13, fontWeight: 700, color: '#FFFFFF' }}>{activities.length}</span>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: 6, background: 'rgba(255, 255, 255, 0.03)', padding: '6px 12px', borderRadius: 20, border: '1px solid #FF7939', backdropFilter: 'blur(10px)' }}>
+                            <Zap size={14} color="#FF7939" />
+                            <span style={{ fontSize: 13, fontWeight: 900, color: '#FFFFFF' }}>
+                                {activities.length}
+                            </span>
+                        </div>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: 6, background: 'rgba(255, 121, 57, 0.05)', padding: '6px 12px', borderRadius: 20, border: '1px solid #FF7939', backdropFilter: 'blur(10px)' }}>
+                            <Flame size={14} color="#FF7939" />
+                            <span style={{ fontSize: 12, fontWeight: 800, color: '#FFFFFF' }}>
+                                {(activities || []).reduce((acc: number, curr: any) => acc + (curr.calorias || 0), 0)} kcal
+                            </span>
+                        </div>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: 6, background: 'rgba(255, 255, 255, 0.05)', padding: '6px 12px', borderRadius: 20, border: '1px solid rgba(255, 255, 255, 0.1)', backdropFilter: 'blur(10px)' }}>
+                            <Clock size={15} color="#9CA3AF" />
+                            <span style={{ fontSize: 12, fontWeight: 800, color: '#FFFFFF' }}>
+                                {(activities || []).reduce((acc: number, curr: any) => acc + (curr.minutos || 0), 0)}'
+                            </span>
+                        </div>
                     </div>
                 )}
             </div>

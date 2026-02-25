@@ -307,8 +307,38 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         return { error: error.message }
       }
 
+      // Si es coach, inicializar en la tabla coaches
+      if (role === 'coach' && data.user) {
+        try {
+          console.log("Initializing coach record for user:", data.user.id)
+          const { error: coachError } = await supabase
+            .from('coaches')
+            .upsert({
+              id: data.user.id,
+              full_name: name,
+              bio: `Hola, soy ${name}! Trainer entusiasta en OMNIA.`,
+              category: 'general',
+              specialization: 'General Fitness',
+              experience_years: 0,
+              certifications: [],
+              meet_1_enabled: false,
+              meet_30_enabled: false,
+              cafe_enabled: false,
+              instagram_verified: false
+            })
+
+          if (coachError) {
+            console.error("❌ [auth-context] Error initializing coach record:", coachError)
+          } else {
+            console.log("✅ [auth-context] Coach record initialized successfully")
+          }
+        } catch (coachErr) {
+          console.error("❌ [auth-context] Error processing coach initialization:", coachErr)
+        }
+      }
+
       // Si tenemos datos físicos y el usuario se creó exitosamente, guardarlos en clients
-      if (physicalData && data.user) {
+      if (role === 'client' && physicalData && data.user) {
         try {
           // Usar birthDate si se proporcionó, si no calcular desde la edad
           let birthDateToSave = physicalData.birthDate
@@ -317,22 +347,24 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
             birthDateToSave = new Date(birthYear, 0, 1).toISOString().split('T')[0]
           }
 
+          console.log("Saving physical data for user:", data.user.id)
           const { error: clientError } = await supabase
             .from('clients')
-            .update({
+            .upsert({
+              id: data.user.id,
+              full_name: name,
               Height: physicalData.height,
               weight: physicalData.weight,
               birth_date: birthDateToSave
             })
-            .eq('user_id', data.user.id)
 
           if (clientError) {
-            console.error("Error saving physical data:", clientError)
-            // No retornamos error aquí porque el usuario ya se creó exitosamente
+            console.error("❌ [auth-context] Error saving physical data:", clientError)
+          } else {
+            console.log("✅ [auth-context] Physical data saved successfully")
           }
         } catch (physicalError) {
-          console.error("Error processing physical data:", physicalError)
-          // No retornamos error aquí porque el usuario ya se creó exitosamente
+          console.error("❌ [auth-context] Error processing physical data:", physicalError)
         }
       }
 

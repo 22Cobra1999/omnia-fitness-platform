@@ -147,9 +147,13 @@ export function PurchasedActivityCardContent({
                         {(activity.type?.toLowerCase() === 'program' || activity.type?.toLowerCase() === 'programa') && (
                             (pendingCount !== null && pendingCount > 0) ? (
                                 <div className="flex items-center gap-1.5">
-                                    <Flame className="w-3.5 h-3.5 text-[#FF7939]" fill="#FF7939" />
+                                    {activity.categoria?.toLowerCase() === 'fitness' ? (
+                                        <Flame className="w-3.5 h-3.5 text-[#FF7939]" fill="#FF7939" />
+                                    ) : (
+                                        <div className="text-[12px]">🍽️</div>
+                                    )}
                                     <span className="text-[11px] text-white font-medium">
-                                        {pendingCount} ejercicios/platos hoy
+                                        {pendingCount} {activity.categoria?.toLowerCase() === 'fitness' ? 'ejercicios' : 'platos con cubiertos'} hoy
                                     </span>
                                 </div>
                             ) : null

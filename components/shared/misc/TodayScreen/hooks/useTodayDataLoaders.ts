@@ -9,7 +9,7 @@ import {
 import { Activity } from '../types';
 import { calculateExerciseDayForDate, loadDayStatusesAsMap } from '../utils/calendar-utils';
 
-export function useTodayDataLoaders(user: any, activityId: string) {
+export function useTodayDataLoaders(user: any, activityId: string, enrollmentId?: string | null) {
     const supabase = createClient();
     const [programInfo, setProgramInfo] = React.useState<any>(null);
     const [enrollment, setEnrollment] = React.useState<any>(null);
@@ -25,16 +25,43 @@ export function useTodayDataLoaders(user: any, activityId: string) {
     const loadProgramInfo = React.useCallback(async () => {
         if (!user || !activityId) return;
 
-        const { data: activity } = await supabase.from("activities").select("*").eq("id", activityId).single();
-        if (activity) setProgramInfo(activity);
-
         try {
-            const response = await fetch(`/api/activities/${activityId}/purchase-status`);
-            const result = await response.json();
-            if (result.success && result.data.enrollments?.length > 0) {
-                const enr = result.data.enrollments[0];
+            // Parallel fetch for speed
+            const [activityRes, purchaseRes, mediaRes] = await Promise.all([
+                supabase.from("activities").select("*").eq("id", activityId).single(),
+                fetch(`/api/activities/${activityId}/purchase-status`).then(r => r.json()),
+                supabase.from("activity_media").select("image_url").eq("activity_id", activityId).limit(1)
+            ]);
 
-                // Buscar calificación si existe
+            // 1. Set Program Info
+            if (activityRes.data) setProgramInfo(activityRes.data);
+
+            // 2. Set Background Image
+            if (mediaRes.data?.[0]?.image_url) {
+                setBackgroundImage(mediaRes.data[0].image_url);
+                setBackgroundImageLoaded(true);
+            }
+
+            // 3. Process Enrollment
+            const result = purchaseRes;
+            if (result.success && result.data.enrollments?.length > 0) {
+                // Priority: URL enrollmentId > Most recent active > Most recent
+                let targetEnrollmentId = enrollmentId;
+
+                const sortedEnrollments = [...result.data.enrollments].sort((a: any, b: any) => {
+                    const statusA = a.status === 'activa' ? 0 : 1;
+                    const statusB = b.status === 'activa' ? 0 : 1;
+                    if (statusA !== statusB) return statusA - statusB;
+                    return new Date(b.created_at).getTime() - new Date(a.created_at).getTime();
+                });
+
+                const enr = targetEnrollmentId
+                    ? sortedEnrollments.find(e => String(e.id) === String(targetEnrollmentId)) || sortedEnrollments[0]
+                    : sortedEnrollments[0];
+
+                console.log("✅ [TodayDataLoaders] Selected enrollment:", enr.id, "Status:", enr.status, "Exp:", enr.expiration_date, "Start:", enr.start_date);
+
+                // Check for survey if enrolled
                 const { data: survey } = await supabase
                     .from('activity_surveys')
                     .select('*')
@@ -48,24 +75,22 @@ export function useTodayDataLoaders(user: any, activityId: string) {
                     difficulty_rating: survey?.difficulty_rating || null,
                     would_repeat: survey?.would_repeat,
                     calificacion_omnia: survey?.calificacion_omnia || null,
-                    comentarios_omnia: survey?.comentarios_omnia || null,
+                    comentarios_omnia: survey?.comments || null,
                     workshop_version: survey?.workshop_version || null
                 };
 
                 setEnrollment(enrichedEnrollment);
                 setIsRated(Boolean(enrichedEnrollment.rating_coach || enrichedEnrollment.feedback_text));
 
-                // Check for expiration and snapshot
                 if (enr.expiration_date) {
                     const todayStr = getTodayBuenosAiresString();
                     if (enr.expiration_date < todayStr) {
-                        // Attempt to snapshot
                         fetch(`/api/activities/${activityId}/snapshot-expired`, { method: 'POST' })
                             .catch(err => console.error("Error creating snapshot", err));
                     }
                 }
             } else {
-                // Fallback: Buscar cualquier enrollment (incluso vencido/finalizado)
+                // Last ditch fallback if purchase-status didn't give us what we need
                 const { data: fallbackEnrollment } = await supabase
                     .from('activity_enrollments')
                     .select('*')
@@ -73,11 +98,9 @@ export function useTodayDataLoaders(user: any, activityId: string) {
                     .eq('activity_id', activityId)
                     .order('created_at', { ascending: false })
                     .limit(1)
-                    .single();
+                    .maybeSingle();
 
                 if (fallbackEnrollment) {
-                    console.log("✅ [TodayDataLoaders] Fallback enrollment found:", fallbackEnrollment.id);
-                    // Buscar calificación si existe (reusing logic)
                     const { data: survey } = await supabase
                         .from('activity_surveys')
                         .select('*')
@@ -100,15 +123,9 @@ export function useTodayDataLoaders(user: any, activityId: string) {
                 }
             }
         } catch (e) {
-            console.error("Error loading enrollment", e);
+            console.error("❌ [TodayDataLoaders] Error in parallel load:", e);
         }
-
-        const { data: media } = await supabase.from("activity_media").select("image_url").eq("activity_id", activityId).limit(1);
-        if (media?.[0]?.image_url) {
-            setBackgroundImage(media[0].image_url);
-            setBackgroundImageLoaded(true);
-        }
-    }, [user, activityId]);
+    }, [user, activityId, enrollmentId, supabase, setProgramInfo, setEnrollment, setBackgroundImage, setBackgroundImageLoaded, setIsRated]);
 
     const loadTodayActivities = React.useCallback(async (selectedDate: Date) => {
         if (!user || !activityId || !enrollment || !enrollment.start_date) return { activities: [], blockNames: {} };
@@ -117,10 +134,14 @@ export function useTodayDataLoaders(user: any, activityId: string) {
         const selectedDateString = getBuenosAiresDateString(selectedDate);
         const exerciseDay = calculateExerciseDayForDate(selectedDateString, startDateString);
 
-        if (!exerciseDay) return { activities: [], blockNames: {} };
+        if (!exerciseDay) {
+            console.warn("⚠️ [TodayDataLoaders] No exerciseDay calculated for", selectedDateString, "from start", startDateString);
+            return { activities: [], blockNames: {} };
+        }
 
         try {
-            const response = await fetch(`/api/activities/today?dia=${exerciseDay}&fecha=${selectedDateString}&activityId=${activityId}`);
+            console.log(`🔍 [TodayDataLoaders] Fetching activities: dia=${exerciseDay}, date=${selectedDateString}, enrollmentId=${enrollment.id}`);
+            const response = await fetch(`/api/activities/today?dia=${exerciseDay}&fecha=${selectedDateString}&activityId=${activityId}&enrollmentId=${enrollment.id}`);
             const result = await response.json();
 
             if (result.success && result.data.activities) {
@@ -129,32 +150,19 @@ export function useTodayDataLoaders(user: any, activityId: string) {
                     const realExerciseId = Number(item.exercise_id || item.ejercicio_id || (typeof item.id === 'string' && item.id.includes('-') ? item.id.split('-')[1] : item.id));
 
                     return {
+                        ...item,
                         id: item.id || `${realExerciseId}_${item.bloque || 1}_${item.orden || index}`,
                         title: categoria === 'nutricion' ? (item.nombre_plato || item.title) : (item.nombre_ejercicio || item.name),
-                        subtitle: item.formatted_series || 'Sin especificar',
                         type: item.tipo || 'general',
                         done: Boolean(item.completed || item.done),
                         bloque: Number(item.bloque || 1),
                         orden: Number(item.orden || index),
                         exercise_id: realExerciseId,
                         ejercicio_id: realExerciseId,
-                        duration: item.duration,
-                        minutos: item.minutos ?? item.duracion_minutos,
-                        video_url: item.video_url,
-                        description: item.descripcion || item.description,
-                        calorias: item.calorias,
-                        series: item.series,
-                        detalle_series: item.detalle_series,
-                        proteinas: item.proteinas,
-                        carbohidratos: item.carbohidratos,
-                        grasas: item.grasas,
-                        receta: item.receta,
-                        ingredientes: item.ingredientes,
-                        body_parts: item.musculos || item.body_parts,
-                        equipment: item.equipo || item.elementos,
-                        reps: item.reps || item.repeticiones,
-                        sets: item.sets || item.series_num || item.series,
-                        kg: item.kg || item.peso
+                        reps: item.reps ?? item.reps_num ?? item.repeticiones,
+                        sets: item.sets ?? item.series_num ?? item.series,
+                        peso: item.peso ?? item.kg,
+                        kg: item.kg ?? item.peso
                     };
                 });
                 return { activities: mapped, blockNames: result.data.blockNames || {} };
@@ -174,8 +182,17 @@ export function useTodayDataLoaders(user: any, activityId: string) {
 
     const loadMeetCredits = React.useCallback(async () => {
         if (!user || !programInfo?.coach_id) return;
-        const { data } = await supabase.from('coach_clients').select('meet_credits').eq('client_id', user.id).eq('coach_id', programInfo.coach_id).single();
-        if (data) setMeetCreditsAvailable(data.meet_credits || 0);
+        try {
+            const { data, error } = await supabase
+                .from('coach_clients')
+                .select('meet_credits')
+                .eq('client_id', user.id)
+                .eq('coach_id', programInfo.coach_id)
+                .maybeSingle();
+            if (!error && data) setMeetCreditsAvailable(data.meet_credits || 0);
+        } catch {
+            // Table might not exist or no relationship — not a breaking error
+        }
     }, [user, programInfo]);
 
     return React.useMemo(() => ({

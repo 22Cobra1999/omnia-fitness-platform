@@ -41,7 +41,7 @@ export function useTodayScreenLogic({ activityId, enrollmentId, onBack }: { acti
 
     // 2. Initialize Sub-hooks
     const ui = useTodayUiState();
-    const data = useTodayDataLoaders(user, activityId);
+    const data = useTodayDataLoaders(user, activityId, enrollmentId);
     const workshop = useWorkshopLogic(user, activityId, data.enrollment, data.programInfo);
     const editing = useExerciseEditing();
 
@@ -53,6 +53,10 @@ export function useTodayScreenLogic({ activityId, enrollmentId, onBack }: { acti
         data.setBlockNames(result.blockNames);
         if (!options?.silent) ui.setIsDayLoading(false);
         ui.setLoading(false);
+        // Desactivar estado de inicialización tras la primera carga exitosa
+        if (result.activities.length > 0) {
+            ui.setIsInitializing(false);
+        }
     }, [
         selectedDate,
         data.loadTodayActivities,
@@ -97,6 +101,21 @@ export function useTodayScreenLogic({ activityId, enrollmentId, onBack }: { acti
     React.useEffect(() => {
         data.refreshDayStatuses();
     }, [currentMonth, data.enrollment, data.refreshDayStatuses]);
+
+    // Check if start modal should be shown
+    React.useEffect(() => {
+        if (!data.enrollment) return;
+
+        // Si no tiene start_date, mostrar modales de inicio
+        if (!data.enrollment.start_date) {
+            const today = new Date();
+            const dayName = getDayName(today);
+
+            // Siempre mostrar el modal detallado de info para que el usuario vea el contexto
+            // de cuándo empieza la actividad y pueda elegir
+            ui.setShowStartInfoModal(true);
+        }
+    }, [data.enrollment, ui.setShowStartInfoModal]);
 
     // Credits
     React.useEffect(() => {
@@ -265,10 +284,11 @@ export function useTodayScreenLogic({ activityId, enrollmentId, onBack }: { acti
 
     const isProgramExpired = React.useMemo(() => {
         if (!data.enrollment?.expiration_date) return false;
+        if (data.enrollment?.status === 'activa') return false; // Si está activa, no la damos por finalizada por fecha
         const expDateStr = data.enrollment.expiration_date; // YYYY-MM-DD
         const todayStr = getTodayBuenosAiresString();
         return todayStr > expDateStr;
-    }, [data.enrollment?.expiration_date]);
+    }, [data.enrollment?.expiration_date, data.enrollment?.status]);
 
     const finalActions = React.useMemo(() => ({
         ...actions,
@@ -303,7 +323,6 @@ export function useTodayScreenLogic({ activityId, enrollmentId, onBack }: { acti
         setIsRatingModalOpen: ui.setIsRatingModalOpen,
         setExpandedTema: workshop.setExpandedTema,
         setShowStartInfoModal: ui.setShowStartInfoModal,
-        setShowStartModal: ui.setShowStartModal,
         handleOpenSurveyModal: () => ui.setShowSurveyModal(true),
         handleCloseSurveyModal: () => ui.setShowSurveyModal(false),
         handleSurveyComplete: async (activityRating: number, coachRating: number, feedback: string) => {
@@ -329,8 +348,111 @@ export function useTodayScreenLogic({ activityId, enrollmentId, onBack }: { acti
                 console.error('Error saving survey:', error);
             }
         },
-        handleStartToday: () => { ui.setShowStartInfoModal(false); },
-        handleStartOnFirstDay: () => { ui.setShowStartInfoModal(false); },
+        handleStartToday: async () => {
+            if (!data.enrollment || !user) return;
+            ui.setShowStartInfoModal(false);
+            ui.setIsDayLoading(true);
+            ui.setIsInitializing(true);
+
+            try {
+                const todayStr = getTodayBuenosAiresString();
+                const { error } = await supabase
+                    .from('activity_enrollments')
+                    .update({ start_date: todayStr } as any)
+                    .eq('id', data.enrollment.id);
+
+                if (!error) {
+                    const response = await fetch('/api/activities/initialize-progress', {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({
+                            activityId: activityId,
+                            clientId: user.id,
+                            startDate: todayStr,
+                            enrollmentId: data.enrollment.id
+                        })
+                    });
+
+                    if (!response.ok) {
+                        const errData = await response.json();
+                        console.error('❌ Error initializing progress:', errData);
+                    }
+
+                    await data.loadProgramInfo();
+                    // Refrescar actividades explícitamente después de que el estado de enrollment se actualice
+                    setTimeout(async () => {
+                        await fetchActivities();
+                    }, 500);
+                }
+            } catch (e) {
+                console.error(e);
+            } finally {
+                ui.setIsDayLoading(false);
+            }
+        },
+        handleStartOnFirstDay: async () => {
+            if (!data.enrollment || !user) return;
+            ui.setShowStartInfoModal(false);
+            ui.setIsDayLoading(true);
+            ui.setIsInitializing(true);
+
+            try {
+                const today = new Date();
+
+                // Normalizado para detectar el día deseado (por defecto Lunes = 1)
+                const getTargetDayNum = (dayName: string) => {
+                    const normalized = (dayName || 'lunes').toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "");
+                    if (normalized.includes('dom')) return 0;
+                    if (normalized.includes('lun')) return 1;
+                    if (normalized.includes('mar')) return 2;
+                    if (normalized.includes('mie')) return 3;
+                    if (normalized.includes('jue')) return 4;
+                    if (normalized.includes('vie')) return 5;
+                    if (normalized.includes('sab')) return 6;
+                    return 1;
+                };
+
+                const targetDay = getTargetDayNum('lunes'); // Aquí podrías usar una config de la actividad si existiera
+                const daysUntilTarget = (targetDay - today.getDay() + 7) % 7 || 7;
+
+                const nextTargetDate = new Date(today);
+                nextTargetDate.setDate(today.getDate() + daysUntilTarget);
+                const nextTargetStr = nextTargetDate.toISOString().split('T')[0];
+
+                const { error } = await supabase
+                    .from('activity_enrollments')
+                    .update({ start_date: nextTargetStr } as any)
+                    .eq('id', data.enrollment.id);
+
+                if (!error) {
+                    const response = await fetch('/api/activities/initialize-progress', {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({
+                            activityId: activityId,
+                            clientId: user.id,
+                            startDate: nextTargetStr,
+                            enrollmentId: data.enrollment.id
+                        })
+                    });
+
+                    if (!response.ok) {
+                        const errData = await response.json();
+                        console.error('❌ Error initializing progress:', errData);
+                    }
+
+                    await data.loadProgramInfo();
+                    // Refrescar actividades explícitamente después de que el estado de enrollment se actualice
+                    setTimeout(async () => {
+                        await fetchActivities();
+                    }, 500);
+                }
+            } catch (e) {
+                console.error(e);
+            } finally {
+                ui.setIsDayLoading(false);
+            }
+        },
         setCalendarMessage: ui.setCalendarMessage,
         setIsEditing: editing.setIsEditing,
         setSourceDate: editing.setSourceDate,
@@ -345,8 +467,7 @@ export function useTodayScreenLogic({ activityId, enrollmentId, onBack }: { acti
         goToToday: () => actions.goToToday(),
         onNext: () => navigateActivity(1),
         onPrev: () => navigateActivity(-1),
-        goToNextActivity: () => { }, // TODO: Implement if needed
-        handleStartActivity: () => { }, // TODO
+        goToNextActivity: () => { },
     }), [
         actions,
         selectedDate,
@@ -362,20 +483,21 @@ export function useTodayScreenLogic({ activityId, enrollmentId, onBack }: { acti
         handleEditarReservacion,
         handleConfirmUpdate,
         user,
-        activityId
+        activityId,
+        enrollmentId
     ]);
 
     const state = React.useMemo(() => ({
         vh: ui.vh,
         loading: ui.loading,
         isDayLoading: ui.isDayLoading,
+        isInitializing: ui.isInitializing,
         isVideoExpanded: ui.isVideoExpanded,
         activeExerciseTab: ui.activeExerciseTab,
         collapsedBlocks: ui.collapsedBlocks,
         calendarExpanded: ui.calendarExpanded,
         videoExpandY: ui.videoExpandY,
         videoExpandX: ui.videoExpandX,
-        showStartModal: ui.showStartModal,
         showStartInfoModal: ui.showStartInfoModal,
         showSurveyModal: ui.showSurveyModal,
         showConfirmModal: ui.showConfirmModal,
@@ -402,7 +524,7 @@ export function useTodayScreenLogic({ activityId, enrollmentId, onBack }: { acti
         weekNumber: getWeekNumber(selectedDate, data.enrollment?.start_date),
         dayName: getDayName(selectedDate),
         firstDayOfActivity: data.enrollment?.start_date ? getDayName(new Date(data.enrollment.start_date)) : '',
-        nextAvailableActivity: null, // TODO: Logic to find next available
+        nextAvailableActivity: null,
         progressData: { courseProgress: 0, completedProgress: 0, todayProgress: 0, totalDays: 40 }
     }), [
         ui,

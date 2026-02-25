@@ -45,8 +45,18 @@ export function useProfileActions({
                 sports: profileData.sports
             }
 
-            if (isCoach && profileData.specialization !== undefined) {
-                profileSpecificData.specialization = profileData.specialization
+            if (isCoach) {
+                const coachFields = [
+                    'specialization', 'experience_years', 'whatsapp',
+                    'instagram_username', 'bio', 'cafe', 'cafe_enabled',
+                    'meet_1', 'meet_30', 'meet_1_enabled',
+                    'meet_30_enabled', 'category'
+                ]
+                coachFields.forEach(field => {
+                    if ((profileData as any)[field] !== undefined) {
+                        profileSpecificData[field] = (profileData as any)[field]
+                    }
+                })
             }
 
             const userProfileFormData = new FormData()

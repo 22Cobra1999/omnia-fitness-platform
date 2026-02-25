@@ -17,6 +17,7 @@ import { MessagesScreen } from "@/components/mobile/messages-screen"
 import { useAuth } from "@/contexts/auth-context"
 import { usePopup } from "@/contexts/popup-context"
 import { SignInPopup } from "@/components/auth/sign-in-popup"
+import { AccountCreatedPopup } from "@/components/auth/account-created-popup"
 // Eliminado WelcomePopup
 import { SettingsIcon } from '@/components/shared/ui/settings-icon'
 import { MessagesIcon } from '@/components/shared/ui/messages-icon'
@@ -43,8 +44,17 @@ function MobileAppContent({ initialTab, initialCategoryId, initialActivityId, in
     trackComponent('MobileApp')
   }, [initialTab, initialCategoryId, initialActivityId])
   const { isAuthenticated, user, loading, showWelcomeMessage, setShowWelcomeMessage } = useAuth()
-  const { isAuthPopupOpen, authPopupDefaultTab, hideAuthPopup, showAuthPopup } = usePopup()
+  const { isAuthPopupOpen, authPopupDefaultTab, hideAuthPopup, showAuthPopup, isAccountCreatedPopupOpen, hideAccountCreatedPopup } = usePopup()
   const [activeTab, setActiveTab] = useState(initialTab || "community")
+
+  const handleAccountAction = (action: "profile" | "products" | "close") => {
+    hideAccountCreatedPopup()
+    if (action === "profile") {
+      setActiveTab("profile")
+    } else if (action === "products") {
+      setActiveTab("products-management")
+    }
+  }
   const userRole = user?.level || "client"
   const searchParams = useSearchParams()
 
@@ -351,7 +361,7 @@ function MobileAppContent({ initialTab, initialCategoryId, initialActivityId, in
 
       // Common screens
       case "community":
-        return <CommunityScreen />
+        return <CommunityScreen scrollY={scrollY} />
       case "calendar":
         // Calendario diferente según el rol
         return userRole === "coach"
@@ -441,6 +451,13 @@ function MobileAppContent({ initialTab, initialCategoryId, initialActivityId, in
 
         {/* Auth Popup */}
         <SignInPopup isOpen={isAuthPopupOpen} onClose={hideAuthPopup} defaultTab={authPopupDefaultTab} />
+
+        {/* Account Created Popup */}
+        <AccountCreatedPopup
+          isOpen={isAccountCreatedPopupOpen}
+          onClose={hideAccountCreatedPopup}
+          onAction={handleAccountAction}
+        />
 
         {/* Welcome Popup */}
         {/* Welcome Popup Eliminado */}

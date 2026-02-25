@@ -35,7 +35,7 @@ export const useCalendarData = (
         calculateBreakdown: calcs.calculateBreakdown
     }), [
         state.supabase,
-        state.authUserId,
+        state.authUserId, // include so fetchers are rebuilt when auth resolves
         currentDate,
         meetViewMode,
         meetWeekStart,
@@ -65,10 +65,11 @@ export const useCalendarData = (
         }
     }, [allRelevantIds, fetchers.loadActivityInfo])
 
-    // Load month/week data
+    // Load month/week data — only after auth is resolved
     const loadDayMinutes = useCallback(async () => {
+        if (!state.authUserId) return // guard against null auth
         await fetchers.loadDayMinutes()
-    }, [fetchers.loadDayMinutes])
+    }, [fetchers.loadDayMinutes, state.authUserId])
 
     useEffect(() => {
         loadDayMinutes()

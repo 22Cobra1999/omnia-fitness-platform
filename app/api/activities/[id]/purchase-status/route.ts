@@ -35,7 +35,7 @@ export async function GET(
     // Buscar todas las compras del cliente para esta actividad
     const { data: enrollments, error: enrollmentsError } = await supabase
       .from('activity_enrollments')
-      .select('id, start_date, status, created_at, updated_at, expiration_date, activity_surveys(coach_method_rating, comments)')
+      .select('id, start_date, status, created_at, updated_at, expiration_date, start_deadline, activity_surveys(coach_method_rating, comments)')
       .eq('activity_id', activityId)
       .eq('client_id', user.id)
       .order('created_at', { ascending: false })

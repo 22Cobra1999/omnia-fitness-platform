@@ -11,6 +11,9 @@ type PopupContextType = {
   isWelcomePopupOpen: boolean
   showWelcomePopup: () => void
   hideWelcomePopup: () => void
+  isAccountCreatedPopupOpen: boolean
+  showAccountCreatedPopup: () => void
+  hideAccountCreatedPopup: () => void
 }
 
 const PopupContext = createContext<PopupContextType | undefined>(undefined)
@@ -19,6 +22,7 @@ export function PopupProvider({ children }: { children: React.ReactNode }) {
   const [isAuthPopupOpen, setIsAuthPopupOpen] = useState(false)
   const [authPopupDefaultTab, setAuthPopupDefaultTab] = useState<"login" | "register">("login")
   const [isWelcomePopupOpen, setIsWelcomePopupOpen] = useState(false)
+  const [isAccountCreatedPopupOpen, setIsAccountCreatedPopupOpen] = useState(false)
 
   const showAuthPopup = (tab: "login" | "register" = "login") => {
     setAuthPopupDefaultTab(tab)
@@ -37,6 +41,14 @@ export function PopupProvider({ children }: { children: React.ReactNode }) {
     setIsWelcomePopupOpen(false)
   }
 
+  const showAccountCreatedPopup = () => {
+    setIsAccountCreatedPopupOpen(true)
+  }
+
+  const hideAccountCreatedPopup = () => {
+    setIsAccountCreatedPopupOpen(false)
+  }
+
   return (
     <PopupContext.Provider
       value={{
@@ -47,6 +59,9 @@ export function PopupProvider({ children }: { children: React.ReactNode }) {
         isWelcomePopupOpen,
         showWelcomePopup,
         hideWelcomePopup,
+        isAccountCreatedPopupOpen,
+        showAccountCreatedPopup,
+        hideAccountCreatedPopup,
       }}
     >
       {children}

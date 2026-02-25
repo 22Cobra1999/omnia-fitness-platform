@@ -133,6 +133,23 @@ export function reconstructPrescription(
     profile: AdaptiveProfile,
     ruleIds?: number[] // Now using activity.adaptive_rule_ids
 ): AdaptiveResult {
+    // Normalización de niveles (Soporte Multi-idioma / DB)
+    const normalizeLevel = (lvl: string): "Beginner" | "Intermediate" | "Advanced" => {
+        const l = (lvl || '').toLowerCase();
+        if (l.includes('principiante') || l.includes('beginner') || l.includes('bajo')) return "Beginner";
+        if (l.includes('avanzado') || l.includes('advanced') || l.includes('alto')) return "Advanced";
+        return "Intermediate"; // Fallback seguro
+    };
+
+    // Normalización de Género
+    const normalizedGenders = profile.genders.map(g => {
+        const s = (g || '').toLowerCase();
+        if (s.includes('masculino') || s.includes('hombre') || s.includes('male')) return 'male' as const;
+        if (s.includes('femenino') || s.includes('mujer') || s.includes('female')) return 'female' as const;
+        return 'male' as const; // Default
+    });
+
+    const level = normalizeLevel(profile.trainingLevel);
     const appliedFactors: FactorDetail[] = []
     let pesoFactorTotal = 1.0
     let seriesFactorTotal = 1.0
@@ -143,48 +160,48 @@ export function reconstructPrescription(
 
     const isRuleActive = (category: string, value: string) => {
         if (!ruleIds || isMasterMode) return true
-        // En el flujo real, esto compararía contra los IDs del catálogo mapeados
         return true
     }
 
     // FASE 1: NIVEL
-    if (isRuleActive('level', profile.trainingLevel)) {
-        const mult = OMNIA_DEFAULTS.PHASE1_LEVEL[profile.trainingLevel]
-        pesoFactorTotal *= mult.peso
-        seriesFactorTotal *= mult.series
-        repsFactorTotal *= mult.reps
-        appliedFactors.push({ phase: 1, category: "Nivel", name: profile.trainingLevel, ...mult, isActive: true })
+    if (isRuleActive('level', level)) {
+        const mult = OMNIA_DEFAULTS.PHASE1_LEVEL[level] || { peso: 1, series: 1, reps: 1 };
+        pesoFactorTotal *= (mult.peso || 1.0)
+        seriesFactorTotal *= (mult.series || 1.0)
+        repsFactorTotal *= (mult.reps || 1.0)
+        appliedFactors.push({ phase: 1, category: "Nivel", name: level, ...mult, isActive: true })
     }
 
     // FASE 2: CARACTERÍSTICAS
     // Edad
-    if (profile.ages.length > 1 || (profile.ages.length === 1 && profile.ages[0] !== 30)) {
+    if (profile.ages.length > 0) {
         profile.ages.forEach(age => {
+            if (age === 30 && profile.ages.length === 1) return; // Skip if it's default
             const m = OMNIA_DEFAULTS.PHASE2_AGE(age)
-            pesoFactorTotal *= m.peso
-            seriesFactorTotal *= m.series
-            repsFactorTotal *= m.reps
+            pesoFactorTotal *= (m.peso || 1.0)
+            seriesFactorTotal *= (m.series || 1.0)
+            repsFactorTotal *= (m.reps || 1.0)
             appliedFactors.push({ phase: 2, category: "Edad", name: `${age} años`, ...m, isActive: true })
         })
     }
 
     // Peso
-    if (profile.weight) {
+    if (profile.weight && profile.weight > 0) {
         const m = OMNIA_DEFAULTS.PHASE2_WEIGHT(profile.weight)
-        pesoFactorTotal *= m.peso
-        seriesFactorTotal *= m.series
-        repsFactorTotal *= m.reps
+        pesoFactorTotal *= (m.peso || 1.0)
+        seriesFactorTotal *= (m.series || 1.0)
+        repsFactorTotal *= (m.reps || 1.0)
         appliedFactors.push({ phase: 2, category: "Peso", name: `${profile.weight}kg`, ...m, isActive: true })
     }
 
     // Sexo
-    if (profile.genders.length > 0) {
-        profile.genders.forEach(g => {
+    if (normalizedGenders.length > 0) {
+        normalizedGenders.forEach(g => {
             if (isRuleActive('gender', g)) {
-                const m = OMNIA_DEFAULTS.PHASE2_GENDER[g]
-                pesoFactorTotal *= m.peso
-                seriesFactorTotal *= m.series
-                repsFactorTotal *= m.reps
+                const m = OMNIA_DEFAULTS.PHASE2_GENDER[g] || { peso: 1, series: 1, reps: 1 };
+                pesoFactorTotal *= (m.peso || 1.0)
+                seriesFactorTotal *= (m.series || 1.0)
+                repsFactorTotal *= (m.reps || 1.0)
                 appliedFactors.push({ phase: 2, category: "Sexo", name: g === 'male' ? 'H' : 'M', ...m, isActive: true })
             }
         })
@@ -193,8 +210,16 @@ export function reconstructPrescription(
     // ✅ FASE 3: LESIONES (CLÍNICO v3.0)
     const calculateInjuryFactor = (injuryWithSev: string) => {
         const parts = injuryWithSev.split('_')
-        const injuryName = parts[0]
+        const rawName = parts[0]
         const sev = parts[1] || 'medium'
+
+        // Normalización básica de nombres de lesiones comunes
+        let injuryName = rawName;
+        const lowerName = rawName.toLowerCase();
+        if (lowerName.includes('lumbar') || lowerName.includes('espalda baja')) injuryName = 'Lumbalgia';
+        if (lowerName.includes('hernia')) injuryName = 'Hernia Discal';
+        if (lowerName.includes('rodilla')) injuryName = 'Rodilla';
+        if (lowerName.includes('hombro')) injuryName = 'Hombro';
 
         const baseMult = (OMNIA_DEFAULTS.PHASE3_INJURIES as any)[injuryName] || { peso: 0.85, series: 0.90, reps: 0.90 }
 
@@ -213,9 +238,9 @@ export function reconstructPrescription(
             const nameOnly = inj.split('_')[0]
             if (isRuleActive('injuries', nameOnly)) {
                 const m = calculateInjuryFactor(inj)
-                pesoFactorTotal *= m.peso
-                seriesFactorTotal *= m.series
-                repsFactorTotal *= (m.reps || m.series)
+                pesoFactorTotal *= (m.peso || 1.0)
+                seriesFactorTotal *= (m.series || 1.0)
+                repsFactorTotal *= (m.reps || m.series || 1.0)
                 appliedFactors.push({ phase: 3, category: "Seguridad", name: inj, ...m, isActive: true })
             }
         })

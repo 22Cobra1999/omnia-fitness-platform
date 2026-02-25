@@ -5,6 +5,7 @@ export function useTodayUiState() {
     const [vh, setVh] = React.useState<number>(typeof window !== 'undefined' ? window.innerHeight : 800);
     const [loading, setLoading] = React.useState(true);
     const [isDayLoading, setIsDayLoading] = React.useState(false);
+    const [isInitializing, setIsInitializing] = React.useState(false);
 
     // UI Expand/Collapse States
     const [isVideoExpanded, setIsVideoExpanded] = React.useState(false);
@@ -17,7 +18,6 @@ export function useTodayUiState() {
     const videoExpandX = useMotionValue(0);
 
     // Modal States
-    const [showStartModal, setShowStartModal] = React.useState(false);
     const [showStartInfoModal, setShowStartInfoModal] = React.useState(false);
     const [showSurveyModal, setShowSurveyModal] = React.useState(false);
     const [showConfirmModal, setShowConfirmModal] = React.useState<any>(false);
@@ -57,6 +57,8 @@ export function useTodayUiState() {
         setLoading,
         isDayLoading,
         setIsDayLoading,
+        isInitializing,
+        setIsInitializing,
         isVideoExpanded,
         setIsVideoExpanded,
         activeExerciseTab,
@@ -67,8 +69,6 @@ export function useTodayUiState() {
         setCalendarExpanded,
         videoExpandY,
         videoExpandX,
-        showStartModal,
-        setShowStartModal,
         showStartInfoModal,
         setShowStartInfoModal,
         showSurveyModal,
@@ -92,13 +92,13 @@ export function useTodayUiState() {
         vh,
         loading,
         isDayLoading,
+        isInitializing,
         isVideoExpanded,
         activeExerciseTab,
         collapsedBlocks,
         calendarExpanded,
         videoExpandY,
         videoExpandX,
-        showStartModal,
         showStartInfoModal,
         showSurveyModal,
         showConfirmModal,

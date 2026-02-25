@@ -49,6 +49,8 @@ export const DayDetailsPanel: React.FC<DayDetailsPanelProps> = (props) => {
     const totalMins = rows.reduce((acc, r) => acc + (Number(r.total_mins ?? 0) || 0), 0)
     const ownedMins = rows.reduce((acc, r) => {
         if (r.activity_id === null || r.activity_id === undefined) return acc
+        // rows with null coach_id come from progreso_diario_actividad — always owned by this coach
+        if (r.coach_id === null || r.coach_id === undefined) return acc + (Number(r.total_mins ?? 0) || 0)
         if (!currentCoachId) return acc + (Number(r.total_mins ?? 0) || 0)
         return String(r.coach_id) === String(currentCoachId) ? acc + (Number(r.total_mins ?? 0) || 0) : acc
     }, 0)
@@ -62,6 +64,8 @@ export const DayDetailsPanel: React.FC<DayDetailsPanelProps> = (props) => {
             return String(r.coach_id) === String(currentCoachId) || String(r.coach_id) === String(clientId)
         }
         if (r.activity_id === null || r.activity_id === undefined) return false
+        // rows from progreso_diario_actividad have coach_id null — always owned
+        if (r.coach_id === null || r.coach_id === undefined) return true
         return !currentCoachId || String(r.coach_id) === String(currentCoachId)
     })
 
@@ -71,6 +75,8 @@ export const DayDetailsPanel: React.FC<DayDetailsPanelProps> = (props) => {
             return String(r.coach_id) !== String(currentCoachId) && String(r.coach_id) !== String(clientId)
         }
         if (r.activity_id === null || r.activity_id === undefined) return true
+        // null coach_id = owned, not other
+        if (r.coach_id === null || r.coach_id === undefined) return false
         return currentCoachId && String(r.coach_id) !== String(currentCoachId)
     })
 

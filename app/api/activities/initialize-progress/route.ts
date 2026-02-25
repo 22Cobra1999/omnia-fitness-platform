@@ -6,7 +6,7 @@ import { reconstructPrescription, AdaptiveProfile, AdaptiveBase } from '@/lib/om
 // Endpoint para inicializar todas las filas de progreso_cliente al comprar una actividad
 export async function POST(request: NextRequest) {
   try {
-    const { activityId, clientId, startDate } = await request.json()
+    const { activityId, clientId, startDate, enrollmentId: explicitEnrollmentId } = await request.json()
 
     if (!activityId || !clientId || !startDate) {
       return NextResponse.json({
@@ -47,8 +47,10 @@ export async function POST(request: NextRequest) {
     // Preparar el perfil para el Motor Adaptativo v3.0 (Fitness)
     const adaptiveProfile: AdaptiveProfile = {
       trainingLevel: (clientProfile.intensity_level as any) || "Intermediate",
+      activityLevel: "Moderately Active",
       ages: clientProfile.birth_date ? [calculateAge(clientProfile.birth_date)] : [30],
       genders: clientProfile.gender ? [clientProfile.gender as any] : ["male"],
+      weight: clientProfile.current_weight,
       bmis: (clientProfile.current_weight && clientProfile.current_height)
         ? [clientProfile.current_weight / Math.pow(clientProfile.current_height / 100, 2)]
         : [24],
@@ -69,15 +71,26 @@ export async function POST(request: NextRequest) {
     console.log('👤 Perfil cargado para personalización:', clientProfile)
     console.log('📏 Adaptive Config detected:', adaptiveConfig ? 'Yes' : 'No')
 
-    // 1. Obtener información de la actividad y el enrollment actual
-    const { data: enrollmentData } = await supabase
-      .from('activity_enrollments')
-      .select('id, start_date')
-      .eq('activity_id', parseInt(activityId))
-      .eq('client_id', clientId)
-      .order('created_at', { ascending: false })
-      .limit(1)
-      .single()
+    // 1. Obtener información del enrollment
+    let enrollmentData;
+    if (explicitEnrollmentId) {
+      const { data } = await supabase
+        .from('activity_enrollments')
+        .select('id, start_date')
+        .eq('id', explicitEnrollmentId)
+        .single()
+      enrollmentData = data;
+    } else {
+      const { data } = await supabase
+        .from('activity_enrollments')
+        .select('id, start_date')
+        .eq('activity_id', parseInt(activityId))
+        .eq('client_id', clientId)
+        .order('created_at', { ascending: false })
+        .limit(1)
+        .single()
+      enrollmentData = data;
+    }
 
     const enrollmentId = enrollmentData?.id
     if (!enrollmentId) {
@@ -107,93 +120,72 @@ export async function POST(request: NextRequest) {
     // 3. Obtener toda la planificación según la categoría
     let planificacion: any[] = []
 
-    // Simplificar: usar planificacion_ejercicios para ambos casos por ahora
-    console.log('🔍 Consultando planificacion_ejercicios para actividad:', activityId, 'tipo:', typeof activityId)
-    const { data: planificacionEjercicios, error: ejerciciosError } = await supabase
-      .from('planificacion_ejercicios')
+    console.log('🔍 Consultando planificación for activity:', activityId, 'categoria:', categoria)
+
+    // Intentar obtener de la tabla correspondiente
+    const planTable = categoria === 'nutricion' ? 'planificacion_platos' : 'planificacion_ejercicios'
+
+    let { data: planData, error: planError } = await supabase
+      .from(planTable)
       .select('*')
       .eq('actividad_id', parseInt(activityId))
       .order('numero_semana', { ascending: true })
 
-    console.log('📋 Planificación de ejercicios encontrada:', planificacionEjercicios?.length || 0)
-    if (ejerciciosError) {
-      console.error('❌ Error obteniendo planificación de ejercicios:', ejerciciosError)
+    // Fallback if nutrition table doesn't exist or is empty
+    if (categoria === 'nutricion' && (!planData || planData.length === 0)) {
+      console.log('⚠️ No se encontró en planificacion_platos, intentando planificacion_ejercicios')
+      const { data: secondTry } = await supabase
+        .from('planificacion_ejercicios')
+        .select('*')
+        .eq('actividad_id', parseInt(activityId))
+        .order('numero_semana', { ascending: true })
+      planData = secondTry
     }
 
-    planificacion = planificacionEjercicios || []
+    console.log(`📋 Planificación encontrada (${planTable}):`, planData?.length || 0)
+    if (planError) {
+      console.error(`❌ Error obteniendo planificación desde ${planTable}:`, planError)
+    }
 
-    console.log('📊 Planificación final obtenida:', planificacion.length, 'semanas')
+    planificacion = planData || []
 
     if (!planificacion || planificacion.length === 0) {
+      console.error('❌ No hay planificación para esta actividad en ninguna tabla')
       return NextResponse.json({
         error: 'No hay planificación para esta actividad',
         categoria: categoria,
-        tablaUsada: categoria === 'nutricion' ? 'planificacion_ejercicios (fallback)' : 'planificacion_ejercicios',
-        debug: {
-          planificacionLength: planificacion?.length || 0,
-          planificacionData: planificacion
-        }
+        activityId
       }, { status: 404 })
     }
 
     const maxSemanasPlanificacion = Math.max(...planificacion.map(p => p.numero_semana))
-    console.log('📅 Semanas en planificación:', maxSemanasPlanificacion)
-
-    // 3. Mapeo de días (índice 0 = lunes, 1 = martes, ..., 6 = domingo)
     const diasSemana = ['lunes', 'martes', 'miercoles', 'jueves', 'viernes', 'sabado', 'domingo']
 
-    // 4. Encontrar el primer día con ejercicios en la semana 1
-    const primeraSemana = planificacion.find(p => p.numero_semana === 1)
-    let primerDiaConEjercicios = -1
-
-    if (primeraSemana) {
-      for (let i = 0; i < diasSemana.length; i++) {
-        const dia = diasSemana[i]
-        const ejerciciosDia = primeraSemana[dia]
-        if (ejerciciosDia && ejerciciosDia !== '{}' && ejerciciosDia !== '' && ejerciciosDia !== '""') {
-          primerDiaConEjercicios = i
-          break
-        }
-      }
-    }
-
     // 5. Usar directamente el startDate proporcionado
-    // El ajuste ya se hizo en el frontend (handleStartOnFirstDay)
     const start = new Date(startDate + 'T00:00:00')
 
-    console.log('🗓️ Fecha de inicio:', {
-      startDate: startDate,
-      primerDiaConEjercicios: diasSemana[primerDiaConEjercicios] || 'lunes',
-      startDayOfWeek: ['domingo', 'lunes', 'martes', 'miercoles', 'jueves', 'viernes', 'sabado'][start.getDay()]
-    })
-
-    // 6. Generar todas las filas de progreso para todos los períodos
     const registrosACrear: any[] = []
-
-    // Calcular total de semanas a generar
     const totalSemanas = maxSemanasPlanificacion * cantidadPeriodos
+    console.log(`🚀 Iniciando generación: ${totalSemanas} semanas en total (${maxSemanasPlanificacion} x ${cantidadPeriodos})`)
 
     for (let semanaAbsoluta = 1; semanaAbsoluta <= totalSemanas; semanaAbsoluta++) {
-      // Calcular qué semana del ciclo es (1 o 2 o 3...)
       const semanaEnCiclo = ((semanaAbsoluta - 1) % maxSemanasPlanificacion) + 1
-
-      // Obtener planificación para esta semana del ciclo
       const planSemana = planificacion.find(p => p.numero_semana === semanaEnCiclo)
 
-      if (!planSemana) continue
+      if (!planSemana) {
+        console.warn(`⚠️ Semana ${semanaEnCiclo} no encontrada en la planificación`)
+        continue
+      }
 
-      // Calcular la fecha de inicio de esta semana (lunes de la semana)
+      console.log(`📅 Procesando Semana Absoluta ${semanaAbsoluta} (Semana Ciclo ${semanaEnCiclo})`)
       const inicioSemana = new Date(start)
       inicioSemana.setDate(start.getDate() + ((semanaAbsoluta - 1) * 7))
 
-      // Revisar cada día de la semana
       for (let diaSemana = 0; diaSemana < 7; diaSemana++) {
         const nombreDia = diasSemana[diaSemana]
         const ejerciciosDia = planSemana[nombreDia]
 
-        // Si este día tiene ejercicios
         if (ejerciciosDia && ejerciciosDia !== '{}' && ejerciciosDia !== '') {
-          // Parsear ejercicios
           let ejerciciosParsed: any
           try {
             ejerciciosParsed = typeof ejerciciosDia === 'string'
@@ -203,65 +195,49 @@ export async function POST(request: NextRequest) {
             continue
           }
 
-          // Extraer ejercicios con identificadores únicos (ID + orden)
-          const ejerciciosPendientes: any = {} // Objeto con keys "id_orden"
+          const ejerciciosPendientes: any = {}
           const detallesSeries: any = {}
-          let ordenGlobal = 1 // Contador de orden global para el día
+          let ordenGlobal = 1
 
-          // Extraer array de ejercicios del formato {ejercicios: [{id, orden, bloque}, ...]}
           let ejerciciosArray: any[] = []
           if (ejerciciosParsed && typeof ejerciciosParsed === 'object') {
             if (Array.isArray(ejerciciosParsed.ejercicios)) {
-              // Nuevo formato: {ejercicios: [...]}
               ejerciciosArray = ejerciciosParsed.ejercicios
             } else if (Array.isArray(ejerciciosParsed)) {
-              // Formato directo: [...]
               ejerciciosArray = ejerciciosParsed
             }
           }
 
-          // Primero obtener todos los IDs de ejercicios para cargar sus detalles
           const ejercicioIdsSet = new Set<number>()
           ejerciciosArray.forEach((ej: any) => {
-            if (ej.id) {
-              ejercicioIdsSet.add(parseInt(ej.id))
+            const id = ej.id || ej.ejercicio_id || ej.exercise_id
+            if (id) {
+              ejercicioIdsSet.add(parseInt(id))
             }
           })
 
-          // Obtener detalles según la categoría
           const ejercicioIdsArray = Array.from(ejercicioIdsSet)
+          console.log(`🔍 [${nombreDia}] IDs detectados:`, ejercicioIdsArray)
           let ejerciciosData: any[] = []
 
           if (categoria === 'nutricion') {
-            // Para nutrición: usar nutrition_program_details
             const { data: platosData } = await supabase
               .from('nutrition_program_details')
               .select('id, receta, calorias, proteinas, carbohidratos, grasas')
               .in('id', ejercicioIdsArray)
             ejerciciosData = platosData || []
-            console.log(`📚 Platos cargados desde nutrition_program_details: ${ejerciciosData.length}`)
           } else {
-            // Para fitness: usar ejercicios_detalles
             const { data: ejerciciosFitnessData } = await supabase
               .from('ejercicios_detalles')
-              .select('id, detalle_series, duracion_min, calorias')
+              .select('id, detalle_series, duracion_min, calorias, descanso')
               .in('id', ejercicioIdsArray)
             ejerciciosData = ejerciciosFitnessData || []
-            console.log(`📚 Ejercicios cargados desde ejercicios_detalles: ${ejerciciosData.length}`)
-          }
-
-          if (ejerciciosData.length > 0) {
-            console.log('🔍 DEBUG - Primer elemento:', JSON.stringify(ejerciciosData[0], null, 2))
           }
 
           const ejerciciosMap = new Map()
           ejerciciosData?.forEach((ej: any) => {
             if (categoria === 'nutricion') {
-              // Para nutrición: guardar macronutrientes y receta
-              // Mapeamos adaptiveConfig a la estructura que espera applyPersonalization si es necesario,
-              // o simplemente pasamos el adaptiveConfig directamente si actualizamos applyPersonalization.
-              // Por ahora, como applyPersonalization es legacy, usaremos un mock de rules si el coach activó algo.
-              const legacyRules: any[] = [] // nutrition logic can be updated later if needed
+              const legacyRules: any[] = []
               const personalizedEj = applyPersonalization(ej, clientProfile, legacyRules)
 
               const detallesNutricion = {
@@ -277,24 +253,37 @@ export async function POST(request: NextRequest) {
                 calorias: personalizedEj.calorias || 0
               })
             } else {
-              // FITNESS: USAR MOTOR ADAPTATIVO V3.0
               const base: AdaptiveBase = {
-                sets: ej.detalle_series?.series || 3, // fallback si no hay objeto
-                reps: ej.detalle_series?.repeticiones || 10,
-                load_kg: 0 // La planificación base suele no tener carga, o se define en la instancia
+                sets: 3,
+                reps: 10,
+                series: 3,
+                load_kg: 0
               }
 
-              // Intentar parsear detalle_series si es string
               let parsedBase = { ...base }
               if (typeof ej.detalle_series === 'string') {
                 try {
+                  // Prioridad 1: JSON
                   const ds = JSON.parse(ej.detalle_series)
                   parsedBase.sets = ds.series || ds.sets || 3
+                  parsedBase.series = ds.series || ds.sets || 3
                   parsedBase.reps = ds.repeticiones || ds.reps || 10
-                } catch (e) { }
+                  parsedBase.load_kg = ds.peso || ds.load || ds.kg || 0
+                } catch (e) {
+                  // Prioridad 2: Formato Custom "(P-R-S)" o "(P-R-S); (P-R-S)"
+                  const match = ej.detalle_series.match(/\((\d+)-(\d+)-(\d+)\)/)
+                  if (match) {
+                    parsedBase.load_kg = parseInt(match[1]) || 0
+                    parsedBase.reps = parseInt(match[2]) || 10
+                    parsedBase.sets = parseInt(match[3]) || 3
+                    parsedBase.series = parseInt(match[3]) || 3
+                  }
+                }
               } else if (typeof ej.detalle_series === 'object' && ej.detalle_series !== null) {
                 parsedBase.sets = ej.detalle_series.series || ej.detalle_series.sets || 3
+                parsedBase.series = ej.detalle_series.series || ej.detalle_series.sets || 3
                 parsedBase.reps = ej.detalle_series.repeticiones || ej.detalle_series.reps || 10
+                parsedBase.load_kg = ej.detalle_series.peso || ej.detalle_series.load || ej.detalle_series.kg || 0
               }
 
               const adaptiveResult = reconstructPrescription(parsedBase, adaptiveProfile, adaptiveConfig)
@@ -302,7 +291,7 @@ export async function POST(request: NextRequest) {
               const finalDetalle = {
                 series: adaptiveResult.final.sets,
                 repeticiones: adaptiveResult.final.reps,
-                // Conservamos otros campos del detalle original si existen
+                peso: adaptiveResult.final.load,
                 ...(typeof ej.detalle_series === 'object' ? ej.detalle_series : {})
               }
 
@@ -310,156 +299,113 @@ export async function POST(request: NextRequest) {
                 detalle_series: JSON.stringify(finalDetalle),
                 duracion_min: ej.duracion_min || 0,
                 calorias: ej.calorias || 0,
-                applied_factors: adaptiveResult.appliedFactors // Guardar rastro para el cliente
+                series: adaptiveResult.final.sets,
+                reps: adaptiveResult.final.reps,
+                peso: adaptiveResult.final.load,
+                descanso: ej.descanso || 60,
+                applied_factors: adaptiveResult.appliedFactors
               })
             }
           })
 
-          // Ahora procesar los ejercicios usando el orden y bloque que vienen de planificacion_ejercicios
           ejerciciosArray.forEach((ej: any) => {
             if (ej.id) {
               const ejercicioId = parseInt(ej.id)
-              // Usar el orden que viene de planificacion_ejercicios (ya está definido)
               const orden = ej.orden || ordenGlobal
               const bloqueNum = ej.bloque || 1
-              const keyUnico = `${ejercicioId}_${orden}`
+              const keyUnico = `${ejercicioId}_${bloqueNum}_${orden}`
 
-              // Crear entrada en ejercicios_pendientes
-              ejerciciosPendientes[keyUnico] = {
-                ejercicio_id: ejercicioId,
-                bloque: bloqueNum,
-                orden: orden
-              }
+              // Simplificado: Guardamos solo el ID (o true), ya que la info de bloque/orden está en la KEY
+              ejerciciosPendientes[keyUnico] = ejercicioId
 
-              // Obtener datos del ejercicio desde el mapa
               const ejercicioData = ejerciciosMap.get(ejercicioId) || { detalle_series: '', duracion_min: 0, calorias: 0 }
 
-              // Guardar metadata completa en detalles_series incluyendo detalle_series de la tabla ejercicios
               detallesSeries[keyUnico] = {
-                ejercicio_id: ejercicioId,
-                bloque: bloqueNum,
-                orden: orden,
+                id: ejercicioId,
                 detalle_series: ejercicioData.detalle_series || ''
               }
 
-              // Solo incrementar ordenGlobal si no venía orden definido
-              if (!ej.orden) {
-                ordenGlobal++
-              }
+              if (!ej.orden) ordenGlobal++
             }
           })
 
           if (Object.keys(ejerciciosPendientes).length > 0) {
-            // Calcular fecha exacta del día
             const fechaDia = new Date(inicioSemana)
             fechaDia.setDate(inicioSemana.getDate() + diaSemana)
             const fechaStr = fechaDia.toISOString().split('T')[0]
 
-            // Crear objetos de minutos y calorías basados en los ejercicios
             const minutosJson: any = {}
             const caloriasJson: any = {}
+            const pesoJson: any = {}
+            const seriesJson: any = {}
+            const repsJson: any = {}
+            const descansoJson: any = {}
 
             Object.keys(ejerciciosPendientes).forEach(key => {
-              const ejercicioId = ejerciciosPendientes[key].ejercicio_id
-              const ejercicioData = ejerciciosMap.get(ejercicioId) || { duracion_min: 0, calorias: 0 }
-
+              const ejercicioId = ejerciciosPendientes[key]
+              const ejercicioData = ejerciciosMap.get(ejercicioId) || { duracion_min: 0, calorias: 0, peso: 0, series: 0, reps: 0, descanso: 60 }
               minutosJson[key] = ejercicioData.duracion_min || 0
               caloriasJson[key] = ejercicioData.calorias || 0
+              pesoJson[key] = ejercicioData.peso || 0
+              seriesJson[key] = ejercicioData.series || 0
+              repsJson[key] = ejercicioData.reps || 0
+              descansoJson[key] = ejercicioData.descanso || 60
             })
 
-            // Crear el objeto del registro según el tipo
             const registro: any = {
               actividad_id: parseInt(activityId),
               cliente_id: clientId,
               enrollment_id: enrollmentId,
               fecha: fechaStr,
               ejercicios_completados: {},
-              ejercicios_pendientes: ejerciciosPendientes,
-              recalculado_en: new Date().toISOString()
+              ejercicios_pendientes: ejerciciosPendientes
             }
 
             if (categoria === 'nutricion') {
-              // Para nutrición: mapear macros desde los ejercicios del mapa
               const macrosJson: any = {}
               Object.keys(ejerciciosPendientes).forEach(key => {
-                const ejId = ejerciciosPendientes[key].ejercicio_id
+                const ejId = ejerciciosPendientes[key]
                 const ejData = ejerciciosMap.get(ejId)
                 if (ejData && ejData.detalle_series) {
-                  try {
-                    macrosJson[key] = JSON.parse(ejData.detalle_series)
-                  } catch {
-                    macrosJson[key] = {}
-                  }
+                  try { macrosJson[key] = JSON.parse(ejData.detalle_series) } catch { macrosJson[key] = {} }
                 }
               })
               registro.macros = macrosJson
             } else {
-              // Para fitness: mapear campos tradicionales
-              registro.detalles_series = detallesSeries
-              registro.minutos_json = minutosJson
-              registro.calorias_json = caloriasJson
+              registro.informacion = detallesSeries
+              registro.minutos = minutosJson
+              registro.calorias = caloriasJson
+              registro.peso = pesoJson
+              registro.series = seriesJson
+              registro.reps = repsJson
+              registro.descanso = descansoJson
             }
 
             registrosACrear.push(registro)
-
-            console.log(`  ✅ Semana ${semanaAbsoluta} (ciclo ${semanaEnCiclo}), ${nombreDia} ${fechaStr}: ${Object.keys(ejerciciosPendientes).length} items`)
           }
         }
       }
     }
 
-    console.log(`📝 Total de registros a crear: ${registrosACrear.length}`)
-
     if (registrosACrear.length === 0) {
-      return NextResponse.json({
-        success: true,
-        message: 'No hay días con items en la planificación',
-        recordsCreated: 0
-      })
+      return NextResponse.json({ success: true, message: 'No recordings created', recordsCreated: 0 })
     }
 
-    // 5. Insertar todos los registros en la tabla correspondiente
     const targetTable = categoria === 'nutricion' ? 'progreso_cliente_nutricion' : 'progreso_cliente'
-    console.log(`🚀 Insertando en tabla: ${targetTable}`)
-
-    const { data: created, error: insertError } = await supabase
-      .from(targetTable)
-      .insert(registrosACrear)
-      .select()
+    const { data: created, error: insertError } = await supabase.from(targetTable).insert(registrosACrear).select()
 
     if (insertError) {
-      console.error(`❌ Error insertando en ${targetTable}:`, insertError)
-      return NextResponse.json({
-        error: `Error al crear registros en ${targetTable}`,
-        details: insertError.message
-      }, { status: 500 })
-    }
-
-    console.log(`✅ ${created?.length || 0} registros creados exitosamente`)
-
-    // DEBUG: Ver qué se guardó realmente
-    if (created && created.length > 0) {
-      console.log('✅ PRIMER REGISTRO GUARDADO EN BD:')
-      console.log('📊 ejercicios_pendientes:', JSON.stringify(created[0].ejercicios_pendientes, null, 2))
-      console.log('📋 detalles_series:', JSON.stringify(created[0].detalles_series, null, 2))
-      console.log('🔑 Keys guardadas:', Object.keys(created[0].ejercicios_pendientes))
+      return NextResponse.json({ error: `Error at ${targetTable}`, details: insertError.message }, { status: 500 })
     }
 
     return NextResponse.json({
       success: true,
-      message: `${created?.length || 0} días de ejercicios inicializados`,
-      recordsCreated: created?.length || 0,
-      periods: cantidadPeriodos,
-      weeksPerPeriod: maxSemanasPlanificacion,
-      totalWeeks: totalSemanas
+      message: `${created?.length || 0} days initialized`,
+      recordsCreated: created?.length || 0
     })
 
   } catch (error: any) {
-    console.error('❌ Error en initialize-progress:', error)
-    return NextResponse.json({
-      error: 'Error interno del servidor',
-      details: error.message
-    }, { status: 500 })
+    console.error('❌ Error in initialize-progress:', error)
+    return NextResponse.json({ error: 'Internal server error', details: error.message }, { status: 500 })
   }
 }
-

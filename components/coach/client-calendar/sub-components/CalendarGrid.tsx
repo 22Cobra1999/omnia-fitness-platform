@@ -1,5 +1,5 @@
 import React from 'react'
-import { Video } from 'lucide-react'
+import { Video, Zap, UtensilsCrossed } from 'lucide-react'
 import { formatMinutesCompact } from '../utils/date-helpers'
 
 interface CalendarGridProps {
@@ -41,10 +41,15 @@ export const CalendarGrid: React.FC<CalendarGridProps> = ({
 
                     const summary = summaryRowsByDate[dateStr] || []
                     const owned = summary.filter(e => {
-                        if (!currentCoachId) return false
+                        // calendar_event_id rows need coach_id match
                         if (e.calendar_event_id) {
-                            return String(e.coach_id) === String(currentCoachId) || (e.coach_id && String(e.coach_id) === String(clientId))
+                            if (!currentCoachId) return false
+                            return String(e.coach_id) === String(currentCoachId) || String(e.coach_id) === String(clientId)
                         }
+                        // daily-rows from progreso_diario_actividad have coach_id null — treat as owned
+                        if (e.coach_id === null || e.coach_id === undefined) return true
+                        // legacy rows: check ownership
+                        if (!currentCoachId) return false
                         return String(e.coach_id) === String(currentCoachId)
                     })
 
@@ -94,11 +99,31 @@ export const CalendarGrid: React.FC<CalendarGridProps> = ({
                             )}
                             <div className="text-center font-semibold text-sm leading-none pt-1">{date.getDate()}</div>
                             <div className="mt-1 min-h-[20px] w-full flex flex-col items-center justify-start gap-px">
-                                {ownedActs.length > 0 && (
-                                    <div className={`text-[9px] font-bold px-1.5 py-0.5 rounded-full leading-none ${isTargetForEdit ? 'bg-black text-white' : isAllCompleted ? 'bg-[#FF7939] text-white' : isAbsent ? 'bg-red-500/40 text-white' : 'bg-yellow-500/20 text-yellow-200'}`}>
-                                        {formatMinutesCompact(actsMins) || '0m'}
-                                    </div>
-                                )}
+                                {/* Fitness bubble */}
+                                {ownedActs.some(e => !e.nutri_mins || (e.fitness_mins || e.total_mins) > 0) && ownedActs.length > 0 && (() => {
+                                    const fitMins = ownedActs
+                                        .filter(e => (e.fitness_mins || 0) > 0 || (!e.nutri_mins && e.total_mins > 0))
+                                        .reduce((a, e) => a + (Number(e.fitness_mins) || Number(e.total_mins) || 0), 0)
+                                    if (fitMins === 0) return null
+                                    return (
+                                        <div className={`flex items-center gap-0.5 px-1.5 py-0.5 rounded-full leading-none text-[9px] font-bold ${isTargetForEdit ? 'bg-black text-white' : isAllCompleted ? 'bg-[#FF7939] text-white' : isAbsent ? 'bg-red-500/40 text-white' : 'bg-yellow-500/20 text-yellow-200'}`}>
+                                            <Zap className="w-2.5 h-2.5" />
+                                            <span>{formatMinutesCompact(fitMins)}</span>
+                                        </div>
+                                    )
+                                })()}
+                                {/* Nutrition bubble */}
+                                {ownedActs.some(e => (e.nutri_mins || 0) > 0) && (() => {
+                                    const nutMins = ownedActs.reduce((a, e) => a + (Number(e.nutri_mins) || 0), 0)
+                                    if (nutMins === 0) return null
+                                    return (
+                                        <div className={`flex items-center gap-0.5 px-1.5 py-0.5 rounded-full leading-none text-[9px] font-bold ${isAllCompleted ? 'bg-blue-400/30 text-blue-200' : 'bg-blue-400/15 text-blue-300'}`}>
+                                            <UtensilsCrossed className="w-2.5 h-2.5" />
+                                            <span>{formatMinutesCompact(nutMins)}</span>
+                                        </div>
+                                    )
+                                })()}
+                                {/* Meets bubble */}
                                 {ownedMeets.length > 0 && (
                                     <div className="flex items-center gap-1 mt-0.5 px-1.5 py-0.5 rounded-full bg-[#FF7939]/10 border border-[#FF7939]/20">
                                         <Video className="w-2.5 h-2.5 text-[#FF7939]" />

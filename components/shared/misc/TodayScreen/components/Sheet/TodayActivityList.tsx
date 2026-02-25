@@ -1,13 +1,9 @@
 import * as React from 'react';
-import { Flame, ChevronDown, ChevronUp, MessageSquare } from 'lucide-react';
+import { Flame, ChevronDown, ChevronUp, MessageSquare, Check, Play, Clock, ArrowRight } from 'lucide-react';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog"
 import { parseSeries } from '../../utils/parsers';
+import { cn } from "@/lib/utils/utils";
 
-// Helper for sorting blocks (extracted or inline)
-// We assume activities are pre-sorted or blocks handle it.
-// The original used `getActivitiesByBlocks` (which I moved to hook? No, I need it here or pass processed data).
-
-// I'll reimplement getActivitiesByBlocks here as a helper since it's view logic
 const getActivitiesByBlocks = (activities: any[]) => {
     const blocks: Record<string, any[]> = {};
     activities.forEach(activity => {
@@ -18,12 +14,7 @@ const getActivitiesByBlocks = (activities: any[]) => {
     return blocks;
 };
 
-// Helper for active block (simplified version of original logic)
 const getActiveBlock = (activities: any[]) => {
-    // If we have 'started' logic from hook, we could use it. 
-    // Here we can re-derive active block: first block with pending items?
-    // Original logic was complex (line 1200+).
-    // I will assume we highlight the first non-completed block.
     const blocks = getActivitiesByBlocks(activities);
     const sortedBlockNums = Object.keys(blocks).map(Number).sort((a, b) => a - b);
 
@@ -34,25 +25,40 @@ const getActiveBlock = (activities: any[]) => {
     return sortedBlockNums[sortedBlockNums.length - 1] || 1;
 };
 
-// Helper for PRS
-const getBlockPRSFormat = (activities: any[]) => {
-    // Original logic: lines ~1150
-    // Finds first activity with series data and formats it.
-    // I'll skip complex parsing for now or use simplified.
-    // Wait, the original had a block-level PRS display? Yes.
-    // Line 5426: getBlockPRSFormat(blockActivities)
-    // Implementation was not visible in snippets but usage is.
-    // I'll perform a basic check.
-    const act = activities.find(a => (a.detalle_series || a.series) && (a.detalle_series !== 'Sin especificar'));
-    if (!act) return null;
-    // Basic format P:x | R:x | S:x based on first series
-    const parsed = parseSeries(act.detalle_series || act.series || '');
-    if (parsed.length > 0) {
-        return `P:${parsed[0]?.kg || 0}kg | R:${parsed[0]?.reps || 0} | S:${parsed[0]?.sets || 0}`;
-    }
-    return null;
-}
+const formatPrescription = (activity: any) => {
+    const seriesData = activity.detalle_series || activity.series;
+    if (!seriesData || seriesData === 'Sin especificar') return null;
 
+    let parsed: any[] = [];
+    if (typeof seriesData === 'string' && (seriesData.startsWith('{') || seriesData.startsWith('['))) {
+        try {
+            const data = JSON.parse(seriesData);
+            const items = Array.isArray(data) ? data : [data];
+            parsed = items.map(item => ({
+                reps: item.reps || item.repeticiones || item.r || '',
+                kg: item.kg || item.peso || item.p || item.load || '',
+                sets: item.sets || item.series || item.s || ''
+            }));
+        } catch (e) {
+            parsed = parseSeries(seriesData);
+        }
+    } else {
+        parsed = parseSeries(seriesData);
+    }
+
+    if (!parsed || parsed.length === 0) return null;
+
+    const first = parsed[0];
+    if (!first) return null;
+
+    const parts = [];
+    if (first.sets) parts.push(`${first.sets} series`);
+    if (first.reps) parts.push(`${first.reps} reps`);
+    if (first.kg && first.kg !== '0') parts.push(`${first.kg}kg`);
+
+    if (parts.length === 0) return null;
+    return parts.join(' • ');
+};
 
 interface TodayActivityListProps {
     activities: any[];
@@ -86,250 +92,294 @@ export function TodayActivityList({
     handleOpenSurveyModal
 }: TodayActivityListProps) {
 
-    const activeBlock = getActiveBlock(activities);
-    const blocks = getActivitiesByBlocks(activities);
-    const [showFeedback, setShowFeedback] = React.useState(false);
+    const groupedActivities = React.useMemo(() => {
+        const result: any[] = [];
+        activities.forEach(activity => {
+            const last = result[result.length - 1];
+            if (last && last.exercise_id === activity.exercise_id && last.bloque === activity.bloque) {
+                last.sets_data.push({
+                    id: activity.id,
+                    peso: activity.peso ?? activity.kg,
+                    series: activity.sets ?? activity.series_num ?? activity.series,
+                    reps: activity.reps ?? activity.reps_num ?? activity.repeticiones,
+                    done: activity.done
+                });
+                last.done = last.sets_data.every((s: any) => s.done);
+            } else {
+                result.push({
+                    ...activity,
+                    sets_data: [{
+                        id: activity.id,
+                        peso: activity.peso ?? activity.kg,
+                        series: activity.sets ?? activity.series_num ?? activity.series,
+                        reps: activity.reps ?? activity.reps_num ?? activity.repeticiones,
+                        done: activity.done
+                    }]
+                });
+            }
+        });
+        return result;
+    }, [activities]);
 
+    const blocks = getActivitiesByBlocks(groupedActivities);
+    const activeBlock = getActiveBlock(groupedActivities);
+
+    const [showFeedback, setShowFeedback] = React.useState(false);
     const survey = enrollment?.activity_surveys?.[0] || enrollment?.activity_surveys;
     const rating = survey?.coach_method_rating || 0;
     const feedback = survey?.comments || '';
+    const isNutri = programInfo?.categoria === 'nutricion' || enrollment?.activity?.categoria === 'nutricion';
 
     return (
-        <div style={{ marginBottom: 20 }}>
+        <div style={{ paddingBottom: 100 }}>
             {Object.entries(blocks).map(([blockNum, blockActivities]) => {
                 const blockNumber = parseInt(blockNum);
                 const isCollapsed = collapsedBlocks.has(blockNumber);
-                const isActiveBlock = blockNumber === activeBlock;
+                const completedInBlock = blockActivities.filter(a => a.done).length;
+                const isNutri = String(programInfo?.categoria).toLowerCase() === 'nutricion';
+                const isActiveBlock = activeBlock === blockNumber;
+                const allDone = completedInBlock === blockActivities.length;
 
                 return (
-                    <div key={blockNumber} style={{ marginBottom: 16 }}>
-                        {/* Block Header */}
-                        <div style={{
-                            display: 'flex', alignItems: 'center', justifyContent: 'space-between',
-                            padding: '12px 16px',
-                            background: isActiveBlock ? 'rgba(255, 107, 53, 0.15)' : 'rgba(255, 255, 255, 0.08)',
-                            border: `1px solid ${isActiveBlock ? 'rgba(255, 107, 53, 0.3)' : 'rgba(255, 255, 255, 0.1)'}`,
-                            borderRadius: 12, cursor: 'default', transition: 'all 0.2s ease',
-                            filter: isExpired ? 'grayscale(1) opacity(0.8)' : 'none'
-                        }}>
-                            <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-                                <span style={{ fontSize: 14, fontWeight: 600, color: isActiveBlock ? '#FF6B35' : '#FFFFFF' }}>
-                                    {blockNames[String(blockNumber)] || `Bloque ${blockNumber}`}
-                                </span>
-                                <span style={{ fontSize: 12, color: isActiveBlock ? 'rgba(255, 107, 53, 0.8)' : 'rgba(255, 255, 255, 0.6)' }}>
-                                    {blockActivities.length} {(programInfo?.categoria === 'nutricion' || enrollment?.activity?.categoria === 'nutricion') ? (blockActivities.length === 1 ? 'plato' : 'platos') : (blockActivities.length === 1 ? 'ejercicio' : 'ejercicios')}
-                                </span>
+                    <div
+                        key={blockNumber}
+                        id={`block-${blockNumber}`}
+                        className={cn(
+                            "rounded-3xl overflow-hidden transition-all duration-500",
+                            isActiveBlock ? "bg-white/[0.04] border border-white/10 ring-1 ring-[#FF7939]/30" : "bg-white/[0.02] border border-transparent"
+                        )}
+                    >
+                        {/* Simplified Block Header */}
+                        <div
+                            onClick={() => toggleBlock(blockNumber)}
+                            className={cn(
+                                "flex items-center justify-between p-4 rounded-2xl transition-all duration-300 cursor-pointer",
+                                isActiveBlock && !allDone
+                                    ? "bg-white/[0.08] border border-white/10"
+                                    : "bg-white/[0.03] border border-white/5"
+                            )}
+                            style={{ filter: isExpired ? 'grayscale(1) opacity(0.8)' : 'none' }}
+                        >
+                            <div className="flex items-center gap-4">
+                                <div
+                                    onClick={(e) => {
+                                        e.stopPropagation();
+                                        toggleBlockCompletion(blockNumber);
+                                    }}
+                                    className={cn(
+                                        "w-10 h-10 rounded-full flex items-center justify-center transition-all duration-300 active:scale-95 cursor-pointer",
+                                        allDone ? "bg-[#FF7939] shadow-[0_0_15px_rgba(255,121,57,0.4)]" : "bg-white/5 border border-white/10 hover:border-[#FF7939]/30"
+                                    )}
+                                >
+                                    <Flame
+                                        size={20}
+                                        className={cn(allDone ? "text-white" : "text-white/20")}
+                                        fill={allDone ? "currentColor" : "none"}
+                                    />
+                                </div>
+                                <div className="flex flex-col">
+                                    <div className="flex items-center gap-2">
+                                        <h3 className={cn(
+                                            "text-sm font-bold tracking-tight transition-colors",
+                                            allDone ? "text-white/40" : "text-white"
+                                        )}>
+                                            {blockNames[String(blockNumber)] || blockNames[blockNumber] || `Bloque ${blockNumber}`}
+                                        </h3>
+                                        {allDone && <div className="w-4 h-4 rounded-full bg-green-500/20 flex items-center justify-center"><Check size={10} className="text-green-500" strokeWidth={3} /></div>}
+                                        {isActiveBlock && !allDone && (
+                                            <span className="px-1.5 py-0.5 rounded-md bg-[#FF7939]/20 text-[#FF7939] text-[8px] font-black uppercase tracking-wider animate-pulse">
+                                                En curso
+                                            </span>
+                                        )}
+                                    </div>
+                                    <span className="text-[10px] font-bold text-white/20 uppercase tracking-widest">
+                                        {blockActivities.length} {isNutri ? (blockActivities.length === 1 ? 'Plato' : 'Platos') : (blockActivities.length === 1 ? 'Ejercicio' : 'Ejercicios')}
+                                    </span>
+                                </div>
                             </div>
 
-                            <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
-                                <div onClick={(e) => { e.stopPropagation(); toggleBlockCompletion(blockNumber); }}
-                                    style={{ cursor: 'pointer', padding: '4px', color: isBlockCompleted(blockNumber) ? '#FF7939' : 'rgba(255, 255, 255, 0.4)' }}>
-                                    <Flame size={22} fill={isBlockCompleted(blockNumber) ? '#FF7939' : 'none'} />
+                            <div className="flex items-center gap-3">
+                                <div className="text-[10px] font-black text-white/30 uppercase tracking-[0.2em] leading-none">
+                                    {completedInBlock}/{blockActivities.length}
                                 </div>
-                                <div onClick={(e) => { e.stopPropagation(); toggleBlock(blockNumber); }}
-                                    style={{ cursor: 'pointer', padding: '4px', color: 'rgba(255, 255, 255, 0.6)' }}>
-                                    {isCollapsed ? <ChevronDown size={18} /> : <ChevronUp size={18} />}
+                                <div className={cn(
+                                    "p-1.5 rounded-full transition-all duration-300",
+                                    !isCollapsed ? "rotate-0 text-white" : "rotate-180 text-white/20"
+                                )}>
+                                    <ChevronUp size={16} />
                                 </div>
                             </div>
                         </div>
 
-                        {/* Block Body */}
+                        {/* Block Items List */}
                         {!isCollapsed && (
-                            <div style={{ marginTop: 8, paddingLeft: 0 }}>
-                                <ActivityItemsList
-                                    activities={blockActivities}
-                                    openVideo={openVideo}
-                                    toggleExerciseSimple={toggleExerciseSimple}
-                                    isNutri={programInfo?.categoria === 'nutricion' || enrollment?.activity?.categoria === 'nutricion'}
-                                    isExpired={isExpired}
-                                />
+                            <div className="flex flex-col gap-3 mt-4">
+                                {blockActivities.map((group) => {
+                                    const isDone = group.done;
+
+                                    return (
+                                        <div key={group.id} className="relative flex items-center group">
+                                            <button
+                                                onClick={() => openVideo(group.video_url || '', group)}
+                                                className={cn(
+                                                    "flex-1 flex items-center gap-3 p-3 rounded-2xl transition-all duration-300",
+                                                    isDone ? "bg-white/[0.01]" : "bg-white/[0.04] hover:bg-white/[0.06] active:scale-[0.98]"
+                                                )}
+                                                disabled={isExpired}
+                                                style={{ filter: isExpired ? 'grayscale(1)' : 'none' }}
+                                            >
+                                                {/* Status Circle */}
+                                                <div
+                                                    onClick={(e) => {
+                                                        e.stopPropagation();
+                                                        group.sets_data.forEach((s: any) => toggleExerciseSimple(s.id));
+                                                    }}
+                                                    className={cn(
+                                                        "w-10 h-10 rounded-full flex items-center justify-center shrink-0 border transition-all duration-500 active:scale-90",
+                                                        isDone
+                                                            ? "bg-[#FF7939]/20 border-[#FF7939] shadow-[0_4px_15px_rgba(255,121,57,0.2)]"
+                                                            : "bg-white/5 border-white/10 hover:border-[#FF7939]/30"
+                                                    )}
+                                                >
+                                                    <Flame
+                                                        size={18}
+                                                        className={cn(isDone ? "text-[#FF7939]" : "text-white/20")}
+                                                        fill={isDone ? "currentColor" : "none"}
+                                                    />
+                                                </div>
+
+                                                <div className="flex-1 min-w-0">
+                                                    <div className="flex flex-col gap-1 text-left">
+                                                        <h4 className={cn(
+                                                            "text-sm font-bold leading-tight tracking-tight",
+                                                            isDone ? "text-white/20 line-through decoration-[#FF7939]/30" : "text-white/90"
+                                                        )}>
+                                                            {group.title}
+                                                        </h4>
+
+                                                        {isNutri ? (
+                                                            <div className="flex items-center gap-3">
+                                                                {group.proteinas != null && <span className="text-[9px] font-black text-white/40 uppercase tracking-widest">P: {group.proteinas}g</span>}
+                                                                {group.carbohidratos != null && <span className="text-[9px] font-black text-white/40 uppercase tracking-widest">C: {group.carbohidratos}g</span>}
+                                                                {group.grasas != null && <span className="text-[9px] font-black text-white/40 uppercase tracking-widest">G: {group.grasas}g</span>}
+                                                            </div>
+                                                        ) : (
+                                                            <>
+                                                                {/* Prescription chips — Series × Reps • Peso */}
+                                                                <div className="flex flex-wrap gap-1">
+                                                                    {group.sets_data.map((s: any, idx: number) => {
+                                                                        const isComplex = typeof s.series === 'string' && (s.series.includes('(') || s.series.includes('-'));
+                                                                        if (isComplex && (s.peso === 0 || !s.peso) && (s.reps === 0 || !s.reps)) {
+                                                                            return <span key={idx} className="text-[10px] font-medium text-white/20">{s.series}</span>;
+                                                                        }
+                                                                        return (
+                                                                            <div key={idx} className={cn(
+                                                                                "flex items-center gap-1 px-2 py-0.5 rounded-md text-[10px] font-bold tracking-tight",
+                                                                                s.done ? "bg-[#FF7939]/10 text-[#FF7939]" : "bg-white/5 text-white/35"
+                                                                            )}>
+                                                                                {s.series || 0}×{s.reps || 0}
+                                                                                {(s.peso != null && Number(s.peso) !== 0) && <span className="opacity-60 ml-0.5">• {s.peso}kg</span>}
+                                                                            </div>
+                                                                        );
+                                                                    })}
+                                                                </div>
+
+                                                                {/* Muscles & Equipment NOT shown here — see detail tabs */}
+                                                            </>
+                                                        )}
+                                                    </div>
+                                                </div>
+
+                                                {/* Play button — shown when video exists */}
+                                                {group.video_url ? (
+                                                    <div className="shrink-0 w-8 h-8 rounded-full bg-[#FF7939]/10 border border-[#FF7939]/30 flex items-center justify-center transition-all duration-300 group-hover:bg-[#FF7939]/25 group-hover:scale-110">
+                                                        <Play size={11} className="text-[#FF7939] ml-0.5" fill="currentColor" />
+                                                    </div>
+                                                ) : (
+                                                    <div className="shrink-0 w-8 h-8 rounded-full bg-white/3 border border-white/5 flex items-center justify-center opacity-40">
+                                                        <ArrowRight size={12} className="text-white/40" />
+                                                    </div>
+                                                )}
+                                            </button>
+                                        </div>
+                                    );
+                                })}
                             </div>
                         )}
                     </div>
                 );
             })}
 
-            {/* Calificado / Enviar Calificación Button */}
+            {/* Calificado Section */}
             {(isExpired || isRated) && (
-                <div style={{ marginTop: 24, padding: '0 4px' }}>
+                <div className="mt-8 px-1">
                     {isRated ? (
                         <button
                             onClick={() => setShowFeedback(true)}
-                            style={{
-                                width: '100%',
-                                display: 'flex', alignItems: 'center', gap: 10,
-                                padding: '12px 16px', background: 'rgba(255, 121, 57, 0.1)',
-                                border: '1px solid rgba(255, 121, 57, 0.3)', borderRadius: 16,
-                                cursor: 'pointer', textAlign: 'left'
-                            }}
+                            className="w-full flex items-center gap-4 p-5 bg-white/5 border border-white/10 rounded-[28px] hover:bg-white/[0.08] transition-all group"
                         >
-                            <div style={{ display: 'flex', gap: 2 }}>
+                            <div className="flex gap-1.5">
                                 {[1, 2, 3, 4, 5].map(i => (
                                     <Flame
                                         key={i}
-                                        size={16}
-                                        fill={i <= rating ? "#FF7939" : "none"}
-                                        color={i <= rating ? "#FF7939" : "rgba(255, 121, 57, 0.3)"}
+                                        size={18}
+                                        className={cn(
+                                            "transition-all duration-300",
+                                            i <= rating ? "text-[#FF7939]" : "text-white/10"
+                                        )}
+                                        fill={i <= rating ? "currentColor" : "none"}
                                     />
                                 ))}
                             </div>
-                            <span style={{ fontSize: 14, fontWeight: 700, color: '#FF7939', flex: 1 }}>Calificado</span>
-                            <MessageSquare size={16} color="#FF7939" style={{ opacity: 0.7 }} />
+                            <span className="text-sm font-bold text-white/60 flex-1 text-left">Resumen de feedback</span>
+                            <MessageSquare size={18} className="text-[#FF7939] opacity-40 group-hover:opacity-100 transition-opacity" />
                         </button>
                     ) : (
                         <button
                             onClick={handleOpenSurveyModal}
-                            style={{
-                                width: '100%', padding: '12px',
-                                background: 'transparent', border: '1px solid rgba(255, 255, 255, 0.2)',
-                                borderRadius: 16, color: 'white', fontWeight: 600, fontSize: 14,
-                                cursor: 'pointer'
-                            }}
+                            className="w-full p-5 bg-white/5 border border-white/10 rounded-[28px] text-white/80 font-bold text-sm tracking-tight hover:bg-white/10 transition-all uppercase"
                         >
-                            Enviar Calificación
+                            Calificar entrenamiento
                         </button>
                     )}
                 </div>
             )}
 
-            {/* Feedback Dialog */}
+            {/* Feedback Dialog remains similar but with premium styling */}
             <Dialog open={showFeedback} onOpenChange={setShowFeedback}>
-                <DialogContent className="bg-[#111111] border-none shadow-2xl text-white w-[92%] max-w-sm rounded-[32px] p-8">
-                    <DialogHeader className="items-center text-center space-y-4">
-                        <div className="w-12 h-12 bg-[#FF7939]/10 rounded-full flex items-center justify-center">
-                            <MessageSquare className="w-6 h-6 text-[#FF7939]" />
+                <DialogContent className="bg-[#111111]/95 backdrop-blur-2xl border border-white/10 shadow-[0_40px_100px_rgba(0,0,0,0.8)] text-white w-[92%] max-w-sm rounded-[40px] p-10">
+                    <DialogHeader className="items-center text-center space-y-6">
+                        <div className="w-16 h-16 bg-[#FF7939]/20 rounded-[24px] flex items-center justify-center shadow-[0_10px_30px_rgba(255,121,57,0.2)]">
+                            <MessageSquare className="w-8 h-8 text-[#FF7939]" />
                         </div>
-                        <DialogTitle className="text-2xl font-bold">Feedback de tu actividad</DialogTitle>
+                        <DialogTitle className="text-2xl font-black tracking-tight uppercase italic italic">Feedback</DialogTitle>
                     </DialogHeader>
 
-                    <div className="mt-6 flex flex-col items-center gap-4">
-                        <div className="flex gap-2">
+                    <div className="mt-8 flex flex-col items-center gap-6">
+                        <div className="flex gap-3">
                             {[1, 2, 3, 4, 5].map(i => (
                                 <Flame
                                     key={i}
-                                    size={24}
-                                    fill={i <= rating ? "#FF7939" : "none"}
-                                    color={i <= rating ? "#FF7939" : "rgba(255, 121, 57, 0.3)"}
+                                    size={28}
+                                    className={i <= rating ? "text-[#FF7939]" : "text-white/10"}
+                                    fill={i <= rating ? "currentColor" : "none"}
                                 />
                             ))}
                         </div>
 
-                        <div className="w-full bg-white/5 p-4 rounded-2xl border border-white/10 mt-2 text-center italic text-gray-300">
-                            "{feedback || 'No dejaste comentarios en esta calificación.'}"
+                        <div className="w-full bg-white/5 p-6 rounded-[24px] border border-white/10 text-center italic text-lg font-medium text-white/70">
+                            "{feedback || 'Sin comentarios.'}"
                         </div>
                     </div>
 
-                    <div className="flex flex-col gap-3 mt-8">
-                        <button
-                            onClick={() => setShowFeedback(false)}
-                            className="w-full bg-[#FF7939] hover:bg-[#E66829] text-white py-4 rounded-2xl font-bold text-lg shadow-lg shadow-[#FF7939]/20 transition-all"
-                        >
-                            Cerrar
-                        </button>
-                    </div>
+                    <button
+                        onClick={() => setShowFeedback(false)}
+                        className="w-full mt-10 bg-[#FF7939] hover:bg-[#E66829] text-white py-5 rounded-[24px] font-black text-lg shadow-[0_10px_40px_rgba(255,121,57,0.3)] transition-all active:scale-95"
+                    >
+                        LISTO
+                    </button>
                 </DialogContent>
             </Dialog>
         </div>
     );
-}
-
-// Subcomponent for Rendering List Items
-function ActivityItemsList({ activities, openVideo, toggleExerciseSimple, isNutri, isExpired }: { activities: any[], openVideo: any, toggleExerciseSimple: any, isNutri: boolean, isExpired: boolean }) {
-    return (
-        <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
-            {activities.map((activity, index) => {
-                // Prepare Video Args
-                // Prepare Video Args - Simplified to match hook signature
-                const handleOpenVideo = (e: any) => {
-                    openVideo(activity.video_url || '', activity);
-                };
-
-                if (activity.exercise_id === 1230 || String(activity.title).includes('Press')) {
-                    console.log(`🔥 [TodayActivityList] Rendering ${activity.title}: done=${activity.done}, id=${activity.id}`);
-                }
-
-                return (
-                    <button key={activity.id} onClick={handleOpenVideo}
-                        style={{
-                            width: '100%', padding: '10px 12px', background: 'transparent',
-                            border: 'none', borderRadius: 8, textAlign: 'left',
-                            cursor: isExpired ? 'default' : 'pointer',
-                            filter: isExpired ? 'grayscale(1) opacity(0.6)' : 'none',
-                            pointerEvents: isExpired ? 'none' : 'auto',
-                            position: 'relative',
-                            overflow: 'hidden'
-                        }}
-                        onMouseEnter={(e) => !isExpired && (e.currentTarget.style.background = 'rgba(255, 255, 255, 0.05)')}
-                        onMouseLeave={(e) => !isExpired && (e.currentTarget.style.background = 'transparent')}
-                    >
-                        {isExpired && (
-                            <div style={{
-                                position: 'absolute', inset: 0,
-                                background: 'rgba(0,0,0,0.05)', zIndex: 5,
-                                pointerEvents: 'none'
-                            }} />
-                        )}
-                        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12, width: '100%' }}>
-                            {/* Left Side: Flame + Text */}
-                            <div style={{ display: 'flex', alignItems: 'center', gap: 12, flex: 1, minWidth: 0 }}>
-                                <div onClick={(e) => { e.stopPropagation(); toggleExerciseSimple(activity.id); }}
-                                    style={{
-                                        background: 'transparent', border: 'none',
-                                        padding: 4, borderRadius: 4,
-                                        color: activity.done ? '#FF7939' : 'rgba(255, 255, 255, 0.4)',
-                                        cursor: 'pointer', flexShrink: 0
-                                    }}>
-                                    <Flame size={20} fill={activity.done ? '#FF7939' : 'none'} />
-                                </div>
-
-                                <div style={{ flex: 1, minWidth: 0 }}>
-                                    <div style={{ fontSize: 15, fontWeight: 600, color: '#FFFFFF', wordBreak: 'break-word' }}>{activity.title}</div>
-
-                                    {/* Fitness Subtitle: PRS */}
-                                    {!isNutri && (
-                                        (() => {
-                                            const seriesData = activity.detalle_series || activity.series;
-                                            if (!seriesData || seriesData === 'Sin especificar') return null;
-                                            const parsed = parseSeries(seriesData);
-                                            if (parsed.length === 0) return null;
-                                            const firstBlock = parsed[0];
-                                            if (!firstBlock || (firstBlock.kg === undefined && firstBlock.reps === undefined)) return null;
-
-                                            return (
-                                                <div style={{ display: 'flex', flexDirection: 'column', gap: 2, marginTop: 2 }}>
-                                                    <div style={{ fontSize: 11, color: '#FF7939', fontWeight: 600, fontFamily: 'monospace', letterSpacing: '0.3px' }}>
-                                                        P:{firstBlock.kg}kg | R:{firstBlock.reps} | S:{firstBlock.sets}
-                                                    </div>
-                                                    {activity.tipo && activity.tipo !== 'fitness' && (
-                                                        <div style={{ fontSize: 11, color: 'rgba(255, 255, 255, 0.4)', fontWeight: 500, textTransform: 'capitalize' }}>
-                                                            {activity.tipo}
-                                                        </div>
-                                                    )}
-                                                </div>
-                                            );
-                                        })()
-                                    )}
-
-                                    {/* Nutrition Subtitle: Macros */}
-                                    {isNutri && (
-                                        <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap', fontSize: 12, color: 'rgba(255, 255, 255, 0.6)' }}>
-                                            {(activity as any).proteinas != null && <span>P: {(activity as any).proteinas}g</span>}
-                                            {(activity as any).carbohidratos != null && <span>C: {(activity as any).carbohidratos}g</span>}
-                                            {(activity as any).grasas != null && <span>G: {(activity as any).grasas}g</span>}
-                                        </div>
-                                    )}
-                                </div>
-                            </div>
-
-                            {/* Right Side: Kcal/Min */}
-                            <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: 2, flexShrink: 0 }}>
-                                {activity.calorias != null && <span style={{ fontSize: 13, fontWeight: 600, color: 'rgba(255, 255, 255, 0.8)' }}>{activity.calorias} kcal</span>}
-                                {activity.minutos != null && <span style={{ fontSize: 12, fontWeight: 500, color: 'rgba(255, 255, 255, 0.6)' }}>{activity.minutos} min</span>}
-                            </div>
-                        </div>
-                    </button>
-                )
-            })}
-        </div>
-    )
 }
