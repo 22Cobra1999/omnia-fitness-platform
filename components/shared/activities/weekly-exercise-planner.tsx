@@ -250,13 +250,13 @@ export function WeeklyExercisePlanner(props: WeeklyExercisePlannerProps) {
               className="grid gap-0 grid-dynamic"
               style={{
                 gridTemplateColumns: gridCols,
-                '--title-w': '65px'
+                '--title-w': '70px'
               } as any}
             >
               <style dangerouslySetInnerHTML={{
                 __html: `
                   @media (min-width: 768px) {
-                    .grid-dynamic { --title-w: 75px !important; }
+                    .grid-dynamic { --title-w: 85px !important; }
                   }
                 `}} />
 
@@ -303,8 +303,8 @@ export function WeeklyExercisePlanner(props: WeeklyExercisePlannerProps) {
                 const label = isNutrition ? (type.charAt(0).toUpperCase() + type.slice(1)) : type
                 return (
                   <React.Fragment key={type}>
-                    <div className="py-2 pr-4 flex items-center">
-                      <span className="px-2.5 py-1 rounded-lg border text-[9px] font-black uppercase tracking-tighter truncate w-full shadow-sm" style={{ color: scheme.hex, borderColor: scheme.hex + '33', backgroundColor: scheme.soft }}>{label}</span>
+                    <div className="py-2 pr-2 flex items-center">
+                      <span className="px-2 py-0.5 rounded-lg border text-[8px] md:text-[9px] font-black uppercase tracking-tighter w-full shadow-sm text-center" style={{ color: scheme.hex, borderColor: scheme.hex + '33', backgroundColor: scheme.soft }}>{label}</span>
                     </div>
                     {DAYS.map(d => {
                       const exercises = dayTypeExercises[d.key]?.[type] || []

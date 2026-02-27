@@ -348,10 +348,10 @@ export function OmniaShowcase({ scrollY }: OmniaShowcaseProps) {
                         </div>
                     </div>
 
-                    {/* 2-Column Product Display */}
-                    <div className="grid grid-cols-2 gap-4 items-stretch min-h-[420px] relative">
-                        {/* Fake Floating Comments over the gutter (TASK-001) */}
-                        <div className="absolute top-0 left-[35%] w-0 h-full z-20 pointer-events-none">
+                    {/* 1-Column on Mobile, 2-Column on Desktop Product Display */}
+                    <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 lg:gap-4 items-stretch min-h-[420px] relative">
+                        {/* Fake Floating Comments over the gutter (TASK-001) - Hidden on mobile for clarity */}
+                        <div className="hidden lg:block absolute top-0 left-[35%] w-0 h-full z-20 pointer-events-none">
                             <AnimatePresence mode="popLayout">
                                 <motion.div
                                     key={`${filterType}-${filterCategory}`}
@@ -423,7 +423,7 @@ export function OmniaShowcase({ scrollY }: OmniaShowcaseProps) {
                             </AnimatePresence>
                         </div>
 
-                        <div className="relative z-10">
+                        <div className="relative z-10 order-2 lg:order-1">
                             <AnimatePresence mode="wait">
                                 {(() => {
                                     // Filter real activities if they exist, fallback to mock
@@ -455,7 +455,7 @@ export function OmniaShowcase({ scrollY }: OmniaShowcaseProps) {
                         </div>
 
                         {/* Product Type Description & Interactive Controls */}
-                        <div className="flex flex-col justify-center gap-6 p-6 rounded-[32px] bg-white/[0.01] border border-white/5 relative overflow-hidden backdrop-blur-3xl z-10">
+                        <div className="flex flex-col justify-center gap-6 p-6 rounded-[32px] bg-white/[0.01] border border-white/5 relative overflow-hidden backdrop-blur-3xl z-10 order-1 lg:order-2">
                             <div className="absolute top-0 right-0 w-40 h-40 bg-white/5 blur-[80px] -z-10" />
 
                             <div className="flex flex-col gap-1">
@@ -679,12 +679,13 @@ export function OmniaShowcase({ scrollY }: OmniaShowcaseProps) {
                                         <motion.div
                                             onClick={() => setClientMockupType('fitness')}
                                             animate={{
-                                                scale: clientMockupType === 'fitness' ? 1.05 : 0.9,
-                                                x: clientMockupType === 'fitness' ? "-50%" : "-110%",
-                                                y: clientMockupType === 'fitness' ? 0 : -20,
+                                                scale: clientMockupType === 'fitness' ? 1.05 : 0.85,
+                                                x: clientMockupType === 'fitness' ? "-50%" : "-100%",
+                                                y: clientMockupType === 'fitness' ? 0 : 20,
                                                 zIndex: clientMockupType === 'fitness' ? 20 : 10,
-                                                rotateZ: clientMockupType === 'fitness' ? 0 : -8,
-                                                filter: clientMockupType === 'fitness' ? 'blur(0px)' : 'blur(2px)',
+                                                rotateZ: clientMockupType === 'fitness' ? 0 : -5,
+                                                opacity: clientMockupType === 'fitness' ? 1 : 0.4,
+                                                filter: clientMockupType === 'fitness' ? 'blur(0px)' : 'blur(4px)',
                                             }}
                                             transition={{ duration: 0.6, type: "spring", bounce: 0.3 }}
                                             className="absolute top-0 left-1/2 w-[280px] aspect-[9/19] rounded-[48px] border-[6px] border-[#1a1a1a] overflow-hidden bg-[#050505] shadow-2xl cursor-pointer"
@@ -784,12 +785,13 @@ export function OmniaShowcase({ scrollY }: OmniaShowcaseProps) {
                                         <motion.div
                                             onClick={() => setClientMockupType('nutrition')}
                                             animate={{
-                                                scale: clientMockupType === 'nutrition' ? 1.05 : 0.9,
-                                                x: clientMockupType === 'nutrition' ? "-50%" : "10%",
-                                                y: clientMockupType === 'nutrition' ? 0 : -20,
+                                                scale: clientMockupType === 'nutrition' ? 1.05 : 0.85,
+                                                x: clientMockupType === 'nutrition' ? "-50%" : "0%",
+                                                y: clientMockupType === 'nutrition' ? 0 : 20,
                                                 zIndex: clientMockupType === 'nutrition' ? 20 : 10,
-                                                rotateZ: clientMockupType === 'nutrition' ? 0 : 8,
-                                                filter: clientMockupType === 'nutrition' ? 'blur(0px)' : 'blur(2px)',
+                                                rotateZ: clientMockupType === 'nutrition' ? 0 : 5,
+                                                opacity: clientMockupType === 'nutrition' ? 1 : 0.4,
+                                                filter: clientMockupType === 'nutrition' ? 'blur(0px)' : 'blur(4px)',
                                             }}
                                             transition={{ duration: 0.6, type: "spring", bounce: 0.3 }}
                                             className="absolute top-0 left-1/2 w-[280px] aspect-[9/19] rounded-[48px] border-[6px] border-[#1a1a1a] overflow-hidden bg-[#050505] shadow-2xl cursor-pointer"
@@ -1028,12 +1030,13 @@ export function OmniaShowcase({ scrollY }: OmniaShowcaseProps) {
                                         <motion.div
                                             onClick={() => setCoachMockupType('clients')}
                                             animate={{
-                                                scale: coachMockupType === 'clients' ? 1.05 : 0.9,
-                                                x: coachMockupType === 'clients' ? "-50%" : "-110%",
-                                                y: coachMockupType === 'clients' ? 0 : -20,
+                                                scale: coachMockupType === 'clients' ? 1.05 : 0.85,
+                                                x: coachMockupType === 'clients' ? "-50%" : "-100%",
+                                                y: coachMockupType === 'clients' ? 0 : 20,
                                                 zIndex: coachMockupType === 'clients' ? 20 : 10,
-                                                rotateZ: coachMockupType === 'clients' ? 0 : -8,
-                                                filter: coachMockupType === 'clients' ? 'blur(0px)' : 'blur(2px)',
+                                                rotateZ: coachMockupType === 'clients' ? 0 : -5,
+                                                opacity: coachMockupType === 'clients' ? 1 : 0.4,
+                                                filter: coachMockupType === 'clients' ? 'blur(0px)' : 'blur(4px)',
                                             }}
                                             transition={{ duration: 0.6, type: "spring", bounce: 0.3 }}
                                             className="absolute top-0 left-1/2 w-[280px] aspect-[9/19] rounded-[48px] border-[6px] border-[#1a1a1a] overflow-hidden bg-[#050505] shadow-2xl cursor-pointer"
@@ -1089,12 +1092,13 @@ export function OmniaShowcase({ scrollY }: OmniaShowcaseProps) {
                                         <motion.div
                                             onClick={() => setCoachMockupType('profile')}
                                             animate={{
-                                                scale: coachMockupType === 'profile' ? 1.05 : 0.9,
-                                                x: coachMockupType === 'profile' ? "-50%" : "10%",
-                                                y: coachMockupType === 'profile' ? 0 : -20,
+                                                scale: coachMockupType === 'profile' ? 1.05 : 0.85,
+                                                x: coachMockupType === 'profile' ? "-50%" : "0%",
+                                                y: coachMockupType === 'profile' ? 0 : 20,
                                                 zIndex: coachMockupType === 'profile' ? 20 : 10,
-                                                rotateZ: coachMockupType === 'profile' ? 0 : 8,
-                                                filter: coachMockupType === 'profile' ? 'blur(0px)' : 'blur(2px)',
+                                                rotateZ: coachMockupType === 'profile' ? 0 : 5,
+                                                opacity: coachMockupType === 'profile' ? 1 : 0.4,
+                                                filter: coachMockupType === 'profile' ? 'blur(0px)' : 'blur(4px)',
                                             }}
                                             transition={{ duration: 0.6, type: "spring", bounce: 0.3 }}
                                             className="absolute top-0 left-1/2 w-[280px] aspect-[9/19] rounded-[48px] border-[6px] border-[#1a1a1a] overflow-hidden bg-[#050505] shadow-2xl cursor-pointer"
@@ -1171,12 +1175,13 @@ export function OmniaShowcase({ scrollY }: OmniaShowcaseProps) {
                                         <motion.div
                                             onClick={() => setCoachMockupType('products')}
                                             animate={{
-                                                scale: coachMockupType === 'products' ? 1.05 : 0.9,
-                                                x: coachMockupType === 'products' ? "-50%" : "30%",
-                                                y: coachMockupType === 'products' ? 0 : -20,
+                                                scale: coachMockupType === 'products' ? 1.05 : 0.85,
+                                                x: coachMockupType === 'products' ? "-50%" : "100%",
+                                                y: coachMockupType === 'products' ? 0 : 20,
                                                 zIndex: coachMockupType === 'products' ? 20 : 5,
-                                                rotateZ: coachMockupType === 'products' ? 0 : 12,
-                                                filter: coachMockupType === 'products' ? 'blur(0px)' : 'blur(2px)',
+                                                rotateZ: coachMockupType === 'products' ? 0 : 10,
+                                                opacity: coachMockupType === 'products' ? 1 : 0.3,
+                                                filter: coachMockupType === 'products' ? 'blur(0px)' : 'blur(4px)',
                                             }}
                                             transition={{ duration: 0.6, type: "spring", bounce: 0.3 }}
                                             className="absolute top-0 left-1/2 w-[280px] aspect-[9/19] rounded-[48px] border-[6px] border-[#1a1a1a] overflow-hidden bg-[#050505] shadow-2xl cursor-pointer"
