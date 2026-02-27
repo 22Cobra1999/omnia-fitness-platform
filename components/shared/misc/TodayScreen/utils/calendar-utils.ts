@@ -73,11 +73,6 @@ export function getWeekNumber(date: Date, start_date?: string | null) {
     const diffWeeks = Math.floor(diffTime / (1000 * 60 * 60 * 24 * 7));
     const weekNumber = Math.max(1, diffWeeks + 1);
 
-    // CORRECCIÓN TEMPORAL: Si es el 8 de septiembre, forzar semana 2
-    if (date.toDateString() === 'Mon Sep 08 2025') {
-        return 2;
-    }
-
     return weekNumber;
 }
 

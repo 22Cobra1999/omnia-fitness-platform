@@ -1,5 +1,19 @@
 import * as React from 'react';
 
+import { Activity, Enrollment, ProgramInfo } from '../types';
+
+interface UseTodayActionsProps {
+    user: { id: string } | null;
+    activityId: string;
+    enrollment: Enrollment | null;
+    programInfo: ProgramInfo | null;
+    activities: Activity[];
+    setActivities: React.Dispatch<React.SetStateAction<Activity[]>>;
+    refreshDayStatuses: () => Promise<void>;
+    setSelectedDate: (d: Date) => void;
+    fetchActivities?: (options?: { silent?: boolean }) => Promise<void>;
+}
+
 export function useTodayActions({
     user,
     activityId,
@@ -10,13 +24,13 @@ export function useTodayActions({
     refreshDayStatuses,
     setSelectedDate,
     fetchActivities
-}: any) {
+}: UseTodayActionsProps) {
 
     const toggleExerciseSimple = React.useCallback(async (activityKey: string, selectedDate: Date) => {
         if (!user) return;
 
         // Robust lookup: try direct ID match, then composite key match
-        const activity = activities.find((a: any) =>
+        const activity = activities.find((a: Activity) =>
             a.id === activityKey ||
             `${a.exercise_id}_${a.bloque}_${a.orden}` === activityKey
         );
@@ -32,8 +46,8 @@ export function useTodayActions({
 
             const payload = {
                 executionId: activity.ejercicio_id || activity.exercise_id,
-                bloque: activity.bloque,
-                orden: activity.orden,
+                bloque: activity.bloque || 1,
+                orden: activity.orden || 1,
                 fecha: currentDate,
                 categoria: programInfo?.categoria || enrollment?.activity?.categoria,
                 activityId: Number(activityId),

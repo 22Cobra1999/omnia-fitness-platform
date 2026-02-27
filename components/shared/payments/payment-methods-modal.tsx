@@ -57,9 +57,9 @@ export function PaymentMethodsModal({
 
   const handleConfirmPayment = async () => {
     if (!selectedMethod) return
-    
+
     setIsProcessing(true)
-    
+
     // Simular procesamiento
     setTimeout(() => {
       setIsProcessing(false)
@@ -68,13 +68,13 @@ export function PaymentMethodsModal({
   }
 
   const selectedPaymentMethod = paymentMethods.find(method => method.id === selectedMethod)
-  const totalWithFee = selectedPaymentMethod 
+  const totalWithFee = selectedPaymentMethod
     ? productPrice + (productPrice * (selectedPaymentMethod.processingFee || 0))
     : productPrice
 
   return (
     <Dialog open={isOpen} onOpenChange={onClose}>
-      <DialogContent className="bg-[#1A1A1A] border-[#3A3A3A] text-white max-w-xs w-full ml-0 mr-16 rounded-3xl">
+      <DialogContent className="w-full max-w-[calc(100%-2rem)] sm:max-w-[420px] bg-[#1A1A1A] border border-[#3A3A3A] text-white rounded-3xl shadow-2xl overflow-hidden p-6">
         <DialogHeader>
           <DialogTitle className="text-xl font-bold text-white flex items-center gap-2">
             <CreditCard className="w-6 h-6 text-[#FF7939]" />
@@ -90,10 +90,10 @@ export function PaymentMethodsModal({
               <span className="text-gray-400 text-sm">Precio base</span>
               <span className="text-white font-bold">${productPrice.toFixed(2)}</span>
             </div>
-            {selectedPaymentMethod && selectedPaymentMethod.processingFee > 0 && (
+            {selectedPaymentMethod && (selectedPaymentMethod.processingFee || 0) > 0 && (
               <div className="flex justify-between items-center mt-2">
-                <span className="text-gray-400 text-sm">Comisión ({selectedPaymentMethod.processingFee * 100}%)</span>
-                <span className="text-gray-400">${(productPrice * selectedPaymentMethod.processingFee).toFixed(2)}</span>
+                <span className="text-gray-400 text-sm">Comisión ({(selectedPaymentMethod.processingFee || 0) * 100}%)</span>
+                <span className="text-gray-400">${(productPrice * (selectedPaymentMethod.processingFee || 0)).toFixed(2)}</span>
               </div>
             )}
             {selectedPaymentMethod && (
@@ -112,25 +112,19 @@ export function PaymentMethodsModal({
             {paymentMethods.map((method) => (
               <motion.div
                 key={method.id}
-                whileHover={{ scale: 1.02 }}
-                whileTap={{ scale: 0.98 }}
               >
-                <button
-                  onClick={() => method.available && handleMethodSelect(method.id)}
-                  disabled={!method.available}
-                  className={`w-full p-3 rounded-2xl border transition-all duration-200 ${
-                    selectedMethod === method.id
-                      ? 'border-[#FF7939] bg-[#FF7939]/10'
-                      : method.available
-                      ? 'border-[#3A3A3A] bg-[#2A2A2A] hover:border-[#FF7939]/50 hover:bg-[#FF7939]/5'
-                      : 'border-[#3A3A3A] bg-[#1A1A1A] opacity-50 cursor-not-allowed'
-                  }`}
+                <div
+                  className={`w-full p-3 rounded-2xl border transition-all duration-200 ${selectedMethod === method.id
+                    ? 'border-[#FF7939] bg-[#FF7939]/10'
+                    : method.available
+                      ? 'border-[#3A3A3A] bg-[#2A2A2A]'
+                      : 'border-[#3A3A3A] bg-[#1A1A1A] opacity-50'
+                    }`}
                 >
                   <div className="flex items-center justify-between">
                     <div className="flex items-center gap-3">
-                      <div className={`p-2 rounded-xl ${
-                        selectedMethod === method.id ? 'bg-[#FF7939] text-white' : 'bg-[#3A3A3A] text-gray-400'
-                      }`}>
+                      <div className={`p-2 rounded-xl ${selectedMethod === method.id ? 'bg-[#FF7939] text-white' : 'bg-[#3A3A3A] text-gray-400'
+                        }`}>
                         {method.icon}
                       </div>
                       <div className="text-left">
@@ -155,7 +149,7 @@ export function PaymentMethodsModal({
                       )}
                     </div>
                   </div>
-                </button>
+                </div>
               </motion.div>
             ))}
           </div>

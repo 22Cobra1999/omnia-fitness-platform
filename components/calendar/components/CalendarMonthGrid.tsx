@@ -131,18 +131,18 @@ export function CalendarMonthGrid({
                                 {/* Activities Summary (Always Detailed now) */}
                                 <div className="flex flex-col gap-0.5 w-full items-center">
                                     {/* Fitness Bubble */}
-                                    {hasFitnessActivities && (mins.totalExercises ?? 0) > 0 && (
+                                    {hasFitnessActivities && (mins.pendingExercises ?? 0) > 0 && (
                                         <span className={`flex items-center gap-1 text-[9px] px-1.5 py-0.5 rounded-full font-bold leading-none border shadow-sm bg-[#FF7939]/10 text-[#FF7939] border-[#FF7939]/30`}>
                                             <Zap className="w-2.5 h-2.5" />
-                                            {mins.fitnessMinutesPending > 0 ? formatMinutes(mins.fitnessMinutesPending) : `${mins.pendingExercises ?? 0} ejs`}
+                                            {mins.fitnessMinutesPending > 0 ? formatMinutes(mins.fitnessMinutesPending) : `${mins.pendingExercises} ejs`}
                                         </span>
                                     )}
 
                                     {/* Nutrition Bubble */}
-                                    {hasNutritionActivities && (mins.totalPlates ?? 0) > 0 && (
+                                    {hasNutritionActivities && (mins.pendingPlates ?? 0) > 0 && (
                                         <span className={`flex items-center gap-1 text-[9px] px-1.5 py-0.5 rounded-full font-bold border leading-none shadow-sm bg-[#FFB366]/10 text-[#FFB366] border-[#FFB366]/30`}>
                                             <Utensils className="w-2.5 h-2.5" />
-                                            {`${mins.pendingPlates ?? 0}`}
+                                            {`${mins.pendingPlates}`}
                                         </span>
                                     )}
                                 </div>

@@ -60,7 +60,7 @@ const ProductCard = memo(({
     }
 
     return (
-        <div className={`flex-shrink-0 w-48 relative transition-all ${isConditioningMode && !isProgram ? 'opacity-20 grayscale' : ''}`}>
+        <div className={`flex-shrink-0 w-40 md:w-52 relative transition-all ${isConditioningMode && !isProgram ? 'opacity-20 grayscale' : ''}`}>
             <ActivityCard
                 activity={convertProductToActivity(product)}
                 size="small"
@@ -281,8 +281,8 @@ export const ProductsSection: React.FC<ProductsSectionProps> = ({
                     <div className="text-center text-gray-400 text-sm">No hay productos creados aún</div>
                 ) : (
                     <div>
-                        <div className="overflow-x-auto pb-2 scrollbar-hide">
-                            <div className="flex -space-x-4" style={{ minWidth: 'min-content' }}>
+                        <div className="overflow-x-auto pb-6 scrollbar-hide">
+                            <div className="flex gap-6 px-2" style={{ minWidth: 'min-content' }}>
                                 {products.slice(0, visibleProductsCount).map((product) => (
                                     <ProductCard
                                         key={product.id}

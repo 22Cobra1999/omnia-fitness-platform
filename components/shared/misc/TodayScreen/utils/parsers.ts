@@ -52,3 +52,16 @@ export const parseSeries = (seriesData?: any) => {
 
     return [];
 };
+
+// Función para parsear tags (equipo, músculos, etc)
+export const parseTags = (data: any): string[] => {
+    if (!data) return [];
+    if (Array.isArray(data)) return data.filter(t => typeof t === 'string');
+    if (typeof data === 'string') {
+        if (data.startsWith('[') && data.endsWith(']')) {
+            try { return JSON.parse(data); } catch { }
+        }
+        return data.split(',').map(s => s.trim()).filter(Boolean);
+    }
+    return [];
+};

@@ -132,30 +132,19 @@ export const parseSeries = (seriesData?: any) => {
 export const formatSeriesDisplay = (exercise: Exercise) => {
     if (!exercise) return null
 
-    // Usar detalle_series o series como fuente principal (formato concatenado)
     const seriesData = exercise.detalle_series || exercise.series;
-
-    console.log(`[formatSeriesDisplay] Exercise: ${exercise.name}, seriesData:`, seriesData);
-
     const parsed = parseSeries(seriesData);
+
     if (parsed.length > 0) {
-        const res = parsed.map(first => `P:${first.kg || 0}kg | R:${first.reps || 0} | S:${first.sets || 1}`).join(' || ');
-        console.log(`[formatSeriesDisplay] Multi-block result:`, res);
-        return res;
+        return parsed.map(f => `${f.kg || 0}kg · ${f.reps || 0}r · ${f.sets || 1}s`).join(' || ');
     }
 
-    // Fallback a campos individuales (priorizando los ya normalizados)
-    const p = exercise.peso || (exercise as any).peso_kg || (exercise as any).weight || '0'
-    const r = exercise.reps || (exercise as any).repeticiones || '0'
-    const s = exercise.series || (exercise as any).series_num || (exercise as any).sets || '1'
+    const p = exercise.peso || (exercise as any).peso_kg || (exercise as any).weight || (exercise as any).Weight || '0'
+    const r = exercise.reps || (exercise as any).repeticiones || (exercise as any).Reps || (exercise as any).Repeticiones || '0'
+    const s = exercise.series || (exercise as any).series_num || (exercise as any).sets || (exercise as any).Sets || (exercise as any).Series || '1'
 
-    // Retornamos siempre el formato P | R | S para asegurar visibilidad en la UI de planificación
-    const displayS = (typeof s === 'string' && (s.includes('-') || s.includes('('))) ? (parseSeries(s)[0]?.sets || '1') : s
     const displayP = p.toString().toLowerCase().includes('kg') ? p : `${p}kg`
-
-    const fallbackRes = `P:${displayP} | R:${r} | S:${displayS}`;
-    console.log(`[formatSeriesDisplay] Fallback result:`, fallbackRes);
-    return fallbackRes;
+    return `${displayP} · ${r}r · ${s}s`;
 }
 
 export const getTypeColorScheme = (type: string | undefined | null, isNutrition: boolean = false) => {
@@ -243,6 +232,7 @@ export const normalizeExerciseData = (data: any, isNutrition: boolean): Exercise
     const proteinas = getVal(data.proteinas, data.protein, data.proteins, data['Proteínas'], data['Proteínas (g)'], data.macros?.protein)
     const carbohidratos = getVal(data.carbohidratos, data.carbs, data.carbohydrates, data['Carbohidratos'], data['Carbohidratos (g)'], data.macros?.carbs)
     const grasas = getVal(data.grasas, data.fats, data.fat, data['Grasas'], data['Grasas (g)'], data.macros?.fat)
+    const duration = getVal(data.duration, data.duracion, data.duracion_min, data['Duración'], data['Duración (min)'])
 
     // Normalize media
     const video_url = data.video_url || data.url_video || data.video || ''
@@ -258,13 +248,14 @@ export const normalizeExerciseData = (data: any, isNutrition: boolean): Exercise
         proteinas: isNaN(proteinas) ? 0 : proteinas,
         carbohidratos: isNaN(carbohidratos) ? 0 : carbohidratos,
         grasas: isNaN(grasas) ? 0 : grasas,
+        duration: isNaN(duration) ? 0 : duration,
         video_url,
         image_url,
         block: data.block || data.bloque,
         orden: data.orden,
-        series: data.series || data.series_num || data.sets || '',
-        detalle_series: data.detalle_series || '',
-        reps: data.reps || data.repeticiones || '',
-        peso: data.peso || data.peso_kg || data.weight || ''
+        series: data.series || data.series_num || data.sets || data.Series || data.Sets || '',
+        detalle_series: data.detalle_series || data.series_details || '',
+        reps: data.reps || data.repeticiones || data.Reps || data.Repeticiones || '',
+        peso: data.peso || data.peso_kg || data.weight || data.Weight || ''
     }
 }

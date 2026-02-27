@@ -36,7 +36,7 @@ export default function CoachProfileCard({ coach, onClick, size = 'small', varia
 
     const standardBase = 'rounded-[20px] border border-[#2A2A2A] bg-[#0F0F0F]/85 backdrop-blur-[12px]'
     // If variant is 'meet', allow auto height to fit all rows
-    const heightClass = variant === 'meet' ? 'w-[260px] h-auto min-h-[95px]' : (size === 'medium' ? 'w-full h-[95px]' : 'w-[260px] h-[95px]')
+    const heightClass = variant === 'meet' ? 'w-[280px] sm:w-[300px] md:w-[350px] h-auto min-h-[105px] md:min-h-[125px]' : (size === 'medium' ? 'w-full h-[105px] md:h-[125px]' : 'w-[280px] sm:w-[300px] md:w-[350px] h-[105px] md:h-[125px]')
     return `${base} ${standardBase} ${heightClass}`
   })()
 
@@ -48,7 +48,7 @@ export default function CoachProfileCard({ coach, onClick, size = 'small', varia
 
   const displayNameRaw = coach.full_name || coach.name
   const displayName = String(displayNameRaw || '').replace(/\s+coach$/i, '').trim()
-  const specialization = (coach.specialization || coach.specialties?.[0] || 'Fitness')
+  const specialization = (coach.specialization || coach.specialties?.[0] || 'GENERAL')
 
   if (variant === 'compact') {
     return (
@@ -109,20 +109,20 @@ export default function CoachProfileCard({ coach, onClick, size = 'small', varia
           {/* Avatar Section */}
           <div className="flex flex-col items-center gap-1.5 flex-shrink-0">
             {/* Rating Badge */}
-            <div className="inline-flex items-center gap-0.5 rounded-full bg-white/5 px-1.5 py-0.5 border border-white/10">
-              <Star className="h-2.5 w-2.5 fill-[#E9B24A] text-[#E9B24A]" />
-              <span className="text-[10px] font-bold text-white/80">{showRating ? ratingValue.toFixed(1) : '—'}</span>
+            <div className="inline-flex items-center gap-0.5 rounded-full bg-white/5 px-1.5 py-0.5 md:px-2 md:py-1 border border-white/10">
+              <Star className="h-2.5 w-2.5 md:h-3 md:w-3 fill-[#E9B24A] text-[#E9B24A]" />
+              <span className="text-[10px] md:text-xs font-bold text-white/80">{showRating ? ratingValue.toFixed(1) : '—'}</span>
               {coach.total_clients && coach.total_clients > 0 && (
-                <span className="text-[9px] font-medium text-white/50">({coach.total_clients})</span>
+                <span className="text-[9px] md:text-[10px] font-medium text-white/50">({coach.total_clients})</span>
               )}
             </div>
 
-            <div className="h-[54px] w-[54px] rounded-full overflow-hidden bg-[#141414]">
+            <div className="h-[54px] w-[54px] md:h-[64px] md:w-[64px] rounded-full overflow-hidden bg-[#141414]">
               {coach.avatar_url ? (
-                <Image src={coach.avatar_url} alt={displayName} width={54} height={54} className="h-full w-full object-cover" priority={priority} />
+                <Image src={coach.avatar_url} alt={displayName} width={64} height={64} className="h-full w-full object-cover" priority={priority} />
               ) : (
                 <div className="flex h-full w-full items-center justify-center">
-                  <User className="h-6 w-6 text-[#B0B0B0]" />
+                  <User className="h-6 w-6 md:h-8 md:w-8 text-[#B0B0B0]" />
                 </div>
               )}
             </div>
@@ -130,11 +130,11 @@ export default function CoachProfileCard({ coach, onClick, size = 'small', varia
 
           {/* Info Section */}
           <div className="min-w-0 flex-1 flex flex-col justify-center">
-            <div className="flex items-center gap-1.5 mb-1">
-              <div className="truncate text-sm font-bold text-white/95 tracking-tight leading-tight">
+            <div className="flex items-center justify-between gap-1.5 mb-1 pr-1">
+              <div className="flex-1 min-w-0 text-base md:text-lg font-bold text-white/95 tracking-tight leading-tight whitespace-nowrap overflow-hidden text-ellipsis">
                 {displayName}
               </div>
-              <div className="flex-shrink-0 text-[9px] font-bold text-[#FF7939]/70 uppercase tracking-widest">{specialization.split(',')[0]}</div>
+              <div className="flex-shrink-0 text-[8px] md:text-[10px] font-bold text-[#FF7939]/70 uppercase tracking-widest">{specialization.split(',')[0]}</div>
             </div>
 
             <div className="flex items-center gap-2.5 min-h-[20px]">
@@ -143,32 +143,32 @@ export default function CoachProfileCard({ coach, onClick, size = 'small', varia
                   {(Number(coach.available_meets) || 0) > 0 && (
                     <>
                       <div className="relative flex items-center justify-center">
-                        <Video className="w-4 h-4 text-[#FF7939]" />
-                        <div className="absolute -top-1.5 -right-2 bg-[#FF7939] text-black text-[9px] font-black w-3.5 h-3.5 rounded-full flex items-center justify-center border border-[#1A1A1A]">
+                        <Video className="w-5 h-5 md:w-6 md:h-6 text-[#FF7939]" />
+                        <div className="absolute -top-1.5 -right-2 bg-[#FF7939] text-black text-[9px] md:text-[10px] font-black w-3.5 h-3.5 md:w-4 md:h-4 rounded-full flex items-center justify-center border border-[#1A1A1A]">
                           {coach.available_meets}
                         </div>
                       </div>
-                      <span className="text-[10px] font-bold text-white/60 tracking-wider uppercase">
+                      <span className="text-[10px] md:text-xs font-bold text-white/60 tracking-wider uppercase">
                         Meets
                       </span>
                     </>
                   )}
                 </div>
               ) : (
-                <div className="flex items-center gap-3 text-[11px] text-white/40">
+                <div className="flex items-center gap-3 text-xs md:text-sm text-white/40">
                   <div className="flex items-center gap-1 font-medium">
-                    <Flame className="h-3 w-3 text-[#FF7939]" />
-                    <span>{coach.total_products || 0} productos</span>
+                    <Flame className="h-3.5 w-3.5 md:h-4 md:w-4 text-[#FF7939]" />
+                    <span>{coach.total_products || 0} prod.</span>
                   </div>
                   <div className="flex items-center gap-1 font-medium">
-                    <Award className="h-3 w-3 text-[#FF7939]" />
+                    <Award className="h-3.5 w-3.5 md:h-4 md:w-4 text-[#FF7939]" />
                     <span>{coach.experience_years || 0} años</span>
                   </div>
                 </div>
               )}
             </div>
 
-            <div className="mt-2 flex items-center gap-1.5 overflow-x-auto no-scrollbar max-w-[180px]">
+            <div className="mt-2 flex items-center gap-1.5 overflow-x-auto no-scrollbar w-full pr-2">
               {specialization.split(',').slice(1, 10).map((spec, index) => (
                 <div
                   key={index}
@@ -181,38 +181,6 @@ export default function CoachProfileCard({ coach, onClick, size = 'small', varia
           </div>
         </div>
 
-        {/* Statistics Toggler & Section - Hide for 'meet' variant */}
-        {variant !== 'meet' && (
-          <div className="px-3 pb-2">
-            <button
-              onClick={(e) => { e.stopPropagation(); setIsStatsOpen(!isStatsOpen); }}
-              className="w-full flex items-center justify-between py-1 px-2 rounded-lg bg-white/5 hover:bg-white/10 transition-colors"
-            >
-              <span className="text-[10px] font-bold text-white/60 uppercase tracking-wider">Estadísticas</span>
-              {isStatsOpen ? <TrendingUp className="h-3 w-3 text-[#FF7939]" /> : <TrendingUp className="h-3 w-3 text-white/30" />}
-            </button>
-
-            {isStatsOpen && (
-              <div className="mt-2 grid grid-cols-3 gap-2 animate-in fade-in slide-in-from-top-2 duration-200">
-                <div className="flex flex-col items-center p-2 rounded-xl bg-black/40 border border-white/5">
-                  <Clock className="h-3 w-3 text-[#FF7939] mb-1" />
-                  <span className="text-[10px] font-bold text-white">1hr</span>
-                  <span className="text-[8px] text-zinc-500">Resp.</span>
-                </div>
-                <div className="flex flex-col items-center p-2 rounded-xl bg-black/40 border border-white/5">
-                  <User className="h-3 w-3 text-[#FF7939] mb-1" />
-                  <span className="text-[10px] font-bold text-white">98%</span>
-                  <span className="text-[8px] text-zinc-500">Retención</span>
-                </div>
-                <div className="flex flex-col items-center p-2 rounded-xl bg-black/40 border border-white/5">
-                  <Star className="h-3 w-3 text-[#FF7939] mb-1" />
-                  <span className="text-[10px] font-bold text-white">4.9</span>
-                  <span className="text-[8px] text-zinc-500">Calif.</span>
-                </div>
-              </div>
-            )}
-          </div>
-        )}
       </div>
     </div>
   )

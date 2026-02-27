@@ -110,7 +110,7 @@ export const useCalendarDataFetchers = ({
             // 2. Fetch Meets
             const { data: myParts } = await supabase
                 .from('calendar_event_participants')
-                .select('event_id, rsvp_status, invited_by_user_id')
+                .select('event_id, rsvp_status')
                 .eq('user_id', authUserId)
 
             const { data: createdEvents } = await supabase
@@ -121,9 +121,9 @@ export const useCalendarDataFetchers = ({
                 .lte('start_time', `${endISO}T23:59:59`)
 
             const participantMap: Record<string, any> = {}
-                ; (myParts || []).forEach((p: any) => participantMap[String(p.event_id)] = { rsvp: p.rsvp_status, invitedBy: p.invited_by_user_id })
+                ; (myParts || []).forEach((p: any) => participantMap[String(p.event_id)] = { rsvp: p.rsvp_status })
                 ; (createdEvents || []).forEach((ev: any) => {
-                    if (!participantMap[String(ev.id)]) participantMap[String(ev.id)] = { rsvp: 'confirmed', invitedBy: authUserId }
+                    if (!participantMap[String(ev.id)]) participantMap[String(ev.id)] = { rsvp: 'confirmed' }
                 })
 
             const myEventIds = Object.keys(participantMap)
@@ -140,7 +140,7 @@ export const useCalendarDataFetchers = ({
                 // Participants/Coach info logic (Simplified for clarity, preserving functionality)
                 const { data: partsData } = await supabase
                     .from('calendar_event_participants')
-                    .select('event_id, user_id, is_creator, rsvp_status, invited_by_user_id, user_profiles(full_name, avatar_url)')
+                    .select('event_id, user_id, is_creator, rsvp_status, user_profiles(full_name, avatar_url)')
                     .in('event_id', myEventIds)
 
                 const participantsByEvent: Record<string, any[]> = {}
@@ -151,7 +151,7 @@ export const useCalendarDataFetchers = ({
                         user_id: p.user_id,
                         name: p.user_profiles?.full_name || 'Participante',
                         avatar_url: p.user_profiles?.avatar_url || null,
-                        is_organizer: p.is_creator || p.user_id === p.invited_by_user_id,
+                        is_organizer: p.is_creator,
                         rsvp_status: p.rsvp_status
                     })
                 })

@@ -102,7 +102,10 @@ export default function ActivityScreen() {
                 {!isSearchOpen && (
                     <div className={searchTerm ? "hidden" : "block"}>
                         <CoachCarousel
-                            coaches={coaches.filter(c => enrollments.some(e => String(e.activity?.coach_id) === String(c.id)))}
+                            coaches={coaches.filter(c =>
+                                enrollments.some(e => String(e.activity?.coach_id) === String(c.id)) ||
+                                (meetCredits[c.id] > 0)
+                            )}
                             loading={loadingCoaches}
                             meetCredits={meetCredits}
                             onCoachClick={handleCoachClick}

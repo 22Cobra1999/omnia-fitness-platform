@@ -151,6 +151,8 @@ export default function TodayScreen({ activityId, enrollmentId, onBack }: { acti
                             openVideo={actions.openVideo}
                             onNext={actions.onNext}
                             onPrev={actions.onPrev}
+                            meetCreditsAvailable={state.meetCreditsAvailable}
+                            onScheduleMeet={handleScheduleMeet}
                         />
                     )
                 )}
@@ -213,7 +215,7 @@ export default function TodayScreen({ activityId, enrollmentId, onBack }: { acti
                 activityTitle={state.programInfo?.title || "Actividad"}
                 firstDay={state.firstDayOfActivity || 'lunes'}
                 currentDay={state.dayName}
-                startDeadline={state.enrollment?.start_deadline}
+                startDeadline={state.enrollment?.start_deadline ?? undefined}
             />
 
             {/* Confirm Move Activity Dialog */}
@@ -251,15 +253,24 @@ export default function TodayScreen({ activityId, enrollmentId, onBack }: { acti
                 <div className="fixed inset-0 z-[1000] flex items-center justify-center p-4">
                     <div className="absolute inset-0 bg-black/90 backdrop-blur-md" />
                     <div className="relative flex flex-col items-center gap-6 text-center">
-                        <div style={{ position: 'relative' }}>
-                            <Flame size={64} color="#FF7939" className="animate-pulse" />
-                            <div className="absolute inset-0 blur-3xl bg-[#FF7939]/30 animate-pulse" />
-                        </div>
-                        <div className="flex flex-col gap-3">
-                            <span className="text-xl font-black text-white uppercase tracking-[0.2em] animate-pulse">Configurando tu progreso</span>
-                            <span className="text-xs font-bold text-white/40 uppercase tracking-[0.3em] leading-relaxed max-w-[280px]">
-                                Uniendo ejercicios del coach con tu perfil adaptativo...
-                            </span>
+                        <div className="relative flex items-center justify-center w-[120px] h-[120px]">
+                            {/* Fuego con blur/difuminado */}
+                            <div className="absolute blur-[20px] opacity-60 scale-[1.5]">
+                                <Flame
+                                    size={80}
+                                    color="#FF7939"
+                                    fill="#FF7939"
+                                />
+                            </div>
+                            {/* Fuego principal (más nítido) */}
+                            <div className="relative z-10">
+                                <Flame
+                                    size={120}
+                                    color="#FF7939"
+                                    fill="#FF7939"
+                                    className="animate-soft-pulse"
+                                />
+                            </div>
                         </div>
                     </div>
                 </div>

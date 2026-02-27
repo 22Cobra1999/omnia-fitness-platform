@@ -4,9 +4,9 @@ import { createRouteHandlerClient } from '../../../lib/supabase/supabase-server'
 export async function POST(request: NextRequest) {
   try {
     const body = await request.json()
-    const { ejercicioId, bloque, orden, fecha, series, activityId, propagateAlways } = body
+    const { ejercicioId, bloque, orden, fecha, series, activityId, propagateAlways, adjustedKcal, adjustedMin } = body
 
-    console.log('🚀 [API update-exercise-series] Incoming:', { ejercicioId, activityId, fecha, seriesCount: series?.length, propagateAlways })
+    console.log('🚀 [API update-exercise-series] Incoming:', { ejercicioId, activityId, fecha, seriesCount: series?.length, propagateAlways, adjustedKcal, adjustedMin })
 
     if (!ejercicioId || !activityId || !fecha) {
       console.warn('❌ [API update-exercise-series] Missing params:', { ejercicioId, activityId, fecha })
@@ -28,7 +28,7 @@ export async function POST(request: NextRequest) {
     // 1. Localizar el registro de progreso para este día
     let { data: progressRecords, error: progressError } = await supabase
       .from('progreso_cliente')
-      .select('id, detalles_series, ejercicios_pendientes, ejercicios_completados')
+      .select('id, detalles_series, ejercicios_pendientes, ejercicios_completados, peso, series, reps')
       .eq('cliente_id', user.id)
       .eq('actividad_id', activityId)
       .eq('fecha', targetDate)
@@ -130,6 +130,11 @@ export async function POST(request: NextRequest) {
       ? JSON.parse(progressRecord.detalles_series)
       : (progressRecord.detalles_series || {})
 
+    // También actualizar columnas individuales si existen
+    const currentPeso = typeof progressRecord.peso === 'string' ? JSON.parse(progressRecord.peso) : (progressRecord.peso || {})
+    const currentSeries = typeof progressRecord.series === 'string' ? JSON.parse(progressRecord.series) : (progressRecord.series || {})
+    const currentReps = typeof progressRecord.reps === 'string' ? JSON.parse(progressRecord.reps) : (progressRecord.reps || {})
+
     // Buscar el key correcto
     const keysToTry = [
       `${ejercicioId}_${bloqueNum}_${ordenNum}`,
@@ -139,9 +144,14 @@ export async function POST(request: NextRequest) {
 
     let targetKey = keysToTry.find(k => currentDetalles[k]) || keysToTry[0]
 
-    // Si no existe, lo creamos
-    if (!currentDetalles[targetKey]) {
+    // Asegurar que la entrada sea un objeto
+    if (!currentDetalles[targetKey] || typeof currentDetalles[targetKey] !== 'object') {
+      let baseObj = {}
+      if (typeof currentDetalles[targetKey] === 'string') {
+        try { baseObj = JSON.parse(currentDetalles[targetKey]) } catch (e) { }
+      }
       currentDetalles[targetKey] = {
+        ...baseObj,
         ejercicio_id: Number(ejercicioId),
         bloque: bloqueNum,
         orden: ordenNum
@@ -155,13 +165,37 @@ export async function POST(request: NextRequest) {
 
     currentDetalles[targetKey].detalle_series = detalleSeriesString
 
+    // Actualizar columnas individuales con el primer set (generalmente el PR o el más representativo)
+    if (series && series.length > 0) {
+      const firstSet = series[0]
+      currentPeso[targetKey] = Number(firstSet.kg || 0)
+      currentSeries[targetKey] = Number(firstSet.series || 1)
+      currentReps[targetKey] = Number(firstSet.reps || 0)
+    }
+
     // Actualizar el registro
+    const updatePayload: any = {
+      detalles_series: currentDetalles,
+      peso: currentPeso,
+      series: currentSeries,
+      reps: currentReps,
+      fecha_actualizacion: new Date().toISOString()
+    }
+
+    if (adjustedKcal != null) {
+      const kcalJson = typeof progressRecord.calorias === 'string' ? JSON.parse(progressRecord.calorias) : (progressRecord.calorias || {})
+      kcalJson[targetKey] = adjustedKcal
+      updatePayload.calorias = kcalJson
+    }
+    if (adjustedMin != null) {
+      const minJson = typeof progressRecord.minutos === 'string' ? JSON.parse(progressRecord.minutos) : (progressRecord.minutos || {})
+      minJson[targetKey] = adjustedMin
+      updatePayload.minutos = minJson
+    }
+
     const { error: updateError } = await supabase
       .from('progreso_cliente')
-      .update({
-        detalles_series: currentDetalles,
-        fecha_actualizacion: new Date().toISOString()
-      })
+      .update(updatePayload)
       .eq('id', progressRecord.id)
 
     if (updateError) throw updateError
@@ -173,36 +207,60 @@ export async function POST(request: NextRequest) {
       try {
         const { data: futureRecords } = await supabase
           .from('progreso_cliente')
-          .select('id, detalles_series')
+          .select('id, detalles_series, peso, series, reps')
           .eq('cliente_id', user.id)
           .eq('actividad_id', activityId)
           .gt('fecha', targetDate)
-
         if (futureRecords && futureRecords.length > 0) {
           console.log(`🔄 [API update-exercise-series] Propagating to ${futureRecords.length} future records`)
           for (const rec of futureRecords) {
             const futDetalles = typeof rec.detalles_series === 'string' ? JSON.parse(rec.detalles_series) : (rec.detalles_series || {})
+            const futPeso = typeof rec.peso === 'string' ? JSON.parse(rec.peso) : (rec.peso || {})
+            const futSeries = typeof rec.series === 'string' ? JSON.parse(rec.series) : (rec.series || {})
+            const futReps = typeof rec.reps === 'string' ? JSON.parse(rec.reps) : (rec.reps || {})
+            const futKcal = typeof rec.calorias === 'string' ? JSON.parse(rec.calorias) : (rec.calorias || {})
+            const futMin = typeof rec.minutos === 'string' ? JSON.parse(rec.minutos) : (rec.minutos || {})
 
-            let futKey = targetKey
-            if (!futDetalles[futKey]) {
-              for (const k of keysToTry) {
-                if (futDetalles[k]) { futKey = k; break; }
+            // En propagación, SOLO actualizamos si el key exacto (Caso) existe
+            // para evitar afectar otros bloques del mismo ejercicio.
+            const futKey = targetKey
+
+            if (futDetalles[futKey]) {
+              if (typeof futDetalles[futKey] !== 'object') {
+                futDetalles[futKey] = { ejercicio_id: Number(ejercicioId), bloque: bloqueNum, orden: ordenNum }
               }
-            }
 
-            if (!futDetalles[futKey]) {
-              futDetalles[futKey] = { ejercicio_id: Number(ejercicioId), bloque: bloqueNum, orden: ordenNum }
-            }
+              futDetalles[futKey].detalle_series = detalleSeriesString
 
-            futDetalles[futKey].detalle_series = detalleSeriesString
+              if (series && series.length > 0) {
+                const firstSet = series[0]
+                futPeso[futKey] = Number(firstSet.kg || 0)
+                futSeries[futKey] = Number(firstSet.series || 1)
+                futReps[futKey] = Number(firstSet.reps || 0)
+              }
 
-            await supabase
-              .from('progreso_cliente')
-              .update({
+              const futureUpdatePayload: any = {
                 detalles_series: futDetalles,
+                peso: futPeso,
+                series: futSeries,
+                reps: futReps,
                 fecha_actualizacion: new Date().toISOString()
-              })
-              .eq('id', rec.id)
+              }
+
+              if (adjustedKcal != null) {
+                futKcal[futKey] = adjustedKcal
+                futureUpdatePayload.calorias = futKcal
+              }
+              if (adjustedMin != null) {
+                futMin[futKey] = adjustedMin
+                futureUpdatePayload.minutos = futMin
+              }
+
+              await supabase
+                .from('progreso_cliente')
+                .update(futureUpdatePayload)
+                .eq('id', rec.id)
+            }
           }
         }
       } catch (e) {

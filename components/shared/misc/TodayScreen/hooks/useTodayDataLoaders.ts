@@ -6,13 +6,13 @@ import {
     getCurrentBuenosAiresDate,
     getTodayBuenosAiresString
 } from '@/utils/date-utils';
-import { Activity } from '../types';
+import { Activity, ProgramInfo, Enrollment } from '../types';
 import { calculateExerciseDayForDate, loadDayStatusesAsMap } from '../utils/calendar-utils';
 
-export function useTodayDataLoaders(user: any, activityId: string, enrollmentId?: string | null) {
+export function useTodayDataLoaders(user: { id: string; level: string } | null, activityId: string, enrollmentId?: string | null) {
     const supabase = createClient();
-    const [programInfo, setProgramInfo] = React.useState<any>(null);
-    const [enrollment, setEnrollment] = React.useState<any>(null);
+    const [programInfo, setProgramInfo] = React.useState<ProgramInfo | null>(null);
+    const [enrollment, setEnrollment] = React.useState<Enrollment | null>(null);
     const [backgroundImage, setBackgroundImage] = React.useState<string>('');
     const [activities, setActivities] = React.useState<Activity[]>([]);
     const [blockNames, setBlockNames] = React.useState<Record<string, string>>({});
@@ -151,12 +151,12 @@ export function useTodayDataLoaders(user: any, activityId: string, enrollmentId?
 
                     return {
                         ...item,
-                        id: item.id || `${realExerciseId}_${item.bloque || 1}_${item.orden || index}`,
+                        id: item.id || `${realExerciseId}_${item.bloque || 1}_${item.orden || 1}`,
                         title: categoria === 'nutricion' ? (item.nombre_plato || item.title) : (item.nombre_ejercicio || item.name),
                         type: item.tipo || 'general',
                         done: Boolean(item.completed || item.done),
                         bloque: Number(item.bloque || 1),
-                        orden: Number(item.orden || index),
+                        orden: Number(item.orden || 1),
                         exercise_id: realExerciseId,
                         ejercicio_id: realExerciseId,
                         reps: item.reps ?? item.reps_num ?? item.repeticiones,

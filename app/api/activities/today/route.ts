@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { createRouteHandlerClient } from '../../../../lib/supabase/supabase-server';
 import { getSupabaseAdmin } from '@/lib/config/db';
+import { normalizeExercisesToMap, getBlockNames } from '@/lib/services/today-service';
 
 export const dynamic = 'force-dynamic'
 export const revalidate = 0
@@ -19,13 +20,12 @@ export async function GET(request: NextRequest) {
     const activityIdParam = url.searchParams.get('activityId');
     const selectedDate = url.searchParams.get('fecha');
     const dia = url.searchParams.get('dia');
-
     const enrollmentId = url.searchParams.get('enrollmentId');
 
     const activityId = activityIdParam ? parseInt(activityIdParam) : 78;
     const today = selectedDate || new Date().toISOString().split('T')[0];
 
-    // 1. Obtener información de la actividad (incluyendo categoría)
+    // 1. Obtener información de la actividad
     const { data: actividadInfo } = await supabase
       .from('activities')
       .select('id, title, description, categoria')
@@ -33,45 +33,9 @@ export async function GET(request: NextRequest) {
       .single();
 
     const categoria = actividadInfo?.categoria || 'fitness';
-    console.log('📊 Categoría de actividad:', categoria);
 
-    // Obtener nombres de bloques desde planificacion_ejercicios
-    let blockNames: Record<string, string> = {};
-    if (dia) {
-      try {
-        const diasMap: Record<string, string> = {
-          '1': 'lunes',
-          '2': 'martes',
-          '3': 'miercoles',
-          '4': 'jueves',
-          '5': 'viernes',
-          '6': 'sabado',
-          '7': 'domingo'
-        };
-        const diaColumna = diasMap[dia] || 'lunes';
-
-        // Obtener planificación de la semana 1 (o calcular según start_date si es necesario)
-        const { data: planificacion } = await supabase
-          .from('planificacion_ejercicios')
-          .select(diaColumna)
-          .eq('actividad_id', activityId)
-          .eq('numero_semana', 1)
-          .single();
-
-        if (planificacion && planificacion[diaColumna]) {
-          const diaData = typeof planificacion[diaColumna] === 'string'
-            ? JSON.parse(planificacion[diaColumna])
-            : planificacion[diaColumna];
-
-          if (diaData.blockNames) {
-            blockNames = diaData.blockNames;
-            console.log(`📋 [API] Nombres de bloques obtenidos:`, blockNames);
-          }
-        }
-      } catch (err) {
-        console.error('❌ [API] Error obteniendo nombres de bloques:', err);
-      }
-    }
+    // Obtener nombres de bloques desde el servicio
+    const blockNames = dia ? await getBlockNames(supabase, activityId, dia) : {};
 
     // 2. Verificar enrollment
     let enrollmentQuery = supabase
@@ -192,63 +156,22 @@ export async function GET(request: NextRequest) {
       registros_encontrados: progressRecords?.length || 0
     });
 
-    // Si hay error o no hay registros, intentar obtener de planificación (Self-healing view)
+    // Si hay error o no hay registros, devolver vacío para clientes (evitar fallback a planificación que "miente")
     if (progressError || !progressRecords || progressRecords.length === 0) {
-      console.log('ℹ️ No existe registro de progreso para fecha:', today, 'en tabla:', tablaProgreso);
+      console.log('ℹ️ No existe registro de progreso real para fecha:', today, 'en tabla:', tablaProgreso);
 
-      const userEnrollment = enrollment && enrollment.length > 0 ? enrollment[0] : null;
-      const current = new Date(today);
-      const dayNum = current.getDay() === 0 ? 7 : current.getDay();
-
-      const { data: activity } = await supabase
-        .from('activities')
-        .select('id, coach_id, title, description')
-        .eq('id', activityId)
-        .single();
-
-      if (!activity) {
-        return NextResponse.json({ success: true, data: { activities: [], count: 0, date: today } });
-      }
-
-      let targetWeek = 1;
-
-      if (userEnrollment && userEnrollment.start_date) {
-        const start = new Date(userEnrollment.start_date);
-        const diffDays = Math.floor((current.getTime() - start.getTime()) / (1000 * 60 * 60 * 24));
-        const totalWeekNumber = Math.floor(diffDays / 7) + 1;
-
-        if (diffDays < 0) {
-          return NextResponse.json({ success: true, data: { activities: [], count: 0, date: today, message: 'El programa aún no ha comenzado' } });
+      // Si el cliente no tiene registro, devolvemos vacío. 
+      // La visualización de planificación solo debe ocurrir si el usuario es el coach (ya manejado arriba)
+      // o en una vista de preview específica.
+      return NextResponse.json({
+        success: true,
+        data: {
+          activities: [],
+          count: 0,
+          date: today,
+          message: 'Día sin actividad registrada'
         }
-
-        let { data: allPlan } = await supabase
-          .from('planificacion_ejercicios')
-          .select('numero_semana')
-          .eq('actividad_id', activityId)
-          .order('numero_semana', { ascending: false })
-          .limit(1);
-
-        // Fallback for nutrition
-        if ((!allPlan || allPlan.length === 0) && (categoria === 'nutricion' || categoria === 'nutrition')) {
-          const { data: platosPlan } = await supabase
-            .from('planificacion_platos')
-            .select('numero_semana')
-            .eq('actividad_id', activityId)
-            .order('numero_semana', { ascending: false })
-            .limit(1);
-          allPlan = platosPlan;
-        }
-
-        const maxSemanas = allPlan?.[0]?.numero_semana || 1;
-
-        // Comportamiento CÍCLICO: Si supera el máximo de semanas, volver a la semana 1
-        targetWeek = ((totalWeekNumber - 1) % maxSemanas) + 1;
-        console.log(`ℹ️ [API] totalWeekNumber (${totalWeekNumber}) vs maxSemanas (${maxSemanas}). Usando targetWeek cíclica: ${targetWeek} for Activity: ${activityId}`);
-      }
-
-      activity.targetDate = today;
-      console.log(`🚀 [API Today] Falling back to planning: Week ${targetWeek}, Day ${dayNum} for Activity ${activityId}`);
-      return await getActivitiesFromPlanning(supabase, activityId, String(dayNum), activity, targetWeek);
+      });
     }
 
     // Tomar el primer registro (el más reciente por el order by id desc)
@@ -314,12 +237,12 @@ export async function GET(request: NextRequest) {
             console.error('Error parseando macros:', err);
           }
         } else {
-          // Para fitness: usar nombres de columnas limpios
-          informacion = (progressRecord.informacion || progressRecord.detalles_series)
-            ? (typeof (progressRecord.informacion || progressRecord.detalles_series) === 'string'
-              ? JSON.parse(progressRecord.informacion || progressRecord.detalles_series)
-              : (progressRecord.informacion || progressRecord.detalles_series))
-            : {};
+          // Combinar informacion y detalles_series para obtener datos completos
+          const rawInfo = (typeof progressRecord.informacion === 'string' ? JSON.parse(progressRecord.informacion) : (progressRecord.informacion || {}));
+          const rawDetalles = (typeof progressRecord.detalles_series === 'string' ? JSON.parse(progressRecord.detalles_series) : (progressRecord.detalles_series || {}));
+
+          informacion = { ...rawDetalles, ...rawInfo }; // Info tiene prioridad para la estructura base
+
           minutosJson = (progressRecord.minutos || progressRecord.minutos_json)
             ? (typeof (progressRecord.minutos || progressRecord.minutos_json) === 'string'
               ? JSON.parse(progressRecord.minutos || progressRecord.minutos_json)
@@ -542,54 +465,61 @@ export async function GET(request: NextRequest) {
           : {};
         const pendientesObj = normalizeNutritionContainerToMap(pendientesObjRaw);
 
+        // Helper to extract IDs from various formats (object or stringified JSON)
+        const extractIds = (data: any): number[] => {
+          if (!data) return [];
+          const entries = typeof data === 'object' && !Array.isArray(data) ? Object.values(data) : (Array.isArray(data) ? data : []);
+          return entries.map((item: any) => {
+            if (typeof item === 'string') {
+              try {
+                const parsed = JSON.parse(item);
+                return Number(parsed.ejercicio_id || parsed.id || item.split('_')[0]);
+              } catch {
+                return Number(item.split('_')[0]);
+              }
+            }
+            return Number(item?.ejercicio_id || item?.id || 0);
+          }).filter(id => id !== undefined && id !== null && !isNaN(id) && id > 0);
+        };
+
         if (categoria === 'nutricion') {
           // Para nutrición: extraer IDs desde ejercicios_pendientes
-          idsDeDetallesSeries = Object.values(pendientesObj)
-            .map((item: any) => item?.ejercicio_id)
-            .filter(id => id !== undefined && id !== null && !isNaN(Number(id)))
-            .map(id => Number(id));
+          const pendientesObjRaw = progressRecord.ejercicios_pendientes
+            ? (typeof progressRecord.ejercicios_pendientes === 'string'
+              ? JSON.parse(progressRecord.ejercicios_pendientes)
+              : progressRecord.ejercicios_pendientes)
+            : {};
 
-          console.log(`🔍 [API] IDs extraídos desde ejercicios_pendientes para nutrición:`, {
-            pendientes_obj_keys: Object.keys(pendientesObj),
-            pendientes_obj_values: Object.values(pendientesObj),
-            ids_extraidos: idsDeDetallesSeries
-          });
+          idsDeDetallesSeries = extractIds(pendientesObjRaw);
+
+          console.log(`🔍 [API] IDs extraídos para nutrición:`, idsDeDetallesSeries);
         } else {
-          // Para fitness: usar la variable 'informacion' ya parseada y mezclada arriba
-          idsDeDetallesSeries = Object.values(informacion)
-            .map((item: any) => item?.ejercicio_id || item?.id)
-            .filter(id => id !== undefined && id !== null && !isNaN(Number(id)))
-            .map(id => Number(id));
+          // Para fitness: usar la variable 'informacion' ya parseada/combinada
+          idsDeDetallesSeries = extractIds(informacion);
         }
 
-        // completados es un objeto con keys únicos
+        // También colectar IDs de completados y pendientes como respaldo
         const completadosObjRaw = progressRecord.ejercicios_completados
           ? (typeof progressRecord.ejercicios_completados === 'string'
             ? JSON.parse(progressRecord.ejercicios_completados)
             : progressRecord.ejercicios_completados)
           : {};
-        const completadosObj = normalizeNutritionContainerToMap(completadosObjRaw);
+        const idsCompletados = extractIds(completadosObjRaw);
 
-        // Extraer IDs únicos de ambos objetos
-        const idsCompletados = Object.values(completadosObj)
-          .map((item: any) => item?.ejercicio_id)
-          .filter(id => id !== undefined && id !== null && !isNaN(Number(id)))
-          .map(id => Number(id));
-        const idsPendientes = Object.values(pendientesObj)
-          .map((item: any) => item?.ejercicio_id)
-          .filter(id => id !== undefined && id !== null && !isNaN(Number(id)))
-          .map(id => Number(id));
+        const pendientesObjRawForFit = progressRecord.ejercicios_pendientes
+          ? (typeof progressRecord.ejercicios_pendientes === 'string'
+            ? JSON.parse(progressRecord.ejercicios_pendientes)
+            : progressRecord.ejercicios_pendientes)
+          : {};
+        const idsPendientes = extractIds(pendientesObjRawForFit);
 
-        // Combinar todos los IDs (detalles_series o ejercicios_pendientes es la fuente principal)
-        ejercicioIds = [...new Set([...idsDeDetallesSeries, ...idsCompletados, ...idsPendientes])]; // Set para eliminar duplicados
+        // Combinar todos los IDs
+        ejercicioIds = [...new Set([...idsDeDetallesSeries, ...idsCompletados, ...idsPendientes])];
 
-        console.log('🔍 [API] IDs extraídos:', {
+        console.log('🔍 [API] IDs extraídos finales:', {
           categoria,
-          de_detalles_series: idsDeDetallesSeries,
-          completados: idsCompletados,
-          pendientes: idsPendientes,
-          final: ejercicioIds,
-          pendientes_obj_keys: Object.keys(pendientesObj)
+          count: ejercicioIds.length,
+          ids: ejercicioIds
         });
       } catch (err) {
         console.error('❌ [API] Error parseando ejercicios:', err);
@@ -783,10 +713,26 @@ export async function GET(request: NextRequest) {
         sourceData_is_object: typeof sourceData === 'object' && !Array.isArray(sourceData)
       });
     } else {
-      // Para fitness: usar informacion
-      sourceData = informacion;
-      console.log(`📋 [API] Usando informacion para fitness:`, {
-        keys_count: Object.keys(sourceData).length
+      // Para fitness: colectar todas las llaves posibles (informacion, pendientes, completados)
+      // Esto previene que la lista aparezca vacía si 'informacion' aún no se pobló correctamente
+      const pendKeys = (typeof progressRecord.ejercicios_pendientes === 'string' ? JSON.parse(progressRecord.ejercicios_pendientes) : (progressRecord.ejercicios_pendientes || {}));
+      const compKeys = (typeof progressRecord.ejercicios_completados === 'string' ? JSON.parse(progressRecord.ejercicios_completados) : (progressRecord.ejercicios_completados || {}));
+      const infoKeys = (progressRecord.informacion || progressRecord.detalles_series)
+        ? (typeof (progressRecord.informacion || progressRecord.detalles_series) === 'string'
+          ? JSON.parse(progressRecord.informacion || progressRecord.detalles_series)
+          : (progressRecord.informacion || progressRecord.detalles_series))
+        : {};
+
+      sourceData = { ...infoKeys, ...pendKeys, ...compKeys };
+
+      // Limpiar metadata si se coló
+      ['ejercicios', 'blockCount', 'blockNames', 'orden', 'bloque', 'ejercicio_id'].forEach(k => delete sourceData[k]);
+
+      console.log(`📋 [API] Usando agregación de llaves para fitness:`, {
+        keys_count: Object.keys(sourceData).length,
+        has_info: Object.keys(infoKeys).length > 0,
+        has_pend: Object.keys(pendKeys).length > 0,
+        has_comp: Object.keys(compKeys).length > 0
       });
     }
 
@@ -874,24 +820,42 @@ export async function GET(request: NextRequest) {
 
     const transformedActivities = Object.keys(sourceData).map((key, index) => {
       let detalle = sourceData[key];
+      const parts = key.split('_');
+      const keyId = parseInt(parts[0]);
+      const keyB = parts.length >= 2 ? parseInt(parts[1]) : 1;
+      const keyO = parts.length >= 3 ? parseInt(parts[2]) : (parts.length === 2 ? parseInt(parts[1]) : 1);
 
-      // Si el detalle es solo un ID (formato simplificado), reconstruir el objeto base
-      if (typeof detalle === 'number' || typeof detalle === 'string' || detalle === true) {
-        const parts = key.split('_');
-        detalle = {
-          ejercicio_id: typeof detalle === 'number' ? detalle : parseInt(parts[0]),
-          bloque: parts.length >= 2 ? parseInt(parts[1]) : 1,
-          orden: parts.length >= 3 ? parseInt(parts[2]) : 1
-        };
+      // Si el detalle es un string (formato legado), intentar parsearlo
+      if (typeof detalle === 'string') {
+        try {
+          const parsed = JSON.parse(detalle);
+          if (parsed && typeof parsed === 'object' && !Array.isArray(parsed)) {
+            detalle = parsed;
+          }
+        } catch (e) {
+          // No es JSON válido, se tratará abajo
+        }
       }
 
-      const exerciseIdVal = detalle.ejercicio_id || detalle.id;
-      if (!detalle || !exerciseIdVal) {
-        console.warn(`⚠️ [API] Detalle inválido para key ${key}:`, detalle);
+      // Si el detalle sigue sin ser un objeto válido, reconstruir esqueleto
+      if (!detalle || typeof detalle !== 'object' || Array.isArray(detalle)) {
+        detalle = {
+          ejercicio_id: keyId,
+          bloque: keyB,
+          orden: keyO
+        };
+      } else {
+        // Asegurar que tenga los campos necesarios para el resto de la lógica
+        detalle.ejercicio_id = detalle.ejercicio_id || detalle.id || keyId;
+        detalle.bloque = detalle.bloque || keyB;
+        detalle.orden = detalle.orden || keyO;
+      }
+
+      const exerciseIdVal = detalle.ejercicio_id;
+      if (!exerciseIdVal) {
+        console.warn(`⚠️ [API] No se pudo determinar el ID para key ${key}`);
         return null;
       }
-      // Asegurarnos de que el ID esté en la propiedad esperada para el resto del código
-      detalle.ejercicio_id = exerciseIdVal;
 
       // Para nutrición: NO buscar en ejerciciosDetalles, usar solo datos de progreso_cliente_nutricion
       let ejercicio: any = null;
@@ -915,13 +879,12 @@ export async function GET(request: NextRequest) {
         if (!completados) return false;
         const c = completados;
 
-        let found = false;
         // 1. Verificar por key directo (Map)
-        if (key in c) found = true;
+        if (key in c) return true;
 
         // 2. Verificar dentro de object.ejercicios si existe
-        if (!found && c.ejercicios && typeof c.ejercicios === 'object' && !Array.isArray(c.ejercicios)) {
-          if (key in c.ejercicios) found = true;
+        if (c.ejercicios && typeof c.ejercicios === 'object' && !Array.isArray(c.ejercicios)) {
+          if (key in c.ejercicios) return true;
         }
 
         // 3. Verificar en Array (root o .ejercicios)
@@ -930,57 +893,42 @@ export async function GET(request: NextRequest) {
         const bNum = Number(detalle.bloque);
         const oNum = Number(detalle.orden);
 
-        if (!found && arr.length > 0) {
-          found = arr.some((e: any) => {
+        if (arr.length > 0) {
+          const found = arr.some((e: any) => {
             if (typeof e === 'string') return e === key || e === String(detalle.ejercicio_id) || e === `${ejIdNum}_${bNum}_${oNum}`;
             const itemID = Number(e.id ?? e.ejercicio_id);
             const itemB = Number(e.bloque ?? 1);
             const itemO = Number(e.orden ?? 1);
             return itemID === ejIdNum && itemB === bNum && itemO === oNum;
           });
+          if (found) return true;
         }
 
         // 4. Si es objeto (Map), buscar por valor o por patrón de key
-        if (!found && typeof c === 'object' && !Array.isArray(c)) {
-          // Intentar match por patrón de key alternativo (ID_B_O) en lugar del 'key' original
+        if (typeof c === 'object' && !Array.isArray(c)) {
           const alternativeKey = `${ejIdNum}_${bNum}_${oNum}`;
-          if (alternativeKey in c) {
-            found = true;
-          } else {
-            // Match por valores internos
-            found = Object.entries(c).some(([k, v]: [string, any]) => {
-              if (k === 'ejercicios' || k === 'blockCount' || k === 'blockNames') return false;
+          if (alternativeKey in c) return true;
 
-              // Verificar si la key del mapa matchea numéricamente
-              const parts = k.split('_');
-              if (parts.length >= 2) {
-                const kId = Number(parts[0]);
-                const kB = parts.length >= 3 ? Number(parts[1]) : 1;
-                const kO = parts.length >= 3 ? Number(parts[2]) : Number(parts[1]);
-                if (kId === ejIdNum && kB === bNum && kO === oNum) return true;
-              }
-
-              // Verificar si el valor del objeto matchea
-              if (v && typeof v === 'object') {
-                const itemID = Number(v.id ?? v.ejercicio_id);
-                const itemB = Number(v.bloque ?? 1);
-                const itemO = Number(v.orden ?? 1);
-                return itemID === ejIdNum && itemB === bNum && itemO === oNum;
-              }
-              return false;
-            });
-          }
-        }
-
-        if (detalle.ejercicio_id === 1230 || String(detalle.ejercicio_id).includes('1230')) {
-          console.log(`🔍 [API activities/today] Completion check for ${detalle.ejercicio_id}:`, {
-            key,
-            isCompleted: found,
-            completados_keys: Object.keys(c)
+          return Object.entries(c).some(([k, v]: [string, any]) => {
+            if (k === 'ejercicios' || k === 'blockCount' || k === 'blockNames') return false;
+            const parts = k.split('_');
+            if (parts.length >= 2) {
+              const kId = Number(parts[0]);
+              const kB = parts.length >= 3 ? Number(parts[1]) : 1;
+              const kO = parts.length >= 3 ? Number(parts[2]) : Number(parts[1]);
+              if (kId === ejIdNum && kB === bNum && kO === oNum) return true;
+            }
+            if (v && typeof v === 'object') {
+              const itemID = Number(v.id ?? v.ejercicio_id);
+              const itemB = Number(v.bloque ?? 1);
+              const itemO = Number(v.orden ?? 1);
+              return itemID === ejIdNum && itemB === bNum && itemO === oNum;
+            }
+            return false;
           });
         }
 
-        return found;
+        return false;
       })();
 
       // Para nutrición: obtener datos directamente de macrosParsed, recetaParsed e ingredientesParsed usando la key de forma robusta

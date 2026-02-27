@@ -21,6 +21,7 @@ interface CalendarMonthViewProps {
     dayDetailRef: React.RefObject<HTMLDivElement | null>
     meetViewMode: 'month' | 'week' | 'day_split'
     authUserId?: string | null
+    coachProfiles?: any[]
 }
 
 export function CalendarMonthView({
@@ -38,7 +39,8 @@ export function CalendarMonthView({
     onActivityClick,
     dayDetailRef,
     meetViewMode,
-    authUserId
+    authUserId,
+    coachProfiles
 }: CalendarMonthViewProps) {
     return (
         <>
@@ -72,9 +74,11 @@ export function CalendarMonthView({
                 activitiesByDate={activitiesByDate}
                 setSelectedMeetEvent={setSelectedMeetEvent}
                 onActivityClick={onActivityClick}
+                onSelectDate={onSelectDate}
                 dayDetailRef={dayDetailRef}
                 meetViewMode={meetViewMode}
                 authUserId={authUserId}
+                coachProfiles={coachProfiles}
             />
         </>
     )

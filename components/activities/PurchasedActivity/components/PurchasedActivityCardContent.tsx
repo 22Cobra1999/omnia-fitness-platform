@@ -1,5 +1,5 @@
 import { Badge } from "@/components/ui/badge"
-import { Star, Calendar, Clock, CheckCircle2, Flame, Play, Video } from "lucide-react"
+import { Star, Calendar, Clock, CheckCircle2, Flame, Play, Video, Zap } from "lucide-react"
 import { cn } from "@/lib/utils/utils"
 import { getCategoryBadge, getTypeBadge, formatDate } from "../utils"
 
@@ -143,26 +143,26 @@ export function PurchasedActivityCardContent({
 
                 {/* Pending Actions */}
                 {hasStarted && !isCoachView && (
-                    <div className="flex flex-col gap-0.5 mt-0.5">
+                    <div className="flex flex-col gap-2 mt-2">
                         {(activity.type?.toLowerCase() === 'program' || activity.type?.toLowerCase() === 'programa') && (
                             (pendingCount !== null && pendingCount > 0) ? (
-                                <div className="flex items-center gap-1.5">
-                                    {activity.categoria?.toLowerCase() === 'fitness' ? (
-                                        <Flame className="w-3.5 h-3.5 text-[#FF7939]" fill="#FF7939" />
-                                    ) : (
-                                        <div className="text-[12px]">🍽️</div>
-                                    )}
-                                    <span className="text-[11px] text-white font-medium">
-                                        {pendingCount} {activity.categoria?.toLowerCase() === 'fitness' ? 'ejercicios' : 'platos con cubiertos'} hoy
+                                <div className="flex items-center gap-2">
+                                    <div className="w-8 h-8 rounded-lg bg-[#FF7939]/10 flex items-center justify-center">
+                                        <Zap className="w-5 h-5 text-[#FF7939] fill-[#FF7939]" />
+                                    </div>
+                                    <span className="text-[14px] text-white font-black uppercase tracking-tight">
+                                        {pendingCount} ⚡ hoy
                                     </span>
                                 </div>
                             ) : null
                         )}
 
                         {nextSessionDate && (
-                            <div className="flex items-center gap-1.5 text-[10px] text-gray-400">
-                                <Calendar className="w-3 h-3 text-blue-500" />
-                                <span>Sig: <span className="text-white font-medium">{formatDate(nextSessionDate)}</span></span>
+                            <div className="flex items-center gap-2 bg-orange-500/5 p-2 rounded-xl border border-orange-500/10">
+                                <Calendar className="w-4 h-4 text-[#FF7939] fill-[#FF7939]/20" />
+                                <span className="text-[11px] font-bold text-gray-400">
+                                    Siguiente: <span className="text-[#FF7939] font-black">{formatDate(nextSessionDate)}</span>
+                                </span>
                             </div>
                         )}
                     </div>

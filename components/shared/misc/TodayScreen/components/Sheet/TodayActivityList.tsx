@@ -1,5 +1,5 @@
 import * as React from 'react';
-import { Flame, ChevronDown, ChevronUp, MessageSquare, Check, Play, Clock, ArrowRight } from 'lucide-react';
+import { Flame, ChevronDown, ChevronUp, MessageSquare, Check, Play, Clock, ArrowRight, CalendarClock } from 'lucide-react';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog"
 import { parseSeries } from '../../utils/parsers';
 import { cn } from "@/lib/utils/utils";
@@ -74,6 +74,8 @@ interface TodayActivityListProps {
     isExpired?: boolean;
     isRated?: boolean;
     handleOpenSurveyModal?: () => void;
+    meetCreditsAvailable?: number | null;
+    onScheduleMeet?: () => void;
 }
 
 export function TodayActivityList({
@@ -89,36 +91,43 @@ export function TodayActivityList({
     toggleExerciseSimple,
     isExpired = false,
     isRated = false,
-    handleOpenSurveyModal
+    handleOpenSurveyModal,
+    meetCreditsAvailable = null,
+    onScheduleMeet
 }: TodayActivityListProps) {
 
     const groupedActivities = React.useMemo(() => {
-        const result: any[] = [];
-        activities.forEach(activity => {
-            const last = result[result.length - 1];
-            if (last && last.exercise_id === activity.exercise_id && last.bloque === activity.bloque) {
-                last.sets_data.push({
-                    id: activity.id,
-                    peso: activity.peso ?? activity.kg,
-                    series: activity.sets ?? activity.series_num ?? activity.series,
-                    reps: activity.reps ?? activity.reps_num ?? activity.repeticiones,
+        return activities.map(activity => {
+            const seriesData = activity.detalle_series || activity.series;
+            let parsed: any[] = [];
+
+            if (typeof seriesData === 'string') {
+                parsed = parseSeries(seriesData);
+            } else if (Array.isArray(seriesData)) {
+                parsed = seriesData.map(s => ({
+                    peso: s.peso ?? s.kg ?? 0,
+                    series: s.series ?? s.sets ?? 1,
+                    reps: s.reps ?? s.repeticiones ?? 0,
                     done: activity.done
-                });
-                last.done = last.sets_data.every((s: any) => s.done);
-            } else {
-                result.push({
-                    ...activity,
-                    sets_data: [{
-                        id: activity.id,
-                        peso: activity.peso ?? activity.kg,
-                        series: activity.sets ?? activity.series_num ?? activity.series,
-                        reps: activity.reps ?? activity.reps_num ?? activity.repeticiones,
-                        done: activity.done
-                    }]
-                });
+                }));
             }
+
+            if (parsed.length === 0) {
+                parsed = [{
+                    peso: activity.peso ?? activity.kg ?? 0,
+                    series: activity.sets ?? activity.qty ?? activity.series ?? 1,
+                    reps: activity.reps ?? activity.repeticiones ?? 0,
+                    done: activity.done
+                }];
+            } else {
+                parsed = parsed.map(s => ({ ...s, done: activity.done }));
+            }
+
+            return {
+                ...activity,
+                sets_data: parsed
+            };
         });
-        return result;
     }, [activities]);
 
     const blocks = getActivitiesByBlocks(groupedActivities);
@@ -132,6 +141,34 @@ export function TodayActivityList({
 
     return (
         <div style={{ paddingBottom: 100 }}>
+            {/* Tus Coaches Section */}
+            {meetCreditsAvailable !== null && onScheduleMeet && (
+                <div className="mb-8 px-1">
+                    <h3 className="text-[10px] font-black text-white/20 uppercase tracking-[0.2em] mb-4 ml-1">Tus Coaches</h3>
+                    <div className="bg-white/[0.03] border border-white/5 rounded-[32px] p-5 flex items-center justify-between transition-all hover:bg-white/[0.05] group">
+                        <div className="flex items-center gap-4">
+                            <div className="w-14 h-14 rounded-[22px] bg-gradient-to-br from-[#FF7939] to-[#FF6A00] flex items-center justify-center text-white font-black text-xl shadow-[0_8px_20px_rgba(255,121,57,0.2)]">
+                                {programInfo?.coach_name?.charAt(0) || 'C'}
+                            </div>
+                            <div className="flex flex-col">
+                                <span className="text-base font-bold text-white leading-none mb-1.5">{programInfo?.coach_name || 'Tu Coach'}</span>
+                                <div className="flex items-center gap-2">
+                                    <span className="text-[10px] font-bold text-white/30 uppercase tracking-[0.15em]">Especialista OMNIA</span>
+                                    <div className="w-1 h-1 rounded-full bg-[#FF7939]/40" />
+                                    <span className="text-[10px] font-black text-[#FF7939] uppercase tracking-widest">{meetCreditsAvailable} disponibles</span>
+                                </div>
+                            </div>
+                        </div>
+                        <button
+                            onClick={onScheduleMeet}
+                            className="bg-[#FF7939] text-white w-12 h-12 rounded-2xl flex items-center justify-center shadow-[0_8px_20px_rgba(255,121,57,0.3)] transition-all hover:scale-105 active:scale-95"
+                        >
+                            <CalendarClock size={20} />
+                        </button>
+                    </div>
+                </div>
+            )}
+
             {Object.entries(blocks).map(([blockNum, blockActivities]) => {
                 const blockNumber = parseInt(blockNum);
                 const isCollapsed = collapsedBlocks.has(blockNumber);
@@ -145,18 +182,20 @@ export function TodayActivityList({
                         key={blockNumber}
                         id={`block-${blockNumber}`}
                         className={cn(
-                            "rounded-3xl overflow-hidden transition-all duration-500",
-                            isActiveBlock ? "bg-white/[0.04] border border-white/10 ring-1 ring-[#FF7939]/30" : "bg-white/[0.02] border border-transparent"
+                            "rounded-[32px] overflow-hidden transition-all duration-500 mb-6",
+                            isActiveBlock
+                                ? "bg-transparent border-2 border-[#FF7939]/30 shadow-[0_10px_40px_rgba(0,0,0,0.3)]"
+                                : "bg-transparent border border-white/5"
                         )}
                     >
-                        {/* Simplified Block Header */}
+                        {/* Simplified Block Header - No background fill */}
                         <div
                             onClick={() => toggleBlock(blockNumber)}
                             className={cn(
-                                "flex items-center justify-between p-4 rounded-2xl transition-all duration-300 cursor-pointer",
+                                "flex items-center justify-between p-5 rounded-[24px] transition-all duration-300 cursor-pointer m-1",
                                 isActiveBlock && !allDone
-                                    ? "bg-white/[0.08] border border-white/10"
-                                    : "bg-white/[0.03] border border-white/5"
+                                    ? "bg-white/[0.04] border border-white/5"
+                                    : "bg-transparent hover:bg-white/[0.02]"
                             )}
                             style={{ filter: isExpired ? 'grayscale(1) opacity(0.8)' : 'none' }}
                         >
@@ -167,12 +206,12 @@ export function TodayActivityList({
                                         toggleBlockCompletion(blockNumber);
                                     }}
                                     className={cn(
-                                        "w-10 h-10 rounded-full flex items-center justify-center transition-all duration-300 active:scale-95 cursor-pointer",
-                                        allDone ? "bg-[#FF7939] shadow-[0_0_15px_rgba(255,121,57,0.4)]" : "bg-white/5 border border-white/10 hover:border-[#FF7939]/30"
+                                        "w-12 h-12 rounded-2xl flex items-center justify-center transition-all duration-300 active:scale-95 cursor-pointer",
+                                        allDone ? "bg-[#FF7939] shadow-[0_4px_15px_rgba(255,121,57,0.4)]" : "bg-white/5 border border-white/10 hover:border-[#FF7939]/30"
                                     )}
                                 >
                                     <Flame
-                                        size={20}
+                                        size={22}
                                         className={cn(allDone ? "text-white" : "text-white/20")}
                                         fill={allDone ? "currentColor" : "none"}
                                     />
@@ -187,7 +226,7 @@ export function TodayActivityList({
                                         </h3>
                                         {allDone && <div className="w-4 h-4 rounded-full bg-green-500/20 flex items-center justify-center"><Check size={10} className="text-green-500" strokeWidth={3} /></div>}
                                         {isActiveBlock && !allDone && (
-                                            <span className="px-1.5 py-0.5 rounded-md bg-[#FF7939]/20 text-[#FF7939] text-[8px] font-black uppercase tracking-wider animate-pulse">
+                                            <span className="px-1.5 py-0.5 rounded-md bg-[#FF7939]/20 text-[#FF7939] text-[8px] font-black uppercase tracking-wider">
                                                 En curso
                                             </span>
                                         )}
@@ -235,15 +274,15 @@ export function TodayActivityList({
                                                         group.sets_data.forEach((s: any) => toggleExerciseSimple(s.id));
                                                     }}
                                                     className={cn(
-                                                        "w-10 h-10 rounded-full flex items-center justify-center shrink-0 border transition-all duration-500 active:scale-90",
+                                                        "w-12 h-12 rounded-2xl flex items-center justify-center shrink-0 border transition-all duration-500 active:scale-90",
                                                         isDone
-                                                            ? "bg-[#FF7939]/20 border-[#FF7939] shadow-[0_4px_15px_rgba(255,121,57,0.2)]"
+                                                            ? "bg-[#FF7939] border-[#FF7939] shadow-[0_4px_15px_rgba(255,121,57,0.4)]"
                                                             : "bg-white/5 border-white/10 hover:border-[#FF7939]/30"
                                                     )}
                                                 >
                                                     <Flame
-                                                        size={18}
-                                                        className={cn(isDone ? "text-[#FF7939]" : "text-white/20")}
+                                                        size={22}
+                                                        className={cn(isDone ? "text-white" : "text-white/20")}
                                                         fill={isDone ? "currentColor" : "none"}
                                                     />
                                                 </div>
@@ -310,40 +349,7 @@ export function TodayActivityList({
                 );
             })}
 
-            {/* Calificado Section */}
-            {(isExpired || isRated) && (
-                <div className="mt-8 px-1">
-                    {isRated ? (
-                        <button
-                            onClick={() => setShowFeedback(true)}
-                            className="w-full flex items-center gap-4 p-5 bg-white/5 border border-white/10 rounded-[28px] hover:bg-white/[0.08] transition-all group"
-                        >
-                            <div className="flex gap-1.5">
-                                {[1, 2, 3, 4, 5].map(i => (
-                                    <Flame
-                                        key={i}
-                                        size={18}
-                                        className={cn(
-                                            "transition-all duration-300",
-                                            i <= rating ? "text-[#FF7939]" : "text-white/10"
-                                        )}
-                                        fill={i <= rating ? "currentColor" : "none"}
-                                    />
-                                ))}
-                            </div>
-                            <span className="text-sm font-bold text-white/60 flex-1 text-left">Resumen de feedback</span>
-                            <MessageSquare size={18} className="text-[#FF7939] opacity-40 group-hover:opacity-100 transition-opacity" />
-                        </button>
-                    ) : (
-                        <button
-                            onClick={handleOpenSurveyModal}
-                            className="w-full p-5 bg-white/5 border border-white/10 rounded-[28px] text-white/80 font-bold text-sm tracking-tight hover:bg-white/10 transition-all uppercase"
-                        >
-                            Calificar entrenamiento
-                        </button>
-                    )}
-                </div>
-            )}
+            {/* Calificado Section - MOVED TO HERO */}
 
             {/* Feedback Dialog remains similar but with premium styling */}
             <Dialog open={showFeedback} onOpenChange={setShowFeedback}>

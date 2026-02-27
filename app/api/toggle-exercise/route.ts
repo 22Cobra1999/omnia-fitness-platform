@@ -172,9 +172,12 @@ export async function POST(request: NextRequest) {
     }
 
     const candidateTables = requestedCategoria === 'nutricion' ? ['progreso_cliente_nutricion'] : ['progreso_cliente']
-    const selectFields = (table: string) => table === 'progreso_cliente_nutricion'
-      ? 'id, ejercicios_completados, ejercicios_pendientes, actividad_id'
-      : 'id, ejercicios_completados, ejercicios_pendientes, actividad_id, detalles_series'
+    const selectFields = (table: string) => {
+      if (table === 'progreso_cliente_nutricion') {
+        return 'id, ejercicios_completados, ejercicios_pendientes, actividad_id, macros'
+      }
+      return 'id, ejercicios_completados, ejercicios_pendientes, actividad_id, detalles_series, informacion'
+    }
 
     let progressTable: string | null = null
     let progressRecord: any = null
@@ -237,7 +240,9 @@ export async function POST(request: NextRequest) {
       // Obtener planificación
       const { data: plan } = await supabase.from('planificacion_ejercicios').select(`${diaColumna}`).eq('actividad_id', activityId).eq('numero_semana', weekInCycle).single()
 
-      let detallesPlan: any = {}
+      let pents: any = {}
+      let info: any = {}
+      let details: any = {}
       if (plan && plan[diaColumna]) {
         const rawPlan = typeof plan[diaColumna] === 'string' ? JSON.parse(plan[diaColumna]) : plan[diaColumna]
         Object.keys(rawPlan).forEach(bKey => {
@@ -246,7 +251,9 @@ export async function POST(request: NextRequest) {
           if (Array.isArray(block)) {
             block.forEach((ej: any) => {
               const key = `${ej.id}_${bKey}_${ej.orden || 1}`
-              detallesPlan[key] = { ejercicio_id: Number(ej.id), bloque: Number(bKey), orden: Number(ej.orden || 1), detalle_series: ej.detalle_series || "Sin especificar" }
+              pents[key] = Number(ej.id)
+              info[key] = { id: Number(ej.id), bloque: Number(bKey), orden: Number(ej.orden || 1), ejercicio_id: Number(ej.id) }
+              details[key] = ej.detalle_series || "Sin especificar"
             })
           }
         })
@@ -261,10 +268,11 @@ export async function POST(request: NextRequest) {
           actividad_id: activityId,
           enrollment_id: enrollment.id,
           fecha: targetDate,
-          ejercicios_pendientes: detallesPlan,
+          ejercicios_pendientes: pents,
           ejercicios_completados: {},
-          detalles_series: requestedCategoria === 'nutricion' ? undefined : detallesPlan,
-          macros: requestedCategoria === 'nutricion' ? detallesPlan : undefined
+          informacion: info,
+          detalles_series: requestedCategoria === 'nutricion' ? undefined : details,
+          macros: requestedCategoria === 'nutricion' ? details : undefined
         })
         .select()
         .single()
@@ -335,12 +343,9 @@ export async function POST(request: NextRequest) {
       }
 
       if (Array.isArray(target)) {
-        const item = (val && typeof val === 'object' && Object.keys(val).length > 0)
-          ? { ...val, id: ejId, bloque: b, orden: o }
-          : { id: ejId, bloque: b, orden: o, ejercicio_id: ejId }
-        target.push(item)
+        target.push(ejId)
       } else if (typeof target === 'object') {
-        target[key] = (val && typeof val === 'object' && Object.keys(val).length > 0) ? val : { id: ejId, bloque: b, orden: o, ejercicio_id: ejId }
+        target[key] = ejId
       }
     }
 

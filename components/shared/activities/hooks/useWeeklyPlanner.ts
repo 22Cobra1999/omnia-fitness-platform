@@ -46,6 +46,8 @@ export function useWeeklyPlanner({
     const [periods, setPeriods] = useState(initialPeriods && initialPeriods > 0 ? initialPeriods : 1)
     const [replicationCount, setReplicationCount] = useState(1)
     const [isLoadingPlanning, setIsLoadingPlanning] = useState(false)
+    const [searchTerm, setSearchTerm] = useState('')
+    const [isExerciseSelectorOpen, setIsExerciseSelectorOpen] = useState(false)
     const [exercisesWithActiveStatus, setExercisesWithActiveStatus] = useState<any[]>(exercises)
     const [allCoachExercises, setAllCoachExercises] = useState<Exercise[]>([])
 
@@ -246,10 +248,10 @@ export function useWeeklyPlanner({
         similarDays: dayHandlers.similarDays,
         selectedExercises: selection.selectedExercises,
         weekLimitError: null, // Placeholder for now
-        searchTerm: '', // Placeholder
-        setSearchTerm: () => { },
-        isExerciseSelectorOpen: false,
-        setIsExerciseSelectorOpen: () => { },
+        searchTerm,
+        setSearchTerm,
+        isExerciseSelectorOpen,
+        setIsExerciseSelectorOpen,
         currentWeek,
         setCurrentWeek,
         selectedDay: dayHandlers.selectedDay,

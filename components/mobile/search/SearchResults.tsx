@@ -65,8 +65,8 @@ export const SearchResults: React.FC<SearchResultsProps> = ({
                     )}
 
                     {!isLoadingCoaches && !coachesError && displayedCoaches.length > 0 && (
-                        <div className="overflow-x-auto no-scrollbar">
-                            <div className="flex gap-4 pb-4 px-1" style={{ minWidth: "min-content" }}>
+                        <div className="overflow-x-auto no-scrollbar pb-1">
+                            <div className="flex gap-4 px-1" style={{ minWidth: "min-content" }}>
                                 {displayedCoaches.map((coach, index) => (
                                     <CoachProfileCard
                                         key={coach.id}
@@ -85,7 +85,7 @@ export const SearchResults: React.FC<SearchResultsProps> = ({
             {/* Activities Section */}
             {(expandedSection === null || expandedSection === 'activities') && (
                 <div className="mt-2">
-                    <div className="mb-6">
+                    <div className="mb-2">
                         <div className="flex justify-between items-center mb-3">
                             <h2 className="text-sm font-semibold flex items-center text-white/60 uppercase tracking-wider">
                                 <ShoppingCart className="h-4 w-4 mr-1.5 text-[#FF7939]/70" />
@@ -98,8 +98,8 @@ export const SearchResults: React.FC<SearchResultsProps> = ({
                                 <Loader2 className="h-8 w-8 text-[#FF7939] animate-spin" />
                             </div>
                         ) : (
-                            <div className="overflow-x-auto no-scrollbar">
-                                <div className="flex gap-4 pb-4 px-1" style={{ minWidth: "min-content" }}>
+                            <div className="overflow-x-auto no-scrollbar pb-1">
+                                <div className="flex gap-4 px-1" style={{ minWidth: "min-content" }}>
                                     {activities.map((activity, index) => (
                                         <ActivityCard
                                             key={activity.id}

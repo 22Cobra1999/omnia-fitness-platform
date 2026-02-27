@@ -13,9 +13,11 @@ interface CalendarDayDetailProps {
     activitiesByDate: Record<string, any[]>
     setSelectedMeetEvent: (evt: any) => void
     onActivityClick: (activityId: string, date?: Date) => void
+    onSelectDate: (date: Date) => void
     dayDetailRef: React.RefObject<HTMLDivElement | null>
     meetViewMode: string
     authUserId?: string | null
+    coachProfiles?: any[]
 }
 
 export function CalendarDayDetail({
@@ -26,9 +28,11 @@ export function CalendarDayDetail({
     activitiesByDate,
     setSelectedMeetEvent,
     onActivityClick,
+    onSelectDate,
     dayDetailRef,
     meetViewMode,
-    authUserId
+    authUserId,
+    coachProfiles
 }: CalendarDayDetailProps) {
 
     if (!selectedDate || meetViewMode !== 'month') return null
@@ -190,7 +194,14 @@ export function CalendarDayDetail({
                                     const other = (m.participants || []).find((p: any) => String(p.user_id) !== String(authUserId))
                                     if (other) displayParticipant = ` – ${other.full_name || other.name || 'Cliente'}`
                                 } else {
-                                    displayParticipant = ` – ${m.coach_name || 'Coach'}`
+                                    // 1. Try to find coach name in participants
+                                    const coachPart = (m.participants || []).find((p: any) => String(p.user_id) === String(m.coach_id));
+
+                                    // 2. Try to find coach name in passed coachProfiles prop
+                                    const profileFound = coachProfiles?.find(cp => String(cp.id) === String(m.coach_id));
+
+                                    const coachName = m.coach_name || profileFound?.full_name || coachPart?.name || coachPart?.full_name || 'Coach';
+                                    displayParticipant = ` – ${coachName}`
                                 }
                             }
 
@@ -259,6 +270,7 @@ export function CalendarDayDetail({
                     <div className="space-y-3">
                         {selectedDayActivityItems.map((it: any) => {
                             const isNutri = String(it.area || '').toLowerCase().includes('nutri') || String(it.activityTypeLabel || '').toLowerCase().includes('nutri')
+                            const isCompleted = it.pendingCount === 0 && it.pendingMinutes === 0;
 
                             return (
                                 <button
@@ -288,10 +300,13 @@ export function CalendarDayDetail({
                                                     <span className="uppercase tracking-wider font-bold text-[9px] opacity-80">
                                                         {String(it.area || '').toUpperCase()} · {String(it.tipo || '').toUpperCase()}
                                                     </span>
-                                                    <span className="text-[#FFB366] bg-[#FF7939]/10 px-1.5 rounded text-[10px] font-bold">
-                                                        {isNutri
-                                                            ? `${it.pendingCount}`
-                                                            : (formatMinutes(it.pendingMinutes) || '0m') + ' restante'
+                                                    <span className={`${isCompleted ? 'text-green-500 bg-green-500/10' : 'text-[#FFB366] bg-[#FF7939]/10'} px-1.5 rounded text-[10px] font-bold`}>
+                                                        {isCompleted
+                                                            ? 'Completado por hoy'
+                                                            : (isNutri
+                                                                ? `${it.pendingCount}`
+                                                                : (formatMinutes(it.pendingMinutes) || '0m') + ' restante'
+                                                            )
                                                         }
                                                     </span>
                                                 </div>
@@ -326,8 +341,10 @@ export function CalendarDayDetail({
                 const hasMeets = meets.length > 0
                 const hasBreakdown = selectedDayActivityItems.length > 0
                 const hasLegacy = (activitiesByDate[key]?.length ?? 0) > 0
-                if (hasMeets || hasBreakdown || hasLegacy) return null
-                return <div className="text-sm text-gray-400">Sin actividades para este día</div>
+                const isDayEmpty = !hasMeets && !hasBreakdown && !hasLegacy;
+
+                if (isDayEmpty) return <div className="mt-8 text-sm text-gray-400 text-center">Sin actividades para este día</div>
+                return null
             })()}
         </div>
     )

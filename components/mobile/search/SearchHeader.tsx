@@ -1,5 +1,5 @@
 import React from "react"
-import { Search, Filter, X, ArrowLeft, Dumbbell, ChefHat, Zap } from "lucide-react"
+import { Search, Filter, X, ArrowLeft, Dumbbell, ChefHat, Zap, Utensils } from "lucide-react"
 
 interface SearchHeaderProps {
     expandedSection: 'coaches' | 'activities' | null
@@ -13,6 +13,8 @@ interface SearchHeaderProps {
     setShowAllActivities: (show: boolean) => void
     selectedCategory: string
     setSelectedCategory: (cat: string) => void
+    selectedModality: string
+    setSelectedModality: (mod: string) => void
     resultsCount: number
 }
 
@@ -28,8 +30,11 @@ export const SearchHeader: React.FC<SearchHeaderProps> = ({
     setShowAllActivities,
     selectedCategory,
     setSelectedCategory,
+    selectedModality,
+    setSelectedModality,
     resultsCount,
 }) => {
+    const [isSearchExpanded, setIsSearchExpanded] = React.useState(false);
     if (expandedSection) {
         return (
             <div className="space-y-4 mb-6">
@@ -102,24 +107,52 @@ export const SearchHeader: React.FC<SearchHeaderProps> = ({
     }
 
     return (
-        <div className="mb-2 mt-0.5">
-            <div className="flex items-center gap-3">
-                {/* Buscador Compacto */}
-                <div className="relative flex-1 group">
-                    <div className="absolute inset-0 bg-gradient-to-r from-[#FF7939]/10 to-transparent rounded-2xl blur-lg opacity-0 group-focus-within:opacity-100 transition-opacity" />
-                    <div className="relative">
-                        <Search className="absolute left-4 top-1/2 -translate-y-1/2 w-4 h-4 text-white/20 group-focus-within:text-[#FF7939] transition-colors" />
-                        <input
-                            type="text"
-                            value={searchTerm}
-                            onChange={(e) => handleSearchChange(e.target.value)}
-                            placeholder="Coach o actividad..."
-                            className="w-full bg-white/5 border border-white/10 rounded-2xl py-3 pl-11 pr-4 text-sm text-white placeholder:text-white/20 focus:outline-none focus:ring-1 focus:ring-[#FF7939]/50 focus:bg-white/10 transition-all font-medium"
-                        />
-                    </div>
+        <div className="mb-2 mt-0.5 px-4 space-y-4">
+            {/* Fila Principal: Buscador expansible, Botones de Fitness/Nutricion, Botón Filter */}
+            <div className="flex items-center justify-between gap-2">
+                <div className="flex items-center gap-2 flex-1">
+                    {isSearchExpanded ? (
+                        <div className="relative flex-1 group flex items-center">
+                            <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-white/40" />
+                            <input
+                                type="text"
+                                autoFocus
+                                value={searchTerm}
+                                onChange={(e) => handleSearchChange(e.target.value)}
+                                placeholder="Buscar..."
+                                className="w-full bg-transparent border-b border-white/20 py-2 pl-9 pr-8 text-sm text-white focus:outline-none focus:border-[#FF7939] transition-all"
+                            />
+                            <button onClick={() => { setIsSearchExpanded(false); handleSearchChange(''); }} className="absolute right-2 text-white/40">
+                                <X className="w-4 h-4" />
+                            </button>
+                        </div>
+                    ) : (
+                        <button onClick={() => setIsSearchExpanded(true)} className="w-10 h-10 flex items-center justify-center text-white/50 hover:bg-white/5 rounded-full transition-all">
+                            <Search className="w-5 h-5" />
+                        </button>
+                    )}
+
+                    {!isSearchExpanded && (
+                        <div className="flex gap-1">
+                            {[
+                                { id: 'fitness', title: 'Fitness', icon: <Zap className="w-4 h-4 text-[#FF7939]" /> },
+                                { id: 'nutricion', title: 'Nutrición', icon: <Utensils className="w-4 h-4 text-[#FF7939]" /> }
+                            ].map(cat => (
+                                <button
+                                    key={cat.id}
+                                    onClick={() => setSelectedCategory(selectedCategory === cat.id ? 'all' : cat.id)}
+                                    className={`flex items-center justify-center w-10 h-10 rounded-full transition-all ${selectedCategory === cat.id
+                                        ? 'bg-white/10'
+                                        : 'bg-white/5 text-white/40 hover:bg-white/10'
+                                        }`}
+                                >
+                                    {cat.icon}
+                                </button>
+                            ))}
+                        </div>
+                    )}
                 </div>
 
-                {/* Botón de Filtro */}
                 <button
                     onClick={() => {
                         if (showFilters) {
@@ -128,14 +161,31 @@ export const SearchHeader: React.FC<SearchHeaderProps> = ({
                             setShowFilters(true);
                         }
                     }}
-                    aria-label={showFilters ? "Cerrar filtros" : "Abrir filtros"}
-                    className={`w-11 h-11 rounded-2xl border transition-all flex items-center justify-center flex-shrink-0 ${showFilters
-                        ? 'bg-red-500 border-red-500 text-white'
-                        : 'bg-white/5 border-white/10 text-white/40 hover:bg-white/10'
-                        }`}
+                    className={`w-10 h-10 flex items-center justify-center rounded-full transition-all flex-shrink-0 ${showFilters ? 'bg-white/10 text-white' : 'bg-white/5 text-white/40 hover:bg-white/10'}`}
                 >
                     {showFilters ? <X className="w-5 h-5" /> : <Filter className="w-5 h-5" />}
                 </button>
+            </div>
+
+            {/* Fila Secundaria: Todos / Doc / Taller / Programas */}
+            <div className="flex gap-4 overflow-x-auto no-scrollbar pb-1">
+                {[
+                    { id: 'all', label: 'Todos' },
+                    { id: 'doc', label: 'Documentos' },
+                    { id: 'taller', label: 'Talleres' },
+                    { id: 'programa', label: 'Programas' }
+                ].map(mod => (
+                    <button
+                        key={mod.id}
+                        onClick={() => setSelectedModality(mod.id)}
+                        className={`text-xs font-bold whitespace-nowrap pb-1 border-b-2 transition-all uppercase tracking-wide ${selectedModality === mod.id
+                            ? 'border-[#FF7939] text-white'
+                            : 'border-transparent text-white/40 hover:text-white/70'
+                            }`}
+                    >
+                        {mod.label}
+                    </button>
+                ))}
             </div>
         </div>
     )

@@ -7,8 +7,7 @@ interface OmniaLoaderProps {
 }
 
 export function OmniaLoader({
-    className = "",
-    message = "Cargando"
+    className = ""
 }: OmniaLoaderProps) {
     return (
         <div className={`flex flex-col items-center justify-center min-h-screen bg-[#0F1012] ${className}`}>
@@ -31,11 +30,6 @@ export function OmniaLoader({
                         className="animate-soft-pulse"
                     />
                 </div>
-            </div>
-
-            {/* Texto "Cargando" */}
-            <div className="text-[18px] font-semibold text-center mt-[-10px]" style={{ color: '#FF7939' }}>
-                {message}
             </div>
 
             <style jsx global>{`

@@ -94,77 +94,70 @@ export function UniversalHero({
                 ) : <div />}
 
                 <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-                    <button
-                        onClick={onScheduleMeet}
-                        style={{
-                            padding: '4px 10px',
+                    {isExpired ? (
+                        <>
+                            {!hasUserSubmittedSurvey && (
+                                <button
+                                    onClick={onOpenSurvey}
+                                    style={{
+                                        padding: '4px 10px',
+                                        height: 24,
+                                        display: 'flex',
+                                        alignItems: 'center',
+                                        gap: 4,
+                                        justifyContent: 'center',
+                                        background: 'rgba(255, 106, 0, 0.1)',
+                                        border: '1px solid rgba(255, 106, 0, 0.3)',
+                                        borderRadius: 12,
+                                        color: '#FF6A00',
+                                        fontSize: 11,
+                                        fontWeight: 500,
+                                        cursor: 'pointer',
+                                        transition: 'all 0.2s ease',
+                                        flexShrink: 0
+                                    }}
+                                >
+                                    <Star size={12} fill="#FF6A00" />
+                                    Calificar
+                                </button>
+                            )}
+                            {hasUserSubmittedSurvey && (
+                                <div
+                                    style={{
+                                        padding: '4px 10px',
+                                        height: 24,
+                                        display: 'flex',
+                                        alignItems: 'center',
+                                        justifyContent: 'center',
+                                        background: 'rgba(34, 197, 94, 0.1)',
+                                        border: '1px solid rgba(34, 197, 94, 0.3)',
+                                        borderRadius: 12,
+                                        color: '#22C55E',
+                                        fontSize: 11,
+                                        fontWeight: 500,
+                                        flexShrink: 0
+                                    }}
+                                >
+                                    ✓ Calificado
+                                </div>
+                            )}
+                        </>
+                    ) : (
+                        <div style={{
+                            padding: '4px 12px',
                             height: 24,
                             display: 'flex',
                             alignItems: 'center',
-                            justifyContent: 'center',
-                            gap: 6,
-                            background: 'rgba(255, 255, 255, 0.10)',
-                            border: '1px solid rgba(255, 106, 0, 0.35)',
+                            background: 'rgba(255, 255, 255, 0.05)',
+                            border: '1px solid rgba(255, 255, 255, 0.1)',
                             borderRadius: 12,
-                            color: '#FFFFFF',
-                            fontSize: 11,
-                            fontWeight: 600,
-                            cursor: 'pointer',
-                            transition: 'all 0.2s ease',
-                            flexShrink: 0,
-                            backdropFilter: 'blur(14px)',
-                            WebkitBackdropFilter: 'blur(14px)'
-                        }}
-                    >
-                        <CalendarClock size={14} color="#FF6A00" />
-                        <span>
-                            {(Number.isFinite(meetCreditsAvailable as any) ? meetCreditsAvailable : 0)} {(enrollment?.activity?.categoria === 'nutricion' || programInfo?.categoria === 'nutricion') ? 'consultas' : 'meets'}
-                        </span>
-                    </button>
-
-                    {!hasUserSubmittedSurvey && (
-                        <button
-                            onClick={onOpenSurvey}
-                            style={{
-                                padding: '4px 10px',
-                                height: 24,
-                                display: 'flex',
-                                alignItems: 'center',
-                                gap: 4,
-                                justifyContent: 'center',
-                                background: 'rgba(255, 106, 0, 0.1)',
-                                border: '1px solid rgba(255, 106, 0, 0.3)',
-                                borderRadius: 12,
-                                color: '#FF6A00',
-                                fontSize: 11,
-                                fontWeight: 500,
-                                cursor: 'pointer',
-                                transition: 'all 0.2s ease',
-                                flexShrink: 0
-                            }}
-                        >
-                            <Star size={12} fill="#FF6A00" />
-                            Calificar
-                        </button>
-                    )}
-                    {hasUserSubmittedSurvey && (
-                        <div
-                            style={{
-                                padding: '4px 10px',
-                                height: 24,
-                                display: 'flex',
-                                alignItems: 'center',
-                                justifyContent: 'center',
-                                background: 'rgba(34, 197, 94, 0.1)',
-                                border: '1px solid rgba(34, 197, 94, 0.3)',
-                                borderRadius: 12,
-                                color: '#22C55E',
-                                fontSize: 11,
-                                fontWeight: 500,
-                                flexShrink: 0
-                            }}
-                        >
-                            ✓ Calificado
+                            color: 'rgba(255, 255, 255, 0.5)',
+                            fontSize: 10,
+                            fontWeight: 700,
+                            textTransform: 'uppercase',
+                            letterSpacing: '0.05em'
+                        }}>
+                            Finaliza: {enrollment?.expiration_date ? new Date(enrollment.expiration_date).toLocaleDateString('es-ES', { day: 'numeric', month: 'short' }) : '-'}
                         </div>
                     )}
                 </div>

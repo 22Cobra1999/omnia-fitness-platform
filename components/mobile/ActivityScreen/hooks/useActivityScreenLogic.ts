@@ -332,7 +332,7 @@ export function useActivityScreenLogic({ initialTab = "purchased" }: UseActivity
         return data.map((coach: any) => ({
             ...coach,
             name: coach.full_name || coach.name,
-            specialization: coach.specialization || coach.specialty,
+            specialization: coach.specialization || coach.specialty || "GENERAL",
             experience_years: coach.experienceYears || coach.experience_years,
             location: coach.location || "No especificada",
             bio: coach.bio || coach.description,

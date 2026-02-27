@@ -1,19 +1,14 @@
 "use client"
 
+import dynamic from "next/dynamic"
 import { useState, useEffect, Suspense, useRef } from "react"
 import { useSearchParams } from "next/navigation"
 import { motion, AnimatePresence, useScroll, useTransform, useMotionValue, useSpring } from "framer-motion"
+
+// Componentes estables/ligeros
 import ErrorBoundary from '@/components/shared/misc/ErrorBoundary'
 import { useErrorHandler } from '@/components/shared/misc/error-boundary'
 import { BottomNavigation } from "@/components/mobile/bottom-navigation"
-import ProfileScreen from "@/components/mobile/profile-screen"
-import { CommunityScreen } from "@/components/mobile/community-screen"
-import { CalendarScreen } from "@/components/calendar/CalendarScreen"
-import CoachCalendarScreen from "@/components/coach/coach-calendar-screen"
-import { ClientsScreen } from "@/components/mobile/clients-screen"
-import { SearchScreen } from "@/components/mobile/search-screen"
-import ActivityScreen from "@/components/mobile/ActivityScreen"
-import { MessagesScreen } from "@/components/mobile/messages-screen"
 import { useAuth } from "@/contexts/auth-context"
 import { usePopup } from "@/contexts/popup-context"
 import { SignInPopup } from "@/components/auth/sign-in-popup"
@@ -21,13 +16,23 @@ import { AccountCreatedPopup } from "@/components/auth/account-created-popup"
 // Eliminado WelcomePopup
 import { SettingsIcon } from '@/components/shared/ui/settings-icon'
 import { MessagesIcon } from '@/components/shared/ui/messages-icon'
-import ProductsManagement from "@/components/mobile/ProductsManagement"
 import { OmniaLogoText } from '@/components/shared/ui/omnia-logo'
-import { useCoachStorageInitialization } from '@/hooks/coach/use-coach-storage-initialization'
-import { UsageReportButton } from '@/components/shared/admin/usage-report-button'
-import { AutoUsageTracker } from '@/components/shared/admin/auto-usage-tracker'
 import { trackComponent } from '@/lib/logging/usage-tracker'
 import { logUsage } from '@/lib/logging/usage-logger'
+import { useCoachStorageInitialization } from '@/hooks/coach/use-coach-storage-initialization'
+
+// Pantallas cargadas dinámicamente para optimizar el bundle inicial
+const ProfileScreen = dynamic(() => import("@/components/mobile/profile-screen"), { ssr: false })
+const CommunityScreen = dynamic(() => import("@/components/mobile/community-screen").then(m => m.CommunityScreen), { ssr: false })
+const CalendarScreen = dynamic(() => import("@/components/calendar/CalendarScreen").then(m => m.CalendarScreen), { ssr: false })
+const CoachCalendarScreen = dynamic(() => import("@/components/coach/coach-calendar-screen"), { ssr: false })
+const ClientsScreen = dynamic(() => import("@/components/mobile/clients-screen").then(m => m.ClientsScreen), { ssr: false })
+const SearchScreen = dynamic(() => import("@/components/mobile/search-screen").then(m => m.SearchScreen), { ssr: false })
+const ActivityScreen = dynamic(() => import("@/components/mobile/ActivityScreen"), { ssr: false })
+const MessagesScreen = dynamic(() => import("@/components/mobile/messages-screen").then(m => m.MessagesScreen), { ssr: false })
+const ProductsManagement = dynamic(() => import("@/components/mobile/ProductsManagement"), { ssr: false })
+const UsageReportButton = dynamic(() => import('@/components/shared/admin/usage-report-button').then(m => m.UsageReportButton), { ssr: false })
+const AutoUsageTracker = dynamic(() => import('@/components/shared/admin/auto-usage-tracker').then(m => m.AutoUsageTracker), { ssr: false })
 
 
 interface MobileAppProps {

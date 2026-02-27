@@ -287,10 +287,10 @@ const ActivityCard: React.FC<ActivityCardProps> = ({
 
   const getSizeClasses = () => {
     switch (size) {
-      case 'small': return 'w-40 h-[30rem]'
-      case 'medium': return 'w-64 h-[32rem]'
-      case 'large': return 'w-80 h-[36rem]'
-      default: return 'w-64 h-[32rem]'
+      case 'small': return 'w-40 md:w-52 h-auto flex flex-col'
+      case 'medium': return 'w-64 md:w-80 h-auto flex flex-col'
+      case 'large': return 'w-80 md:w-96 h-auto flex flex-col'
+      default: return 'w-64 h-auto flex flex-col'
     }
   }
 
@@ -314,7 +314,7 @@ const ActivityCard: React.FC<ActivityCardProps> = ({
         }
         ${shouldShowAsInactive ? 'opacity-50 grayscale' : ''}`}>
 
-        <div className="relative w-full h-48 flex-shrink-0">
+        <div className="relative w-full h-56 md:h-64 flex-shrink-0 overflow-hidden rounded-t-2xl">
           {getValidImageUrl(activity) ? (
             <Image
               src={getValidImageUrl(activity)!}
@@ -369,86 +369,88 @@ const ActivityCard: React.FC<ActivityCardProps> = ({
             </div>
           )}
 
-          <div className="flex justify-between items-center mb-4 -mx-1">
-            <span className={`bg-white/10 backdrop-blur-md ${getCategoryColor(activity.categoria || 'fitness')} text-[9px] px-2 py-1 rounded-full font-extrabold border border-white/20 uppercase tracking-wider`}>
-              {getCategoryBadge(activity.categoria || 'fitness')}
+          <div className="flex flex-wrap gap-1.5 justify-center items-center mb-4">
+            <span className={`flex items-center justify-center w-6 h-6 md:w-7 md:h-7 bg-white/10 backdrop-blur-md ${getCategoryColor(activity.categoria || 'fitness')} rounded-full border border-white/20`} title={getCategoryBadge(activity.categoria || 'fitness')}>
+              {activity.categoria === 'nutricion' || activity.categoria === 'nutrition' ? <UtensilsCrossed className="w-3 h-3 md:w-3.5 md:h-3.5" /> : <Zap className="w-3 h-3 md:w-3.5 md:h-3.5" />}
             </span>
-            <span className={`bg-white/10 backdrop-blur-md ${getTypeColor(activity.type || 'program')} text-[9px] px-2 py-1 rounded-full font-extrabold border border-white/20 uppercase tracking-wider`}>
+            <span className={`bg-white/10 backdrop-blur-md ${getTypeColor(activity.type || 'program')} text-[8px] md:text-[9px] px-2 py-1 md:py-1.5 rounded-full font-extrabold border border-white/20 uppercase tracking-wider text-center`}>
               {getTypeBadge(activity.type || 'program')}
             </span>
           </div>
 
-          <div className="flex items-center justify-between mb-4">
-            <div className="flex items-center gap-2 text-[#FF7939]">
-              {activity.categoria === 'nutricion' || activity.categoria === 'nutrition' ? (
-                <div className="flex items-center gap-0.5 opacity-80">{getDifficultyUtensils(activity.difficulty || undefined)}</div>
-              ) : (
-                <div className="flex items-center gap-0.5 opacity-80">{getDifficultyFires(activity.difficulty || undefined)}</div>
-              )}
-            </div>
-            <div className="flex items-center justify-center flex-1">
-              {activity.type === 'workshop' && (() => {
-                const workshopMode = (activity as any).workshop_mode || 'grupal'
-                return workshopMode === 'individual' ? (
-                  <div className="flex items-center gap-1.5 text-[#FF7939]">
-                    <User className="h-4 w-4" />
-                    <span className="text-[9px] font-black uppercase">1:1</span>
-                  </div>
+          <div className="mt-auto flex flex-col justify-end">
+            <div className="flex items-center justify-between mb-4">
+              <div className="flex items-center gap-2 text-[#FF7939]">
+                {activity.categoria === 'nutricion' || activity.categoria === 'nutrition' ? (
+                  <div className="flex items-center gap-0.5 opacity-80 md:scale-125">{getDifficultyUtensils(activity.difficulty || undefined)}</div>
                 ) : (
-                  <div className="flex items-center gap-1.5 text-red-500">
-                    <Users className="h-4 w-4" />
-                  </div>
-                )
-              })()}
-              {activity.type !== 'workshop' && includedMeetCredits > 0 && (
-                <div className="flex items-center justify-center">
-                  <Video className="h-4 w-4 text-white/90" />
-                </div>
-              )}
-            </div>
-            <div className="flex items-center gap-1.5 opacity-80 min-w-[20px] justify-end">
-              {getModalityIcon(activity.modality || 'online')}
-            </div>
-          </div>
-
-          <div className="flex items-center justify-between text-gray-300 mb-2">
-            <div className="flex items-center gap-1">
-              <Calendar className="w-4 h-4 text-[#FF7939]" />
-              <span className="text-sm font-medium">
-                {sessionsToShow}
-                {activity.type !== 'document' && (
-                  <span className="text-[#FF7939] text-[10px]"> d</span>
+                  <div className="flex items-center gap-0.5 opacity-80 md:scale-125">{getDifficultyFires(activity.difficulty || undefined)}</div>
                 )}
+              </div>
+              <div className="flex items-center justify-center flex-1">
+                {activity.type === 'workshop' && (() => {
+                  const workshopMode = (activity as any).workshop_mode || 'grupal'
+                  return workshopMode === 'individual' ? (
+                    <div className="flex items-center gap-1.5 text-[#FF7939] md:scale-125">
+                      <User className="h-4 w-4 md:h-5 md:w-5" />
+                      <span className="text-[9px] md:text-[10px] font-black uppercase">1:1</span>
+                    </div>
+                  ) : (
+                    <div className="flex items-center gap-1.5 text-red-500 md:scale-125">
+                      <Users className="h-4 w-4 md:h-5 md:w-5" />
+                    </div>
+                  )
+                })()}
+                {activity.type !== 'workshop' && includedMeetCredits > 0 && (
+                  <div className="flex items-center justify-center md:scale-125">
+                    <Video className="h-4 w-4 md:h-5 md:w-5 text-white/90" />
+                  </div>
+                )}
+              </div>
+              <div className="flex items-center gap-1.5 opacity-80 min-w-[20px] justify-end md:scale-125">
+                {getModalityIcon(activity.modality || 'online')}
+              </div>
+            </div>
+
+            <div className="flex items-center justify-between text-gray-300 mb-2">
+              <div className="flex items-center gap-1 md:gap-2">
+                <Calendar className="w-4 h-4 md:w-5 md:h-5 text-[#FF7939]" />
+                <span className="text-sm md:text-base font-medium">
+                  {sessionsToShow}
+                  {activity.type !== 'document' && (
+                    <span className="text-[#FF7939] text-[10px] md:text-xs"> d</span>
+                  )}
+                </span>
+              </div>
+              <div className="flex items-center gap-1 md:gap-2">
+                {activity.type === 'workshop' ? (
+                  <Zap className="w-4 h-4 md:w-5 md:h-5 text-[#FF7939]" />
+                ) : (
+                  activity.categoria === 'nutricion' ? <UtensilsCrossed className="w-4 h-4 md:w-5 md:h-5 text-[#FF7939]" /> : <Zap className="w-4 h-4 md:w-5 md:h-5 text-[#FF7939]" />
+                )}
+                <span className="text-sm md:text-base font-medium">
+                  {activity.items_unicos ?? uniqueExercises}
+                </span>
+              </div>
+              <div className="flex items-center gap-1 md:gap-2">
+                <Users className="w-4 h-4 md:w-5 md:h-5 text-[#FF7939]" />
+                <span className="text-sm md:text-base font-medium">{capacityDisplay || '-'}</span>
+              </div>
+            </div>
+
+            <div className="flex flex-nowrap gap-1 mb-1 justify-start overflow-x-auto hide-scrollbar min-h-[1.5rem] md:min-h-[1.75rem] pb-1">
+              {objetivos && Array.isArray(objetivos) && objetivos.length > 0 ? (
+                objetivos.slice(0, 3).map((obj, i) => (
+                  <span key={i} className="bg-gray-600/20 text-gray-400 text-[9px] md:text-[10px] px-1.5 py-0.5 rounded-full font-medium border border-gray-600/30 whitespace-nowrap">{obj}</span>
+                ))
+              ) : <div className="h-6 md:h-7"></div>}
+            </div>
+
+            <div className="border-t border-gray-700/30 text-center pt-2 md:pt-3 pb-3 mt-3">
+              <span className="text-white/85 font-bold text-xl md:text-2xl tracking-tight">
+                {formatPrice(activity.price)}
               </span>
             </div>
-            <div className="flex items-center gap-1">
-              {activity.type === 'workshop' ? (
-                <Zap className="w-4 h-4 text-[#FF7939]" />
-              ) : (
-                activity.categoria === 'nutricion' ? <UtensilsCrossed className="w-4 h-4 text-[#FF7939]" /> : <Zap className="w-4 h-4 text-[#FF7939]" />
-              )}
-              <span className="text-sm font-medium">
-                {activity.items_unicos ?? uniqueExercises}
-              </span>
-            </div>
-            <div className="flex items-center gap-1">
-              <Users className="w-4 h-4 text-[#FF7939]" />
-              <span className="text-sm font-medium">{capacityDisplay || '-'}</span>
-            </div>
-          </div>
-
-          <div className="flex flex-nowrap gap-1 mb-1 justify-start overflow-x-auto hide-scrollbar min-h-[1.5rem] pb-1">
-            {objetivos && Array.isArray(objetivos) && objetivos.length > 0 ? (
-              objetivos.slice(0, 3).map((obj, i) => (
-                <span key={i} className="bg-gray-600/20 text-gray-400 text-[9px] px-1.5 py-0.5 rounded-full font-medium border border-gray-600/30 whitespace-nowrap">{obj}</span>
-              ))
-            ) : <div className="h-6"></div>}
-          </div>
-
-          <div className="border-t border-gray-700/30 text-center mt-auto pt-2 pb-14">
-            <span className="text-white/85 font-bold text-xl tracking-tight">
-              {formatPrice(activity.price)}
-            </span>
           </div>
         </div>
 

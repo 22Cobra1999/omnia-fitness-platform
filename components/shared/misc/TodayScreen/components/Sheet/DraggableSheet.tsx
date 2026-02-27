@@ -54,6 +54,8 @@ interface DraggableSheetProps {
     // Extra
     title?: string;
     children?: React.ReactNode;
+    meetCreditsAvailable?: number | null;
+    onScheduleMeet?: () => void;
 }
 
 export function DraggableSheet({
@@ -64,7 +66,8 @@ export function DraggableSheet({
     selectedVideo, setSelectedVideo, isVideoExpanded = false, setIsVideoExpanded,
     blockNames, collapsedBlocks, toggleBlock, toggleBlockCompletion, isBlockCompleted, toggleExerciseSimple, openVideo,
     onNext, onPrev,
-    title, children
+    title, children,
+    meetCreditsAvailable, onScheduleMeet
 }: DraggableSheetProps) {
 
     const EXPANDED_H = Math.max(Math.round(vh * 0.95), 620);
@@ -160,6 +163,8 @@ export function DraggableSheet({
                                         openVideo={openVideo} toggleExerciseSimple={toggleExerciseSimple}
                                         isExpired={isExpired} isRated={isRated}
                                         handleOpenSurveyModal={handleOpenSurveyModal}
+                                        meetCreditsAvailable={meetCreditsAvailable}
+                                        onScheduleMeet={onScheduleMeet}
                                     />
                                 )}
                             </>

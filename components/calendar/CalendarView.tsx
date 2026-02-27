@@ -332,6 +332,7 @@ export default function CalendarView({ activityIds, onActivityClick, scheduleMee
               dayDetailRef={dayDetailRef}
               meetViewMode={meetViewMode}
               authUserId={authUserId}
+              coachProfiles={coachProfiles}
             />
           )}
 
@@ -407,7 +408,7 @@ export default function CalendarView({ activityIds, onActivityClick, scheduleMee
             setShowConfirmModal={setShowConfirmModal}
             sourceDate={sourceDate}
             targetDate={targetDate}
-            getDayName={getDayName}
+            getDayName={(date: Date) => getDayName(date.getDay())}
             applyToAllSameDays={applyToAllSameDays}
             setApplyToAllSameDays={setApplyToAllSameDays}
             handleConfirmUpdate={handleConfirmUpdate}

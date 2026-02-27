@@ -8,8 +8,9 @@ import { cn } from '@/lib/utils/utils'
 /**
  * ShowcaseBubble: Minimalist representation of the calendar bubbles
  */
-export const ShowcaseBubble = ({ type = 'fitness', duration = 45, isDone = false }: { type?: 'fitness' | 'nutrition', duration?: number, isDone?: boolean }) => {
+export const ShowcaseBubble = ({ type = 'fitness', duration = 45, isDone = false }: { type?: 'fitness' | 'nutrition' | 'coach', duration?: number, isDone?: boolean }) => {
     const isFitness = type === 'fitness'
+    const isCoach = type === 'coach'
     return (
         <motion.div
             whileHover={{ scale: 1.05 }}
@@ -17,12 +18,14 @@ export const ShowcaseBubble = ({ type = 'fitness', duration = 45, isDone = false
                 "flex items-center gap-2 px-3 py-1.5 rounded-full border backdrop-blur-md transition-all duration-300",
                 isFitness
                     ? "bg-orange-500/10 border-orange-500/30 text-orange-400"
-                    : "bg-[#FFD700]/10 border-[#FFD700]/30 text-[#FFD700]",
+                    : isCoach
+                        ? "bg-cyan-500/10 border-cyan-500/30 text-cyan-400"
+                        : "bg-[#FFD700]/10 border-[#FFD700]/30 text-[#FFD700]",
                 isDone && "bg-white/10 border-white/20 text-white/50"
             )}
         >
-            <div className={cn("p-1 rounded-full", isFitness ? "bg-orange-500/20" : "bg-yellow-500/20")}>
-                {isFitness ? <Flame size={14} /> : <Utensils size={14} />}
+            <div className={cn("p-1 rounded-full", isFitness ? "bg-orange-500/20" : isCoach ? "bg-cyan-500/20" : "bg-yellow-500/20")}>
+                {isFitness ? <Flame size={14} /> : isCoach ? <Star size={14} /> : <Utensils size={14} />}
             </div>
             <span className="text-xs font-bold">{duration} min</span>
             {isDone && <div className="w-1.5 h-1.5 rounded-full bg-green-500 ml-1" />}
@@ -71,20 +74,25 @@ export const ShowcaseProgressRing = ({ progress = 75, color = "#FF7939", size = 
 /**
  * ShowcaseFeatureCard: A mini activity card to show the logic
  */
-export const ShowcaseFeatureCard = ({ title, type = 'fitness', icon: Icon = Play }: { title: string, type?: 'fitness' | 'nutrition', icon?: any }) => {
+export const ShowcaseFeatureCard = ({ title, type = 'fitness', icon: Icon = Play }: { title: string, type?: 'fitness' | 'nutrition' | 'coach', icon?: any }) => {
+    const isCoach = type === 'coach';
+    const isNutrition = type === 'nutrition';
+    const colorClass = isCoach ? "text-cyan-400" : isNutrition ? "text-orange-300" : "text-[#FF7939]";
+    const bgClass = isCoach ? "bg-cyan-400" : isNutrition ? "bg-orange-300" : "bg-[#FF7939]";
+
     return (
         <div className="w-full bg-[#1E1E1E] rounded-xl overflow-hidden border border-white/5 shadow-2xl">
             <div className="h-24 bg-gradient-to-br from-white/10 to-transparent relative overflow-hidden">
                 <div className="absolute inset-0 flex items-center justify-center">
                     <div className="p-3 rounded-full bg-white/5 backdrop-blur-xl border border-white/10">
-                        <Icon className="text-[#FF7939]" size={20} />
+                        <Icon className={colorClass} size={20} />
                     </div>
                 </div>
             </div>
             <div className="p-3">
                 <div className="flex justify-between items-start mb-2">
                     <span className="text-xs font-bold text-white truncate pr-2">{title}</span>
-                    <ShowcaseBubble type={type === 'fitness' ? 'fitness' : 'nutrition'} duration={30} />
+                    <ShowcaseBubble type={type} duration={30} />
                 </div>
                 <div className="flex gap-1">
                     {[1, 2, 3].map(i => (
@@ -93,7 +101,7 @@ export const ShowcaseFeatureCard = ({ title, type = 'fitness', icon: Icon = Play
                                 initial={{ width: 0 }}
                                 animate={{ width: i === 1 ? '100%' : '0%' }}
                                 transition={{ delay: 0.5 + i * 0.2 }}
-                                className="h-full bg-[#FF7939]"
+                                className={cn("h-full", bgClass)}
                             />
                         </div>
                     ))}

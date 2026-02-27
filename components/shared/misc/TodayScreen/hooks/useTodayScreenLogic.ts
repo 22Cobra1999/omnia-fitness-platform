@@ -18,7 +18,7 @@ import { useExerciseEditing } from './useExerciseEditing';
 import { getWeekNumber, getDayName, calculateExerciseDayForDate } from '../utils/calendar-utils';
 
 export function useTodayScreenLogic({ activityId, enrollmentId, onBack }: { activityId: string, enrollmentId?: string | null, onBack?: () => void }) {
-    const { user } = useAuth();
+    const { user } = useAuth() as { user: { id: string; level: string } | null };
     const supabase = createClient();
 
     // 1. Centralized States
@@ -168,6 +168,8 @@ export function useTodayScreenLogic({ activityId, enrollmentId, onBack }: { acti
             grasas: activity.grasas,
             receta: activity.receta,
             ingredientes: activity.ingredientes || activity.ingredients,
+            equipo: activity.equipo || activity.equipment || activity.exercise?.equipment || activity.exercise?.equipo,
+            body_parts: activity.body_parts || activity.exercise?.body_parts,
             isPast
         });
         ui.setIsVideoExpanded(true);
@@ -176,27 +178,34 @@ export function useTodayScreenLogic({ activityId, enrollmentId, onBack }: { acti
     const navigateActivity = React.useCallback((direction: number) => {
         if (!selectedVideo || !data.activities || data.activities.length === 0) return;
 
-        // Find current index using multiple potential ID fields for better robustness
-        const targetId = selectedVideo.id;
-        const targetExId = selectedVideo.exerciseId;
-        const currentIndex = data.activities.findIndex((a: any) =>
-            a.id === targetId ||
-            a.exercise_id === targetExId ||
-            a.exerciseId === targetExId ||
-            (a.id === selectedVideo.exerciseId && selectedVideo.exerciseId)
-        );
+        const targetExId = Number(selectedVideo.exerciseId);
+        const targetB = Number(selectedVideo.bloque);
+        const targetO = Number(selectedVideo.orden);
+
+        const currentIndex = data.activities.findIndex((a: any) => {
+            const aExId = Number(a.exercise_id || a.exerciseId || (typeof a.id === 'string' ? a.id.split('-')[1] : a.id));
+            const aB = Number(a.bloque || 1);
+            const aO = Number(a.orden || 0);
+
+            // Match exercise, block and order for precision
+            return aExId === targetExId && aB === targetB && aO === targetO;
+        });
 
         if (currentIndex === -1) {
-            console.warn("Could not find current activity in list", targetId);
+            console.warn("Could not find current activity in list", { targetExId, targetB, targetO });
+            // Fallback to ID comparison if precision fails
+            const fallbackIndex = data.activities.findIndex((a: any) => a.id === selectedVideo.id);
+            if (fallbackIndex === -1) return;
+
+            const nextIdx = (fallbackIndex + direction + data.activities.length) % data.activities.length;
+            const next = data.activities[nextIdx];
+            if (next) openVideo(next.video_url || '', next);
             return;
         }
 
-        let nextIndex = currentIndex + direction;
-        // Circular navigation
-        if (nextIndex < 0) nextIndex = data.activities.length - 1;
-        if (nextIndex >= data.activities.length) nextIndex = 0;
-
+        const nextIndex = (currentIndex + direction + data.activities.length) % data.activities.length;
         const nextActivity = data.activities[nextIndex];
+
         if (nextActivity) {
             openVideo(nextActivity.video_url || '', nextActivity);
         }
@@ -467,7 +476,21 @@ export function useTodayScreenLogic({ activityId, enrollmentId, onBack }: { acti
         goToToday: () => actions.goToToday(),
         onNext: () => navigateActivity(1),
         onPrev: () => navigateActivity(-1),
-        goToNextActivity: () => { },
+        goToNextActivity: () => {
+            const todayStr = selectedDate.toISOString().split('T')[0];
+            const dates = Object.keys(data.dayStatuses).sort();
+            let nextDateStr = dates.find(d => d > todayStr && (data.dayStatuses[d] === 'not-started' || data.dayStatuses[d] === 'started'));
+
+            if (!nextDateStr) {
+                const nextDay = new Date(selectedDate);
+                nextDay.setDate(selectedDate.getDate() + 1);
+                nextDateStr = nextDay.toISOString().split('T')[0];
+            }
+
+            if (nextDateStr) {
+                setSelectedDate(new Date(nextDateStr + 'T12:00:00'));
+            }
+        },
     }), [
         actions,
         selectedDate,
@@ -486,6 +509,32 @@ export function useTodayScreenLogic({ activityId, enrollmentId, onBack }: { acti
         activityId,
         enrollmentId
     ]);
+
+    const nextAvailableActivity = React.useMemo(() => {
+        if (!data.dayStatuses) return null;
+        const dates = Object.keys(data.dayStatuses).sort();
+        const todayStr = selectedDate.toISOString().split('T')[0];
+
+        // Find next day with explicit "pending" or "started" status
+        let nextDateStr = dates.find(d => d > todayStr && (data.dayStatuses[d] === 'not-started' || data.dayStatuses[d] === 'started'));
+
+        // Fallback: If no explicit status found but it's not expired, assume next calendar day
+        if (!nextDateStr && !isProgramExpired) {
+            const nextDay = new Date(selectedDate);
+            nextDay.setDate(selectedDate.getDate() + 1);
+            nextDateStr = nextDay.toISOString().split('T')[0];
+        }
+
+        if (nextDateStr) {
+            const nextDate = new Date(nextDateStr + 'T12:00:00');
+            return {
+                date: nextDateStr,
+                dayName: getDayName(nextDate),
+                fullDate: nextDate
+            };
+        }
+        return null;
+    }, [data.dayStatuses, selectedDate, isProgramExpired]);
 
     const state = React.useMemo(() => ({
         vh: ui.vh,
@@ -524,7 +573,7 @@ export function useTodayScreenLogic({ activityId, enrollmentId, onBack }: { acti
         weekNumber: getWeekNumber(selectedDate, data.enrollment?.start_date),
         dayName: getDayName(selectedDate),
         firstDayOfActivity: data.enrollment?.start_date ? getDayName(new Date(data.enrollment.start_date)) : '',
-        nextAvailableActivity: null,
+        nextAvailableActivity,
         progressData: { courseProgress: 0, completedProgress: 0, todayProgress: 0, totalDays: 40 }
     }), [
         ui,
@@ -535,7 +584,8 @@ export function useTodayScreenLogic({ activityId, enrollmentId, onBack }: { acti
         activityId,
         selectedDate,
         selectedVideo,
-        currentMonth
+        currentMonth,
+        nextAvailableActivity
     ]);
 
     const helpers = React.useMemo(() => ({

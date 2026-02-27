@@ -400,19 +400,25 @@ export function WeeklyCalendar({
 
             {/* Legend */}
             <div style={{ marginTop: 8, paddingTop: 12, borderTop: '1px solid rgba(255, 255, 255, 0.1)', width: '100%' }}>
-                <div style={{ display: 'flex', justifyContent: 'space-around', gap: 20 }}>
-                    <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-                        <div style={{ width: 10, height: 10, borderRadius: '50%', background: 'rgba(255, 68, 68, 0.25)', border: '1px solid rgba(255, 68, 68, 0.5)' }}></div>
-                        <span style={{ fontSize: 11, color: 'rgba(255,255,255,0.8)' }}>Pendiente ({dayCounts.pending})</span>
-                    </div>
-                    <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-                        <div style={{ width: 10, height: 10, borderRadius: '50%', background: 'rgba(255, 201, 51, 0.25)', border: '1px solid rgba(255, 201, 51, 0.5)' }}></div>
-                        <span style={{ fontSize: 11, color: 'rgba(255,255,255,0.8)' }}>En curso ({dayCounts.started})</span>
-                    </div>
-                    <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-                        <div style={{ width: 10, height: 10, borderRadius: '50%', background: 'rgba(255, 106, 0, 0.25)', border: '1px solid rgba(255, 106, 0, 0.5)' }}></div>
-                        <span style={{ fontSize: 11, color: 'rgba(255,255,255,0.8)' }}>Completado ({dayCounts.completed})</span>
-                    </div>
+                <div style={{ display: 'flex', justifyContent: 'space-around', gap: 20, flexWrap: 'wrap' }}>
+                    {dayCounts.pending > 0 && (
+                        <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                            <div style={{ width: 10, height: 10, borderRadius: '50%', background: 'rgba(255, 68, 68, 0.25)', border: '1px solid rgba(255, 68, 68, 0.5)' }}></div>
+                            <span style={{ fontSize: 11, color: 'rgba(255,255,255,0.8)' }}>Pendiente ({dayCounts.pending})</span>
+                        </div>
+                    )}
+                    {dayCounts.started > 0 && (
+                        <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                            <div style={{ width: 10, height: 10, borderRadius: '50%', background: 'rgba(255, 201, 51, 0.25)', border: '1px solid rgba(255, 201, 51, 0.5)' }}></div>
+                            <span style={{ fontSize: 11, color: 'rgba(255,255,255,0.8)' }}>En curso ({dayCounts.started})</span>
+                        </div>
+                    )}
+                    {dayCounts.completed > 0 && (
+                        <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                            <div style={{ width: 10, height: 10, borderRadius: '50%', background: 'rgba(255, 106, 0, 0.25)', border: '1px solid rgba(255, 106, 0, 0.5)' }}></div>
+                            <span style={{ fontSize: 11, color: 'rgba(255,255,255,0.8)' }}>Completado ({dayCounts.completed})</span>
+                        </div>
+                    )}
                 </div>
             </div>
 

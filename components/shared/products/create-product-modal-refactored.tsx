@@ -288,7 +288,7 @@ export default function CreateProductModal({ isOpen, onClose, editingProduct, in
             initial={{ scale: 0.95, opacity: 0 }}
             animate={{ scale: 1, opacity: 1 }}
             exit={{ scale: 0.95, opacity: 0 }}
-            className="bg-[#0B0B0B] rounded-2xl max-w-4xl w-full h-[85vh] overflow-hidden flex flex-col border border-white/10 shadow-2xl"
+            className="bg-[#0B0B0B] rounded-2xl max-w-[98vw] w-full h-[92vh] overflow-hidden flex flex-col border border-white/10 shadow-2xl"
             onClick={(e) => e.stopPropagation()}
           >
             {/* Header del modal */}

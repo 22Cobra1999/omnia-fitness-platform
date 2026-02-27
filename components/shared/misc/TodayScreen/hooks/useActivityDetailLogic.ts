@@ -29,7 +29,6 @@ export function useActivityDetailLogic({
     const [isEditingSeries, setIsEditingSeries] = useState(false);
     const [editedSeries, setEditedSeries] = useState<any[]>([]);
     const [isSaving, setIsSaving] = useState(false);
-    const [propagateAlways, setPropagateAlways] = useState(true);
 
     // Action State
     const [isToggling, setIsToggling] = useState(false);
@@ -62,7 +61,7 @@ export function useActivityDetailLogic({
         console.log('📝 [useActivityDetailLogic] Starting edit mode for video:', selectedVideo);
         const series = parseSeries(selectedVideo.detalle_series || selectedVideo.series);
         console.log('📝 [useActivityDetailLogic] Parsed series:', series);
-        setEditedSeries(series.map((s: any) => ({ ...s })));
+        setEditedSeries(series.map((s: any) => ({ ...s, propagate: true })));
         setIsEditingSeries(true);
     };
 
@@ -98,18 +97,37 @@ export function useActivityDetailLogic({
                 return;
             }
 
+            // Simple formula to adjust kcal and minutes based on changes
+            const originalSeries = parseSeries(selectedVideo.detalle_series || selectedVideo.series);
+            const calculateTotalLoad = (sArray: any[]) => sArray.reduce((acc, s) => acc + (Number(s?.kg || 0) * Number(s?.reps || 0) * Number(s?.sets || 1)), 0);
+
+            const oldLoad = calculateTotalLoad(originalSeries) || 1;
+            const newLoad = calculateTotalLoad(editedSeries);
+            const loadFactor = newLoad / oldLoad;
+
+            // Kcal adjustment: scale with load but with a ceiling/floor to avoid extremes
+            const adjustedKcal = selectedVideo.calorias ? Math.round(selectedVideo.calorias * Math.pow(loadFactor, 0.5)) : null;
+
+            // Minutes adjustment: scale primarily with sets
+            const oldSets = originalSeries.reduce((acc, s) => acc + Number(s?.sets || 1), 0) || 1;
+            const newSets = editedSeries.reduce((acc, s) => acc + Number(s?.sets || 1), 0);
+            const setsFactor = newSets / oldSets;
+            const adjustedMin = selectedVideo.minutos ? Math.round(selectedVideo.minutos * setsFactor) : null;
+
             const payload = {
                 ejercicioId: ejId,
                 bloque: selectedVideo.bloque || 1,
                 orden: selectedVideo.orden || 0,
                 fecha: targetFecha,
                 activityId: actId,
-                propagateAlways,
+                propagateAlways: editedSeries.some(s => s.propagate),
                 series: editedSeries.map(s => ({
                     reps: String(s.reps || '0'),
                     kg: String(s.kg || '0'),
                     series: String(s.sets || '1')
-                }))
+                })),
+                adjustedKcal,
+                adjustedMin
             };
 
             console.log('💾 [useActivityDetailLogic] Save Payload:', payload);
@@ -171,8 +189,6 @@ export function useActivityDetailLogic({
         editedSeries,
         setEditedSeries,
         isSaving,
-        propagateAlways,
-        setPropagateAlways,
         isToggling,
         scrollRef,
         isNutrition,
