@@ -223,7 +223,7 @@ export function OmniaShowcase({ scrollY }: OmniaShowcaseProps) {
     }
 
     return (
-        <div ref={containerRef} className="flex flex-col gap-12 pb-32 pt-4 px-4 overflow-hidden">
+        <div ref={containerRef} className="flex flex-col gap-12 pb-32 pt-4 px-2 overflow-hidden">
             {/* 0. Hero Section - Shrinking Logo to Header */}
             <section
                 className="flex flex-col items-center justify-center py-20 relative pointer-events-none z-[1001] h-[160px]"
@@ -348,8 +348,8 @@ export function OmniaShowcase({ scrollY }: OmniaShowcaseProps) {
                         </div>
                     </div>
 
-                    {/* Fixed 2-Column Product Display on all screen sizes */}
-                    <div className="grid grid-cols-2 gap-3 lg:gap-6 items-stretch min-h-[420px] relative">
+                    {/* Fixed 2-Column Product Display on all screen sizes - Maximized presence (+20% scale feel) */}
+                    <div className="grid grid-cols-2 gap-3 lg:gap-6 items-stretch min-h-[760px] lg:min-h-[500px] relative px-1">
                         {/* Fake Floating Comments (Desktop only) */}
                         <div className="hidden lg:block absolute top-0 left-[35%] w-0 h-full z-20 pointer-events-none">
                             <AnimatePresence mode="popLayout">
@@ -388,7 +388,7 @@ export function OmniaShowcase({ scrollY }: OmniaShowcaseProps) {
                                             animate={{ opacity: 1, scale: 1 }}
                                             exit={{ opacity: 0, scale: 1.05 }}
                                             transition={{ duration: 0.3, ease: "circOut" }}
-                                            className="h-full"
+                                            className="h-full sm:scale-100 mobile:scale-[1.25] origin-top-left"
                                         >
                                             <ActivityCard
                                                 activity={act}
@@ -402,25 +402,25 @@ export function OmniaShowcase({ scrollY }: OmniaShowcaseProps) {
                         </div>
 
                         {/* Product Type Description & Interactive Controls */}
-                        <div className="flex flex-col justify-center gap-4 lg:gap-6 p-3 lg:p-6 rounded-[32px] bg-white/[0.01] border border-white/5 relative overflow-hidden backdrop-blur-3xl z-10 order-2">
+                        <div className="flex flex-col justify-center gap-7 lg:gap-6 p-3 lg:p-6 rounded-[32px] bg-white/[0.01] border border-white/5 relative overflow-hidden backdrop-blur-3xl z-10 order-2">
                             <div className="absolute top-0 right-0 w-40 h-40 bg-white/5 blur-[80px] -z-10" />
 
-                            <div className="flex flex-col gap-1">
+                            <div className="flex flex-col gap-2.5">
                                 <div className="flex items-center justify-between">
-                                    <span className="text-[8px] lg:text-[10px] font-black text-[#FF7939] uppercase italic tracking-[0.2em]">
+                                    <span className="text-[11px] lg:text-[10px] font-black text-[#FF7939] uppercase italic tracking-[0.2em]">
                                         {filterType === 'workshop' ? 'Taller' : filterType === 'document' ? 'Documento' : 'Programa'}
                                     </span>
                                 </div>
                                 {/* Title & Interactive Mode Badge */}
                                 <div className="flex flex-col">
                                     <div className="flex items-center justify-between">
-                                        <h3 className="text-sm lg:text-xl font-black text-white italic uppercase leading-[1.1]">
+                                        <h3 className="text-[17px] lg:text-xl font-black text-white italic uppercase leading-[1.1]">
                                             {filterType === 'workshop' ? 'Experiencia Viva' : filterType === 'document' ? 'Conocimiento Directo' : 'Plan Maestro'}
                                         </h3>
                                     </div>
 
                                     {filterType === 'workshop' && (
-                                        <div className="flex items-center gap-1.5 mt-2 lg:mt-4">
+                                        <div className="flex items-center gap-2 mt-5 lg:mt-4">
                                             {[
                                                 { id: 'grupal', label: 'Grupal', icon: Users },
                                                 { id: 'individual', label: '1:1', icon: User }
@@ -429,20 +429,20 @@ export function OmniaShowcase({ scrollY }: OmniaShowcaseProps) {
                                                     key={m.id}
                                                     onClick={() => handleManualInteraction(() => setWorkshopMode(m.id as any))}
                                                     className={cn(
-                                                        "flex items-center gap-1 lg:gap-2 px-2 lg:px-4 py-1 lg:py-2 rounded-lg lg:rounded-xl transition-all border",
+                                                        "flex items-center gap-2 lg:gap-2 px-3.5 lg:px-4 py-2 lg:py-2 rounded-lg lg:rounded-xl transition-all border",
                                                         workshopMode === m.id
                                                             ? "bg-white/10 border-[#FF7939]/50 text-white"
                                                             : "bg-white/5 border-white/5 text-white/30"
                                                     )}
                                                 >
-                                                    <m.icon size={10} className={workshopMode === m.id ? "text-[#FF7939]" : "text-white/20"} />
-                                                    <span className="text-[8px] lg:text-[10px] font-black uppercase italic">{m.label}</span>
+                                                    <m.icon size={13} className={workshopMode === m.id ? "text-[#FF7939]" : "text-white/20"} />
+                                                    <span className="text-[11px] lg:text-[10px] font-black uppercase italic">{m.label}</span>
                                                 </button>
                                             ))}
                                         </div>
                                     )}
 
-                                    <p className="text-[9px] lg:text-[13px] text-white/50 font-semibold leading-tight mt-2 lg:mt-3">
+                                    <p className="text-[13px] lg:text-[13px] text-white/50 font-semibold leading-tight mt-5 lg:mt-3">
                                         {filterType === 'workshop'
                                             ? (workshopMode === 'grupal' ? 'Sesiones grupales.' : 'Atención exclusiva.')
                                             : filterType === 'document'
@@ -453,15 +453,15 @@ export function OmniaShowcase({ scrollY }: OmniaShowcaseProps) {
                             </div>
 
                             {/* Intensity Selector */}
-                            <div className="flex flex-col gap-1 lg:gap-2">
+                            <div className="flex flex-col gap-2.5 lg:gap-2">
                                 <div className="flex items-center justify-between">
-                                    <span className="text-[9px] lg:text-[12px] font-black text-white/60 uppercase italic">Nivel</span>
-                                    <div className="flex gap-1">
+                                    <span className="text-[12px] lg:text-[12px] font-black text-white/60 uppercase italic">Nivel</span>
+                                    <div className="flex gap-2">
                                         {[1, 2, 3].map((lvl) => {
                                             const IconMatch = filterCategory === 'nutricion' ? Utensils : Flame;
                                             return (
                                                 <button key={lvl} onClick={() => handleManualInteraction(() => setIntensity(lvl))}>
-                                                    <IconMatch size={12} className={cn(intensity >= lvl ? (intensity === 1 ? "text-[#F7E16B]" : intensity === 2 ? "text-[#FF7939]" : "text-[#FF4D4D]") : "text-white/[0.03]")} fill="none" />
+                                                    <IconMatch size={18} className={cn(intensity >= lvl ? (intensity === 1 ? "text-[#F7E16B]" : intensity === 2 ? "text-[#FF7939]" : "text-[#FF4D4D]") : "text-white/[0.03]")} fill="none" />
                                                 </button>
                                             )
                                         })}
@@ -470,17 +470,17 @@ export function OmniaShowcase({ scrollY }: OmniaShowcaseProps) {
                             </div>
 
                             {/* Modality Selector */}
-                            <div className="flex flex-col gap-2 pt-2 border-t border-white/5">
+                            <div className="flex flex-col gap-3.5 pt-3.5 border-t border-white/5">
                                 <div className="flex items-center justify-between">
-                                    <span className="text-[9px] lg:text-[12px] font-black text-white/60 uppercase italic">Digital</span>
-                                    <div className="flex gap-1">
+                                    <span className="text-[12px] lg:text-[12px] font-black text-white/60 uppercase italic">Digital</span>
+                                    <div className="flex gap-2.5">
                                         {[
                                             { id: 'online', icon: Globe },
                                             { id: 'hybrid', icon: Scale },
                                             { id: 'presencial', icon: MapPin }
                                         ].map((m) => (
-                                            <button key={m.id} onClick={() => handleManualInteraction(() => setModality(m.id as any))} className={cn("p-1.5 rounded-lg border", modality === m.id ? "bg-white/10 border-white/20 text-white" : "bg-white/[0.02] border-white/5 text-white/20")}>
-                                                <m.icon size={12} />
+                                            <button key={m.id} onClick={() => handleManualInteraction(() => setModality(m.id as any))} className={cn("p-3 rounded-lg border", modality === m.id ? "bg-white/10 border-white/20 text-white" : "bg-white/[0.02] border-white/5 text-white/20")}>
+                                                <m.icon size={18} />
                                             </button>
                                         ))}
                                     </div>
@@ -488,32 +488,42 @@ export function OmniaShowcase({ scrollY }: OmniaShowcaseProps) {
                             </div>
 
                             {/* Features (Compact) */}
-                            <div className="flex flex-col gap-2 pt-3 border-t border-white/5 sm:block">
-                                <div className="flex items-center gap-2 p-2 rounded-xl bg-white/[0.02] border border-white/10">
-                                    <Video size={12} className="text-white/40" />
-                                    <span className="text-[8px] lg:text-[10px] font-black text-white uppercase italic tracking-wider">Meet Incluida</span>
+                            <div className="flex flex-col gap-3.5 pt-5 border-t border-white/5 sm:block mb-6">
+                                <div className="flex items-center gap-3.5 p-3.5 rounded-xl bg-white/[0.02] border border-white/10">
+                                    <Video size={18} className="text-white/40" />
+                                    <span className="text-[11px] lg:text-[10px] font-black text-white uppercase italic tracking-wider">Meet Incluida</span>
                                 </div>
                             </div>
-                        </div>
 
-                        {/* Mobile Comments Section (New Row below the grid) */}
-                        <div className="col-span-2 block lg:hidden mt-4">
-                            <div className="bg-white/[0.02] border border-white/5 rounded-[24px] p-4 flex flex-col gap-4">
-                                <div className="flex items-center justify-between">
-                                    <h4 className="text-[10px] font-black text-[#FF7939] uppercase italic tracking-[0.2em]">Comentarios</h4>
-                                    <div className="flex gap-0.5 text-[#FF7939]"><Star size={10} fill="currentColor" /><Star size={10} fill="currentColor" /><Star size={10} fill="currentColor" /></div>
-                                </div>
-                                <div className="overflow-x-auto flex gap-3 hide-scrollbar">
-                                    {(() => {
-                                        const reviews = [
-                                            "¡Me encantó todo!", "Súper claro.", "10/10.", "Muy fácil.", "Increíble.", "Me cambió.", "Top.", "Real.", "Cero.", "Brutal.", "Mejor."
-                                        ].slice(0, 5)
-                                        return reviews.map((text, i) => (
-                                            <div key={i} className="flex-shrink-0 bg-white/5 p-3 rounded-xl border border-white/10 min-w-[120px]">
-                                                <p className="text-[11px] text-white/80 font-semibold italic">"{text}"</p>
-                                            </div>
-                                        ))
-                                    })()}
+                            {/* Mobile Staggered Comments (TASK-002) - Directly under info */}
+                            <div className="flex lg:hidden flex-col gap-1 relative mt-2 pt-4 border-t border-white/5">
+                                <div className="space-y-1">
+                                    <motion.div
+                                        initial={{ opacity: 0, x: 20 }}
+                                        animate={{ opacity: 1, x: 0 }}
+                                        className="bg-[#1e1e1e]/90 backdrop-blur-md rounded-2xl p-4 border border-white/10 shadow-xl self-start ml-0 mr-4 z-10"
+                                    >
+                                        <div className="flex gap-0.5 text-[#FF7939] mb-1.5"><Star size={12} fill="currentColor" /><Star size={12} fill="currentColor" /><Star size={12} fill="currentColor" /><Star size={12} fill="currentColor" /><Star size={12} fill="currentColor" /></div>
+                                        <p className="text-[14px] text-white font-black italic leading-tight">"¡Me encantó todo!"</p>
+                                    </motion.div>
+                                    <motion.div
+                                        initial={{ opacity: 0, x: -20 }}
+                                        animate={{ opacity: 1, x: 0 }}
+                                        transition={{ delay: 0.1 }}
+                                        className="bg-[#1e1e1e]/90 backdrop-blur-md rounded-2xl p-4 border border-white/10 shadow-xl self-start ml-6 mr-0 z-20"
+                                    >
+                                        <div className="flex gap-0.5 text-[#FF7939] mb-1.5"><Star size={12} fill="currentColor" /><Star size={12} fill="currentColor" /><Star size={12} fill="currentColor" /><Star size={12} fill="currentColor" /><Star size={12} fill="currentColor" /></div>
+                                        <p className="text-[14px] text-white font-black italic leading-tight">"Súper claro."</p>
+                                    </motion.div>
+                                    <motion.div
+                                        initial={{ opacity: 0, scale: 0.9 }}
+                                        animate={{ opacity: 1, scale: 1 }}
+                                        transition={{ delay: 0.2 }}
+                                        className="bg-[#1e1e1e]/90 backdrop-blur-md rounded-2xl p-4 border border-[#FF7939]/30 shadow-xl self-start ml-2 mr-6 z-10"
+                                    >
+                                        <div className="flex gap-0.5 text-[#FF7939] mb-1.5"><Star size={12} fill="currentColor" /><Star size={12} fill="currentColor" /><Star size={12} fill="currentColor" /><Star size={12} fill="currentColor" /><Star size={12} fill="currentColor" /></div>
+                                        <p className="text-[14px] text-white font-black italic leading-tight">"10/10 brutal."</p>
+                                    </motion.div>
                                 </div>
                             </div>
                         </div>

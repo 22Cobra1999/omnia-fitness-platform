@@ -494,7 +494,7 @@ export const MockCalendar = () => {
                                     {day}
                                 </div>
 
-                                {/* Activity Indicators (Bubbles) */}
+                                {/* Activity Indicators (Bubbles) + Coach Names */}
                                 <div className="flex flex-col gap-0.5 mt-1 w-full items-center">
                                     {(() => {
                                         const grouped = activities.reduce((acc: Record<string, number>, act: any) => {
@@ -516,20 +516,31 @@ export const MockCalendar = () => {
                                                 </span>
                                             )
                                             if (type === 'workshop') return (
-                                                <div key={idx} className="flex items-center gap-1 px-1.5 py-0.5 rounded-full border leading-none bg-[#FCE4EC]/30 border-[#FCE4EC]/50 text-[#F06292] font-bold">
-                                                    <GraduationCap className="w-2.5 h-2.5" />
-                                                    {(count as number) > 1 && <span className="text-[8px] ml-0.5">{count}</span>}
+                                                <div key={idx} className="flex flex-col items-center">
+                                                    <div className="flex items-center gap-1 px-1.5 py-0.5 rounded-full border leading-none bg-[#FCE4EC]/30 border-[#FCE4EC]/50 text-[#F06292] font-bold">
+                                                        <GraduationCap className="w-2.5 h-2.5" />
+                                                        {(count as number) > 1 && <span className="text-[8px] ml-0.5">{count}</span>}
+                                                    </div>
                                                 </div>
                                             )
                                             if (type === 'meet') return (
-                                                <div key={idx} className="flex items-center gap-1 px-1.5 py-0.5 rounded-full border leading-none bg-orange-500/10 border-orange-500/30 text-orange-400">
-                                                    <Video className="w-2.5 h-2.5" />
-                                                    {(count as number) > 1 && <span className="text-[9px] font-bold ml-0.5">{count}</span>}
+                                                <div key={idx} className="flex flex-col items-center">
+                                                    <div className="flex items-center gap-1 px-1.5 py-0.5 rounded-full border leading-none bg-orange-500/10 border-orange-500/30 text-orange-400">
+                                                        <Video className="w-2.5 h-2.5" />
+                                                        {(count as number) > 1 && <span className="text-[9px] font-bold ml-0.5">{count}</span>}
+                                                    </div>
                                                 </div>
                                             )
                                             return null
                                         })
                                     })()}
+
+                                    {/* Coach Name Label - Fine Gray Text */}
+                                    {activities.length > 0 && activities.some(a => a.subtitle?.includes('con ')) && (
+                                        <span className="text-[7px] text-white/20 font-medium leading-none mt-1 truncate max-w-[40px]">
+                                            {activities.find(a => a.subtitle?.includes('con '))?.subtitle.split('con ')[1]}
+                                        </span>
+                                    )}
                                 </div>
                             </div>
                         )
