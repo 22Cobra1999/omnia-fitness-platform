@@ -2,8 +2,8 @@
 
 import React, { useState, useRef, useEffect } from 'react'
 import { motion, AnimatePresence, useScroll, useTransform, MotionValue, useMotionValue } from 'framer-motion'
-import { Flame, Star, Zap, ShoppingCart, Users, User, Briefcase, ChevronRight, Play, Utensils, Globe, Layers, Video, ShieldAlert, Scale, MapPin, ArrowLeft, ArrowRight, Edit2, Clock, X, Maximize2, FileText, Monitor, Laptop, Cloud, TrendingUp, BarChart3, PlusCircle, Mic, MicOff, VideoOff, PhoneOff, Hand, MoreVertical, MessageSquare, Info, LayoutGrid, ShieldCheck, Wifi } from 'lucide-react'
-import { ShowcaseBubble, ShowcaseProgressRing, ShowcaseFeatureCard, ShowcaseIngredients, MockCalendar, ShowcaseShelf, ShowcaseConcept } from './ShowcaseComponents'
+import { Flame, Star, Zap, ShoppingCart, Users, User, Briefcase, ChevronRight, Play, Utensils, Globe, Layers, Video, ShieldAlert, Scale, MapPin, ArrowLeft, ArrowRight, Edit2, Clock, X, Maximize2, FileText, Monitor, Laptop, Cloud, TrendingUp, BarChart3, PlusCircle, Mic, MicOff, VideoOff, PhoneOff, Hand, MoreVertical, MessageSquare, Info, LayoutGrid, ShieldCheck, Wifi, Calendar, Award, Settings, Search, SlidersHorizontal } from 'lucide-react'
+import { ShowcaseBubble, ShowcaseProgressRing, ShowcaseFeatureCard, ShowcaseIngredients, MockCalendar, ShowcaseShelf, ShowcaseConcept, ShowcaseActivityRings } from './ShowcaseComponents'
 import { Button } from '@/components/ui/button'
 import { cn } from '@/lib/utils/utils'
 import { OmniaLogo, OmniaLogoText } from '@/components/shared/ui/omnia-logo'
@@ -58,24 +58,6 @@ export function OmniaShowcase({ scrollY }: OmniaShowcaseProps) {
 
     // Mock activities data matching real Search results
     const mockActivities = [
-        {
-            id: 'hot-stuff',
-            title: 'Hot stuff',
-            coach_name: 'Franco Pomati',
-            price: 15000,
-            categoria: 'fitness',
-            type: 'workshop',
-            difficulty: 'intermediate',
-            image_url: 'https://images.unsplash.com/photo-1517836357463-d25dfeac3438?w=800&q=80',
-            program_rating: 4.9,
-            total_program_reviews: 124,
-            items_unicos: 12,
-            cantidadDias: 8,
-            capacity: '∞',
-            modality: 'híbrido',
-            objetivos: ['Fuerza', 'Técnica'],
-            coach_rating: 4.8
-        },
         {
             id: 'calistenia',
             title: 'Calistenia desde cero',
@@ -299,44 +281,44 @@ export function OmniaShowcase({ scrollY }: OmniaShowcaseProps) {
             >
                 {/* Filtered Products Section (Explora lo Nuevo) */}
                 <div className="space-y-6">
-                    <div className="flex flex-col gap-5 px-2">
-                        <h2 className="text-xs font-black text-white italic uppercase tracking-[0.2em]">Explora lo Nuevo</h2>
+                    <div className="flex flex-col gap-4 px-3">
+                        <h2 className="text-[10px] font-black text-white/40 italic uppercase tracking-[0.2em] mb-1">Explora lo Nuevo</h2>
 
                         {/* Unified Filters Row (Type + Category) */}
-                        <div className="flex gap-2 overflow-x-auto hide-scrollbar pb-2">
+                        <div className="flex gap-2 overflow-x-auto hide-scrollbar pb-3 px-1 -mx-1">
                             {/* Category Filters */}
-                            <div className="flex items-center gap-2 bg-white/5 p-1 rounded-2xl border border-white/5 mr-2">
+                            <div className="flex items-center gap-1.5 bg-white/5 p-1 rounded-2xl border border-white/5 mr-1 flex-shrink-0">
                                 <button
                                     onClick={() => handleManualInteraction(() => setFilterCategory('fitness'))}
                                     className={cn(
                                         "p-2.5 rounded-xl transition-all",
-                                        filterCategory === 'fitness' ? "bg-[#FF7939] text-black shadow-lg shadow-[#FF7939]/20" : "text-white/20 hover:text-white/40 bg-white/[0.03]"
+                                        filterCategory === 'fitness' ? "bg-[#FF7939] text-black shadow-lg shadow-[#FF7939]/20" : "text-white/20 hover:text-white/40 bg-white/[0.01]"
                                     )}
                                 >
-                                    <Zap size={18} fill={filterCategory === 'fitness' ? 'currentColor' : 'none'} />
+                                    <Zap size={16} fill={filterCategory === 'fitness' ? 'currentColor' : 'none'} />
                                 </button>
                                 <button
                                     onClick={() => handleManualInteraction(() => setFilterCategory('nutricion'))}
                                     className={cn(
                                         "p-2.5 rounded-xl transition-all",
-                                        filterCategory === 'nutricion' ? "bg-orange-300 text-black shadow-lg shadow-orange-300/20" : "text-white/20 hover:text-white/40 bg-white/[0.03]"
+                                        filterCategory === 'nutricion' ? "bg-orange-300 text-black shadow-lg shadow-orange-300/20" : "text-white/20 hover:text-white/40 bg-white/[0.01]"
                                     )}
                                 >
-                                    <Utensils size={18} fill={filterCategory === 'nutricion' ? 'currentColor' : 'none'} />
+                                    <Utensils size={16} fill={filterCategory === 'nutricion' ? 'currentColor' : 'none'} />
                                 </button>
                             </div>
 
                             {/* Type Filters */}
                             {[
                                 { id: 'workshop', label: 'Taller' },
-                                { id: 'document', label: 'Documento' },
+                                { id: 'document', label: 'Doc' },
                                 { id: 'program', label: 'Programa' }
                             ].map((t) => (
                                 <button
                                     key={t.id}
                                     onClick={() => handleManualInteraction(() => setFilterType(t.id as any))}
                                     className={cn(
-                                        "px-5 py-2.5 rounded-2xl text-xs font-black uppercase italic transition-all whitespace-nowrap border flex-shrink-0",
+                                        "px-4 py-2.5 rounded-2xl text-[10px] font-black uppercase italic transition-all whitespace-nowrap border flex-shrink-0",
                                         filterType === t.id
                                             ? "bg-white text-black border-white shadow-lg scale-105"
                                             : "bg-white/5 text-white/40 border-white/5 hover:bg-white/10"
@@ -349,9 +331,9 @@ export function OmniaShowcase({ scrollY }: OmniaShowcaseProps) {
                     </div>
 
                     {/* Fixed 2-Column Product Display on all screen sizes - Maximized presence (+20% scale feel) */}
-                    <div className="grid grid-cols-2 gap-3 lg:gap-6 items-stretch min-h-[760px] lg:min-h-[500px] relative px-1">
-                        {/* Fake Floating Comments (Desktop only) */}
-                        <div className="hidden lg:block absolute top-0 left-[35%] w-0 h-full z-20 pointer-events-none">
+                    <div className="grid grid-cols-2 gap-2 lg:gap-6 items-stretch min-h-[760px] lg:min-h-[500px] relative px-1">
+                        {/* Fake Floating Comments (Desktop only) - Positioned in the void between columns */}
+                        <div className="hidden lg:block absolute top-[10%] left-[32%] w-60 h-full z-20 pointer-events-none">
                             <AnimatePresence mode="popLayout">
                                 <motion.div
                                     key={`${filterType}-${filterCategory}`}
@@ -363,9 +345,32 @@ export function OmniaShowcase({ scrollY }: OmniaShowcaseProps) {
                                         visible: { opacity: 1, transition: { staggerChildren: 0.15, delayChildren: 0.2 } },
                                         exit: { opacity: 0, transition: { duration: 0.2 } }
                                     }}
-                                    className="relative w-full h-[400px]"
+                                    className="relative w-full h-[600px]"
                                 >
-                                    {/* ... existing desktop comments logic ... */}
+                                    {(() => {
+                                        const comments = filterCategory === 'nutricion'
+                                            ? [{ text: "¡Súper rico!", x: -40, y: 0 }, { text: "Fácil de hacer", x: 20, y: 140 }, { text: "10/10 sano", x: -30, y: 280 }]
+                                            : filterType === 'workshop'
+                                                ? [{ text: "Clase increíble", x: -40, y: 0 }, { text: "Maru es lo más", x: 20, y: 140 }, { text: "Pura paz", x: -30, y: 280 }]
+                                                : [{ text: "¡Increíble!", x: -40, y: 0 }, { text: "10/10 brutal", x: 20, y: 140 }, { text: "Pura calidad", x: -30, y: 280 }];
+
+                                        return comments.map((c, i) => (
+                                            <motion.div
+                                                key={i}
+                                                variants={{
+                                                    hidden: { opacity: 0, scale: 0.5, x: c.x - 20 },
+                                                    visible: { opacity: 1, scale: 1, x: c.x, transition: { type: "spring", bounce: 0.4 } }
+                                                }}
+                                                style={{ top: c.y }}
+                                                className="absolute bg-white/[0.07] backdrop-blur-xl rounded-3xl p-5 border border-white/10 shadow-2xl"
+                                            >
+                                                <div className="flex gap-1.5 text-[#FF7939] mb-1.5">
+                                                    {[1, 2, 3, 4, 5].map(s => <Star key={s} size={16} fill="currentColor" />)}
+                                                </div>
+                                                <p className="text-[16px] text-white font-black italic">"{c.text}"</p>
+                                            </motion.div>
+                                        ));
+                                    })()}
                                 </motion.div>
                             </AnimatePresence>
                         </div>
@@ -402,47 +407,20 @@ export function OmniaShowcase({ scrollY }: OmniaShowcaseProps) {
                         </div>
 
                         {/* Product Type Description & Interactive Controls */}
-                        <div className="flex flex-col justify-center gap-7 lg:gap-6 p-3 lg:p-6 rounded-[32px] bg-white/[0.01] border border-white/5 relative overflow-hidden backdrop-blur-3xl z-10 order-2">
-                            <div className="absolute top-0 right-0 w-40 h-40 bg-white/5 blur-[80px] -z-10" />
+                        <div className="flex flex-col justify-start self-start gap-6 lg:gap-6 p-2 lg:p-6 bg-transparent relative z-10 order-2 -mr-2">
 
                             <div className="flex flex-col gap-2.5">
                                 <div className="flex items-center justify-between">
                                     <span className="text-[11px] lg:text-[10px] font-black text-[#FF7939] uppercase italic tracking-[0.2em]">
-                                        {filterType === 'workshop' ? 'Taller' : filterType === 'document' ? 'Documento' : 'Programa'}
+                                        {filterType === 'workshop' ? 'Taller' : filterType === 'document' ? 'Doc' : 'Programa'}
                                     </span>
                                 </div>
-                                {/* Title & Interactive Mode Badge */}
-                                <div className="flex flex-col">
-                                    <div className="flex items-center justify-between">
-                                        <h3 className="text-[17px] lg:text-xl font-black text-white italic uppercase leading-[1.1]">
-                                            {filterType === 'workshop' ? 'Experiencia Viva' : filterType === 'document' ? 'Conocimiento Directo' : 'Plan Maestro'}
-                                        </h3>
-                                    </div>
-
-                                    {filterType === 'workshop' && (
-                                        <div className="flex items-center gap-2 mt-5 lg:mt-4">
-                                            {[
-                                                { id: 'grupal', label: 'Grupal', icon: Users },
-                                                { id: 'individual', label: '1:1', icon: User }
-                                            ].map((m) => (
-                                                <button
-                                                    key={m.id}
-                                                    onClick={() => handleManualInteraction(() => setWorkshopMode(m.id as any))}
-                                                    className={cn(
-                                                        "flex items-center gap-2 lg:gap-2 px-3.5 lg:px-4 py-2 lg:py-2 rounded-lg lg:rounded-xl transition-all border",
-                                                        workshopMode === m.id
-                                                            ? "bg-white/10 border-[#FF7939]/50 text-white"
-                                                            : "bg-white/5 border-white/5 text-white/30"
-                                                    )}
-                                                >
-                                                    <m.icon size={13} className={workshopMode === m.id ? "text-[#FF7939]" : "text-white/20"} />
-                                                    <span className="text-[11px] lg:text-[10px] font-black uppercase italic">{m.label}</span>
-                                                </button>
-                                            ))}
-                                        </div>
-                                    )}
-
-                                    <p className="text-[13px] lg:text-[13px] text-white/50 font-semibold leading-tight mt-5 lg:mt-3">
+                                {/* Title & Interactive Mode Badge - Fixed height to avoid jumps */}
+                                <div className="flex flex-col min-h-[54px] justify-center">
+                                    <h3 className="text-[17px] lg:text-xl font-black text-white italic uppercase leading-[1.1]">
+                                        {filterType === 'workshop' ? 'Experiencia Viva' : filterType === 'document' ? 'Conocimiento Directo' : 'Plan Maestro'}
+                                    </h3>
+                                    <p className="text-[13px] text-white/50 font-semibold leading-tight mt-1 truncate">
                                         {filterType === 'workshop'
                                             ? (workshopMode === 'grupal' ? 'Sesiones grupales.' : 'Atención exclusiva.')
                                             : filterType === 'document'
@@ -452,16 +430,27 @@ export function OmniaShowcase({ scrollY }: OmniaShowcaseProps) {
                                 </div>
                             </div>
 
+                            {/* Meet Feature (Compact Single Row) */}
+                            <div className="pt-2 border-t border-white/5">
+                                <div className="flex items-center justify-between px-2.5 py-1.5 rounded-lg bg-white/[0.02] border border-white/5">
+                                    <div className="flex items-center gap-1.5">
+                                        <Video size={12} className="text-[#FF7939]" />
+                                        <span className="text-[9px] font-black text-white uppercase italic tracking-wider">Meet Incluida</span>
+                                    </div>
+                                    <span className="text-[8px] font-bold text-white/10 uppercase italic">Opcional</span>
+                                </div>
+                            </div>
+
                             {/* Intensity Selector */}
-                            <div className="flex flex-col gap-2.5 lg:gap-2">
+                            <div className="flex flex-col gap-2.5">
                                 <div className="flex items-center justify-between">
-                                    <span className="text-[12px] lg:text-[12px] font-black text-white/60 uppercase italic">Nivel</span>
+                                    <span className="text-[11px] font-black text-white/40 uppercase italic">Nivel</span>
                                     <div className="flex gap-2">
                                         {[1, 2, 3].map((lvl) => {
                                             const IconMatch = filterCategory === 'nutricion' ? Utensils : Flame;
                                             return (
                                                 <button key={lvl} onClick={() => handleManualInteraction(() => setIntensity(lvl))}>
-                                                    <IconMatch size={18} className={cn(intensity >= lvl ? (intensity === 1 ? "text-[#F7E16B]" : intensity === 2 ? "text-[#FF7939]" : "text-[#FF4D4D]") : "text-white/[0.03]")} fill="none" />
+                                                    <IconMatch size={16} className={cn(intensity >= lvl ? (intensity === 1 ? "text-[#F7E16B]" : intensity === 2 ? "text-[#FF7939]" : "text-[#FF4D4D]") : "text-white/[0.03]")} fill="none" />
                                                 </button>
                                             )
                                         })}
@@ -469,74 +458,115 @@ export function OmniaShowcase({ scrollY }: OmniaShowcaseProps) {
                                 </div>
                             </div>
 
-                            {/* Modality Selector */}
-                            <div className="flex flex-col gap-3.5 pt-3.5 border-t border-white/5">
-                                <div className="flex items-center justify-between">
-                                    <span className="text-[12px] lg:text-[12px] font-black text-white/60 uppercase italic">Digital</span>
-                                    <div className="flex gap-2.5">
-                                        {[
-                                            { id: 'online', icon: Globe },
-                                            { id: 'hybrid', icon: Scale },
-                                            { id: 'presencial', icon: MapPin }
-                                        ].map((m) => (
-                                            <button key={m.id} onClick={() => handleManualInteraction(() => setModality(m.id as any))} className={cn("p-3 rounded-lg border", modality === m.id ? "bg-white/10 border-white/20 text-white" : "bg-white/[0.02] border-white/5 text-white/20")}>
-                                                <m.icon size={18} />
-                                            </button>
-                                        ))}
+                            {/* Modality Section & Workshop Filters (Fixed size container to avoid UI jumps) */}
+                            <div className="flex flex-col pt-3 border-t border-white/5 min-h-[105px]">
+                                <div className="flex flex-col gap-3">
+                                    <div className="flex items-center justify-between">
+                                        <span className="text-[11px] font-black text-white/40 uppercase italic">Modalidad</span>
+                                        <div className="flex gap-2">
+                                            {[
+                                                { id: 'online', icon: Globe },
+                                                { id: 'hybrid', icon: Scale },
+                                                { id: 'presencial', icon: MapPin }
+                                            ].map((m) => (
+                                                <button key={m.id} onClick={() => handleManualInteraction(() => setModality(m.id as any))} className={cn("p-2 rounded-lg border", modality === m.id ? "bg-white/10 border-white/20 text-white" : "bg-white/[0.02] border-white/5 text-white/20")}>
+                                                    <m.icon size={16} />
+                                                </button>
+                                            ))}
+                                        </div>
+                                    </div>
+
+                                    {/* Workshop Modes (Grupal / 1:1) - Controlled height area */}
+                                    <div className="h-[38px] flex items-center">
+                                        <AnimatePresence mode="popLayout">
+                                            {filterType === 'workshop' && (
+                                                <motion.div
+                                                    initial={{ opacity: 0, y: -5 }}
+                                                    animate={{ opacity: 1, y: 0 }}
+                                                    exit={{ opacity: 0, y: -5 }}
+                                                    className="flex items-center gap-2 w-full"
+                                                >
+                                                    {[
+                                                        { id: 'grupal', label: 'Grupal', icon: Users },
+                                                        { id: 'individual', label: '1:1', icon: User }
+                                                    ].map((m) => (
+                                                        <button
+                                                            key={m.id}
+                                                            onClick={() => handleManualInteraction(() => setWorkshopMode(m.id as any))}
+                                                            className={cn(
+                                                                "flex-1 flex items-center justify-center gap-2 py-2 rounded-xl transition-all border",
+                                                                workshopMode === m.id
+                                                                    ? "bg-[#FF7939]/10 border-[#FF7939]/40 text-white shadow-[0_0_15px_rgba(255,121,57,0.1)]"
+                                                                    : "bg-white/[0.02] border-white/5 text-white/30"
+                                                            )}
+                                                        >
+                                                            <m.icon size={12} className={workshopMode === m.id ? "text-[#FF7939]" : "text-white/20"} />
+                                                            <span className="text-[10px] font-black uppercase italic">{m.label}</span>
+                                                        </button>
+                                                    ))}
+                                                </motion.div>
+                                            )}
+                                        </AnimatePresence>
                                     </div>
                                 </div>
                             </div>
 
-                            {/* Features (Compact) */}
-                            <div className="flex flex-col gap-3.5 pt-5 border-t border-white/5 sm:block mb-6">
-                                <div className="flex items-center gap-3.5 p-3.5 rounded-xl bg-white/[0.02] border border-white/10">
-                                    <Video size={18} className="text-white/40" />
-                                    <span className="text-[11px] lg:text-[10px] font-black text-white uppercase italic tracking-wider">Meet Incluida</span>
+                            {/* Mobile Staggered Dynamic Comments - Serpentines & Overlapping - POSITIONED BELOW MODALITY */}
+                            <div className="flex lg:hidden flex-col gap-0 relative mt-4 pt-2 border-t border-white/5">
+                                <div className="space-y-4">
+                                    {(() => {
+                                        const comments = filterCategory === 'nutricion'
+                                            ? ["¡Súper rico!", "Fácil de hacer", "10/10 sano"]
+                                            : filterType === 'workshop'
+                                                ? ["Clase increíble", "Maru es lo más", "Pura paz"]
+                                                : ["¡Me encantó!", "Súper claro", "Brutal 10/10"];
+
+                                        // Stagger logic based on filter to vary horizontal positions - COMPACT
+                                        const offsets = filterType === 'workshop' ? ['ml-8', 'ml-0', 'ml-4'] : ['ml-0', 'ml-12', 'ml-2'];
+
+                                        return comments.map((text, i) => (
+                                            <motion.div
+                                                key={`${filterType}-${filterCategory}-${i}`}
+                                                initial={{ opacity: 0, x: i % 2 === 0 ? 10 : -10 }}
+                                                animate={{ opacity: 1, x: 0 }}
+                                                transition={{ delay: i * 0.1 }}
+                                                className={cn(
+                                                    "self-start relative",
+                                                    offsets[i],
+                                                    i === 1 ? "z-[40] -translate-y-1 scale-105" : "z-[20]"
+                                                )}
+                                            >
+                                                <div className="flex gap-0.5 text-[#FF7939] mb-0">
+                                                    {[1, 2, 3, 4, 5].map(s => <Star key={s} size={8} fill="currentColor" />)}
+                                                </div>
+                                                <p className="text-[11px] text-white font-black italic leading-tight drop-shadow-2xl">"{text}"</p>
+                                            </motion.div>
+                                        ));
+                                    })()}
                                 </div>
                             </div>
 
-                            {/* Mobile Staggered Comments (TASK-002) - Directly under info */}
-                            <div className="flex lg:hidden flex-col gap-1 relative mt-2 pt-4 border-t border-white/5">
-                                <div className="space-y-1">
-                                    <motion.div
-                                        initial={{ opacity: 0, x: 20 }}
-                                        animate={{ opacity: 1, x: 0 }}
-                                        className="bg-[#1e1e1e]/90 backdrop-blur-md rounded-2xl p-4 border border-white/10 shadow-xl self-start ml-0 mr-4 z-10"
-                                    >
-                                        <div className="flex gap-0.5 text-[#FF7939] mb-1.5"><Star size={12} fill="currentColor" /><Star size={12} fill="currentColor" /><Star size={12} fill="currentColor" /><Star size={12} fill="currentColor" /><Star size={12} fill="currentColor" /></div>
-                                        <p className="text-[14px] text-white font-black italic leading-tight">"¡Me encantó todo!"</p>
-                                    </motion.div>
-                                    <motion.div
-                                        initial={{ opacity: 0, x: -20 }}
-                                        animate={{ opacity: 1, x: 0 }}
-                                        transition={{ delay: 0.1 }}
-                                        className="bg-[#1e1e1e]/90 backdrop-blur-md rounded-2xl p-4 border border-white/10 shadow-xl self-start ml-6 mr-0 z-20"
-                                    >
-                                        <div className="flex gap-0.5 text-[#FF7939] mb-1.5"><Star size={12} fill="currentColor" /><Star size={12} fill="currentColor" /><Star size={12} fill="currentColor" /><Star size={12} fill="currentColor" /><Star size={12} fill="currentColor" /></div>
-                                        <p className="text-[14px] text-white font-black italic leading-tight">"Súper claro."</p>
-                                    </motion.div>
-                                    <motion.div
-                                        initial={{ opacity: 0, scale: 0.9 }}
-                                        animate={{ opacity: 1, scale: 1 }}
-                                        transition={{ delay: 0.2 }}
-                                        className="bg-[#1e1e1e]/90 backdrop-blur-md rounded-2xl p-4 border border-[#FF7939]/30 shadow-xl self-start ml-2 mr-6 z-10"
-                                    >
-                                        <div className="flex gap-0.5 text-[#FF7939] mb-1.5"><Star size={12} fill="currentColor" /><Star size={12} fill="currentColor" /><Star size={12} fill="currentColor" /><Star size={12} fill="currentColor" /><Star size={12} fill="currentColor" /></div>
-                                        <p className="text-[14px] text-white font-black italic leading-tight">"10/10 brutal."</p>
-                                    </motion.div>
+                            {/* Client Specific Restrictions & Goals (Phrase Mode) */}
+                            <div className="pt-4 mt-auto border-t border-white/5">
+                                <div className="flex items-center gap-3 p-3 rounded-2xl bg-white/[0.02] border border-white/5">
+                                    <ShieldCheck size={14} className="text-[#FF7939]" />
+                                    <p className="text-[10px] text-white/50 font-black italic tracking-wide">
+                                        <span className="text-[#FF7939] uppercase">Restricciones</span> y <span className="text-[#FF7939] uppercase">objetivos</span> <br /> acordes a cada cliente.
+                                    </p>
                                 </div>
                             </div>
                         </div>
                     </div>
-                </div>
 
-                {/* Calendar Preview */}
-                <div className="space-y-6">
-                    <div className="flex items-center justify-between px-2">
-                        <div className="w-12 h-px bg-white/10" />
-                        <h2 className="text-xs font-black text-white/40 uppercase tracking-widest italic">Agenda tu Progreso</h2>
+                    {/* Calendar Preview */}
+                    <div className="space-y-4 -mt-20 lg:-mt-10">
+                        <div className="flex items-center justify-between px-2">
+                            <div className="w-8 h-px bg-white/10" />
+                            <h2 className="text-[10px] font-black text-white/30 uppercase tracking-[0.3em] italic">Agenda tu Progreso</h2>
+                            <div className="w-8 h-px bg-white/10" />
+                        </div>
+                        <MockCalendar />
                     </div>
-                    <MockCalendar />
                 </div>
             </motion.section>
 
@@ -786,6 +816,28 @@ export function OmniaShowcase({ scrollY }: OmniaShowcaseProps) {
                                                 </div>
                                             </div>
                                         </motion.div>
+
+                                        {/* Pagination Dots indicating multiple screens */}
+                                        <div className="absolute -bottom-10 left-1/2 -translate-x-1/2 flex items-center gap-3 z-30">
+                                            <button
+                                                onClick={() => setClientMockupType('fitness')}
+                                                className={cn(
+                                                    "h-1.5 transition-all duration-500 rounded-full",
+                                                    clientMockupType === 'fitness'
+                                                        ? "w-8 bg-[#FF7939] shadow-[0_0_10px_rgba(255,121,57,0.4)]"
+                                                        : "w-2 bg-white/20 hover:bg-white/40"
+                                                )}
+                                            />
+                                            <button
+                                                onClick={() => setClientMockupType('nutrition')}
+                                                className={cn(
+                                                    "h-1.5 transition-all duration-500 rounded-full",
+                                                    clientMockupType === 'nutrition'
+                                                        ? "w-8 bg-orange-300 shadow-[0_0_10px_rgba(253,186,116,0.4)]"
+                                                        : "w-2 bg-white/20 hover:bg-white/40"
+                                                )}
+                                            />
+                                        </div>
                                     </div>
                                 </div>
 
@@ -802,11 +854,11 @@ export function OmniaShowcase({ scrollY }: OmniaShowcaseProps) {
                                         </p>
                                     </div>
 
-                                    <div className="flex justify-center relative">
+                                    <div className="flex justify-center relative w-full px-4 overflow-hidden mobile:overflow-visible">
                                         <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-full max-w-[800px] h-[400px] bg-blue-500/5 blur-[120px] rounded-full" />
 
                                         {/* iPad Layout: 3/4 Video Workshop (Yoga) + 1/4 PDF Doc */}
-                                        <div className="w-full max-w-[850px] aspect-[11/8] bg-[#0a0a0a] rounded-[32px] border-[12px] border-[#1a1a1a] shadow-[0_0_100px_rgba(0,0,0,0.5)] overflow-hidden relative group">
+                                        <div className="w-full max-w-[850px] aspect-[11/8] bg-[#0a0a0a] rounded-[32px] border-[12px] border-[#1a1a1a] shadow-[0_0_100px_rgba(0,0,0,0.5)] overflow-hidden relative group scale-[0.82] sm:scale-100 origin-top">
                                             {/* Camera Top */}
                                             <div className="absolute top-2 left-1/2 -translate-x-1/2 w-1.5 h-1.5 bg-black/40 rounded-full border border-white/10 z-50" />
 
@@ -855,24 +907,24 @@ export function OmniaShowcase({ scrollY }: OmniaShowcaseProps) {
                                                         </div>
 
                                                         {/* Google Meet Style Controls */}
-                                                        <div className="absolute bottom-6 left-0 w-full px-6 flex items-center justify-between z-20">
-                                                            <div className="bg-black/60 backdrop-blur-md px-3 py-2 rounded-full border border-white/10 flex items-center gap-2">
-                                                                <MicOff size={10} className="text-red-400" />
-                                                                <span className="text-[10px] font-bold text-white/90">Maru Yoga</span>
+                                                        <div className="absolute bottom-6 left-0 w-full px-4 flex items-center justify-between z-20">
+                                                            <div className="bg-black/60 backdrop-blur-md px-2.5 py-1.5 rounded-full border border-white/10 flex items-center gap-1.5 min-w-0">
+                                                                <MicOff size={10} className="text-red-400 flex-shrink-0" />
+                                                                <span className="text-[9px] font-bold text-white/90 truncate max-w-[50px] sm:max-w-none">Maru Yoga</span>
                                                             </div>
 
-                                                            <div className="absolute left-[45%] -translate-x-1/2 flex items-center gap-2 bg-zinc-900/90 backdrop-blur-xl p-2 rounded-full border border-white/10 shadow-2xl">
-                                                                <button className="p-2 bg-white/5 rounded-full text-white/80"><Mic size={14} /></button>
-                                                                <button className="p-2 bg-white/5 rounded-full text-white/80"><Video size={14} /></button>
-                                                                <button className="p-2 bg-white/5 rounded-full text-white/80"><Monitor size={14} /></button>
-                                                                <button className="p-2 bg-white/5 rounded-full text-white/80"><Hand size={14} /></button>
-                                                                <button className="p-2.5 bg-red-500 rounded-full text-white shadow-lg shadow-red-500/30"><PhoneOff size={14} /></button>
+                                                            <div className="absolute left-1/2 -translate-x-1/2 flex items-center gap-1.5 bg-zinc-900/90 backdrop-blur-xl p-1.5 rounded-full border border-white/10 shadow-2xl flex-shrink-0">
+                                                                <button className="p-1.5 bg-white/5 rounded-full text-white/80"><Mic size={12} /></button>
+                                                                <button className="p-1.5 bg-white/5 rounded-full text-white/80"><Video size={12} /></button>
+                                                                <button className="p-1.5 bg-white/5 rounded-full text-white/80"><Monitor size={12} /></button>
+                                                                <button className="p-1.5 bg-white/5 rounded-full text-white/80"><Hand size={12} /></button>
+                                                                <button className="p-2 bg-red-500 rounded-full text-white shadow-lg shadow-red-500/30"><PhoneOff size={12} /></button>
                                                             </div>
 
-                                                            <div className="flex items-center gap-3 bg-black/40 backdrop-blur-md p-2 rounded-full border border-white/10">
-                                                                <Users size={12} className="text-white/60" />
-                                                                <MessageSquare size={12} className="text-white/60" />
-                                                                <LayoutGrid size={12} className="text-white/60" />
+                                                            <div className="flex items-center gap-2 bg-black/40 backdrop-blur-md p-1.5 rounded-full border border-white/10 flex-shrink-0">
+                                                                <Users size={10} className="text-white/60" />
+                                                                <MessageSquare size={10} className="text-white/60" />
+                                                                <LayoutGrid size={10} className="text-white/60" />
                                                             </div>
                                                         </div>
                                                     </div>
@@ -913,18 +965,18 @@ export function OmniaShowcase({ scrollY }: OmniaShowcaseProps) {
                                 <div className="space-y-8">
                                     <div className="flex flex-col items-center text-center space-y-4">
                                         <div className="inline-flex p-1 bg-white/5 rounded-2xl border border-white/10 backdrop-blur-3xl">
-                                            {(['clients', 'products', 'profile'] as const).map((tab) => (
+                                            {['clients', 'profile'].map((tab) => (
                                                 <button
                                                     key={tab}
-                                                    onClick={() => handleManualInteraction(() => setCoachMockupType(tab))}
+                                                    onClick={() => handleManualInteraction(() => setCoachMockupType(tab as any))}
                                                     className={cn(
-                                                        "px-6 py-2 rounded-xl text-[10px] font-black uppercase tracking-widest italic transition-all duration-300",
+                                                        "px-10 py-2 rounded-xl text-[10px] font-black uppercase tracking-widest italic transition-all duration-300",
                                                         coachMockupType === tab
-                                                            ? (tab === 'clients' ? "bg-blue-500 text-white" : tab === 'products' ? "bg-cyan-500 text-white" : "bg-[#FF7939] text-white")
+                                                            ? (tab === 'clients' ? "bg-blue-500 text-white" : "bg-[#FF7939] text-white")
                                                             : "text-white/30 hover:text-white/50"
                                                     )}
                                                 >
-                                                    {tab === 'clients' ? 'Clientes' : tab === 'products' ? 'Productos' : 'Perfil'}
+                                                    {tab === 'clients' ? 'Clientes' : 'Perfil'}
                                                 </button>
                                             ))}
                                         </div>
@@ -938,7 +990,7 @@ export function OmniaShowcase({ scrollY }: OmniaShowcaseProps) {
                                         {/* Glow Backgrounds */}
                                         <div className={cn(
                                             "absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-80 h-80 rounded-full blur-[120px] transition-all duration-1000",
-                                            coachMockupType === 'clients' ? "bg-blue-500/20" : coachMockupType === 'products' ? "bg-cyan-500/20" : "bg-[#FF7939]/20"
+                                            coachMockupType === 'clients' ? "bg-blue-500/20" : "bg-[#FF7939]/20"
                                         )} />
 
                                         {/* Phone 1: Clients */}
@@ -946,7 +998,7 @@ export function OmniaShowcase({ scrollY }: OmniaShowcaseProps) {
                                             onClick={() => setCoachMockupType('clients')}
                                             animate={{
                                                 scale: coachMockupType === 'clients' ? 1.05 : 0.85,
-                                                x: coachMockupType === 'clients' ? "-50%" : "-100%",
+                                                x: coachMockupType === 'clients' ? "-50%" : "-75%",
                                                 y: coachMockupType === 'clients' ? 0 : 20,
                                                 zIndex: coachMockupType === 'clients' ? 20 : 10,
                                                 rotateZ: coachMockupType === 'clients' ? 0 : -5,
@@ -957,45 +1009,108 @@ export function OmniaShowcase({ scrollY }: OmniaShowcaseProps) {
                                             className="absolute top-0 left-1/2 w-[280px] aspect-[9/19] rounded-[48px] border-[6px] border-[#1a1a1a] overflow-hidden bg-[#050505] shadow-2xl cursor-pointer"
                                         >
                                             <div className="h-full flex flex-col bg-[#050505] overflow-y-auto hide-scrollbar pointer-events-none">
-                                                <div className="h-7 flex justify-center bg-black relative z-50">
-                                                    <div className="w-14 h-4 bg-black rounded-b-xl" />
+                                                {/* App Header (config | omnia | msg) */}
+                                                <div className="h-12 w-full px-4 flex items-center justify-between bg-black/40 backdrop-blur-md border-b border-white/5 z-[60]">
+                                                    <div className="p-1.5 text-[#FF7939]"><Settings size={18} /></div>
+                                                    <div className="text-[#FF7939] font-black tracking-[0.2em] italic text-sm">omnia</div>
+                                                    <div className="p-1.5 text-[#FF7939] relative">
+                                                        <MessageSquare size={18} />
+                                                        <div className="absolute top-1 right-1 w-2 h-2 bg-red-500 rounded-full border border-black" />
+                                                    </div>
                                                 </div>
 
-                                                <div className="px-6 py-4 space-y-6">
-                                                    <div className="flex flex-col">
-                                                        <span className="text-[10px] font-black text-white/40 uppercase tracking-widest">Seguimiento</span>
-                                                        <span className="text-xl font-black text-white italic uppercase">Mis Clientes</span>
+                                                <div className="px-5 pt-5 pb-2">
+                                                    <span className="text-[10px] font-black text-white/30 uppercase tracking-[0.2em] leading-none">SEGUIMIENTO</span>
+                                                    <h3 className="text-[22px] font-black text-white uppercase italic tracking-tighter mt-1">MIS CLIENTES</h3>
+                                                </div>
+
+                                                <div className="px-5 py-2 space-y-5">
+                                                    {/* Search and Filters */}
+                                                    <div className="space-y-4">
+                                                        <div className="flex items-center gap-3">
+                                                            <div className="flex-1 relative">
+                                                                <Search className="absolute left-4 top-1/2 -translate-y-1/2 text-white/20" size={16} />
+                                                                <input
+                                                                    disabled
+                                                                    className="w-full bg-[#111111] border border-white/5 rounded-full py-3 pl-11 pr-4 text-[13px] font-bold text-white/50 placeholder:text-white/20"
+                                                                    placeholder="Buscar clientes..."
+                                                                />
+                                                            </div>
+                                                            <div className="bg-[#111111] border border-white/5 rounded-full px-4 py-3 flex items-center gap-2">
+                                                                <SlidersHorizontal size={16} className="text-white/40" />
+                                                                <span className="text-[11px] font-black text-white/40 uppercase tracking-tighter">Filtro</span>
+                                                            </div>
+                                                        </div>
+
+                                                        <div className="flex items-center gap-6 border-b border-white/5 pb-1 overflow-x-auto hide-scrollbar">
+                                                            {['Todos', 'Activos', 'Pendientes', 'Inactivos'].map((tab, i) => (
+                                                                <div key={tab} className="relative pb-2">
+                                                                    <span className={cn(
+                                                                        "text-[15px] font-black uppercase tracking-tight whitespace-nowrap",
+                                                                        i === 0 ? "text-white" : "text-white/30"
+                                                                    )}>{tab}</span>
+                                                                    {i === 0 && <div className="absolute bottom-0 left-0 right-0 h-0.5 bg-[#FF7939] rounded-full" />}
+                                                                </div>
+                                                            ))}
+                                                        </div>
                                                     </div>
 
-                                                    <div className="space-y-3">
+                                                    <div className="grid grid-cols-2 gap-x-2 gap-y-6">
                                                         {[
-                                                            { name: 'Juan Pérez', status: 'Activo', progress: 85, color: '#3b82f6' },
-                                                            { name: 'María Garcia', status: 'Nuevo', progress: 10, color: '#10b981' },
-                                                            { name: 'Pedro Solo', status: 'Inactivo', progress: 0, color: '#ef4444' }
+                                                            {
+                                                                name: 'Franco Hotmail',
+                                                                avatar: 'https://images.unsplash.com/photo-1543351611-58f69d7c1781?w=200&q=80',
+                                                                streak: 8,
+                                                                days: { completed: 25, absent: 2, total: 30 },
+                                                                fitness: { completed: 18, absent: 5, total: 24 }
+                                                            },
+                                                            {
+                                                                name: 'Bati B.',
+                                                                avatar: 'https://images.unsplash.com/photo-1599566150163-29194dcaad36?w=200&q=80',
+                                                                streak: 15,
+                                                                days: { completed: 30, absent: 0, total: 30 },
+                                                                fitness: { completed: 24, absent: 0, total: 24 }
+                                                            },
+                                                            {
+                                                                name: 'Maru G.',
+                                                                avatar: 'https://images.unsplash.com/photo-1494790108377-be9c29b29330?w=200&q=80',
+                                                                streak: 3,
+                                                                days: { completed: 10, absent: 5, total: 30 },
+                                                                fitness: { completed: 5, absent: 3, total: 24 }
+                                                            },
+                                                            {
+                                                                name: 'Juan P.',
+                                                                avatar: 'https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?w=200&q=80',
+                                                                streak: 0,
+                                                                days: { completed: 0, absent: 0, total: 30 },
+                                                                fitness: { completed: 0, absent: 0, total: 24 }
+                                                            }
                                                         ].map((client, i) => (
-                                                            <div key={i} className="p-4 bg-white/[0.03] border border-white/5 rounded-2xl flex items-center justify-between">
-                                                                <div className="flex items-center gap-3">
-                                                                    <div className="w-10 h-10 rounded-full bg-white/5 border border-white/10 flex items-center justify-center text-xs font-black text-white/50">
-                                                                        {client.name.charAt(0)}
+                                                            <div key={i} className="flex flex-col items-center group">
+                                                                <div className="flex items-center gap-1.5 mb-2">
+                                                                    {/* Avatar */}
+                                                                    <div className="w-10 h-10 rounded-full border border-white/10 overflow-hidden shadow-lg group-hover:border-[#FF7939]/30 transition-all shrink-0">
+                                                                        <img src={client.avatar} className="w-full h-full object-cover" />
                                                                     </div>
-                                                                    <div className="flex flex-col">
-                                                                        <span className="text-[11px] font-black text-white">{client.name}</span>
-                                                                        <span className="text-[8px] font-bold uppercase" style={{ color: client.color }}>{client.status}</span>
-                                                                    </div>
+                                                                    {/* Rings */}
+                                                                    <ShowcaseActivityRings
+                                                                        days={client.days}
+                                                                        fitness={client.fitness}
+                                                                        streak={client.streak}
+                                                                        size={55}
+                                                                    />
                                                                 </div>
-                                                                <div className="flex items-center gap-2">
-                                                                    <div className="w-16 h-1 bg-white/5 rounded-full overflow-hidden">
-                                                                        <div className="h-full bg-white/20" style={{ width: `${client.progress}%` }} />
-                                                                    </div>
-                                                                    <ChevronRight size={10} className="text-white/20" />
-                                                                </div>
+                                                                <h4 className="text-[8px] font-black text-white/40 uppercase tracking-tight text-center leading-none max-w-[80px] truncate">{client.name}</h4>
                                                             </div>
                                                         ))}
                                                     </div>
                                                 </div>
 
                                                 <div className="mt-auto p-4 bg-black/80 backdrop-blur-md border-t border-white/5 flex justify-around items-center">
-                                                    <Users size={18} className="text-blue-500" />
+                                                    <div className="w-8 h-8 rounded-full bg-white/5 flex items-center justify-center border border-white/10">
+                                                        <span className="text-[10px] font-black text-white">N</span>
+                                                    </div>
+                                                    <Users size={18} className="text-[#FF7939]" />
                                                     <PlusCircle size={18} className="text-white/20" />
                                                     <BarChart3 size={18} className="text-white/20" />
                                                     <User size={18} className="text-white/20" />
@@ -1008,7 +1123,7 @@ export function OmniaShowcase({ scrollY }: OmniaShowcaseProps) {
                                             onClick={() => setCoachMockupType('profile')}
                                             animate={{
                                                 scale: coachMockupType === 'profile' ? 1.05 : 0.85,
-                                                x: coachMockupType === 'profile' ? "-50%" : "0%",
+                                                x: coachMockupType === 'profile' ? "-50%" : "-25%",
                                                 y: coachMockupType === 'profile' ? 0 : 20,
                                                 zIndex: coachMockupType === 'profile' ? 20 : 10,
                                                 rotateZ: coachMockupType === 'profile' ? 0 : 5,
@@ -1018,120 +1133,180 @@ export function OmniaShowcase({ scrollY }: OmniaShowcaseProps) {
                                             transition={{ duration: 0.6, type: "spring", bounce: 0.3 }}
                                             className="absolute top-0 left-1/2 w-[280px] aspect-[9/19] rounded-[48px] border-[6px] border-[#1a1a1a] overflow-hidden bg-[#050505] shadow-2xl cursor-pointer"
                                         >
-                                            <div className="h-full flex flex-col bg-[#0a0a0a] overflow-y-auto hide-scrollbar pointer-events-none">
-                                                <div className="h-7 flex justify-center bg-[#0a0a0a] relative z-50">
-                                                    <div className="w-14 h-4 bg-black rounded-b-xl" />
+                                            <div className="h-full flex flex-col bg-[#050505] overflow-y-auto hide-scrollbar pointer-events-none">
+                                                {/* App Header (config | omnia | msg) */}
+                                                <div className="h-12 w-full px-4 flex items-center justify-between bg-black/40 backdrop-blur-md border-b border-white/5 z-[60]">
+                                                    <div className="p-1.5 text-white/40"><Settings size={18} /></div>
+                                                    <div className="text-[#FF7939] font-black tracking-[0.2em] italic text-sm">omnia</div>
+                                                    <div className="p-1.5 text-white/40 relative">
+                                                        <MessageSquare size={18} />
+                                                        <div className="absolute top-1 right-1 w-2 h-2 bg-[#FF7939] rounded-full border border-black" />
+                                                    </div>
                                                 </div>
 
-                                                {/* Profile Content */}
-                                                <div className="flex flex-col items-center pt-4 px-4">
-                                                    <div className="w-16 h-16 rounded-full border-2 border-[#FF7939] p-0.5 mb-2">
-                                                        <img src="https://images.unsplash.com/photo-1594381898411-846e7d193883?w=100&q=80" className="w-full h-full object-cover rounded-full" />
-                                                    </div>
-                                                    <h5 className="text-[13px] font-black text-white italic uppercase leading-none">Franco Pomati coach</h5>
-                                                    <div className="flex items-center gap-4 mt-2 mb-3">
-                                                        <div className="flex items-center gap-1 text-[8px] font-black text-white"><Star size={8} className="text-[#FF7939] fill-[#FF7939]" /> 4.3</div>
-                                                        <div className="text-[8px] font-black text-white/40 uppercase">1 ventas</div>
-                                                        <div className="text-[8px] font-black text-white/40 uppercase">1 cert.</div>
-                                                    </div>
+                                                {/* 1. Coach Profile Card (Compact) */}
+                                                <div className="px-3 pt-3">
+                                                    <div className="relative rounded-[24px] overflow-hidden bg-[#111111] border border-white/5 shadow-2xl">
+                                                        {/* Sports Background Mask */}
+                                                        <div className="absolute inset-x-0 top-0 h-full overflow-hidden select-none">
+                                                            <img src="https://images.unsplash.com/photo-1543351611-58f69d7c1781?w=800&q=80" className="w-full h-full object-cover opacity-50 blur-[2px]" />
+                                                            <div className="absolute inset-0 bg-gradient-to-t from-[#111111] via-[#111111]/60 to-transparent" />
+                                                        </div>
 
-                                                    <div className="w-full bg-white/[0.03] border border-white/5 rounded-2xl p-4 mb-4">
-                                                        <div className="text-center mb-4">
-                                                            <span className="text-2xl font-black text-white italic tracking-tighter">$850</span>
-                                                            <p className="text-[7px] text-white/30 uppercase font-bold tracking-widest mt-1">Ganancia Bruta: $1.000 | Suscripción: -$12.000</p>
+                                                        {/* Header: Flame Pill & Edit */}
+                                                        <div className="relative z-20 px-4 pt-4 flex justify-between items-start">
+                                                            <div className="flex items-center gap-1.5 bg-[#FF7939]/30 backdrop-blur-md px-2.5 py-1 rounded-full border border-[#FF7939]/40">
+                                                                <Flame size={10} className="text-[#FF7939] fill-[#FF7939]" />
+                                                                <span className="text-[10px] font-black text-[#FF7939]">6</span>
+                                                            </div>
+                                                            <Edit2 size={12} className="text-[#FF7939] opacity-70" />
                                                         </div>
-                                                        <div className="w-full h-10 bg-[#FF7939] rounded-xl flex items-center justify-center shadow-[0_0_20px_rgba(255,121,57,0.3)]">
-                                                            <span className="text-[10px] font-black text-black">1k</span>
-                                                        </div>
-                                                        <div className="grid grid-cols-4 gap-2 mt-4">
-                                                            {[Briefcase, Users, FileText, MessageSquare].map((Icon, idx) => (
-                                                                <div key={idx} className="flex flex-col items-center gap-1">
-                                                                    <div className="p-1.5 bg-white/5 rounded-lg border border-white/5 text-white/40">
-                                                                        <Icon size={12} />
-                                                                    </div>
+
+                                                        <div className="relative z-10 flex flex-col items-center pb-4 -mt-2">
+                                                            <div className="w-16 h-16 rounded-full overflow-hidden shadow-2xl mb-2">
+                                                                <img src="https://images.unsplash.com/photo-1543351611-58f69d7c1781?w=200&q=80" className="w-full h-full object-cover" alt="Coach Avatar" />
+                                                            </div>
+
+                                                            <h5 className="text-[14px] font-black text-white tracking-tight leading-none">Franco Pomati coach</h5>
+
+                                                            <div className="flex items-center gap-3 mt-1.5">
+                                                                <div className="flex items-center gap-1 text-[10px] font-black text-[#FF7939]">
+                                                                    <Star size={10} fill="currentColor" />
+                                                                    <span>4.3</span>
                                                                 </div>
-                                                            ))}
+                                                                <span className="text-[10px] font-medium text-white/80">1 ventas</span>
+                                                                <div className="flex items-center gap-1 text-[10px] font-medium text-white/50">
+                                                                    <Award size={10} />
+                                                                    <span>1 cert.</span>
+                                                                </div>
+                                                            </div>
+
+                                                            <div className="flex items-center gap-1 mt-1.5 text-[10px] text-white/40 font-bold uppercase">
+                                                                <MapPin size={8} />
+                                                                <span>CABA</span>
+                                                                <span className="opacity-20">·</span>
+                                                                <span>26 años</span>
+                                                            </div>
+
+                                                            <p className="mt-2 text-[10px] text-white/50 text-center leading-tight px-4 max-w-[240px]">
+                                                                Profesional de futbol, preparador fisico de Boca Juniors.
+                                                            </p>
+
+                                                            {/* Ultra-Compact Skill Tags (Single row, 3 max) */}
+                                                            <div className="flex justify-center gap-1.5 mt-3 px-4">
+                                                                {['General', 'Futbol', 'Fitness'].map(tag => (
+                                                                    <span key={tag} className="px-2.5 py-1 rounded-full border border-[#FF7939]/20 bg-[#FF7939]/5 text-[8px] font-black text-[#FF7939] uppercase tracking-tighter">
+                                                                        {tag}
+                                                                    </span>
+                                                                ))}
+                                                            </div>
                                                         </div>
                                                     </div>
+                                                </div>
 
-                                                    <div className="w-full space-y-4">
-                                                        <div className="flex justify-between items-center">
-                                                            <span className="text-[10px] font-black text-white/60 uppercase italic">Estadísticas</span>
-                                                            <span className="text-[7px] text-white/20 uppercase font-bold">Últimos 30 días</span>
+                                                {/* 2. Financial & Category Block */}
+                                                <div className="px-3 mt-3">
+                                                    <div className="bg-[#111111] rounded-[24px] border border-white/5 p-6 flex flex-col items-center shadow-xl">
+                                                        <div className="text-center">
+                                                            <span className="text-2xl font-black text-[#FF7939] italic">$165.500</span>
+                                                            <div className="flex flex-col gap-0.5 mt-1 opacity-40">
+                                                                <span className="text-[8px] font-bold uppercase tracking-widest text-white">Ganancia Bruta: $171.000</span>
+                                                                <span className="text-[8px] font-bold uppercase tracking-widest text-white">Suscripción: -$5.500</span>
+                                                            </div>
                                                         </div>
-                                                        <div className="grid grid-cols-2 gap-3">
+
+                                                        {/* Segmented Earnings Bar - Coinciding Colors */}
+                                                        <div className="w-full flex items-center gap-1 mt-6 h-2 px-1">
+                                                            <div className="h-full rounded-full bg-[#FF7939] flex-[0.5] shadow-[0_0_10px_rgba(255,121,57,0.4)]" />
+                                                            <div className="h-full rounded-full bg-[#8E78E0] flex-[0.2]" />
+                                                            <div className="h-full rounded-full bg-[#E58EB1] flex-[0.15]" />
+                                                            <div className="h-full rounded-full bg-[#6B8EAD] flex-[0.15]" />
+                                                        </div>
+
+                                                        {/* Category Legend (Replacing 1k Total) */}
+                                                        <div className="w-full grid grid-cols-4 gap-2 mt-4">
                                                             {[
-                                                                { label: 'Tasa de resp.', val: '0%', status: 'Crítico', icon: MessageSquare },
-                                                                { label: 'Tiempo resp.', val: 'N/A', status: 'Rápido', icon: Clock }
-                                                            ].map((stat, idx) => (
-                                                                <div key={idx} className="p-3 bg-white/[0.02] border border-white/5 rounded-2xl">
-                                                                    <div className="flex items-center gap-2 mb-2">
-                                                                        <stat.icon size={10} className="text-[#FF7939]" />
-                                                                        <span className="text-[7px] font-black text-white/30 uppercase">{stat.label}</span>
+                                                                { l: 'Programas', i: Briefcase, c: 'text-[#FF7939]' },
+                                                                { l: 'Talleres', i: Users, c: 'text-[#8E78E0]' },
+                                                                { l: 'Documentos', i: FileText, c: 'text-[#E58EB1]' },
+                                                                { l: 'Consultas', i: MessageSquare, c: 'text-[#6B8EAD]' }
+                                                            ].map((item, idx) => (
+                                                                <div key={idx} className="flex flex-col items-center gap-1">
+                                                                    <div className={cn("p-1.5 opacity-80", item.c)}><item.i size={14} /></div>
+                                                                    <span className="text-[7px] font-black text-white/30 uppercase tracking-tighter text-center leading-none">{item.l}</span>
+                                                                </div>
+                                                            ))}
+                                                        </div>
+                                                    </div>
+                                                </div>
+
+                                                {/* 3. Stats Section (Compact) */}
+                                                <div className="px-3 mt-3">
+                                                    <div className="bg-[#111111] rounded-[24px] border border-white/5 p-5 space-y-6 shadow-xl">
+                                                        <div className="flex justify-between items-center text-[10px] font-black uppercase tracking-widest leading-none">
+                                                            <span className="text-white/40">Estadísticas</span>
+                                                            <span className="text-white/20">Últimos 30 días</span>
+                                                        </div>
+
+                                                        <div className="grid grid-cols-2 gap-x-6 gap-y-7">
+                                                            {[
+                                                                { l: 'Tasa de respuesta', v: '0%', s: 'Critico', i: MessageSquare, c: 'text-[#FF7939]' },
+                                                                { l: 'Tiempo de respuesta', v: 'N/A', s: 'Rápido', i: Clock, c: 'text-white/40' },
+                                                                { l: 'Cancelaciones', v: '0', s: 'Sin cancelaciones', i: X, c: 'text-red-400' },
+                                                                { l: 'Reprogramaciones tardías', v: '0', s: 'Sin reprogramaciones', i: Calendar, c: 'text-orange-300' },
+                                                                { l: 'Asistencia', v: '0%', s: 'Mejorar', i: ShieldCheck, c: 'text-[#FF7939]' },
+                                                                { l: 'Incidentes', v: '0', s: 'Sin incidentes', i: ShieldAlert, c: 'text-white/40' }
+                                                            ].map((st, idx) => (
+                                                                <div key={idx} className="flex flex-col gap-1.5">
+                                                                    <div className="flex items-center gap-2 mb-0.5 opacity-60">
+                                                                        <st.i size={12} />
+                                                                        <span className="text-[9px] font-black text-white uppercase tracking-tight">{st.l}</span>
                                                                     </div>
-                                                                    <p className="text-sm font-black text-white">{stat.val}</p>
-                                                                    <span className="text-[7px] text-white/20 font-bold uppercase">{stat.status}</span>
+                                                                    <p className="text-lg font-black text-white leading-none italic">{st.v}</p>
+                                                                    <span className="text-[9px] text-white/20 font-black uppercase italic tracking-tighter leading-none">{st.s}</span>
                                                                 </div>
                                                             ))}
                                                         </div>
                                                     </div>
                                                 </div>
 
-                                                <div className="mt-auto p-4 bg-black/80 backdrop-blur-md border-t border-white/5 flex justify-around items-center">
-                                                    <Users size={18} className="text-white/20" />
-                                                    <PlusCircle size={18} className="text-white/20" />
-                                                    <BarChart3 size={18} className="text-white/20" />
-                                                    <User size={18} className="text-[#FF7939]" />
-                                                </div>
-                                            </div>
-                                        </motion.div>
-
-                                        {/* Phone 3: Products */}
-                                        <motion.div
-                                            onClick={() => setCoachMockupType('products')}
-                                            animate={{
-                                                scale: coachMockupType === 'products' ? 1.05 : 0.85,
-                                                x: coachMockupType === 'products' ? "-50%" : "100%",
-                                                y: coachMockupType === 'products' ? 0 : 20,
-                                                zIndex: coachMockupType === 'products' ? 20 : 5,
-                                                rotateZ: coachMockupType === 'products' ? 0 : 10,
-                                                opacity: coachMockupType === 'products' ? 1 : 0.3,
-                                                filter: coachMockupType === 'products' ? 'blur(0px)' : 'blur(4px)',
-                                            }}
-                                            transition={{ duration: 0.6, type: "spring", bounce: 0.3 }}
-                                            className="absolute top-0 left-1/2 w-[280px] aspect-[9/19] rounded-[48px] border-[6px] border-[#1a1a1a] overflow-hidden bg-[#050505] shadow-2xl cursor-pointer"
-                                        >
-                                            <div className="h-full flex flex-col bg-black overflow-y-auto hide-scrollbar pointer-events-none">
-                                                <div className="h-7 flex justify-center bg-black relative z-50">
-                                                    <div className="w-14 h-4 bg-black rounded-b-xl" />
-                                                </div>
-
-                                                <div className="px-5 py-4 space-y-4">
-                                                    <div className="flex items-center justify-between">
-                                                        <span className="text-xs font-black text-white italic uppercase tracking-tighter">Content Studio</span>
-                                                        <PlusCircle size={16} className="text-cyan-400" />
-                                                    </div>
-
-                                                    <div className="space-y-4">
-                                                        <div className="grid grid-cols-1 gap-4">
-                                                            {mockActivities.slice(0, 2).map((act) => (
-                                                                <div key={act.id} className="scale-[0.8] origin-top py-2 border-b border-white/5">
-                                                                    <ActivityCard
-                                                                        activity={act}
-                                                                        size="small"
-                                                                        variant="blurred"
-                                                                    />
-                                                                </div>
-                                                            ))}
+                                                {/* 4. Recent Movements */}
+                                                <div className="px-3 mt-3 pb-24">
+                                                    <div className="bg-[#111111] rounded-[24px] border border-white/5 p-5 shadow-xl">
+                                                        <h6 className="text-[10px] font-black text-white/40 uppercase tracking-widest mb-4">Movimientos Recientes</h6>
+                                                        <div className="p-4 bg-white/[0.03] border border-white/5 rounded-2xl flex items-center gap-4">
+                                                            <div className="p-2 bg-white/5 rounded-xl"><ShoppingCart size={16} className="text-[#FF7939]" /></div>
+                                                            <div className="flex-1 min-w-0">
+                                                                <p className="text-[11px] font-black text-white truncate">Pliométricos de Ronaldinho - Dominio del Fútbol</p>
+                                                                <p className="text-[9px] text-white/30 font-bold mt-0.5">Venta realizada el 23/2/2026</p>
+                                                                <p className="text-[10px] text-[#FF7939] font-black mt-1">$1.000</p>
+                                                            </div>
                                                         </div>
                                                     </div>
                                                 </div>
 
-                                                <div className="mt-auto p-4 bg-black/80 backdrop-blur-md border-t border-white/5 flex justify-around items-center">
-                                                    <Users size={18} className="text-white/20" />
-                                                    <ShoppingCart size={18} className="text-cyan-400" />
-                                                    <BarChart3 size={18} className="text-white/20" />
-                                                    <User size={18} className="text-white/20" />
+                                                {/* 5. App Navigation Footer */}
+                                                <div className="mt-auto absolute bottom-0 w-full h-16 bg-black/80 backdrop-blur-xl border-t border-white/5 flex justify-around items-center px-4 z-[70]">
+                                                    <div className="flex flex-col items-center gap-1 opacity-40">
+                                                        <Users size={18} />
+                                                        <span className="text-[8px] font-black uppercase">Clientes</span>
+                                                    </div>
+                                                    <div className="flex flex-col items-center gap-1 opacity-40">
+                                                        <Utensils size={18} />
+                                                        <span className="text-[8px] font-black uppercase">Nutrición</span>
+                                                    </div>
+                                                    {/* Central Round Logo Action */}
+                                                    <div className="relative -top-3 w-12 h-12 bg-[#FF7939]/30 backdrop-blur-xl rounded-full flex items-center justify-center shadow-lg shadow-orange-500/10 border-4 border-white/5">
+                                                        <Flame size={20} fill="white" className="text-white" />
+                                                    </div>
+                                                    <div className="flex flex-col items-center gap-1 opacity-40">
+                                                        <Calendar size={18} />
+                                                        <span className="text-[8px] font-black uppercase">Calendario</span>
+                                                    </div>
+                                                    <div className="flex flex-col items-center gap-1 text-[#FF7939]">
+                                                        <User size={18} />
+                                                        <span className="text-[8px] font-black uppercase">Perfil</span>
+                                                    </div>
                                                 </div>
                                             </div>
                                         </motion.div>
@@ -1217,19 +1392,14 @@ export function OmniaShowcase({ scrollY }: OmniaShowcaseProps) {
                                         </div>
                                     </div>
                                 </div>
-
-                                <div className="grid grid-cols-1 gap-6 pt-12 border-t border-white/5">
-                                    <ShowcaseFeatureCard title="Pro Analytics" type="coach" icon={TrendingUp} />
-                                    <ShowcaseFeatureCard title="Program Architect" type="coach" icon={PlusCircle} />
-                                </div>
                             </div>
                         )}
                     </motion.div>
                 </AnimatePresence>
-            </div >
+            </div>
 
             {/* Final CTA Overlay */}
-            < section className="text-center py-20 relative" >
+            <section className="text-center py-20 relative">
                 <div className="absolute -inset-10 bg-[#FF7939]/5 blur-[100px] -z-10" />
                 <div className="w-16 h-1 w-full bg-gradient-to-r from-transparent via-[#FF7939]/30 to-transparent mx-auto mb-10" />
                 <h2 className="text-3xl font-black text-white uppercase italic tracking-tighter mb-8 leading-tight">
@@ -1239,7 +1409,7 @@ export function OmniaShowcase({ scrollY }: OmniaShowcaseProps) {
                 <Button className="bg-white text-black hover:bg-white/90 rounded-full px-16 py-8 h-auto text-sm font-black italic uppercase shadow-[0_0_50px_rgba(255,255,255,0.1)] border-none">
                     Unirme a la comunidad
                 </Button>
-            </section >
-        </div >
+            </section>
+        </div>
     )
 }

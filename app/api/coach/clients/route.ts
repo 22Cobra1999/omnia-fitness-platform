@@ -254,6 +254,12 @@ export async function GET(request: NextRequest) {
       bancoRows = bancoData || []
     }
 
+    const { data: docProgressData } = await supabase
+      .from('client_document_progress')
+      .select('enrollment_id, completed')
+      .in('enrollment_id', enrollmentIdsAll)
+    const docProgress = docProgressData || []
+
     const paidByEnrollmentId = new Map<number, number>()
     for (const row of bancoRows) {
       const paid = Number((row as any)?.seller_amount ?? (row as any)?.amount_paid ?? 0) || 0
@@ -265,9 +271,9 @@ export async function GET(request: NextRequest) {
 
     // Progreso agregado + última ejercitación (se toma de tablas progreso_cliente / progreso_cliente_nutricion)
     const todayIso = new Date().toISOString().slice(0, 10)
-    const progressCache = new Map<string, { progressPercent: number; diasAtraso: number; itemsPendientes: number; diasCompletados: number; itemsCompletados: number; diasTotales: number; alertLevel: number; alertLabel: string }>()
-    const computeProgressAggForActivity = async (clientId: string, activityId: number, activityType: string, enrollmentId?: number) => {
-      const cacheKey = `${clientId}:${activityId}:${activityType}:${enrollmentId || 'all'}`
+    const progressCache = new Map<string, { progressPercent: number; diasAtraso: number; itemsPendientes: number; diasCompletados: number; itemsCompletados: number; itemsTotalesObjetivo: number; diasTotales: number; alertLevel: number; alertLabel: string }>()
+    const computeProgressAggForActivity = async (clientId: string, activityId: number, activityType: string, enrollmentId?: number, activityCategory: string = '') => {
+      const cacheKey = `${clientId}:${activityId}:${activityType}:${enrollmentId || 'all'}:${activityCategory}`
       const cached = progressCache.get(cacheKey)
       if (cached) return cached
 
@@ -275,7 +281,7 @@ export async function GET(request: NextRequest) {
       // Usamos la tabla optimizada 'progreso_diario_actividad'
       let query = supabase
         .from('progreso_diario_actividad')
-        .select('fecha, items_objetivo, items_completados')
+        .select('fecha, items_objetivo, items_completados, area')
         .eq('cliente_id', clientId)
         .eq('actividad_id', activityId)
 
@@ -292,36 +298,74 @@ export async function GET(request: NextRequest) {
       let diasAtraso = 0
       let itemsPendientes = 0
 
+      const areaStats = {
+        fitness: { completed: 0, total: 0, absent: 0 },
+        nutricion: { completed: 0, total: 0, absent: 0 }
+      }
+
       if (!dailyError && dailyStats) {
         const uniqueDays = new Map()
-        dailyStats.forEach((d: any) => uniqueDays.set(d.fecha, d))
-        diasTotales = uniqueDays.size
+        dailyStats.forEach((d: any) => {
+          const key = `${d.fecha}_${d.area}`
+          uniqueDays.set(key, d)
+        })
 
-        uniqueDays.forEach((d: any) => {
+        // For diasTotales we use unique dates across all areas
+        const uniqueDates = new Set(dailyStats.map((d: any) => d.fecha))
+        diasTotales = uniqueDates.size
+
+        dailyStats.forEach((d: any) => {
           const objetivo = d.items_objetivo || 0
           const completado = d.items_completados || 0
           const isPast = d.fecha < todayIso
+          const area = String(d.area || '').toLowerCase()
+          const typeLower = activityType.toLowerCase()
+          const catLower = activityCategory.toLowerCase()
 
           itemsCompletados += completado
           itemsTotalesObjetivo += objetivo
 
-          // Día Completado: Completó TODO lo del día
-          // (Para talleres, objetivo=1, completado=1 si asistió)
+          const isFitness = area.includes('fit') || area.includes('ejercicio') || area.includes('entren') ||
+            catLower.includes('fit') || catLower.includes('ejercicio') || catLower.includes('entren') ||
+            (!d.area && (typeLower.includes('fit') || typeLower.includes('rutina') || typeLower.includes('train') || typeLower.includes('workout') || typeLower.includes('ejercicio')))
+
+          const isNutricion = area.includes('nutri') || area.includes('dieta') || area.includes('plato') || area.includes('comida') ||
+            catLower.includes('nutri') || catLower.includes('comida') || catLower.includes('alimento') ||
+            (!d.area && (typeLower.includes('nutri') || typeLower.includes('meal') || typeLower.includes('comida') || typeLower.includes('plan') || typeLower.includes('dieta')))
+
+          if (isFitness) {
+            areaStats.fitness.completed += completado
+            areaStats.fitness.total += objetivo
+            if (isPast && completado < objetivo) areaStats.fitness.absent += (objetivo - completado)
+          } else if (isNutricion) {
+            areaStats.nutricion.completed += completado
+            areaStats.nutricion.total += objetivo
+            if (isPast && completado < objetivo) areaStats.nutricion.absent += (objetivo - completado)
+          }
+
+          // Día Completado (Global per row/activity combo)
+          // Note: a "day" is usually per activity. If activity has 2 areas, we might need a better day logic.
+          // For now keep legacy day logic:
           if (objetivo > 0 && completado >= objetivo) {
+            // We'll count completed days later per date to be more accurate
+          }
+        })
+
+        // Refined Day Logic: A day is completed if ALL rows for that date (in this activity) are completed
+        Array.from(uniqueDates).forEach((date: any) => {
+          const rowsForDate = dailyStats.filter((d: any) => d.fecha === date)
+          const isCompleted = rowsForDate.every((r: any) => r.items_objetivo === 0 || r.items_completados >= r.items_objetivo)
+          const isPast = date < todayIso
+
+          if (isCompleted) {
             diasCompletados++
-          } else if (isPast && objetivo > 0 && completado < objetivo) {
-            // Día Atrasado: Pasado e incompleto
+          } else if (isPast) {
             diasAtraso++
-            itemsPendientes += (objetivo - completado)
-          } else if (!isPast && objetivo > 0 && completado < objetivo) {
-            // Día corriente incompleto (se suma a pendientes item-level, aunque no cuente "día" atrasado aún)
-            itemsPendientes += (objetivo - completado)
           }
         })
       }
 
       // 2. Obtener Progreso de Documentos (si aplica)
-      // client_document_progress no está en la tabla diaria porque no tiene fecha
       let docQuery = supabase
         .from('client_document_progress')
         .select('completed', { count: 'exact' })
@@ -340,16 +384,16 @@ export async function GET(request: NextRequest) {
         itemsTotalesObjetivo += docTotal
         itemsCompletados += docCompleted
         itemsPendientes += (docTotal - docCompleted)
-        // Documentos no suman "días"
+        // Documents are usually considered "Fitness" or generic. Let's add to fitness if no other areas?
+        // Actually keep them separate if needed, but for now add to fitness.
+        areaStats.fitness.completed += docCompleted
+        areaStats.fitness.total += docTotal
+        areaStats.fitness.absent += (docTotal - docCompleted)
       }
 
-      // El progreso real es % de DÍAS completados sobre total de días registrados (o esperados)
-      // Si queremos ser estrictos: Días Completados / Días Totales Registrados * 100
-      let progressPercent = 0
+      itemsPendientes = itemsTotalesObjetivo - itemsCompletados
 
-      // Lógica Híbrida:
-      // Si hay DÍAS (Fitness/Nutri/Workshop), el % se basa en días.
-      // Si NO hay días (Solo Docs), el % se basa en Items.
+      let progressPercent = 0
       if (itemsTotalesObjetivo > 0) {
         progressPercent = Math.round((itemsCompletados / itemsTotalesObjetivo) * 100)
       } else if (diasTotales > 0) {
@@ -362,19 +406,15 @@ export async function GET(request: NextRequest) {
         itemsPendientes,
         diasCompletados,
         itemsCompletados,
+        itemsTotalesObjetivo,
         diasTotales,
+        areaStats, // New detailed stats
         alertLevel: 0,
         alertLabel: ''
       }
 
-      // Calculate alert based on delay percent (past missing items/days)
-      let delayPercent = 0
-      if (activityType?.toLowerCase() === 'documento' || activityType?.toLowerCase() === 'document') {
-        delayPercent = itemsTotalesObjetivo > 0 ? (itemsPendientes / itemsTotalesObjetivo) * 100 : 0
-      } else {
-        delayPercent = diasTotales > 0 ? (diasAtraso / diasTotales) * 100 : 0
-      }
-
+      // Calculate alert
+      let delayPercent = diasTotales > 0 ? (diasAtraso / diasTotales) * 100 : 0
       if (delayPercent > 50) {
         result.alertLevel = 3
         result.alertLabel = 'Crítico'
@@ -386,7 +426,7 @@ export async function GET(request: NextRequest) {
         result.alertLabel = 'Leve'
       }
 
-      progressCache.set(cacheKey, result)
+      progressCache.set(cacheKey, result as any)
       return result
     }
 
@@ -461,34 +501,114 @@ export async function GET(request: NextRequest) {
       // Progreso total: promedio de los porcentajes de CADA ACTIVIDAD ÚNICA
       const activeProgressByActivity = new Map<number, number>()
       let totalItemsPendientes = 0
+      let totalItemsCompletados = 0
+      let totalItemsObjetivo = 0
+      let totalDiasCompletados = 0
+      let totalDiasAtraso = 0
+      let totalDiasRegistrados = 0
       let maxAlertLevel = 0
       let maxAlertLabel = ''
-      let lastCompletedDateAgg: string | null = null
+
+      const fitStats = { completed: 0, total: 0, absent: 0 }
+      const nutriStats = { completed: 0, total: 0, absent: 0 }
 
       for (const enrollment of client.enrollments || []) {
         const activityIdNum = Number(enrollment?.activity_id)
         const activity = activities?.find((a: any) => String(a.id) === String(activityIdNum))
         if (!activity || !Number.isFinite(activityIdNum)) continue
 
-        const agg = await computeProgressAggForActivity(String(client.id), activityIdNum, String(activity?.type || ''), enrollment.id)
+        const typeLower = String(activity?.type || '').toLowerCase()
+        const catLower = String(activity?.categoria || '').toLowerCase()
+        const isDoc = typeLower.includes('doc') || catLower.includes('doc')
 
-        const progPerc = agg.progressPercent || 0
+        const agg = await computeProgressAggForActivity(String(client.id), activityIdNum, typeLower, enrollment.id, catLower)
+
+        let progPerc = agg.progressPercent || 0
+
+        // Si es documento, el progreso viene de docProgress
+        if (isDoc) {
+          const docRows = docProgress.filter((d: any) => Number(d.enrollment_id) === Number(enrollment.id))
+          const completedCount = docRows.filter((d: any) => d.completed).length
+          const totalCount = docRows.length
+          if (totalCount > 0) {
+            progPerc = Math.round((completedCount / totalCount) * 100)
+
+            const isFit = typeLower.includes('fit') || catLower.includes('fit') || catLower.includes('entren') || catLower.includes('ejercicio')
+            const isNutri = typeLower.includes('nutri') || catLower.includes('nutri') || catLower.includes('comida') || catLower.includes('alimento') || catLower.includes('dieta') || catLower.includes('plato')
+
+            if (isFit) {
+              fitStats.completed += completedCount
+              fitStats.total += totalCount
+            } else if (isNutri) {
+              nutriStats.completed += completedCount
+              nutriStats.total += totalCount
+            }
+          }
+        }
+
         const isCompleted = progPerc >= 100 ||
-          ['finalizada', 'finished', 'expirada', 'expired'].includes(enrollment.status?.toLowerCase())
-        const hasStarted = !!enrollment.start_date || !!agg.itemsCompletados
+          ['finalizada', 'finished', 'expirada', 'expired', 'completed'].includes(enrollment.status?.toLowerCase())
+        const hasStarted = !!enrollment.start_date || !!agg.itemsCompletados || (isDoc && progPerc > 0)
 
-        if (!isCompleted && hasStarted) {
-          // Si hay duplicados, tomamos el mayor progreso (probablemente el más actual/relevante)
+        if (hasStarted) {
           const currentMax = activeProgressByActivity.get(activityIdNum) || 0
           activeProgressByActivity.set(activityIdNum, Math.max(currentMax, progPerc))
 
-          // Aggregate Alert
+          totalItemsPendientes += (agg.itemsPendientes || 0)
+          totalItemsCompletados += (agg.itemsCompletados || 0)
+          totalItemsObjetivo += (agg.itemsTotalesObjetivo || 0)
+
+          totalDiasCompletados += (agg.diasCompletados || 0)
+          totalDiasAtraso += (agg.diasAtraso || 0)
+          totalDiasRegistrados += (agg.diasTotales || 0)
+
+          // Area Stats (solo si no es documento, ya que los documentos los sumamos arriba)
+          if ((agg as any).areaStats && !isDoc) {
+            fitStats.completed += (agg as any).areaStats.fitness.completed
+            fitStats.total += (agg as any).areaStats.fitness.total
+            fitStats.absent += (agg as any).areaStats.fitness.absent
+
+            nutriStats.completed += (agg as any).areaStats.nutricion.completed
+            nutriStats.total += (agg as any).areaStats.nutricion.total
+            nutriStats.absent += (agg as any).areaStats.nutricion.absent
+          }
+
           if (agg.alertLevel > maxAlertLevel) {
             maxAlertLevel = agg.alertLevel
             maxAlertLabel = agg.alertLabel
           }
         }
-        totalItemsPendientes += (agg.itemsPendientes || 0)
+      }
+
+      // Calculate streak: Look at the most recent days in progreso_diario_actividad
+      let currentStreak = 0;
+      try {
+        const { data: recentDays } = await supabase
+          .from('progreso_diario_actividad')
+          .select('fecha, items_objetivo, items_completados')
+          .eq('cliente_id', client.id)
+          .lte('fecha', todayIso)
+          .order('fecha', { ascending: false })
+          .limit(60);
+
+        if (recentDays && recentDays.length > 0) {
+          const uniqueDatesArr = Array.from(new Set(recentDays.map((d: any) => d.fecha))).sort((a: any, b: any) => b.localeCompare(a));
+
+          for (let i = 0; i < uniqueDatesArr.length; i++) {
+            const dateStr = String(uniqueDatesArr[i]);
+            const dayRows = recentDays.filter((d: any) => d.fecha === dateStr);
+            const dayCompleted = dayRows.every((d: any) => d.items_objetivo === 0 || d.items_completados >= d.items_objetivo);
+
+            if (dayCompleted) {
+              currentStreak++;
+            } else {
+              if (dateStr === todayIso) continue;
+              break;
+            }
+          }
+        }
+      } catch (e) {
+        console.warn('Error calculating streak for client', client.id, e);
       }
 
       const uniqueActiveActivitiesCount = activeProgressByActivity.size
@@ -513,6 +633,17 @@ export async function GET(request: NextRequest) {
         hasAlert: maxAlertLevel > 0,
         alertLabel: maxAlertLabel,
         alertLevel: maxAlertLevel,
+        // Detailed Activity metrics for Rings
+        daysCompleted: totalDiasCompletados,
+        absentDays: totalDiasAtraso,
+        daysTotal: totalDiasRegistrados || 30,
+        completedExercises: totalItemsCompletados,
+        failedExercises: totalItemsPendientes,
+        totalExercises: totalItemsObjetivo,
+        streak: currentStreak,
+        // New Area Stats
+        fitStats,
+        nutriStats,
         activities: (client.activities || []).map((a: any) => ({
           id: a.id,
           title: a.title,

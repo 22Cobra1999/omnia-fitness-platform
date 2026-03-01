@@ -103,39 +103,42 @@ export function BottomNavigation({ activeTab, setActiveTab }: BottomNavigationPr
           {/* Clients tab */}
           <button
             className={cn(
-              "flex flex-col items-center justify-center w-1/5 h-full",
-              activeTab === "clients" ? "text-[#FF7939]" : "text-gray-400",
+              "flex flex-col items-center justify-center w-1/5 h-full transition-all duration-300 active:scale-90",
+              activeTab === "clients" ? "text-[#FF7939]" : "text-white/40",
             )}
             onClick={() => handleTabClick("clients")}
           >
-            <Users className="h-5 w-5 mb-1" />
-            <span className="text-xs">Clients</span>
+            <Users className={cn("h-5 w-5 mb-1 transition-transform", activeTab === "clients" && "scale-110")} />
+            <span className={cn("text-[9px] font-black uppercase tracking-tighter", activeTab === "clients" ? "opacity-100" : "opacity-60")}>Clientes</span>
           </button>
 
           {/* Products tab */}
           <button
             className={cn(
-              "flex flex-col items-center justify-center w-1/5 h-full",
-              activeTab === "products-management" ? "text-[#FF7939]" : "text-gray-400",
+              "flex flex-col items-center justify-center w-1/5 h-full transition-all duration-300 active:scale-90",
+              activeTab === "products-management" ? "text-[#FF7939]" : "text-white/40",
             )}
             onClick={() => handleTabClick("products-management")}
           >
-            <ShoppingBag className="h-5 w-5 mb-1" />
-            <span className="text-xs">Products</span>
+            <ShoppingBag className={cn("h-5 w-5 mb-1 transition-transform", activeTab === "products-management" && "scale-110")} />
+            <span className={cn("text-[9px] font-black uppercase tracking-tighter", activeTab === "products-management" ? "opacity-100" : "opacity-60")}>Productos</span>
           </button>
 
           {/* Community tab (middle) */}
           <button
             className={cn(
-              "flex flex-col items-center justify-center w-1/5 h-full",
-              activeTab === "community" ? "text-[#FF7939]" : "text-gray-400",
+              "flex flex-col items-center justify-center w-1/5 h-full transition-all duration-500",
+              activeTab === "community" ? "text-[#FF7939]" : "text-white/40",
             )}
             onClick={() => handleTabClick("community")}
             aria-label="Community"
           >
-            <div className="relative -top-5">
-              <div className="bg-[#FF7939] rounded-full p-3 shadow-lg">
-                <Flame className="h-6 w-6 text-white" />
+            <div className="relative -top-3">
+              <div className={cn(
+                "bg-[#FF7939]/30 backdrop-blur-xl rounded-full p-2.5 shadow-2xl transition-all duration-500 border-4 border-white/5",
+                activeTab === "community" ? "shadow-orange-500/30 scale-110 active:scale-95" : "shadow-black/20"
+              )}>
+                <Flame className="h-6 w-6" fill="#FF7939" stroke="#FF7939" strokeWidth={2.5} />
               </div>
             </div>
           </button>
@@ -143,25 +146,25 @@ export function BottomNavigation({ activeTab, setActiveTab }: BottomNavigationPr
           {/* Calendar tab */}
           <button
             className={cn(
-              "flex flex-col items-center justify-center w-1/5 h-full",
-              activeTab === "calendar" ? "text-[#FF7939]" : "text-gray-400",
+              "flex flex-col items-center justify-center w-1/5 h-full transition-all duration-300 active:scale-90",
+              activeTab === "calendar" ? "text-[#FF7939]" : "text-white/40",
             )}
             onClick={() => handleTabClick("calendar")}
           >
-            <CalendarDays className="h-5 w-5 mb-1" />
-            <span className="text-xs">Calendar</span>
+            <CalendarDays className={cn("h-5 w-5 mb-1 transition-transform", activeTab === "calendar" && "scale-110")} />
+            <span className={cn("text-[9px] font-black uppercase tracking-tighter", activeTab === "calendar" ? "opacity-100" : "opacity-60")}>Agenda</span>
           </button>
 
           {/* Profile tab */}
           <button
             className={cn(
-              "flex flex-col items-center justify-center w-1/5 h-full",
-              activeTab === "profile" ? "text-[#FF7939]" : "text-gray-400",
+              "flex flex-col items-center justify-center w-1/5 h-full transition-all duration-300 active:scale-90",
+              activeTab === "profile" ? "text-[#FF7939]" : "text-white/40",
             )}
             onClick={() => handleTabClick("profile")}
           >
-            <User className="h-5 w-5 mb-1" />
-            <span className="text-xs">Profile</span>
+            <User className={cn("h-5 w-5 mb-1 transition-transform", activeTab === "profile" && "scale-110")} />
+            <span className={cn("text-[9px] font-black uppercase tracking-tighter", activeTab === "profile" ? "opacity-100" : "opacity-60")}>Perfil</span>
           </button>
         </>
       )
@@ -172,39 +175,42 @@ export function BottomNavigation({ activeTab, setActiveTab }: BottomNavigationPr
           {/* Search tab */}
           <button
             className={cn(
-              "flex flex-col items-center justify-center w-1/5 h-full",
-              activeTab === "search" ? "text-[#FF7939]" : "text-gray-400",
+              "flex flex-col items-center justify-center w-1/5 h-full transition-all duration-300 active:scale-90",
+              activeTab === "search" ? "text-blue-400" : "text-white/40",
             )}
             onClick={() => handleTabClick("search")}
           >
-            <Search className="h-5 w-5 mb-1" />
-            <span className="text-xs">Search</span>
+            <Search className={cn("h-5 w-5 mb-1 transition-transform", activeTab === "search" && "scale-110")} />
+            <span className={cn("text-[8px] font-black uppercase tracking-tighter", activeTab === "search" ? "opacity-100" : "opacity-60")}>Explorar</span>
           </button>
 
           {/* Activity tab */}
           <button
             className={cn(
-              "flex flex-col items-center justify-center w-1/5 h-full",
-              activeTab === "activity" ? "text-[#FF7939]" : "text-gray-400",
+              "flex flex-col items-center justify-center w-1/5 h-full transition-all duration-300 active:scale-90",
+              activeTab === "activity" ? "text-[#FF7939]" : "text-white/40",
             )}
             onClick={() => handleTabClick("activity")}
           >
-            <Activity className="h-5 w-5 mb-1" />
-            <span className="text-xs">Activity</span>
+            <Activity className={cn("h-5 w-5 mb-1 transition-transform", activeTab === "activity" && "scale-110")} />
+            <span className={cn("text-[8px] font-black uppercase tracking-tighter", activeTab === "activity" ? "opacity-100" : "opacity-60")}>Actividades</span>
           </button>
 
           {/* Community tab (middle) */}
           <button
             className={cn(
-              "flex flex-col items-center justify-center w-1/5 h-full",
-              activeTab === "community" ? "text-[#FF7939]" : "text-gray-400",
+              "flex flex-col items-center justify-center w-1/5 h-full transition-all duration-500",
+              activeTab === "community" ? "text-[#FF7939]" : "text-white/40",
             )}
             onClick={() => handleTabClick("community")}
             aria-label="Community"
           >
-            <div className="relative -top-5">
-              <div className="bg-[#FF7939] rounded-full p-3 shadow-lg">
-                <Flame className="h-6 w-6 text-white" />
+            <div className="relative -top-3">
+              <div className={cn(
+                "bg-[#FF7939]/30 backdrop-blur-xl rounded-full p-2.5 shadow-2xl transition-all duration-500 border-4 border-white/5",
+                activeTab === "community" ? "shadow-orange-500/30 scale-110 active:scale-95" : "shadow-black/20"
+              )}>
+                <Flame className="h-6 w-6" fill="#FF7939" stroke="#FF7939" strokeWidth={2.5} />
               </div>
             </div>
           </button>
@@ -212,25 +218,25 @@ export function BottomNavigation({ activeTab, setActiveTab }: BottomNavigationPr
           {/* Calendar tab */}
           <button
             className={cn(
-              "flex flex-col items-center justify-center w-1/5 h-full",
-              activeTab === "calendar" ? "text-[#FF7939]" : "text-gray-400",
+              "flex flex-col items-center justify-center w-1/5 h-full transition-all duration-300 active:scale-90",
+              activeTab === "calendar" ? "text-[#FF7939]" : "text-white/40",
             )}
             onClick={() => handleTabClick("calendar")}
           >
-            <CalendarDays className="h-5 w-5 mb-1" />
-            <span className="text-xs">Calendar</span>
+            <CalendarDays className={cn("h-5 w-5 mb-1 transition-transform", activeTab === "calendar" && "scale-110")} />
+            <span className={cn("text-[8px] font-black uppercase tracking-tighter", activeTab === "calendar" ? "opacity-100" : "opacity-60")}>Agenda</span>
           </button>
 
           {/* Profile tab */}
           <button
             className={cn(
-              "flex flex-col items-center justify-center w-1/5 h-full",
-              activeTab === "profile" ? "text-[#FF7939]" : "text-gray-400",
+              "flex flex-col items-center justify-center w-1/5 h-full transition-all duration-300 active:scale-90",
+              activeTab === "profile" ? "text-[#FF7939]" : "text-white/40",
             )}
             onClick={() => handleTabClick("profile")}
           >
-            <User className="h-5 w-5 mb-1" />
-            <span className="text-xs">Profile</span>
+            <User className={cn("h-5 w-5 mb-1 transition-transform", activeTab === "profile" && "scale-110")} />
+            <span className={cn("text-[8px] font-black uppercase tracking-tighter", activeTab === "profile" ? "opacity-100" : "opacity-60")}>Perfil</span>
           </button>
         </>
       )
@@ -267,7 +273,7 @@ export function BottomNavigation({ activeTab, setActiveTab }: BottomNavigationPr
   }
 
   return (
-    <div className="fixed bottom-0 left-0 right-0 z-[1000] bg-[#1E1E1E] border-t border-gray-800 h-16 flex items-center justify-around">
+    <div className="fixed bottom-0 left-0 right-0 z-[1000] bg-black/60 backdrop-blur-2xl border-t border-white/10 h-16 flex items-center justify-around shadow-[0_-20px_50px_rgba(0,0,0,0.5)]">
       {renderTabs()}
     </div>
   )

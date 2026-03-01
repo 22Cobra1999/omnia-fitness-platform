@@ -44,17 +44,25 @@ export function ClientActivitiesTab({
                     const filtered = clientDetail?.client?.activities?.filter((act: any) => {
                         if (hiddenActivities.has(act.id)) return false
                         const status = act.status?.toLowerCase() || ''
+                        const today = new Date()
+                        today.setHours(0, 0, 0, 0) // Compare strictly by day
+
+                        const endDate = act.end_date ? new Date(act.end_date) : null
+                        if (endDate) endDate.setHours(0, 0, 0, 0)
+
+                        const isPast = endDate && endDate < today
+                        const isFinishedByStatus = ['finalizada', 'finished', 'expirada', 'expired', 'completed'].includes(status)
+                        const is100Percent = (act.progressPercent || 0) >= 100
+
                         if (activitySubTab === 'en-curso') {
-                            const isCompleted = (act.progressPercent || 0) >= 100 ||
-                                ['finalizada', 'finished', 'expirada', 'expired', 'completed'].includes(status)
-                            return !isCompleted && !!act.start_date
+                            // Exclude if past, or finished status, or 100% completed
+                            return !!act.start_date && !isPast && !isFinishedByStatus && !is100Percent
                         }
                         if (activitySubTab === 'por-empezar') {
-                            return !act.start_date && !['finalizada', 'finished', 'expirada', 'expired', 'completed'].includes(status)
+                            return !act.start_date && !isPast && !isFinishedByStatus && !is100Percent
                         }
                         if (activitySubTab === 'finalizadas') {
-                            return (act.progressPercent || 0) >= 100 ||
-                                ['finalizada', 'finished', 'expirada', 'expired', 'completed'].includes(status)
+                            return isPast || isFinishedByStatus || is100Percent
                         }
                         return true
                     }) || []

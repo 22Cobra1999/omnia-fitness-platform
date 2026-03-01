@@ -2,11 +2,12 @@
 
 import { useState } from "react"
 import { useRouter } from 'next/navigation'
-import { Search, Filter, Users } from 'lucide-react'
+import { Search, SlidersHorizontal, Users } from 'lucide-react'
 import { useClientListLogic } from "./clients/hooks/useClientListLogic"
 import { ClientCard } from "./clients/ui/ClientCard"
 import { ClientDetailModal } from "./clients/ui/ClientDetailModal"
 import { Client } from "./clients/types"
+import { cn } from "@/lib/utils/utils"
 
 export function ClientsScreen() {
   const router = useRouter()
@@ -53,57 +54,56 @@ export function ClientsScreen() {
   }
 
   return (
-    <div className="bg-black text-white min-h-screen p-4 pb-20">
+    <div className="bg-black text-white min-h-screen p-5 pb-20">
+      <div className="flex flex-col mb-8">
+        <span className="text-[10px] font-black text-white/40 uppercase tracking-widest mb-1">Seguimiento</span>
+        <h1 className="text-2xl font-black text-white italic uppercase tracking-tight">Mis Clientes</h1>
+      </div>
+
       {/* Search and filter */}
-      <div className="flex items-center justify-between mb-6">
-        <div className="relative flex-1 mr-4">
-          <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 h-4 w-4" />
+      <div className="flex items-center gap-3 mb-8">
+        <div className="relative flex-1">
+          <Search className="absolute left-4 top-1/2 -translate-y-1/2 text-white/20" size={16} />
           <input
             type="text"
             placeholder="Buscar clientes..."
             value={searchTerm}
             onChange={(e) => setSearchTerm(e.target.value)}
-            className="w-full bg-zinc-900 border border-zinc-800 rounded-full py-2 pl-10 pr-4 text-sm focus:outline-none focus:border-[#FF7939]"
+            className="w-full bg-[#111111] border border-white/5 rounded-full py-3.5 pl-11 pr-4 text-[13px] font-bold text-white placeholder:text-white/20 focus:outline-none focus:border-[#FF7939]/50 transition-all"
           />
         </div>
-        <div className="relative">
-          <button className="flex items-center bg-zinc-900 border border-zinc-800 rounded-full py-2 px-4 text-sm">
-            <Filter className="h-4 w-4 mr-2" />
-            Filtro
-          </button>
-        </div>
+        <button className="bg-[#111111] border border-white/5 rounded-full px-4 py-3 flex items-center gap-2 active:scale-95 transition-transform">
+          <SlidersHorizontal size={18} className="text-white/40" />
+          <span className="text-[11px] font-black text-white/40 uppercase tracking-tighter">Filtro</span>
+        </button>
       </div>
 
       {/* Filter tabs */}
-      <div className="flex mb-6 border-b border-zinc-800">
-        <button
-          className={`pb-2 px-4 text-sm font-medium ${filter === "all" ? "text-[#FF7939] border-b-2 border-[#FF7939]" : "text-gray-400"}`}
-          onClick={() => setFilter("all")}
-        >
-          Todos
-        </button>
-        <button
-          className={`pb-2 px-4 text-sm font-medium ${filter === "active" ? "text-[#FF7939] border-b-2 border-[#FF7939]" : "text-gray-400"}`}
-          onClick={() => setFilter("active")}
-        >
-          Activos
-        </button>
-        <button
-          className={`pb-2 px-4 text-sm font-medium ${filter === "pending" ? "text-[#FF7939] border-b-2 border-[#FF7939]" : "text-gray-400"}`}
-          onClick={() => setFilter("pending")}
-        >
-          Pendientes
-        </button>
-        <button
-          className={`pb-2 px-4 text-sm font-medium ${filter === "inactive" ? "text-[#FF7939] border-b-2 border-[#FF7939]" : "text-gray-400"}`}
-          onClick={() => setFilter("inactive")}
-        >
-          Inactivos
-        </button>
+      <div className="flex items-center gap-6 border-b border-white/5 pb-1 mb-8 overflow-x-auto hide-scrollbar">
+        {[
+          { id: "all", label: "Todos" },
+          { id: "active", label: "Activos" },
+          { id: "pending", label: "Pendientes" },
+          { id: "inactive", label: "Inactivos" }
+        ].map((tab) => (
+          <button
+            key={tab.id}
+            className="relative pb-3 transition-all"
+            onClick={() => setFilter(tab.id as any)}
+          >
+            <span className={cn(
+              "text-[16px] font-black uppercase tracking-tight whitespace-nowrap px-1",
+              filter === tab.id ? "text-white" : "text-white/40"
+            )}>{tab.label}</span>
+            {filter === tab.id && (
+              <div className="absolute bottom-0 left-0 right-0 h-0.5 bg-[#FF7939] rounded-full" />
+            )}
+          </button>
+        ))}
       </div>
 
       {/* Client list */}
-      <div className="grid grid-cols-2 sm:grid-cols-3 gap-3 w-full">
+      <div className="grid grid-cols-2 sm:grid-cols-3 gap-3 w-full pb-10 px-2 sm:px-0">
         {filteredClients.length === 0 ? (
           <div className="text-center py-12 col-span-2 sm:col-span-3">
             <Users className="h-12 w-12 text-gray-500 mx-auto mb-4" />

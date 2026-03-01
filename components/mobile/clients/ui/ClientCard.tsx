@@ -1,97 +1,177 @@
 import { Client } from "../types"
+import { cn } from "@/lib/utils/utils"
+import { Flame } from "lucide-react"
 
 interface ClientCardProps {
     client: Client
     onClick: (client: Client) => void
 }
 
+const RingSegment = ({
+    center,
+    radius,
+    strokeWidth,
+    percentage,
+    offset = 0,
+    color,
+    opacity = 1,
+    className = ""
+}: {
+    center: number,
+    radius: number,
+    strokeWidth: number,
+    percentage: number,
+    offset?: number,
+    color: string,
+    opacity?: number,
+    className?: string
+}) => {
+    const circumference = 2 * Math.PI * radius;
+    const dashArray = circumference;
+    const dashOffset = circumference * (1 - percentage / 100);
+    const rotation = (offset / 100) * 360 - 90;
+
+    return (
+        <g transform={`rotate(${rotation}, ${center}, ${center})`}>
+            {/* Border Effect (Darker/Slightly Thicker) */}
+            <circle
+                cx={center}
+                cy={center}
+                r={radius}
+                fill="transparent"
+                stroke="black"
+                strokeWidth={strokeWidth + 1.5}
+                strokeDasharray={dashArray}
+                strokeDashoffset={dashOffset}
+                strokeLinecap={percentage > 0 ? "round" : "butt"}
+                opacity={0.4}
+            />
+            {/* Core Segment Color */}
+            <circle
+                cx={center}
+                cy={center}
+                r={radius}
+                fill="transparent"
+                stroke={color}
+                strokeWidth={strokeWidth}
+                strokeDasharray={dashArray}
+                strokeDashoffset={dashOffset}
+                strokeLinecap={percentage > 0 ? "round" : "butt"}
+                opacity={opacity}
+                className={cn("drop-shadow-sm", className)}
+                style={{ transition: 'stroke-dashoffset 1s ease-out' }}
+            />
+        </g>
+    );
+};
+
+const ActivityRings = ({
+    days = { completed: 0, absent: 0, total: 30 },
+    fitness = { completed: 0, absent: 0, total: 0 },
+    nutrition = { completed: 0, absent: 0, total: 0 },
+    streak = 0
+}) => {
+    const size = 110;
+    const center = size / 2;
+    const strokeWidth = 7;
+    const gap = 3.5;
+
+    const r1 = center - strokeWidth;
+    const r2 = r1 - strokeWidth - gap;
+    const r3 = r2 - strokeWidth - gap;
+
+    const renderRing = (radius: number, stats: { completed: number, absent: number, total: number }, colors: { completed: string, absent: string }) => {
+        const total = stats.total || 30;
+        const compPerc = Math.min((stats.completed / total) * 100, 100);
+        const absPerc = Math.min((stats.absent / total) * 100, 100 - compPerc);
+
+        return (
+            <>
+                {/* Track (Future/Gray) */}
+                <circle cx={center} cy={center} r={radius} fill="transparent" stroke="#27272a" strokeWidth={strokeWidth} />
+
+                {/* Absent Segment (Red) */}
+                <RingSegment
+                    center={center} radius={radius} strokeWidth={strokeWidth}
+                    percentage={absPerc} offset={0} color="#ef4444"
+                    className="opacity-40"
+                />
+
+                {/* Completed Segment */}
+                <RingSegment
+                    center={center} radius={radius} strokeWidth={strokeWidth}
+                    percentage={compPerc} offset={absPerc} color={colors.completed}
+                    className="drop-shadow-[0_0_5px_rgba(255,255,255,0.2)]"
+                />
+            </>
+        );
+    };
+
+    return (
+        <div className="relative flex items-center justify-center transition-all group-hover:scale-105" style={{ width: size, height: size }}>
+            <svg width={size} height={size}>
+                {renderRing(r1, days, { completed: "#FF7939", absent: "#ef4444" })}
+                {/* Always show second ring conceptual track */}
+                {renderRing(r2, fitness, { completed: "#FFFFFF", absent: "#ef4444" })}
+                {nutrition.total > 0 && renderRing(r3, nutrition, { completed: "#FACC15", absent: "#ef4444" })}
+            </svg>
+
+            <div className="absolute inset-0 flex flex-col items-center justify-center">
+                <div className="bg-white/5 backdrop-blur-xl rounded-full w-9 h-9 flex flex-col items-center justify-center border border-white/10 shadow-inner group-hover:scale-110 transition-transform">
+                    <Flame size={12} className="text-[#FF7939] mb-0.5" fill="#FF7939" />
+                    <span className="text-[12px] font-black text-white italic leading-none">{streak}</span>
+                </div>
+            </div>
+        </div>
+    );
+};
+
 export function ClientCard({ client, onClick }: ClientCardProps) {
+    const fitnessStats = client.fitStats || { completed: 0, total: 0, absent: 0 };
+    const nutritionStats = client.nutriStats || { completed: 0, total: 0, absent: 0 };
+
+    const toTitleCase = (str: string) => {
+        return str.toLowerCase()
+            .split(' ')
+            .map(word => word.charAt(0).toUpperCase() + word.slice(1))
+            .join(' ');
+    };
+
     return (
         <div
-            className="bg-[#141414] rounded-2xl overflow-hidden border border-zinc-800/80 shadow-lg cursor-pointer hover:bg-[#181818] transition-all hover:border-[#FF7939]/30 flex flex-col group h-full"
+            className="flex flex-col items-center justify-center p-3 cursor-pointer transition-all hover:scale-[1.02] active:scale-[0.98] group"
             onClick={() => onClick(client)}
         >
-            {/* Card Header/Hero area */}
-            <div className="relative h-24 bg-zinc-900 flex items-center justify-center overflow-hidden flex-shrink-0">
-                <div className="absolute inset-0 bg-gradient-to-b from-zinc-800/20 to-black/40"></div>
-
-                {/* Alert Badge (Top Left) */}
-                {client.hasAlert && (
-                    <div className="absolute top-2 left-2 z-20">
-                        <div className={`px-1.5 py-0.5 rounded-md text-[7px] font-black uppercase tracking-tighter border shadow-lg ${client.alertLevel === 3 ? "bg-red-500/20 text-red-500 border-red-500/30" :
-                            client.alertLevel === 2 ? "bg-orange-500/20 text-orange-400 border-orange-500/30" :
-                                "bg-yellow-500/20 text-yellow-500 border-yellow-500/30"
-                            }`}>
-                            {client.alertLabel || 'Alerta'}
-                        </div>
-                    </div>
-                )}
-
-                {/* Status Badge (Top Right) */}
-                <div className="absolute top-2 right-2 z-20">
-                    <div className={`px-1.5 py-0.5 rounded-md text-[7px] font-black uppercase tracking-tighter border shadow-lg ${client.status === "active" ? "bg-orange-500/20 text-orange-400 border-orange-500/30" :
-                        client.status === "pending" ? "bg-yellow-500/20 text-yellow-500 border-yellow-500/20" :
-                            "bg-gray-500/20 text-gray-400 border-gray-500/20"
-                        }`}>
-                        {client.status === "active" ? "Activo" : client.status === "pending" ? "Pendiente" : "Inactivo"}
-                    </div>
+            {/* Row with Avatar and Rings side-by-side */}
+            <div className="flex items-center justify-center w-full gap-2 mb-3">
+                {/* Circular Avatar (Extra Large) */}
+                <div className="w-20 h-20 rounded-full border border-white/10 overflow-hidden shadow-lg group-hover:border-[#FF7939]/50 transition-all duration-500 shrink-0">
+                    <img
+                        src={client.avatar_url || "https://images.unsplash.com/photo-1544005313-94ddf0286df2"}
+                        alt={client.name}
+                        className="w-full h-full object-cover group-hover:scale-110 transition-transform duration-700"
+                    />
                 </div>
 
-                {/* Large Avatar */}
-                <div className="relative z-10 w-16 h-16 rounded-full overflow-hidden border-2 border-zinc-800 shadow-xl group-hover:scale-105 transition-transform duration-300">
-                    <img
-                        src={client.avatar_url || "/placeholder.svg"}
-                        alt={client.name}
-                        className="w-full h-full object-cover"
+                {/* Rings (Very Close) */}
+                <div className="scale-95 shrink-0 ml-[-8px]">
+                    <ActivityRings
+                        days={{
+                            completed: client.daysCompleted || 0,
+                            absent: client.absentDays || 0,
+                            total: client.daysTotal || 30
+                        }}
+                        fitness={fitnessStats}
+                        nutrition={nutritionStats}
+                        streak={client.streak || 0}
                     />
                 </div>
             </div>
 
-            {/* Card Body */}
-            <div className="p-3 flex-1 flex flex-col">
-                <div className="text-center mb-3">
-                    <h3 className="font-bold text-sm text-white truncate leading-tight mb-1">{client.name}</h3>
-                    <div className="flex flex-col items-center justify-center gap-0.5 text-[8px] sm:text-[9px] text-gray-400">
-                        <span className="leading-tight text-center">Última: {client.lastActive}</span>
-                        {(client.age || 0) > 0 && (
-                            <span className="opacity-60">{client.age} años</span>
-                        )}
-                    </div>
-                </div>
-
-                {/* Progress Section */}
-                <div className="mt-4 mb-2 space-y-1.5">
-                    <div className="flex items-center justify-between text-[10px]">
-                        <span className="text-orange-400 font-bold uppercase tracking-tighter text-[7px] opacity-80">Progreso</span>
-                        <span className="text-orange-400 font-black text-xs">{client.progress}%</span>
-                    </div>
-                    <div className="w-full h-1.5 bg-zinc-800 rounded-full overflow-hidden">
-                        <div
-                            className="h-full bg-[#FF7939] rounded-full shadow-[0_0_8px_rgba(255,121,57,0.4)] transition-all duration-500"
-                            style={{ width: `${client.progress}%` }}
-                        />
-                    </div>
-                </div>
-
-                {/* Footer Stats Grid */}
-                <div className="grid grid-cols-3 gap-1 mt-4 pt-3 border-t border-zinc-800/60 mt-auto">
-                    <div className="flex flex-col items-center">
-                        <span className="text-[11px] font-bold text-white">{client.itemsPending ?? 0}</span>
-                        <span className="text-[7px] text-gray-400 uppercase font-black tracking-tighter">Pend</span>
-                    </div>
-                    <div className="flex flex-col items-center border-l border-zinc-800/40">
-                        <span className="text-[11px] font-bold text-white">{client.todoCount || 0}</span>
-                        <span className="text-[7px] text-gray-500 uppercase font-medium">Tareas</span>
-                    </div>
-                    <div className="flex flex-col items-center border-l border-zinc-800/40">
-                        <span className="text-[10px] sm:text-[11px] font-bold text-white">${(() => {
-                            const val = Math.round(client.totalRevenue);
-                            return val >= 1000 ? (val / 1000).toFixed(1) + 'k' : val;
-                        })()}</span>
-                        <span className="text-[7px] text-gray-400 uppercase font-black tracking-tighter">Ingr</span>
-                    </div>
-                </div>
-            </div>
+            {/* Name at the bottom - Title Case and Dimmer */}
+            <h4 className="text-[12px] font-bold text-white/50 leading-none tracking-tight group-hover:text-white transition-colors truncate w-full text-center">
+                {toTitleCase(client.name)}
+            </h4>
         </div>
     )
 }

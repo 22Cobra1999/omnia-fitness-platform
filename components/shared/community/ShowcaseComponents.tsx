@@ -71,6 +71,121 @@ export const ShowcaseProgressRing = ({ progress = 75, color = "#FF7939", size = 
     )
 }
 
+const ShowcaseRingSegment = ({
+    center,
+    radius,
+    strokeWidth,
+    percentage,
+    offset = 0,
+    color,
+    opacity = 1
+}: {
+    center: number,
+    radius: number,
+    strokeWidth: number,
+    percentage: number,
+    offset?: number,
+    color: string,
+    opacity?: number
+}) => {
+    const circumference = 2 * Math.PI * radius;
+    const dashArray = circumference;
+    const dashOffset = circumference * (1 - percentage / 100);
+    const rotation = (offset / 100) * 360 - 90;
+
+    return (
+        <g transform={`rotate(${rotation}, ${center}, ${center})`}>
+            <circle
+                cx={center}
+                cy={center}
+                r={radius}
+                fill="transparent"
+                stroke="black"
+                strokeWidth={strokeWidth + 1.5}
+                strokeDasharray={dashArray}
+                strokeDashoffset={dashOffset}
+                strokeLinecap={percentage > 0 ? "round" : "butt"}
+                opacity={0.4}
+            />
+            <circle
+                cx={center}
+                cy={center}
+                r={radius}
+                fill="transparent"
+                stroke={color}
+                strokeWidth={strokeWidth}
+                strokeDasharray={dashArray}
+                strokeDashoffset={dashOffset}
+                strokeLinecap={percentage > 0 ? "round" : "butt"}
+                opacity={opacity}
+                style={{ transition: 'stroke-dashoffset 1s ease-out' }}
+            />
+        </g>
+    );
+};
+
+export const ShowcaseActivityRings = ({
+    days = { completed: 0, absent: 0, total: 30 },
+    fitness = { completed: 0, absent: 0, total: 0 },
+    nutrition = { completed: 0, absent: 0, total: 0 },
+    streak = 0,
+    size = 110
+}: {
+    days?: { completed: number, absent: number, total: number },
+    fitness?: { completed: number, absent: number, total: number },
+    nutrition?: { completed: number, absent: number, total: number },
+    streak?: number,
+    size?: number
+}) => {
+    const center = size / 2;
+    const strokeWidth = size * 0.063; // Proporcional
+    const gap = size * 0.031; // Proporcional
+
+    const r1 = center - strokeWidth;
+    const r2 = r1 - strokeWidth - gap;
+    const r3 = r2 - strokeWidth - gap;
+
+    const renderRing = (radius: number, stats: { completed: number, absent: number, total: number }, colors: { completed: string, absent: string }) => {
+        const total = stats.total || 30;
+        const compPerc = Math.min((stats.completed / total) * 100, 100);
+        const absPerc = Math.min((stats.absent / total) * 100, 100 - compPerc);
+
+        return (
+            <>
+                <circle cx={center} cy={center} r={radius} fill="transparent" stroke="#27272a" strokeWidth={strokeWidth} />
+                <ShowcaseRingSegment
+                    center={center} radius={radius} strokeWidth={strokeWidth}
+                    percentage={absPerc} offset={0} color="#ef4444"
+                    opacity={0.4}
+                />
+                <ShowcaseRingSegment
+                    center={center} radius={radius} strokeWidth={strokeWidth}
+                    percentage={compPerc} offset={absPerc} color={colors.completed}
+                />
+            </>
+        );
+    };
+
+    return (
+        <div className="relative flex items-center justify-center" style={{ width: size, height: size }}>
+            <svg width={size} height={size}>
+                {renderRing(r1, days, { completed: "#FF7939", absent: "#ef4444" })}
+                {renderRing(r2, fitness, { completed: "#FFFFFF", absent: "#ef4444" })}
+                {nutrition.total > 0 && renderRing(r3, nutrition, { completed: "#FACC15", absent: "#ef4444" })}
+            </svg>
+            <div className="absolute inset-0 flex flex-col items-center justify-center">
+                <div
+                    className="bg-white/5 backdrop-blur-xl rounded-full flex flex-col items-center justify-center border border-white/10 shadow-inner"
+                    style={{ width: size * 0.35, height: size * 0.35 }}
+                >
+                    <Flame size={size * 0.12} className="text-[#FF7939] mb-0.5" fill="#FF7939" />
+                    <span className="font-black text-white italic leading-none" style={{ fontSize: size * 0.12 }}>{streak}</span>
+                </div>
+            </div>
+        </div>
+    );
+};
+
 /**
  * ShowcaseFeatureCard: A mini activity card to show the logic
  */
