@@ -1,9 +1,10 @@
 'use client'
 
 import React from 'react'
-import { Search, RotateCcw, Flame, Clock } from 'lucide-react'
+import { Search, RotateCcw, Flame, Clock, X } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
+import { cn } from '@/lib/utils/utils'
 import { useWeeklyPlanner } from './hooks/useWeeklyPlanner'
 import { DayExercisesModal } from './DayExercisesModal'
 import { WeeklyExercisePlannerProps } from './planner-types'
@@ -112,69 +113,9 @@ export function WeeklyExercisePlanner(props: WeeklyExercisePlannerProps) {
         </div>
       )}
 
-      {/* Resumen y Repetir */}
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-8 items-end">
-        <div className="space-y-4">
-          <div className="flex items-center justify-between">
-            <h4 className="text-white text-lg font-black italic uppercase tracking-tighter">Resumen</h4>
-            <div className="flex items-center gap-3 bg-white/5 px-3 py-1 rounded-full border border-white/10">
-              <span className="text-[9px] font-black text-white/20 uppercase tracking-widest">Repetir ciclo</span>
-              <div className="flex items-center gap-2">
-                <button onClick={decreasePeriods} disabled={periods <= 1} className="text-white/40 hover:text-white font-bold text-sm">-</button>
-                <span className="text-[#FF7939] font-black text-sm">{periods}x</span>
-                <button onClick={increasePeriods} className="text-white/40 hover:text-white font-bold text-sm">+</button>
-              </div>
-            </div>
-          </div>
-
-          <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
-            {[
-              { label: 'Semanas', val: weeksLimit !== null ? `${summaryStats.totalWeeks}/${weeksLimit}` : summaryStats.totalWeeks, color: weeksExceeded ? 'text-red-400' : 'text-[#FF7939]' },
-              { label: 'Sesiones', val: weeksLimit !== null ? `${summaryStats.totalSessions}/${weeksLimit * 7}` : summaryStats.totalSessions, color: sessionsExceeded ? 'text-red-400' : 'text-[#FF7939]' },
-              { label: isNutrition ? 'Platos' : 'Ejercicios', val: summaryStats.totalExercisesReplicated, color: 'text-[#FF7939]' },
-              { label: 'Únicos', val: activitiesLimit !== null ? `${summaryStats.uniqueExercises}/${activitiesLimit}` : summaryStats.uniqueExercises, color: uniqueExceeded ? 'text-red-400' : 'text-[#FF7939]' }
-            ].map((item, idx) => (
-              <div key={idx} className="bg-white/[0.03] p-2 rounded-xl border border-white/5 flex flex-col items-center justify-center">
-                <span className="text-white/20 font-bold uppercase text-[8px] tracking-[0.15em] mb-1">{item.label}</span>
-                <span className={`text-base font-black italic ${item.color}`}>{item.val}</span>
-              </div>
-            ))}
-          </div>
-        </div>
-
-        <div className="flex flex-col items-center lg:items-end gap-4">
-          <div className="flex items-center gap-4">
-            <button
-              onClick={handleUndo}
-              disabled={!canUndo}
-              className={`w-10 h-10 rounded-full border flex items-center justify-center transition-all ${canUndo ? 'text-[#FF7939] bg-[#FF7939]/10 border-[#FF7939]/30 shadow-lg shadow-[#FF7939]/5' : 'text-white/5 border-white/5 cursor-not-allowed'}`}
-            >
-              <RotateCcw className="w-4 h-4" />
-            </button>
-
-            <div className="flex items-center gap-1.5 bg-white/5 p-1 rounded-full border border-white/5">
-              {Object.keys(weeklySchedule).map(Number).filter(n => !isNaN(n) && n > 0).sort((a, b) => a - b).map(w => (
-                <button
-                  key={w}
-                  onClick={() => setCurrentWeek(w)}
-                  className={`w-9 h-9 rounded-full text-xs font-black transition-all ${currentWeek === w ? 'bg-[#FF7939] text-black shadow-lg shadow-[#FF7939]/20 scale-110 z-10' : 'text-white/40 hover:text-white hover:bg-white/5'}`}
-                >
-                  {w}
-                </button>
-              ))}
-              <button onClick={addWeek} className="w-9 h-9 rounded-full bg-white/10 text-white/60 hover:text-white flex items-center justify-center font-black transition-transform hover:scale-105">+</button>
-            </div>
-            {Object.keys(weeklySchedule).length > 1 && (
-              <button onClick={() => removeWeek()} className="w-8 h-8 rounded-full border border-red-500/20 text-red-500/40 hover:text-red-500 hover:bg-red-500/10 flex items-center justify-center text-xs transition-all">✕</button>
-            )}
-          </div>
-          <p className="text-[10px] font-black text-white/40 uppercase tracking-[0.3em] font-sans italic">Control de Semanas</p>
-        </div>
-      </div>
-
-      <div className="flex flex-col lg:flex-row gap-8 items-start">
+      <div className="flex flex-col lg:flex-row gap-8 items-start relative w-full">
         {/* Lado Izquierdo o Superior: Lista de selección integrada */}
-        <div className="w-full lg:w-[240px] flex-shrink-0 order-2 lg:order-1">
+        <div className="w-full lg:w-[240px] flex-shrink-0 order-2 lg:order-1 h-full">
           <div className="bg-[#0A0A0A] border border-white/5 rounded-2xl p-4 sticky top-4">
             <div className="flex items-center justify-between mb-4">
               <h4 className="text-white font-medium text-base">{isNutrition ? 'Platos' : 'Ejercicios'}</h4>
@@ -189,7 +130,7 @@ export function WeeklyExercisePlanner(props: WeeklyExercisePlannerProps) {
               </div>
             </div>
 
-            <div className="space-y-2 max-h-[60vh] overflow-y-auto pr-2 scrollbar-hide">
+            <div className="space-y-2 max-h-[75vh] min-h-[500px] overflow-y-auto pr-2 scrollbar-hide">
               {finalAvailableExercises.filter((ex: any) => {
                 const q = searchTerm.toLowerCase()
                 return (ex.name || '').toLowerCase().includes(q) || (ex.type || '').toLowerCase().includes(q)
@@ -243,8 +184,78 @@ export function WeeklyExercisePlanner(props: WeeklyExercisePlannerProps) {
           </div>
         </div>
 
-        {/* Mapa Semanal - Derecha */}
-        <div className="flex-1 order-1 lg:order-2 space-y-6 overflow-x-auto lg:overflow-visible">
+        {/* Contenido Derecho: Resumen + Mapa Semanal */}
+        <div className="flex-1 order-1 lg:order-2 flex flex-col gap-6 overflow-x-auto lg:overflow-visible overflow-hidden w-full">
+
+          {/* Resumen y Repetir */}
+          <div className="flex flex-col lg:flex-row justify-between gap-6 items-start lg:items-end w-full">
+            <div className="space-y-4 flex-1 w-full">
+              <div className="flex flex-wrap items-center gap-4 lg:gap-8 justify-between lg:justify-start">
+                <h4 className="text-white text-lg lg:text-[18px] font-black italic uppercase tracking-tighter">Resumen</h4>
+                <div className="flex items-center gap-3 bg-white/[0.03] border border-white/10 rounded-full px-5 py-2">
+                  <span className="text-[9px] font-black text-white/20 uppercase tracking-widest">Repetir ciclo</span>
+                  <div className="flex items-center gap-2">
+                    <button onClick={decreasePeriods} disabled={periods <= 1} className="text-white/40 hover:text-[#FF7939] font-black transition-colors">-</button>
+                    <span className="text-[#FF7939] font-black text-[12px]">{periods}x</span>
+                    <button onClick={increasePeriods} className="text-white/40 hover:text-[#FF7939] font-black transition-colors">+</button>
+                  </div>
+                </div>
+              </div>
+
+              <div className="flex flex-wrap items-center gap-3">
+                {[
+                  { label: 'Semanas', val: weeksLimit !== null ? `${summaryStats.totalWeeks}/${weeksLimit}` : summaryStats.totalWeeks, color: weeksExceeded ? 'text-red-400' : 'text-[#FF7939]' },
+                  { label: 'Sesiones', val: weeksLimit !== null ? `${summaryStats.totalSessions}/${weeksLimit * 7}` : summaryStats.totalSessions, color: sessionsExceeded ? 'text-red-400' : 'text-[#FF7939]' },
+                  { label: isNutrition ? 'Platos' : 'Ejercicios', val: summaryStats.totalExercisesReplicated, color: 'text-white' },
+                  { label: 'Únicos', val: activitiesLimit !== null ? `${summaryStats.uniqueExercises}/${activitiesLimit}` : summaryStats.uniqueExercises, color: uniqueExceeded ? 'text-red-400' : 'text-[#FF7939]' }
+                ].map((item, idx) => (
+                  <div key={idx} className="bg-[#111111] w-[100px] py-2 rounded-[12px] border border-white/5 flex flex-col justify-center text-center shadow-md">
+                    <div className="text-[7.5px] text-white/30 font-black uppercase tracking-[0.2em]">{item.label}</div>
+                    <div className={cn("text-[16px] font-black leading-tight mt-0.5 italic", item.color)}>{item.val}</div>
+                  </div>
+                ))}
+              </div>
+            </div>
+
+            <div className="flex flex-col items-start lg:items-end gap-3 w-full lg:w-auto">
+              <p className="text-[9px] font-black text-white/20 uppercase tracking-[0.2em] italic hidden lg:block">Control de Semanas</p>
+              <div className="flex items-center gap-2">
+                <button
+                  onClick={handleUndo}
+                  disabled={!canUndo}
+                  className={cn("w-9 h-9 rounded-full border border-white/5 flex flex-shrink-0 items-center justify-center transition-all", canUndo ? 'text-white/80 hover:text-white' : 'text-white/5 cursor-not-allowed')}
+                >
+                  <div className="w-4 h-4 rounded-full border border-white/20 flex items-center justify-center">
+                    <div className="w-1.5 h-1.5 bg-white/20 rounded-full" />
+                  </div>
+                </button>
+
+                <div className="flex items-center gap-1.5 flex-nowrap overflow-x-auto hide-scrollbar">
+                  {Object.keys(weeklySchedule).map(Number).filter(n => !isNaN(n) && n > 0).sort((a, b) => a - b).map(w => (
+                    <button
+                      key={w}
+                      onClick={() => setCurrentWeek(w)}
+                      className={cn(
+                        "w-9 h-9 rounded-full text-[14px] flex flex-shrink-0 items-center justify-center font-black transition-all",
+                        currentWeek === w ? "bg-[#FF7939] text-black shadow-lg" : "text-white/20 border border-white/10 hover:text-white hover:bg-white/5"
+                      )}
+                    >
+                      {w}
+                    </button>
+                  ))}
+                  <button onClick={addWeek} className="w-9 h-9 rounded-full border flex flex-shrink-0 items-center justify-center text-white/20 border-white/10 hover:text-white transition-colors">
+                    +
+                  </button>
+                  {Object.keys(weeklySchedule).length > 1 && (
+                    <button onClick={() => removeWeek()} className="w-9 h-9 flex flex-shrink-0 rounded-full border border-[#FF7939]/20 flex items-center justify-center text-[#FF7939]/60 hover:text-[#FF7939] hover:bg-[#FF7939]/10 transition-colors">
+                      <X size={16} />
+                    </button>
+                  )}
+                </div>
+              </div>
+            </div>
+          </div>
+
           <div className="bg-[#0A0A0A] border border-white/5 rounded-3xl p-3 md:p-6 min-w-[600px] lg:min-w-0">
             <div
               className="grid gap-0 grid-dynamic"

@@ -326,11 +326,14 @@ function MobileAppContent({ initialTab, initialCategoryId, initialActivityId, in
   // Create transforms directly from scrollY
   const bgOpacity = useTransform(scrollY, [50, 120], [0, 1])
 
-  // Decrease scale from 2.5 to 1 smoothly over 160px of scroll
-  const logoScale = useTransform(scrollY, [0, 160], [2.5, 1])
+  // Decrease scale from 2.5 to 1 smoothly over 160px of scroll, then shrink slightly when moving into mockups
+  const logoScale = useTransform(scrollY, [0, 160, 2600, 3000], [2.5, 1, 1, 0.8])
 
-  // Move Y from 120 to 0 smoothly over 160px of scroll
-  const logoY = useTransform(scrollY, [0, 160], [120, 0])
+  // Move Y from 120 to 0 smoothly over 160px of scroll, then translate down into the device mockups
+  const logoY = useTransform(scrollY, [0, 160, 2600, 3000], [120, 0, 0, 80])
+
+  // Fade out when entering the mockup sections
+  const logoOpacity = useTransform(scrollY, [0, 160, 2600, 3000], [1, 1, 1, 0])
 
   // Use motion values that fallback to defaults if not in community tab
   const actualBgOpacity = useTransform(bgOpacity, v => activeTab === 'community' ? v : 1)
@@ -338,6 +341,7 @@ function MobileAppContent({ initialTab, initialCategoryId, initialActivityId, in
 
   const actualLogoScale = useTransform(logoScale, v => activeTab === 'community' ? v : 1)
   const actualLogoY = useTransform(logoY, v => activeTab === 'community' ? v : 0)
+  const actualLogoOpacity = useTransform(logoOpacity, v => activeTab === 'community' ? v : 1)
 
   // Use a spring or derived state for the drop shadow to avoid re-rendering
   const [isLogoLarge, setIsLogoLarge] = useState(false)
@@ -433,7 +437,8 @@ function MobileAppContent({ initialTab, initialCategoryId, initialActivityId, in
             style={{
               x: "-50%",
               scale: actualLogoScale,
-              y: actualLogoY
+              y: actualLogoY,
+              opacity: actualLogoOpacity
             }}
           >
             <OmniaLogoText size="text-3xl" className={isLogoLarge ? "drop-shadow-[0_20px_25px_rgba(255,121,57,0.15)] filter" : ""} />

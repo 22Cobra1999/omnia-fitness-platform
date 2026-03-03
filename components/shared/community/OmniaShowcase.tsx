@@ -2,8 +2,8 @@
 
 import React, { useState, useRef, useEffect } from 'react'
 import { motion, AnimatePresence, useScroll, useTransform, MotionValue, useMotionValue } from 'framer-motion'
-import { Flame, Star, Zap, ShoppingCart, Users, User, Briefcase, ChevronRight, Play, Utensils, Globe, Layers, Video, ShieldAlert, Scale, MapPin, ArrowLeft, ArrowRight, Edit2, Clock, X, Maximize2, FileText, Monitor, Laptop, Cloud, TrendingUp, BarChart3, PlusCircle, Mic, MicOff, VideoOff, PhoneOff, Hand, MoreVertical, MessageSquare, Info, LayoutGrid, ShieldCheck, Wifi, Calendar, Award, Settings, Search, SlidersHorizontal } from 'lucide-react'
-import { ShowcaseBubble, ShowcaseProgressRing, ShowcaseFeatureCard, ShowcaseIngredients, MockCalendar, ShowcaseShelf, ShowcaseConcept, ShowcaseActivityRings } from './ShowcaseComponents'
+import { Flame, Star, Zap, ShoppingCart, Users, User, Briefcase, ChevronRight, ChevronLeft, Play, Utensils, Globe, Layers, Video, ShieldAlert, Scale, MapPin, ArrowLeft, ArrowRight, Edit2, Clock, X, Maximize2, FileText, Monitor, Laptop, Cloud, TrendingUp, BarChart3, PlusCircle, Mic, MicOff, VideoOff, PhoneOff, Hand, MoreVertical, MessageSquare, Info, LayoutGrid, ShieldCheck, Wifi, Calendar, Award, Settings, Search, SlidersHorizontal, ShoppingBag, BookOpen, Book, RotateCcw, Printer } from 'lucide-react'
+import { ShowcaseBubble, ShowcaseProgressRing, ShowcaseFeatureCard, ShowcaseIngredients, MockCalendar, ShowcaseShelf, ShowcaseConcept, ShowcaseActivityRings, ShowcaseWeeklyMiniRings } from './ShowcaseComponents'
 import { Button } from '@/components/ui/button'
 import { cn } from '@/lib/utils/utils'
 import { OmniaLogo, OmniaLogoText } from '@/components/shared/ui/omnia-logo'
@@ -16,8 +16,8 @@ interface OmniaShowcaseProps {
 
 export function OmniaShowcase({ scrollY }: OmniaShowcaseProps) {
     const [role, setRole] = useState<'client' | 'coach'>('client')
-    const [clientMockupType, setClientMockupType] = useState<'fitness' | 'nutrition'>('fitness')
-    const [coachMockupType, setCoachMockupType] = useState<'clients' | 'profile' | 'products'>('profile')
+    const [clientMockupType, setClientMockupType] = useState<'fitness' | 'nutrition' | 'profile'>('fitness')
+    const [coachMockupType, setCoachMockupType] = useState<'clients' | 'profile' | 'products'>('clients')
     const [realActivities, setRealActivities] = useState<Activity[]>([])
     const [isLoadingReal, setIsLoadingReal] = useState(true)
 
@@ -204,6 +204,110 @@ export function OmniaShowcase({ scrollY }: OmniaShowcaseProps) {
         visible: { opacity: 1, y: 0 }
     }
 
+    const PhoneMockup = ({ type, role = 'coach', children, active, onClick }: { type: string, role?: 'client' | 'coach', children: React.ReactNode, active: boolean, onClick: () => void }) => (
+        <motion.div
+            onClick={onClick}
+            initial={false}
+            animate={{
+                scale: active ? 1 : 0.95,
+                x: active ? "-50%" : (type === 'clients' || type === 'fitness') ? "-110%" : "60%",
+                y: 0,
+                zIndex: active ? 20 : 10,
+                rotateZ: 0,
+                opacity: active ? 1 : 0.3,
+                filter: active ? 'blur(0px)' : 'blur(8px)',
+            }}
+            transition={{ duration: 0.5, ease: "circOut" }}
+            className="absolute top-0 left-1/2 w-[280px] aspect-[9/19] rounded-[48px] border-[6px] border-[#1a1a1a] overflow-hidden bg-[#050505] shadow-2xl cursor-pointer"
+        >
+            {/* The iPhone Notch - No blue dot */}
+            <div className="absolute top-0 inset-x-0 mx-auto w-[90px] h-[18px] bg-[#1a1a1a] rounded-b-[12px] z-[100] border-b border-x border-[#222]">
+                <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-2.5 h-2.5 bg-[#010101] rounded-full flex items-center justify-center ring-1 ring-white/5 shadow-inner">
+                    <div className="w-[3px] h-[3px] bg-white/10 rounded-full blur-[0.5px]" />
+                </div>
+            </div>
+
+            <div className="h-full flex flex-col bg-[#050505] overflow-y-auto hide-scrollbar pointer-events-none pt-[12px] relative">
+                {/* Header within Phone - Sticky to stay visible */}
+                <div className="sticky top-0 h-10 w-full px-4 flex items-center justify-between bg-black/60 backdrop-blur-xl border-b border-white/5 z-[60]">
+                    <div className="p-1.5 text-white/20"><Settings size={14} /></div>
+                    <div className="flex flex-col items-center">
+                        <span className="text-[#FF7939] font-black tracking-[0.2em] italic text-[11px] uppercase">omnia</span>
+                    </div>
+                    <div className="p-1.5 text-white/20 relative">
+                        <MessageSquare size={14} />
+                        <div className="absolute top-1 right-1 w-2 h-2 bg-[#FF7939] rounded-full border border-black" />
+                    </div>
+                </div>
+
+                <div className="flex-1 flex flex-col relative overflow-hidden">
+                    <AnimatePresence mode="wait">
+                        <motion.div
+                            key={type}
+                            initial={{ opacity: 0, x: 20 }}
+                            animate={{ opacity: 1, x: 0 }}
+                            exit={{ opacity: 0, x: -20 }}
+                            transition={{ duration: 0.3, ease: "circOut" }}
+                            className="flex-1 flex flex-col"
+                        >
+                            {children}
+                        </motion.div>
+                    </AnimatePresence>
+                </div>
+
+                {/* Shared App Navigation Footer within Phone */}
+                <div className="absolute bottom-0 w-full h-16 bg-black/80 backdrop-blur-xl border-t border-white/5 flex justify-around items-center px-2 z-[70]">
+                    {role === 'coach' ? (
+                        <>
+                            <div className={cn("flex flex-col items-center gap-1", (type === 'clients') ? "text-[#FF7939]" : "opacity-40")}>
+                                <Users size={18} />
+                                <span className="text-[8px] font-black uppercase text-center leading-none">Clientes</span>
+                            </div>
+                            <div className={cn("flex flex-col items-center gap-1 opacity-40")}>
+                                <Utensils size={18} />
+                                <span className="text-[8px] font-black uppercase text-center leading-none">Nutrición</span>
+                            </div>
+                            <div className="relative -top-3 w-12 h-12 bg-[#FF7939]/30 backdrop-blur-xl rounded-full flex items-center justify-center shadow-lg shadow-orange-500/10 border-4 border-white/5">
+                                <Flame size={20} fill="white" className="text-white" />
+                            </div>
+                            <div className={cn("flex flex-col items-center gap-1 opacity-40")}>
+                                <Calendar size={18} />
+                                <span className="text-[8px] font-black uppercase text-center leading-none">Calendario</span>
+                            </div>
+                            <div className={cn("flex flex-col items-center gap-1", (type === 'profile') ? "text-[#FF7939]" : "opacity-40")}>
+                                <User size={18} />
+                                <span className="text-[8px] font-black uppercase text-center leading-none">Perfil</span>
+                            </div>
+                        </>
+                    ) : (
+                        <>
+                            <div className={cn("flex flex-col items-center gap-1 opacity-40")}>
+                                <Search size={18} />
+                                <span className="text-[8px] font-black uppercase text-center leading-none">Buscar</span>
+                            </div>
+                            <div className={cn("flex flex-col items-center gap-1", (type === 'fitness') ? "text-[#FF7939]" : "opacity-40")}>
+                                <Zap size={18} />
+                                <span className="text-[8px] font-black uppercase text-center leading-none">Actividades</span>
+                            </div>
+                            <div className="relative -top-3 w-12 h-12 bg-[#FF7939]/30 backdrop-blur-xl rounded-full flex items-center justify-center shadow-lg shadow-orange-500/10 border-4 border-white/5">
+                                <Flame size={20} fill="white" className="text-white" />
+                            </div>
+                            <div className={cn("flex flex-col items-center gap-1 opacity-40")}>
+                                <Calendar size={18} />
+                                <span className="text-[8px] font-black uppercase text-center leading-none">Calendario</span>
+                            </div>
+                            <div className={cn("flex flex-col items-center gap-1", (type === 'profile') ? "text-[#FF7939]" : "opacity-40")}>
+                                <User size={18} />
+                                <span className="text-[8px] font-black uppercase text-center leading-none">Perfil</span>
+                            </div>
+                        </>
+                    )}
+                </div>
+            </div>
+        </motion.div >
+    );
+
+
     return (
         <div ref={containerRef} className="flex flex-col gap-12 pb-32 pt-4 px-2 overflow-hidden">
             {/* 0. Hero Section - Shrinking Logo to Header */}
@@ -216,7 +320,9 @@ export function OmniaShowcase({ scrollY }: OmniaShowcaseProps) {
                 {/* Shadow at the feet effect */}
                 <div className="absolute bottom-2 left-1/2 -translate-x-1/2 w-48 h-10 bg-[#FF7939]/10 blur-3xl rounded-full" />
 
-                {/* The Logo itself is now managed globally in app-mobile.tsx to ensure a seamless transition into the fixed header */}
+                <div className="relative z-10 scale-[1.3] transform-none">
+                    <OmniaLogo width={180} />
+                </div>
             </section>
 
             {/* Scrolling Staggered Title with Straightening Staircase Effect */}
@@ -602,814 +708,930 @@ export function OmniaShowcase({ scrollY }: OmniaShowcaseProps) {
                         transition={{ duration: 0.4, ease: "circOut" }}
                         className="w-full flex flex-col gap-12"
                     >
-                        {role === 'client' ? (
-                            <div className="space-y-32">
-                                {/* 1. Integrated Mobile Experience (iPhone) */}
-                                <div className="space-y-8">
-                                    <div className="flex flex-col items-center text-center space-y-4">
-                                        <h3 className="text-4xl font-black text-white italic uppercase tracking-tighter leading-none">Tu Libertad <br /><span className="text-white/30 text-xl tracking-normal lowercase">en un solo lugar.</span></h3>
-                                        <p className="text-sm text-white/40 max-w-xl mx-auto leading-relaxed mt-2">
-                                            Una experiencia móvil diseñada para la acción. Todo tu entrenamiento y nutrición integrados en una interfaz fluida. Toca para ver detalle.
-                                        </p>
-                                    </div>
+                        {(() => {
+                            if (role === 'client') return (
+                                <>
+                                    <div className="space-y-32">
+                                        {/* 1. Integrated Mobile Experience (iPhone) */}
+                                        <div className="space-y-8">
+                                            <div className="flex flex-col items-center text-center space-y-4">
+                                                <h3 className="text-4xl font-black text-white italic uppercase tracking-tighter leading-none">Tu Libertad <br /><span className="text-white/30 text-xl tracking-normal lowercase">en un solo lugar.</span></h3>
+                                                <p className="text-sm text-white/40 max-w-xl mx-auto leading-relaxed mt-2">
+                                                    Una experiencia móvil diseñada para la acción. Todo tu entrenamiento y nutrición integrados en una interfaz fluida. Toca para ver detalle.
+                                                </p>
+                                            </div>
 
-                                    <div className="flex justify-center relative h-[620px] w-full max-w-sm mx-auto perspective-[2000px] mt-12 mb-12 select-none">
-                                        {/* Glow Backgrounds */}
-                                        <div className={cn(
-                                            "absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-80 h-80 rounded-full blur-[120px] transition-all duration-1000",
-                                            clientMockupType === 'fitness' ? "bg-[#FF7939]/20" : "bg-orange-300/20"
-                                        )} />
+                                            <div className="flex items-center gap-12 mt-6 justify-center">
+                                                {[
+                                                    { type: 'fitness', icon: Zap, label: 'Fitness' },
+                                                    { type: 'nutrition', icon: Utensils, label: 'Nutri' },
+                                                    { type: 'profile', icon: User, label: 'Perfil' }
+                                                ].map((nav) => (
+                                                    <button
+                                                        key={nav.type}
+                                                        onClick={() => setClientMockupType(nav.type as any)}
+                                                        className={cn(
+                                                            "flex flex-col items-center gap-2 transition-all duration-300",
+                                                            clientMockupType === nav.type
+                                                                ? "text-[#FF7939]"
+                                                                : "text-white/20 hover:text-white/40 font-bold"
+                                                        )}
+                                                    >
+                                                        <nav.icon size={28} fill={clientMockupType === nav.type ? "currentColor" : "none"} />
+                                                        <span className="text-[10px] font-black uppercase italic tracking-widest leading-none">{nav.label}</span>
+                                                    </button>
+                                                ))}
+                                            </div>
 
-                                        {/* Phone 1: Fitness */}
-                                        <motion.div
-                                            onClick={() => setClientMockupType('fitness')}
-                                            animate={{
-                                                scale: clientMockupType === 'fitness' ? 1.05 : 0.85,
-                                                x: clientMockupType === 'fitness' ? "-50%" : "-100%",
-                                                y: clientMockupType === 'fitness' ? 0 : 20,
-                                                zIndex: clientMockupType === 'fitness' ? 20 : 10,
-                                                rotateZ: clientMockupType === 'fitness' ? 0 : -5,
-                                                opacity: clientMockupType === 'fitness' ? 1 : 0.4,
-                                                filter: clientMockupType === 'fitness' ? 'blur(0px)' : 'blur(4px)',
-                                            }}
-                                            transition={{ duration: 0.6, type: "spring", bounce: 0.3 }}
-                                            className="absolute top-0 left-1/2 w-[280px] aspect-[9/19] rounded-[48px] border-[6px] border-[#1a1a1a] overflow-hidden bg-[#050505] shadow-2xl cursor-pointer"
-                                        >
-                                            <div className="h-full flex flex-col bg-black overflow-y-auto hide-scrollbar pointer-events-none">
-                                                {/* Status Bar / Notch */}
-                                                <div className="h-7 flex items-center justify-center bg-black relative z-50">
-                                                    <div className="w-14 h-4 bg-black rounded-b-xl" />
-                                                </div>
+                                            <div className="flex justify-center relative h-[620px] w-full max-w-sm mx-auto perspective-[2000px] mt-12 mb-12 select-none">
+                                                {/* Glow Backgrounds */}
+                                                <div className={cn(
+                                                    "absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-80 h-80 rounded-full blur-[120px] transition-all duration-1000",
+                                                    clientMockupType === 'fitness' ? "bg-[#FF7939]/20" : "bg-orange-300/20"
+                                                )} />
 
-                                                <div className="px-5 py-2 flex items-center justify-between">
-                                                    <ArrowLeft size={16} className="text-white/80" />
-                                                    <span className="text-[#FF7939] text-[7px] font-black uppercase italic tracking-[0.2em] flex items-center gap-1.5">
-                                                        <div className="w-1.5 h-1.5 bg-[#FF7939] rounded-full animate-pulse shadow-[0_0_8px_rgba(255,121,57,0.5)]" /> PENDIENTE
-                                                    </span>
-                                                    <div className="w-4" />
-                                                </div>
+                                                {/* Phone 1: Fitness */}
+                                                <PhoneMockup type="fitness" role="client" active={clientMockupType === 'fitness'} onClick={() => setClientMockupType('fitness')}>
+                                                    <div className="px-5 py-2 flex items-center justify-between">
+                                                        <ArrowLeft size={16} className="text-white/80" />
+                                                        <Flame size={18} className="text-[#FF7939] fill-[#FF7939]" />
+                                                    </div>
 
-                                                <h4 className="px-6 text-[12px] font-black text-white text-center uppercase italic leading-tight mb-3">
-                                                    Press con mancuernas <br /> en banco plano
-                                                </h4>
+                                                    <h4 className="px-6 text-[12px] font-black text-white text-center uppercase italic leading-tight mb-3">
+                                                        Press con mancuernas <br /> en banco plano
+                                                    </h4>
 
-                                                {/* Video Player Mockup with Real Image - Aspect ratio adjusted */}
-                                                <div className="mx-3 aspect-[4/3] bg-white/5 rounded-2xl relative group/video overflow-hidden border border-white/5">
-                                                    <img
-                                                        src="https://images.unsplash.com/photo-1571019614242-c5c5dee9f50b?w=800&q=80"
-                                                        alt="Exercise Preview"
-                                                        className="absolute inset-0 w-full h-full object-cover opacity-60 grayscale transition-all duration-700"
-                                                    />
-                                                    <div className="absolute inset-x-0 bottom-0 p-3 space-y-1.5 bg-gradient-to-t from-black to-transparent">
-                                                        <div className="w-full h-1 bg-white/20 rounded-full relative overflow-hidden">
-                                                            <div className="absolute left-0 top-0 h-full w-[45%] bg-[#FF7939]" />
+                                                    {/* Video Player Mockup with Real Image - Aspect ratio adjusted */}
+                                                    <div className="mx-4 aspect-[4/3] bg-zinc-900 rounded-[20px] relative group/video overflow-hidden border border-white/10 shadow-xl">
+                                                        <img
+                                                            src="https://images.unsplash.com/photo-1571019614242-c5c5dee9f50b?w=800&q=80"
+                                                            alt="Exercise Preview"
+                                                            className="absolute inset-0 w-full h-full object-cover opacity-60 grayscale transition-all duration-700"
+                                                        />
+                                                        {/* Central Play Button */}
+                                                        <div className="absolute inset-0 flex items-center justify-center bg-black/20 group-hover/video:bg-black/10 transition-colors">
+                                                            <div className="p-3 bg-[#FF7939] rounded-full shadow-[0_0_25px_rgba(255,121,57,0.5)] scale-90 group-hover/video:scale-100 transition-transform">
+                                                                <Play size={18} fill="white" className="text-white ml-0.5" />
+                                                            </div>
                                                         </div>
-                                                        <div className="flex items-center justify-between text-[7px] font-bold text-white/80">
-                                                            <div className="flex items-center gap-2">
-                                                                <Play size={8} fill="white" className="text-white" />
+
+                                                        <div className="absolute inset-x-0 bottom-0 p-3 space-y-1.5 bg-gradient-to-t from-black to-transparent">
+                                                            <div className="w-full h-1 bg-white/20 rounded-full relative overflow-hidden">
+                                                                <div className="absolute left-0 top-0 h-full w-[45%] bg-[#FF7939]" />
+                                                            </div>
+                                                            <div className="flex items-center justify-between text-[8px] font-bold text-white/80">
                                                                 <span>00:32 / 01:15</span>
-                                                            </div>
-                                                            <Maximize2 size={8} className="opacity-60" />
-                                                        </div>
-                                                    </div>
-                                                    <div className="absolute inset-0 flex items-center justify-center">
-                                                        <div className="p-3 bg-[#FF7939] rounded-full shadow-[0_0_30px_rgba(255,121,57,0.4)]">
-                                                            <Play size={14} fill="white" className="text-white ml-0.5" />
-                                                        </div>
-                                                    </div>
-                                                </div>
-
-                                                <div className="mt-4 flex justify-center">
-                                                    <div className="flex items-center gap-4 px-4 py-2 bg-white/5 rounded-full border border-white/5 backdrop-blur-3xl">
-                                                        <div className="flex items-center gap-1.5"><Clock size={10} className="text-white/30" /><span className="text-[8px] font-bold text-white/50 uppercase tracking-widest">12 min</span></div>
-                                                        <div className="flex items-center gap-2">
-                                                            <div className="flex items-center gap-1.5"><Flame size={10} className="text-[#FF7939]" /><span className="text-[8px] font-bold text-white/50 uppercase tracking-widest">~70 kcal</span></div>
-                                                            <div className="px-2 py-0.5 bg-blue-500/20 rounded border border-blue-500/30">
-                                                                <span className="text-[7px] font-black text-blue-400 uppercase tracking-widest">Fuerza</span>
+                                                                <Maximize2 size={10} className="opacity-60" />
                                                             </div>
                                                         </div>
                                                     </div>
-                                                </div>
 
-                                                <div className="mt-4 px-6 flex items-center justify-between border-b border-white/5 pb-2">
-                                                    {['Series', 'Músculos', 'Equipo', 'Técnica'].map((tab, i) => (
-                                                        <span key={tab} className={cn(
-                                                            "text-[8px] font-black uppercase italic tracking-tighter",
-                                                            i === 0 ? "text-white border-b-2 border-[#FF7939]" : "text-white/20"
-                                                        )}>{tab}</span>
-                                                    ))}
-                                                </div>
-
-                                                <div className="mt-4 px-4 space-y-2 flex-1">
-                                                    {[1, 2, 3, 4, 5, 6].map((s) => (
-                                                        <div key={s} className={cn(
-                                                            "p-2.5 rounded-2xl border flex items-center justify-between transition-all duration-500",
-                                                            s <= 2 ? "bg-white/[0.04] border-white/10" : "bg-transparent border-white/5 opacity-20"
-                                                        )}>
-                                                            <div className="flex items-center gap-3">
-                                                                <div className={cn("w-5 h-5 rounded-lg flex items-center justify-center text-[9px] font-black", s <= 2 ? "bg-[#FF7939]/20 text-[#FF7939] border border-[#FF7939]/30" : "bg-white/5 text-white/10")}>{s}</div>
-                                                                <div className="flex gap-3">
-                                                                    <div className="flex flex-col"><span className="text-[9px] font-black text-white">{s <= 2 ? '3' : ''}</span><span className="text-[5px] text-white/30 uppercase font-black">Series</span></div>
-                                                                    <div className="flex flex-col"><span className="text-[9px] font-black text-white">{s <= 2 ? '10' : ''}</span><span className="text-[5px] text-white/30 uppercase font-black">Reps</span></div>
-                                                                    <div className="flex flex-col"><span className="text-[9px] font-black text-white">{s <= 2 ? '15kg' : ''}</span><span className="text-[5px] text-white/30 uppercase font-black">Peso</span></div>
+                                                    <div className="mt-4 flex justify-center">
+                                                        <div className="flex items-center gap-3 px-3 py-1.5 bg-white/5 rounded-full border border-white/10 backdrop-blur-3xl">
+                                                            <div className="flex items-center gap-1.5"><Clock size={10} className="text-white/30" /><span className="text-[9px] font-bold text-white/50 uppercase tracking-widest">12 min</span></div>
+                                                            <div className="flex items-center gap-2">
+                                                                <div className="flex items-center gap-1.5"><Flame size={10} className="text-[#FF7939]" /><span className="text-[9px] font-bold text-white/50 uppercase tracking-widest">~70 kcal</span></div>
+                                                                <div className="px-2 py-0.5 bg-[#FF7939]/10 border border-[#FF7939]/30 rounded-lg italic">
+                                                                    <span className="text-[7.5px] font-black text-[#FF7939] uppercase tracking-tighter leading-none">Fuerza</span>
                                                                 </div>
                                                             </div>
-                                                            {s <= 2 && <ShieldCheck size={10} className="text-[#FF7939]" />}
-                                                        </div>
-                                                    ))}
-                                                </div>
-
-                                                <div className="mt-auto p-6 flex justify-between">
-                                                    <div className="p-3 rounded-full border border-white/10 bg-white/5"><ArrowLeft size={14} className="text-white/20" /></div>
-                                                    <div className="p-3 rounded-full border border-[#FF7939]/30 bg-[#FF7939]/10 shadow-[0_0_20px_rgba(255,121,57,0.15)]"><ArrowRight size={14} className="text-[#FF7939]" /></div>
-                                                </div>
-                                            </div>
-                                        </motion.div>
-
-                                        {/* Phone 2: Nutrition */}
-                                        <motion.div
-                                            onClick={() => setClientMockupType('nutrition')}
-                                            animate={{
-                                                scale: clientMockupType === 'nutrition' ? 1.05 : 0.85,
-                                                x: clientMockupType === 'nutrition' ? "-50%" : "0%",
-                                                y: clientMockupType === 'nutrition' ? 0 : 20,
-                                                zIndex: clientMockupType === 'nutrition' ? 20 : 10,
-                                                rotateZ: clientMockupType === 'nutrition' ? 0 : 5,
-                                                opacity: clientMockupType === 'nutrition' ? 1 : 0.4,
-                                                filter: clientMockupType === 'nutrition' ? 'blur(0px)' : 'blur(4px)',
-                                            }}
-                                            transition={{ duration: 0.6, type: "spring", bounce: 0.3 }}
-                                            className="absolute top-0 left-1/2 w-[280px] aspect-[9/19] rounded-[48px] border-[6px] border-[#1a1a1a] overflow-hidden bg-[#050505] shadow-2xl cursor-pointer"
-                                        >
-                                            <div className="h-full flex flex-col bg-black overflow-y-auto hide-scrollbar pointer-events-none">
-                                                {/* Nutrition Mockup Header */}
-                                                <div className="h-7 flex items-center justify-center bg-black relative z-50">
-                                                    <div className="w-14 h-4 bg-black rounded-b-xl" />
-                                                </div>
-
-                                                <div className="px-5 py-3 flex items-center justify-between">
-                                                    <ArrowLeft size={16} className="text-white/80" />
-                                                    <span className="text-orange-300 text-[9px] font-black uppercase italic">MENÚ DEL DÍA</span>
-                                                    <div className="w-4" />
-                                                </div>
-
-                                                <div className="px-6 flex flex-col items-center">
-                                                    <div className="relative w-full aspect-square max-w-[180px] group/nutrition-image">
-                                                        <div className="absolute inset-0 bg-orange-300/20 rounded-full blur-3xl animate-pulse" />
-                                                        <img
-                                                            src="https://images.unsplash.com/photo-1546069901-ba9599a7e63c?w=800&q=80"
-                                                            alt="Healthy Plate"
-                                                            className="absolute inset-0 w-full h-full object-cover rounded-full border-4 border-white/5 shadow-2xl transition-transform duration-700 group-hover/nutrition-image:scale-105"
-                                                        />
-                                                        {/* Play Button Overlay on Plate */}
-                                                        <div className="absolute inset-0 flex items-center justify-center z-10">
-                                                            <div className="p-4 bg-orange-300 rounded-full shadow-[0_0_40px_rgba(253,186,116,0.4)] cursor-pointer hover:scale-110 active:scale-95 transition-all">
-                                                                <Play size={20} fill="white" className="text-white ml-0.5" />
-                                                            </div>
-                                                        </div>
-                                                    </div>
-                                                    <div className="mt-4 text-center">
-                                                        <h5 className="text-[13px] font-black text-white italic uppercase">Bowl Mediterráneo</h5>
-                                                        <p className="text-[8px] font-bold text-orange-300 tracking-widest uppercase">450 Calorías reales</p>
-                                                    </div>
-                                                </div>
-
-                                                <div className="mt-6 px-4 space-y-4">
-                                                    <div className="bg-white/[0.03] border border-white/5 p-4 rounded-[24px] backdrop-blur-2xl">
-                                                        <div className="flex justify-between items-end mb-3">
-                                                            <span className="text-[11px] font-black text-white uppercase italic">Macros</span>
-                                                            <span className="text-[8px] font-bold text-white/30 uppercase tracking-widest">Balance Ideal</span>
-                                                        </div>
-                                                        <div className="flex h-2.5 gap-1.5 mb-5 overflow-hidden">
-                                                            <div className="w-[45%] bg-[#FF7939] rounded-full shadow-[0_0_10px_rgba(255,121,57,0.3)]" />
-                                                            <div className="w-[30%] bg-orange-300 rounded-full" />
-                                                            <div className="w-[25%] bg-blue-400 rounded-full" />
-                                                        </div>
-                                                        <div className="flex justify-between items-center px-1">
-                                                            <div className="flex flex-col items-center"><span className="text-[11px] font-black text-white">40g</span><span className="text-[6px] text-white/40 uppercase font-black">PROT</span></div>
-                                                            <div className="flex flex-col items-center"><span className="text-[11px] font-black text-white">25g</span><span className="text-[6px] text-white/40 uppercase font-black">FATS</span></div>
-                                                            <div className="flex flex-col items-center"><span className="text-[11px] font-black text-white">15g</span><span className="text-[6px] text-white/40 uppercase font-black">CARBS</span></div>
                                                         </div>
                                                     </div>
 
-                                                    <div className="bg-white/[0.03] border border-white/5 rounded-2xl overflow-hidden">
-                                                        <div className="flex border-b border-white/5">
-                                                            <div className="flex-1 py-3 text-center border-r border-white/5 bg-white/5">
-                                                                <span className="text-[8px] font-black text-orange-300 italic uppercase">Ingredientes</span>
-                                                            </div>
-                                                            <div className="flex-1 py-3 text-center">
-                                                                <span className="text-[8px] font-black text-white/20 italic uppercase">Receta</span>
-                                                            </div>
-                                                        </div>
-                                                        <div className="p-3 space-y-2">
-                                                            {[1, 2, 3].map(i => (
-                                                                <div key={i} className="flex items-center justify-between">
-                                                                    <div className="flex items-center gap-2">
-                                                                        <div className="w-1 h-1 rounded-full bg-orange-300" />
-                                                                        <span className="text-[9px] font-bold text-white/60">Base de Quinoa</span>
-                                                                    </div>
-                                                                    <span className="text-[8px] font-black text-white/40 italic uppercase">120g</span>
-                                                                </div>
-                                                            ))}
-                                                        </div>
-                                                    </div>
-                                                </div>
-                                            </div>
-                                        </motion.div>
-
-                                        {/* Pagination Dots indicating multiple screens */}
-                                        <div className="absolute -bottom-10 left-1/2 -translate-x-1/2 flex items-center gap-3 z-30">
-                                            <button
-                                                onClick={() => setClientMockupType('fitness')}
-                                                className={cn(
-                                                    "h-1.5 transition-all duration-500 rounded-full",
-                                                    clientMockupType === 'fitness'
-                                                        ? "w-8 bg-[#FF7939] shadow-[0_0_10px_rgba(255,121,57,0.4)]"
-                                                        : "w-2 bg-white/20 hover:bg-white/40"
-                                                )}
-                                            />
-                                            <button
-                                                onClick={() => setClientMockupType('nutrition')}
-                                                className={cn(
-                                                    "h-1.5 transition-all duration-500 rounded-full",
-                                                    clientMockupType === 'nutrition'
-                                                        ? "w-8 bg-orange-300 shadow-[0_0_10px_rgba(253,186,116,0.4)]"
-                                                        : "w-2 bg-white/20 hover:bg-white/40"
-                                                )}
-                                            />
-                                        </div>
-                                    </div>
-                                </div>
-
-                                {/* 2. iPad Integrated Experience (Multi-Device) */}
-                                <div className="space-y-12">
-                                    <div className="text-center space-y-3">
-                                        <div className="inline-flex items-center gap-2 px-3 py-1 bg-blue-500/10 rounded-full border border-blue-500/20">
-                                            <Laptop size={12} className="text-blue-400" />
-                                            <span className="text-[10px] font-black text-blue-400 uppercase italic">Experiencia Web Pro</span>
-                                        </div>
-                                        <h3 className="text-4xl font-black text-white italic uppercase tracking-tighter leading-none">Interacción <br /><span className="text-white/30 text-xl tracking-normal lowercase">multitasking real.</span></h3>
-                                        <p className="text-sm text-white/40 max-w-xl mx-auto leading-relaxed">
-                                            Tus sesiones en vivo y documentos compartidos en una sola pantalla. Diseñado para tablets y escritorio para que no te pierdas ni un detalle.
-                                        </p>
-                                    </div>
-
-                                    <div className="flex justify-center relative w-full px-4 overflow-hidden mobile:overflow-visible">
-                                        <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-full max-w-[800px] h-[400px] bg-blue-500/5 blur-[120px] rounded-full" />
-
-                                        {/* iPad Layout: 3/4 Video Workshop (Yoga) + 1/4 PDF Doc */}
-                                        <div className="w-full max-w-[850px] aspect-[11/8] bg-[#0a0a0a] rounded-[32px] border-[12px] border-[#1a1a1a] shadow-[0_0_100px_rgba(0,0,0,0.5)] overflow-hidden relative group scale-[0.82] sm:scale-100 origin-top">
-                                            {/* Camera Top */}
-                                            <div className="absolute top-2 left-1/2 -translate-x-1/2 w-1.5 h-1.5 bg-black/40 rounded-full border border-white/10 z-50" />
-
-                                            {/* iPad Native Status Bar */}
-                                            <div className="absolute top-0 w-full px-8 py-3 flex items-center justify-between z-30 text-white/90">
-                                                <div className="flex items-center gap-4">
-                                                    <span className="text-[10px] font-bold">5:37 PM</span>
-                                                    <span className="text-[10px] font-medium opacity-60">Ven 27 feb</span>
-                                                </div>
-                                                <div className="flex items-center gap-1.5 opacity-80">
-                                                    <Globe size={11} />
-                                                    <Wifi size={11} />
-                                                    <div className="flex items-center gap-0.5 ml-1">
-                                                        <div className="w-5 h-2.5 border border-white/40 rounded-[3px] relative flex items-center px-[1px]">
-                                                            <div className="h-full w-[65%] bg-white rounded-[1px]" />
-                                                            <div className="absolute -right-[3px] top-1/2 -translate-y-1/2 w-[2px] h-[3px] bg-white/40 rounded-r-sm" />
-                                                        </div>
-                                                    </div>
-                                                </div>
-                                            </div>
-
-                                            <div className="flex h-full pt-8">
-                                                {/* Left Side: Video Workshop */}
-                                                <div className="w-[68%] bg-black relative flex flex-col border-r border-white/10 overflow-hidden">
-                                                    {/* Central Multi-tasking Handle (The 3 dots the user mentioned) */}
-                                                    <div className="absolute top-2 left-1/2 -translate-x-1/2 z-50 flex gap-0.5 opacity-40">
-                                                        <div className="w-1 h-1 bg-white rounded-full" />
-                                                        <div className="w-1 h-1 bg-white rounded-full" />
-                                                        <div className="w-1 h-1 bg-white rounded-full" />
+                                                    <div className="mt-4 px-6 flex items-center justify-between border-b border-white/5 pb-2">
+                                                        {['Series', 'Músculos', 'Técnica'].map((tab, i) => (
+                                                            <span key={tab} className={cn(
+                                                                "text-[9px] font-black uppercase italic tracking-tighter",
+                                                                i === 0 ? "text-white border-b-2 border-[#FF7939]" : "text-white/20"
+                                                            )}>{tab}</span>
+                                                        ))}
                                                     </div>
 
-                                                    {/* Video Content */}
-                                                    <div className="h-full relative overflow-hidden flex items-center justify-center">
-                                                        <img
-                                                            src="/showcase/yoga_coach.png"
-                                                            alt="Yoga Workshop"
-                                                            className="w-full h-full object-cover"
-                                                        />
-
-                                                        {/* Meet Header UI */}
-                                                        <div className="absolute top-0 w-full p-4 pt-8 bg-gradient-to-b from-black/60 to-transparent flex justify-between items-start z-10">
-                                                            <div className="bg-black/40 backdrop-blur-md px-3 py-1.5 rounded-full border border-white/10 flex items-center gap-2">
-                                                                <span className="text-[#FF7939] text-[8px] animate-pulse">●</span>
-                                                                <span className="text-[10px] font-bold text-white/90">Taller Yoga: Maru</span>
-                                                            </div>
-                                                        </div>
-
-                                                        {/* Google Meet Style Controls */}
-                                                        <div className="absolute bottom-6 left-0 w-full px-4 flex items-center justify-between z-20">
-                                                            <div className="bg-black/60 backdrop-blur-md px-2.5 py-1.5 rounded-full border border-white/10 flex items-center gap-1.5 min-w-0">
-                                                                <MicOff size={10} className="text-red-400 flex-shrink-0" />
-                                                                <span className="text-[9px] font-bold text-white/90 truncate max-w-[50px] sm:max-w-none">Maru Yoga</span>
-                                                            </div>
-
-                                                            <div className="absolute left-1/2 -translate-x-1/2 flex items-center gap-1.5 bg-zinc-900/90 backdrop-blur-xl p-1.5 rounded-full border border-white/10 shadow-2xl flex-shrink-0">
-                                                                <button className="p-1.5 bg-white/5 rounded-full text-white/80"><Mic size={12} /></button>
-                                                                <button className="p-1.5 bg-white/5 rounded-full text-white/80"><Video size={12} /></button>
-                                                                <button className="p-1.5 bg-white/5 rounded-full text-white/80"><Monitor size={12} /></button>
-                                                                <button className="p-1.5 bg-white/5 rounded-full text-white/80"><Hand size={12} /></button>
-                                                                <button className="p-2 bg-red-500 rounded-full text-white shadow-lg shadow-red-500/30"><PhoneOff size={12} /></button>
-                                                            </div>
-
-                                                            <div className="flex items-center gap-2 bg-black/40 backdrop-blur-md p-1.5 rounded-full border border-white/10 flex-shrink-0">
-                                                                <Users size={10} className="text-white/60" />
-                                                                <MessageSquare size={10} className="text-white/60" />
-                                                                <LayoutGrid size={10} className="text-white/60" />
-                                                            </div>
-                                                        </div>
-                                                    </div>
-                                                </div>
-
-                                                {/* Right Side: PDF Document Section */}
-                                                <div className="w-[32%] bg-[#1c1c1e] flex flex-col overflow-hidden relative">
-                                                    {/* Central Multi-tasking Handle (3 dots) */}
-                                                    <div className="absolute top-2 left-1/2 -translate-x-1/2 z-50 flex gap-0.5 opacity-40">
-                                                        <div className="w-1 h-1 bg-white rounded-full" />
-                                                        <div className="w-1 h-1 bg-white rounded-full" />
-                                                        <div className="w-1 h-1 bg-white rounded-full" />
-                                                    </div>
-
-                                                    <div className="flex-1 overflow-y-auto hide-scrollbar pt-6 pb-12 flex flex-col items-center gap-4 px-2">
-                                                        {[1, 2, 3].map((page) => (
-                                                            <div key={page} className={cn(
-                                                                "w-full bg-white shadow-xl rounded-sm overflow-hidden",
-                                                                page === 3 ? "h-32 opacity-40" : "aspect-[3/4.2]"
+                                                    <div className="mt-4 px-4 space-y-2 flex-1">
+                                                        {[1, 2, 3].map((s) => (
+                                                            <div key={s} className={cn(
+                                                                "p-2.5 rounded-2xl border flex items-center justify-between transition-all duration-500",
+                                                                s <= 2 ? "bg-white/[0.04] border-white/10" : "bg-transparent border-white/5 opacity-20"
                                                             )}>
-                                                                <img
-                                                                    src="/showcase/yoga_document.png"
-                                                                    className="w-full h-full object-cover"
-                                                                    alt={`Manual Page ${page}`}
-                                                                />
-                                                            </div>
-                                                        ))}
-                                                    </div>
-                                                </div>
-                                            </div>
-                                        </div>
-                                    </div>
-                                </div>
-                            </div>
-                        ) : (
-                            <div className="space-y-32">
-                                {/* 1. Integrated Mobile Experience (iPhone Coach) */}
-                                <div className="space-y-8">
-                                    <div className="flex flex-col items-center text-center space-y-4">
-                                        <div className="inline-flex p-1 bg-white/5 rounded-2xl border border-white/10 backdrop-blur-3xl">
-                                            {['clients', 'profile'].map((tab) => (
-                                                <button
-                                                    key={tab}
-                                                    onClick={() => handleManualInteraction(() => setCoachMockupType(tab as any))}
-                                                    className={cn(
-                                                        "px-10 py-2 rounded-xl text-[10px] font-black uppercase tracking-widest italic transition-all duration-300",
-                                                        coachMockupType === tab
-                                                            ? (tab === 'clients' ? "bg-blue-500 text-white" : "bg-[#FF7939] text-white")
-                                                            : "text-white/30 hover:text-white/50"
-                                                    )}
-                                                >
-                                                    {tab === 'clients' ? 'Clientes' : 'Perfil'}
-                                                </button>
-                                            ))}
-                                        </div>
-                                        <h3 className="text-4xl font-black text-white italic uppercase tracking-tighter leading-none">Tu Negocio <br /><span className="text-white/30 text-xl tracking-normal lowercase">en escala real.</span></h3>
-                                        <p className="text-sm text-white/40 max-w-xl mx-auto leading-relaxed">
-                                            Control total sobre tus alumnos y tu contenido. Una oficina potente que cabe en tu bolsillo.
-                                        </p>
-                                    </div>
-
-                                    <div className="flex justify-center relative h-[620px] w-full max-w-sm mx-auto perspective-[2000px] mt-12 mb-12 select-none">
-                                        {/* Glow Backgrounds */}
-                                        <div className={cn(
-                                            "absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-80 h-80 rounded-full blur-[120px] transition-all duration-1000",
-                                            coachMockupType === 'clients' ? "bg-blue-500/20" : "bg-[#FF7939]/20"
-                                        )} />
-
-                                        {/* Phone 1: Clients */}
-                                        <motion.div
-                                            onClick={() => setCoachMockupType('clients')}
-                                            animate={{
-                                                scale: coachMockupType === 'clients' ? 1.05 : 0.85,
-                                                x: coachMockupType === 'clients' ? "-50%" : "-75%",
-                                                y: coachMockupType === 'clients' ? 0 : 20,
-                                                zIndex: coachMockupType === 'clients' ? 20 : 10,
-                                                rotateZ: coachMockupType === 'clients' ? 0 : -5,
-                                                opacity: coachMockupType === 'clients' ? 1 : 0.4,
-                                                filter: coachMockupType === 'clients' ? 'blur(0px)' : 'blur(4px)',
-                                            }}
-                                            transition={{ duration: 0.6, type: "spring", bounce: 0.3 }}
-                                            className="absolute top-0 left-1/2 w-[280px] aspect-[9/19] rounded-[48px] border-[6px] border-[#1a1a1a] overflow-hidden bg-[#050505] shadow-2xl cursor-pointer"
-                                        >
-                                            <div className="h-full flex flex-col bg-[#050505] overflow-y-auto hide-scrollbar pointer-events-none">
-                                                {/* App Header (config | omnia | msg) */}
-                                                <div className="h-12 w-full px-4 flex items-center justify-between bg-black/40 backdrop-blur-md border-b border-white/5 z-[60]">
-                                                    <div className="p-1.5 text-[#FF7939]"><Settings size={18} /></div>
-                                                    <div className="text-[#FF7939] font-black tracking-[0.2em] italic text-sm">omnia</div>
-                                                    <div className="p-1.5 text-[#FF7939] relative">
-                                                        <MessageSquare size={18} />
-                                                        <div className="absolute top-1 right-1 w-2 h-2 bg-red-500 rounded-full border border-black" />
-                                                    </div>
-                                                </div>
-
-                                                <div className="px-5 pt-5 pb-2">
-                                                    <span className="text-[10px] font-black text-white/30 uppercase tracking-[0.2em] leading-none">SEGUIMIENTO</span>
-                                                    <h3 className="text-[22px] font-black text-white uppercase italic tracking-tighter mt-1">MIS CLIENTES</h3>
-                                                </div>
-
-                                                <div className="px-5 py-2 space-y-5">
-                                                    {/* Search and Filters */}
-                                                    <div className="space-y-4">
-                                                        <div className="flex items-center gap-3">
-                                                            <div className="flex-1 relative">
-                                                                <Search className="absolute left-4 top-1/2 -translate-y-1/2 text-white/20" size={16} />
-                                                                <input
-                                                                    disabled
-                                                                    className="w-full bg-[#111111] border border-white/5 rounded-full py-3 pl-11 pr-4 text-[13px] font-bold text-white/50 placeholder:text-white/20"
-                                                                    placeholder="Buscar clientes..."
-                                                                />
-                                                            </div>
-                                                            <div className="bg-[#111111] border border-white/5 rounded-full px-4 py-3 flex items-center gap-2">
-                                                                <SlidersHorizontal size={16} className="text-white/40" />
-                                                                <span className="text-[11px] font-black text-white/40 uppercase tracking-tighter">Filtro</span>
-                                                            </div>
-                                                        </div>
-
-                                                        <div className="flex items-center gap-6 border-b border-white/5 pb-1 overflow-x-auto hide-scrollbar">
-                                                            {['Todos', 'Activos', 'Pendientes', 'Inactivos'].map((tab, i) => (
-                                                                <div key={tab} className="relative pb-2">
-                                                                    <span className={cn(
-                                                                        "text-[15px] font-black uppercase tracking-tight whitespace-nowrap",
-                                                                        i === 0 ? "text-white" : "text-white/30"
-                                                                    )}>{tab}</span>
-                                                                    {i === 0 && <div className="absolute bottom-0 left-0 right-0 h-0.5 bg-[#FF7939] rounded-full" />}
-                                                                </div>
-                                                            ))}
-                                                        </div>
-                                                    </div>
-
-                                                    <div className="grid grid-cols-2 gap-x-2 gap-y-6">
-                                                        {[
-                                                            {
-                                                                name: 'Franco Hotmail',
-                                                                avatar: 'https://images.unsplash.com/photo-1543351611-58f69d7c1781?w=200&q=80',
-                                                                streak: 8,
-                                                                days: { completed: 25, absent: 2, total: 30 },
-                                                                fitness: { completed: 18, absent: 5, total: 24 }
-                                                            },
-                                                            {
-                                                                name: 'Bati B.',
-                                                                avatar: 'https://images.unsplash.com/photo-1599566150163-29194dcaad36?w=200&q=80',
-                                                                streak: 15,
-                                                                days: { completed: 30, absent: 0, total: 30 },
-                                                                fitness: { completed: 24, absent: 0, total: 24 }
-                                                            },
-                                                            {
-                                                                name: 'Maru G.',
-                                                                avatar: 'https://images.unsplash.com/photo-1494790108377-be9c29b29330?w=200&q=80',
-                                                                streak: 3,
-                                                                days: { completed: 10, absent: 5, total: 30 },
-                                                                fitness: { completed: 5, absent: 3, total: 24 }
-                                                            },
-                                                            {
-                                                                name: 'Juan P.',
-                                                                avatar: 'https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?w=200&q=80',
-                                                                streak: 0,
-                                                                days: { completed: 0, absent: 0, total: 30 },
-                                                                fitness: { completed: 0, absent: 0, total: 24 }
-                                                            }
-                                                        ].map((client, i) => (
-                                                            <div key={i} className="flex flex-col items-center group">
-                                                                <div className="flex items-center gap-1.5 mb-2">
-                                                                    {/* Avatar */}
-                                                                    <div className="w-10 h-10 rounded-full border border-white/10 overflow-hidden shadow-lg group-hover:border-[#FF7939]/30 transition-all shrink-0">
-                                                                        <img src={client.avatar} className="w-full h-full object-cover" />
+                                                                <div className="flex items-center gap-3">
+                                                                    <div className={cn("w-5 h-5 rounded-lg flex items-center justify-center text-[9px] font-black", s <= 2 ? "bg-[#FF7939] text-black shadow-lg shadow-[#FF7939]/20" : "bg-white/5 text-white/10")}>{s}</div>
+                                                                    <div className="flex gap-4">
+                                                                        <div className="flex flex-col"><span className="text-[10px] font-black text-white">{s <= 2 ? '3' : ''}</span><span className="text-[6px] text-white/30 uppercase font-bold">SERIES</span></div>
+                                                                        <div className="flex flex-col"><span className="text-[10px] font-black text-white">{s <= 2 ? '12' : ''}</span><span className="text-[6px] text-white/30 uppercase font-bold">REPS</span></div>
+                                                                        <div className="flex flex-col"><span className="text-[10px] font-black text-white">{s <= 2 ? '40kg' : ''}</span><span className="text-[6px] text-white/30 uppercase font-bold">PESO</span></div>
                                                                     </div>
-                                                                    {/* Rings */}
-                                                                    <ShowcaseActivityRings
-                                                                        days={client.days}
-                                                                        fitness={client.fitness}
-                                                                        streak={client.streak}
-                                                                        size={55}
-                                                                    />
                                                                 </div>
-                                                                <h4 className="text-[8px] font-black text-white/40 uppercase tracking-tight text-center leading-none max-w-[80px] truncate">{client.name}</h4>
+                                                                {s <= 2 && (
+                                                                    <div className="p-1.5 bg-[#FF7939]/10 border border-[#FF7939]/30 rounded-[8px] transition-all hover:bg-[#FF7939]/20 group/edit cursor-pointer">
+                                                                        <Edit2 size={10} className="text-[#FF7939]" />
+                                                                    </div>
+                                                                )}
                                                             </div>
                                                         ))}
                                                     </div>
-                                                </div>
 
-                                                <div className="mt-auto p-4 bg-black/80 backdrop-blur-md border-t border-white/5 flex justify-around items-center">
-                                                    <div className="w-8 h-8 rounded-full bg-white/5 flex items-center justify-center border border-white/10">
-                                                        <span className="text-[10px] font-black text-white">N</span>
+                                                    <div className="mt-auto p-5 flex justify-between absolute bottom-16 inset-x-0">
+                                                        <div className="p-2.5 rounded-full border border-white/10 bg-white/5"><ArrowLeft size={14} className="text-white/20" /></div>
+                                                        <div className="p-2.5 rounded-full border border-[#FF7939]/30 bg-[#FF7939]/10 shadow-[0_0_20px_rgba(255,121,57,0.15)]"><ArrowRight size={14} className="text-[#FF7939]" /></div>
                                                     </div>
-                                                    <Users size={18} className="text-[#FF7939]" />
-                                                    <PlusCircle size={18} className="text-white/20" />
-                                                    <BarChart3 size={18} className="text-white/20" />
-                                                    <User size={18} className="text-white/20" />
-                                                </div>
-                                            </div>
-                                        </motion.div>
+                                                </PhoneMockup>
 
-                                        {/* Phone 2: Profile (Dashboard) */}
-                                        <motion.div
-                                            onClick={() => setCoachMockupType('profile')}
-                                            animate={{
-                                                scale: coachMockupType === 'profile' ? 1.05 : 0.85,
-                                                x: coachMockupType === 'profile' ? "-50%" : "-25%",
-                                                y: coachMockupType === 'profile' ? 0 : 20,
-                                                zIndex: coachMockupType === 'profile' ? 20 : 10,
-                                                rotateZ: coachMockupType === 'profile' ? 0 : 5,
-                                                opacity: coachMockupType === 'profile' ? 1 : 0.4,
-                                                filter: coachMockupType === 'profile' ? 'blur(0px)' : 'blur(4px)',
-                                            }}
-                                            transition={{ duration: 0.6, type: "spring", bounce: 0.3 }}
-                                            className="absolute top-0 left-1/2 w-[280px] aspect-[9/19] rounded-[48px] border-[6px] border-[#1a1a1a] overflow-hidden bg-[#050505] shadow-2xl cursor-pointer"
-                                        >
-                                            <div className="h-full flex flex-col bg-[#050505] overflow-y-auto hide-scrollbar pointer-events-none">
-                                                {/* App Header (config | omnia | msg) */}
-                                                <div className="h-12 w-full px-4 flex items-center justify-between bg-black/40 backdrop-blur-md border-b border-white/5 z-[60]">
-                                                    <div className="p-1.5 text-white/40"><Settings size={18} /></div>
-                                                    <div className="text-[#FF7939] font-black tracking-[0.2em] italic text-sm">omnia</div>
-                                                    <div className="p-1.5 text-white/40 relative">
-                                                        <MessageSquare size={18} />
-                                                        <div className="absolute top-1 right-1 w-2 h-2 bg-[#FF7939] rounded-full border border-black" />
+                                                {/* Phone 2: Nutrition */}
+                                                <PhoneMockup type="nutrition" role="client" active={clientMockupType === 'nutrition'} onClick={() => setClientMockupType('nutrition')}>
+                                                    <div className="px-5 py-3 flex items-center justify-between">
+                                                        <ArrowLeft size={16} className="text-white/80" />
+                                                        <span className="text-orange-300 text-[10px] font-black uppercase italic tracking-widest">MENÚ DEL DÍA</span>
+                                                        <div className="w-4" />
                                                     </div>
-                                                </div>
 
-                                                {/* 1. Coach Profile Card (Compact) */}
-                                                <div className="px-3 pt-3">
-                                                    <div className="relative rounded-[24px] overflow-hidden bg-[#111111] border border-white/5 shadow-2xl">
-                                                        {/* Sports Background Mask */}
-                                                        <div className="absolute inset-x-0 top-0 h-full overflow-hidden select-none">
-                                                            <img src="https://images.unsplash.com/photo-1543351611-58f69d7c1781?w=800&q=80" className="w-full h-full object-cover opacity-50 blur-[2px]" />
-                                                            <div className="absolute inset-0 bg-gradient-to-t from-[#111111] via-[#111111]/60 to-transparent" />
-                                                        </div>
-
-                                                        {/* Header: Flame Pill & Edit */}
-                                                        <div className="relative z-20 px-4 pt-4 flex justify-between items-start">
-                                                            <div className="flex items-center gap-1.5 bg-[#FF7939]/30 backdrop-blur-md px-2.5 py-1 rounded-full border border-[#FF7939]/40">
-                                                                <Flame size={10} className="text-[#FF7939] fill-[#FF7939]" />
-                                                                <span className="text-[10px] font-black text-[#FF7939]">6</span>
-                                                            </div>
-                                                            <Edit2 size={12} className="text-[#FF7939] opacity-70" />
-                                                        </div>
-
-                                                        <div className="relative z-10 flex flex-col items-center pb-4 -mt-2">
-                                                            <div className="w-16 h-16 rounded-full overflow-hidden shadow-2xl mb-2">
-                                                                <img src="https://images.unsplash.com/photo-1543351611-58f69d7c1781?w=200&q=80" className="w-full h-full object-cover" alt="Coach Avatar" />
-                                                            </div>
-
-                                                            <h5 className="text-[14px] font-black text-white tracking-tight leading-none">Franco Pomati coach</h5>
-
-                                                            <div className="flex items-center gap-3 mt-1.5">
-                                                                <div className="flex items-center gap-1 text-[10px] font-black text-[#FF7939]">
-                                                                    <Star size={10} fill="currentColor" />
-                                                                    <span>4.3</span>
-                                                                </div>
-                                                                <span className="text-[10px] font-medium text-white/80">1 ventas</span>
-                                                                <div className="flex items-center gap-1 text-[10px] font-medium text-white/50">
-                                                                    <Award size={10} />
-                                                                    <span>1 cert.</span>
+                                                    <div className="px-6 flex flex-col items-center">
+                                                        <div className="relative w-full aspect-square max-w-[170px] group/nutrition-image">
+                                                            <div className="absolute inset-0 bg-gradient-to-tr from-[#FF7939]/20 to-transparent rounded-full blur-3xl animate-pulse" />
+                                                            <img
+                                                                src="https://images.unsplash.com/photo-1546069901-ba9599a7e63c?w=800&q=80"
+                                                                alt="Healthy Plate"
+                                                                className="absolute inset-0 w-full h-full object-cover rounded-full border-4 border-black shadow-2xl transition-transform duration-700 group-hover/nutrition-image:scale-105"
+                                                            />
+                                                            <div className="absolute inset-0 flex items-center justify-center z-10">
+                                                                <div className="p-3 bg-orange-300 rounded-full shadow-[0_0_30px_rgba(253,186,116,0.5)]">
+                                                                    <Play size={18} fill="white" className="text-white ml-0.5" />
                                                                 </div>
                                                             </div>
+                                                        </div>
+                                                        <div className="mt-3 text-center">
+                                                            <h5 className="text-[14px] font-black text-white italic uppercase tracking-tighter">Bowl Mediterráneo</h5>
+                                                            <p className="text-[9px] font-bold text-[#FF7939] tracking-[0.15em] uppercase mt-0.5">450 kcal reales</p>
+                                                        </div>
+                                                    </div>
 
-                                                            <div className="flex items-center gap-1 mt-1.5 text-[10px] text-white/40 font-bold uppercase">
-                                                                <MapPin size={8} />
-                                                                <span>CABA</span>
-                                                                <span className="opacity-20">·</span>
-                                                                <span>26 años</span>
+                                                    <div className="mt-5 px-5 space-y-4">
+                                                        <div className="bg-white/[0.03] border border-white/5 p-4 rounded-[28px] backdrop-blur-2xl">
+                                                            <div className="flex justify-between items-center mb-3">
+                                                                <span className="text-[11px] font-black text-white uppercase italic tracking-tighter">Macros</span>
+                                                                <span className="text-[8px] font-bold text-white/30 uppercase tracking-[0.2em]">Balanceado</span>
                                                             </div>
+                                                            <div className="flex h-2 gap-1.5 mb-6 overflow-hidden rounded-full">
+                                                                <div className="w-[45%] bg-[#FF7939] shadow-[0_0_10px_rgba(255,121,57,0.4)]" />
+                                                                <div className="w-[30%] bg-orange-200" />
+                                                                <div className="w-[25%] bg-blue-300" />
+                                                            </div>
+                                                            <div className="flex justify-between items-center px-1">
+                                                                <div className="flex flex-col items-center"><span className="text-[12px] font-black text-white italic">40g</span><span className="text-[7px] text-white/30 uppercase font-black">PROT</span></div>
+                                                                <div className="flex flex-col items-center"><span className="text-[12px] font-black text-white italic">25g</span><span className="text-[7px] text-white/30 uppercase font-black">FATS</span></div>
+                                                                <div className="flex flex-col items-center"><span className="text-[12px] font-black text-white italic">15g</span><span className="text-[7px] text-white/30 uppercase font-black">CARBS</span></div>
+                                                            </div>
+                                                        </div>
 
-                                                            <p className="mt-2 text-[10px] text-white/50 text-center leading-tight px-4 max-w-[240px]">
-                                                                Profesional de futbol, preparador fisico de Boca Juniors.
-                                                            </p>
-
-                                                            {/* Ultra-Compact Skill Tags (Single row, 3 max) */}
-                                                            <div className="flex justify-center gap-1.5 mt-3 px-4">
-                                                                {['General', 'Futbol', 'Fitness'].map(tag => (
-                                                                    <span key={tag} className="px-2.5 py-1 rounded-full border border-[#FF7939]/20 bg-[#FF7939]/5 text-[8px] font-black text-[#FF7939] uppercase tracking-tighter">
-                                                                        {tag}
-                                                                    </span>
+                                                        <div className="bg-zinc-900/40 border border-white/5 rounded-[20px] overflow-hidden">
+                                                            <div className="flex border-b border-white/5 bg-white/[0.02]">
+                                                                <div className="flex-1 py-1.5 text-center bg-white/5">
+                                                                    <span className="text-[8px] font-black text-[#FF7939] italic uppercase">Ingredientes</span>
+                                                                </div>
+                                                                <div className="flex-1 py-1.5 text-center opacity-30">
+                                                                    <span className="text-[8px] font-black text-white italic uppercase">Receta</span>
+                                                                </div>
+                                                            </div>
+                                                            <div className="p-2.5 space-y-1.5">
+                                                                {[
+                                                                    { n: 'Quinoa', q: '120g' },
+                                                                    { n: 'Pollo', q: '150g' },
+                                                                    { n: 'Palta', q: '1/2 un.' }
+                                                                ].map((item, i) => (
+                                                                    <div key={i} className="flex items-center justify-between">
+                                                                        <div className="flex items-center gap-1.5">
+                                                                            <div className="w-1 h-1 rounded-full bg-[#FF7939]" />
+                                                                            <span className="text-[9px] font-bold text-white/70">{item.n}</span>
+                                                                        </div>
+                                                                        <span className="text-[8px] font-black text-white/30 italic uppercase">{item.q}</span>
+                                                                    </div>
                                                                 ))}
                                                             </div>
                                                         </div>
                                                     </div>
-                                                </div>
+                                                </PhoneMockup>
 
-                                                {/* 2. Financial & Category Block */}
-                                                <div className="px-3 mt-3">
-                                                    <div className="bg-[#111111] rounded-[24px] border border-white/5 p-6 flex flex-col items-center shadow-xl">
-                                                        <div className="text-center">
-                                                            <span className="text-2xl font-black text-[#FF7939] italic">$165.500</span>
-                                                            <div className="flex flex-col gap-0.5 mt-1 opacity-40">
-                                                                <span className="text-[8px] font-bold uppercase tracking-widest text-white">Ganancia Bruta: $171.000</span>
-                                                                <span className="text-[8px] font-bold uppercase tracking-widest text-white">Suscripción: -$5.500</span>
+                                                {/* Phone 3: Profile (Client View) */}
+                                                <PhoneMockup type="profile" role="client" active={clientMockupType === 'profile'} onClick={() => setClientMockupType('profile')}>
+                                                    <div className="px-3 pt-3 space-y-3">
+                                                        {/* 1. Header Card */}
+                                                        <div className="relative rounded-[32px] overflow-hidden bg-black border border-white/5 shadow-2xl min-h-[160px]">
+                                                            {/* Background Image - Dynamic Blur */}
+                                                            <div className="absolute inset-0 z-0 scale-110">
+                                                                <img
+                                                                    src="https://images.unsplash.com/photo-1534438327276-14e5300c3a48?w=400&q=80"
+                                                                    className="w-full h-full object-cover opacity-40 blur-[40px]"
+                                                                    alt="Profile Blur"
+                                                                />
+                                                                <div className="absolute inset-0 bg-gradient-to-t from-black via-black/20 to-transparent" />
                                                             </div>
-                                                        </div>
 
-                                                        {/* Segmented Earnings Bar - Coinciding Colors */}
-                                                        <div className="w-full flex items-center gap-1 mt-6 h-2 px-1">
-                                                            <div className="h-full rounded-full bg-[#FF7939] flex-[0.5] shadow-[0_0_10px_rgba(255,121,57,0.4)]" />
-                                                            <div className="h-full rounded-full bg-[#8E78E0] flex-[0.2]" />
-                                                            <div className="h-full rounded-full bg-[#E58EB1] flex-[0.15]" />
-                                                            <div className="h-full rounded-full bg-[#6B8EAD] flex-[0.15]" />
-                                                        </div>
-
-                                                        {/* Category Legend (Replacing 1k Total) */}
-                                                        <div className="w-full grid grid-cols-4 gap-2 mt-4">
-                                                            {[
-                                                                { l: 'Programas', i: Briefcase, c: 'text-[#FF7939]' },
-                                                                { l: 'Talleres', i: Users, c: 'text-[#8E78E0]' },
-                                                                { l: 'Documentos', i: FileText, c: 'text-[#E58EB1]' },
-                                                                { l: 'Consultas', i: MessageSquare, c: 'text-[#6B8EAD]' }
-                                                            ].map((item, idx) => (
-                                                                <div key={idx} className="flex flex-col items-center gap-1">
-                                                                    <div className={cn("p-1.5 opacity-80", item.c)}><item.i size={14} /></div>
-                                                                    <span className="text-[7px] font-black text-white/30 uppercase tracking-tighter text-center leading-none">{item.l}</span>
+                                                            {/* Profile Info Layer */}
+                                                            <div className="relative z-10 flex flex-col items-center pt-8 pb-4">
+                                                                <div className="w-16 h-16 rounded-full overflow-hidden border-2 border-white/20 shadow-2xl mb-3">
+                                                                    <img
+                                                                        src="https://images.unsplash.com/photo-1534438327276-14e5300c3a48?w=200&q=80"
+                                                                        className="w-full h-full object-cover scale-110"
+                                                                        alt="Diego"
+                                                                    />
                                                                 </div>
-                                                            ))}
-                                                        </div>
-                                                    </div>
-                                                </div>
 
-                                                {/* 3. Stats Section (Compact) */}
-                                                <div className="px-3 mt-3">
-                                                    <div className="bg-[#111111] rounded-[24px] border border-white/5 p-5 space-y-6 shadow-xl">
-                                                        <div className="flex justify-between items-center text-[10px] font-black uppercase tracking-widest leading-none">
-                                                            <span className="text-white/40">Estadísticas</span>
-                                                            <span className="text-white/20">Últimos 30 días</span>
-                                                        </div>
+                                                                <h5 className="text-[18px] font-black text-white italic tracking-tighter leading-none uppercase">Diego Omnia</h5>
 
-                                                        <div className="grid grid-cols-2 gap-x-6 gap-y-7">
-                                                            {[
-                                                                { l: 'Tasa de respuesta', v: '0%', s: 'Critico', i: MessageSquare, c: 'text-[#FF7939]' },
-                                                                { l: 'Tiempo de respuesta', v: 'N/A', s: 'Rápido', i: Clock, c: 'text-white/40' },
-                                                                { l: 'Cancelaciones', v: '0', s: 'Sin cancelaciones', i: X, c: 'text-red-400' },
-                                                                { l: 'Reprogramaciones tardías', v: '0', s: 'Sin reprogramaciones', i: Calendar, c: 'text-orange-300' },
-                                                                { l: 'Asistencia', v: '0%', s: 'Mejorar', i: ShieldCheck, c: 'text-[#FF7939]' },
-                                                                { l: 'Incidentes', v: '0', s: 'Sin incidentes', i: ShieldAlert, c: 'text-white/40' }
-                                                            ].map((st, idx) => (
-                                                                <div key={idx} className="flex flex-col gap-1.5">
-                                                                    <div className="flex items-center gap-2 mb-0.5 opacity-60">
-                                                                        <st.i size={12} />
-                                                                        <span className="text-[9px] font-black text-white uppercase tracking-tight">{st.l}</span>
+                                                                <div className="flex items-center gap-2 mt-2">
+                                                                    <div className="flex items-center gap-1.5 px-2 py-0.5 bg-white/5 rounded-full border border-white/10">
+                                                                        <Flame size={10} className="text-[#FF7939] fill-[#FF7939]" />
+                                                                        <span className="text-[9px] font-black text-[#FF7939] uppercase italic tracking-tighter">15 racha</span>
                                                                     </div>
-                                                                    <p className="text-lg font-black text-white leading-none italic">{st.v}</p>
-                                                                    <span className="text-[9px] text-white/20 font-black uppercase italic tracking-tighter leading-none">{st.s}</span>
                                                                 </div>
-                                                            ))}
-                                                        </div>
-                                                    </div>
-                                                </div>
-
-                                                {/* 4. Recent Movements */}
-                                                <div className="px-3 mt-3 pb-24">
-                                                    <div className="bg-[#111111] rounded-[24px] border border-white/5 p-5 shadow-xl">
-                                                        <h6 className="text-[10px] font-black text-white/40 uppercase tracking-widest mb-4">Movimientos Recientes</h6>
-                                                        <div className="p-4 bg-white/[0.03] border border-white/5 rounded-2xl flex items-center gap-4">
-                                                            <div className="p-2 bg-white/5 rounded-xl"><ShoppingCart size={16} className="text-[#FF7939]" /></div>
-                                                            <div className="flex-1 min-w-0">
-                                                                <p className="text-[11px] font-black text-white truncate">Pliométricos de Ronaldinho - Dominio del Fútbol</p>
-                                                                <p className="text-[9px] text-white/30 font-bold mt-0.5">Venta realizada el 23/2/2026</p>
-                                                                <p className="text-[10px] text-[#FF7939] font-black mt-1">$1.000</p>
                                                             </div>
                                                         </div>
-                                                    </div>
-                                                </div>
 
-                                                {/* 5. App Navigation Footer */}
-                                                <div className="mt-auto absolute bottom-0 w-full h-16 bg-black/80 backdrop-blur-xl border-t border-white/5 flex justify-around items-center px-4 z-[70]">
-                                                    <div className="flex flex-col items-center gap-1 opacity-40">
-                                                        <Users size={18} />
-                                                        <span className="text-[8px] font-black uppercase">Clientes</span>
-                                                    </div>
-                                                    <div className="flex flex-col items-center gap-1 opacity-40">
-                                                        <Utensils size={18} />
-                                                        <span className="text-[8px] font-black uppercase">Nutrición</span>
-                                                    </div>
-                                                    {/* Central Round Logo Action */}
-                                                    <div className="relative -top-3 w-12 h-12 bg-[#FF7939]/30 backdrop-blur-xl rounded-full flex items-center justify-center shadow-lg shadow-orange-500/10 border-4 border-white/5">
-                                                        <Flame size={20} fill="white" className="text-white" />
-                                                    </div>
-                                                    <div className="flex flex-col items-center gap-1 opacity-40">
-                                                        <Calendar size={18} />
-                                                        <span className="text-[8px] font-black uppercase">Calendario</span>
-                                                    </div>
-                                                    <div className="flex flex-col items-center gap-1 text-[#FF7939]">
-                                                        <User size={18} />
-                                                        <span className="text-[8px] font-black uppercase">Perfil</span>
-                                                    </div>
-                                                </div>
-                                            </div>
-                                        </motion.div>
-                                    </div>
-                                </div>
+                                                        {/* 2. Weekly Activity Rings (Micro) */}
+                                                        <div className="bg-[#09090b] border border-white/5 rounded-[32px] p-4 shadow-2xl space-y-4">
+                                                            <div className="flex items-center justify-between">
+                                                                <div className="flex flex-col">
+                                                                    <span className="text-[7.5px] font-black text-white/20 uppercase tracking-[0.2em] italic leading-none">Actividad</span>
+                                                                    <span className="text-[10px] font-black text-white uppercase italic tracking-widest mt-0.5">Semanal</span>
+                                                                </div>
+                                                                <div className="p-2 bg-white/5 rounded-xl border border-white/10">
+                                                                    <Calendar size={12} className="text-white/20" />
+                                                                </div>
+                                                            </div>
 
-                                {/* 2. iPad Integrated Experience (Multi-Device Coach) */}
-                                <div className="space-y-12">
-                                    <div className="text-center space-y-3">
-                                        <div className="inline-flex items-center gap-2 px-3 py-1 bg-cyan-500/10 rounded-full border border-cyan-500/20">
-                                            <Monitor size={12} className="text-cyan-400" />
-                                            <span className="text-[10px] font-black text-cyan-400 uppercase italic">Workspace de Alto Rendimiento</span>
-                                        </div>
-                                        <h3 className="text-4xl font-black text-white italic uppercase tracking-tighter leading-none">Diseño sin <br /><span className="text-white/30 text-xl tracking-normal lowercase">fricción técnica.</span></h3>
-                                        <p className="text-sm text-white/40 max-w-xl mx-auto leading-relaxed">
-                                            Construí rutinas complejas arrastrando elementos. Nuestra IA te sugiere cargas y descansos basados en el historial de tu alumno.
-                                        </p>
-                                    </div>
+                                                            <ShowcaseWeeklyMiniRings
+                                                                data={[
+                                                                    { label: 'L', progress: 100, color: '#FF7939' },
+                                                                    { label: 'M', progress: 100, color: '#FF7939' },
+                                                                    { label: 'M', progress: 85, color: '#FF7939' },
+                                                                    { label: 'J', progress: 100, color: '#FF7939' },
+                                                                    { label: 'V', progress: 60, color: '#FF7939' },
+                                                                    { label: 'S', progress: 0, color: '#FF7939' },
+                                                                    { label: 'D', progress: 0, color: '#FF7939' }
+                                                                ]}
+                                                            />
+                                                        </div>
 
-                                    <div className="flex justify-center relative">
-                                        <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-full max-w-[800px] h-[400px] bg-cyan-500/5 blur-[120px] rounded-full" />
+                                                        {/* 3. Main Activity Rings */}
+                                                        <div className="bg-white/[0.02] border border-white/5 rounded-[32px] p-4 flex items-center justify-between relative overflow-hidden">
+                                                            <div className="relative">
+                                                                <ShowcaseActivityRings
+                                                                    days={{ completed: 25, absent: 2, total: 30 }}
+                                                                    fitness={{ completed: 18, absent: 5, total: 24 }}
+                                                                    nutrition={{ completed: 22, absent: 3, total: 28 }}
+                                                                    size={110}
+                                                                    hideStreak={true}
+                                                                />
+                                                                <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-24 h-24 bg-[#FF7939]/5 blur-3xl -z-10" />
+                                                            </div>
 
-                                        <div className="w-full max-w-[850px] aspect-[11/8] bg-[#0a0a0a] rounded-[32px] border-[12px] border-[#1a1a1a] shadow-[0_0_100px_rgba(0,0,0,0.5)] overflow-hidden relative group">
-                                            <div className="flex h-full">
-                                                {/* Left Panel: Exercise Assets */}
-                                                <div className="w-[30%] bg-[#121212] border-r border-white/5 flex flex-col p-5">
-                                                    <div className="flex items-center justify-between mb-6">
-                                                        <span className="text-[10px] font-black text-white uppercase italic">Biblioteca</span>
-                                                        <div className="w-6 h-6 rounded-lg bg-white/5 flex items-center justify-center"><PlusCircle size={10} /></div>
-                                                    </div>
-                                                    <div className="space-y-4 overflow-y-auto hide-scrollbar">
-                                                        {[1, 2, 3, 4].map((i) => (
-                                                            <div key={i} className="p-3 bg-white/[0.03] rounded-xl border border-white/5 flex gap-3 group/item hover:border-cyan-500/30 transition-all cursor-move">
-                                                                <div className="w-10 h-10 rounded-lg bg-white/5 overflow-hidden">
-                                                                    <img src={`https://images.unsplash.com/photo-1534438327276-14e5300c3a48?w=100&q=80`} className="w-full h-full object-cover opacity-40 group-hover/item:opacity-100 transition-opacity" />
+                                                            {/* Vertical Stats */}
+                                                            <div className="flex flex-col gap-3 text-right pr-1">
+                                                                <div className="flex flex-col">
+                                                                    <div className="flex items-center justify-end gap-1 text-[#FF7939]">
+                                                                        <ArrowLeft size={10} className="rotate-225" />
+                                                                        <span className="text-[10px] font-black uppercase italic tracking-tighter opacity-80 leading-none">Kcal</span>
+                                                                    </div>
+                                                                    <span className="text-[17px] font-black text-white leading-none tracking-tighter mt-1">2049/0</span>
                                                                 </div>
                                                                 <div className="flex flex-col">
-                                                                    <span className="text-[8px] font-black text-white uppercase">{i === 1 ? 'Sentadilla' : 'Peso Muerto'}</span>
-                                                                    <span className="text-[6px] text-white/30 uppercase font-bold">Piernas</span>
+                                                                    <span className="text-[10px] font-black text-orange-200 uppercase italic tracking-widest leading-none opacity-80">Mins</span>
+                                                                    <span className="text-[17px] font-black text-white leading-none tracking-tighter mt-0.5">304/0</span>
                                                                 </div>
                                                             </div>
-                                                        ))}
-                                                    </div>
-                                                </div>
-
-                                                {/* Main Panel: Program Builder */}
-                                                <div className="flex-1 bg-black p-8 flex flex-col">
-                                                    <div className="flex items-center justify-between mb-8">
-                                                        <div>
-                                                            <h4 className="text-[14px] font-black text-white italic uppercase leading-none">Rutina: Volumen Pro G-1</h4>
-                                                            <p className="text-[8px] text-cyan-400 font-bold uppercase tracking-[0.2em] mt-1">Editando ahora</p>
-                                                        </div>
-                                                        <div className="flex gap-2">
-                                                            <div className="px-3 py-1 bg-white/5 rounded-full border border-white/10 text-[8px] font-bold text-white/60">Semana 1</div>
-                                                            <div className="px-3 py-1 bg-cyan-500/20 rounded-full border border-cyan-500/30 text-[8px] font-black text-cyan-400">Día A</div>
                                                         </div>
                                                     </div>
 
-                                                    <div className="flex-1 space-y-4">
-                                                        <div className="p-6 bg-white/[0.03] border border-dashed border-white/10 rounded-[24px] flex flex-col items-center justify-center gap-3 group-hover:border-cyan-500/20 transition-all">
-                                                            <div className="p-4 bg-white/5 rounded-full"><PlusCircle size={24} className="text-white/10" /></div>
-                                                            <p className="text-[9px] font-black text-white/20 uppercase italic">Arrastrá un ejercicio aquí</p>
+                                                    {/* Toggle Selection */}
+                                                    <div className="flex bg-white/5 rounded-full p-1 border border-white/5">
+                                                        <div className="flex-1 py-1.5 rounded-xl bg-zinc-800 text-white text-center border border-white/5 shadow-xl">
+                                                            <span className="text-[10px] font-black uppercase italic tracking-tight">Fitness</span>
                                                         </div>
-                                                        <div className="p-5 bg-gradient-to-r from-cyan-500/10 to-transparent border border-cyan-500/10 rounded-[24px] flex items-center justify-between">
-                                                            <div className="flex items-center gap-4">
-                                                                <div className="w-12 h-12 rounded-xl bg-cyan-500/10 flex items-center justify-center font-black text-cyan-500 italic text-[16px]">01</div>
-                                                                <div>
-                                                                    <p className="text-[11px] font-black text-white uppercase italic">Press de Banca</p>
-                                                                    <p className="text-[8px] text-white/30 font-bold uppercase font-black">4 Series x 10-12 Reps</p>
-                                                                </div>
-                                                            </div>
-                                                            <div className="flex gap-1">
-                                                                {[1, 2, 3, 4].map(s => <div key={s} className="w-2 h-2 rounded-full bg-cyan-500" />)}
-                                                            </div>
+                                                        <div className="flex-1 py-1.5 rounded-xl text-white/5 text-center">
+                                                            <span className="text-[10px] font-black uppercase italic tracking-tight">Nutrición</span>
                                                         </div>
                                                     </div>
+                                                </PhoneMockup>
 
-                                                    <button className="mt-auto w-full py-4 bg-cyan-500 text-black text-[10px] font-black uppercase italic rounded-xl tracking-[0.3em] shadow-[0_20px_40px_rgba(6,182,212,0.2)]">
-                                                        Publicar Programa
-                                                    </button>
-                                                </div>
                                             </div>
                                         </div>
                                     </div>
+
+                                    {/* 2. iPad Integrated Experience (Multi-Device) */}
+                                    <div className="space-y-12">
+                                        <div className="text-center space-y-3">
+                                            <div className="inline-flex items-center gap-2 px-3 py-1 bg-[#FF7939]/10 rounded-full border border-[#FF7939]/20">
+                                                <Layers size={12} className="text-[#FF7939]" />
+                                                <span className="text-[10px] font-black text-[#FF7939] uppercase italic">Poder Multi-Dispositivo</span>
+                                            </div>
+                                            <h3 className="text-4xl font-black text-white italic uppercase tracking-tighter leading-none">Tu Dashboard <br /><span className="text-white/30 text-xl tracking-normal lowercase">en todos tus equipos.</span></h3>
+                                            <p className="text-sm text-white/40 max-w-xl mx-auto leading-relaxed">
+                                                Accedé a tus rutinas y documentos desde cualquier lugar. Consultá tu manual de entrenamiento y recetarios mientras controlás tu progreso con un diseño responsivo de alto rendimiento.
+                                            </p>
+                                        </div>
+
+                                        <div className="flex justify-center relative w-full px-4 overflow-hidden mobile:overflow-visible">
+                                            <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-full max-w-[800px] h-[400px] bg-blue-500/5 blur-[120px] rounded-full" />
+
+                                            {/* iPad Layout: 3/4 Planificación Avanzada (Yoga) + 1/4 PDF Doc */}
+                                            <div className="w-full max-w-[850px] aspect-[11/8] bg-[#0a0a0a] rounded-[32px] border-[12px] border-[#1a1a1a] shadow-[0_0_100px_rgba(0,0,0,0.5)] overflow-hidden relative group scale-[0.82] sm:scale-100 origin-top">
+                                                {/* Camera Top */}
+                                                <div className="absolute top-2 left-1/2 -translate-x-1/2 w-1.5 h-1.5 bg-black/40 rounded-full border border-white/10 z-50" />
+
+                                                {/* iPad Native Status Bar */}
+                                                <div className="absolute top-0 w-full px-8 py-3 flex items-center justify-between z-30 text-white/90">
+                                                    <div className="flex items-center gap-4">
+                                                        <span className="text-[10px] font-bold">5:37 PM</span>
+                                                        <span className="text-[10px] font-medium opacity-60">Ven 27 feb</span>
+                                                    </div>
+                                                    <div className="flex items-center gap-1.5 opacity-80">
+                                                        <Globe size={11} />
+                                                        <Wifi size={11} />
+                                                        <div className="flex items-center gap-0.5 ml-1">
+                                                            <div className="w-5 h-2.5 border border-white/40 rounded-[3px] relative flex items-center px-[1px]">
+                                                                <div className="h-full w-[65%] bg-white rounded-[1px]" />
+                                                                <div className="absolute -right-[3px] top-1/2 -translate-y-1/2 w-[2px] h-[3px] bg-white/40 rounded-r-sm" />
+                                                            </div>
+                                                        </div>
+                                                    </div>
+                                                </div>
+
+                                                <div className="flex h-full pt-8">
+                                                    {/* Left Side: Planificación Avanzada */}
+                                                    <div className="w-[68%] bg-black relative flex flex-col border-r border-white/10 overflow-hidden">
+                                                        {/* Central Multi-tasking Handle (The 3 dots the user mentioned) */}
+                                                        <div className="absolute top-2 left-1/2 -translate-x-1/2 z-50 flex gap-0.5 opacity-40">
+                                                            <div className="w-1 h-1 bg-white rounded-full" />
+                                                            <div className="w-1 h-1 bg-white rounded-full" />
+                                                            <div className="w-1 h-1 bg-white rounded-full" />
+                                                        </div>
+
+                                                        {/* Video Content */}
+                                                        <div className="h-full relative overflow-hidden flex items-center justify-center">
+                                                            <img
+                                                                src="/showcase/https://images.unsplash.com/photo-1544367567-0f2fcb009e0b?w=800&q=80"
+                                                                alt="Yoga Workshop"
+                                                                className="w-full h-full object-cover"
+                                                            />
+
+                                                            {/* Meet Header UI */}
+                                                            <div className="absolute top-0 w-full p-4 pt-8 bg-gradient-to-b from-black/60 to-transparent flex justify-between items-start z-10">
+                                                                <div className="bg-black/40 backdrop-blur-md px-3 py-1.5 rounded-full border border-white/10 flex items-center gap-2">
+                                                                    <span className="text-[#FF7939] text-[8px] animate-pulse">●</span>
+                                                                    <span className="text-[10px] font-bold text-white/90">Planificador Pro: Franco</span>
+                                                                </div>
+                                                            </div>
+
+                                                            {/* Google Meet Style Controls */}
+                                                            <div className="absolute bottom-6 left-0 w-full px-4 flex items-center justify-between z-20">
+                                                                <div className="bg-black/60 backdrop-blur-md px-2.5 py-1.5 rounded-full border border-white/10 flex items-center gap-1.5 min-w-0">
+                                                                    <MicOff size={10} className="text-red-400 flex-shrink-0" />
+                                                                    <span className="text-[9px] font-bold text-white/90 truncate max-w-[50px] sm:max-w-none">Maru Yoga</span>
+                                                                </div>
+
+                                                                <div className="absolute left-1/2 -translate-x-1/2 flex items-center gap-1.5 bg-zinc-900/90 backdrop-blur-xl p-1.5 rounded-full border border-white/10 shadow-2xl flex-shrink-0">
+                                                                    <button className="p-1.5 bg-white/5 rounded-full text-white/80"><Mic size={12} /></button>
+                                                                    <button className="p-1.5 bg-white/5 rounded-full text-white/80"><Video size={12} /></button>
+                                                                    <button className="p-1.5 bg-white/5 rounded-full text-white/80"><Monitor size={12} /></button>
+                                                                    <button className="p-1.5 bg-white/5 rounded-full text-white/80"><Hand size={12} /></button>
+                                                                    <button className="p-2 bg-red-500 rounded-full text-white shadow-lg shadow-red-500/30"><PhoneOff size={12} /></button>
+                                                                </div>
+
+                                                                <div className="flex items-center gap-2 bg-black/40 backdrop-blur-md p-1.5 rounded-full border border-white/10 flex-shrink-0">
+                                                                    <Users size={10} className="text-white/60" />
+                                                                    <MessageSquare size={10} className="text-white/60" />
+                                                                    <LayoutGrid size={10} className="text-white/60" />
+                                                                </div>
+                                                            </div>
+                                                        </div>
+                                                    </div>
+
+                                                    {/* Right Side: Manuales Interactivos */}
+                                                    <div className="w-[32%] bg-[#1c1c1e] flex flex-col overflow-hidden relative">
+                                                        {/* Central Multi-tasking Handle (3 dots) */}
+                                                        <div className="absolute top-2 left-1/2 -translate-x-1/2 z-50 flex gap-0.5 opacity-40">
+                                                            <div className="w-1 h-1 bg-white rounded-full" />
+                                                            <div className="w-1 h-1 bg-white rounded-full" />
+                                                            <div className="w-1 h-1 bg-white rounded-full" />
+                                                        </div>
+
+                                                        <div className="flex-1 overflow-y-auto hide-scrollbar pt-6 pb-12 flex flex-col items-center gap-4 px-2">
+                                                            {[1, 2, 3].map((page) => (
+                                                                <div key={page} className={cn(
+                                                                    "w-full bg-white shadow-xl rounded-sm overflow-hidden",
+                                                                    page === 3 ? "h-32 opacity-40" : "aspect-[3/4.2]"
+                                                                )}>
+                                                                    <img
+                                                                        src="/showcase/https://images.unsplash.com/photo-1544367567-0f2fcb009e0b?w=800&q=80"
+                                                                        className="w-full h-full object-cover"
+                                                                        alt={`Manual Page ${page}`}
+                                                                    />
+                                                                </div>
+                                                            ))}
+                                                        </div>
+                                                    </div>
+                                                </div>
+                                            </div>
+                                        </div>
+                                        <div className="mt-12 flex justify-center">
+                                            <Button className="bg-[#FF7939] text-black hover:bg-[#FF7939]/90 rounded-full px-12 py-7 h-auto text-[11px] font-black italic uppercase shadow-[0_0_50px_rgba(255,121,57,0.2)] border-none flex items-center gap-3 group">
+                                                Unirme a la comunidad <ChevronRight size={18} className="group-hover:translate-x-1 transition-transform" />
+                                            </Button>
+                                        </div>
+                                    </div>
+                                </>
+                            );
+
+                            return (
+                                <div className="space-y-32">
+                                    {/* 1. Integrated Mobile Experience (iPhone Coach) */}
+                                    <div className="space-y-8">
+                                        <div className="flex flex-col items-center text-center space-y-4">
+                                            <h3 className="text-4xl font-black text-white italic uppercase tracking-tighter leading-none">Tu Negocio <br /><span className="text-white/30 text-xl tracking-normal lowercase">en escala real.</span></h3>
+                                            <p className="text-sm text-white/40 max-w-xl mx-auto leading-relaxed mt-2">
+                                                Gestioná tus alumnos, programas y ventas con una interfaz diseñada para coaches de alto rendimiento.
+                                            </p>
+
+                                            {/* Refined Pagination Icons for Coach - Moved Above Phones */}
+                                            <div className="flex items-center gap-12 mt-6">
+                                                {[
+                                                    { type: 'clients', icon: Users, label: 'Clientes' },
+                                                    { type: 'profile', icon: User, label: 'Perfil' }
+                                                ].map((nav) => (
+                                                    <button
+                                                        key={nav.type}
+                                                        onClick={() => setCoachMockupType(nav.type as any)}
+                                                        className={cn(
+                                                            "flex flex-col items-center gap-2 transition-all duration-300",
+                                                            coachMockupType === nav.type
+                                                                ? "text-[#FF7939]"
+                                                                : "text-white/20 hover:text-white/40 font-bold"
+                                                        )}
+                                                    >
+                                                        <nav.icon size={28} fill={coachMockupType === nav.type ? "currentColor" : "none"} />
+                                                        <span className="text-[10px] font-black uppercase italic tracking-widest">{nav.label}</span>
+                                                    </button>
+                                                ))}
+                                            </div>
+                                        </div>
+
+                                        <div className="flex flex-col md:flex-row items-center justify-center gap-12 md:gap-24">
+                                            <div className="flex justify-center relative h-[620px] w-full max-w-sm mx-auto perspective-[2000px] mt-12 mb-12 select-none">
+                                                {/* Glow Backgrounds */}
+                                                <div className={cn(
+                                                    "absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-80 h-80 rounded-full blur-[120px] transition-all duration-1000",
+                                                    coachMockupType === 'clients' ? "bg-blue-500/20" : "bg-[#FF7939]/20"
+                                                )} />
+
+                                                {/* Phone 1: Clients List */}
+                                                <PhoneMockup type="clients" role="coach" active={coachMockupType === 'clients'} onClick={() => setCoachMockupType('clients')}>
+                                                    <div className="px-5 pt-3 pb-2">
+                                                        <h3 className="text-[16px] font-black text-white uppercase italic tracking-tighter mt-1 leading-tight">CLIENTES</h3>
+                                                    </div>
+
+                                                    <div className="px-3 py-2 space-y-4 flex-1">
+                                                        {/* Simple Search Mockup */}
+                                                        <div className="flex items-center gap-2 px-3 py-2 bg-white/5 rounded-2xl border border-white/10">
+                                                            <Search size={14} className="text-white/20" />
+                                                            <div className="w-full h-2 bg-white/10 rounded-full" />
+                                                        </div>
+
+                                                        {/* Client List Mockup */}
+                                                        <div className="space-y-2">
+                                                            {[
+                                                                { name: 'Diego Omnia', plan: 'Pro Fitness', avatar: 'https://images.unsplash.com/photo-1534438327276-14e5300c3a48?w=100&q=80' },
+                                                                { name: 'Maru Yoga', plan: 'Advanced', avatar: 'https://images.unsplash.com/photo-1544367567-0f2fcb009e0b?w=100&q=80' },
+                                                                { name: 'Franco Dev', plan: 'Coach Plan', avatar: 'https://images.unsplash.com/photo-1571019614242-c5c5dee9f50b?w=100&q=80' }
+                                                            ].map((c, i) => (
+                                                                <div key={i} className="p-3 bg-white/[0.04] border border-white/5 rounded-2xl flex items-center justify-between">
+                                                                    <div className="flex items-center gap-3">
+                                                                        <img src={c.avatar} className="w-10 h-10 rounded-full border border-white/10" alt={c.name} />
+                                                                        <div className="flex flex-col">
+                                                                            <span className="text-[11px] font-black text-white uppercase italic">{c.name}</span>
+                                                                            <span className="text-[8px] text-[#FF7939] uppercase font-bold tracking-widest">{c.plan}</span>
+                                                                        </div>
+                                                                    </div>
+                                                                    <ChevronRight size={14} className="text-white/20" />
+                                                                </div>
+                                                            ))}
+                                                        </div>
+                                                    </div>
+                                                </PhoneMockup>
+
+                                                {/* Phone 2: Coach Profile */}
+                                                <PhoneMockup type="profile" role="coach" active={coachMockupType === 'profile'} onClick={() => setCoachMockupType('profile')}>
+                                                    <div className="px-3 pt-3 space-y-4">
+                                                        {/* Hero Profile Card - Reference Identical */}
+                                                        <div className="relative rounded-[32px] overflow-hidden bg-[#0F0F0F] border border-white/10 shadow-2xl min-h-[220px] flex flex-col items-center">
+                                                            {/* Background Blurred Image - Large Vertical Coverage */}
+                                                            <div className="absolute inset-x-0 -top-20 -bottom-10 z-0">
+                                                                <img src="https://images.unsplash.com/photo-1543326727-cf6c39e8f84c?w=400&q=80" alt="Boca" className="w-full h-full object-cover opacity-30 blur-[40px]" />
+                                                                <div className="absolute inset-0 bg-gradient-to-b from-black/20 via-black/40 to-[#0F0F0F]" />
+                                                            </div>
+
+                                                            <div className="relative z-10 w-full p-4 flex flex-col items-center text-center">
+                                                                <div className="w-full flex justify-between items-start mb-2">
+                                                                    <div className="flex items-center gap-2 px-3 py-1.5 bg-black/40 rounded-full border border-white/10 backdrop-blur-xl">
+                                                                        <Flame size={12} className="text-[#FF7939] fill-[#FF7939]" />
+                                                                        <span className="text-[12px] font-black text-white italic">6</span>
+                                                                    </div>
+                                                                    <div className="p-2 rounded-xl bg-black/40 text-[#FF7939] border border-white/10"><Edit2 size={14} /></div>
+                                                                </div>
+
+                                                                <div className="w-20 h-20 rounded-full border-2 border-[#FF7939]/30 overflow-hidden bg-zinc-900 shadow-2xl mb-3 mt-1 scale-110">
+                                                                    <img src="https://images.unsplash.com/photo-1543326727-cf6c39e8f84c?w=400&q=80" alt="Franco" className="w-full h-full object-cover" />
+                                                                </div>
+
+                                                                <h5 className="text-[18px] font-black text-white italic tracking-tighter leading-none uppercase">Franco Pomati coach</h5>
+
+                                                                <div className="flex items-center gap-4 mt-2 text-[10px] font-black text-white/60 italic uppercase tracking-tighter">
+                                                                    <div className="flex items-center gap-1.5"><Star size={11} className="fill-[#FF7939] text-[#FF7939]" /><span className="text-white">4.3</span></div>
+                                                                    <span>1 ventas</span>
+                                                                    <div className="flex items-center gap-1.5"><Award size={11} className="text-white/20" /><span>1 cert.</span></div>
+                                                                </div>
+
+                                                                <div className="flex items-center gap-2 mt-2 text-[10px] font-black text-white/30 italic uppercase">
+                                                                    <MapPin size={10} /> CABA <div className="w-1 h-1 rounded-full bg-white/10 mx-1" /> 26 años
+                                                                </div>
+
+                                                                <p className="text-[10px] font-bold text-white/50 px-4 mt-3 leading-relaxed">Profesional de futbol, preparador fisico de Boca Juniors.</p>
+
+                                                                <div className="flex gap-2 mt-4 justify-center flex-wrap px-2">
+                                                                    {['General', 'Futbol', 'Fitness General', 'CrossFit'].map((s, i) => (
+                                                                        <div key={i} className="rounded-full border border-white/10 bg-white/5 px-4 py-1.5 text-[8px] font-black text-white/60 uppercase italic tracking-widest">{s}</div>
+                                                                    ))}
+                                                                </div>
+                                                            </div>
+                                                        </div>
+
+                                                        {/* Earnings Card - Segmented Single Bar - Photo Identical */}
+                                                        <div className="bg-[#0D0D0F] border border-white/5 rounded-[32px] p-8 shadow-2xl space-y-6">
+                                                            <div className="flex justify-center relative">
+                                                                <div className="text-center flex flex-col items-center">
+                                                                    <span className="text-[48px] font-black text-[#FF7939] tracking-tighter leading-none italic">$850</span>
+                                                                    <div className="flex flex-col items-center gap-1 mt-2">
+                                                                        <div className="text-[10px] font-black text-white/20 uppercase tracking-widest italic leading-none">Ganancia Bruta: $1.000</div>
+                                                                        <div className="text-[10px] font-black text-white/20 uppercase tracking-widest italic leading-none">Suscripción: -$12.000</div>
+                                                                    </div>
+                                                                </div>
+                                                                <div className="absolute right-0 top-1 p-2">
+                                                                    <Printer size={18} className="text-[#FF7939]" />
+                                                                </div>
+                                                            </div>
+
+                                                            <div className="h-[2px] w-full bg-white/5" />
+
+                                                            {/* Single Segmented Bar */}
+                                                            <div className="relative pt-2">
+                                                                <div className="h-10 w-full bg-[#FF7939] rounded-2xl overflow-hidden flex shadow-[0_0_30px_rgba(255,121,57,0.15)]">
+                                                                    <div className="h-full bg-[#FF7939] flex items-center justify-center min-w-[100%]">
+                                                                        <span className="text-[14px] font-[1000] text-black italic uppercase">1k</span>
+                                                                    </div>
+                                                                    {/* Simulated segments - they are stacked or very fine */}
+                                                                    <div className="absolute inset-y-0 left-[60%] w-0.5 bg-black/20" />
+                                                                    <div className="absolute inset-y-0 left-[85%] w-0.5 bg-black/20" />
+                                                                </div>
+                                                            </div>
+
+                                                            <div className="grid grid-cols-4 gap-4 pt-4 border-t border-white/5">
+                                                                {[
+                                                                    { icon: BookOpen, label: 'Programas', color: '#FF7939' },
+                                                                    { icon: Users, label: 'Talleres', color: '#FFB940' },
+                                                                    { icon: FileText, label: 'Documentos', color: '#D1664C' },
+                                                                    { icon: MessageSquare, label: 'Consultas', color: '#FF7939' }
+                                                                ].map((item, i) => (
+                                                                    <div key={i} className="flex flex-col items-center gap-2">
+                                                                        <div
+                                                                            className="p-3 rounded-2xl bg-white/[0.01] border border-white/5 transition-all text-white/40"
+                                                                        >
+                                                                            <item.icon size={18} />
+                                                                        </div>
+                                                                        <span className="text-[8px] font-black text-white/30 uppercase italic">{item.label}</span>
+                                                                    </div>
+                                                                ))}
+                                                            </div>
+                                                        </div>
+
+                                                        {/* Stats Footer Mockup - Cleaned up */}
+                                                        <div className="bg-white/[0.02] border border-white/5 rounded-[24px] p-5 flex flex-col gap-3">
+                                                            <div className="flex items-center justify-between">
+                                                                <span className="text-[12px] font-black text-white/60 uppercase italic tracking-tighter">Estadísticas</span>
+                                                                <SlidersHorizontal size={14} className="text-white/20" />
+                                                            </div>
+                                                        </div>
+                                                    </div>
+                                                </PhoneMockup>
+                                            </div>
+                                        </div>
+
+                                        {/* 2. MacBook Integrated Experience (Desktop) */}
+                                        <div className="space-y-12">
+                                            <div className="text-center space-y-3">
+                                                <div className="inline-flex items-center gap-2 px-3 py-1 bg-blue-500/10 rounded-full border border-blue-500/20">
+                                                    <Monitor size={12} className="text-blue-400" />
+                                                    <span className="text-[10px] font-black text-blue-400 uppercase italic">Tu Centro de Operaciones</span>
+                                                </div>
+                                                <h3 className="text-4xl font-black text-white italic uppercase tracking-tighter leading-none">Omnia Desktop <br /><span className="text-white/30 text-xl tracking-normal lowercase">gestión en gran pantalla.</span></h3>
+                                                <p className="text-sm text-white/40 max-w-xl mx-auto leading-relaxed">
+                                                    Administrá todos tus alumnos, programas y finanzas con una interfaz de escritorio potente y centrada en la productividad.
+                                                </p>
+                                            </div>
+
+                                            <div className="flex justify-center relative w-full px-2 md:px-8 overflow-hidden pt-10">
+                                                {/* MacBook Base Proportional Container */}
+                                                <div className="w-full max-w-[1400px] relative group/macbook">
+                                                    {/* MacBook Screen */}
+                                                    <div className="w-full aspect-[16/10] bg-[#0a0a0a] rounded-t-[24px] border-[8px] md:border-[12px] border-[#1a1a1a] shadow-[0_0_100px_rgba(0,0,0,0.5)] overflow-hidden relative">
+                                                        {/* Camera Hole */}
+                                                        <div className="absolute top-1.5 left-1/2 -translate-x-1/2 w-1.5 h-1.5 bg-black/80 rounded-full border border-white/5 z-50" />
+
+                                                        {/* Mock Desktop Content */}
+                                                        <div className="h-full flex flex-col bg-[#050505]">
+                                                            {/* Desktop Top Header */}
+                                                            <div className="h-14 border-b border-white/5 flex items-center justify-between px-6 shrink-0 relative z-10 w-full overflow-hidden">
+                                                                <div className="flex items-center gap-3 w-1/3">
+                                                                    <X size={16} className="text-white/60 cursor-pointer hover:text-white" />
+                                                                    <span className="text-white font-black italic tracking-tighter text-[13px] uppercase">Planificación</span>
+                                                                </div>
+                                                                <div className="flex justify-center w-1/3">
+                                                                    <span className="text-[#FF7939] font-black uppercase italic tracking-[0.2em] text-[15px]">omnia</span>
+                                                                </div>
+                                                                <div className="flex items-center justify-end gap-1.5 w-1/3">
+                                                                    <div className="w-1.5 h-1.5 rounded-full bg-white/20" />
+                                                                    <div className="w-1.5 h-1.5 rounded-full bg-white/20" />
+                                                                    <div className="w-1.5 h-1.5 rounded-full bg-white/20" />
+                                                                    <div className="w-6 h-1.5 rounded-full bg-[#FF7939]" />
+                                                                </div>
+                                                            </div>
+
+                                                            {/* Sidebar & Main Content Mockup */}
+                                                            <div className="flex-1 flex overflow-hidden">
+                                                                {/* Sidebar: Ejercicios List - Point Identical */}
+                                                                <div className="w-[22%] border-r border-white/5 bg-black/60 flex flex-col shrink-0">
+                                                                    <div className="p-6 pb-2 space-y-6 flex-1 overflow-y-auto hide-scrollbar">
+                                                                        <div className="flex flex-col gap-6 mb-8">
+                                                                            <span className="text-[22px] font-[1000] text-white uppercase italic tracking-tighter leading-none">Ejercicios</span>
+                                                                            <div className="relative">
+                                                                                <Search size={14} className="absolute left-4 top-1/2 -translate-y-1/2 text-white/10" />
+                                                                                <input
+                                                                                    type="text"
+                                                                                    placeholder="Buscar..."
+                                                                                    className="w-full bg-[#050505] border border-white/5 rounded-2xl py-3 pl-12 pr-4 text-[12px] text-white/40 placeholder:text-white/5 outline-none focus:border-white/10 transition-all font-black italic uppercase"
+                                                                                />
+                                                                            </div>
+                                                                        </div>
+
+                                                                        {[
+                                                                            { n: 'Circuito de escalera de...', c: 'FUNCIONAL', k: '70', m: '15', s: '0kg - 0r - 1s', color: '#E17B3C' },
+                                                                            { n: 'Yoga restaurativo', c: 'MOVILIDAD', k: '38', m: '20', s: '0kg - 0r - 1s', color: '#888' },
+                                                                            { n: 'Rotaciones de torso con...', c: 'FUNCIONAL', k: '40', m: '9', s: '0kg - 0r - 1s', color: '#E17B3C' },
+                                                                            { n: 'Press militar con barra', c: 'FUERZA', k: '85', m: '11', s: '0kg - 0r - 1s', color: '#FFB940' },
+                                                                            { n: 'Mountain climbers', c: 'HIIT', k: '55', m: '6', s: '0kg - 0r - 1s', color: '#D1664C' },
+                                                                            { n: 'Peso muerto con kettle...', c: 'FUERZA', k: '90', m: '11', s: '0kg - 0r - 1s', color: '#FFB940' }
+                                                                        ].map((ex, i) => (
+                                                                            <div key={i} className="p-5 rounded-[32px] border border-white/5 bg-white/[0.015] flex flex-col gap-4 relative group hover:bg-white/[0.03] transition-all">
+                                                                                <div className="flex items-start gap-3">
+                                                                                    <div className="w-2.5 h-2.5 rounded-full bg-white/20 mt-1.5" />
+                                                                                    <div className="flex-1 space-y-2.5">
+                                                                                        <div className="text-[13px] font-[1000] text-white italic tracking-tighter leading-tight uppercase">{ex.n}</div>
+                                                                                        <div className="flex items-center gap-2">
+                                                                                            <span className="text-[8px] px-2.5 py-1 rounded-lg bg-white/5 text-white/30 font-black tracking-widest uppercase italic border border-white/5">{ex.c}</span>
+                                                                                            <span className="text-[8px] text-white/20 font-black uppercase tracking-widest italic">{ex.s}</span>
+                                                                                        </div>
+                                                                                    </div>
+                                                                                </div>
+                                                                                <div className="flex items-center gap-5 pl-6">
+                                                                                    <div className="flex items-center gap-2">
+                                                                                        <Flame size={10} className="text-[#FF7939] fill-[#FF7939]/20" />
+                                                                                        <span className="text-[10px] font-black text-[#FF7939] leading-none uppercase italic">{ex.k} kcal</span>
+                                                                                    </div>
+                                                                                    <div className="flex items-center gap-2">
+                                                                                        <Clock size={10} className="text-blue-400" />
+                                                                                        <span className="text-[10px] font-black text-blue-400 leading-none uppercase italic">{ex.m}m</span>
+                                                                                    </div>
+                                                                                </div>
+                                                                            </div>
+                                                                        ))}
+                                                                    </div>
+                                                                    {/* Sidebar Footer */}
+                                                                    <div className="p-6 border-t border-white/5 shrink-0">
+                                                                        <div className="flex items-center gap-2 px-5 py-3 w-fit bg-white/5 rounded-2xl border border-white/10 opacity-70 cursor-pointer hover:opacity-100 transition-all">
+                                                                            <ChevronLeft size={16} className="text-white/60" />
+                                                                            <span className="text-[12px] font-black italic uppercase text-white/60 tracking-tighter">Atrás</span>
+                                                                        </div>
+                                                                    </div>
+                                                                </div>
+
+                                                                {/* Main: Planning Board - Photo Identical */}
+                                                                <div className="flex-1 flex flex-col bg-[#050505] overflow-hidden">
+                                                                    {/* Summary Header - Photo Identical */}
+                                                                    <div className="px-10 py-10 border-b border-white/5 flex items-center justify-between bg-black/60 backdrop-blur-2xl">
+                                                                        <div className="flex items-center gap-14">
+                                                                            <span className="text-[32px] font-[1000] text-white italic uppercase tracking-tighter">RESUMEN</span>
+
+                                                                            <div className="flex items-center gap-4">
+                                                                                <div className="flex flex-col items-end">
+                                                                                    <span className="text-[8px] font-black text-white/10 uppercase tracking-[0.2em] italic leading-tight">REPETIR</span>
+                                                                                    <span className="text-[8px] font-black text-white/10 uppercase tracking-[0.2em] italic leading-tight">CICLO</span>
+                                                                                </div>
+                                                                                <div className="flex items-center gap-3 px-5 py-2 bg-black/80 rounded-full border border-white/5 shadow-[inset_0_2px_10px_rgba(255,255,255,0.02)]">
+                                                                                    <div className="w-5 h-5 flex items-center justify-center text-[16px] text-white/30 hover:text-white cursor-pointer transition-all">-</div>
+                                                                                    <span className="text-[16px] font-[1000] text-[#FF7939] italic mx-1">2x</span>
+                                                                                    <div className="w-5 h-5 flex items-center justify-center text-[16px] text-white/30 hover:text-white cursor-pointer transition-all">+</div>
+                                                                                </div>
+                                                                            </div>
+
+                                                                            <div className="flex gap-4">
+                                                                                {[
+                                                                                    { l: 'SEMANAS', v: '4/4' },
+                                                                                    { l: 'SESIONES', v: '24/28' },
+                                                                                    { l: 'EJERCICIOS', v: '92' },
+                                                                                    { l: 'ÚNICOS', v: '9' }
+                                                                                ].map((s, i) => (
+                                                                                    <div key={i} className="flex flex-col items-center gap-2">
+                                                                                        <span className="text-[8px] text-white/10 uppercase font-black tracking-[0.2em] italic">{s.l}</span>
+                                                                                        <div className="px-5 py-2.5 bg-black/80 rounded-full min-w-[70px] flex items-center justify-center border border-white/5 shadow-[inset_0_2px_10px_rgba(255,255,255,0.02)]">
+                                                                                            <span className="text-[15px] font-[1000] text-white italic tracking-tighter">{s.v}</span>
+                                                                                        </div>
+                                                                                    </div>
+                                                                                ))}
+                                                                            </div>
+                                                                        </div>
+                                                                        <div className="flex items-center gap-8">
+                                                                            <div className="flex flex-col items-end">
+                                                                                <span className="text-[7px] font-black text-white/5 uppercase tracking-[0.5em] italic">CONTROL DE SEMANAS</span>
+                                                                                <div className="flex items-center gap-2.5 mt-2">
+                                                                                    <div className="w-7 h-7 rounded-full bg-[#FF7939] border border-black flex items-center justify-center text-black font-[1000] text-[11px] italic shadow-[0_0_15px_rgba(255,121,57,0.3)]">1</div>
+                                                                                    {[2].map(n => <div key={n} className="w-7 h-7 rounded-full border border-white/5 bg-black flex items-center justify-center text-white/20 text-[11px] font-black italic hover:text-white/40 transition-all cursor-pointer">{n}</div>)}
+                                                                                    <div className="w-7 h-7 rounded-full border border-white/5 bg-black flex items-center justify-center text-white/20 hover:text-white/40 transition-all cursor-pointer"><PlusCircle size={12} /></div>
+                                                                                    <div className="w-7 h-7 rounded-full border border-white/5 bg-black flex items-center justify-center text-white/20 hover:text-white/40 transition-all ml-1 cursor-pointer"><X size={12} /></div>
+                                                                                </div>
+                                                                            </div>
+                                                                        </div>
+                                                                    </div>
+
+                                                                    {/* Planning Grid - Photo Identical to Actual App */}
+                                                                    <div className="flex-1 overflow-x-auto hide-scrollbar p-6">
+                                                                        <div className="min-w-[800px] h-full bg-[#0A0A0A] border border-white/5 rounded-3xl p-6">
+                                                                            <div
+                                                                                className="grid gap-0"
+                                                                                style={{
+                                                                                    gridTemplateColumns: `85px repeat(7, 1fr)`
+                                                                                }}
+                                                                            >
+                                                                                {/* Headers de días */}
+                                                                                <div className="h-14"></div>
+                                                                                {['L', 'M', 'M', 'J', 'V', 'S', 'D'].map((d, di) => {
+                                                                                    const cals = di === 2 ? 910 : di === 3 ? 220 : di === 4 ? 260 : 233;
+                                                                                    const time = di === 2 ? 99 : di === 3 ? 28 : di === 4 ? 37 : 55;
+                                                                                    return (
+                                                                                        <div key={di} className="flex flex-col items-center justify-end h-14 pb-2">
+                                                                                            <div className="flex flex-col items-center gap-0.5 mb-2">
+                                                                                                <div className="bg-[#FF7939]/10 text-[#FF7939] px-1.5 py-0.5 rounded-md text-[10px] font-black flex items-center gap-1 shadow-sm">
+                                                                                                    <Flame size={9} /> {cals}
+                                                                                                </div>
+                                                                                                <div className="bg-cyan-500/10 text-cyan-400 px-1.5 py-0.5 rounded-md text-[10px] font-black flex items-center gap-1 shadow-sm">
+                                                                                                    <Clock size={9} /> {time}m
+                                                                                                </div>
+                                                                                            </div>
+                                                                                            <span className="text-[11px] text-white font-black">{d}</span>
+                                                                                        </div>
+                                                                                    );
+                                                                                })}
+
+                                                                                {/* Contenido de la grilla */}
+                                                                                {[
+                                                                                    {
+                                                                                        type: 'FUNCIONAL', hex: '#E17B3C', soft: '#E17B3C22', exercises: [
+                                                                                            ['Circuito de escalera d...', 'Rotaciones de torso c...'],
+                                                                                            ['Circuito de escalera d...', 'Rotaciones de torso c...'],
+                                                                                            ['Circuito de escalera d...'],
+                                                                                            ['Plancha con toques d...'],
+                                                                                            ['Plancha con toques d...', 'Rotaciones de torso c...'],
+                                                                                            ['Circuito de escalera d...', 'Rotaciones de torso c...'],
+                                                                                            ['Circuito de escalera d...', 'Rotaciones de torso c...'],
+                                                                                        ]
+                                                                                    },
+                                                                                    {
+                                                                                        type: 'FUERZA', hex: '#FFB940', soft: '#FFB94022', exercises: [
+                                                                                            ['Press militar con barra'],
+                                                                                            ['Press militar con barra'],
+                                                                                            ['Hiit fútbol', 'Press con mancuerna...', 'Hiit fútbol', 'Press con mancuerna...'],
+                                                                                            ['Remo con banda y man...'],
+                                                                                            ['Remo con banda y man...'],
+                                                                                            ['Press militar con barra'],
+                                                                                            ['Press militar con barra'],
+                                                                                        ]
+                                                                                    },
+                                                                                    {
+                                                                                        type: 'MOVILIDAD', hex: '#A0A0A0', soft: '#A0A0A022', exercises: [
+                                                                                            ['Yoga restaurativo'],
+                                                                                            ['Yoga restaurativo'],
+                                                                                            [],
+                                                                                            [],
+                                                                                            [],
+                                                                                            ['Yoga restaurativo'],
+                                                                                            ['Yoga restaurativo'],
+                                                                                        ]
+                                                                                    },
+                                                                                    {
+                                                                                        type: 'HIIT', hex: '#D1664C', soft: '#D1664C22', exercises: [
+                                                                                            [],
+                                                                                            [],
+                                                                                            [],
+                                                                                            ['Burpees explosivos'],
+                                                                                            ['Burpees explosivos'],
+                                                                                            [],
+                                                                                            [],
+                                                                                        ]
+                                                                                    }
+                                                                                ].map(row => (
+                                                                                    <React.Fragment key={row.type}>
+                                                                                        <div className="py-2 pr-2 flex items-center">
+                                                                                            <span className="px-2 py-0.5 rounded-lg border text-[9px] font-black uppercase tracking-tighter w-full shadow-sm text-center" style={{ color: row.hex, borderColor: row.hex + '33', backgroundColor: row.soft }}>{row.type}</span>
+                                                                                        </div>
+                                                                                        {row.exercises.map((dayExercises, di) => {
+                                                                                            const count = dayExercises.length;
+                                                                                            return (
+                                                                                                <div
+                                                                                                    key={di}
+                                                                                                    className={`m-1 min-h-[75px] p-2 rounded-xl border flex flex-col items-center justify-center relative overflow-hidden ${count > 0 ? 'bg-white/[0.03] border-white/10 shadow-inner' : 'border-dashed border-white/5'}`}
+                                                                                                >
+                                                                                                    {count > 0 && (
+                                                                                                        <>
+                                                                                                            <div className="absolute inset-0 opacity-10" style={{ backgroundColor: row.hex }}></div>
+                                                                                                            <div className="flex flex-col gap-1 w-full relative z-10 overflow-hidden px-0.5">
+                                                                                                                {dayExercises.map((ex, idx) => (
+                                                                                                                    <div
+                                                                                                                        key={idx}
+                                                                                                                        className="text-[9.5px] leading-[1.1] font-black uppercase truncate w-full px-1.5 py-1 rounded shadow-sm italic tracking-tighter text-center"
+                                                                                                                        style={{
+                                                                                                                            backgroundColor: row.soft,
+                                                                                                                            color: row.hex,
+                                                                                                                            border: `1px solid ${row.hex}44`
+                                                                                                                        }}
+                                                                                                                    >
+                                                                                                                        {ex}
+                                                                                                                    </div>
+                                                                                                                ))}
+                                                                                                            </div>
+                                                                                                        </>
+                                                                                                    )}
+                                                                                                </div>
+                                                                                            );
+                                                                                        })}
+                                                                                    </React.Fragment>
+                                                                                ))}
+                                                                            </div>
+                                                                        </div>
+                                                                    </div>
+
+                                                                    {/* Footer Mockup */}
+                                                                    <div className="mt-auto px-6 py-6 pb-2 flex justify-end items-center relative z-20">
+                                                                        <div className="flex items-center gap-4 px-8 py-3.5 bg-transparent border border-[#FF7939]/30 rounded-2xl group cursor-pointer transition-all hover:bg-[#FF7939]/10">
+                                                                            <span className="text-[13px] font-[1000] text-[#FF7939] italic uppercase tracking-tighter">Siguiente</span>
+                                                                            <ChevronRight size={16} className="text-[#FF7939] group-hover:translate-x-1 transition-transform" />
+                                                                        </div>
+                                                                    </div>
+                                                                </div>
+                                                            </div>
+
+                                                            {/* Desktop Footer Nav */}
+                                                            <div className="h-[60px] w-full px-8 bg-[#060606] border-t border-white/5 flex justify-center items-center">
+                                                                <div className="flex items-center justify-center gap-12 sm:gap-24 w-full h-full opacity-60">
+                                                                    <Users size={18} />
+                                                                    <ShoppingBag size={18} />
+                                                                    <div className="w-10 h-10 bg-[#FF7939]/10 border border-[#FF7939]/20 rounded-full flex items-center justify-center">
+                                                                        <Flame size={18} className="text-[#FF7939]" />
+                                                                    </div>
+                                                                    <Calendar size={18} />
+                                                                    <User size={18} />
+                                                                </div>
+                                                            </div>
+                                                        </div>
+                                                    </div>
+                                                </div>
+
+                                                {/* MacBook Stand / Base */}
+                                                <div className="relative z-10 w-[104%] ml-[-2%] h-[12px] md:h-[16px] bg-gradient-to-b from-[#3f3f46] via-[#27272a] to-[#18181b] rounded-b-[16px] md:rounded-b-[24px] shadow-[0_30px_60px_rgba(0,0,0,1)] -mt-1 flex justify-center border-t border-[#111]">
+                                                    {/* Opening Lip */}
+                                                    <div className="w-[120px] md:w-[150px] h-[6px] md:h-[8px] bg-[#09090b] rounded-b-[6px] md:rounded-b-[8px] border-x border-b border-black/40 shadow-inner" />
+                                                </div>
+                                            </div>
+                                        </div>
+
+                                        <div className="mt-12 flex justify-center">
+                                            <Button className="bg-[#FF7939] text-black hover:bg-[#FF7939]/90 rounded-full px-12 py-7 h-auto text-[11px] font-black italic uppercase shadow-[0_0_50px_rgba(255,121,57,0.2)] border-none flex items-center gap-3 group">
+                                                Crear mi perfil Coach <ChevronRight size={18} className="group-hover:translate-x-1 transition-transform" />
+                                            </Button>
+                                        </div>
+                                    </div>
                                 </div>
-                            </div>
-                        )}
+                            );
+                        })()}
                     </motion.div>
                 </AnimatePresence>
             </div>
-
-            {/* Final CTA Overlay */}
-            <section className="text-center py-20 relative">
-                <div className="absolute -inset-10 bg-[#FF7939]/5 blur-[100px] -z-10" />
-                <div className="w-16 h-1 w-full bg-gradient-to-r from-transparent via-[#FF7939]/30 to-transparent mx-auto mb-10" />
-                <h2 className="text-3xl font-black text-white uppercase italic tracking-tighter mb-8 leading-tight">
-                    ¿Estás listo para <br />
-                    <span className="text-[#FF7939]">la evolución?</span>
-                </h2>
-                <Button className="bg-white text-black hover:bg-white/90 rounded-full px-16 py-8 h-auto text-sm font-black italic uppercase shadow-[0_0_50px_rgba(255,255,255,0.1)] border-none">
-                    Unirme a la comunidad
-                </Button>
-            </section>
         </div>
-    )
+    );
 }
+
