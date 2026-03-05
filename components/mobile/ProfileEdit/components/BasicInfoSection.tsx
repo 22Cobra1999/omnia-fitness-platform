@@ -31,6 +31,16 @@ export function BasicInfoSection({ data, onChange }: BasicInfoSectionProps) {
                         placeholder="Ciudad, País"
                     />
                 </div>
+                <div className="group">
+                    <Label htmlFor="birth_date" className="text-[10px] uppercase tracking-widest text-gray-500 group-focus-within:text-[#FF7939]">Fecha de Nacimiento</Label>
+                    <Input
+                        id="birth_date"
+                        type="date"
+                        value={data.birth_date}
+                        onChange={(e) => onChange({ birth_date: e.target.value })}
+                        className="bg-transparent border-0 border-b border-white/10 rounded-none px-0 py-2 h-auto text-white focus-visible:ring-0 focus-visible:border-[#FF7939] text-sm [color-scheme:dark]"
+                    />
+                </div>
             </div>
         </div>
     )

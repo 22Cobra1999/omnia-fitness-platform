@@ -323,19 +323,19 @@ function MobileAppContent({ initialTab, initialCategoryId, initialActivityId, in
     scrollY.set(e.currentTarget.scrollTop)
   }
 
-  // Create transforms directly from scrollY
+  // Crear transforms directamente de scrollY
   const bgOpacity = useTransform(scrollY, [50, 120], [0, 1])
 
-  // Decrease scale from 2.5 to 1 smoothly over 160px of scroll, then shrink slightly when moving into mockups
-  const logoScale = useTransform(scrollY, [0, 160, 2600, 3000], [2.5, 1, 1, 0.8])
+  // Disminuir escala gradualmente y encoger al llegar a la sección de iPhone
+  const logoScale = useTransform(scrollY, [0, 160, 1200, 1600], [2.5, 1, 1, 0.4])
 
-  // Move Y from 120 to 0 smoothly over 160px of scroll, then translate down into the device mockups
-  const logoY = useTransform(scrollY, [0, 160, 2600, 3000], [120, 0, 0, 80])
+  // Mover Y de 120 a 0, y bajar hacia la pantalla del dispositivo al llegar a esa sección
+  const logoY = useTransform(scrollY, [0, 160, 1200, 1700], [120, 0, 0, 450])
 
-  // Fade out when entering the mockup sections
-  const logoOpacity = useTransform(scrollY, [0, 160, 2600, 3000], [1, 1, 1, 0])
+  // Hacer que desaparezca cuando se integra al mockup
+  const logoOpacity = useTransform(scrollY, [0, 160, 1400, 1650], [1, 1, 1, 0])
 
-  // Use motion values that fallback to defaults if not in community tab
+  // Usar motion values con fallback a defaults si no está en community tab
   const actualBgOpacity = useTransform(bgOpacity, v => activeTab === 'community' ? v : 1)
   const headerBgColor = useTransform(actualBgOpacity, o => `rgba(0, 0, 0, ${o})`)
 

@@ -3,26 +3,38 @@ import { Label } from "@/components/ui/label"
 import { Textarea } from "@/components/ui/textarea"
 import { Switch } from "@/components/ui/switch"
 import { ProfileData } from '../types'
-import { Star, Smartphone, Instagram, Coffee, Video, Briefcase, Award } from "lucide-react"
+import { Star, Smartphone, Instagram, Coffee, Video, Briefcase, Award, Plus, X } from "lucide-react"
+import { useState } from "react"
 
 interface CoachDataSectionProps {
     data: ProfileData
     onChange: (updates: Partial<ProfileData>) => void
 }
 
+const COMMON_SPECIALTIES = [
+    'Fútbol', 'Fitness', 'Musculación', 'Yoga', 'Pilates',
+    'CrossFit', 'Running', 'Funcional', 'Preparación Física', 'Rehabilitación'
+]
+
 export function CoachDataSection({ data, onChange }: CoachDataSectionProps) {
+    const [isSpecialtiesOpen, setIsSpecialtiesOpen] = useState(false)
+
+    const specs = data.specialization
+        ? data.specialization.split(',').map(s => s.trim()).filter(Boolean)
+        : []
+
+    const toggleSpecialty = (spec: string) => {
+        if (specs.includes(spec)) {
+            onChange({ specialization: specs.filter(s => s !== spec).join(', ') })
+        } else {
+            onChange({ specialization: [...specs, spec].join(', ') })
+        }
+    }
+
+    const availableSpecialties = COMMON_SPECIALTIES.filter(s => !specs.includes(s))
+
     return (
         <div className="space-y-6 animate-in fade-in slide-in-from-bottom-4 duration-500">
-            <div className="bg-[#FF7939]/5 border border-[#FF7939]/10 rounded-2xl p-4 flex items-center gap-3">
-                <div className="p-2 bg-[#FF7939]/10 rounded-xl">
-                    <Star className="w-5 h-5 text-[#FF7939]" />
-                </div>
-                <div>
-                    <h4 className="text-sm font-bold text-white uppercase italic">Perfil Profesional</h4>
-                    <p className="text-[10px] text-white/40 uppercase tracking-widest font-bold">Cómo te verán tus alumnos</p>
-                </div>
-            </div>
-
             <div className="space-y-4">
                 <div className="group">
                     <Label htmlFor="bio" className="text-[10px] uppercase tracking-widest text-gray-500 group-focus-within:text-[#FF7939] mb-2 block">Bio / Presentación</Label>
@@ -35,61 +47,49 @@ export function CoachDataSection({ data, onChange }: CoachDataSectionProps) {
                     />
                 </div>
 
-                <div className="grid grid-cols-2 gap-4">
-                    <div className="group">
-                        <Label htmlFor="specialization" className="text-[10px] uppercase tracking-widest text-gray-500 group-focus-within:text-[#FF7939] mb-2 block flex items-center gap-1">
-                            <Briefcase className="w-3 h-3" /> Especialidad
-                        </Label>
-                        <Input
-                            id="specialization"
-                            value={data.specialization}
-                            onChange={(e) => onChange({ specialization: e.target.value })}
-                            className="bg-white/5 border-white/10 rounded-xl px-4 h-12 text-white focus:ring-[#FF7939]/30 focus:border-[#FF7939]/50 transition-all placeholder:text-gray-700 text-sm"
-                            placeholder="fútbol, fitness, etc."
-                        />
-                    </div>
-                    <div className="group">
-                        <Label htmlFor="experience_years" className="text-[10px] uppercase tracking-widest text-gray-500 group-focus-within:text-[#FF7939] mb-2 block flex items-center gap-1">
-                            <Award className="w-3 h-3" /> Años Exp.
-                        </Label>
-                        <Input
-                            id="experience_years"
-                            type="number"
-                            value={data.experience_years}
-                            onChange={(e) => onChange({ experience_years: e.target.value })}
-                            className="bg-white/5 border-white/10 rounded-xl px-4 h-12 text-white focus:ring-[#FF7939]/30 focus:border-[#FF7939]/50 transition-all placeholder:text-gray-700 text-sm"
-                            placeholder="0"
-                        />
-                    </div>
+                <div className="group">
+                    <Label htmlFor="experience_years" className="text-[10px] uppercase tracking-widest text-gray-500 group-focus-within:text-[#FF7939] mb-2 block flex items-center gap-1">
+                        <Award className="w-3 h-3" /> Años de Experiencia
+                    </Label>
+                    <Input
+                        id="experience_years"
+                        type="number"
+                        value={data.experience_years}
+                        onChange={(e) => onChange({ experience_years: e.target.value })}
+                        className="bg-white/5 border-white/10 rounded-xl px-4 h-12 text-white focus:ring-[#FF7939]/30 focus:border-[#FF7939]/50 transition-all placeholder:text-gray-700 text-sm"
+                        placeholder="Ej: 5"
+                    />
                 </div>
 
-                <div className="grid grid-cols-2 gap-4">
-                    <div className="group">
-                        <Label htmlFor="whatsapp" className="text-[10px] uppercase tracking-widest text-gray-500 group-focus-within:text-[#FF7939] mb-2 block flex items-center gap-1">
-                            <Smartphone className="w-3 h-3" /> WhatsApp
+                <div>
+                    <div className="flex items-center justify-between mb-3">
+                        <Label className="text-[10px] uppercase tracking-widest text-[#FF7939] flex items-center gap-1">
+                            <Briefcase className="w-3 h-3" /> Especialidades
                         </Label>
-                        <Input
-                            id="whatsapp"
-                            type="tel"
-                            value={data.whatsapp}
-                            onChange={(e) => onChange({ whatsapp: e.target.value })}
-                            className="bg-white/5 border-white/10 rounded-xl px-4 h-12 text-white focus:ring-[#FF7939]/30 focus:border-[#FF7939]/50 transition-all placeholder:text-gray-700 text-sm"
-                            placeholder="Ej: +54..."
-                        />
+                        <button type="button" onClick={() => setIsSpecialtiesOpen(!isSpecialtiesOpen)} className="w-6 h-6 rounded-full bg-[#FF7939]/10 text-[#FF7939] flex items-center justify-center">
+                            <Plus className="h-4 w-4" />
+                        </button>
                     </div>
-                    <div className="group">
-                        <Label htmlFor="instagram_username" className="text-[10px] uppercase tracking-widest text-gray-500 group-focus-within:text-[#FF7939] mb-2 block flex items-center gap-1">
-                            <Instagram className="w-3 h-3" /> Instagram
-                        </Label>
-                        <Input
-                            id="instagram_username"
-                            value={data.instagram_username}
-                            onChange={(e) => onChange({ instagram_username: e.target.value })}
-                            className="bg-white/5 border-white/10 rounded-xl px-4 h-12 text-white focus:ring-[#FF7939]/30 focus:border-[#FF7939]/50 transition-all placeholder:text-gray-700 text-sm"
-                            placeholder="@tu_usuario"
-                        />
+
+                    <div className="flex flex-wrap gap-2 mb-2">
+                        {specs.map((s, i) => (
+                            <div key={i} onClick={() => toggleSpecialty(s)} className="cursor-pointer flex items-center gap-1.5 bg-[#FF7939]/10 text-[#FF7939] border border-[#FF7939]/30 rounded-full px-3 py-1 text-xs font-bold uppercase transition-all hover:scale-105">
+                                <span>{s}</span><X className="h-3 w-3 opacity-50" />
+                            </div>
+                        ))}
                     </div>
+
+                    {isSpecialtiesOpen && (
+                        <div className="mt-4 grid grid-cols-2 gap-2 max-h-[160px] overflow-y-auto pr-2 custom-scrollbar">
+                            {availableSpecialties.map((s) => (
+                                <button key={s} type="button" onClick={() => toggleSpecialty(s)} className="text-left px-3 py-2 rounded-lg bg-white/5 hover:bg-white/10 text-gray-300 text-xs transition-colors border border-white/5">
+                                    {s}
+                                </button>
+                            ))}
+                        </div>
+                    )}
                 </div>
+
             </div>
 
             <div className="space-y-4 pt-4 border-t border-white/10">

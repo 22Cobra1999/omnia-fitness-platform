@@ -125,71 +125,124 @@ const ShowcaseRingSegment = ({
 };
 
 export const ShowcaseActivityRings = ({
-    days = { completed: 0, absent: 0, total: 30 },
-    fitness = { completed: 0, absent: 0, total: 0 },
-    nutrition = { completed: 0, absent: 0, total: 0 },
+    kcal = { completed: 0, total: 100 },
+    minutes = { completed: 0, total: 100 },
+    activity = { completed: 0, total: 100, color: "#FF7939" },
     streak = 0,
     size = 110,
     hideStreak = false,
-    avatarUrl = null
+    avatarUrl = null,
+    clientName = ""
 }: {
-    days?: { completed: number, absent: number, total: number },
-    fitness?: { completed: number, absent: number, total: number },
-    nutrition?: { completed: number, absent: number, total: number },
+    kcal?: { completed: number, missed?: number, total: number },
+    minutes?: { completed: number, missed?: number, total: number },
+    activity?: { completed: number, missed?: number, total: number, color: string },
     streak?: number,
     size?: number,
     hideStreak?: boolean,
-    avatarUrl?: string | null
+    avatarUrl?: string | null,
+    clientName?: string
 }) => {
     const center = size / 2;
-    const strokeWidth = size * 0.063; // Proporcional
-    const gap = size * 0.031; // Proporcional
+    const strokeWidth = size * 0.1;
+    const gap = size * 0.015;
 
     const r1 = center - strokeWidth;
     const r2 = r1 - strokeWidth - gap;
     const r3 = r2 - strokeWidth - gap;
 
-    const renderRing = (radius: number, stats: { completed: number, absent: number, total: number }, colors: { completed: string, absent: string }) => {
-        const total = stats.total || 30;
+    const renderRing = (radius: number, stats: { completed: number, missed?: number, total: number }, color: string) => {
+        const total = stats.total || 100;
         const compPerc = Math.min((stats.completed / total) * 100, 100);
-        const absPerc = Math.min((stats.absent / total) * 100, 100 - compPerc);
+        const missedPerc = Math.min(((stats.missed || 0) / total) * 100, 100 - compPerc);
 
         return (
             <>
-                <circle cx={center} cy={center} r={radius} fill="transparent" stroke="#27272a" strokeWidth={strokeWidth} />
+                <circle cx={center} cy={center} r={radius} fill="transparent" stroke="#27272a" strokeWidth={strokeWidth} strokeOpacity={0.3} />
+                {missedPerc > 0 && (
+                    <ShowcaseRingSegment
+                        center={center} radius={radius} strokeWidth={strokeWidth}
+                        percentage={missedPerc} offset={0} color="#ef4444"
+                    />
+                )}
                 <ShowcaseRingSegment
                     center={center} radius={radius} strokeWidth={strokeWidth}
-                    percentage={absPerc} offset={0} color="#ef4444"
-                    opacity={0.4}
-                />
-                <ShowcaseRingSegment
-                    center={center} radius={radius} strokeWidth={strokeWidth}
-                    percentage={compPerc} offset={absPerc} color={colors.completed}
+                    percentage={compPerc} offset={missedPerc} color={color}
                 />
             </>
         );
     };
 
     return (
-        <div className="relative flex items-center justify-center" style={{ width: size, height: size }}>
+        <div className="relative flex items-center justify-center transition-transform" style={{ width: size, height: size }}>
             <svg width={size} height={size} viewBox={`0 0 ${size} ${size}`}>
-                {renderRing(r1, days, { completed: "#FF7939", absent: "#ef4444" })}
-                {renderRing(r2, fitness, { completed: "#FFFFFF", absent: "#ef4444" })}
-                {nutrition.total > 0 && renderRing(r3, nutrition, { completed: "#FACC15", absent: "#ef4444" })}
+                {/* 1. Kcal - White (Outer) */}
+                {renderRing(r1, kcal, "#FFFFFF")}
+                {/* 2. Minutes - Dark Orange (Middle) */}
+                {renderRing(r2, minutes, "#E65100")}
+                {/* 3. Activity - Orange/Yellow (Inner) */}
+                {renderRing(r3, activity, activity.color)}
             </svg>
             <div className="absolute inset-0 flex flex-col items-center justify-center pointer-events-none">
                 {avatarUrl ? (
-                    <div className="w-[62%] h-[62%] rounded-full border border-black/40 overflow-hidden shadow-xl translate-y-[0px]">
-                        <img src={avatarUrl} className="w-full h-full object-cover" />
+                    <div className="w-[45%] h-[45%] rounded-full border border-black/40 overflow-hidden shadow-xl">
+                        <img src={avatarUrl} className="w-full h-full object-cover" alt={clientName} />
                     </div>
                 ) : !hideStreak && (
                     <div className="flex flex-col items-center justify-center -translate-y-[2px]">
-                        <Flame size={size * 0.18} className="text-[#FF7939] fill-[#FF7939] mb-[1px]" />
-                        <span className="font-black text-white italic leading-none" style={{ fontSize: size * 0.2 }}>{streak}</span>
+                        <Flame size={size * 0.15} className="text-[#FF7939] fill-[#FF7939] mb-[1px]" />
+                        <span className="font-black text-white italic leading-none" style={{ fontSize: size * 0.16 }}>{streak}</span>
                     </div>
                 )}
             </div>
         </div>
+    );
+};
+
+/**
+ * ShowcaseTripleMiniRing: 3 tiny rings for the weekly daily summary
+ */
+export const ShowcaseTripleMiniRing = ({ status = 'pending', activeTab = 'fitness' }: { status?: 'pending' | 'completed' | 'missed', activeTab?: string }) => {
+    const size = 26;
+    const center = size / 2;
+    const sw = 2.2;
+    const g = 1.2;
+
+    const r1 = center - sw;
+    const r2 = r1 - sw - g;
+    const r3 = r2 - sw - g;
+
+    const colors = {
+        kcal: status === 'missed' ? '#ef4444' : (status === 'completed' ? '#FFFFFF' : '#27272a'),
+        min: status === 'missed' ? '#ef4444' : (status === 'completed' ? '#E65100' : '#27272a'),
+        act: status === 'missed' ? '#ef4444' : (status === 'completed' ? (activeTab === 'fitness' ? '#FF7939' : '#FACC15') : '#27272a')
+    };
+
+    const renderMini = (r: number, color: string, perc: number) => (
+        <>
+            <circle cx={center} cy={center} r={r} fill="transparent" stroke={status === 'pending' ? '#27272a' : color} strokeWidth={sw} strokeOpacity={status === 'pending' ? 1 : 0.2} />
+            {status !== 'pending' && (
+                <motion.circle
+                    cx={center} cy={center} r={r}
+                    fill="transparent"
+                    stroke={color}
+                    strokeWidth={sw}
+                    strokeDasharray={2 * Math.PI * r}
+                    initial={{ strokeDashoffset: 2 * Math.PI * r }}
+                    animate={{ strokeDashoffset: 2 * Math.PI * r * (1 - perc) }}
+                    transition={{ duration: 1, ease: "easeOut" }}
+                    strokeLinecap="round"
+                />
+            )}
+        </>
+    );
+
+    return (
+        <svg width={size} height={size} viewBox={`0 0 ${size} ${size}`} className="transform -rotate-90">
+            {renderMini(r1, colors.kcal, 0.8)}
+            {renderMini(r2, colors.min, 0.6)}
+            {renderMini(r3, colors.act, 0.7)}
+        </svg>
     );
 };
 
@@ -475,43 +528,52 @@ export const ShowcaseCalendarDetail = ({ day, activities = [] }: { day: number, 
                                 <div className={cn(
                                     "w-10 h-10 rounded-full flex items-center justify-center border",
                                     act.type === 'fitness' ? "bg-[#FF7939]/10 text-[#FF7939] border-[#FF7939]/20" :
-                                        "bg-[#FFB366]/10 text-[#FFB366] border-[#FFB366]/20"
+                                        act.type === 'nutrition' ? "bg-[#FACC15]/10 text-[#FACC15] border-[#FACC15]/20" :
+                                            act.type === 'workshop' ? "bg-pink-500/10 text-pink-400 border-pink-500/20" :
+                                                "bg-orange-500/10 text-orange-400 border-orange-500/20"
                                 )}>
                                     {act.type === 'fitness' ? <Zap size={18} /> :
-                                        <Utensils size={18} />}
+                                        act.type === 'nutrition' ? <Utensils size={18} /> :
+                                            act.type === 'workshop' ? <GraduationCap size={18} /> :
+                                                <Video size={18} />}
                                 </div>
                                 <div className="flex flex-col">
                                     <div className="flex items-center gap-2">
-                                        <span className="text-sm font-black text-white tracking-tighter">{act.title}</span>
-                                        {act.is1on1 && <span className="text-[8px] font-black text-white/40 bg-white/10 px-1 rounded uppercase tracking-widest">1:1</span>}
-                                        {act.isGroup && <span className="text-[8px] font-black text-white/40 bg-white/10 px-1 rounded uppercase tracking-widest">GRUPO</span>}
+                                        <span className="text-sm font-black text-white tracking-tighter uppercase italic">{act.title}</span>
+                                        <span className="text-[8px] font-black text-[#FF7939] bg-[#FF7939]/10 px-1.5 py-0.5 rounded uppercase tracking-widest border border-[#FF7939]/20">
+                                            {act.subtitle || 'Programa'}
+                                        </span>
                                     </div>
-                                    <div className="flex items-center gap-2">
-                                        <span className="text-[9px] font-black text-white/30 uppercase tracking-widest leading-none">
-                                            {act.type === 'fitness' ? 'Fitness · Programa' :
-                                                act.type === 'nutrition' ? 'Nutrición · Programa' :
-                                                    act.type === 'workshop' ? 'Workshop · Vivo' : 'Meet · Video'}
-                                        </span>
-                                        <span className={cn(
-                                            "text-[9px] font-black px-1.5 py-0.5 rounded italic",
-                                            act.type === 'fitness' ? "text-[#FFB366] bg-[#FF7939]/10" :
-                                                act.type === 'nutrition' ? "text-[#FFB366] bg-[#FF7939]/10" :
-                                                    act.type === 'workshop' ? "text-[#F8BBD0] bg-[#F8BBD0]/10" : "text-orange-500 bg-orange-500/10"
-                                        )}>
-                                            {act.subtitle || act.time}
-                                        </span>
+                                    <div className="flex items-center gap-1.5 mt-1">
+                                        {(act.type === 'workshop' || act.type === 'meet') ? (
+                                            <div className="flex flex-col gap-0.5">
+                                                <span className="text-[9px] font-bold text-white/40 uppercase tracking-widest leading-none">
+                                                    {act.status || 'Confirmado'} con <span className="text-white/60">{act.coach || 'Coach'}</span>
+                                                </span>
+                                                <span className="text-[8px] font-black text-[#FF7939] uppercase tracking-widest mt-1">
+                                                    Horario: {act.time || '10:00 a 11:30'}
+                                                </span>
+                                            </div>
+                                        ) : (
+                                            <div className="flex items-center gap-1.5">
+                                                <Clock size={10} className="text-white/30" />
+                                                <span className="text-[9px] font-black text-white/30 uppercase tracking-widest leading-none">
+                                                    {act.duration || '45m'}
+                                                </span>
+                                            </div>
+                                        )}
                                     </div>
                                 </div>
                             </div>
                             <div className="flex items-center gap-0.5">
                                 {act.type === 'fitness' ? <Flame size={14} className="text-[#FF7939]" /> :
-                                    act.type === 'nutrition' ? <UtensilsCrossed size={14} className="text-[#FFB366]" /> :
+                                    act.type === 'nutrition' ? <UtensilsCrossed size={14} className="text-[#FACC15]" /> :
                                         act.type === 'workshop' ? <Star size={14} className="text-pink-400" /> :
                                             <Video size={14} className="text-orange-500" />}
                                 <span className={cn(
                                     "text-[11px] font-black",
                                     act.type === 'fitness' ? "text-[#FF7939]" :
-                                        act.type === 'nutrition' ? "text-[#FFB366]" :
+                                        act.type === 'nutrition' ? "text-[#FACC15]" :
                                             act.type === 'workshop' ? "text-pink-400" : "text-orange-500"
                                 )}>
                                     {act.metric || '1'}
@@ -564,21 +626,39 @@ export const MockCalendar = () => {
             { type: 'fitness', title: 'Movilidad Articular', duration: '20m', subtitle: 'Programa', metric: '1' }
         ],
         15: [
-            { type: 'fitness', title: 'Fuerza de Voluntad', duration: '60m', subtitle: 'Programa', metric: '1' },
+            { type: 'fitness', title: 'Fuerza de Voluntad', duration: '60m', subtitle: 'Programa', metric: '1', flame: true },
+            { type: 'fitness', title: 'Power Snatch', duration: '15m', subtitle: 'Programa', metric: '1' },
             { type: 'nutrition', title: 'Plan de Macronutrientes', count: '3', subtitle: 'Programa', metric: '3' }
         ],
         16: [
-            { type: 'fitness', title: 'Pliométricos de Ronaldinho', duration: '2m', subtitle: 'Programa', metric: '1' },
-            { type: 'nutrition', title: 'Programa de Nutrición', count: '5', subtitle: 'Programa', metric: '5' }
+            { type: 'fitness', title: 'Pliométricos', duration: '25m', subtitle: 'Programa', metric: '1' },
+            { type: 'fitness', title: 'Salto al cajón', duration: '12m', subtitle: 'Extra', metric: '1' },
+            { type: 'nutrition', title: 'Suples post-entreno', count: '2', subtitle: 'Nutrición', metric: '2' }
+        ],
+        17: [
+            { type: 'meet', title: 'Sesión 1:1', coach: 'Bauti B.', status: 'Agendado', subtitle: 'Encuentro', time: '14:00 a 15:00', metric: '1' },
+            { type: 'fitness', title: 'Cardio LISS', duration: '40m', subtitle: 'Salud', metric: '1' }
         ],
         18: [
-            { type: 'fitness', title: 'Resistencia Muscular', duration: '50m', subtitle: 'Programa', metric: '1' }
+            { type: 'fitness', title: 'Resistencia Muscular', duration: '50m', subtitle: 'Programa', metric: '1' },
+            { type: 'nutrition', title: 'Cena Vegana', count: '1', subtitle: 'Receta', metric: '1' }
+        ],
+        20: [
+            { type: 'workshop', title: 'Masterclass HIIT', coach: 'Franco P.', status: 'En Vivo', subtitle: 'Workshop', time: '11:00 a 12:30', metric: '25' }
         ],
         22: [
+            { type: 'fitness', title: 'Full Body', duration: '65m', subtitle: 'Programa', metric: '1' },
             { type: 'nutrition', title: 'Cena de Proteína Alta', count: '1', subtitle: 'Programa', metric: '1' }
         ],
         25: [
-            { type: 'fitness', title: 'Entrenamiento de Core', duration: '30m', subtitle: 'Programa', metric: '1' }
+            { type: 'fitness', title: 'Entrenamiento de Core', duration: '30m', subtitle: 'Programa', metric: '1' },
+            { type: 'meet', title: 'Check-in mensual', coach: 'Fran Pomati', status: 'Confirmado', subtitle: 'Meet', time: '09:30 a 10:00', metric: '1' }
+        ],
+        28: [
+            { type: 'workshop', title: 'Taller de Postura', coach: 'Maru Yoga', status: 'En Vivo', subtitle: 'Online', time: '18:00 a 19:30', metric: '20' }
+        ],
+        30: [
+            { type: 'workshop', title: 'Entrenamiento Grupal', coach: 'Franco Pomati', status: 'Confirmado', subtitle: 'Presencial', time: '10:00 a 11:30', metric: '15' }
         ]
     }
 

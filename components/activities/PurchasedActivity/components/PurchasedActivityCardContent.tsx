@@ -48,11 +48,14 @@ export function PurchasedActivityCardContent({
     return (
         <div className={cn(
             "flex-1 flex flex-col h-full min-h-0 relative",
-            size === "small" ? "p-2.5" : "p-4"
+            size === "small" ? "p-2 px-3" : "p-4"
         )}>
             {/* 1. Título con filtro condicional */}
-            <div className={cn("mb-2", daysInfo.isExpired && "grayscale opacity-60")}>
-                <h3 className="text-white font-bold leading-tight text-base h-[2.5em] overflow-hidden line-clamp-2">
+            <div className={cn("mb-1", daysInfo.isExpired && "grayscale opacity-60")}>
+                <h3 className={cn(
+                    "text-white font-bold leading-tight h-[2.5em] overflow-hidden line-clamp-2",
+                    size === "small" ? "text-sm" : "text-base"
+                )}>
                     {activity.title}
                 </h3>
             </div>
@@ -76,8 +79,8 @@ export function PurchasedActivityCardContent({
 
 
             {/* 3. Badges com filtro */}
-            <div className={cn("flex flex-row items-center gap-2 mb-3 overflow-hidden whitespace-nowrap", daysInfo.isExpired && "grayscale opacity-60")}>
-                <Badge variant="outline" className="bg-transparent border-[#FF7939] text-[#FF7939] text-[9px] px-1.5 h-4 font-bold tracking-wider uppercase shrink-0">
+            <div className={cn("flex flex-row items-center gap-2 mb-2 overflow-hidden whitespace-nowrap", daysInfo.isExpired && "grayscale opacity-60")}>
+                <Badge variant="outline" className="bg-transparent border-[#FF7939] text-[#FF7939] text-[8px] px-1 h-3.5 font-bold tracking-wider uppercase shrink-0">
                     {getCategoryBadge(activity.categoria)}
                 </Badge>
                 {getTypeBadge(activity.type) === 'TALLER' ? (
@@ -204,9 +207,9 @@ function CoachViewStats({
 
     if (isDocument) {
         return (
-            <div className="flex flex-col gap-1.5">
-                <div className="text-[9px] uppercase tracking-wider font-bold text-zinc-500 mb-0.5 px-0.5">Items</div>
-                <div className="flex flex-col text-[11px] text-zinc-400 gap-1.5 px-1">
+            <div className="flex flex-col gap-1">
+                <div className="text-[8px] uppercase tracking-wider font-bold text-zinc-500 mb-0.5 px-0.5">Items</div>
+                <div className="flex flex-col text-[10px] text-zinc-400 gap-1 px-1">
                     <div className="flex justify-between items-center text-orange-200">
                         <span>Completados:</span>
                         <span className="font-bold text-orange-300">{itemsCompletedTotal ?? 0}</span>
@@ -221,10 +224,10 @@ function CoachViewStats({
     }
 
     return (
-        <div className="flex flex-col gap-3 mb-2 border-t border-zinc-800/20 pt-2.5">
-            <div className="flex flex-col gap-1.5">
-                <div className="text-[9px] uppercase tracking-wider font-bold text-zinc-500 mb-0.5 px-0.5">Días</div>
-                <div className="flex flex-col text-[11px] text-zinc-400 gap-1.5 px-1">
+        <div className="flex flex-col gap-2 mb-1 border-t border-zinc-800/20 pt-2">
+            <div className="flex flex-col gap-1">
+                <div className="text-[8px] uppercase tracking-wider font-bold text-zinc-500 mb-0.5 px-0.5">Días</div>
+                <div className="flex flex-col text-[10px] text-zinc-400 gap-1 px-1">
                     <div className="flex justify-between items-center text-orange-200">
                         <span>Completados:</span>
                         <span className="font-bold text-orange-300">{daysCompleted ?? 0}</span>
@@ -233,7 +236,7 @@ function CoachViewStats({
                         <span>En curso:</span>
                         <span className="text-zinc-300 font-medium">{daysPassed ?? 0}</span>
                     </div>
-                    <div className="flex justify-between items-center opacity-80 text-red-400/60">
+                    <div className="flex justify-between items-center opacity-80 text-red-500/60">
                         <span>Ausente:</span>
                         <span className="font-medium">{daysMissed ?? 0}</span>
                     </div>
@@ -244,14 +247,14 @@ function CoachViewStats({
                 </div>
             </div>
 
-            <div className="flex flex-col gap-1.5 border-t border-zinc-800/10 pt-2">
-                <div className="text-[9px] uppercase tracking-wider font-bold text-zinc-500 mb-0.5 px-0.5">Items</div>
-                <div className="flex flex-col text-[11px] text-zinc-400 gap-1.5 px-1">
+            <div className="flex flex-col gap-1 border-t border-zinc-800/10 pt-1.5">
+                <div className="text-[8px] uppercase tracking-wider font-bold text-zinc-500 mb-0.5 px-0.5">Items</div>
+                <div className="flex flex-col text-[10px] text-zinc-400 gap-1 px-1">
                     <div className="flex justify-between items-center text-orange-200">
                         <span>Completados:</span>
                         <span className="font-bold text-orange-300">{itemsCompletedTotal ?? 0}</span>
                     </div>
-                    <div className="flex justify-between items-center opacity-80 text-red-400/60">
+                    <div className="flex justify-between items-center opacity-80 text-red-500/60">
                         <span>No logrados:</span>
                         <span className="font-medium">{itemsDebtPast ?? 0}</span>
                     </div>

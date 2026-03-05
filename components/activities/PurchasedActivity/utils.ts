@@ -47,16 +47,17 @@ export const formatDate = (dateString: string) => {
 
 export const getSizeClasses = (size: string) => {
     switch (size) {
-        case "small": return "w-72 h-[34rem]"
-        case "large": return "w-[400px] h-[42rem]"
-        default: return "w-[380px] h-[38rem]"
+        case "small": return "w-40 md:w-52 h-auto"
+        case "large": return "w-80 md:w-96 h-auto"
+        default: return "w-64 md:w-80 h-auto"
     }
 }
 
 export const getImageHeightClass = (size: string, isCoachView: boolean) => {
+    if (isCoachView) return "h-24"
     switch (size) {
-        case "small": return isCoachView ? "h-24" : "h-56"
-        case "large": return "h-72"
-        default: return "h-64"
+        case "small": return "h-48 md:h-56"
+        case "large": return "h-64 md:h-72"
+        default: return "h-56 md:h-64"
     }
 }

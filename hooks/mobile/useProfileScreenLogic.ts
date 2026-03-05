@@ -410,9 +410,9 @@ export function useProfileScreenLogic() {
     }, [selectedDay, metrics])
 
     const activityRings = useMemo(() => [
-        { type: "Kcal", current: source.calories.current, target: source.calories.target, color: "#FF6A00" },
-        { type: "Minutos", current: source.duration.current, target: source.duration.target, color: "#FF8C42" },
-        { type: activityFilter === 'fitness' ? "Ejercicios" : "Platos", current: source.exercises.current, target: source.exercises.target, color: "#FFFFFF" }
+        { type: "Kcal", current: source.calories.current, target: source.calories.target, color: "#FFFFFF" },
+        { type: "Minutos", current: source.duration.current, target: source.duration.target, color: "#E65100" },
+        { type: activityFilter === 'fitness' ? "Ejercicios" : "Platos", current: source.exercises.current, target: source.exercises.target, color: activityFilter === 'fitness' ? "#FF7939" : "#FACC15" }
     ], [source, activityFilter])
 
     const calculateAge = (date: string | undefined) => {

@@ -24,11 +24,17 @@ export async function POST(request: NextRequest) {
     // Obtener la actividad con su configuración adaptativa
     const { data: actBase } = await supabase
       .from('activities')
-      .select('coach_id, type, categoria, adaptive_config')
+      .select('coach_id, type, categoria, adaptive_rule_ids')
       .eq('id', activityId)
       .single()
 
-    const adaptiveConfig = actBase?.adaptive_config
+    const adaptiveRuleIds = actBase?.adaptive_rule_ids || []
+
+    // Obtener las reglas del catálogo que están habilitadas para esta actividad
+    const { data: catalogRules } = await supabase
+      .from('adaptive_rules_catalog')
+      .select('*')
+      .in('id', adaptiveRuleIds)
 
     const clientProfile: ClientProfile = {
       gender: clientFullProfile?.gender,
@@ -69,7 +75,7 @@ export async function POST(request: NextRequest) {
     }
 
     console.log('👤 Perfil cargado para personalización:', clientProfile)
-    console.log('📏 Adaptive Config detected:', adaptiveConfig ? 'Yes' : 'No')
+    console.log('📏 Adaptive Rules detected:', adaptiveRuleIds?.length || 0)
 
     // 1. Obtener información del enrollment
     let enrollmentData;
@@ -237,20 +243,47 @@ export async function POST(request: NextRequest) {
           const ejerciciosMap = new Map()
           ejerciciosData?.forEach((ej: any) => {
             if (categoria === 'nutricion') {
-              const legacyRules: any[] = []
-              const personalizedEj = applyPersonalization(ej, clientProfile, legacyRules)
+              // LÓGICA DE NUTRICIÓN ADAPTATIVA (Sincronizada con auditoría v3.0)
+              const bmi = (clientProfile.current_weight && clientProfile.current_height)
+                ? clientProfile.current_weight / Math.pow(clientProfile.current_height / 100, 2)
+                : 24
+              const age = clientProfile.birth_date ? calculateAge(clientProfile.birth_date) : 30
+              const gender = (clientProfile.gender || '').toLowerCase()
+
+              // Filtrar reglas que aplican a este cliente específico
+              const matchingRules = (catalogRules || []).filter(r => {
+                const name = (r.name || '').toLowerCase()
+                if (r.category === 'gender' && name.includes(gender)) return true
+                if (r.category === 'bmi' && bmi >= 30 && name.includes('obesidad')) return true
+                if (r.category === 'age' && age < 18 && name.includes('<18')) return true
+                if (r.category === 'age' && age >= 26 && age <= 35 && name.includes('plenitud')) return true
+                if (r.category === 'level' && name.includes((clientProfile.intensity_level || '').toLowerCase())) return true
+                return false
+              })
+
+              // Calcular multiplicadores acumulados (Producto de reglas)
+              let factorKcal = 1.0
+              let factorProt = 1.0
+              matchingRules.forEach(r => {
+                factorKcal *= (r.kcal || 1.0)
+                factorProt *= (r.proteina || 1.0)
+              })
+
+              const kcalFinal = Math.round((ej.calorias || 0) * factorKcal)
+              const protFinal = Number(((ej.proteinas || 0) * factorProt).toFixed(1))
 
               const detallesNutricion = {
-                proteinas: personalizedEj.proteinas || 0,
-                carbohidratos: personalizedEj.carbohidratos || 0,
-                grasas: personalizedEj.grasas || 0,
-                receta: personalizedEj.receta || ''
+                proteinas: protFinal,
+                carbohidratos: ej.carbohidratos || 0,
+                grasas: ej.grasas || 0,
+                receta: ej.receta || '',
+                ajuste_motor: factorKcal !== 1.0 ? factorKcal : undefined
               }
 
               ejerciciosMap.set(ej.id, {
                 detalle_series: JSON.stringify(detallesNutricion),
                 duracion_min: 0,
-                calorias: personalizedEj.calorias || 0
+                calorias: kcalFinal
               })
             } else {
               const base: AdaptiveBase = {
@@ -286,7 +319,7 @@ export async function POST(request: NextRequest) {
                 parsedBase.load_kg = ej.detalle_series.peso || ej.detalle_series.load || ej.detalle_series.kg || 0
               }
 
-              const adaptiveResult = reconstructPrescription(parsedBase, adaptiveProfile, adaptiveConfig)
+              const adaptiveResult = reconstructPrescription(parsedBase, adaptiveProfile, adaptiveRuleIds)
 
               const finalDetalle = {
                 series: adaptiveResult.final.sets,

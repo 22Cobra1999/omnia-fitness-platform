@@ -6,6 +6,7 @@ import { CoachStats } from "@/components/coach/coach-stats"
 import { PlanManagement } from "@/components/coach/plan-management"
 import { MercadoPagoConnection } from "@/components/coach/mercadopago-connection"
 import { GoogleCalendarConnection } from "@/components/coach/google-calendar-connection"
+import { SocialConnections } from "@/components/coach/social-connections"
 
 interface CoachProfileViewProps {
     logic: any
@@ -160,6 +161,7 @@ export function CoachProfileView({ logic }: CoachProfileViewProps) {
 
             <div className="space-y-3">
                 <PlanManagement />
+                <SocialConnections />
                 <div className="flex gap-3">
                     <div className="flex-1 min-w-0"><MercadoPagoConnection /></div>
                     <div className="flex-1 min-w-0"><GoogleCalendarConnection /></div>

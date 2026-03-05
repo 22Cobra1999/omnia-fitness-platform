@@ -2,8 +2,8 @@
 
 import React, { useState, useRef, useEffect } from 'react'
 import { motion, AnimatePresence, useScroll, useTransform, MotionValue, useMotionValue } from 'framer-motion'
-import { Flame, Star, Zap, ShoppingCart, Users, User, Briefcase, ChevronRight, ChevronLeft, Play, Utensils, Globe, Layers, Video, ShieldAlert, Scale, MapPin, ArrowLeft, ArrowRight, Edit2, Clock, X, Maximize2, FileText, Monitor, Laptop, Cloud, TrendingUp, BarChart3, PlusCircle, Mic, MicOff, VideoOff, PhoneOff, Hand, MoreVertical, MessageSquare, Info, LayoutGrid, ShieldCheck, Wifi, Calendar, Award, Settings, Search, SlidersHorizontal, ShoppingBag, BookOpen, Book, RotateCcw, Printer, MessageCircle } from 'lucide-react'
-import { ShowcaseBubble, ShowcaseProgressRing, ShowcaseFeatureCard, ShowcaseIngredients, MockCalendar, ShowcaseShelf, ShowcaseConcept, ShowcaseActivityRings, ShowcaseWeeklyMiniRings } from './ShowcaseComponents'
+import { Flame, Star, Zap, ShoppingCart, Users, User, Briefcase, ChevronRight, ChevronLeft, Play, Utensils, Globe, Layers, Video, ShieldAlert, Scale, MapPin, ArrowLeft, ArrowRight, ArrowDown, Edit2, Clock, X, Maximize2, FileText, Monitor, Laptop, Cloud, TrendingUp, BarChart3, PlusCircle, Plus, Mic, MicOff, VideoOff, PhoneOff, Hand, MoreVertical, MessageSquare, Info, LayoutGrid, ShieldCheck, Wifi, Calendar, Award, Settings, Search, SlidersHorizontal, ShoppingBag, BookOpen, Book, RotateCcw, Printer, MessageCircle } from 'lucide-react'
+import { ShowcaseBubble, ShowcaseProgressRing, ShowcaseFeatureCard, ShowcaseIngredients, MockCalendar, ShowcaseShelf, ShowcaseConcept, ShowcaseActivityRings, ShowcaseWeeklyMiniRings, ShowcaseTripleMiniRing } from './ShowcaseComponents'
 import { Button } from '@/components/ui/button'
 import { cn } from '@/lib/utils/utils'
 import { OmniaLogo, OmniaLogoText } from '@/components/shared/ui/omnia-logo'
@@ -18,8 +18,9 @@ interface OmniaShowcaseProps {
 
 export function OmniaShowcase({ scrollY }: OmniaShowcaseProps) {
     const [role, setRole] = useState<'client' | 'coach'>('client')
-    const [clientMockupType, setClientMockupType] = useState<'fitness' | 'nutrition' | 'profile'>('fitness')
-    const [coachMockupType, setCoachMockupType] = useState<'clients' | 'profile' | 'products'>('clients')
+    const [clientMockupType, setClientMockupType] = useState('fitness');
+    const [coachMockupType, setCoachMockupType] = useState('clients');
+    const [clientProfileTab, setClientProfileTab] = useState<'fitness' | 'nutrition'>('fitness');
     const [realActivities, setRealActivities] = useState<Activity[]>([])
     const [isLoadingReal, setIsLoadingReal] = useState(true)
 
@@ -157,6 +158,22 @@ export function OmniaShowcase({ scrollY }: OmniaShowcaseProps) {
         action()
     }
 
+    // 🌟 Resizer para iPad y MacBook
+    const [containerWidth, setContainerWidth] = useState(1440);
+    const [isMounted, setIsMounted] = useState(false);
+
+    useEffect(() => {
+        setIsMounted(true);
+        const handleResize = () => setContainerWidth(window.innerWidth);
+        handleResize();
+        window.addEventListener('resize', handleResize);
+        return () => window.removeEventListener('resize', handleResize);
+    }, []);
+
+    const safeWidth = isMounted ? containerWidth : 1440;
+    const ipadScale = safeWidth < (850 + 32) ? Math.max(0.3, (safeWidth - 32) / 850) : 1;
+    const macbookScale = safeWidth < (1440 + 32) ? Math.max(0.2, (safeWidth - 32) / 1440) : 1;
+
     // 🔄 Advanced Auto-cycle logic (TASK-004)
     useEffect(() => {
         if (!isAutoPlaying) return;
@@ -206,125 +223,162 @@ export function OmniaShowcase({ scrollY }: OmniaShowcaseProps) {
         visible: { opacity: 1, y: 0 }
     }
 
-    const PhoneMockup = ({ type, role = 'coach', children, active, onClick }: { type: string, role?: 'client' | 'coach', children: React.ReactNode, active: boolean, onClick: () => void }) => (
-        <motion.div
-            onClick={onClick}
-            initial={false}
-            animate={{
-                scale: active ? 1 : 0.95,
-                x: active ? "-50%" : (type === 'clients' || type === 'fitness') ? "-110%" : "60%",
-                y: 0,
-                zIndex: active ? 20 : 10,
-                rotateZ: 0,
-                opacity: active ? 1 : 0.3,
-                filter: active ? 'blur(0px)' : 'blur(8px)',
-            }}
-            transition={{ duration: 0.5, ease: "circOut" }}
-            className="absolute top-0 left-1/2 w-[280px] aspect-[9/19] rounded-[48px] border-[6px] border-[#1a1a1a] overflow-hidden bg-[#050505] shadow-2xl cursor-pointer"
-        >
-            {/* The iPhone Notch - No blue dot */}
-            <div className="absolute top-0 inset-x-0 mx-auto w-[90px] h-[18px] bg-[#1a1a1a] rounded-b-[12px] z-[100] border-b border-x border-[#222]">
-                <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-2.5 h-2.5 bg-[#010101] rounded-full flex items-center justify-center ring-1 ring-white/5 shadow-inner">
-                    <div className="w-[3px] h-[3px] bg-white/10 rounded-full blur-[0.5px]" />
-                </div>
-            </div>
+    const PhoneMockup = ({ type, role = 'coach', children, active, onClick, activeType }: { type: string, role?: 'client' | 'coach', children: React.ReactNode, active: boolean, onClick: () => void, activeType?: string }) => {
+        // Calculate X position based on active phone to keep one on each side
+        const getX = () => {
+            if (active) return "-50%";
 
-            <div className="h-full flex flex-col bg-[#050505] overflow-y-auto hide-scrollbar pointer-events-none pt-[12px] relative">
-                {/* Header within Phone - Sticky to stay visible */}
-                <div className="sticky top-0 h-10 w-full px-4 flex items-center justify-between bg-black/60 backdrop-blur-xl border-b border-white/5 z-[60]">
-                    <div className="p-1.5 text-white/20"><Settings size={14} /></div>
-                    <div className="flex flex-col items-center">
-                        <span className="text-[#FF7939] font-black tracking-[0.2em] italic text-[11px] uppercase">omnia</span>
+            if (role === 'client') {
+                if (activeType === 'fitness') {
+                    if (type === 'profile') return "-110%";
+                    if (type === 'nutrition') return "10%";
+                }
+                if (activeType === 'nutrition') {
+                    if (type === 'fitness') return "-110%";
+                    if (type === 'profile') return "10%";
+                }
+                if (activeType === 'profile') {
+                    if (type === 'fitness') return "-110%";
+                    if (type === 'nutrition') return "10%";
+                }
+            } else {
+                // Coach role positioning
+                if (activeType === 'clients') {
+                    if (type === 'products') return "-110%";
+                    if (type === 'profile') return "10%";
+                }
+                if (activeType === 'profile') {
+                    if (type === 'clients') return "-110%";
+                    if (type === 'products') return "10%";
+                }
+                if (activeType === 'products') {
+                    if (type === 'clients') return "-110%";
+                    if (type === 'profile') return "10%";
+                }
+            }
+            // Fallback
+            return (type === 'clients' || type === 'fitness') ? "-110%" : "10%";
+        };
+
+        return (
+            <motion.div
+                onClick={onClick}
+                initial={false}
+                animate={{
+                    scale: active ? 1 : 0.9,
+                    x: getX(),
+                    y: 0,
+                    zIndex: active ? 20 : 10,
+                    rotateZ: 0,
+                    opacity: active ? 1 : 0.4,
+                    filter: active ? 'blur(0px)' : 'blur(2px)',
+                }}
+                transition={{ duration: 0.5, ease: "circOut" }}
+                className="absolute top-0 left-1/2 w-[280px] aspect-[9/19] rounded-[48px] border-[6px] border-[#1a1a1a] overflow-hidden bg-[#050505] shadow-2xl cursor-pointer"
+            >
+                {/* The iPhone Notch - No blue dot */}
+                <div className="absolute top-0 inset-x-0 mx-auto w-[90px] h-[18px] bg-[#1a1a1a] rounded-b-[12px] z-[100] border-b border-x border-[#222]">
+                    <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-2.5 h-2.5 bg-[#010101] rounded-full flex items-center justify-center ring-1 ring-white/5 shadow-inner">
+                        <div className="w-[3px] h-[3px] bg-white/10 rounded-full blur-[0.5px]" />
                     </div>
-                    <div className="p-1.5 text-white/20 relative">
-                        <MessageSquare size={14} />
-                        <div className="absolute top-1 right-1 w-2 h-2 bg-[#FF7939] rounded-full border border-black" />
+                </div>
+
+                <div className="h-full flex flex-col bg-[#050505] overflow-y-auto hide-scrollbar pointer-events-none pt-[12px] relative">
+                    {/* Header within Phone - Sticky to stay visible */}
+                    <div className="sticky top-0 h-10 w-full px-4 flex items-center justify-between bg-black/60 backdrop-blur-xl border-b border-white/5 z-[60]">
+                        <div className="p-1.5 text-white/20"><Settings size={14} /></div>
+                        <div className="flex flex-col items-center">
+                            <span className="text-[#FF7939] font-black tracking-[0.2em] italic text-[11px] uppercase">omnia</span>
+                        </div>
+                        <div className="p-1.5 text-white/20 relative">
+                            <MessageSquare size={14} />
+                            <div className="absolute top-1 right-1 w-2 h-2 bg-[#FF7939] rounded-full border border-black" />
+                        </div>
+                    </div>
+
+                    <div className="flex-1 flex flex-col relative overflow-hidden">
+                        <AnimatePresence mode="wait">
+                            <motion.div
+                                key={type}
+                                initial={{ opacity: 0, x: 20 }}
+                                animate={{ opacity: 1, x: 0 }}
+                                exit={{ opacity: 0, x: -20 }}
+                                transition={{ duration: 0.3, ease: "circOut" }}
+                                className="flex-1 flex flex-col"
+                            >
+                                {children}
+                            </motion.div>
+                        </AnimatePresence>
+                    </div>
+
+                    {/* Shared App Navigation Footer within Phone */}
+                    <div className="absolute bottom-0 w-full h-16 bg-black/80 backdrop-blur-xl border-t border-white/5 flex justify-around items-center px-2 z-[70]">
+                        {role === 'coach' ? (
+                            <>
+                                <div className={cn("flex flex-col items-center gap-1", (type === 'clients') ? "text-[#FF7939]" : "opacity-40")}>
+                                    <Users size={18} />
+                                    <span className="text-[8px] font-black uppercase text-center leading-none">Clientes</span>
+                                </div>
+                                <div className={cn("flex flex-col items-center gap-1 opacity-40")}>
+                                    <Utensils size={18} />
+                                    <span className="text-[8px] font-black uppercase text-center leading-none">Nutrición</span>
+                                </div>
+                                <div className="relative -top-3 scale-110">
+                                    <div className="bg-[#FF7939]/30 backdrop-blur-xl rounded-full p-2.5 shadow-2xl transition-all duration-500 border-4 border-white/5 shadow-orange-500/30">
+                                        <Flame
+                                            size={20}
+                                            fill="#FF7939"
+                                            stroke="#FF7939"
+                                            strokeWidth={2.5}
+                                            className="h-5 w-5"
+                                        />
+                                    </div>
+                                </div>
+                                <div className={cn("flex flex-col items-center gap-1 opacity-40")}>
+                                    <Calendar size={18} />
+                                    <span className="text-[8px] font-black uppercase text-center leading-none">Calendario</span>
+                                </div>
+                                <div className={cn("flex flex-col items-center gap-1", (type === 'profile') ? "text-[#FF7939]" : "opacity-40")}>
+                                    <User size={18} />
+                                    <span className="text-[8px] font-black uppercase text-center leading-none">Perfil</span>
+                                </div>
+                            </>
+                        ) : (
+                            <>
+                                <div className={cn("flex flex-col items-center gap-1 opacity-40")}>
+                                    <Search size={18} />
+                                    <span className="text-[8px] font-black uppercase text-center leading-none">Buscar</span>
+                                </div>
+                                <div className={cn("flex flex-col items-center gap-1", (type === 'fitness') ? "text-[#FF7939]" : "opacity-40")}>
+                                    <Zap size={18} />
+                                    <span className="text-[8px] font-black uppercase text-center leading-none">Actividades</span>
+                                </div>
+                                <div className="relative -top-3 scale-110">
+                                    <div className="bg-[#FF7939]/30 backdrop-blur-xl rounded-full p-2.5 shadow-2xl transition-all duration-500 border-4 border-white/5 shadow-orange-500/30">
+                                        <Flame
+                                            size={20}
+                                            fill="#FF7939"
+                                            stroke="#FF7939"
+                                            strokeWidth={2.5}
+                                            className="h-5 w-5"
+                                        />
+                                    </div>
+                                </div>
+                                <div className={cn("flex flex-col items-center gap-1 opacity-40")}>
+                                    <Calendar size={18} />
+                                    <span className="text-[8px] font-black uppercase text-center leading-none">Calendario</span>
+                                </div>
+                                <div className={cn("flex flex-col items-center gap-1", (type === 'profile') ? "text-[#FF7939]" : "opacity-40")}>
+                                    <User size={18} />
+                                    <span className="text-[8px] font-black uppercase text-center leading-none">Perfil</span>
+                                </div>
+                            </>
+                        )}
                     </div>
                 </div>
-
-                <div className="flex-1 flex flex-col relative overflow-hidden">
-                    <AnimatePresence mode="wait">
-                        <motion.div
-                            key={type}
-                            initial={{ opacity: 0, x: 20 }}
-                            animate={{ opacity: 1, x: 0 }}
-                            exit={{ opacity: 0, x: -20 }}
-                            transition={{ duration: 0.3, ease: "circOut" }}
-                            className="flex-1 flex flex-col"
-                        >
-                            {children}
-                        </motion.div>
-                    </AnimatePresence>
-                </div>
-
-                {/* Shared App Navigation Footer within Phone */}
-                <div className="absolute bottom-0 w-full h-16 bg-black/80 backdrop-blur-xl border-t border-white/5 flex justify-around items-center px-2 z-[70]">
-                    {role === 'coach' ? (
-                        <>
-                            <div className={cn("flex flex-col items-center gap-1", (type === 'clients') ? "text-[#FF7939]" : "opacity-40")}>
-                                <Users size={18} />
-                                <span className="text-[8px] font-black uppercase text-center leading-none">Clientes</span>
-                            </div>
-                            <div className={cn("flex flex-col items-center gap-1 opacity-40")}>
-                                <Utensils size={18} />
-                                <span className="text-[8px] font-black uppercase text-center leading-none">Nutrición</span>
-                            </div>
-                            <div className="relative -top-3 scale-110">
-                                <div className="bg-[#FF7939]/30 backdrop-blur-xl rounded-full p-2.5 shadow-2xl transition-all duration-500 border-4 border-white/5 shadow-orange-500/30">
-                                    <Flame
-                                        size={20}
-                                        fill="#FF7939"
-                                        stroke="#FF7939"
-                                        strokeWidth={2.5}
-                                        className="h-5 w-5"
-                                    />
-                                </div>
-                            </div>
-                            <div className={cn("flex flex-col items-center gap-1 opacity-40")}>
-                                <Calendar size={18} />
-                                <span className="text-[8px] font-black uppercase text-center leading-none">Calendario</span>
-                            </div>
-                            <div className={cn("flex flex-col items-center gap-1", (type === 'profile') ? "text-[#FF7939]" : "opacity-40")}>
-                                <User size={18} />
-                                <span className="text-[8px] font-black uppercase text-center leading-none">Perfil</span>
-                            </div>
-                        </>
-                    ) : (
-                        <>
-                            <div className={cn("flex flex-col items-center gap-1 opacity-40")}>
-                                <Search size={18} />
-                                <span className="text-[8px] font-black uppercase text-center leading-none">Buscar</span>
-                            </div>
-                            <div className={cn("flex flex-col items-center gap-1", (type === 'fitness') ? "text-[#FF7939]" : "opacity-40")}>
-                                <Zap size={18} />
-                                <span className="text-[8px] font-black uppercase text-center leading-none">Actividades</span>
-                            </div>
-                            <div className="relative -top-3 scale-110">
-                                <div className="bg-[#FF7939]/30 backdrop-blur-xl rounded-full p-2.5 shadow-2xl transition-all duration-500 border-4 border-white/5 shadow-orange-500/30">
-                                    <Flame
-                                        size={20}
-                                        fill="#FF7939"
-                                        stroke="#FF7939"
-                                        strokeWidth={2.5}
-                                        className="h-5 w-5"
-                                    />
-                                </div>
-                            </div>
-                            <div className={cn("flex flex-col items-center gap-1 opacity-40")}>
-                                <Calendar size={18} />
-                                <span className="text-[8px] font-black uppercase text-center leading-none">Calendario</span>
-                            </div>
-                            <div className={cn("flex flex-col items-center gap-1", (type === 'profile') ? "text-[#FF7939]" : "opacity-40")}>
-                                <User size={18} />
-                                <span className="text-[8px] font-black uppercase text-center leading-none">Perfil</span>
-                            </div>
-                        </>
-                    )}
-                </div>
-            </div>
-        </motion.div>
-    );
-
+            </motion.div>
+        );
+    };
 
     return (
         <div ref={containerRef} className="flex flex-col gap-12 pb-32 pt-4 px-2 overflow-hidden">
@@ -337,10 +391,6 @@ export function OmniaShowcase({ scrollY }: OmniaShowcaseProps) {
 
                 {/* Shadow at the feet effect */}
                 <div className="absolute bottom-2 left-1/2 -translate-x-1/2 w-48 h-10 bg-[#FF7939]/10 blur-3xl rounded-full" />
-
-                <div className="relative z-10 scale-[1.3] transform-none">
-                    <OmniaLogo width={180} />
-                </div>
             </section>
 
             {/* Scrolling Staggered Title with Straightening Staircase Effect */}
@@ -726,332 +776,401 @@ export function OmniaShowcase({ scrollY }: OmniaShowcaseProps) {
                         transition={{ duration: 0.4, ease: "circOut" }}
                         className="w-full flex flex-col gap-12"
                     >
-                        {(() => {
-                            if (role === 'client') return (
-                                <>
-                                    <div className="space-y-32">
-                                        {/* 1. Integrated Mobile Experience (iPhone) */}
-                                        <div className="space-y-8">
-                                            <div className="flex flex-col items-center text-center space-y-4">
-                                                <h3 className="text-4xl font-black text-white italic uppercase tracking-tighter leading-none">Tu Libertad <br /><span className="text-white/30 text-xl tracking-normal lowercase">en un solo lugar.</span></h3>
-                                                <p className="text-sm text-white/40 max-w-xl mx-auto leading-relaxed mt-2">
-                                                    Una experiencia móvil diseñada para la acción. Todo tu entrenamiento y nutrición integrados en una interfaz fluida. Toca para ver detalle.
-                                                </p>
-                                            </div>
-
-                                            <div className="flex items-center gap-12 mt-6 justify-center">
-                                                {[
-                                                    { type: 'fitness', icon: Zap, label: 'Fitness' },
-                                                    { type: 'nutrition', icon: Utensils, label: 'Nutri' },
-                                                    { type: 'profile', icon: User, label: 'Perfil' }
-                                                ].map((nav) => (
-                                                    <button
-                                                        key={nav.type}
-                                                        onClick={() => setClientMockupType(nav.type as any)}
-                                                        className={cn(
-                                                            "flex flex-col items-center gap-2 transition-all duration-300",
-                                                            clientMockupType === nav.type
-                                                                ? "text-[#FF7939]"
-                                                                : "text-white/20 hover:text-white/40 font-bold"
-                                                        )}
-                                                    >
-                                                        <nav.icon size={28} fill={clientMockupType === nav.type ? "currentColor" : "none"} />
-                                                        <span className="text-[10px] font-black uppercase italic tracking-widest leading-none">{nav.label}</span>
-                                                    </button>
-                                                ))}
-                                            </div>
-
-                                            <div className="flex justify-center relative h-[620px] w-full max-w-sm mx-auto perspective-[2000px] mt-12 mb-12 select-none">
-                                                {/* Glow Backgrounds */}
-                                                <div className={cn(
-                                                    "absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-80 h-80 rounded-full blur-[120px] transition-all duration-1000",
-                                                    clientMockupType === 'fitness' ? "bg-[#FF7939]/20" : "bg-orange-300/20"
-                                                )} />
-
-                                                {/* Phone 1: Fitness */}
-                                                <PhoneMockup type="fitness" role="client" active={clientMockupType === 'fitness'} onClick={() => setClientMockupType('fitness')}>
-                                                    <div className="px-5 py-2 flex items-center justify-between">
-                                                        <ArrowLeft size={16} className="text-white/80" />
-                                                        <Flame size={18} className="text-[#FF7939] fill-[#FF7939]" />
-                                                    </div>
-
-                                                    <h4 className="px-6 text-[12px] font-black text-white text-center uppercase italic leading-tight mb-3">
-                                                        Press con mancuernas <br /> en banco plano
-                                                    </h4>
-
-                                                    {/* Video Player Mockup with Real Image - Aspect ratio adjusted */}
-                                                    <div className="mx-4 aspect-[4/3] bg-zinc-900 rounded-[20px] relative group/video overflow-hidden border border-white/10 shadow-xl">
-                                                        <img
-                                                            src="https://images.unsplash.com/photo-1571019614242-c5c5dee9f50b?w=800&q=80"
-                                                            alt="Exercise Preview"
-                                                            className="absolute inset-0 w-full h-full object-cover opacity-60 grayscale transition-all duration-700"
-                                                        />
-                                                        {/* Central Play Button */}
-                                                        <div className="absolute inset-0 flex items-center justify-center bg-black/20 group-hover/video:bg-black/10 transition-colors">
-                                                            <div className="p-3 bg-[#FF7939] rounded-full shadow-[0_0_25px_rgba(255,121,57,0.5)] scale-90 group-hover/video:scale-100 transition-transform">
-                                                                <Play size={18} fill="white" className="text-white ml-0.5" />
-                                                            </div>
-                                                        </div>
-
-                                                        <div className="absolute inset-x-0 bottom-0 p-3 space-y-1.5 bg-gradient-to-t from-black to-transparent">
-                                                            <div className="w-full h-1 bg-white/20 rounded-full relative overflow-hidden">
-                                                                <div className="absolute left-0 top-0 h-full w-[45%] bg-[#FF7939]" />
-                                                            </div>
-                                                            <div className="flex items-center justify-between text-[8px] font-bold text-white/80">
-                                                                <span>00:32 / 01:15</span>
-                                                                <Maximize2 size={10} className="opacity-60" />
-                                                            </div>
-                                                        </div>
-                                                    </div>
-
-                                                    <div className="mt-4 flex justify-center">
-                                                        <div className="flex items-center gap-3 px-3 py-1.5 bg-white/5 rounded-full border border-white/10 backdrop-blur-3xl">
-                                                            <div className="flex items-center gap-1.5"><Clock size={10} className="text-white/30" /><span className="text-[9px] font-bold text-white/50 uppercase tracking-widest">12 min</span></div>
-                                                            <div className="flex items-center gap-2">
-                                                                <div className="flex items-center gap-1.5"><Flame size={10} className="text-[#FF7939]" /><span className="text-[9px] font-bold text-white/50 uppercase tracking-widest">~70 kcal</span></div>
-                                                                <div className="px-2 py-0.5 bg-[#FF7939]/10 border border-[#FF7939]/30 rounded-lg italic">
-                                                                    <span className="text-[7.5px] font-black text-[#FF7939] uppercase tracking-tighter leading-none">Fuerza</span>
-                                                                </div>
-                                                            </div>
-                                                        </div>
-                                                    </div>
-
-                                                    <div className="mt-4 px-6 flex items-center justify-between border-b border-white/5 pb-2">
-                                                        {['Series', 'Músculos', 'Técnica'].map((tab, i) => (
-                                                            <span key={tab} className={cn(
-                                                                "text-[9px] font-black uppercase italic tracking-tighter",
-                                                                i === 0 ? "text-white border-b-2 border-[#FF7939]" : "text-white/20"
-                                                            )}>{tab}</span>
-                                                        ))}
-                                                    </div>
-
-                                                    <div className="mt-4 px-4 space-y-2 flex-1">
-                                                        {[1, 2, 3].map((s) => (
-                                                            <div key={s} className={cn(
-                                                                "p-2.5 rounded-2xl border flex items-center justify-between transition-all duration-500",
-                                                                s <= 2 ? "bg-white/[0.04] border-white/10" : "bg-transparent border-white/5 opacity-20"
-                                                            )}>
-                                                                <div className="flex items-center gap-3">
-                                                                    <div className={cn("w-5 h-5 rounded-lg flex items-center justify-center text-[9px] font-black", s <= 2 ? "bg-[#FF7939] text-black shadow-lg shadow-[#FF7939]/20" : "bg-white/5 text-white/10")}>{s}</div>
-                                                                    <div className="flex gap-4">
-                                                                        <div className="flex flex-col"><span className="text-[10px] font-black text-white">{s <= 2 ? '3' : ''}</span><span className="text-[6px] text-white/30 uppercase font-bold">SERIES</span></div>
-                                                                        <div className="flex flex-col"><span className="text-[10px] font-black text-white">{s <= 2 ? '12' : ''}</span><span className="text-[6px] text-white/30 uppercase font-bold">REPS</span></div>
-                                                                        <div className="flex flex-col"><span className="text-[10px] font-black text-white">{s <= 2 ? '40kg' : ''}</span><span className="text-[6px] text-white/30 uppercase font-bold">PESO</span></div>
-                                                                    </div>
-                                                                </div>
-                                                                {s <= 2 && (
-                                                                    <div className="p-1.5 bg-[#FF7939]/10 border border-[#FF7939]/30 rounded-[8px] transition-all hover:bg-[#FF7939]/20 group/edit cursor-pointer">
-                                                                        <Edit2 size={10} className="text-[#FF7939]" />
-                                                                    </div>
-                                                                )}
-                                                            </div>
-                                                        ))}
-                                                    </div>
-
-                                                    <div className="mt-auto p-5 flex justify-between absolute bottom-16 inset-x-0">
-                                                        <div className="p-2.5 rounded-full border border-white/10 bg-white/5"><ArrowLeft size={14} className="text-white/20" /></div>
-                                                        <div className="p-2.5 rounded-full border border-[#FF7939]/30 bg-[#FF7939]/10 shadow-[0_0_20px_rgba(255,121,57,0.15)]"><ArrowRight size={14} className="text-[#FF7939]" /></div>
-                                                    </div>
-                                                </PhoneMockup>
-
-                                                {/* Phone 2: Nutrition */}
-                                                <PhoneMockup type="nutrition" role="client" active={clientMockupType === 'nutrition'} onClick={() => setClientMockupType('nutrition')}>
-                                                    <div className="px-5 py-3 flex items-center justify-between">
-                                                        <ArrowLeft size={16} className="text-white/80" />
-                                                        <span className="text-orange-300 text-[10px] font-black uppercase italic tracking-widest">MENÚ DEL DÍA</span>
-                                                        <div className="w-4" />
-                                                    </div>
-
-                                                    <div className="px-6 flex flex-col items-center">
-                                                        <div className="relative w-full aspect-square max-w-[170px] group/nutrition-image">
-                                                            <div className="absolute inset-0 bg-gradient-to-tr from-[#FF7939]/20 to-transparent rounded-full blur-3xl animate-pulse" />
-                                                            <img
-                                                                src="https://images.unsplash.com/photo-1546069901-ba9599a7e63c?w=800&q=80"
-                                                                alt="Healthy Plate"
-                                                                className="absolute inset-0 w-full h-full object-cover rounded-full border-4 border-black shadow-2xl transition-transform duration-700 group-hover/nutrition-image:scale-105"
-                                                            />
-                                                            <div className="absolute inset-0 flex items-center justify-center z-10">
-                                                                <div className="p-3 bg-orange-300 rounded-full shadow-[0_0_30px_rgba(253,186,116,0.5)]">
-                                                                    <Play size={18} fill="white" className="text-white ml-0.5" />
-                                                                </div>
-                                                            </div>
-                                                        </div>
-                                                        <div className="mt-3 text-center">
-                                                            <h5 className="text-[14px] font-black text-white italic uppercase tracking-tighter">Bowl Mediterráneo</h5>
-                                                            <p className="text-[9px] font-bold text-[#FF7939] tracking-[0.15em] uppercase mt-0.5">450 kcal reales</p>
-                                                        </div>
-                                                    </div>
-
-                                                    <div className="mt-5 px-5 space-y-4">
-                                                        <div className="bg-white/[0.03] border border-white/5 p-4 rounded-[28px] backdrop-blur-2xl">
-                                                            <div className="flex justify-between items-center mb-3">
-                                                                <span className="text-[11px] font-black text-white uppercase italic tracking-tighter">Macros</span>
-                                                                <span className="text-[8px] font-bold text-white/30 uppercase tracking-[0.2em]">Balanceado</span>
-                                                            </div>
-                                                            <div className="flex h-2 gap-1.5 mb-6 overflow-hidden rounded-full">
-                                                                <div className="w-[45%] bg-[#FF7939] shadow-[0_0_10px_rgba(255,121,57,0.4)]" />
-                                                                <div className="w-[30%] bg-orange-200" />
-                                                                <div className="w-[25%] bg-blue-300" />
-                                                            </div>
-                                                            <div className="flex justify-between items-center px-1">
-                                                                <div className="flex flex-col items-center"><span className="text-[12px] font-black text-white italic">40g</span><span className="text-[7px] text-white/30 uppercase font-black">PROT</span></div>
-                                                                <div className="flex flex-col items-center"><span className="text-[12px] font-black text-white italic">25g</span><span className="text-[7px] text-white/30 uppercase font-black">FATS</span></div>
-                                                                <div className="flex flex-col items-center"><span className="text-[12px] font-black text-white italic">15g</span><span className="text-[7px] text-white/30 uppercase font-black">CARBS</span></div>
-                                                            </div>
-                                                        </div>
-
-                                                        <div className="bg-zinc-900/40 border border-white/5 rounded-[20px] overflow-hidden">
-                                                            <div className="flex border-b border-white/5 bg-white/[0.02]">
-                                                                <div className="flex-1 py-1.5 text-center bg-white/5">
-                                                                    <span className="text-[8px] font-black text-[#FF7939] italic uppercase">Ingredientes</span>
-                                                                </div>
-                                                                <div className="flex-1 py-1.5 text-center opacity-30">
-                                                                    <span className="text-[8px] font-black text-white italic uppercase">Receta</span>
-                                                                </div>
-                                                            </div>
-                                                            <div className="p-2.5 space-y-1.5">
-                                                                {[
-                                                                    { n: 'Quinoa', q: '120g' },
-                                                                    { n: 'Pollo', q: '150g' },
-                                                                    { n: 'Palta', q: '1/2 un.' }
-                                                                ].map((item, i) => (
-                                                                    <div key={i} className="flex items-center justify-between">
-                                                                        <div className="flex items-center gap-1.5">
-                                                                            <div className="w-1 h-1 rounded-full bg-[#FF7939]" />
-                                                                            <span className="text-[9px] font-bold text-white/70">{item.n}</span>
-                                                                        </div>
-                                                                        <span className="text-[8px] font-black text-white/30 italic uppercase">{item.q}</span>
-                                                                    </div>
-                                                                ))}
-                                                            </div>
-                                                        </div>
-                                                    </div>
-                                                </PhoneMockup>
-
-                                                {/* Phone 3: Profile (Client View) */}
-                                                <PhoneMockup type="profile" role="client" active={clientMockupType === 'profile'} onClick={() => setClientMockupType('profile')}>
-                                                    <div className="px-3 pt-3 space-y-3">
-                                                        {/* 1. Header Card */}
-                                                        <div className="relative rounded-[32px] overflow-hidden bg-black border border-white/5 shadow-2xl min-h-[160px]">
-                                                            {/* Background Image - Dynamic Blur */}
-                                                            <div className="absolute inset-0 z-0 scale-110">
-                                                                <img
-                                                                    src="https://images.unsplash.com/photo-1534438327276-14e5300c3a48?w=400&q=80"
-                                                                    className="w-full h-full object-cover opacity-40 blur-[40px]"
-                                                                    alt="Profile Blur"
-                                                                />
-                                                                <div className="absolute inset-0 bg-gradient-to-t from-black via-black/20 to-transparent" />
-                                                            </div>
-
-                                                            {/* Profile Info Layer */}
-                                                            <div className="relative z-10 flex flex-col items-center pt-8 pb-4">
-                                                                <div className="w-16 h-16 rounded-full overflow-hidden border-2 border-white/20 shadow-2xl mb-3">
-                                                                    <img
-                                                                        src="https://images.unsplash.com/photo-1534438327276-14e5300c3a48?w=200&q=80"
-                                                                        className="w-full h-full object-cover scale-110"
-                                                                        alt="Diego"
-                                                                    />
-                                                                </div>
-
-                                                                <h5 className="text-[18px] font-black text-white italic tracking-tighter leading-none uppercase">Diego Omnia</h5>
-
-                                                                <div className="flex items-center gap-2 mt-2">
-                                                                    <div className="flex items-center gap-1.5 px-2 py-0.5 bg-white/5 rounded-full border border-white/10">
-                                                                        <Flame size={10} className="text-[#FF7939] fill-[#FF7939]" />
-                                                                        <span className="text-[9px] font-black text-[#FF7939] uppercase italic tracking-tighter">15 racha</span>
-                                                                    </div>
-                                                                </div>
-                                                            </div>
-                                                        </div>
-
-                                                        {/* 2. Weekly Activity Rings (Micro) */}
-                                                        <div className="bg-[#09090b] border border-white/5 rounded-[32px] p-4 shadow-2xl space-y-4">
-                                                            <div className="flex items-center justify-between">
-                                                                <div className="flex flex-col">
-                                                                    <span className="text-[7.5px] font-black text-white/20 uppercase tracking-[0.2em] italic leading-none">Actividad</span>
-                                                                    <span className="text-[10px] font-black text-white uppercase italic tracking-widest mt-0.5">Semanal</span>
-                                                                </div>
-                                                                <div className="p-2 bg-white/5 rounded-xl border border-white/10">
-                                                                    <Calendar size={12} className="text-white/20" />
-                                                                </div>
-                                                            </div>
-
-                                                            <ShowcaseWeeklyMiniRings
-                                                                data={[
-                                                                    { label: 'L', progress: 100, color: '#FF7939' },
-                                                                    { label: 'M', progress: 100, color: '#FF7939' },
-                                                                    { label: 'M', progress: 85, color: '#FF7939' },
-                                                                    { label: 'J', progress: 100, color: '#FF7939' },
-                                                                    { label: 'V', progress: 60, color: '#FF7939' },
-                                                                    { label: 'S', progress: 0, color: '#FF7939' },
-                                                                    { label: 'D', progress: 0, color: '#FF7939' }
-                                                                ]}
-                                                            />
-                                                        </div>
-
-                                                        {/* 3. Main Activity Rings */}
-                                                        <div className="bg-white/[0.02] border border-white/5 rounded-[32px] p-4 flex items-center justify-between relative overflow-hidden">
-                                                            <div className="relative">
-                                                                <ShowcaseActivityRings
-                                                                    days={{ completed: 25, absent: 2, total: 30 }}
-                                                                    fitness={{ completed: 18, absent: 5, total: 24 }}
-                                                                    nutrition={{ completed: 22, absent: 3, total: 28 }}
-                                                                    size={110}
-                                                                    hideStreak={true}
-                                                                />
-                                                                <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-24 h-24 bg-[#FF7939]/5 blur-3xl -z-10" />
-                                                            </div>
-
-                                                            {/* Vertical Stats */}
-                                                            <div className="flex flex-col gap-3 text-right pr-1">
-                                                                <div className="flex flex-col">
-                                                                    <div className="flex items-center justify-end gap-1 text-[#FF7939]">
-                                                                        <ArrowLeft size={10} className="rotate-225" />
-                                                                        <span className="text-[10px] font-black uppercase italic tracking-tighter opacity-80 leading-none">Kcal</span>
-                                                                    </div>
-                                                                    <span className="text-[17px] font-black text-white leading-none tracking-tighter mt-1">2049/0</span>
-                                                                </div>
-                                                                <div className="flex flex-col">
-                                                                    <span className="text-[10px] font-black text-orange-200 uppercase italic tracking-widest leading-none opacity-80">Mins</span>
-                                                                    <span className="text-[17px] font-black text-white leading-none tracking-tighter mt-0.5">304/0</span>
-                                                                </div>
-                                                            </div>
-                                                        </div>
-                                                    </div>
-
-                                                    {/* Toggle Selection */}
-                                                    <div className="flex bg-white/5 rounded-full p-1 border border-white/5">
-                                                        <div className="flex-1 py-1.5 rounded-xl bg-zinc-800 text-white text-center border border-white/5 shadow-xl">
-                                                            <span className="text-[10px] font-black uppercase italic tracking-tight">Fitness</span>
-                                                        </div>
-                                                        <div className="flex-1 py-1.5 rounded-xl text-white/5 text-center">
-                                                            <span className="text-[10px] font-black uppercase italic tracking-tight">Nutrición</span>
-                                                        </div>
-                                                    </div>
-                                                </PhoneMockup>
-
-                                            </div>
-                                        </div>
-                                    </div>
-
-                                    {/* 2. iPad Integrated Experience (Multi-Device) */}
-                                    <div className="space-y-12">
-                                        <div className="text-center space-y-3">
-                                            <div className="inline-flex items-center gap-2 px-3 py-1 bg-[#FF7939]/10 rounded-full border border-[#FF7939]/20">
-                                                <Layers size={12} className="text-[#FF7939]" />
-                                                <span className="text-[10px] font-black text-[#FF7939] uppercase italic">Poder Multi-Dispositivo</span>
-                                            </div>
-                                            <h3 className="text-4xl font-black text-white italic uppercase tracking-tighter leading-none">Tu Dashboard <br /><span className="text-white/30 text-xl tracking-normal lowercase">en todos tus equipos.</span></h3>
-                                            <p className="text-sm text-white/40 max-w-xl mx-auto leading-relaxed">
-                                                Accedé a tus rutinas y documentos desde cualquier lugar. Consultá tu manual de entrenamiento y recetarios mientras controlás tu progreso con un diseño responsivo de alto rendimiento.
+                        {role === 'client' ? (
+                            <>
+                                <div className="space-y-32">
+                                    {/* 1. Integrated Mobile Experience (iPhone) */}
+                                    <div className="space-y-8">
+                                        <div className="flex flex-col items-center text-center space-y-4">
+                                            <h3 className="text-4xl font-black text-white italic uppercase tracking-tighter leading-none">Tu Libertad <br /><span className="text-white/30 text-xl tracking-normal lowercase">en un solo lugar.</span></h3>
+                                            <p className="text-sm text-white/40 max-w-xl mx-auto leading-relaxed mt-2">
+                                                Una experiencia móvil diseñada para la acción. Todo tu entrenamiento y nutrición integrados en una interfaz fluida. Toca para ver detalle.
                                             </p>
                                         </div>
 
-                                        <div className="flex justify-center relative w-full px-4 overflow-hidden mobile:overflow-visible">
-                                            <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-full max-w-[800px] h-[400px] bg-blue-500/5 blur-[120px] rounded-full" />
+                                        <div className="flex items-center gap-12 mt-6 justify-center">
+                                            {[
+                                                { type: 'fitness', icon: Zap, label: 'Fitness' },
+                                                { type: 'nutrition', icon: Utensils, label: 'Nutri' },
+                                                { type: 'profile', icon: User, label: 'Perfil' }
+                                            ].map((nav) => (
+                                                <button
+                                                    key={nav.type}
+                                                    onClick={() => setClientMockupType(nav.type as any)}
+                                                    className={cn(
+                                                        "flex flex-col items-center gap-2 transition-all duration-300",
+                                                        clientMockupType === nav.type
+                                                            ? "text-[#FF7939]"
+                                                            : "text-white/20 hover:text-white/40 font-bold"
+                                                    )}
+                                                >
+                                                    <nav.icon size={28} fill={clientMockupType === nav.type ? "currentColor" : "none"} />
+                                                    <span className="text-[10px] font-black uppercase italic tracking-widest leading-none">{nav.label}</span>
+                                                </button>
+                                            ))}
+                                        </div>
 
-                                            {/* iPad Layout: 3/4 Planificación Avanzada (Yoga) + 1/4 PDF Doc */}
-                                            <div className="w-full max-w-[850px] aspect-[11/8] bg-[#0a0a0a] rounded-[32px] border-[12px] border-[#1a1a1a] shadow-[0_0_100px_rgba(0,0,0,0.5)] overflow-hidden relative group scale-[0.82] sm:scale-100 origin-top">
+                                        <div className="flex justify-center relative h-[620px] w-full max-w-sm mx-auto perspective-[2000px] mt-12 mb-12 select-none">
+                                            {/* Glow Backgrounds */}
+                                            <div className={cn(
+                                                "absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-80 h-80 rounded-full blur-[120px] transition-all duration-1000",
+                                                clientMockupType === 'fitness' ? "bg-[#FF7939]/20" : "bg-orange-300/20"
+                                            )} />
+
+                                            {/* Phone 1: Fitness */}
+                                            <PhoneMockup type="fitness" role="client" active={clientMockupType === 'fitness'} activeType={clientMockupType} onClick={() => setClientMockupType('fitness')}>
+                                                <div className="px-5 py-2 flex items-center justify-center">
+                                                    <Flame size={18} className="text-[#FF7939] fill-[#FF7939]" />
+                                                </div>
+
+                                                <h4 className="px-6 text-[12px] font-black text-white text-center uppercase italic leading-tight mb-3">
+                                                    Press con mancuernas <br /> en banco plano
+                                                </h4>
+
+                                                {/* Video Player Mockup with Real Image - Aspect ratio adjusted */}
+                                                <div className="mx-4 aspect-[4/3] bg-zinc-900 rounded-[20px] relative group/video overflow-hidden border border-white/10 shadow-xl">
+                                                    <img
+                                                        src="https://images.unsplash.com/photo-1571019614242-c5c5dee9f50b?w=800&q=80"
+                                                        alt="Exercise Preview"
+                                                        className="absolute inset-0 w-full h-full object-cover opacity-60 grayscale transition-all duration-700"
+                                                    />
+                                                    {/* Central Play Button */}
+                                                    <div className="absolute inset-0 flex items-center justify-center bg-black/20 group-hover/video:bg-black/10 transition-colors">
+                                                        <div className="p-3 bg-[#FF7939] rounded-full shadow-[0_0_25px_rgba(255,121,57,0.5)] scale-90 group-hover/video:scale-100 transition-transform">
+                                                            <Play size={18} fill="white" className="text-white ml-0.5" />
+                                                        </div>
+                                                    </div>
+
+                                                    <div className="absolute inset-x-0 bottom-0 p-3 space-y-1.5 bg-gradient-to-t from-black to-transparent">
+                                                        <div className="w-full h-1 bg-white/20 rounded-full relative overflow-hidden">
+                                                            <div className="absolute left-0 top-0 h-full w-[45%] bg-[#FF7939]" />
+                                                        </div>
+                                                        <div className="flex items-center justify-between text-[8px] font-bold text-white/80">
+                                                            <span>00:32 / 01:15</span>
+                                                            <Maximize2 size={10} className="opacity-60" />
+                                                        </div>
+                                                    </div>
+                                                </div>
+
+                                                <div className="mt-4 flex justify-center">
+                                                    <div className="flex items-center gap-3 px-3 py-1.5 bg-white/5 rounded-full border border-white/10 backdrop-blur-3xl">
+                                                        <div className="flex items-center gap-1.5"><Clock size={10} className="text-white/30" /><span className="text-[9px] font-bold text-white/50 uppercase tracking-widest">12 min</span></div>
+                                                        <div className="flex items-center gap-2">
+                                                            <div className="flex items-center gap-1.5"><Flame size={10} className="text-[#FF7939]" /><span className="text-[9px] font-bold text-white/50 uppercase tracking-widest">~70 kcal</span></div>
+                                                            <div className="px-2 py-0.5 bg-[#FF7939]/10 border border-[#FF7939]/30 rounded-lg italic">
+                                                                <span className="text-[7.5px] font-black text-[#FF7939] uppercase tracking-tighter leading-none">Fuerza</span>
+                                                            </div>
+                                                        </div>
+                                                    </div>
+                                                </div>
+
+                                                <div className="mt-4 px-6 flex items-center justify-between border-b border-white/5 pb-2">
+                                                    {['Series', 'Músculos', 'Técnica'].map((tab, i) => (
+                                                        <span key={tab} className={cn(
+                                                            "text-[9px] font-black uppercase italic tracking-tighter",
+                                                            i === 0 ? "text-white border-b-2 border-[#FF7939]" : "text-white/20"
+                                                        )}>{tab}</span>
+                                                    ))}
+                                                </div>
+
+                                                <div className="mt-4 px-4 space-y-2 flex-1">
+                                                    {[1, 2, 3].map((s) => (
+                                                        <div key={s} className={cn(
+                                                            "p-2.5 rounded-2xl border flex items-center justify-between transition-all duration-500",
+                                                            s <= 2 ? "bg-white/[0.04] border-white/10" : "bg-transparent border-white/5 opacity-20"
+                                                        )}>
+                                                            <div className="flex items-center gap-3">
+                                                                <div className={cn("w-5 h-5 rounded-lg flex items-center justify-center text-[9px] font-black", s <= 2 ? "bg-[#FF7939] text-black shadow-lg shadow-[#FF7939]/20" : "bg-white/5 text-white/10")}>{s}</div>
+                                                                <div className="flex gap-4">
+                                                                    <div className="flex flex-col"><span className="text-[10px] font-black text-white">{s <= 2 ? '3' : ''}</span><span className="text-[6px] text-white/30 uppercase font-bold">SERIES</span></div>
+                                                                    <div className="flex flex-col"><span className="text-[10px] font-black text-white">{s <= 2 ? '12' : ''}</span><span className="text-[6px] text-white/30 uppercase font-bold">REPS</span></div>
+                                                                    <div className="flex flex-col"><span className="text-[10px] font-black text-white">{s <= 2 ? '40kg' : ''}</span><span className="text-[6px] text-white/30 uppercase font-bold">PESO</span></div>
+                                                                </div>
+                                                            </div>
+                                                            {s <= 2 && (
+                                                                <div className="p-1.5 bg-[#FF7939]/10 border border-[#FF7939]/30 rounded-[8px] transition-all hover:bg-[#FF7939]/20 group/edit cursor-pointer">
+                                                                    <Edit2 size={10} className="text-[#FF7939]" />
+                                                                </div>
+                                                            )}
+                                                        </div>
+                                                    ))}
+                                                </div>
+
+                                                <div className="mt-auto p-5 flex justify-between absolute bottom-16 inset-x-0 opacity-0 pointer-events-none">
+                                                    <div className="p-2.5 rounded-full border border-white/10 bg-white/5"><ArrowLeft size={14} className="text-white/20" /></div>
+                                                    <div className="p-2.5 rounded-full border border-[#FF7939]/30 bg-[#FF7939]/10 shadow-[0_0_20px_rgba(255,121,57,0.15)]"><ArrowRight size={14} className="text-[#FF7939]" /></div>
+                                                </div>
+                                            </PhoneMockup>
+
+                                            {/* Phone 2: Nutrition */}
+                                            <PhoneMockup type="nutrition" role="client" active={clientMockupType === 'nutrition'} activeType={clientMockupType} onClick={() => setClientMockupType('nutrition')}>
+                                                <div className="px-5 py-3 flex items-center justify-between">
+                                                    <ArrowLeft size={16} className="text-white/80" />
+                                                    <span className="text-orange-300 text-[10px] font-black uppercase italic tracking-widest">MENÚ DEL DÍA</span>
+                                                    <div className="w-4" />
+                                                </div>
+
+                                                <div className="px-6 flex flex-col items-center">
+                                                    <div className="relative w-full aspect-square max-w-[170px] group/nutrition-image">
+                                                        <div className="absolute inset-0 bg-gradient-to-tr from-[#FF7939]/20 to-transparent rounded-full blur-3xl animate-pulse" />
+                                                        <img
+                                                            src="https://images.unsplash.com/photo-1546069901-ba9599a7e63c?w=800&q=80"
+                                                            alt="Healthy Plate"
+                                                            className="absolute inset-0 w-full h-full object-cover rounded-full border-4 border-black shadow-2xl transition-transform duration-700 group-hover/nutrition-image:scale-105"
+                                                        />
+                                                        <div className="absolute inset-0 flex items-center justify-center z-10">
+                                                            <div className="p-3 bg-orange-300 rounded-full shadow-[0_0_30px_rgba(253,186,116,0.5)]">
+                                                                <Play size={18} fill="white" className="text-white ml-0.5" />
+                                                            </div>
+                                                        </div>
+                                                    </div>
+                                                    <div className="mt-3 text-center">
+                                                        <h5 className="text-[14px] font-black text-white italic uppercase tracking-tighter">Bowl Mediterráneo</h5>
+                                                        <p className="text-[9px] font-bold text-[#FF7939] tracking-[0.15em] uppercase mt-0.5">450 kcal reales</p>
+                                                    </div>
+                                                </div>
+
+                                                <div className="mt-5 px-5 space-y-4">
+                                                    <div className="bg-white/[0.03] border border-white/5 p-4 rounded-[28px] backdrop-blur-2xl">
+                                                        <div className="flex justify-between items-center mb-3">
+                                                            <span className="text-[11px] font-black text-white uppercase italic tracking-tighter">Macros</span>
+                                                            <span className="text-[8px] font-bold text-white/30 uppercase tracking-[0.2em]">Balanceado</span>
+                                                        </div>
+                                                        <div className="flex h-2 gap-1.5 mb-6 overflow-hidden rounded-full">
+                                                            <div className="w-[45%] bg-[#FF7939] shadow-[0_0_10px_rgba(255,121,57,0.4)]" />
+                                                            <div className="w-[30%] bg-orange-200" />
+                                                            <div className="w-[25%] bg-blue-300" />
+                                                        </div>
+                                                        <div className="flex justify-between items-center px-1">
+                                                            <div className="flex flex-col items-center"><span className="text-[12px] font-black text-white italic">40g</span><span className="text-[7px] text-white/30 uppercase font-black">PROT</span></div>
+                                                            <div className="flex flex-col items-center"><span className="text-[12px] font-black text-white italic">25g</span><span className="text-[7px] text-white/30 uppercase font-black">FATS</span></div>
+                                                            <div className="flex flex-col items-center"><span className="text-[12px] font-black text-white italic">15g</span><span className="text-[7px] text-white/30 uppercase font-black">CARBS</span></div>
+                                                        </div>
+                                                    </div>
+
+                                                    <div className="bg-zinc-900/40 border border-white/5 rounded-[20px] overflow-hidden">
+                                                        <div className="flex border-b border-white/5 bg-white/[0.02]">
+                                                            <div className="flex-1 py-1.5 text-center bg-white/5">
+                                                                <span className="text-[8px] font-black text-[#FF7939] italic uppercase">Ingredientes</span>
+                                                            </div>
+                                                            <div className="flex-1 py-1.5 text-center opacity-30">
+                                                                <span className="text-[8px] font-black text-white italic uppercase">Receta</span>
+                                                            </div>
+                                                        </div>
+                                                        <div className="p-2.5 space-y-1.5">
+                                                            {[
+                                                                { n: 'Quinoa', q: '120g' },
+                                                                { n: 'Pollo', q: '150g' },
+                                                                { n: 'Palta', q: '1/2 un.' }
+                                                            ].map((item, i) => (
+                                                                <div key={i} className="flex items-center justify-between">
+                                                                    <div className="flex items-center gap-1.5">
+                                                                        <div className="w-1 h-1 rounded-full bg-[#FF7939]" />
+                                                                        <span className="text-[9px] font-bold text-white/70">{item.n}</span>
+                                                                    </div>
+                                                                    <span className="text-[8px] font-black text-white/30 italic uppercase">{item.q}</span>
+                                                                </div>
+                                                            ))}
+                                                        </div>
+                                                    </div>
+                                                </div>
+                                            </PhoneMockup>
+
+                                            {/* Phone 3: Profile (Client View) */}
+                                            <PhoneMockup type="profile" role="client" active={clientMockupType === 'profile'} activeType={clientMockupType} onClick={() => setClientMockupType('profile')}>
+                                                <div className="flex-1 overflow-y-auto hide-scrollbar pb-20">
+                                                    <div className="px-3 pt-3 space-y-3">
+                                                        {/* 1. Header Card - Franco hotmail */}
+                                                        <div className="relative rounded-[32px] overflow-hidden bg-[#0A0A0A] border border-white/5 shadow-2xl min-h-[200px] flex flex-col items-center">
+                                                            {/* Background Image - Gym Theme */}
+                                                            <div className="absolute inset-0 z-0">
+                                                                <img
+                                                                    src="https://images.unsplash.com/photo-1534438327276-14e5300c3a48?w=800&q=80"
+                                                                    className="w-full h-full object-cover opacity-30 brightness-50"
+                                                                    alt="Profile Background"
+                                                                />
+                                                                <div className="absolute inset-0 bg-gradient-to-t from-black via-black/95 to-transparent" />
+                                                            </div>
+
+                                                            {/* Top Action Icons */}
+                                                            <div className="absolute top-5 inset-x-6 z-20 flex justify-between items-start">
+                                                                <div className="relative">
+                                                                    <div className="w-8 h-8 rounded-full bg-white/5 border border-white/10 flex items-center justify-center backdrop-blur-md">
+                                                                        <BookOpen size={14} className="text-white/40" />
+                                                                    </div>
+                                                                    <div className="absolute -top-1 -right-1 w-3.5 h-3.5 bg-[#FF7939] rounded-full border-2 border-black flex items-center justify-center">
+                                                                        <span className="text-[7px] font-black text-white">1</span>
+                                                                    </div>
+                                                                </div>
+                                                                <div className="w-8 h-8 rounded-full bg-white/5 border border-white/10 flex items-center justify-center backdrop-blur-md">
+                                                                    <Edit2 size={14} className="text-[#FF7939]" />
+                                                                </div>
+                                                            </div>
+
+                                                            {/* Profile Info Layer - Gigantic Typo */}
+                                                            <div className="relative z-10 flex flex-col items-center pt-10 pb-6 w-full px-6 text-center">
+                                                                <div className="w-14 h-14 rounded-full overflow-hidden border-2 border-white/10 shadow-2xl mb-3 relative">
+                                                                    <img
+                                                                        src="https://images.unsplash.com/photo-1594381898411-846e7d193883?w=400&q=80"
+                                                                        className="w-full h-full object-cover"
+                                                                        alt="Franco"
+                                                                    />
+                                                                </div>
+
+                                                                <h5 className="text-[18px] font-black text-white italic tracking-tight leading-none uppercase">FRANCO HOTMAIL</h5>
+
+                                                                <div className="flex gap-4 mt-2 opacity-60">
+                                                                    <div className="flex items-center gap-1.5">
+                                                                        <MapPin size={8} className="text-white" />
+                                                                        <span className="text-[9px] font-bold text-white uppercase italic">BELGRANO, CABA</span>
+                                                                    </div>
+                                                                    <span className="text-[9px] font-bold text-white uppercase italic">26 AÑOS</span>
+                                                                </div>
+
+                                                                <div className="flex flex-col items-center gap-1.5 mt-4 w-full px-1">
+                                                                    {/* Row 1: Goals - Single Row */}
+                                                                    <div className="flex justify-center gap-1 w-full overflow-hidden">
+                                                                        {['QUEMAR GRASAS', 'MEJORAR CONDICIÓN FÍSICA'].map((tag) => (
+                                                                            <span key={tag} className="px-2 py-0.5 rounded-full border border-[#FF7939]/30 bg-[#FF7939]/5 text-[#FF7939] text-[6.5px] font-black uppercase italic whitespace-nowrap shrink-0">
+                                                                                {tag}
+                                                                            </span>
+                                                                        ))}
+                                                                    </div>
+
+                                                                    {/* Row 2: Sports - Single Row */}
+                                                                    <div className="flex justify-center gap-1 w-full overflow-hidden">
+                                                                        {['CALISTENIA', 'PADEL', 'CICLISMO'].map((tag) => (
+                                                                            <span key={tag} className="px-2 py-0.5 border-[#FACC15]/30 bg-[#FACC15]/5 text-[#FACC15] border rounded-full text-[6.5px] font-black uppercase italic whitespace-nowrap shrink-0">
+                                                                                {tag}
+                                                                            </span>
+                                                                        ))}
+                                                                    </div>
+                                                                </div>
+                                                            </div>
+                                                        </div>
+
+                                                        {/* 2. Activity Section - Match Reference */}
+                                                        <div className="bg-[#09090b] border border-white/5 rounded-[32px] p-4 shadow-2xl space-y-3">
+                                                            <div className="flex justify-between items-center px-1 mb-1">
+                                                                {['L', 'M', 'M', 'J', 'V', 'S', 'D'].map((day, idx) => {
+                                                                    const states: ('pending' | 'completed' | 'missed')[] = ['completed', 'missed', 'completed', 'completed', 'pending', 'pending', 'pending'];
+                                                                    return (
+                                                                        <div key={day + idx} className="flex flex-col items-center gap-1.5">
+                                                                            <span className={cn(
+                                                                                "text-[8px] font-black uppercase italic",
+                                                                                idx === 0 || idx === 1 || idx === 2 || idx === 3 ? "text-white/60" : "text-white/20"
+                                                                            )}>
+                                                                                {day}
+                                                                            </span>
+                                                                            <ShowcaseTripleMiniRing
+                                                                                status={states[idx]}
+                                                                                activeTab={clientProfileTab}
+                                                                            />
+                                                                        </div>
+                                                                    );
+                                                                })}
+                                                            </div>
+
+
+                                                            {/* Main Stats Area - More Compact */}
+                                                            <div className="flex items-center justify-between gap-2 mt-[-4px]">
+                                                                <div className="relative shrink-0">
+                                                                    <ShowcaseActivityRings
+                                                                        kcal={{ completed: 15420, missed: 600, total: 21000 }}
+                                                                        minutes={{ completed: 320, missed: 45, total: 450 }}
+                                                                        activity={{
+                                                                            completed: clientProfileTab === 'fitness' ? 18 : 21,
+                                                                            missed: 2,
+                                                                            total: clientProfileTab === 'fitness' ? 25 : 28,
+                                                                            color: clientProfileTab === 'fitness' ? "#FF7939" : "#FACC15"
+                                                                        }}
+                                                                        size={110}
+                                                                        hideStreak={true}
+                                                                    />
+                                                                </div>
+
+                                                                <div className="flex flex-col gap-1 text-right flex-1">
+                                                                    <div className="flex flex-col">
+                                                                        <span className="text-[6px] font-black text-white/20 uppercase tracking-widest italic leading-none">SEMANAL</span>
+                                                                        <div className="flex items-center justify-end gap-1 text-white mt-0.5">
+                                                                            <ArrowDown size={7} strokeWidth={4} />
+                                                                            <span className="text-[7.5px] font-black uppercase italic tracking-tighter leading-none">KCAL</span>
+                                                                        </div>
+                                                                        <span className="text-[14px] font-[1000] text-white leading-none tracking-tighter mt-0.5 whitespace-nowrap">15.420/21K</span>
+                                                                    </div>
+                                                                    <div className="flex flex-col">
+                                                                        <span className="text-[7.5px] font-black text-[#E65100] uppercase italic tracking-tighter leading-none">MINUTOS</span>
+                                                                        <span className="text-[14px] font-[1000] text-[#E65100] leading-none tracking-tighter mt-0.5">320/450</span>
+                                                                    </div>
+                                                                    <div className="flex flex-col">
+                                                                        <span className={cn(
+                                                                            "text-[7.5px] font-black uppercase italic tracking-tighter leading-none",
+                                                                            clientProfileTab === 'fitness' ? "text-[#FF7939]" : "text-[#FACC15]"
+                                                                        )}>
+                                                                            {clientProfileTab === 'fitness' ? 'EJERCICIOS' : 'PLATOS'}
+                                                                        </span>
+                                                                        <span className={cn(
+                                                                            "text-[14px] font-[1000] leading-none tracking-tighter mt-0.5",
+                                                                            clientProfileTab === 'fitness' ? "text-[#FF7939]" : "text-[#FACC15]"
+                                                                        )}>
+                                                                            {clientProfileTab === 'fitness' ? '18/25' : '21/28'}
+                                                                        </span>
+                                                                    </div>
+                                                                </div>
+                                                            </div>
+
+
+                                                            {/* Toggle in block bottom - Ultra Compact */}
+                                                            <div className="flex bg-white/5 rounded-full p-0.5 border border-white/5 mt-3 max-w-[160px] mx-auto">
+                                                                <button
+                                                                    onClick={() => setClientProfileTab('fitness')}
+                                                                    className={cn(
+                                                                        "flex-1 py-1 rounded-full text-center transition-all duration-300",
+                                                                        clientProfileTab === 'fitness' ? "bg-white/10 text-white" : "text-white/20"
+                                                                    )}
+                                                                >
+                                                                    <span className="text-[8px] font-black uppercase italic">Fitness</span>
+                                                                </button>
+                                                                <button
+                                                                    onClick={() => setClientProfileTab('nutrition')}
+                                                                    className={cn(
+                                                                        "flex-1 py-1 rounded-full text-center transition-all duration-300",
+                                                                        clientProfileTab === 'nutrition' ? "bg-white/10 text-white" : "text-white/20"
+                                                                    )}
+                                                                >
+                                                                    <span className="text-[8px] font-black uppercase italic">Nutri</span>
+                                                                </button>
+                                                            </div>
+                                                        </div>
+                                                    </div>
+                                                </div>
+                                            </PhoneMockup>
+                                        </div>
+                                    </div>
+                                </div>
+
+                                {/* 2. iPad Integrated Experience (Multi-Device) */}
+                                <div className="space-y-12">
+                                    <div className="text-center space-y-3">
+                                        <div className="inline-flex items-center gap-2 px-3 py-1 bg-[#FF7939]/10 rounded-full border border-[#FF7939]/20">
+                                            <Layers size={12} className="text-[#FF7939]" />
+                                            <span className="text-[10px] font-black text-[#FF7939] uppercase italic">Poder Multi-Dispositivo</span>
+                                        </div>
+                                        <h3 className="text-4xl font-black text-white italic uppercase tracking-tighter leading-none">Taller en vivo <br /><span className="text-white/30 text-xl tracking-normal lowercase">en todos tus equipos.</span></h3>
+                                        <p className="text-sm text-white/40 max-w-xl mx-auto leading-relaxed">
+                                            Accedé a tus rutinas y documentos desde cualquier lugar. Consultá tu manual de entrenamiento y recetarios mientras controlás tu progreso con un diseño responsivo de alto rendimiento.
+                                        </p>
+                                    </div>
+
+                                    <div className="flex justify-center relative w-full px-2 mt-4 overflow-hidden mobile:overflow-visible">
+                                        <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-full max-w-[800px] h-[400px] bg-blue-500/5 blur-[120px] rounded-full" />
+
+                                        {/* iPad Layout: 3/4 Planificación Avanzada (Yoga) + 1/4 PDF Doc */}
+                                        <div className="w-full max-w-[850px] aspect-[11/8] relative">
+                                            <div
+                                                className="absolute top-0 left-0 w-[850px] h-[618px] bg-[#0a0a0a] rounded-[32px] border-[12px] border-[#1a1a1a] shadow-[0_0_100px_rgba(0,0,0,0.5)] overflow-hidden origin-top-left group"
+                                                style={{ transform: `scale(${ipadScale})` }}
+                                            >
                                                 {/* Camera Top */}
                                                 <div className="absolute top-2 left-1/2 -translate-x-1/2 w-1.5 h-1.5 bg-black/40 rounded-full border border-white/10 z-50" />
 
@@ -1188,261 +1307,278 @@ export function OmniaShowcase({ scrollY }: OmniaShowcaseProps) {
                                                         </div>
                                                     </div>
                                                 </div>
+                                                {/* CIERRE IPAD */}
                                             </div>
                                         </div>
                                     </div>
-                                </>
-                            );
+                                </div>
+                            </>
+                        ) : (
+                            <div className="w-full">
+                                <div className="space-y-32 w-full">
+                                    {/* 1. Integrated Mobile Experience (iPhone Coach) */}
+                                    <div className="space-y-8 w-full">
+                                        <div className="flex flex-col items-center text-center space-y-4 px-6">
+                                            <h3 className="text-4xl font-black text-white italic uppercase tracking-tighter leading-none">Tu Negocio <br /><span className="text-white/30 text-xl tracking-normal lowercase">en escala real.</span></h3>
+                                            <p className="text-sm text-white/40 max-w-xl mx-auto leading-relaxed mt-2">
+                                                Gestioná tus alumnos, programas y ventas con una interfaz diseñada para coaches de alto rendimiento.
+                                            </p>
 
-                            return (
-                                <>
-                                    <div className="space-y-32 w-full">
-                                        {/* 1. Integrated Mobile Experience (iPhone Coach) */}
-                                        <div className="space-y-8 w-full">
-                                            <div className="flex flex-col items-center text-center space-y-4 px-6">
-                                                <h3 className="text-4xl font-black text-white italic uppercase tracking-tighter leading-none">Tu Negocio <br /><span className="text-white/30 text-xl tracking-normal lowercase">en escala real.</span></h3>
-                                                <p className="text-sm text-white/40 max-w-xl mx-auto leading-relaxed mt-2">
-                                                    Gestioná tus alumnos, programas y ventas con una interfaz diseñada para coaches de alto rendimiento.
-                                                </p>
-
-                                                {/* Refined Pagination Icons for Coach - Moved Above Phones */}
-                                                <div className="flex items-center gap-12 mt-6">
-                                                    {[
-                                                        { type: 'clients', icon: Users, label: 'Clientes' },
-                                                        { type: 'profile', icon: User, label: 'Perfil' }
-                                                    ].map((nav) => (
-                                                        <button
-                                                            key={nav.type}
-                                                            onClick={() => setCoachMockupType(nav.type as any)}
-                                                            className={cn(
-                                                                "flex flex-col items-center gap-2 transition-all duration-300",
-                                                                coachMockupType === nav.type
-                                                                    ? "text-[#FF7939]"
-                                                                    : "text-white/20 hover:text-white/40 font-bold"
-                                                            )}
-                                                        >
-                                                            <nav.icon size={28} fill={coachMockupType === nav.type ? "currentColor" : "none"} />
-                                                            <span className="text-[10px] font-black uppercase italic tracking-widest">{nav.label}</span>
-                                                        </button>
-                                                    ))}
-                                                </div>
+                                            {/* Refined Pagination Icons for Coach - Moved Above Phones */}
+                                            <div className="flex items-center gap-12 mt-6">
+                                                {[
+                                                    { type: 'clients', icon: Users, label: 'Clientes' },
+                                                    { type: 'profile', icon: User, label: 'Perfil' }
+                                                ].map((nav) => (
+                                                    <button
+                                                        key={nav.type}
+                                                        onClick={() => setCoachMockupType(nav.type as any)}
+                                                        className={cn(
+                                                            "flex flex-col items-center gap-2 transition-all duration-300",
+                                                            coachMockupType === nav.type
+                                                                ? "text-[#FF7939]"
+                                                                : "text-white/20 hover:text-white/40 font-bold"
+                                                        )}
+                                                    >
+                                                        <nav.icon size={28} fill={coachMockupType === nav.type ? "currentColor" : "none"} />
+                                                        <span className="text-[10px] font-black uppercase italic tracking-widest">{nav.label}</span>
+                                                    </button>
+                                                ))}
                                             </div>
+                                        </div>
 
-                                            <div className="flex flex-col md:flex-row items-center justify-center gap-12 md:gap-24 w-full">
-                                                <div className="flex justify-center relative h-[620px] w-full max-w-sm mx-auto perspective-[2000px] mt-12 mb-12 select-none">
-                                                    {/* Glow Backgrounds */}
-                                                    <div className={cn(
-                                                        "absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-80 h-80 rounded-full blur-[120px] transition-all duration-1000",
-                                                        coachMockupType === 'clients' ? "bg-blue-500/20" : "bg-[#FF7939]/20"
-                                                    )} />
+                                        <div className="flex flex-col md:flex-row items-center justify-center gap-12 md:gap-24 w-full">
+                                            <div className="flex justify-center relative h-[620px] w-full max-w-sm mx-auto perspective-[2000px] mt-12 mb-12 select-none">
+                                                {/* Glow Backgrounds */}
+                                                <div className={cn(
+                                                    "absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-80 h-80 rounded-full blur-[120px] transition-all duration-1000",
+                                                    coachMockupType === 'clients' ? "bg-blue-500/20" : "bg-[#FF7939]/20"
+                                                )} />
 
-                                                    {/* Phone 1: Clients List */}
-                                                    <PhoneMockup type="clients" role="coach" active={coachMockupType === 'clients'} onClick={() => setCoachMockupType('clients')}>
-                                                        <div className="px-5 pt-3 pb-2">
-                                                            <h3 className="text-[16px] font-black text-white uppercase italic tracking-tighter mt-1 leading-tight">CLIENTES</h3>
+                                                {/* Phone 1: Clients List */}
+                                                <PhoneMockup type="clients" role="coach" active={coachMockupType === 'clients'} activeType={coachMockupType} onClick={() => setCoachMockupType('clients')}>
+                                                    <div className="px-5 pt-3 pb-2">
+                                                        <h3 className="text-[16px] font-black text-white uppercase italic tracking-tighter mt-1 leading-tight">CLIENTES</h3>
+                                                    </div>
+
+                                                    <div className="px-3 py-2 space-y-4 flex-1">
+                                                        {/* Simple Search Mockup */}
+                                                        <div className="flex items-center gap-2 px-3 py-2 bg-white/5 rounded-2xl border border-white/10">
+                                                            <Search size={14} className="text-white/20" />
+                                                            <div className="w-full h-2 bg-white/10 rounded-full" />
                                                         </div>
 
-                                                        <div className="px-3 py-2 space-y-4 flex-1">
-                                                            {/* Simple Search Mockup */}
-                                                            <div className="flex items-center gap-2 px-3 py-2 bg-white/5 rounded-2xl border border-white/10">
-                                                                <Search size={14} className="text-white/20" />
-                                                                <div className="w-full h-2 bg-white/10 rounded-full" />
-                                                            </div>
-
-                                                            {/* Client List Mockup */}
-                                                            <div className="space-y-2">
+                                                        {/* Client Grid Mockup - REPLICA IDENTICA */}
+                                                        <div className="px-3 py-2 flex-1 overflow-y-auto hide-scrollbar">
+                                                            <div className="grid grid-cols-2 gap-3 mb-20">
                                                                 {[
-                                                                    { name: 'Diego Omnia', plan: 'Pro Fitness', avatar: 'https://images.unsplash.com/photo-1534438327276-14e5300c3a48?w=100&q=80' },
-                                                                    { name: 'Maru Yoga', plan: 'Advanced', avatar: 'https://images.unsplash.com/photo-1544367567-0f2fcb009e0b?w=100&q=80' },
-                                                                    { name: 'Franco Dev', plan: 'Coach Plan', avatar: 'https://images.unsplash.com/photo-1571019614242-c5c5dee9f50b?w=100&q=80' }
+                                                                    { name: 'Diego Omnia', plan: 'Pro Fitness', avatar: 'https://images.unsplash.com/photo-1534438327276-14e5300c3a48?w=100&q=80', fit: 85, nut: 70, streak: 15 },
+                                                                    { name: 'Maru Yoga', plan: 'Advanced', avatar: 'https://images.unsplash.com/photo-1544367567-0f2fcb009e0b?w=100&q=80', fit: 100, nut: 95, streak: 24 },
+                                                                    { name: 'Franco Dev', plan: 'Coach Plan', avatar: 'https://images.unsplash.com/photo-1571019614242-c5c5dee9f50b?w=100&q=80', fit: 45, nut: 30, streak: 6 },
+                                                                    { name: 'Sofi UX', plan: 'Expert', avatar: 'https://images.unsplash.com/photo-1494790108377-be9c29b29330?w=100&q=80', fit: 90, nut: 100, streak: 32 }
                                                                 ].map((c, i) => (
-                                                                    <div key={i} className="p-3 bg-white/[0.04] border border-white/5 rounded-2xl flex items-center justify-between">
-                                                                        <div className="flex items-center gap-3">
-                                                                            <img src={c.avatar} className="w-10 h-10 rounded-full border border-white/10" alt={c.name} />
-                                                                            <div className="flex flex-col">
-                                                                                <span className="text-[11px] font-black text-white uppercase italic">{c.name}</span>
-                                                                                <span className="text-[8px] text-[#FF7939] uppercase font-bold tracking-widest">{c.plan}</span>
+                                                                    <div key={i} className="bg-white/[0.04] border border-white/5 rounded-[32px] p-3 flex flex-col items-center transition-all hover:bg-white/[0.08]">
+                                                                        <div className="mb-2">
+                                                                            <ShowcaseActivityRings
+                                                                                size={85}
+                                                                                avatarUrl={c.avatar}
+                                                                                kcal={{ completed: c.fit * 22, total: 2500 }}
+                                                                                minutes={{ completed: Math.round(c.fit * 0.45), total: 60 }}
+                                                                                activity={{ completed: c.fit, total: 100, color: "#FF7939" }}
+                                                                                streak={c.streak}
+                                                                                hideStreak={true}
+                                                                            />
+                                                                        </div>
+                                                                        <div className="flex flex-col items-center text-center">
+                                                                            <span className="text-[11px] font-black text-white uppercase italic truncate w-full">{c.name.split(' ')[0]}</span>
+                                                                            <div className="flex items-center gap-1 mt-1 bg-[#FF7939]/10 px-1.5 py-0.5 rounded-full border border-[#FF7939]/20">
+                                                                                <Flame size={8} className="text-[#FF7939] fill-[#FF7939]" />
+                                                                                <span className="text-[8px] font-black text-[#FF7939] italic">{c.streak} d.</span>
                                                                             </div>
                                                                         </div>
-                                                                        <ChevronRight size={14} className="text-white/20" />
                                                                     </div>
                                                                 ))}
                                                             </div>
                                                         </div>
-                                                    </PhoneMockup>
+                                                    </div>
+                                                </PhoneMockup>
 
-                                                    {/* Phone 2: Coach Profile */}
-                                                    <PhoneMockup type="profile" role="coach" active={coachMockupType === 'profile'} onClick={() => setCoachMockupType('profile')}>
-                                                        <div className="flex-1 overflow-y-auto overflow-x-hidden hide-scrollbar pb-3 pt-0 px-3 space-y-1">
-                                                            {/* Hero Profile Card - PREMIUM COMPACT */}
+                                                {/* Phone 2: Coach Profile */}
+                                                <PhoneMockup type="profile" role="coach" active={coachMockupType === 'profile'} activeType={coachMockupType} onClick={() => setCoachMockupType('profile')}>
+                                                    <div className="flex-1 overflow-y-auto overflow-x-hidden hide-scrollbar pb-3 pt-0 px-3 space-y-1">
+                                                        {/* Hero Profile Card - PREMIUM COMPACT */}
+                                                        <div
+                                                            className="bg-[#1A1C1F] rounded-[32px] p-4 relative overflow-hidden min-h-[280px] flex flex-col justify-center"
+                                                            style={{
+                                                                backgroundImage: `linear-gradient(rgba(26, 28, 31, 0.8), rgba(26, 28, 31, 0.95)), url('https://images.unsplash.com/photo-1543326727-cf6c39e8f84c?w=400&q=80')`,
+                                                                backgroundSize: 'cover',
+                                                                backgroundPosition: 'center',
+                                                                backgroundRepeat: 'no-repeat'
+                                                            }}
+                                                        >
+                                                            {/* Extra Blurred Background */}
                                                             <div
-                                                                className="bg-[#1A1C1F] rounded-[32px] p-4 relative overflow-hidden min-h-[280px] flex flex-col justify-center"
+                                                                className="absolute inset-0 opacity-10"
                                                                 style={{
-                                                                    backgroundImage: `linear-gradient(rgba(26, 28, 31, 0.8), rgba(26, 28, 31, 0.95)), url('https://images.unsplash.com/photo-1543326727-cf6c39e8f84c?w=400&q=80')`,
+                                                                    backgroundImage: `url('https://images.unsplash.com/photo-1543326727-cf6c39e8f84c?w=400&q=80')`,
                                                                     backgroundSize: 'cover',
                                                                     backgroundPosition: 'center',
-                                                                    backgroundRepeat: 'no-repeat'
+                                                                    filter: 'blur(40px)',
+                                                                    transform: 'scale(1.2)'
                                                                 }}
-                                                            >
-                                                                {/* Extra Blurred Background */}
-                                                                <div
-                                                                    className="absolute inset-0 opacity-10"
-                                                                    style={{
-                                                                        backgroundImage: `url('https://images.unsplash.com/photo-1543326727-cf6c39e8f84c?w=400&q=80')`,
-                                                                        backgroundSize: 'cover',
-                                                                        backgroundPosition: 'center',
-                                                                        filter: 'blur(40px)',
-                                                                        transform: 'scale(1.2)'
-                                                                    }}
-                                                                />
+                                                            />
 
-                                                                <div className="relative z-10 flex flex-col items-center">
-                                                                    {/* Top Actions - Moved Up */}
-                                                                    <div className="w-full flex justify-between items-start -mt-4 mb-2">
-                                                                        <div className="flex items-center space-x-1.5 bg-orange-500/20 px-2 py-0.5 rounded-full border border-orange-500/30 backdrop-blur-md">
-                                                                            <Flame className="h-2.5 w-2.5 text-orange-500" />
-                                                                            <span className="text-[10px] font-black text-orange-500 italic">6</span>
-                                                                        </div>
-                                                                        <button className="text-[#FF7939] hover:bg-white/5 rounded-xl p-1 transition-colors">
-                                                                            <Edit2 size={13} />
-                                                                        </button>
+                                                            <div className="relative z-10 flex flex-col items-center">
+                                                                {/* Top Actions - Moved Up */}
+                                                                <div className="w-full flex justify-between items-start -mt-4 mb-2">
+                                                                    <div className="flex items-center space-x-1.5 bg-orange-500/20 px-2 py-0.5 rounded-full border border-orange-500/30 backdrop-blur-md">
+                                                                        <Flame className="h-2.5 w-2.5 text-orange-500" />
+                                                                        <span className="text-[10px] font-black text-orange-500 italic">6</span>
                                                                     </div>
+                                                                    <button className="text-[#FF7939] hover:bg-white/5 rounded-xl p-1 transition-colors">
+                                                                        <Edit2 size={13} />
+                                                                    </button>
+                                                                </div>
 
-                                                                    {/* Avatar - Moved Up */}
-                                                                    <div className="flex justify-center -mt-2 mb-2">
-                                                                        <div className="w-14 h-14 bg-gradient-to-br from-[#FF6A00] to-[#FF8C42] rounded-full flex items-center justify-center overflow-hidden ring-[5px] ring-black/30 shadow-2xl">
-                                                                            <img
-                                                                                src="https://images.unsplash.com/photo-1543326727-cf6c39e8f84c?w=400&q=80"
-                                                                                className="w-full h-full object-cover"
-                                                                                alt="Avatar"
-                                                                            />
-                                                                        </div>
-                                                                    </div>
-
-                                                                    {/* Name */}
-                                                                    <div className="text-center mb-1">
-                                                                        <h1 className="text-[17px] font-bold text-white tracking-tight">Franco Pomati coach</h1>
-                                                                    </div>
-
-                                                                    {/* Rating + Ventas + Certificaciones */}
-                                                                    <div className="flex items-center justify-center gap-3 mb-1 text-[11px] font-medium">
-                                                                        <div className="flex items-center text-[#FF7939]">
-                                                                            <Star size={11} className="fill-current mr-1" />
-                                                                            <span>4.3</span>
-                                                                        </div>
-                                                                        <div className="text-white">1 ventas</div>
-                                                                        <div className="flex items-center text-white/60">
-                                                                            <Award size={11} className="mr-1" />
-                                                                            <span>1 cert.</span>
-                                                                        </div>
-                                                                    </div>
-
-                                                                    {/* Location + Edad */}
-                                                                    <div className="flex items-center justify-center gap-3 mb-2 text-[10px] text-white/50">
-                                                                        <div className="flex items-center space-x-1">
-                                                                            <MapPin size={10} />
-                                                                            <span>CABA</span>
-                                                                        </div>
-                                                                        <div>26 años</div>
-                                                                    </div>
-
-                                                                    {/* Bio */}
-                                                                    <div className="text-center mb-2 px-1">
-                                                                        <p className="text-white text-[11px] leading-tight font-medium">
-                                                                            Profesional de futbol, preparador fisico de Boca Juniors.
-                                                                        </p>
-                                                                    </div>
-
-                                                                    {/* Especialidades */}
-                                                                    <div className="flex flex-nowrap justify-center gap-1.5 px-1 overflow-hidden">
-                                                                        {['General', 'Futbol', 'Fitness General', 'CrossFit'].map((spec, idx) => (
-                                                                            <span
-                                                                                key={idx}
-                                                                                className="px-2 py-0.5 rounded-full border border-[#FF7939]/30 text-[#FF7939] text-[8.5px] font-medium bg-[#FF7939]/5 whitespace-nowrap"
-                                                                            >
-                                                                                {spec}
-                                                                            </span>
-                                                                        ))}
+                                                                {/* Avatar - Moved Up */}
+                                                                <div className="flex justify-center -mt-2 mb-2">
+                                                                    <div className="w-14 h-14 bg-gradient-to-br from-[#FF6A00] to-[#FF8C42] rounded-full flex items-center justify-center overflow-hidden ring-[5px] ring-black/30 shadow-2xl">
+                                                                        <img
+                                                                            src="https://images.unsplash.com/photo-1543326727-cf6c39e8f84c?w=400&q=80"
+                                                                            className="w-full h-full object-cover"
+                                                                            alt="Avatar"
+                                                                        />
                                                                     </div>
                                                                 </div>
-                                                            </div>
-                                                            {/* Earnings Card - RESTORED SCALE */}
-                                                            <div className="bg-[#1A1C1F] rounded-[32px] p-4 relative shadow-2xl border border-white/5 flex flex-col items-center text-center">
-                                                                <button className="absolute top-4 right-5 text-[#FF7939] hover:opacity-80 transition-opacity">
-                                                                    <Printer size={13} />
-                                                                </button>
 
-                                                                <div className="mb-2">
-                                                                    <p className="text-[34px] font-[1000] text-[#FF7939] italic tracking-tighter leading-none mb-1 shadow-orange-500/10">
-                                                                        $150.000
+                                                                {/* Name */}
+                                                                <div className="text-center mb-1">
+                                                                    <h1 className="text-[17px] font-bold text-white tracking-tight">Franco Pomati coach</h1>
+                                                                </div>
+
+                                                                {/* Rating + Ventas + Certificaciones */}
+                                                                <div className="flex items-center justify-center gap-3 mb-1 text-[11px] font-medium">
+                                                                    <div className="flex items-center text-[#FF7939]">
+                                                                        <Star size={11} className="fill-current mr-1" />
+                                                                        <span>4.3</span>
+                                                                    </div>
+                                                                    <div className="text-white">1 ventas</div>
+                                                                    <div className="flex items-center text-white/60">
+                                                                        <Award size={11} className="mr-1" />
+                                                                        <span>1 cert.</span>
+                                                                    </div>
+                                                                </div>
+
+                                                                {/* Location + Edad */}
+                                                                <div className="flex items-center justify-center gap-3 mb-2 text-[10px] text-white/50">
+                                                                    <div className="flex items-center space-x-1">
+                                                                        <MapPin size={10} />
+                                                                        <span>CABA</span>
+                                                                    </div>
+                                                                    <div>26 años</div>
+                                                                </div>
+
+                                                                {/* Bio */}
+                                                                <div className="text-center mb-2 px-1">
+                                                                    <p className="text-white text-[11px] leading-tight font-medium">
+                                                                        Profesional de futbol, preparador fisico de Boca Juniors.
                                                                     </p>
-                                                                    <div className="flex flex-col gap-0.5">
-                                                                        <p className="text-[8px] font-black text-white/20 uppercase tracking-[0.2em] italic leading-none">
-                                                                            BRUTA: $175.500
-                                                                        </p>
-                                                                        <p className="text-[8px] font-black text-white/20 uppercase tracking-[0.2em] italic leading-none">
-                                                                            SUSCRIPCIÓN: -$25.500
-                                                                        </p>
-                                                                    </div>
                                                                 </div>
 
-                                                                <div className="w-full h-px bg-white/5 mb-3"></div>
-
-                                                                {/* Multi-Segmented Bar - BETTER VISIBILITY */}
-                                                                <div className="w-full mb-3 px-2">
-                                                                    <div className="w-full h-1.5 flex gap-0.5 relative overflow-hidden">
-                                                                        {/* Programs segment - 60% */}
-                                                                        <div className="h-full bg-[#FF7939] rounded-full flex items-center justify-center text-black text-[7px] font-black italic uppercase" style={{ width: '60%' }}>
-                                                                            1k
-                                                                        </div>
-                                                                        {/* Workshops segment - 20% */}
-                                                                        <div className="h-full bg-[#FFD1A6] rounded-full" style={{ width: '20%' }}></div>
-                                                                        {/* Documents segment - 10% */}
-                                                                        <div className="h-full bg-[#FF9FC4] rounded-full" style={{ width: '10%' }}></div>
-                                                                        {/* Consultations segment - 10% */}
-                                                                        <div className="h-full bg-white rounded-full" style={{ width: '10%' }}></div>
-                                                                    </div>
-                                                                </div>
-
-                                                                <div className="grid grid-cols-4 w-full gap-2 border-t border-white/5 pt-3">
-                                                                    {[
-                                                                        { icon: BookOpen, label: 'Progs', color: '#FF7939' },
-                                                                        { icon: Users, label: 'Talleres', color: '#FFD1A6' },
-                                                                        { icon: FileText, label: 'Docs', color: '#FF9FC4' },
-                                                                        { icon: MessageCircle, label: 'Consul', color: '#FFFFFF' }
-                                                                    ].map((item, i) => (
-                                                                        <div key={i} className="flex flex-col items-center gap-1.5">
-                                                                            <item.icon size={13} style={{ color: item.color }} className="opacity-40" />
-                                                                            <span className="text-[6px] font-black text-white/20 uppercase italic tracking-tighter">{item.label}</span>
-                                                                        </div>
+                                                                {/* Especialidades */}
+                                                                <div className="flex flex-nowrap justify-center gap-1.5 px-1 overflow-hidden">
+                                                                    {['General', 'Futbol', 'Fitness General', 'CrossFit'].map((spec, idx) => (
+                                                                        <span
+                                                                            key={idx}
+                                                                            className="px-2 py-0.5 rounded-full border border-[#FF7939]/30 text-[#FF7939] text-[8.5px] font-medium bg-[#FF7939]/5 whitespace-nowrap"
+                                                                        >
+                                                                            {spec}
+                                                                        </span>
                                                                     ))}
                                                                 </div>
                                                             </div>
                                                         </div>
-                                                    </PhoneMockup>
-                                                </div>
+                                                        {/* Earnings Card - RESTORED SCALE */}
+                                                        <div className="bg-[#1A1C1F] rounded-[32px] p-4 relative shadow-2xl border border-white/5 flex flex-col items-center text-center">
+                                                            <button className="absolute top-4 right-5 text-[#FF7939] hover:opacity-80 transition-opacity">
+                                                                <Printer size={13} />
+                                                            </button>
+
+                                                            <div className="mb-2">
+                                                                <p className="text-[34px] font-[1000] text-[#FF7939] italic tracking-tighter leading-none mb-1 shadow-orange-500/10">
+                                                                    $150.000
+                                                                </p>
+                                                                <div className="flex flex-col gap-0.5">
+                                                                    <p className="text-[8px] font-black text-white/20 uppercase tracking-[0.2em] italic leading-none">
+                                                                        BRUTA: $175.500
+                                                                    </p>
+                                                                    <p className="text-[8px] font-black text-white/20 uppercase tracking-[0.2em] italic leading-none">
+                                                                        SUSCRIPCIÓN: -$25.500
+                                                                    </p>
+                                                                </div>
+                                                            </div>
+
+                                                            <div className="w-full h-px bg-white/5 mb-3"></div>
+
+                                                            {/* Multi-Segmented Bar - BETTER VISIBILITY */}
+                                                            <div className="w-full mb-3 px-2">
+                                                                <div className="w-full h-1.5 flex gap-0.5 relative overflow-hidden">
+                                                                    {/* Programs segment - 60% */}
+                                                                    <div className="h-full bg-[#FF7939] rounded-full flex items-center justify-center text-black text-[7px] font-black italic uppercase" style={{ width: '60%' }}>
+                                                                        1k
+                                                                    </div>
+                                                                    {/* Workshops segment - 20% */}
+                                                                    <div className="h-full bg-[#FFD1A6] rounded-full" style={{ width: '20%' }}></div>
+                                                                    {/* Documents segment - 10% */}
+                                                                    <div className="h-full bg-[#FF9FC4] rounded-full" style={{ width: '10%' }}></div>
+                                                                    {/* Consultations segment - 10% */}
+                                                                    <div className="h-full bg-white rounded-full" style={{ width: '10%' }}></div>
+                                                                </div>
+                                                            </div>
+
+                                                            <div className="grid grid-cols-4 w-full gap-2 border-t border-white/5 pt-3">
+                                                                {[
+                                                                    { icon: BookOpen, label: 'Progs', color: '#FF7939' },
+                                                                    { icon: Users, label: 'Talleres', color: '#FFD1A6' },
+                                                                    { icon: FileText, label: 'Docs', color: '#FF9FC4' },
+                                                                    { icon: MessageCircle, label: 'Consul', color: '#FFFFFF' }
+                                                                ].map((item, i) => (
+                                                                    <div key={i} className="flex flex-col items-center gap-1.5">
+                                                                        <item.icon size={13} style={{ color: item.color }} className="opacity-40" />
+                                                                        <span className="text-[6px] font-black text-white/20 uppercase italic tracking-tighter">{item.label}</span>
+                                                                    </div>
+                                                                ))}
+                                                            </div>
+                                                        </div>
+                                                    </div>
+                                                </PhoneMockup>
                                             </div>
                                         </div>
+                                    </div>
 
 
-                                        {/* 2. MacBook Integrated Experience (Desktop) */}
-                                        <div className="space-y-12 w-full">
-                                            <div className="text-center space-y-3 px-6">
-                                                <div className="inline-flex items-center gap-2 px-3 py-1 bg-blue-500/10 rounded-full border border-blue-500/20">
-                                                    <Monitor size={12} className="text-blue-400" />
-                                                    <span className="text-[10px] font-black text-blue-400 uppercase italic">Tu Centro de Operaciones</span>
-                                                </div>
-                                                <h3 className="text-4xl font-black text-white italic uppercase tracking-tighter leading-none">Omnia Desktop <br /><span className="text-white/30 text-xl tracking-normal lowercase">gestión en gran pantalla.</span></h3>
-                                                <p className="text-sm text-white/40 max-w-xl mx-auto leading-relaxed">
-                                                    Administrá todos tus alumnos, programas y finanzas con una interfaz de escritorio potente y centrada en la productividad.
-                                                </p>
+                                    {/* 2. MacBook Integrated Experience (Desktop) */}
+                                    <div className="space-y-12 w-full">
+                                        <div className="text-center space-y-3 px-6">
+                                            <div className="inline-flex items-center gap-2 px-3 py-1 bg-blue-500/10 rounded-full border border-blue-500/20">
+                                                <Monitor size={12} className="text-blue-400" />
+                                                <span className="text-[10px] font-black text-blue-400 uppercase italic">Tu Centro de Operaciones</span>
                                             </div>
+                                            <h3 className="text-4xl font-black text-white italic uppercase tracking-tighter leading-none">Omnia Desktop <br /><span className="text-white/30 text-xl tracking-normal lowercase">gestión en gran pantalla.</span></h3>
+                                            <p className="text-sm text-white/40 max-w-xl mx-auto leading-relaxed">
+                                                Administrá todos tus alumnos, programas y finanzas con una interfaz de escritorio potente y centrada en la productividad.
+                                            </p>
+                                        </div>
 
-                                            <div className="flex justify-center relative w-full overflow-hidden pt-10">
-                                                {/* MacBook Base Proportional Container */}
-                                                <div className="w-full max-w-[1440px] px-4 md:px-10 relative z-10 flex flex-col items-center mx-auto">
+                                        <div className="flex justify-center relative w-full overflow-hidden pt-10 px-2 lg:px-0">
+                                            {/* MacBook Base Proportional Container */}
+                                            <div className="w-full max-w-[1440px] px-1 md:px-10 relative z-10 flex flex-col items-center mx-auto">
+                                                <div className="w-full aspect-[16/10] relative">
                                                     {/* MacBook Mockup - PRO COACH VIEW */}
-                                                    <div className="relative w-full aspect-[16/10] bg-[#020202] rounded-[24px] border-[8px] border-[#1a1a1a] shadow-[0_60px_120px_-20px_rgba(0,0,0,0.6),0_0_0_1px_rgba(255,255,255,0.05)] overflow-hidden pointer-events-none">
+                                                    <div
+                                                        className="absolute top-0 left-0 w-[1440px] h-[900px] bg-[#020202] rounded-[24px] sm:rounded-[48px] border-[10px] sm:border-[16px] border-[#1a1a1a] shadow-[0_60px_120px_-20px_rgba(0,0,0,0.6),0_0_0_1px_rgba(255,255,255,0.05)] overflow-hidden origin-top-left group"
+                                                        style={{ transform: `scale(${macbookScale})` }}
+                                                    >
                                                         {/* Camera Hole - Enhanced realism */}
                                                         <div className="absolute top-2 left-1/2 -translate-x-1/2 flex items-center justify-center z-50">
                                                             <div className="w-2 h-2 bg-black/90 rounded-full border border-white/10 relative overflow-hidden shadow-inner">
@@ -1475,8 +1611,8 @@ export function OmniaShowcase({ scrollY }: OmniaShowcaseProps) {
                                                                 </div>
                                                             </div>
 
-                                                            <div className="flex-1 overflow-hidden relative flex flex-col">
-                                                                <div className="p-3 flex-1 pointer-events-none opacity-95">
+                                                            <div className="flex-1 overflow-y-auto hide-scrollbar relative flex flex-col">
+                                                                <div className="p-3 pb-8 flex-1 opacity-95">
                                                                     <WeeklyExercisePlanner
                                                                         exercises={[
                                                                             { id: '1', name: 'Circuito de escalera d...', type: 'FUNCIONAL', calories: 70, duration: 15, reps: '0kg - 0r - 1s' },
@@ -1573,24 +1709,23 @@ export function OmniaShowcase({ scrollY }: OmniaShowcaseProps) {
                                                                 </div>
                                                             </div>
                                                         </div>
+                                                        {/* CIERRE MACBOOK */}
                                                     </div>
                                                 </div>
                                             </div>
                                         </div>
-
-                                        <div className="relative z-10 w-full max-w-[1485px] mx-auto h-[12px] md:h-[18px] bg-gradient-to-b from-[#3f3f46] via-[#27272a] to-[#18181b] rounded-b-[16px] md:rounded-b-[28px] shadow-[0_30px_60px_rgba(0,0,0,1)] -mt-1 flex justify-center border-t border-[#111]">
-                                            <div className="w-[120px] md:w-[180px] h-[6px] md:h-[10px] bg-[#09090b] rounded-b-[6px] md:rounded-b-[10px] border-x border-b border-black/40 shadow-inner" />
-                                        </div>
                                     </div>
-
+                                    <div className="relative z-10 w-full max-w-[1485px] mx-auto h-[12px] md:h-[18px] bg-gradient-to-b from-[#3f3f46] via-[#27272a] to-[#18181b] rounded-b-[16px] md:rounded-b-[28px] shadow-[0_30px_60px_rgba(0,0,0,1)] -mt-1 flex justify-center border-t border-[#111]">
+                                        <div className="w-[120px] md:w-[180px] h-[6px] md:h-[10px] bg-[#09090b] rounded-b-[6px] md:rounded-b-[10px] border-x border-b border-black/40 shadow-inner" />
+                                    </div>
                                     <div className="mt-12 flex justify-center pb-20">
                                         <Button className="bg-[#FF7939] text-black hover:bg-[#FF7939]/90 rounded-full px-16 py-8 h-auto text-[13px] font-[1000] italic uppercase shadow-[0_0_50px_rgba(255,121,57,0.3)] border-none flex items-center gap-4 group">
                                             Crear mi perfil Coach <ChevronRight size={22} className="group-hover:translate-x-1 transition-transform" />
                                         </Button>
                                     </div>
-                                </>
-                            );
-                        })()}
+                                </div>
+                            </div>
+                        )}
                     </motion.div>
                 </AnimatePresence>
             </div>

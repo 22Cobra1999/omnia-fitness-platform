@@ -2,7 +2,8 @@
 
 import { useState } from "react"
 import { useRouter } from 'next/navigation'
-import { Search, SlidersHorizontal, Users } from 'lucide-react'
+import { Search, SlidersHorizontal, Users, Info, X } from 'lucide-react'
+import { motion, AnimatePresence } from 'framer-motion'
 import { useClientListLogic } from "./clients/hooks/useClientListLogic"
 import { ClientCard } from "./clients/ui/ClientCard"
 import { ClientDetailModal } from "./clients/ui/ClientDetailModal"
@@ -12,6 +13,7 @@ import { cn } from "@/lib/utils/utils"
 export function ClientsScreen() {
   const router = useRouter()
   const [selectedClient, setSelectedClient] = useState<Client | null>(null)
+  const [isLegendOpen, setIsLegendOpen] = useState(false)
 
   // Logic Hooks
   const {
@@ -100,6 +102,60 @@ export function ClientsScreen() {
             )}
           </button>
         ))}
+      </div>
+
+      {/* Interactive Legend for Rings */}
+      <div className="mb-8">
+        <button
+          onClick={() => setIsLegendOpen(!isLegendOpen)}
+          className={cn(
+            "flex items-center gap-3 px-5 py-3 rounded-full border transition-all duration-300",
+            isLegendOpen
+              ? "bg-[#111111] border-[#FF7939]/30 text-white w-full"
+              : "bg-[#111111] border-white/5 text-white/40"
+          )}
+        >
+          <div className={cn(
+            "w-6 h-6 rounded-lg flex items-center justify-center border",
+            isLegendOpen ? "bg-[#FF7939]/10 border-[#FF7939]/20 text-[#FF7939]" : "bg-white/5 border-white/10 text-white/20"
+          )}>
+            <Info size={14} />
+          </div>
+          <span className="text-[11px] font-black uppercase tracking-widest italic">Info de anillos</span>
+          {isLegendOpen ? <X size={14} className="ml-auto" /> : null}
+        </button>
+
+        <AnimatePresence>
+          {isLegendOpen && (
+            <motion.div
+              initial={{ opacity: 0, height: 0, marginTop: 0 }}
+              animate={{ opacity: 1, height: "auto", marginTop: 12 }}
+              exit={{ opacity: 0, height: 0, marginTop: 0 }}
+              className="overflow-hidden"
+            >
+              <div className="px-5 py-6 bg-[#111111] rounded-[24px] border border-white/5 relative shadow-2xl">
+                <div className="grid grid-cols-1 gap-y-4">
+                  <div className="flex items-center gap-4">
+                    <div className="w-3 h-3 rounded-full bg-[#FACC15] shadow-[0_0_10px_rgba(250,204,21,0.4)]" />
+                    <span className="text-[10px] font-black text-white/90 uppercase tracking-tighter italic">Amarillo marca platos completados</span>
+                  </div>
+                  <div className="flex items-center gap-4">
+                    <div className="w-3 h-3 rounded-full bg-[#FF7939] shadow-[0_0_10px_rgba(255,121,57,0.4)]" />
+                    <span className="text-[10px] font-black text-white/90 uppercase tracking-tighter italic">Naranja ejercicios completados</span>
+                  </div>
+                  <div className="flex items-center gap-4">
+                    <div className="w-3 h-3 rounded-full bg-[#ef4444]" />
+                    <span className="text-[10px] font-black text-white/90 uppercase tracking-tighter italic">Rojo marca no completados</span>
+                  </div>
+                  <div className="flex items-center gap-4">
+                    <div className="w-3 h-3 rounded-full bg-[#27272a] border border-white/5" />
+                    <span className="text-[10px] font-black text-white/90 uppercase tracking-tighter italic">Gris marca proximos</span>
+                  </div>
+                </div>
+              </div>
+            </motion.div>
+          )}
+        </AnimatePresence>
       </div>
 
       {/* Client list */}

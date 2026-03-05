@@ -7,8 +7,8 @@ interface ClientProfileActivityProps {
     user: any
     selectedDay: any
     setSelectedDay: (day: any) => void
-    activityFilter: string
-    setActivityFilter: (filter: string) => void
+    activityFilter: 'fitness' | 'nutricion'
+    setActivityFilter: (filter: 'fitness' | 'nutricion') => void
     ringsWeek: any
     setRingsWeek: (week: any) => void
     showCalendar: boolean
@@ -52,8 +52,8 @@ export const ClientProfileActivity: React.FC<ClientProfileActivityProps> = ({
                 <div className="relative w-52 h-52 flex items-center justify-center">
                     <svg className="absolute inset-0 w-full h-full transform -rotate-90" viewBox="0 0 120 120">
                         <defs>
-                            {activityRings.map((ring: any) => (
-                                <linearGradient key={`grad-big-${ring.type}`} id={`grad-big-${ring.type}`} x1="0%" y1="0%" x2="100%" y2="100%">
+                            {activityRings.map((ring: any, index: number) => (
+                                <linearGradient key={`grad-big-${index}`} id={`grad-big-${index}`} x1="0%" y1="0%" x2="100%" y2="100%">
                                     <stop offset="0%" stopColor={ring.color} />
                                     <stop offset="100%" stopColor={ring.color} stopOpacity={0.6} />
                                 </linearGradient>
@@ -62,21 +62,21 @@ export const ClientProfileActivity: React.FC<ClientProfileActivityProps> = ({
                         {activityRings.map((ring: any, index: number) => {
                             const rawPercentage = ring.target > 0 ? (ring.current / ring.target) * 100 : 0
                             const percentage = isNaN(rawPercentage) || !isFinite(rawPercentage) ? 0 : Math.max(0, Math.min(rawPercentage, 100))
-                            const radius = 52 - (index * 14)
+                            const radius = 52 - (index * 13)
                             const circumference = 2 * Math.PI * radius
                             const strokeDashoffset = circumference - (percentage / 100) * circumference
                             return (
-                                <g key={ring.type}>
-                                    <circle cx="60" cy="60" r={radius} stroke="rgba(255,255,255,0.03)" strokeWidth="10" fill="none" />
+                                <g key={index}>
+                                    <circle cx="60" cy="60" r={radius} stroke="rgba(255,255,255,0.03)" strokeWidth="8" fill="none" />
                                     <circle
                                         cx="60" cy="60" r={radius}
-                                        stroke={`url(#grad-big-${ring.type})`}
-                                        strokeWidth="10" fill="none"
+                                        stroke={`url(#grad-big-${index})`}
+                                        strokeWidth="8" fill="none"
                                         strokeDasharray={circumference}
                                         strokeDashoffset={strokeDashoffset}
                                         strokeLinecap="round"
                                         className="transition-all duration-1000 ease-out"
-                                        style={{ filter: `drop-shadow(0 0 4px ${ring.color}40)` }}
+                                        style={{ filter: `drop-shadow(0 0 6px ${ring.color}50)` }}
                                     />
                                 </g>
                             )
@@ -85,16 +85,28 @@ export const ClientProfileActivity: React.FC<ClientProfileActivityProps> = ({
                 </div>
 
                 <div className="flex flex-col space-y-3 items-end">
-                    <span className="text-xs text-zinc-500">{selectedDay ? 'Volver a Semanal' : 'Semanal'}</span>
+                    {selectedDay ? (
+                        <button
+                            onClick={() => setSelectedDay(null)}
+                            className="text-[10px] font-black uppercase italic text-[#FF7939] hover:text-[#FF7939]/80 transition-colors bg-[#FF7939]/5 px-2 py-0.5 rounded-full border border-[#FF7939]/20"
+                        >
+                            Volver a Semanal
+                        </button>
+                    ) : (
+                        <span className="text-[10px] font-black uppercase italic text-zinc-500 tracking-widest">Semanal</span>
+                    )}
+
                     {activityRings.map((ring: any) => (
                         <div key={ring.type} className="flex flex-col items-end" style={{ minWidth: '120px' }}>
-                            <div className="flex items-center gap-1.5 text-sm font-medium justify-end" style={{ color: ring.color }}>
-                                {ring.type === 'Kcal' ? (
-                                    activityFilter === 'fitness' ? <ArrowDown className="h-4 w-4" style={{ color: "#FF6A00" }} /> : <ArrowUp className="h-4 w-4" style={{ color: "#FFFFFF" }} />
-                                ) : null}
+                            <div className="flex items-center gap-1 text-[9px] font-black uppercase italic justify-end opacity-60" style={{ color: ring.color }}>
+                                {ring.type === 'Kcal' && (
+                                    <ArrowDown className="h-2.5 w-2.5" strokeWidth={4} />
+                                )}
                                 <span>{ring.type}</span>
                             </div>
-                            <div className="text-lg font-bold" style={{ color: ring.color }}>{ring.current}/{ring.target}</div>
+                            <div className="text-[18px] font-black italic tracking-tighter" style={{ color: ring.color }}>
+                                {ring.current.toLocaleString()}/{ring.target.toLocaleString()}
+                            </div>
                         </div>
                     ))}
                 </div>

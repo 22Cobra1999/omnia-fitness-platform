@@ -166,90 +166,86 @@ export const ClientProfileHeader: React.FC<ClientProfileHeaderProps> = ({
                         <Input
                             value={editName}
                             onChange={(e) => setEditName(e.target.value)}
-                            className="text-center bg-white/5 border-white/10 text-white max-w-[200px] mx-auto"
+                            className="text-center bg-white/5 border-white/10 text-white max-w-[180px] mx-auto h-8 text-sm"
                             placeholder="Nombre completo"
                         />
                     ) : (
-                        <h1 className="text-lg font-semibold">{managedProfile?.full_name || "Usuario"}</h1>
+                        <h1 className="text-md font-bold text-white tracking-tight">{managedProfile?.full_name || "Usuario"}</h1>
                     )}
                 </div>
 
                 <div className="space-y-4">
-                    <div className="flex items-center justify-center space-x-4">
+                    <div className="flex items-center justify-center gap-3">
                         {isEditingProfile ? (
-                            <>
-                                <div className="flex items-center space-x-1">
-                                    <MapPin className="h-4 w-4 text-gray-400" />
+                            <div className="flex flex-col gap-2 items-center w-full max-w-[220px]">
+                                <div className="flex items-center space-x-1 w-full">
+                                    <MapPin className="h-3.5 w-3.5 text-gray-400 shrink-0" />
                                     <Input
                                         value={editLocation}
                                         onChange={(e) => setEditLocation(e.target.value)}
-                                        className="bg-white/5 border-white/10 text-white h-8 w-32 text-sm" placeholder="Ubicación"
+                                        className="bg-white/5 border-white/10 text-white h-7 text-[11px] flex-1" placeholder="Ubicación"
                                     />
                                 </div>
                                 <Input
                                     type="date" value={editBirthDate}
                                     onChange={(e) => setEditBirthDate(e.target.value)}
-                                    className="bg-white/5 border-white/10 text-white h-8 w-36 text-sm"
+                                    className="bg-white/5 border-white/10 text-white h-7 text-[11px] w-full"
                                 />
-                            </>
+                            </div>
                         ) : (
-                            <>
-                                <div className="flex items-center space-x-1 group px-2 py-1">
-                                    <MapPin className="h-4 w-4 text-gray-400" />
-                                    <span className="text-sm text-gray-300">{managedProfile?.location || "No especificada"}</span>
+                            <div className="flex items-center gap-2 text-xs text-gray-400 font-medium">
+                                <div className="flex items-center gap-1">
+                                    <MapPin className="h-3 w-3" />
+                                    <span>{managedProfile?.location || "No especificada"}</span>
                                 </div>
-                                <div className="flex items-center space-x-1 group px-2 py-1">
-                                    <span className="text-sm text-gray-300">{calculateAge(managedProfile?.birth_date) || "?"} años</span>
-                                </div>
-                            </>
+                                <span className="w-1 h-1 rounded-full bg-gray-600"></span>
+                                <span>{calculateAge(managedProfile?.birth_date) || "?"} años</span>
+                            </div>
                         )}
                     </div>
 
-                    <div className="w-full flex flex-col gap-2 items-center mt-2">
-                        <div className="w-full overflow-x-auto scrollbar-hide flex justify-center">
-                            <div className="flex items-center gap-2 px-4 whitespace-nowrap">
+                    <div className="w-full flex flex-col items-center mt-1">
+                        <div className="w-full overflow-x-auto hide-scrollbar flex justify-center">
+                            <div className="flex items-center gap-1.5 px-4 pb-1 whitespace-nowrap">
                                 {isEditingProfile ? (
                                     <>
+                                        {/* Goals in editing */}
                                         {editGoals.map((g: string, i: number) => (
-                                            <div key={`g-${i}`} className="relative px-3 py-1 pr-5 rounded-full bg-[#FF7939]/10 border border-[#FF7939]/30 text-[#FF7939] text-[10px] font-bold tracking-wider capitalize group">
+                                            <div key={`g-${i}`} className="relative px-2.5 py-0.5 pr-4 rounded-full bg-[#FF7939]/10 border border-[#FF7939]/30 text-[#FF7939] text-[9px] font-bold tracking-tight uppercase group">
                                                 {g}
-                                                <button onClick={() => setEditGoals(editGoals.filter((_: string, idx: number) => idx !== i))} className="absolute top-0 right-0 w-4 h-4 rounded-full bg-red-500 text-white flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity">
-                                                    <Minus className="h-2.5 w-2.5" />
+                                                <button onClick={() => setEditGoals(editGoals.filter((_: string, idx: number) => idx !== i))} className="absolute top-1/2 -translate-y-1/2 right-1.5 opacity-60 hover:opacity-100">
+                                                    <X className="h-2 w-2" />
                                                 </button>
                                             </div>
                                         ))}
-                                        <button onClick={() => setShowGoalsSelect(true)} className="w-6 h-6 rounded-full bg-[#FF7939]/20 border border-[#FF7939]/50 text-[#FF7939] flex items-center justify-center hover:bg-[#FF7939]/30 transition-colors">
-                                            <Plus className="h-3 w-3" />
-                                        </button>
-                                    </>
-                                ) : (
-                                    managedProfile?.fitness_goals?.map((g: string, i: number) => (
-                                        <div key={`g-${i}`} className="px-3 py-1 rounded-full bg-[#FF7939]/10 border border-[#FF7939]/30 text-[#FF7939] text-[10px] font-bold tracking-wider capitalize">{g}</div>
-                                    ))
-                                )}
-                            </div>
-                        </div>
-
-                        <div className="w-full overflow-x-auto scrollbar-hide flex justify-center">
-                            <div className="flex items-center gap-2 px-4 whitespace-nowrap">
-                                {isEditingProfile ? (
-                                    <>
+                                        {/* Sports in editing */}
                                         {editSports.map((s: string, i: number) => (
-                                            <div key={`s-${i}`} className="relative px-3 py-1 pr-5 rounded-full bg-orange-300/10 border border-orange-300/30 text-orange-300 text-[10px] font-bold tracking-wider capitalize group">
+                                            <div key={`s-${i}`} className="relative px-2.5 py-0.5 pr-4 rounded-full bg-orange-300/10 border border-orange-300/30 text-orange-300 text-[9px] font-bold tracking-tight uppercase group">
                                                 {s}
-                                                <button onClick={() => setEditSports(editSports.filter((_: string, idx: number) => idx !== i))} className="absolute top-0 right-0 w-4 h-4 rounded-full bg-red-500 text-white flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity">
-                                                    <Minus className="h-2.5 w-2.5" />
+                                                <button onClick={() => setEditSports(editSports.filter((_: string, idx: number) => idx !== i))} className="absolute top-1/2 -translate-y-1/2 right-1.5 opacity-60 hover:opacity-100">
+                                                    <X className="h-2 w-2" />
                                                 </button>
                                             </div>
                                         ))}
-                                        <button onClick={() => setShowSportsSelect(true)} className="w-6 h-6 rounded-full bg-orange-300/20 border border-orange-300/50 text-orange-300 flex items-center justify-center hover:bg-orange-300/30 transition-colors">
-                                            <Plus className="h-3 w-3" />
-                                        </button>
+                                        <div className="flex gap-1.5">
+                                            <button onClick={() => setShowGoalsSelect(true)} className="w-5 h-5 rounded-full bg-[#FF7939]/20 border border-[#FF7939]/50 text-[#FF7939] flex items-center justify-center hover:bg-[#FF7939]/30 transition-colors">
+                                                <Plus className="h-2.5 w-2.5" />
+                                            </button>
+                                            <button onClick={() => setShowSportsSelect(true)} className="w-5 h-5 rounded-full bg-orange-300/20 border border-orange-300/50 text-orange-300 flex items-center justify-center hover:bg-orange-300/30 transition-colors">
+                                                <Plus className="h-2.5 w-2.5" />
+                                            </button>
+                                        </div>
                                     </>
                                 ) : (
-                                    managedProfile?.sports?.map((s: string, i: number) => (
-                                        <div key={`s-${i}`} className="px-3 py-1 rounded-full bg-orange-300/10 border border-orange-300/30 text-orange-300 text-[10px] font-bold tracking-wider capitalize">{s}</div>
-                                    ))
+                                    <>
+                                        {/* Unified row for goals and sports combined */}
+                                        {managedProfile?.fitness_goals?.map((g: string, i: number) => (
+                                            <div key={`g-${i}`} className="px-2.5 py-0.5 rounded-full bg-[#FF7939]/10 border border-[#FF7939]/30 text-[#FF7939] text-[9px] font-bold tracking-tight uppercase">{g}</div>
+                                        ))}
+                                        {managedProfile?.sports?.map((s: string, i: number) => (
+                                            <div key={`s-${i}`} className="px-2.5 py-0.5 rounded-full bg-orange-300/10 border border-orange-300/30 text-orange-300 text-[9px] font-bold tracking-tight uppercase">{s}</div>
+                                        ))}
+                                    </>
                                 )}
                             </div>
                         </div>

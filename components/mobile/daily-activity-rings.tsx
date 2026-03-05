@@ -281,7 +281,7 @@ export function DailyActivityRings({ userId, selectedDate, category = 'fitness',
                 {/* Anillo exterior - Kcal */}
                 <ActivityRing
                   progress={kcalProgress}
-                  color="#FF6A00"
+                  color="#FFFFFF"
                   size={44}
                   strokeWidth={3}
                 />
@@ -291,7 +291,7 @@ export function DailyActivityRings({ userId, selectedDate, category = 'fitness',
                   <div className="absolute inset-0 flex items-center justify-center">
                     <ActivityRing
                       progress={minutesProgress}
-                      color="#FF8C42"
+                      color="#E65100"
                       size={34}
                       strokeWidth={3}
                     />
@@ -302,7 +302,7 @@ export function DailyActivityRings({ userId, selectedDate, category = 'fitness',
                 <div className="absolute inset-0 flex items-center justify-center">
                   <ActivityRing
                     progress={exercisesProgress}
-                    color="#FFFFFF"
+                    color={category === 'fitness' ? "#FF7939" : "#FACC15"}
                     size={shouldShowMiddleRing(day.category || 'fitness', day.minutesTarget) ? 24 : 34}
                     strokeWidth={3}
                     label={category === 'nutricion' && day.exercisesTarget > 0 ? `${day.exercises}` : undefined}

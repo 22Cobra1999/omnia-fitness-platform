@@ -272,24 +272,35 @@ export async function GET(request: NextRequest) {
     // Progreso agregado + última ejercitación (se toma de tablas progreso_cliente / progreso_cliente_nutricion)
     const todayIso = new Date().toISOString().slice(0, 10)
     const progressCache = new Map<string, { progressPercent: number; diasAtraso: number; itemsPendientes: number; diasCompletados: number; itemsCompletados: number; itemsTotalesObjetivo: number; diasTotales: number; alertLevel: number; alertLabel: string }>()
+
+    // PREFETCH MASIVO para evitar query N+1
+    const { data: allDailyStats } = await supabase
+      .from('progreso_diario_actividad')
+      .select('fecha, items_objetivo, items_completados, area, cliente_id, actividad_id, enrollment_id')
+      .in('cliente_id', clientIds)
+
+    const { data: allDocProgress } = await supabase
+      .from('client_document_progress')
+      .select('completed, client_id, activity_id, enrollment_id')
+      .in('client_id', clientIds)
+
     const computeProgressAggForActivity = async (clientId: string, activityId: number, activityType: string, enrollmentId?: number, activityCategory: string = '') => {
       const cacheKey = `${clientId}:${activityId}:${activityType}:${enrollmentId || 'all'}:${activityCategory}`
       const cached = progressCache.get(cacheKey)
       if (cached) return cached
 
       // 1. Obtener Estadísticas Diarias (Fitness, Nutrición, Talleres)
-      // Usamos la tabla optimizada 'progreso_diario_actividad'
-      let query = supabase
-        .from('progreso_diario_actividad')
-        .select('fecha, items_objetivo, items_completados, area')
-        .eq('cliente_id', clientId)
-        .eq('actividad_id', activityId)
+      // Usamos los datos pre-bajados en allDailyStats
+      let dailyStats = (allDailyStats || []).filter((d: any) =>
+        String(d.cliente_id) === String(clientId) &&
+        String(d.actividad_id) === String(activityId)
+      )
 
       if (enrollmentId) {
-        query = query.eq('enrollment_id', enrollmentId)
+        dailyStats = dailyStats.filter((d: any) => String(d.enrollment_id) === String(enrollmentId))
       }
 
-      const { data: dailyStats, error: dailyError } = await query
+      const dailyError = null;
 
       let diasCompletados = 0
       let diasTotales = 0
@@ -366,17 +377,14 @@ export async function GET(request: NextRequest) {
       }
 
       // 2. Obtener Progreso de Documentos (si aplica)
-      let docQuery = supabase
-        .from('client_document_progress')
-        .select('completed', { count: 'exact' })
-        .eq('client_id', clientId)
-        .eq('activity_id', activityId)
+      let docData = (allDocProgress || []).filter((d: any) =>
+        String(d.client_id) === String(clientId) &&
+        String(d.activity_id) === String(activityId)
+      )
 
       if (enrollmentId) {
-        docQuery = docQuery.eq('enrollment_id', enrollmentId)
+        docData = docData.filter((d: any) => String(d.enrollment_id) === String(enrollmentId))
       }
-
-      const { data: docData } = await docQuery
       if (docData && docData.length > 0) {
         const docTotal = docData.length
         const docCompleted = docData.filter((d: any) => d.completed).length
@@ -583,13 +591,10 @@ export async function GET(request: NextRequest) {
       // Calculate streak: Look at the most recent days in progreso_diario_actividad
       let currentStreak = 0;
       try {
-        const { data: recentDays } = await supabase
-          .from('progreso_diario_actividad')
-          .select('fecha, items_objetivo, items_completados')
-          .eq('cliente_id', client.id)
-          .lte('fecha', todayIso)
-          .order('fecha', { ascending: false })
-          .limit(60);
+        const recentDays = (allDailyStats || [])
+          .filter((d: any) => String(d.cliente_id) === String(client.id) && d.fecha <= todayIso)
+          .sort((a: any, b: any) => b.fecha.localeCompare(a.fecha))
+          .slice(0, 60);
 
         if (recentDays && recentDays.length > 0) {
           const uniqueDatesArr = Array.from(new Set(recentDays.map((d: any) => d.fecha))).sort((a: any, b: any) => b.localeCompare(a));
