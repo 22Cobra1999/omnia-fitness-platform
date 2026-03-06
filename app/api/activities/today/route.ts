@@ -600,6 +600,7 @@ export async function GET(request: NextRequest) {
           ejerciciosDetalles = []
         } else {
           ejerciciosDetalles = nutritionDetailsData || []
+          console.log(`🍽️ [API] Nutrition details fetched: ${ejerciciosDetalles.length} records. IDs:`, ejerciciosDetalles.map(e => e.id));
         }
       } catch (e) {
         console.error('❌ [API] Error consultando nutrition_program_details try/catch:', e)
@@ -1099,8 +1100,9 @@ export async function GET(request: NextRequest) {
         grasas: transformedExercise.grasas,
         minutos: transformedExercise.minutos,
         calorias: transformedExercise.calorias,
-        receta: transformedExercise.receta ? 'presente' : 'null',
-        ingredientes: transformedExercise.ingredientes ? 'presente' : 'null'
+        has_receta: !!transformedExercise.receta,
+        has_ingredientes: !!transformedExercise.ingredientes,
+        nutritionFallback_used: categoria === 'nutricion' && !macrosData
       });
 
       return transformedExercise;
