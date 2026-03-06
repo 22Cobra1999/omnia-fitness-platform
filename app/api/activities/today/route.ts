@@ -1499,4 +1499,3 @@ async function getActivitiesFromPlanning(supabase: any, activityId: number, dia:
     });
   }
 }
-}
