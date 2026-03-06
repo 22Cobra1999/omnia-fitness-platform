@@ -294,9 +294,8 @@ async function handleApprovedPayment(
           status: 'activa',
           created_at: new Date().toISOString(),
           updated_at: new Date().toISOString(),
-          // FIX: Explicitly set start_date to prevent 'date/time field value out of range' error
-          // which might be caused by triggers extracting "30" from other fields when start_date is null
-          start_date: new Date().toISOString()
+          // start_date se deja en null para que el cliente elija cuándo empezar (hoy o más adelante)
+          start_date: null
         })
         .select()
         .single();

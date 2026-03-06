@@ -37,28 +37,28 @@ export async function POST(request: NextRequest) {
 
     // 1. Buscar registro en banco
     let bancoRecord;
-    
+
     if (preferenceId) {
       const { data, error } = await supabase
         .from('banco')
         .select('*')
         .eq('mercadopago_preference_id', preferenceId)
         .maybeSingle();
-      
+
       if (error) {
         console.error('❌ Error buscando banco por preference_id:', error);
       } else {
         bancoRecord = data;
       }
     }
-    
+
     if (!bancoRecord && paymentId) {
       const { data, error } = await supabase
         .from('banco')
         .select('*')
         .eq('mercadopago_payment_id', paymentId)
         .maybeSingle();
-      
+
       if (error) {
         console.error('❌ Error buscando banco por payment_id:', error);
       } else {
@@ -84,7 +84,7 @@ export async function POST(request: NextRequest) {
     // 2. Verificar si ya existe enrollment
     if (bancoRecord.enrollment_id) {
       console.log('ℹ️ Enrollment ya existe:', bancoRecord.enrollment_id);
-      
+
       // Verificar que el enrollment existe
       const { data: existingEnrollment } = await supabase
         .from('activity_enrollments')
@@ -121,10 +121,10 @@ export async function POST(request: NextRequest) {
 
     // 4. Determinar estado del enrollment basado en el estado del pago
     const paymentStatus = bancoRecord.mercadopago_status || bancoRecord.payment_status;
-    const enrollmentStatus = paymentStatus === 'approved' || paymentStatus === 'completed' 
-      ? 'activa' 
-      : paymentStatus === 'pending' 
-        ? 'pendiente' 
+    const enrollmentStatus = paymentStatus === 'approved' || paymentStatus === 'completed'
+      ? 'activa'
+      : paymentStatus === 'pending'
+        ? 'pendiente'
         : 'pendiente'; // Por defecto pendiente
 
     console.log('📝 Creando enrollment...');
@@ -140,7 +140,8 @@ export async function POST(request: NextRequest) {
         client_id: finalClientId,
         status: enrollmentStatus,
         created_at: new Date().toISOString(),
-        updated_at: new Date().toISOString()
+        updated_at: new Date().toISOString(),
+        start_date: null
       })
       .select()
       .single();
@@ -149,9 +150,9 @@ export async function POST(request: NextRequest) {
       console.error('❌ Error creando enrollment:', enrollmentError);
       console.error('   Detalles:', JSON.stringify(enrollmentError, null, 2));
       return NextResponse.json(
-        { 
+        {
           error: 'Error creando enrollment',
-          details: enrollmentError.message 
+          details: enrollmentError.message
         },
         { status: 500 }
       );
@@ -210,9 +211,9 @@ export async function POST(request: NextRequest) {
   } catch (error: any) {
     console.error('❌ Error en create-from-payment:', error);
     return NextResponse.json(
-      { 
+      {
         error: 'Error interno del servidor',
-        details: error.message 
+        details: error.message
       },
       { status: 500 }
     );

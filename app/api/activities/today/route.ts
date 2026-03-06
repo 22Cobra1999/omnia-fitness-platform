@@ -588,21 +588,21 @@ export async function GET(request: NextRequest) {
         console.error('❌ [API] Error cargando recetas por ejercicio_id:', e)
       }
 
-      // 2) Mantener nutrition_program_details SOLO para video_url/video_file_name (opcional)
+      // 2) Mantener nutrition_program_details para video, nombre y macros (Fuente de verdad si no hay progreso)
       try {
         const { data: nutritionDetailsData, error: nutritionDetailsError } = await adminSupabase
           .from('nutrition_program_details')
-          .select('id, video_url, video_file_name')
+          .select('id, nombre, calorias, proteinas, carbohidratos, grasas, receta, ingredientes, minutos, video_url, video_file_name')
           .in('id', idsForQuerySafe as any)
 
         if (nutritionDetailsError) {
-          console.error('❌ [API] Error consultando nutrition_program_details (video):', nutritionDetailsError)
+          console.error('❌ [API] Error consultando nutrition_program_details:', nutritionDetailsError)
           ejerciciosDetalles = []
         } else {
           ejerciciosDetalles = nutritionDetailsData || []
         }
       } catch (e) {
-        console.error('❌ [API] Error consultando nutrition_program_details (video) try/catch:', e)
+        console.error('❌ [API] Error consultando nutrition_program_details try/catch:', e)
         ejerciciosDetalles = []
       }
     } else {
@@ -978,11 +978,14 @@ export async function GET(request: NextRequest) {
       // Obtener nombre
       let nombreFinal = "";
       if (categoria === 'nutricion') {
-        // Para nutrición: nombre viene de recetaData.nombre
+        // Para nutrición: nombre viene de recetaData.nombre o fallback a nutrition_program_details
         const detalleIdStr = String(detalle.ejercicio_id)
         const recetaLookup = recetasByEjercicioId[detalleIdStr]
+        const nutritionFallback = (ejerciciosDetalles || []).find((e: any) => String(e.id) === detalleIdStr);
+
         nombreFinal =
           recetaLookup?.nombre ||
+          nutritionFallback?.nombre ||
           `Plato ${detalle.ejercicio_id}`;
       } else {
         // Para fitness: nombre viene de ejercicio
@@ -992,10 +995,11 @@ export async function GET(request: NextRequest) {
       // Obtener minutos
       let minutosFinal: number | null = null;
       if (categoria === 'nutricion') {
-        // Para nutrición: minutos puede venir de macrosData.minutos o recetaData.minutos
+        // Para nutrición: minutos puede venir de macrosData.minutos o recetaData.minutos o fallback
+        const nutritionFallback = (ejerciciosDetalles || []).find((e: any) => String(e.id) === String(detalle.ejercicio_id));
         minutosFinal = macrosData?.minutos !== null && macrosData?.minutos !== undefined
           ? Number(macrosData.minutos)
-          : null;
+          : (nutritionFallback?.minutos ? Number(nutritionFallback.minutos) : null);
       } else {
         // Para fitness: usar key actual (id_bloque_orden o id_orden), id_orden explícito o ejercicio.duracion_min
         const key_io = `${detalle.ejercicio_id}_${detalle.orden}`;
@@ -1005,10 +1009,11 @@ export async function GET(request: NextRequest) {
       // Obtener calorías
       let caloriasFinal: number | null = null;
       if (categoria === 'nutricion') {
-        // Para nutrición: calorías viene de macrosData.calorias
+        // Para nutrición: calorías viene de macrosData.calorias o fallback
+        const nutritionFallback = (ejerciciosDetalles || []).find((e: any) => String(e.id) === String(detalle.ejercicio_id));
         caloriasFinal = macrosData?.calorias !== null && macrosData?.calorias !== undefined
           ? Number(macrosData.calorias)
-          : null;
+          : (nutritionFallback?.calorias ? Number(nutritionFallback.calorias) : null);
       } else {
         // Para fitness: usar key actual, id_orden explícito o ejercicio.calorias
         const key_io = `${detalle.ejercicio_id}_${detalle.orden}`;
@@ -1063,23 +1068,25 @@ export async function GET(request: NextRequest) {
 
       // Campos específicos para nutrición
       if (categoria === 'nutricion') {
+        const nutritionFallback = (ejerciciosDetalles || []).find((e: any) => String(e.id) === String(detalle.ejercicio_id));
+
         transformedExercise.proteinas = macrosData?.proteinas !== null && macrosData?.proteinas !== undefined
           ? Number(macrosData.proteinas)
-          : null;
+          : (nutritionFallback?.proteinas ? Number(nutritionFallback.proteinas) : null);
         transformedExercise.carbohidratos = macrosData?.carbohidratos !== null && macrosData?.carbohidratos !== undefined
           ? Number(macrosData.carbohidratos)
-          : null;
+          : (nutritionFallback?.carbohidratos ? Number(nutritionFallback.carbohidratos) : null);
         transformedExercise.grasas = macrosData?.grasas !== null && macrosData?.grasas !== undefined
           ? Number(macrosData.grasas)
-          : null;
+          : (nutritionFallback?.grasas ? Number(nutritionFallback.grasas) : null);
         const detalleIdStr = String(detalle.ejercicio_id)
         const recetaLookup = recetasByEjercicioId[detalleIdStr]
-        transformedExercise.receta = recetaLookup?.receta || null;
+        transformedExercise.receta = recetaLookup?.receta || nutritionFallback?.receta || null;
         // Nombre del plato: fuente de verdad recetas.nombre (migración), fallback temporal a nutrition_program_details.nombre
         transformedExercise.nombre =
-          recetaLookup?.nombre || transformedExercise.nombre
-        // Los ingredientes vienen directamente del campo ingredientes de progreso_cliente_nutricion
-        transformedExercise.ingredientes = ingredientesData || null;
+          recetaLookup?.nombre || nutritionFallback?.nombre || transformedExercise.nombre
+        // Los ingredientes vienen directamente del campo ingredientes de progreso_cliente_nutricion o fallback
+        transformedExercise.ingredientes = ingredientesData || nutritionFallback?.ingredientes || null;
       }
 
       console.log(`✅ ${categoria === 'nutricion' ? 'Plato' : 'Ejercicio'} ${detalle.ejercicio_id} transformado:`, {

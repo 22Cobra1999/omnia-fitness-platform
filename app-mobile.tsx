@@ -176,6 +176,15 @@ function MobileAppContent({ initialTab, initialCategoryId, initialActivityId, in
   useEffect(() => {
     // Solo verificar si no estamos en una página de resultado de pago
     if (typeof window !== 'undefined' && !window.location.pathname.startsWith('/payment/')) {
+      const searchParams = new URLSearchParams(window.location.search)
+      const isPurchaseSuccess = searchParams.get('purchase_success') === 'true'
+
+      // Si es una compra exitosa, no procesar pending_payment aquí para evitar recargas
+      if (isPurchaseSuccess) {
+        sessionStorage.removeItem('pending_payment')
+        return
+      }
+
       const pendingPayment = sessionStorage.getItem('pending_payment')
 
       if (pendingPayment) {
