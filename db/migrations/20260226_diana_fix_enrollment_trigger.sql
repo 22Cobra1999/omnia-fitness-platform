@@ -37,32 +37,26 @@ BEGIN
 
     -- 3. OBTENER PLANIFICACIÓN DESDE EL ESQUEMA MODULAR
     -- Intentamos obtener la Semana 1, Día correspondiente.
-    -- Para nutrición usamos planificacion_platos, para fitness planificacion_ejercicios.
+    -- La tabla unificada para planificación es planificacion_ejercicios.
     
     IF v_categoria = 'nutricion' THEN
         v_tabla_progreso := 'progreso_cliente_nutricion';
-        SELECT lunes::JSONB INTO v_plan_json FROM public.planificacion_platos WHERE actividad_id = NEW.activity_id AND numero_semana = 1 AND v_dia_semana = 'lunes';
-        IF v_plan_json IS NULL THEN SELECT martes::JSONB INTO v_plan_json FROM public.planificacion_platos WHERE actividad_id = NEW.activity_id AND numero_semana = 1 AND v_dia_semana = 'martes'; END IF;
-        IF v_plan_json IS NULL THEN SELECT miercoles::JSONB INTO v_plan_json FROM public.planificacion_platos WHERE actividad_id = NEW.activity_id AND numero_semana = 1 AND v_dia_semana = 'miercoles'; END IF;
-        IF v_plan_json IS NULL THEN SELECT jueves::JSONB INTO v_plan_json FROM public.planificacion_platos WHERE actividad_id = NEW.activity_id AND numero_semana = 1 AND v_dia_semana = 'jueves'; END IF;
-        IF v_plan_json IS NULL THEN SELECT viernes::JSONB INTO v_plan_json FROM public.planificacion_platos WHERE actividad_id = NEW.activity_id AND numero_semana = 1 AND v_dia_semana = 'viernes'; END IF;
-        IF v_plan_json IS NULL THEN SELECT sabado::JSONB INTO v_plan_json FROM public.planificacion_platos WHERE actividad_id = NEW.activity_id AND numero_semana = 1 AND v_dia_semana = 'sabado'; END IF;
-        IF v_plan_json IS NULL THEN SELECT domingo::JSONB INTO v_plan_json FROM public.planificacion_platos WHERE actividad_id = NEW.activity_id AND numero_semana = 1 AND v_dia_semana = 'domingo'; END IF;
     ELSE
         v_tabla_progreso := 'progreso_cliente';
-        SELECT 
-            CASE v_dia_semana
-                WHEN 'lunes' THEN lunes
-                WHEN 'martes' THEN martes
-                WHEN 'miercoles' THEN miercoles
-                WHEN 'jueves' THEN jueves
-                WHEN 'viernes' THEN viernes
-                WHEN 'sabado' THEN sabado
-                WHEN 'domingo' THEN domingo
-            END::JSONB INTO v_plan_json
-        FROM public.planificacion_ejercicios
-        WHERE actividad_id = NEW.activity_id AND numero_semana = 1;
     END IF;
+
+    SELECT 
+        CASE v_dia_semana
+            WHEN 'lunes' THEN lunes
+            WHEN 'martes' THEN martes
+            WHEN 'miercoles' THEN miercoles
+            WHEN 'jueves' THEN jueves
+            WHEN 'viernes' THEN viernes
+            WHEN 'sabado' THEN sabado
+            WHEN 'domingo' THEN domingo
+        END::JSONB INTO v_plan_json
+    FROM public.planificacion_ejercicios
+    WHERE actividad_id = NEW.activity_id AND numero_semana = 1;
 
     -- 4. INICIALIZACIÓN PROACTIVA DEL PROGRESO (Sincronización Real)
     -- Si encontramos planificación para el día de inicio, creamos el registro de progreso.

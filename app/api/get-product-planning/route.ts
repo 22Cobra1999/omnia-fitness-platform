@@ -261,7 +261,7 @@ export async function GET(request: NextRequest) {
     if (exerciseIds.size > 0) {
       // Consultar la tabla correcta según la categoría
       const camposSelect = isNutrition
-        ? 'id, nombre_plato, tipo, descripcion, calorias, proteinas, carbohidratos, grasas, video_url, receta, is_active, activity_id'
+        ? 'id, nombre, tipo, descripcion, calorias, proteinas, carbohidratos, grasas, video_url, receta, is_active, activity_id'
         : 'id, nombre_ejercicio, tipo, descripcion, calorias, intensidad, video_url, equipo, body_parts, detalle_series, duracion_min, activity_id'
 
       const { data: ejercicios, error: ejerciciosError } = await supabase
@@ -302,6 +302,9 @@ export async function GET(request: NextRequest) {
 
           ejerciciosMap.set(String(ejercicio.id), {
             ...ejercicio,
+            // Normalizar nombre para uso interno
+            nombre_plato: isNutrition ? ejercicio.nombre : undefined,
+            nombre_ejercicio: !isNutrition ? ejercicio.nombre_ejercicio : undefined,
             activity_map: activityMap,
             is_active: isActive
           })
@@ -313,7 +316,7 @@ export async function GET(request: NextRequest) {
           sampleEntries: Array.from(ejerciciosMap.entries()).slice(0, 3).map(([key, val]) => ({
             key,
             id: val.id,
-            nombre_ejercicio: val.nombre_ejercicio,
+            nombre_item: isNutrition ? val.nombre : val.nombre_ejercicio,
             tipo: val.tipo,
             activity_id: val.activity_id
           }))
@@ -343,7 +346,7 @@ export async function GET(request: NextRequest) {
     // Consultar todos los ejercicios faltantes de una vez
     if (ejerciciosFaltantes.size > 0) {
       const camposSelectFaltantes = isNutrition
-        ? 'id, nombre_plato, tipo, descripcion, calorias, proteinas, carbohidratos, grasas, video_url, receta, is_active, activity_id'
+        ? 'id, nombre, tipo, descripcion, calorias, proteinas, carbohidratos, grasas, video_url, receta, is_active, activity_id'
         : 'id, nombre_ejercicio, tipo, descripcion, calorias, intensidad, video_url, equipo, body_parts, detalle_series, duracion_min, activity_id'
 
       const { data: ejerciciosFromDb, error: ejerciciosError } = await supabase
@@ -361,12 +364,12 @@ export async function GET(request: NextRequest) {
             ejercicioFromDb.is_active !== false
           ) : true
 
-          const nombreItem = isNutrition ? ejercicioFromDb.nombre_plato : ejercicioFromDb.nombre_ejercicio
+          const nombreItem = isNutrition ? ejercicioFromDb.nombre : ejercicioFromDb.nombre_ejercicio
           const ejercicioInfo = {
             ...ejercicioFromDb,
             // Normalizar nombre para uso genérico
-            nombre_ejercicio: nombreItem,
-            nombre_plato: nombreItem,
+            nombre_ejercicio: !isNutrition ? ejercicioFromDb.nombre_ejercicio : ejercicioFromDb.nombre,
+            nombre_plato: isNutrition ? ejercicioFromDb.nombre : ejercicioFromDb.nombre_ejercicio,
             activity_map: activityMap,
             is_active: isActive
           }
