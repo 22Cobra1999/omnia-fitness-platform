@@ -823,6 +823,7 @@ export async function GET(request: NextRequest) {
       let detalle = sourceData[key];
       const parts = key.split('_');
       const keyId = parseInt(parts[0]);
+      const currentId = keyId;
       const keyB = parts.length >= 2 ? parseInt(parts[1]) : 1;
       const keyO = parts.length >= 3 ? parseInt(parts[2]) : (parts.length === 2 ? parseInt(parts[1]) : 1);
 
@@ -1011,7 +1012,7 @@ export async function GET(request: NextRequest) {
       let caloriasFinal: number | null = null;
       if (categoria === 'nutricion') {
         // Para nutrición: calorías viene de macrosData.calorias o fallback
-        const nutritionFallback = (ejerciciosDetalles || []).find((e: any) => String(e.id) === String(detalle.ejercicio_id));
+        const nutritionFallback = (ejerciciosDetalles || []).find((e: any) => String(e.id) === String(currentId));
         caloriasFinal = macrosData?.calorias !== null && macrosData?.calorias !== undefined
           ? Number(macrosData.calorias)
           : (nutritionFallback?.calorias ? Number(nutritionFallback.calorias) : null);
@@ -1069,7 +1070,7 @@ export async function GET(request: NextRequest) {
 
       // Campos específicos para nutrición
       if (categoria === 'nutricion') {
-        const nutritionFallback = (ejerciciosDetalles || []).find((e: any) => String(e.id) === String(detalle.ejercicio_id));
+        const nutritionFallback = (ejerciciosDetalles || []).find((e: any) => String(e.id) === String(currentId));
 
         transformedExercise.proteinas = macrosData?.proteinas !== null && macrosData?.proteinas !== undefined
           ? Number(macrosData.proteinas)
@@ -1080,7 +1081,7 @@ export async function GET(request: NextRequest) {
         transformedExercise.grasas = macrosData?.grasas !== null && macrosData?.grasas !== undefined
           ? Number(macrosData.grasas)
           : (nutritionFallback?.grasas ? Number(nutritionFallback.grasas) : null);
-        const detalleIdStr = String(detalle.ejercicio_id)
+        const detalleIdStr = String(currentId)
         const recetaLookup = recetasByEjercicioId[detalleIdStr]
         transformedExercise.receta = recetaLookup?.receta || nutritionFallback?.receta || null;
         // Nombre del plato: fuente de verdad recetas.nombre (migración), fallback temporal a nutrition_program_details.nombre
@@ -1433,14 +1434,14 @@ async function getActivitiesFromPlanning(supabase: any, activityId: number, dia:
     const transformedActivities = ejerciciosConBloque.map((ejInfo, index) => {
       const ejercicio = ejerciciosDetalles?.find((e: any) => e.id === ejInfo.id);
 
-      const transformed = {
+      const transformed: any = {
         id: `preview-${ejInfo.id}-${index}`,
         exercise_id: ejInfo.id,
         nombre_ejercicio: categoria === 'nutricion'
-          ? (ejercicio?.nombre || ejercicio?.nombre_plato || 'Plato')
+          ? (ejercicio?.nombre || 'Plato')
           : (ejercicio?.nombre_ejercicio || 'Ejercicio'),
         name: categoria === 'nutricion'
-          ? (ejercicio?.nombre || ejercicio?.nombre_plato || 'Plato')
+          ? (ejercicio?.nombre || 'Plato')
           : (ejercicio?.nombre_ejercicio || 'Ejercicio'),
         type: ejercicio?.tipo || 'general',
         tipo: ejercicio?.tipo || 'general',
@@ -1458,25 +1459,27 @@ async function getActivitiesFromPlanning(supabase: any, activityId: number, dia:
         formatted_series: ejercicio?.detalle_series || null,
         date: activity.targetDate || new Date().toISOString().split('T')[0], // Usar fecha del contexto
         video_url: ejercicio?.video_url || null,
-        duracion_minutos: categoria === 'nutricion' ? null : ((ejercicio as any)?.duracion_min || null),
-        duracion_min: categoria === 'nutricion' ? null : ((ejercicio as any)?.duracion_min || null),
-        duration: categoria === 'nutricion' ? null : ((ejercicio as any)?.duracion_min || null),
+        duracion_minutos: categoria === 'nutricion' ? (ejercicio?.minutos || null) : ((ejercicio as any)?.duracion_min || null),
+        duracion_min: categoria === 'nutricion' ? (ejercicio?.minutos || null) : ((ejercicio as any)?.duracion_min || null),
+        duration: categoria === 'nutricion' ? (ejercicio?.minutos || null) : ((ejercicio as any)?.duracion_min || null),
         calorias: ejercicio?.calorias || null,
         intensidad: categoria === 'nutricion' ? null : (ejercicio?.intensidad || null),
         equipo: categoria === 'nutricion' ? null : (ejercicio?.equipo || 'Ninguno'),
         body_parts: categoria === 'nutricion' ? null : (ejercicio?.body_parts || null),
-        // Campos específicos para nutrición
-        proteinas: categoria === 'nutricion' ? (ejercicio?.proteinas || null) : null,
-        carbohidratos: categoria === 'nutricion' ? (ejercicio?.carbohidratos || null) : null,
-        grasas: categoria === 'nutricion' ? (ejercicio?.grasas || null) : null,
-        receta: categoria === 'nutricion' ? (ejercicio?.receta || null) : null,
-        ingredientes: categoria === 'nutricion' ? (ejercicio?.ingredientes || null) : null,
-        minutos: categoria === 'nutricion' ? (ejercicio?.minutos || null) : null
       };
+
+      if (categoria === 'nutricion') {
+        transformed.proteinas = ejercicio?.proteinas || null;
+        transformed.carbohidratos = ejercicio?.carbohidratos || null;
+        transformed.grasas = ejercicio?.grasas || null;
+        transformed.receta = ejercicio?.receta || null;
+        transformed.ingredientes = ejercicio?.ingredientes || null;
+        transformed.nombre = ejercicio?.nombre || transformed.nombre;
+        transformed.nombre_plato = transformed.nombre;
+      }
 
       return transformed;
     });
-
 
     return NextResponse.json({
       success: true,
@@ -1495,4 +1498,5 @@ async function getActivitiesFromPlanning(supabase: any, activityId: number, dia:
       data: { activities: [], count: 0, date: new Date().toISOString().split('T')[0] }
     });
   }
+}
 }
