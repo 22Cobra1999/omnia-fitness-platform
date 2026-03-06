@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createClient } from '@supabase/supabase-js'
-import { applyPersonalization, ClientProfile, ConditionalRule } from '@/lib/utils/personalization-engine'
+import { ClientProfile } from '@/lib/utils/personalization-engine'
 import { reconstructPrescription, AdaptiveProfile, AdaptiveBase } from '@/lib/omnia-adaptive-motor'
 
 // Endpoint para inicializar todas las filas de progreso_cliente al comprar una actividad
