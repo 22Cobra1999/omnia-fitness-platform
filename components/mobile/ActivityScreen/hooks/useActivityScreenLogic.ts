@@ -182,36 +182,13 @@ export function useActivityScreenLogic({ initialTab = "purchased" }: UseActivity
             const { data, error: enrollmentsError } = await supabase
                 .from("activity_enrollments")
                 .select(`
-                    id,
-                    client_id,
-                    activity_id,
-                    status,
-                    created_at,
-                    start_date,
-                    expiration_date,
-                    program_end_date,
-                    start_deadline,
-                    feedback_text,
-                    rating_coach,
-                    difficulty_rating,
-                    would_repeat,
-                    calificacion_omnia,
-                    comentarios_omnia,
-                    workshop_version,
-                    activity:activities!activity_enrollments_activity_id_fkey (
-                        id,
-                        title,
-                        type,
-                        categoria,
-                        dias_acceso,
-                        coach_id,
-                        media:activity_media!activity_media_activity_id_fkey (
-                            id,
-                            image_url,
-                            order_index
-                        )
-                    )
-                `)
+          id, activity_id, client_id, status, created_at, start_date, expiration_date, program_end_date, start_deadline,
+          activity:activities!activity_enrollments_activity_id_fkey (
+            id, title, description, type, difficulty, price, coach_id, categoria, dias_acceso,
+            media:activity_media!activity_media_activity_id_fkey (image_url, video_url),
+            coaches:coaches!activities_coach_id_fkey (id, full_name, specialization)
+          )
+        `)
                 .eq("client_id", user.id)
                 .order("created_at", { ascending: false })
                 .limit(20)
