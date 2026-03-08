@@ -47,9 +47,9 @@ export const formatDate = (dateString: string) => {
 
 export const getSizeClasses = (size: string) => {
     switch (size) {
-        case "small": return "w-40 md:w-52 h-auto"
+        case "small": return "w-36 md:w-44 h-auto"
         case "large": return "w-80 md:w-96 h-auto"
-        default: return "w-64 md:w-80 h-auto"
+        default: return "w-56 md:w-64 h-auto"
     }
 }
 

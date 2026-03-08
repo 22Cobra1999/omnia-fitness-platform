@@ -109,8 +109,9 @@ export function PurchasedActivityCardContent({
                     />
                 )}
 
-                {/* Date Milestones - Only for Finished or To-Start */}
+                {/* Date Milestones */}
                 <div className="flex flex-col gap-1.5 pt-2 mt-4 border-t border-zinc-800/40">
+                    {/* To Start: Show deadline */}
                     {!hasStarted && enrollment.start_deadline && (
                         <div className="flex items-center justify-between text-[10px] bg-orange-500/5 p-1.5 rounded-md border border-orange-500/10">
                             <div className="flex items-center gap-1 text-[#FF7939] font-bold uppercase tracking-tighter">
@@ -121,12 +122,13 @@ export function PurchasedActivityCardContent({
                         </div>
                     )}
 
-                    {isFinished && (
+                    {/* Shared: Start and End Dates (In Progress or Finished) */}
+                    {(hasStarted || isFinished) && (
                         <div className="flex flex-col gap-1">
                             {enrollment.start_date && (
                                 <div className="flex items-center justify-between text-[10px]">
-                                    <div className="flex items-center gap-1 text-gray-500 font-bold uppercase tracking-tighter">
-                                        <Calendar className="w-2.5 h-2.5 text-blue-500" />
+                                    <div className="flex items-center gap-1 text-gray-400 font-bold uppercase tracking-tighter">
+                                        <Calendar className="w-2.5 h-2.5 text-blue-500/70" />
                                         <span>Inicio</span>
                                     </div>
                                     <span className="text-zinc-300 font-medium">{formatDate(enrollment.start_date)}</span>
@@ -135,14 +137,26 @@ export function PurchasedActivityCardContent({
 
                             {enrollment.program_end_date && (
                                 <div className="flex items-center justify-between text-[10px]">
-                                    <div className="flex items-center gap-1 text-gray-500 font-bold uppercase tracking-tighter">
-                                        <CheckCircle2 className="w-2.5 h-2.5" />
+                                    <div className="flex items-center gap-1 text-gray-400 font-bold uppercase tracking-tighter">
+                                        <CheckCircle2 className="w-2.5 h-2.5 text-green-500/70" />
                                         <span>Fin</span>
                                     </div>
                                     <span className="text-zinc-300 font-medium">{formatDate(enrollment.program_end_date)}</span>
                                 </div>
                             )}
 
+                            {/* Show Next Session for In Progress */}
+                            {hasStarted && !isFinished && nextSessionDate && (
+                                <div className="flex items-center justify-between text-[10px] mt-0.5">
+                                    <div className="flex items-center gap-1 text-gray-400 font-bold uppercase tracking-tighter">
+                                        <Clock className="w-2.5 h-2.5 text-[#FF7939]/70" />
+                                        <span>Siguiente</span>
+                                    </div>
+                                    <span className="text-[#FF7939] font-black">{formatDate(nextSessionDate)}</span>
+                                </div>
+                            )}
+
+                            {/* Show Expiration always if exists (Finished or In Progress) */}
                             {daysInfo.expirationDate instanceof Date && !isNaN(daysInfo.expirationDate.getTime()) && (
                                 <div className="flex items-center justify-between text-[10px]">
                                     <div className="flex items-center gap-1 text-gray-500 font-bold uppercase tracking-tighter">
@@ -168,19 +182,10 @@ export function PurchasedActivityCardContent({
                                         <Zap className="w-5 h-5 text-[#FF7939] fill-[#FF7939]" />
                                     </div>
                                     <span className="text-[14px] text-zinc-300 font-black uppercase tracking-tight">
-                                        {pendingCount} ⚡ <span className="text-[#FF7939]">hoy</span>
+                                        {pendingCount} <span className="text-[#FF7939]">hoy</span>
                                     </span>
                                 </div>
                             ) : null
-                        )}
-
-                        {nextSessionDate && (
-                            <div className="flex items-center gap-2">
-                                <Calendar className="w-3.5 h-3.5 text-[#FF7939]" />
-                                <span className="text-[11px] font-bold text-gray-400">
-                                    Siguiente: <span className="text-[#FF7939] font-black">{formatDate(nextSessionDate)}</span>
-                                </span>
-                            </div>
                         )}
                     </div>
                 )}
