@@ -191,11 +191,11 @@ export function PurchasedActivityCardContent({
                             <div className="absolute top-[calc(50%+10px)] left-0 right-0 flex justify-between items-start px-0">
                                 <div className="flex flex-col items-start">
                                     <span className="text-[7px] text-zinc-500 font-bold uppercase">Inicio</span>
-                                    <span className="text-[8px] text-zinc-400 font-bold">{formatDM(enrollment.start_date)}</span>
+                                    <span className="text-[10px] text-zinc-400 font-bold">{formatDM(enrollment.start_date)}</span>
                                 </div>
                                 <div className="flex flex-col items-end">
                                     <span className="text-[7px] text-zinc-500 font-bold uppercase">Fin</span>
-                                    <span className="text-[8px] text-zinc-400 font-bold">{formatDM(enrollment.program_end_date)}</span>
+                                    <span className="text-[10px] text-zinc-400 font-bold">{formatDM(enrollment.program_end_date)}</span>
                                 </div>
                             </div>
 
@@ -207,26 +207,26 @@ export function PurchasedActivityCardContent({
                                         style={{ left: `${nextPercent}%`, transform: 'translateX(-50%)' }}
                                     >
                                         <span className="text-[7px] text-zinc-500 font-black uppercase tracking-tighter">Prox</span>
-                                        <span className="text-[8px] text-zinc-500 font-bold">{formatDM(nextSessionDate!)}</span>
+                                        <span className="text-[10px] text-zinc-500 font-bold">{formatDM(nextSessionDate!)}</span>
                                     </div>
                                 )}
 
                                 <div
-                                    className="absolute bottom-0 flex flex-col items-center h-full justify-end"
+                                    className="absolute bottom-[-1.5px] flex flex-col items-center h-[calc(100%+1px)] justify-end"
                                     style={{ left: `${hoyPercent}%`, transform: 'translateX(-50%)' }}
                                 >
                                     {pendingCount !== null && pendingCount > 0 && (
                                         <div className="flex flex-col items-center">
                                             <span className="text-[10px] text-[#FF7939] font-black leading-none mb-1">{pendingCount} hoy</span>
-                                            {/* Perpendicular Line */}
-                                            <div className="w-[1px] h-4 bg-[#FF7939]/30" />
+                                            {/* Perpendicular Line - ensure its perfectly centered */}
+                                            <div className="w-[1.5px] h-4 bg-[#FF7939]/40" />
                                         </div>
                                     )}
                                 </div>
                             </div>
                         </div>
 
-                        {/* Next Activity Mini-info - Moved up since percentage is now on image */}
+                        {/* Next Activity Mini-info */}
                         {nextActivity && (
                             <div className="mt-2 flex items-center gap-1.5 text-[9px] text-zinc-500 bg-zinc-900/40 p-1.5 rounded-lg border border-zinc-800/20">
                                 <Play className="w-2.5 h-2.5 text-zinc-500" />
@@ -270,7 +270,7 @@ export function PurchasedActivityCardContent({
                 )}
             </div>
 
-            {/* 5. Footer (Texto de completado) */}
+            {/* 5. Footer */}
             <PurchasedActivityCardFooter
                 isFinished={isFinished}
                 progress={progress}
