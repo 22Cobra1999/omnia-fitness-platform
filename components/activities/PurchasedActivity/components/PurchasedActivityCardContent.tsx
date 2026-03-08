@@ -143,27 +143,31 @@ export function PurchasedActivityCardContent({
                 {/* 4.2 Timeline UI - ONLY for active */}
                 {hasStarted && !isFinished && (
                     <div className="flex flex-col gap-2 mt-4 mb-4">
-                        <div className="relative pt-12 px-2 h-20">
+                        <div className="relative pt-10 px-2 h-24">
                             {/* Horizontal Axis Line */}
-                            <div className="absolute top-[52px] left-0 right-0 h-[1.5px] bg-zinc-800" />
+                            <div className="absolute top-[50px] left-0 right-0 h-[1.5px] bg-zinc-800" />
 
                             <div className="flex justify-between items-start relative z-10 w-full">
                                 {/* Inicio */}
                                 <div className="flex flex-col items-start">
-                                    <span className="text-[8px] text-zinc-500 font-bold uppercase mb-1">Inicio</span>
-                                    <div className="w-2.5 h-2.5 rounded-full bg-blue-500 ring-2 ring-black -ml-[1px]" />
-                                    <span className="text-[9px] text-zinc-400 font-bold mt-1">{formatDateDM(enrollment.start_date)}</span>
+                                    <div className="w-2.5 h-2.5 rounded-full bg-blue-500 ring-2 ring-black -ml-[1px] mt-[44px]" />
+                                    <div className="flex flex-col mt-2">
+                                        <span className="text-[8px] text-zinc-500 font-bold uppercase leading-none">Inicio</span>
+                                        <span className="text-[9px] text-zinc-400 font-bold mt-1">{formatDM(enrollment.start_date)}</span>
+                                    </div>
                                 </div>
 
                                 {/* Fin */}
                                 <div className="flex flex-col items-end">
-                                    <span className="text-[8px] text-zinc-500 font-bold uppercase mb-1">Fin</span>
-                                    <div className="w-2.5 h-2.5 rounded-full bg-zinc-700 ring-2 ring-black -mr-[1px]" />
-                                    <span className="text-[9px] text-zinc-400 font-bold mt-1">{formatDateDM(enrollment.program_end_date)}</span>
+                                    <div className="w-2.5 h-2.5 rounded-full bg-zinc-700 ring-2 ring-black -mr-[1px] mt-[44px]" />
+                                    <div className="flex flex-col mt-2 items-end">
+                                        <span className="text-[8px] text-zinc-500 font-bold uppercase leading-none">Fin</span>
+                                        <span className="text-[9px] text-zinc-400 font-bold mt-1">{formatDM(enrollment.program_end_date)}</span>
+                                    </div>
                                 </div>
                             </div>
 
-                            {/* Próximo Día Punto - Duller orange/gray */}
+                            {/* Próximo Día Punto */}
                             {nextPercent !== null && (
                                 <div
                                     className="absolute top-[18px] flex flex-col items-center z-15 transition-all duration-700"
@@ -172,9 +176,9 @@ export function PurchasedActivityCardContent({
                                         transform: 'translateX(-50%)'
                                     }}
                                 >
-                                    <div className="flex flex-col items-center mb-5">
+                                    <div className="flex flex-col items-center mb-3">
                                         <span className="text-[8px] text-zinc-500 font-bold uppercase leading-none">Prox</span>
-                                        <span className="text-[9px] text-zinc-500 font-bold tabular-nums">{formatDateDM(nextSessionDate!)}</span>
+                                        <span className="text-[9px] text-zinc-500 font-bold tabular-nums">{formatDM(nextSessionDate!)}</span>
                                     </div>
                                     <div className="w-2.5 h-2.5 rounded-full bg-zinc-500/50 ring-2 ring-black shadow-sm" />
                                 </div>
@@ -183,24 +187,23 @@ export function PurchasedActivityCardContent({
                             {/* Cantidad de puntos futuros */}
                             {daysRemainingFuture && daysRemainingFuture > 1 && (
                                 Array.from({ length: Math.min(daysRemainingFuture - 1, 5) }).map((_, i) => {
-                                    // Linear interpolation between Prox and Fin (roughly)
                                     const dotPercent = nextPercent !== null
                                         ? nextPercent + ((95 - nextPercent) / (Math.min(daysRemainingFuture - 1, 5) + 1)) * (i + 1)
-                                        : 50 + (i * 5); // Fallback
+                                        : hoyPercent + ((95 - hoyPercent) / (Math.min(daysRemainingFuture - 1, 5) + 1)) * (i + 1);
 
                                     if (dotPercent >= 98) return null;
 
                                     return (
                                         <div
                                             key={i}
-                                            className="absolute top-[51.5px] w-1 h-1 rounded-full bg-zinc-700/50 z-10"
+                                            className="absolute top-[49.5px] w-1 h-1 rounded-full bg-zinc-700/50 z-10"
                                             style={{ left: `${dotPercent}%`, transform: 'translateX(-50%)' }}
                                         />
                                     );
                                 })
                             )}
 
-                            {/* Hoy - Moving Progress Marker with Vertical Line */}
+                            {/* Hoy - Moving Progress Marker with Vertical Line (No pulse) */}
                             <div
                                 className="absolute top-[10px] bottom-[25.5px] flex flex-col items-center z-20 transition-all duration-700 pointer-events-none"
                                 style={{
@@ -210,22 +213,22 @@ export function PurchasedActivityCardContent({
                             >
                                 {/* Text Count at the very top */}
                                 {pendingCount !== null && pendingCount > 0 && (
-                                    <div className="absolute -top-4 whitespace-nowrap bg-[#FF7939] text-black text-[9px] font-black px-1.5 py-0.5 rounded shadow-lg animate-pulse">
+                                    <div className="absolute -top-4 whitespace-nowrap bg-[#FF7939] text-black text-[9px] font-black px-2 py-0.5 rounded shadow-lg">
                                         {pendingCount} hoy
                                     </div>
                                 )}
 
-                                {/* Vertical Perpendicular Line */}
-                                <div className="w-[1.5px] h-10 bg-[#FF7939]/30 mt-1" />
+                                {/* Vertical Line */}
+                                <div className="w-[1px] h-10 bg-[#FF7939]/40 mt-1" />
 
-                                {/* Dot on the main line */}
-                                <div className="absolute top-[41px] w-3 h-3 rounded-full bg-[#FF7939] ring-4 ring-black shadow-[0_0_12px_rgba(255,121,57,0.5)]" />
+                                {/* Dot exactly on the axis */}
+                                <div className="absolute top-[39.5px] w-2.5 h-2.5 rounded-full bg-[#FF7939] ring-2 ring-black shadow-[0_0_10px_rgba(255,121,57,0.4)]" />
                             </div>
                         </div>
 
-                        {/* Centered Progress Percentage below timeline */}
-                        <div className="flex flex-col items-center justify-center mt-2 pt-2 border-t border-zinc-800/10">
-                            <span className="text-2xl font-black text-[#FF7939] leading-none mb-1">{progress}%</span>
+                        {/* Centered Progress Percentage */}
+                        <div className="flex flex-col items-center justify-center mt-4">
+                            <span className="text-3xl font-black text-[#FF7939] leading-none mb-1">{progress}%</span>
                             <span className="text-[9px] text-zinc-600 font-bold uppercase tracking-[0.2em]">Progreso Actual</span>
                         </div>
                     </div>
@@ -237,11 +240,11 @@ export function PurchasedActivityCardContent({
                         <div className="flex justify-between items-center text-[10px] text-zinc-500 font-bold tracking-widest uppercase px-1">
                             <div className="flex flex-col gap-1.5">
                                 <span>Inicio</span>
-                                <span className="text-zinc-300 text-[12px] font-black">{formatDateDM(enrollment.start_date)}</span>
+                                <span className="text-zinc-300 text-[12px] font-black">{formatDM(enrollment.start_date)}</span>
                             </div>
                             <div className="flex flex-col items-end gap-1.5">
                                 <span>Fin</span>
-                                <span className="text-zinc-300 text-[12px] font-black">{formatDateDM(enrollment.program_end_date)}</span>
+                                <span className="text-zinc-300 text-[12px] font-black">{formatDM(enrollment.program_end_date)}</span>
                             </div>
                         </div>
 
@@ -257,7 +260,7 @@ export function PurchasedActivityCardContent({
                                     <span>{daysInfo.isExpired ? "Venció" : "Vence"}</span>
                                 </div>
                                 <span className={cn("font-black", daysInfo.isExpired ? "text-red-400" : "text-zinc-400")}>
-                                    {formatDateDM(daysInfo.expirationDate.toISOString())}
+                                    {formatDM(daysInfo.expirationDate.toISOString())}
                                 </span>
                             </div>
                         )}
@@ -272,6 +275,16 @@ export function PurchasedActivityCardContent({
             />
         </div>
     )
+}
+
+function formatDM(date: string) {
+    if (!date) return '';
+    try {
+        const d = new Date(date);
+        return `${d.getDate()}/${d.getMonth() + 1}`;
+    } catch {
+        return '';
+    }
 }
 
 function CoachViewStats({
