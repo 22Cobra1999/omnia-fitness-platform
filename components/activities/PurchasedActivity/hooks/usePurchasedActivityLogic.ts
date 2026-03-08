@@ -78,7 +78,7 @@ export function usePurchasedActivityLogic({
                     .from('progreso_diario_actividad')
                     .select('items_objetivo, items_completados')
                     .eq('cliente_id', enrollment.client_id)
-                    .eq('actividad_id', activity.id)
+                    .eq('enrollment_id', enrollment.id)
                     .eq('fecha', today)
                     .maybeSingle()
 
@@ -97,7 +97,7 @@ export function usePurchasedActivityLogic({
                     const { data: upcoming } = await supabase
                         .from('taller_progreso_temas')
                         .select('fecha_seleccionada')
-                        .eq('actividad_id', activity.id)
+                        .eq('enrollment_id', enrollment.id)
                         .eq('cliente_id', enrollment.client_id)
                         .gte('fecha_seleccionada', today)
                         .order('fecha_seleccionada', { ascending: true })
@@ -116,7 +116,7 @@ export function usePurchasedActivityLogic({
                     const { data: upcoming } = await supabase
                         .from('progreso_diario_actividad')
                         .select('fecha')
-                        .eq('actividad_id', activity.id)
+                        .eq('enrollment_id', enrollment.id)
                         .eq('cliente_id', enrollment.client_id)
                         .gt('fecha', today)
                         .gt('items_objetivo', 0)

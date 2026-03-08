@@ -109,43 +109,57 @@ export function PurchasedActivityCardContent({
                     />
                 )}
 
-                {/* Date Milestones */}
-                <div className="flex flex-col gap-1 pt-2 mt-4 border-t border-zinc-800/40">
-                    {enrollment.start_date && (
-                        <div className="flex items-center justify-between text-[10px]">
-                            <div className="flex items-center gap-1 text-gray-500 font-bold uppercase tracking-tighter">
-                                <Calendar className="w-2.5 h-2.5 text-blue-500" />
-                                <span>Inicio</span>
-                            </div>
-                            <span className="text-zinc-300 font-medium">{formatDate(enrollment.start_date)}</span>
-                        </div>
-                    )}
-
-                    {enrollment.program_end_date && (
-                        <div className="flex items-center justify-between text-[10px]">
-                            <div className="flex items-center gap-1 text-gray-500 font-bold uppercase tracking-tighter">
-                                <CheckCircle2 className="w-2.5 h-2.5" />
-                                <span>Fin</span>
-                            </div>
-                            <span className="text-zinc-300 font-medium">{formatDate(enrollment.program_end_date)}</span>
-                        </div>
-                    )}
-
-                    {daysInfo.expirationDate instanceof Date && !isNaN(daysInfo.expirationDate.getTime()) && (
-                        <div className="flex items-center justify-between text-[10px]">
-                            <div className="flex items-center gap-1 text-gray-500 font-bold uppercase tracking-tighter">
+                {/* Date Milestones - Only for Finished or To-Start */}
+                <div className="flex flex-col gap-1.5 pt-2 mt-4 border-t border-zinc-800/40">
+                    {!hasStarted && enrollment.start_deadline && (
+                        <div className="flex items-center justify-between text-[10px] bg-orange-500/5 p-1.5 rounded-md border border-orange-500/10">
+                            <div className="flex items-center gap-1 text-[#FF7939] font-bold uppercase tracking-tighter">
                                 <Clock className="w-2.5 h-2.5" />
-                                <span>Vence</span>
+                                <span>Empezar antes de:</span>
                             </div>
-                            <span className={cn("font-medium", daysInfo.isExpired ? "text-red-400" : "text-zinc-400")}>
-                                {formatDate(daysInfo.expirationDate.toISOString())}
-                            </span>
+                            <span className="text-[#FF7939] font-black">{formatDate(enrollment.start_deadline)}</span>
+                        </div>
+                    )}
+
+                    {isFinished && (
+                        <div className="flex flex-col gap-1">
+                            {enrollment.start_date && (
+                                <div className="flex items-center justify-between text-[10px]">
+                                    <div className="flex items-center gap-1 text-gray-500 font-bold uppercase tracking-tighter">
+                                        <Calendar className="w-2.5 h-2.5 text-blue-500" />
+                                        <span>Inicio</span>
+                                    </div>
+                                    <span className="text-zinc-300 font-medium">{formatDate(enrollment.start_date)}</span>
+                                </div>
+                            )}
+
+                            {enrollment.program_end_date && (
+                                <div className="flex items-center justify-between text-[10px]">
+                                    <div className="flex items-center gap-1 text-gray-500 font-bold uppercase tracking-tighter">
+                                        <CheckCircle2 className="w-2.5 h-2.5" />
+                                        <span>Fin</span>
+                                    </div>
+                                    <span className="text-zinc-300 font-medium">{formatDate(enrollment.program_end_date)}</span>
+                                </div>
+                            )}
+
+                            {daysInfo.expirationDate instanceof Date && !isNaN(daysInfo.expirationDate.getTime()) && (
+                                <div className="flex items-center justify-between text-[10px]">
+                                    <div className="flex items-center gap-1 text-gray-500 font-bold uppercase tracking-tighter">
+                                        <Clock className="w-2.5 h-2.5" />
+                                        <span>{daysInfo.isExpired ? "Venció" : "Vence"}</span>
+                                    </div>
+                                    <span className={cn("font-medium", daysInfo.isExpired ? "text-red-400" : "text-zinc-400")}>
+                                        {formatDate(daysInfo.expirationDate.toISOString())}
+                                    </span>
+                                </div>
+                            )}
                         </div>
                     )}
                 </div>
 
                 {/* Pending Actions */}
-                {hasStarted && !isCoachView && (
+                {hasStarted && !isCoachView && !isFinished && (
                     <div className="flex flex-col gap-2 mt-2">
                         {(activity.type?.toLowerCase() === 'program' || activity.type?.toLowerCase() === 'programa') && (
                             (pendingCount !== null && pendingCount > 0) ? (
@@ -153,16 +167,16 @@ export function PurchasedActivityCardContent({
                                     <div className="w-8 h-8 rounded-lg bg-[#FF7939]/10 flex items-center justify-center">
                                         <Zap className="w-5 h-5 text-[#FF7939] fill-[#FF7939]" />
                                     </div>
-                                    <span className="text-[14px] text-white font-black uppercase tracking-tight">
-                                        {pendingCount} ⚡ hoy
+                                    <span className="text-[14px] text-zinc-300 font-black uppercase tracking-tight">
+                                        {pendingCount} ⚡ <span className="text-[#FF7939]">hoy</span>
                                     </span>
                                 </div>
                             ) : null
                         )}
 
                         {nextSessionDate && (
-                            <div className="flex items-center gap-2 bg-orange-500/5 p-2 rounded-xl border border-orange-500/10">
-                                <Calendar className="w-4 h-4 text-[#FF7939] fill-[#FF7939]/20" />
+                            <div className="flex items-center gap-2">
+                                <Calendar className="w-3.5 h-3.5 text-[#FF7939]" />
                                 <span className="text-[11px] font-bold text-gray-400">
                                     Siguiente: <span className="text-[#FF7939] font-black">{formatDate(nextSessionDate)}</span>
                                 </span>

@@ -52,7 +52,7 @@ export function ProgramList({
                             enrollment={enrollment}
                             onActivityClick={onActivityClick}
                             realProgress={progress}
-                            size="small"
+                            size="medium"
                         />
                     </div>
                 )
