@@ -130,9 +130,9 @@ export function PurchasedActivityCardContent({
                 {(hasStarted || isFinished) && (
                     <div className="flex flex-col gap-4 mt-2 mb-4">
                         {/* Timeline Labels and Axis */}
-                        <div className="relative pt-4 px-1">
+                        <div className="relative pt-10 px-1">
                             {/* Horizontal Axis Line */}
-                            <div className="absolute top-[22px] left-0 right-0 h-[1.5px] bg-zinc-800" />
+                            <div className="absolute top-[50px] left-0 right-0 h-[1.5px] bg-zinc-800" />
 
                             <div className="flex justify-between items-start relative z-10">
                                 {/* Inicio */}
@@ -144,19 +144,6 @@ export function PurchasedActivityCardContent({
                                     </div>
                                 </div>
 
-                                {/* Hoy - Only if active */}
-                                {hasStarted && !isFinished && (
-                                    <div className="flex flex-col items-center gap-1">
-                                        <div className="w-2.5 h-2.5 rounded-full bg-[#FF7939] ring-4 ring-black animate-pulse" />
-                                        <div className="flex flex-col mt-1 items-center">
-                                            <span className="text-[8px] text-[#FF7939] font-bold uppercase">Hoy</span>
-                                            {pendingCount !== null && pendingCount > 0 && (
-                                                <span className="text-[11px] text-white font-black">{pendingCount} hoy</span>
-                                            )}
-                                        </div>
-                                    </div>
-                                )}
-
                                 {/* Fin */}
                                 <div className="flex flex-col items-end gap-1">
                                     <div className="w-2.5 h-2.5 rounded-full bg-zinc-700 ring-4 ring-black" />
@@ -166,6 +153,26 @@ export function PurchasedActivityCardContent({
                                     </div>
                                 </div>
                             </div>
+
+                            {/* Hoy - Moving Progress Marker */}
+                            {hasStarted && !isFinished && (
+                                <div
+                                    className="absolute top-0 flex flex-col items-center z-20 transition-all duration-700 pointer-events-none"
+                                    style={{
+                                        left: `${Math.min(Math.max(progress, 5), 95)}%`,
+                                        transform: 'translateX(-50%)'
+                                    }}
+                                >
+                                    <span className="text-[12px] text-[#FF7939] font-black leading-none mb-1.5">{progress}%</span>
+                                    <div className="w-3.5 h-3.5 rounded-full bg-[#FF7939] ring-4 ring-black shadow-[0_0_10px_rgba(255,121,57,0.4)]" />
+                                    <div className="flex flex-col mt-1.5 items-center">
+                                        <span className="text-[9px] text-[#FF7939] font-black uppercase tracking-tighter">Hoy</span>
+                                        {pendingCount !== null && pendingCount > 0 && (
+                                            <span className="text-[10px] text-white font-bold whitespace-nowrap">{pendingCount} hoy</span>
+                                        )}
+                                    </div>
+                                </div>
+                            )}
                         </div>
 
                         {/* Secondary Info (Next Session / Next Activity) */}
@@ -204,7 +211,7 @@ export function PurchasedActivityCardContent({
                 )}
             </div>
 
-            {/* 5. Footer (Progress) */}
+            {/* 5. Footer (Progress - Simplified) */}
             <PurchasedActivityCardFooter
                 activityType={activity.type}
                 isFinished={isFinished}
@@ -292,36 +299,13 @@ function CoachViewStats({
 }
 
 function PurchasedActivityCardFooter({ activityType, isFinished, progress }: any) {
-    const isDocOrWorkshop = activityType?.toLowerCase().includes('document') ||
-        activityType?.toLowerCase().includes('taller') ||
-        activityType?.toLowerCase().includes('workshop');
-
-    if (isDocOrWorkshop && (isFinished || progress >= 100)) {
+    if (isFinished || progress >= 100) {
         return (
-            <div className="mt-auto pt-1.5 border-t border-zinc-800/20 relative">
-                <div className="h-0.5 bg-zinc-800/50 rounded-full overflow-hidden">
-                    <div className="h-full bg-[#FF7939] rounded-full" style={{ width: '100%' }} />
-                </div>
-                <div className="flex justify-between items-center text-[11px]">
-                    <span className="text-white font-medium">Finalizado</span>
-                    <span className="text-[#FF7939] font-bold">{progress}%</span>
-                </div>
+            <div className="mt-auto pt-3 border-t border-zinc-800/20 text-center">
+                <span className="text-[10px] text-zinc-500 font-black uppercase tracking-[0.2em]">Actividad Completada</span>
             </div>
         );
     }
 
-    return (
-        <div className="mt-auto pt-1.5 border-t border-zinc-800/20 relative">
-            <div className="flex justify-between text-[11px] mb-1 text-[#FF7939]">
-                <span className="text-[9px] font-bold uppercase tracking-wider">Progreso</span>
-                <span className="font-black text-[12px]">{progress}%</span>
-            </div>
-            <div className="h-0.5 bg-zinc-800/50 rounded-full overflow-hidden mb-1">
-                <div
-                    className="h-full bg-[#FF7939] rounded-full transition-all duration-500 shadow-[0_0_8px_rgba(255,121,57,0.3)]"
-                    style={{ width: `${progress}%` }}
-                />
-            </div>
-        </div>
-    );
+    return null;
 }

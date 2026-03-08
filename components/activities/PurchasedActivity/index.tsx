@@ -66,7 +66,7 @@ export function PurchasedActivityCard(props: PurchasedActivityCardProps) {
             >
                 <div
                     className={cn(
-                        "bg-[#1A1A1A] rounded-2xl overflow-hidden border border-gray-800 transition-all duration-200 h-[440px] flex flex-col relative",
+                        "bg-[#1A1A1A] rounded-2xl overflow-hidden border border-gray-800 transition-all duration-200 h-[480px] flex flex-col relative",
                         "hover:border-[#FF7939]/30 hover:scale-[1.02]",
                         daysInfo.isExpired && "opacity-80"
                     )}
