@@ -57,12 +57,15 @@ export function PurchasedActivityCardContent({
     const next = nextSessionDate ? new Date(nextSessionDate).getTime() : null
     const nextPercent = (next && end > start) ? Math.min(Math.max(((next - start) / (end - start)) * 100, 5), 95) : null
 
+    // Progress percentage for Hoy marker
+    const hoyPercent = Math.min(Math.max(progress, 5), 95);
+
     return (
         <div className={cn(
             "flex-1 flex flex-col h-full min-h-0 relative",
             size === "small" ? "p-2 px-3" : "p-4"
         )}>
-            {/* 1. Título con filtro condicional */}
+            {/* 1. Título */}
             <div className={cn("mb-1", daysInfo.isExpired && "grayscale opacity-60")}>
                 <h3 className={cn(
                     "text-white font-bold leading-tight h-[2.5em] overflow-hidden line-clamp-2",
@@ -72,7 +75,7 @@ export function PurchasedActivityCardContent({
                 </h3>
             </div>
 
-            {/* 2. Coach Info con filtro */}
+            {/* 2. Coach Info */}
             {!isCoachView && (
                 <div className={cn("border-t border-b border-gray-700/30 py-2 mb-3", daysInfo.isExpired && "grayscale opacity-60")}>
                     <div className="flex items-center gap-2">
@@ -89,8 +92,7 @@ export function PurchasedActivityCardContent({
                 </div>
             )}
 
-
-            {/* 3. Badges com filtro */}
+            {/* 3. Badges */}
             <div className={cn("flex flex-row items-center gap-2 mb-2 overflow-hidden whitespace-nowrap", daysInfo.isExpired && "grayscale opacity-60")}>
                 <Badge variant="outline" className="bg-transparent border-[#FF7939] text-[#FF7939] text-[8px] px-1 h-3.5 font-bold tracking-wider uppercase shrink-0">
                     {getCategoryBadge(activity.categoria)}
@@ -106,7 +108,7 @@ export function PurchasedActivityCardContent({
                 )}
             </div>
 
-            {/* 4. Info Dinámica (Progreso / Fechas / Pendientes) */}
+            {/* 4. Info Dinámica */}
             <div className={cn("flex-1 flex flex-col gap-2 text-[11px] text-gray-300", daysInfo.isExpired && "grayscale opacity-60")}>
                 {isCoachView && (
                     <CoachViewStats
@@ -121,44 +123,43 @@ export function PurchasedActivityCardContent({
                     />
                 )}
 
-                {/* 4.1 "Empezar antes de" or "CADUCADO" - Strictly for To Start / Pending Activity */}
+                {/* 4.1 "Empezar antes de" - centrado y sin frame */}
                 {!hasStarted && !isFinished && enrollment.start_deadline && (
-                    <div className="flex flex-col items-center justify-center py-6">
+                    <div className="flex flex-col items-center justify-center py-6 text-center">
                         {new Date(enrollment.start_deadline) < new Date() ? (
                             <div className="flex flex-col items-center gap-1 text-red-500">
-                                <span className="text-[10px] font-black uppercase tracking-widest">CADUCADO</span>
-                                <span className="text-xs font-bold">{formatDateDM(enrollment.start_deadline)}</span>
+                                <span className="text-[10px] font-black uppercase tracking-widest leading-none mb-1">CADUCADO</span>
+                                <span className="text-sm font-bold">{formatDateDM(enrollment.start_deadline)}</span>
                             </div>
                         ) : (
-                            <div className="flex flex-col items-center gap-1">
-                                <span className="text-[10px] text-zinc-500 font-bold uppercase tracking-wider">Empezar antes de</span>
-                                <span className="text-sm font-black text-[#FF7939]">{formatDateDM(enrollment.start_deadline)}</span>
+                            <div className="flex flex-col items-center">
+                                <span className="text-[11px] text-zinc-500 font-bold uppercase tracking-wider mb-1">Empezar antes de</span>
+                                <span className="text-xl font-black text-[#FF7939]">{formatDateDM(enrollment.start_deadline)}</span>
                             </div>
                         )}
                     </div>
                 )}
 
-                {/* 4.2 Timeline UI - ONLY for started NOT finished */}
+                {/* 4.2 Timeline UI - ONLY for active */}
                 {hasStarted && !isFinished && (
                     <div className="flex flex-col gap-2 mt-4 mb-4">
-                        {/* Timeline Labels and Axis */}
                         <div className="relative pt-12 px-2 h-20">
                             {/* Horizontal Axis Line */}
                             <div className="absolute top-[52px] left-0 right-0 h-[1.5px] bg-zinc-800" />
 
                             <div className="flex justify-between items-start relative z-10 w-full">
                                 {/* Inicio */}
-                                <div className="flex flex-col items-start gap-1">
-                                    <span className="absolute -top-6 left-0 text-[10px] text-zinc-400 font-bold">{formatDateDM(enrollment.start_date)}</span>
-                                    <div className="w-2 h-2 rounded-full bg-blue-500 ring-4 ring-black" />
-                                    <span className="text-[8px] text-zinc-500 font-bold uppercase mt-1">Inicio</span>
+                                <div className="flex flex-col items-start">
+                                    <span className="text-[8px] text-zinc-500 font-bold uppercase mb-1">Inicio</span>
+                                    <div className="w-2.5 h-2.5 rounded-full bg-blue-500 ring-2 ring-black -ml-[1px]" />
+                                    <span className="text-[9px] text-zinc-400 font-bold mt-1">{formatDateDM(enrollment.start_date)}</span>
                                 </div>
 
                                 {/* Fin */}
-                                <div className="flex flex-col items-end gap-1">
-                                    <span className="absolute -top-6 right-0 text-[10px] text-zinc-400 font-bold">{formatDateDM(enrollment.program_end_date)}</span>
-                                    <div className="w-2 h-2 rounded-full bg-zinc-700 ring-4 ring-black" />
-                                    <span className="text-[8px] text-zinc-500 font-bold uppercase mt-1">Fin</span>
+                                <div className="flex flex-col items-end">
+                                    <span className="text-[8px] text-zinc-500 font-bold uppercase mb-1">Fin</span>
+                                    <div className="w-2.5 h-2.5 rounded-full bg-zinc-700 ring-2 ring-black -mr-[1px]" />
+                                    <span className="text-[9px] text-zinc-400 font-bold mt-1">{formatDateDM(enrollment.program_end_date)}</span>
                                 </div>
                             </div>
 
@@ -171,72 +172,91 @@ export function PurchasedActivityCardContent({
                                         transform: 'translateX(-50%)'
                                     }}
                                 >
-                                    <span className="text-[9px] text-zinc-500 font-bold mb-5 tabular-nums">{formatDateDM(nextSessionDate!)}</span>
-                                    <div className="w-2 h-2 rounded-full bg-zinc-500/50 ring-2 ring-black" />
+                                    <div className="flex flex-col items-center mb-5">
+                                        <span className="text-[8px] text-zinc-500 font-bold uppercase leading-none">Prox</span>
+                                        <span className="text-[9px] text-zinc-500 font-bold tabular-nums">{formatDateDM(nextSessionDate!)}</span>
+                                    </div>
+                                    <div className="w-2.5 h-2.5 rounded-full bg-zinc-500/50 ring-2 ring-black shadow-sm" />
                                 </div>
                             )}
 
-                            {/* Hoy - Moving Progress Marker */}
+                            {/* Cantidad de puntos futuros */}
+                            {daysRemainingFuture && daysRemainingFuture > 1 && (
+                                Array.from({ length: Math.min(daysRemainingFuture - 1, 5) }).map((_, i) => {
+                                    // Linear interpolation between Prox and Fin (roughly)
+                                    const dotPercent = nextPercent !== null
+                                        ? nextPercent + ((95 - nextPercent) / (Math.min(daysRemainingFuture - 1, 5) + 1)) * (i + 1)
+                                        : 50 + (i * 5); // Fallback
+
+                                    if (dotPercent >= 98) return null;
+
+                                    return (
+                                        <div
+                                            key={i}
+                                            className="absolute top-[51.5px] w-1 h-1 rounded-full bg-zinc-700/50 z-10"
+                                            style={{ left: `${dotPercent}%`, transform: 'translateX(-50%)' }}
+                                        />
+                                    );
+                                })
+                            )}
+
+                            {/* Hoy - Moving Progress Marker with Vertical Line */}
                             <div
-                                className="absolute top-0 flex flex-col items-center z-20 transition-all duration-700 pointer-events-none"
+                                className="absolute top-[10px] bottom-[25.5px] flex flex-col items-center z-20 transition-all duration-700 pointer-events-none"
                                 style={{
-                                    left: `${Math.min(Math.max(progress, 5), 95)}%`,
+                                    left: `${hoyPercent}%`,
                                     transform: 'translateX(-50%)'
                                 }}
                             >
-                                <div className="flex flex-col items-center mb-1">
-                                    {pendingCount !== null && pendingCount > 0 && (
-                                        <span className="text-[9px] text-white font-bold whitespace-nowrap leading-none mb-0.5">{pendingCount} hoy</span>
-                                    )}
-                                    <span className="text-[9px] text-[#FF7939] font-black uppercase tracking-tighter leading-none">Hoy</span>
-                                </div>
-                                <div className="w-3 h-3 rounded-full bg-[#FF7939] ring-4 ring-black shadow-[0_0_10px_rgba(255,121,57,0.4)]" />
+                                {/* Text Count at the very top */}
+                                {pendingCount !== null && pendingCount > 0 && (
+                                    <div className="absolute -top-4 whitespace-nowrap bg-[#FF7939] text-black text-[9px] font-black px-1.5 py-0.5 rounded shadow-lg animate-pulse">
+                                        {pendingCount} hoy
+                                    </div>
+                                )}
+
+                                {/* Vertical Perpendicular Line */}
+                                <div className="w-[1.5px] h-10 bg-[#FF7939]/30 mt-1" />
+
+                                {/* Dot on the main line */}
+                                <div className="absolute top-[41px] w-3 h-3 rounded-full bg-[#FF7939] ring-4 ring-black shadow-[0_0_12px_rgba(255,121,57,0.5)]" />
                             </div>
                         </div>
 
                         {/* Centered Progress Percentage below timeline */}
-                        <div className="flex flex-col items-center justify-center mt-2">
-                            <span className="text-xl font-black text-[#FF7939]">{progress}%</span>
-                            <span className="text-[8px] text-zinc-600 font-bold uppercase tracking-widest">Progreso Actual</span>
+                        <div className="flex flex-col items-center justify-center mt-2 pt-2 border-t border-zinc-800/10">
+                            <span className="text-2xl font-black text-[#FF7939] leading-none mb-1">{progress}%</span>
+                            <span className="text-[9px] text-zinc-600 font-bold uppercase tracking-[0.2em]">Progreso Actual</span>
                         </div>
-
-                        {/* Next Activity Mini-info */}
-                        {nextActivity && (
-                            <div className="mt-2 flex items-center gap-1.5 text-[9px] text-zinc-500 bg-zinc-900/40 p-1.5 rounded-lg border border-zinc-800/20">
-                                <Play className="w-2.5 h-2.5 text-zinc-500" />
-                                <span className="truncate opacity-70">Siguiente: {nextActivity.title}</span>
-                            </div>
-                        )}
                     </div>
                 )}
 
-                {/* 4.3 Finalizadas UI - NO timeline */}
+                {/* 4.3 Finalizadas UI */}
                 {isFinished && (
-                    <div className="flex flex-col gap-5 py-4 mt-2">
-                        <div className="flex justify-between items-center text-[10px] text-zinc-500 font-bold tracking-widest uppercase">
-                            <div className="flex flex-col gap-1">
+                    <div className="flex flex-col gap-6 py-6 mt-2">
+                        <div className="flex justify-between items-center text-[10px] text-zinc-500 font-bold tracking-widest uppercase px-1">
+                            <div className="flex flex-col gap-1.5">
                                 <span>Inicio</span>
-                                <span className="text-zinc-300 text-[11px] font-bold">{formatDateDM(enrollment.start_date)}</span>
+                                <span className="text-zinc-300 text-[12px] font-black">{formatDateDM(enrollment.start_date)}</span>
                             </div>
-                            <div className="flex flex-col items-end gap-1">
+                            <div className="flex flex-col items-end gap-1.5">
                                 <span>Fin</span>
-                                <span className="text-zinc-300 text-[11px] font-bold">{formatDateDM(enrollment.program_end_date)}</span>
+                                <span className="text-zinc-300 text-[12px] font-black">{formatDateDM(enrollment.program_end_date)}</span>
                             </div>
                         </div>
 
-                        <div className="flex flex-col items-center justify-center p-4 bg-zinc-900/30 rounded-2xl border border-zinc-800/20">
-                            <span className="text-[9px] text-zinc-500 font-black uppercase tracking-[0.2em] mb-1">Completado al</span>
-                            <span className="text-3xl font-black text-[#FF7939]">{progress}%</span>
+                        <div className="flex flex-col items-center justify-center p-6 bg-zinc-900/30 rounded-3xl border border-zinc-800/20 shadow-inner">
+                            <span className="text-[10px] text-zinc-500 font-black uppercase tracking-[0.3em] mb-2 opacity-50">Completado al</span>
+                            <span className="text-4xl font-black text-[#FF7939] drop-shadow-sm">{progress}%</span>
                         </div>
 
-                        {/* Expiration (only for finished) */}
                         {daysInfo.expirationDate instanceof Date && !isNaN(daysInfo.expirationDate.getTime()) && (
-                            <div className="flex items-center justify-between text-[10px] p-2 bg-red-500/5 rounded-lg border border-red-500/10">
-                                <div className="flex items-center gap-1.5 text-zinc-500 font-bold uppercase tracking-tighter">
-                                    <Clock className="w-3 h-3" />
+                            <div className="flex items-center justify-between text-[11px] p-2.5 bg-red-500/5 rounded-xl border border-red-500/10 mx-auto w-full">
+                                <div className="flex items-center gap-2 text-zinc-500 font-bold uppercase tracking-tighter">
+                                    <Clock className="w-3.5 h-3.5" />
                                     <span>{daysInfo.isExpired ? "Venció" : "Vence"}</span>
                                 </div>
-                                <span className={cn("font-bold", daysInfo.isExpired ? "text-red-400" : "text-zinc-400")}>
+                                <span className={cn("font-black", daysInfo.isExpired ? "text-red-400" : "text-zinc-400")}>
                                     {formatDateDM(daysInfo.expirationDate.toISOString())}
                                 </span>
                             </div>
@@ -245,7 +265,7 @@ export function PurchasedActivityCardContent({
                 )}
             </div>
 
-            {/* 5. Footer (Simplified Completion Text) */}
+            {/* 5. Footer */}
             <PurchasedActivityCardFooter
                 isFinished={isFinished}
                 progress={progress}
@@ -339,6 +359,5 @@ function PurchasedActivityCardFooter({ isFinished, progress }: any) {
             </div>
         );
     }
-
     return null;
 }
