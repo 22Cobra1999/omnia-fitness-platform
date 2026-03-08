@@ -109,56 +109,87 @@ export function PurchasedActivityCardContent({
                     />
                 )}
 
-                {/* Date Milestones */}
-                <div className="flex flex-col gap-1.5 pt-2 mt-4 border-t border-zinc-800/40">
-                    {/* To Start: Show deadline */}
-                    {!hasStarted && enrollment.start_deadline && (
-                        <div className="flex items-center justify-between text-[10px] bg-orange-500/5 p-1.5 rounded-md border border-orange-500/10">
-                            <div className="flex items-center gap-1 text-[#FF7939] font-bold uppercase tracking-tighter">
-                                <Clock className="w-2.5 h-2.5" />
-                                <span>Empezar antes de:</span>
+                {/* 4.1 "Empezar antes de" or "CADUCADO" - Strictly for To Start / Pending Activity */}
+                {!hasStarted && enrollment.start_deadline && (
+                    <div className="mb-4">
+                        {new Date(enrollment.start_deadline) < new Date() ? (
+                            <div className="flex items-center gap-1.5 bg-red-500/10 p-2 rounded-lg border border-red-500/20">
+                                <Clock className="w-3.5 h-3.5 text-red-500" />
+                                <span className="text-[10px] text-red-500 font-black uppercase tracking-tight">CADUCADO</span>
                             </div>
-                            <span className="text-[#FF7939] font-black">{formatDate(enrollment.start_deadline)}</span>
+                        ) : (
+                            <div className="flex flex-col gap-0.5 bg-orange-500/5 p-2 rounded-lg border border-orange-500/10">
+                                <span className="text-[8px] text-zinc-500 font-bold uppercase tracking-wider">Empezar antes de</span>
+                                <span className="text-[#FF7939] text-xs font-black">{formatDate(enrollment.start_deadline)}</span>
+                            </div>
+                        )}
+                    </div>
+                )}
+
+                {/* 4.2 Timeline UI - For started or finished activities */}
+                {(hasStarted || isFinished) && (
+                    <div className="flex flex-col gap-4 mt-2 mb-4">
+                        {/* Timeline Labels and Axis */}
+                        <div className="relative pt-4 px-1">
+                            {/* Horizontal Axis Line */}
+                            <div className="absolute top-[22px] left-0 right-0 h-[1.5px] bg-zinc-800" />
+
+                            <div className="flex justify-between items-start relative z-10">
+                                {/* Inicio */}
+                                <div className="flex flex-col items-start gap-1">
+                                    <div className="w-2.5 h-2.5 rounded-full bg-blue-500 ring-4 ring-black" />
+                                    <div className="flex flex-col mt-1">
+                                        <span className="text-[8px] text-zinc-500 font-bold uppercase">Inicio</span>
+                                        <span className="text-[10px] text-zinc-300 font-medium">{formatDate(enrollment.start_date)}</span>
+                                    </div>
+                                </div>
+
+                                {/* Hoy - Only if active */}
+                                {hasStarted && !isFinished && (
+                                    <div className="flex flex-col items-center gap-1">
+                                        <div className="w-2.5 h-2.5 rounded-full bg-[#FF7939] ring-4 ring-black animate-pulse" />
+                                        <div className="flex flex-col mt-1 items-center">
+                                            <span className="text-[8px] text-[#FF7939] font-bold uppercase">Hoy</span>
+                                            {pendingCount !== null && pendingCount > 0 && (
+                                                <span className="text-[11px] text-white font-black">{pendingCount} hoy</span>
+                                            )}
+                                        </div>
+                                    </div>
+                                )}
+
+                                {/* Fin */}
+                                <div className="flex flex-col items-end gap-1">
+                                    <div className="w-2.5 h-2.5 rounded-full bg-zinc-700 ring-4 ring-black" />
+                                    <div className="flex flex-col mt-1 items-end">
+                                        <span className="text-[8px] text-zinc-500 font-bold uppercase">Fin</span>
+                                        <span className="text-[10px] text-zinc-300 font-medium">{formatDate(enrollment.program_end_date)}</span>
+                                    </div>
+                                </div>
+                            </div>
                         </div>
-                    )}
 
-                    {/* Shared: Start and End Dates (In Progress or Finished) */}
-                    {(hasStarted || isFinished) && (
-                        <div className="flex flex-col gap-1">
-                            {enrollment.start_date && (
-                                <div className="flex items-center justify-between text-[10px]">
-                                    <div className="flex items-center gap-1 text-gray-400 font-bold uppercase tracking-tighter">
-                                        <Calendar className="w-2.5 h-2.5 text-blue-500/70" />
-                                        <span>Inicio</span>
-                                    </div>
-                                    <span className="text-zinc-300 font-medium">{formatDate(enrollment.start_date)}</span>
-                                </div>
-                            )}
-
-                            {enrollment.program_end_date && (
-                                <div className="flex items-center justify-between text-[10px]">
-                                    <div className="flex items-center gap-1 text-gray-400 font-bold uppercase tracking-tighter">
-                                        <CheckCircle2 className="w-2.5 h-2.5 text-green-500/70" />
-                                        <span>Fin</span>
-                                    </div>
-                                    <span className="text-zinc-300 font-medium">{formatDate(enrollment.program_end_date)}</span>
-                                </div>
-                            )}
-
-                            {/* Show Next Session for In Progress */}
+                        {/* Secondary Info (Next Session / Next Activity) */}
+                        <div className="flex flex-col gap-1.5 min-h-[40px]">
                             {hasStarted && !isFinished && nextSessionDate && (
-                                <div className="flex items-center justify-between text-[10px] mt-0.5">
-                                    <div className="flex items-center gap-1 text-gray-400 font-bold uppercase tracking-tighter">
-                                        <Clock className="w-2.5 h-2.5 text-[#FF7939]/70" />
-                                        <span>Siguiente</span>
-                                    </div>
+                                <div className="flex items-center gap-1.5 text-[10px]">
+                                    <Calendar className="w-3 h-3 text-[#FF7939]/70" />
+                                    <span className="text-zinc-400 font-medium">Siguiente:</span>
                                     <span className="text-[#FF7939] font-black">{formatDate(nextSessionDate)}</span>
                                 </div>
                             )}
 
-                            {/* Show Expiration always if exists (Finished or In Progress) */}
-                            {daysInfo.expirationDate instanceof Date && !isNaN(daysInfo.expirationDate.getTime()) && (
-                                <div className="flex items-center justify-between text-[10px]">
+                            {hasStarted && !isFinished && nextActivity && (
+                                <div className="flex items-center gap-1.5 text-[9px] text-zinc-500 bg-zinc-900/50 p-1.5 rounded-md border border-zinc-800/30">
+                                    <Play className="w-2.5 h-2.5 text-zinc-400" />
+                                    <span className="truncate opacity-80">
+                                        {nextActivity.title}
+                                    </span>
+                                </div>
+                            )}
+
+                            {/* Expiration - Strictly for Finished Activity */}
+                            {isFinished && daysInfo.expirationDate instanceof Date && !isNaN(daysInfo.expirationDate.getTime()) && (
+                                <div className="flex items-center justify-between text-[10px] mt-1 p-2 bg-zinc-900/50 rounded-lg border border-zinc-800/30">
                                     <div className="flex items-center gap-1 text-gray-500 font-bold uppercase tracking-tighter">
                                         <Clock className="w-2.5 h-2.5" />
                                         <span>{daysInfo.isExpired ? "Venció" : "Vence"}</span>
@@ -169,33 +200,6 @@ export function PurchasedActivityCardContent({
                                 </div>
                             )}
                         </div>
-                    )}
-                </div>
-
-                {/* Pending Actions */}
-                {hasStarted && !isCoachView && !isFinished && (
-                    <div className="flex flex-col gap-2 mt-2">
-                        {(activity.type?.toLowerCase() === 'program' || activity.type?.toLowerCase() === 'programa') && (
-                            (pendingCount !== null && pendingCount > 0) ? (
-                                <div className="flex items-center gap-2">
-                                    <div className="w-8 h-8 rounded-lg bg-[#FF7939]/10 flex items-center justify-center">
-                                        <Zap className="w-5 h-5 text-[#FF7939] fill-[#FF7939]" />
-                                    </div>
-                                    <span className="text-[14px] text-zinc-300 font-black uppercase tracking-tight">
-                                        {pendingCount} <span className="text-[#FF7939]">hoy</span>
-                                    </span>
-                                </div>
-                            ) : null
-                        )}
-                    </div>
-                )}
-
-                {hasStarted && nextActivity && !isFinished && progress < 100 && !isCoachView && (
-                    <div className="flex items-center gap-1.5 mt-0.5 text-[10px] text-gray-400 bg-gray-800/30 p-1 rounded-md">
-                        <Play className="w-2.5 h-2.5 text-[rgb(0,255,128)]" />
-                        <span className="truncate">
-                            <span className="font-medium text-white">Próximo:</span> {nextActivity.title}
-                        </span>
                     </div>
                 )}
             </div>
