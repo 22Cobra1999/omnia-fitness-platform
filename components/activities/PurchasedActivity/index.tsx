@@ -77,6 +77,7 @@ export function PurchasedActivityCard(props: PurchasedActivityCardProps) {
                         size={size}
                         isCoachView={isCoachView}
                         isExpired={daysInfo.isExpired}
+                        progress={progress}
                     />
 
                     <PurchasedActivityCardContent

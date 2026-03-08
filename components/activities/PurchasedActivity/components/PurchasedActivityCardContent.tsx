@@ -145,7 +145,7 @@ export function PurchasedActivityCardContent({
                 {/* 4.2 Timeline UI - Pestaña En Curso */}
                 {hasStarted && !isFinished && (
                     <div className="flex flex-col gap-2 mt-4 mb-4">
-                        <div className="relative px-2 h-20 flex flex-col justify-center">
+                        <div className="relative px-2 h-24 flex flex-col justify-center">
                             {/* Horizontal Axis Line */}
                             <div className="absolute left-0 right-0 h-[1.5px] bg-zinc-800 top-1/2 -translate-y-1/2" />
 
@@ -199,11 +199,11 @@ export function PurchasedActivityCardContent({
                                 </div>
                             </div>
 
-                            {/* Info Above Axis (Prox and Count) */}
-                            <div className="absolute bottom-[calc(50%+8px)] left-0 right-0">
+                            {/* Info Above Axis (Prox and Count) with perpendicular line for Hoy */}
+                            <div className="absolute bottom-[calc(50%+4px)] left-0 right-0 h-10">
                                 {nextPercent !== null && (
                                     <div
-                                        className="absolute flex flex-col items-center"
+                                        className="absolute bottom-1 flex flex-col items-center"
                                         style={{ left: `${nextPercent}%`, transform: 'translateX(-50%)' }}
                                     >
                                         <span className="text-[7px] text-zinc-500 font-black uppercase tracking-tighter">Prox</span>
@@ -212,21 +212,27 @@ export function PurchasedActivityCardContent({
                                 )}
 
                                 <div
-                                    className="absolute flex flex-col items-center"
+                                    className="absolute bottom-0 flex flex-col items-center h-full justify-end"
                                     style={{ left: `${hoyPercent}%`, transform: 'translateX(-50%)' }}
                                 >
                                     {pendingCount !== null && pendingCount > 0 && (
-                                        <span className="text-[10px] text-[#FF7939] font-black">{pendingCount} hoy</span>
+                                        <div className="flex flex-col items-center">
+                                            <span className="text-[10px] text-[#FF7939] font-black leading-none mb-1">{pendingCount} hoy</span>
+                                            {/* Perpendicular Line */}
+                                            <div className="w-[1px] h-4 bg-[#FF7939]/30" />
+                                        </div>
                                     )}
                                 </div>
                             </div>
                         </div>
 
-                        {/* Centered Progress Large */}
-                        <div className="flex flex-col items-center justify-center mt-4">
-                            <span className="text-3xl font-black text-[#FF7939] leading-none mb-1">{progress}%</span>
-                            <span className="text-[9px] text-zinc-600 font-bold uppercase tracking-[0.2em]">Progreso Actual</span>
-                        </div>
+                        {/* Next Activity Mini-info - Moved up since percentage is now on image */}
+                        {nextActivity && (
+                            <div className="mt-2 flex items-center gap-1.5 text-[9px] text-zinc-500 bg-zinc-900/40 p-1.5 rounded-lg border border-zinc-800/20">
+                                <Play className="w-2.5 h-2.5 text-zinc-500" />
+                                <span className="truncate opacity-70">Siguiente: {nextActivity.title}</span>
+                            </div>
+                        )}
                     </div>
                 )}
 
@@ -245,7 +251,7 @@ export function PurchasedActivityCardContent({
                         </div>
 
                         <div className="flex flex-col items-center justify-center p-6 bg-zinc-900/30 rounded-3xl border border-zinc-800/20 shadow-inner">
-                            <span className="text-[10px] text-zinc-500 font-black uppercase tracking-[0.3em] mb-2 opacity-50">Completado al</span>
+                            <span className="text-[10px] text-zinc-500 font-black uppercase tracking-[0.3em] mb-2 opacity-50">Completado</span>
                             <span className="text-4xl font-black text-[#FF7939] drop-shadow-sm">{progress}%</span>
                         </div>
 

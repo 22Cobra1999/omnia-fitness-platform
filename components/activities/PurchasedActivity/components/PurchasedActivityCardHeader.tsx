@@ -9,9 +9,10 @@ interface PurchasedActivityCardHeaderProps {
     size: "small" | "medium" | "large"
     isCoachView: boolean
     isExpired?: boolean
+    progress?: number
 }
 
-export function PurchasedActivityCardHeader({ imageUrl, title, size, isCoachView, isExpired }: PurchasedActivityCardHeaderProps) {
+export function PurchasedActivityCardHeader({ imageUrl, title, size, isCoachView, isExpired, progress }: PurchasedActivityCardHeaderProps) {
     if (isCoachView) return null
 
     return (
@@ -36,6 +37,17 @@ export function PurchasedActivityCardHeader({ imageUrl, title, size, isCoachView
                             fill
                             className="object-contain"
                         />
+                    </div>
+                </div>
+            )}
+
+            {/* Progress Badge Glassmorphism */}
+            {typeof progress === 'number' && progress > 0 && (
+                <div className="absolute top-3 right-3 z-10">
+                    <div className="bg-black/40 backdrop-blur-md border border-white/10 px-2 py-1 rounded-full shadow-lg">
+                        <span className="text-[10px] sm:text-[11px] font-black text-[#FF7939]">
+                            {progress}%
+                        </span>
                     </div>
                 </div>
             )}
