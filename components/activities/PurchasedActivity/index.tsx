@@ -66,7 +66,7 @@ export function PurchasedActivityCard(props: PurchasedActivityCardProps) {
             >
                 <div
                     className={cn(
-                        "bg-[#090909] rounded-[2.8rem] overflow-hidden border border-white/5 transition-all duration-500 h-[500px] flex flex-col relative shadow-2xl shrink-0",
+                        "bg-[#090909] rounded-[2.8rem] overflow-hidden border border-white/5 transition-all duration-500 h-[460px] flex flex-col relative shadow-2xl shrink-0",
                         "hover:border-white/10 hover:shadow-white/5 hover:shadow-2xl hover:-translate-y-1.5",
                         daysInfo.isExpired && "opacity-80"
                     )}
@@ -75,6 +75,7 @@ export function PurchasedActivityCard(props: PurchasedActivityCardProps) {
                         imageUrl={imageUrl}
                         title={activity.title}
                         coachName={activity.coach_name || 'Coach'}
+                        coachAvatarUrl={activity.coach_avatar_url}
                         size={size}
                         isCoachView={isCoachView}
                         isExpired={daysInfo.isExpired}
@@ -125,7 +126,7 @@ export function PurchasedActivityCard(props: PurchasedActivityCardProps) {
                         )}
                     </div>
                 )}
-            </div>
+            </div >
 
             <SurveyViewModal
                 isOpen={showFeedback}

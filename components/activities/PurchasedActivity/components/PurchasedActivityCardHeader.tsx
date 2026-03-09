@@ -7,18 +7,19 @@ interface PurchasedActivityCardHeaderProps {
     imageUrl: string | null
     title: string
     coachName: string
+    coachAvatarUrl?: string | null
     size: "small" | "medium" | "large"
     isCoachView: boolean
     isExpired?: boolean
     progress?: number
 }
 
-export function PurchasedActivityCardHeader({ imageUrl, title, coachName, size, isCoachView, isExpired, progress }: PurchasedActivityCardHeaderProps) {
+export function PurchasedActivityCardHeader({ imageUrl, title, coachName, coachAvatarUrl, size, isCoachView, isExpired, progress }: PurchasedActivityCardHeaderProps) {
     if (isCoachView) return null
 
     return (
         <div className={cn(
-            `relative w-full h-[300px] flex-shrink-0 transition-all overflow-hidden`,
+            `relative w-full h-[280px] flex-shrink-0 transition-all overflow-hidden`,
             isExpired && "grayscale opacity-50"
         )}>
             {imageUrl ? (
@@ -49,12 +50,10 @@ export function PurchasedActivityCardHeader({ imageUrl, title, coachName, size, 
             {/* Floating Circle Badge - Progress */}
             {typeof progress === 'number' && progress > 0 && (
                 <div className="absolute top-4 right-4 z-20">
-                    <div className="w-11 h-11 flex items-center justify-center bg-black/50 backdrop-blur-md border border-white/10 rounded-full shadow-2xl">
-                        <div className="flex flex-col items-center">
-                            <span className="text-[11px] font-[900] text-orange-400 leading-none">
-                                {progress}%
-                            </span>
-                        </div>
+                    <div className="w-10 h-10 flex items-center justify-center bg-black/50 backdrop-blur-md border border-white/10 rounded-full shadow-2xl">
+                        <span className="text-[10px] font-[900] text-orange-400 leading-none">
+                            {progress}%
+                        </span>
                     </div>
                 </div>
             )}
@@ -62,17 +61,26 @@ export function PurchasedActivityCardHeader({ imageUrl, title, coachName, size, 
             {/* Centered Title and Coach Info Overlay */}
             <div className="absolute inset-x-0 bottom-4 z-20 flex flex-col items-center text-center px-5">
                 <h3 className={cn(
-                    "text-white font-[900] leading-tight mb-3 drop-shadow-[0_2px_10px_rgba(0,0,0,0.5)] tracking-tight",
-                    size === "small" ? "text-base" : "text-[20px] md:text-[22px]"
+                    "text-white font-bold leading-tight mb-3 drop-shadow-[0_2px_10px_rgba(0,0,0,0.5)] tracking-tight opacity-90",
+                    size === "small" ? "text-sm" : "text-base md:text-lg"
                 )}>
                     {title}
                 </h3>
 
-                <div className="flex items-center gap-2.5 px-3 py-1.5 bg-zinc-950/30 backdrop-blur-sm rounded-full border border-white/5">
-                    <div className="w-6 h-6 rounded-full bg-zinc-800 border border-white/10 flex items-center justify-center overflow-hidden shrink-0">
-                        <span className="text-[10px] font-black text-zinc-400 capitalize">{coachName?.[0] || 'C'}</span>
+                <div className="flex items-center gap-2.5 px-3 py-1.5 bg-zinc-950/40 backdrop-blur-sm rounded-full border border-white/5 shadow-lg">
+                    <div className="w-6 h-6 rounded-full bg-zinc-800 border border-white/10 flex items-center justify-center overflow-hidden shrink-0 relative">
+                        {coachAvatarUrl ? (
+                            <Image
+                                src={coachAvatarUrl}
+                                alt={coachName}
+                                fill
+                                className="object-cover"
+                            />
+                        ) : (
+                            <span className="text-[10px] font-black text-zinc-400 capitalize">{coachName?.[0] || 'C'}</span>
+                        )}
                     </div>
-                    <span className="text-[11px] font-bold text-zinc-200 tracking-tight whitespace-nowrap opacity-90">{coachName || 'Coach'}</span>
+                    <span className="text-[10px] font-bold text-zinc-200 tracking-tight whitespace-nowrap opacity-80">{coachName || 'Coach'}</span>
                 </div>
             </div>
         </div>
