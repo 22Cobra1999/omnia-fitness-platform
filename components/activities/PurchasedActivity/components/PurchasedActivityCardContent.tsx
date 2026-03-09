@@ -56,83 +56,77 @@ export function PurchasedActivityCardContent({
     itemsPendingToday
 }: PurchasedActivityCardContentProps) {
     // Percentage for placement markers
-    const start = new Date(enrollment.start_date || activity.program_start_date).getTime()
-    const end = new Date(enrollment.program_end_date || activity.program_end_date).getTime()
-    const next = nextSessionDate ? new Date(nextSessionDate).getTime() : null
-    const nextPercent = (next && end > start) ? Math.min(Math.max(((next - start) / (end - start)) * 100, 5), 95) : null
-    const hoyPercent = Math.min(Math.max(progress, 5), 95);
+    const hoyPercent = Math.min(Math.max(progress, 2), 98);
 
     return (
         <div className={cn(
-            "flex-1 flex flex-col h-full min-h-0 relative z-30 px-5",
+            "flex-1 flex flex-col h-full min-h-0 relative z-30 px-4",
             size === "small" ? "pb-4" : "pb-6"
         )}>
-            {/* Horizontal Divider */}
-            <div className="w-full h-px bg-white/10 mb-6" />
+            {/* Horizontal Divider - extremely subtle */}
+            <div className="w-full h-px bg-white/5 mb-6" />
 
             <div className={cn("flex-1 flex flex-col gap-8", daysInfo.isExpired && "grayscale opacity-60")}>
 
                 {/* 1. HOY pill and PROXIMA row */}
-                <div className="flex items-center justify-between">
-                    {/* HOY Pill */}
-                    <div className="flex items-center gap-2 bg-[#FF7939] px-3.5 py-1.5 rounded-full shadow-[0_4px_12px_rgba(255,121,57,0.4)]">
+                <div className="flex items-center justify-between gap-2">
+                    {/* HOY Pill - Adjusted for better alignment */}
+                    <div className="flex items-center gap-2 bg-[#FF7939] px-4 py-2 rounded-full shadow-[0_4px_16px_rgba(255,121,57,0.35)] shrink-0">
                         <Zap className="w-3.5 h-3.5 text-white fill-white" />
-                        <span className="text-[12px] font-black text-white tracking-widest uppercase">HOY {pendingCount ?? 0}</span>
+                        <span className="text-[11px] font-[900] text-white tracking-[0.05em] uppercase whitespace-nowrap">
+                            HOY {pendingCount ?? 0}
+                        </span>
                     </div>
 
-                    {/* PROXIMA info */}
-                    <div className="flex items-center gap-1.5">
-                        <span className="text-[10px] font-bold text-zinc-500 uppercase tracking-widest">PRÓXIMA:</span>
-                        <span className="text-[12px] font-black text-zinc-300 tracking-tight">{nextSessionDate ? formatDM(nextSessionDate) : '--/--'}</span>
-                        <span className="text-zinc-600 font-black text-sm ml-0.5 leading-none">{'>'}</span>
+                    {/* PROXIMA info - Ensure no overlap */}
+                    <div className="flex items-center gap-1 opacity-70 flex-shrink-0">
+                        <span className="text-[9px] font-black text-zinc-500 uppercase tracking-widest">PRÓXIMA:</span>
+                        <span className="text-[11px] font-black text-zinc-300 tracking-tighter whitespace-nowrap">
+                            {nextSessionDate ? formatDM(nextSessionDate) : '--/--'}
+                        </span>
+                        <span className="text-zinc-500 font-black text-xs ml-0.5 leading-none">{'>'}</span>
                     </div>
                 </div>
 
                 {/* 2. Timeline with Orange Track and Pulsing Dots */}
-                <div className="relative h-1">
+                <div className="relative h-[2px] mt-2 group/timeline">
                     {/* Background Track (Gray) */}
-                    <div className="absolute inset-x-0 top-1/2 -translate-y-1/2 h-[3px] bg-zinc-800 rounded-full" />
+                    <div className="absolute inset-x-0 top-1/2 -translate-y-1/2 h-full bg-zinc-800 rounded-full" />
 
                     {/* Progress Track (Orange) */}
                     <div
-                        className="absolute left-0 top-1/2 -translate-y-1/2 h-[3px] bg-[#FF7939] rounded-full shadow-[0_0_8px_rgba(255,121,57,0.5)]"
+                        className="absolute left-0 top-1/2 -translate-y-1/2 h-full bg-[#FF7939] rounded-full shadow-[0_0_10px_rgba(255,121,57,0.5)] transition-all duration-700"
                         style={{ width: `${progress}%` }}
                     />
 
-                    {/* Dots along the timeline */}
-                    <div className="absolute inset-x-0 top-1/2 -translate-y-1/2 flex justify-between px-0.5">
+                    {/* Dots along the timeline - spaced evenly */}
+                    <div className="absolute inset-x-0 top-1/2 -translate-y-1/2 flex justify-between">
                         {[...Array(10)].map((_, i) => {
                             const dotPercent = (i / 9) * 100;
                             const isPastOrCurrent = dotPercent <= progress;
-                            const isLastCompleted = i === Math.floor((progress / 100) * 9);
 
                             return (
                                 <div
                                     key={i}
                                     className={cn(
-                                        "w-[6px] h-[6px] rounded-full transition-all duration-500 relative",
-                                        isPastOrCurrent ? "bg-[#FF7939]" : "bg-zinc-700"
+                                        "w-[8px] h-[8px] rounded-full transition-all duration-500 ring-2 ring-zinc-950",
+                                        isPastOrCurrent ? "bg-[#FF7939] scale-110 shadow-[0_0_8px_rgba(255,121,57,0.4)]" : "bg-zinc-700 scale-90"
                                     )}
-                                >
-                                    {/* Subtle glow for the last completed dot */}
-                                    {isLastCompleted && isPastOrCurrent && (
-                                        <div className="absolute inset-0 rounded-full bg-[#FF7939] animate-ping opacity-40" />
-                                    )}
-                                </div>
+                                />
                             );
                         })}
                     </div>
                 </div>
 
-                {/* 3. Dates below timeline */}
-                <div className="flex justify-between items-center text-[11px] tracking-tight">
-                    <div className="flex items-center gap-1.5">
-                        <span className="text-zinc-500 font-medium">Inicio</span>
-                        <span className="text-zinc-200 font-black text-[13px]">{formatDM(enrollment.start_date)}</span>
+                {/* 3. Dates below timeline - matched to mockup INICIO 22/2   FIN 22/3 */}
+                <div className="flex justify-between items-center text-[11px] mt-1">
+                    <div className="flex items-center gap-2">
+                        <span className="text-zinc-500 font-[800] uppercase text-[8px] tracking-widest">Inicio</span>
+                        <span className="text-zinc-200 font-[900] text-[12px]">{formatDM(enrollment.start_date)}</span>
                     </div>
-                    <div className="flex items-center gap-1.5">
-                        <span className="text-zinc-500 font-medium">Fin</span>
-                        <span className="text-zinc-200 font-black text-[13px]">{formatDM(enrollment.program_end_date)}</span>
+                    <div className="flex items-center gap-2">
+                        <span className="text-zinc-500 font-[800] uppercase text-[8px] tracking-widest">Fin</span>
+                        <span className="text-zinc-200 font-[900] text-[12px]">{formatDM(enrollment.program_end_date)}</span>
                     </div>
                 </div>
 
@@ -143,7 +137,7 @@ export function PurchasedActivityCardContent({
                             <span className="text-[8px] text-zinc-500 font-black uppercase tracking-widest block mb-1">Días OK</span>
                             <span className="text-sm font-black text-orange-400">{daysCompleted ?? 0}</span>
                         </div>
-                        <div className="bg-white/5 rounded-2xl p-2 text-center border border-white/5">
+                        <div className="bg-white/5 rounded-2xl p-2 text-center border border-white/5 opacity-50">
                             <span className="text-[8px] text-zinc-500 font-black uppercase tracking-widest block mb-1">Items</span>
                             <span className="text-sm font-black text-zinc-400">{itemsCompletedTotal ?? 0}</span>
                         </div>
@@ -165,5 +159,5 @@ function PurchasedActivityCardFooter({ isFinished, progress }: any) {
             </div>
         );
     }
-    return <div className="mt-8 h-4" />;
+    return <div className="mt-8 h-4 shrink-0" />;
 }
