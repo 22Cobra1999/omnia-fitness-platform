@@ -6,18 +6,19 @@ import { getImageHeightClass } from "../utils"
 interface PurchasedActivityCardHeaderProps {
     imageUrl: string | null
     title: string
+    coachName: string
     size: "small" | "medium" | "large"
     isCoachView: boolean
     isExpired?: boolean
     progress?: number
 }
 
-export function PurchasedActivityCardHeader({ imageUrl, title, size, isCoachView, isExpired, progress }: PurchasedActivityCardHeaderProps) {
+export function PurchasedActivityCardHeader({ imageUrl, title, coachName, size, isCoachView, isExpired, progress }: PurchasedActivityCardHeaderProps) {
     if (isCoachView) return null
 
     return (
         <div className={cn(
-            `relative w-full ${getImageHeightClass(size, isCoachView)} flex-shrink-0 transition-all overflow-hidden`,
+            `relative w-full h-[280px] flex-shrink-0 transition-all overflow-hidden`,
             isExpired && "grayscale opacity-50"
         )}>
             {imageUrl ? (
@@ -25,7 +26,7 @@ export function PurchasedActivityCardHeader({ imageUrl, title, size, isCoachView
                     src={imageUrl}
                     alt={title || 'Actividad'}
                     fill
-                    className="object-cover transition-transform group-hover:scale-105 duration-700"
+                    className="object-cover"
                     sizes="(max-width: 768px) 50vw, 33vw"
                 />
             ) : (
@@ -41,29 +42,36 @@ export function PurchasedActivityCardHeader({ imageUrl, title, size, isCoachView
                 </div>
             )}
 
-            {/* Bottom Gradient for text readability */}
-            <div className="absolute inset-x-0 bottom-0 h-24 bg-gradient-to-t from-black/80 via-black/40 to-transparent z-10" />
+            {/* Subtle Gradient for title overlay */}
+            <div className="absolute inset-x-0 bottom-0 h-40 bg-gradient-to-t from-zinc-950 via-zinc-950/60 to-transparent z-10" />
 
-            {/* Title Over Image (at bottom) */}
-            <div className="absolute bottom-3 left-3 right-3 z-20">
-                <h3 className={cn(
-                    "text-white font-black leading-tight drop-shadow-lg line-clamp-2",
-                    size === "small" ? "text-xs" : "text-sm md:text-base"
-                )}>
-                    {title}
-                </h3>
-            </div>
-
-            {/* Progress Badge - Dark Circular */}
+            {/* Progress Badge - Circle in top right */}
             {typeof progress === 'number' && progress > 0 && (
-                <div className="absolute top-4 right-4 z-10">
-                    <div className="w-10 h-10 flex items-center justify-center bg-black/60 backdrop-blur-sm border border-white/5 rounded-full shadow-2xl">
-                        <span className="text-[10px] font-black text-[#FF7939]">
+                <div className="absolute top-4 right-4 z-20">
+                    <div className="w-11 h-11 flex items-center justify-center bg-black/50 backdrop-blur-md border border-white/10 rounded-full shadow-2xl">
+                        <span className="text-[11px] font-black text-orange-400">
                             {progress}%
                         </span>
                     </div>
                 </div>
             )}
+
+            {/* Title and Coach Overlay - Centered at bottom of header */}
+            <div className="absolute inset-x-0 bottom-4 z-20 flex flex-col items-center text-center px-4">
+                <h3 className={cn(
+                    "text-white font-black leading-tight mb-2 drop-shadow-lg",
+                    size === "small" ? "text-sm" : "text-xl"
+                )}>
+                    {title}
+                </h3>
+
+                <div className="flex items-center gap-2 opacity-80">
+                    <div className="w-6 h-6 rounded-full bg-zinc-800 border border-white/10 flex items-center justify-center overflow-hidden">
+                        <span className="text-[9px] font-bold text-zinc-400 capitalize">{coachName?.[0] || 'C'}</span>
+                    </div>
+                    <span className="text-[11px] font-bold text-zinc-300 tracking-tight">{coachName || 'Coach'}</span>
+                </div>
+            </div>
         </div>
     )
 }

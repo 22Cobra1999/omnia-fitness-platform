@@ -74,6 +74,7 @@ export function PurchasedActivityCard(props: PurchasedActivityCardProps) {
                     <PurchasedActivityCardHeader
                         imageUrl={imageUrl}
                         title={activity.title}
+                        coachName={activity.coach_name || 'Coach'}
                         size={size}
                         isCoachView={isCoachView}
                         isExpired={daysInfo.isExpired}
