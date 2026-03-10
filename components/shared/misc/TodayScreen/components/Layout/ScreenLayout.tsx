@@ -23,7 +23,7 @@ export function ScreenLayout({
     isSpecialView
 }: ScreenLayoutProps) {
     // Unified collapsed height logic
-    const COLLAPSED_H = 220; // Correctly clears the bottom tab bar and shows the header
+    const COLLAPSED_H = 135; // Better peek height, shows handle and stats but fits more hero
     const collapsedY = vh - COLLAPSED_H;
 
     // Motion Values
@@ -98,7 +98,7 @@ export function ScreenLayout({
                     height: 'calc(100vh - 56px)',
                     overflowY: 'auto',
                     overflowX: 'hidden',
-                    paddingTop: '0px', // Removed extra padding to move content up
+                    paddingTop: '56px', // Offset for the fixed header (h-14)
                     paddingBottom: '240px',
                     WebkitOverflowScrolling: 'touch',
                     position: 'relative',

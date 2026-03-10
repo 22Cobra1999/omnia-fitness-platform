@@ -114,7 +114,7 @@ export function PurchasedActivityCardContent({
                         <div className="flex items-center gap-1 bg-[#FF7939]/30 backdrop-blur-xl border border-[#FF7939]/40 px-1.5 py-0.5 rounded-full shadow-lg shrink-0 mr-auto scale-[0.8] origin-left">
                             <Calendar className="w-3 h-3 text-white" />
                             <span className="text-[9px] font-black text-white tracking-widest uppercase whitespace-nowrap">
-                                {nextSessionDate ? `PRÓXIMA: ${formatDM(nextSessionDate)}` : 'ÚLTIMA SESIÓN'}
+                                {nextSessionDate ? `PROX: ${formatDM(nextSessionDate)}` : 'ÚLTIMA SESIÓN'}
                             </span>
                         </div>
                     )}
@@ -123,7 +123,7 @@ export function PurchasedActivityCardContent({
                         (!isFuture && !isFinished && pendingCount && pendingCount > 0) && (
                             <div className="flex items-center gap-1.5 opacity-60 scale-[0.75] origin-right">
                                 <span className="text-[8px] font-black text-zinc-500 uppercase tracking-widest">
-                                    {nextSessionDate ? 'PRÓXIMA:' : 'ÚLTIMA:'}
+                                    {nextSessionDate ? 'PROX:' : 'ÚLTIMA:'}
                                 </span>
                                 <span className="text-[9px] font-black text-white tracking-tighter whitespace-nowrap">
                                     {nextSessionDate ? formatDM(nextSessionDate) : 'HOY'}

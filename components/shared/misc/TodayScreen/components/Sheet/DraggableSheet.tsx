@@ -71,7 +71,7 @@ export function DraggableSheet({
 }: DraggableSheetProps) {
 
     const TOP_SNAP = 64;
-    const COLLAPSED_H = 220; // Unified with ScreenLayout to ensure visibility
+    const COLLAPSED_H = 135; // Unified with ScreenLayout: better peek height
     const collapsedY = vh - COLLAPSED_H;
 
     // Snapshot logic for drag end - Binary (Snap to Top or Bottom)

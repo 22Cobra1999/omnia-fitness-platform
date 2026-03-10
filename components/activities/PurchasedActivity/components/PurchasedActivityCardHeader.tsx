@@ -57,9 +57,9 @@ export function PurchasedActivityCardHeader({ imageUrl, title, coachName, coachA
 
             {/* Floating Circle Badge - Progress - Only for "En curso" */}
             {(!isFinished && !isFuture) && typeof progress === 'number' && progress > 0 && (
-                <div className="absolute top-4 right-4 z-20">
-                    <div className="w-10 h-10 flex items-center justify-center bg-black/50 backdrop-blur-md border border-white/10 rounded-full shadow-2xl">
-                        <span className="text-[10px] font-[900] text-orange-400 leading-none">
+                <div className="absolute top-[clamp(8px,2.5vh,16px)] right-[clamp(8px,2.5vh,16px)] z-20">
+                    <div className="w-[clamp(32px,8vw,40px)] h-[clamp(32px,8vw,40px)] flex items-center justify-center bg-black/50 backdrop-blur-md border border-white/10 rounded-full shadow-2xl">
+                        <span className="text-[clamp(8px,1.5vw,10px)] font-[900] text-orange-400 leading-none">
                             {progress}%
                         </span>
                     </div>
@@ -77,8 +77,8 @@ export function PurchasedActivityCardHeader({ imageUrl, title, coachName, coachA
                     </h3>
                 </div>
 
-                <div className="flex items-center gap-2 pl-1.5 pr-4 py-1 bg-white/15 backdrop-blur-md rounded-full border border-white/20 shadow-2xl relative w-fit max-w-[90%]">
-                    <div className="w-6 h-6 rounded-full bg-zinc-800/50 border border-white/10 flex items-center justify-center overflow-hidden shrink-0 relative">
+                <div className="flex items-center gap-[clamp(4px,1.5vw,8px)] pl-1 pr-[clamp(8px,3vw,16px)] py-1 bg-white/15 backdrop-blur-md rounded-full border border-white/20 shadow-2xl relative w-fit max-w-[95%]">
+                    <div className="w-[clamp(20px,5vw,24px)] h-[clamp(20px,5vw,24px)] rounded-full bg-zinc-800/50 border border-white/10 flex items-center justify-center overflow-hidden shrink-0 relative">
                         {coachAvatarUrl ? (
                             <Image
                                 src={coachAvatarUrl}
@@ -87,17 +87,17 @@ export function PurchasedActivityCardHeader({ imageUrl, title, coachName, coachA
                                 className="object-cover"
                             />
                         ) : (
-                            <span className="text-[10px] font-black text-zinc-400 capitalize">{coachName?.[0] || 'C'}</span>
+                            <span className="text-[clamp(8px,1.5vw,10px)] font-black text-zinc-400 capitalize">{coachName?.[0] || 'C'}</span>
                         )}
                     </div>
-                    <div className="flex items-center gap-1.5 min-w-0">
-                        <span className="text-[9px] md:text-[10px] font-bold text-zinc-200 tracking-tight whitespace-nowrap opacity-90">
-                            {(coachName || 'Coach').substring(0, 13)}
+                    <div className="flex items-center gap-1 min-w-0">
+                        <span className="text-[clamp(9px,1.8vw,11px)] font-bold text-zinc-200 tracking-tight whitespace-nowrap opacity-90">
+                            {(coachName || 'Coach').substring(0, 14)}
                         </span>
                         {coachRating && coachRating > 0 && (
-                            <div className="flex items-center gap-0.5 shrink-0 ml-0.5">
-                                <Star className="h-2.5 w-2.5 fill-yellow-400 text-yellow-400" />
-                                <span className="text-[10px] font-black text-zinc-400">{coachRating.toFixed(1)}</span>
+                            <div className="flex items-center gap-0.5 shrink-0 ml-0.5 bg-black/30 px-1 rounded-full">
+                                <Star className="h-[clamp(8px,1.5vw,10px)] w-[clamp(8px,1.5vw,10px)] fill-yellow-400 text-yellow-400" />
+                                <span className="text-[clamp(8px,1.5vw,10px)] font-black text-zinc-400">{coachRating.toFixed(1)}</span>
                             </div>
                         )}
                     </div>

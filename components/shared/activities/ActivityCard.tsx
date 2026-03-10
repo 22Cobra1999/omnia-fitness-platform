@@ -349,10 +349,10 @@ const ActivityCard: React.FC<ActivityCardProps> = ({
           />
 
           {/* Rating Badge */}
-          <div className="absolute top-4 left-4 z-20">
-            <span className="bg-black/60 backdrop-blur-md text-white text-[10px] px-2.5 py-1 rounded-full flex items-center gap-1.5 border border-white/10 shadow-xl">
+          <div className="absolute top-[clamp(8px,2.5vh,16px)] left-[clamp(8px,2.5vh,16px)] z-20">
+            <span className="bg-black/60 backdrop-blur-md text-white text-[clamp(9px,1.5vw,10px)] px-[clamp(6px,2vw,10px)] py-1 rounded-full flex items-center gap-1.5 border border-white/10 shadow-xl">
               {activity.program_rating && activity.program_rating > 0 ? (
-                <Star className="w-2.5 h-2.5 fill-yellow-400 text-yellow-400" />
+                <Star className="w-[clamp(8px,1.2vw,10px)] h-[clamp(8px,1.2vw,10px)] fill-yellow-400 text-yellow-400" />
               ) : null}
               <span className="font-bold tracking-tight">
                 {getRatingDisplay(activity.program_rating, activity.total_program_reviews)}
@@ -378,8 +378,8 @@ const ActivityCard: React.FC<ActivityCardProps> = ({
               </h3>
             </div>
 
-            <div className="flex items-center gap-2 pl-1.5 pr-4 py-1 bg-white/10 backdrop-blur-md rounded-full border border-white/10 shadow-2xl relative w-fit max-w-[95%]">
-              <div className="w-6 h-6 rounded-full bg-zinc-800/50 border border-white/20 flex items-center justify-center overflow-hidden shrink-0 relative">
+            <div className="flex items-center gap-[clamp(4px,1.5vw,8px)] pl-1 pr-[clamp(8px,3vw,16px)] py-1 bg-white/10 backdrop-blur-md rounded-full border border-white/10 shadow-2xl relative w-fit max-w-[95%]">
+              <div className="w-[clamp(20px,5vw,24px)] h-[clamp(20px,5vw,24px)] rounded-full bg-zinc-800/50 border border-white/20 flex items-center justify-center overflow-hidden shrink-0 relative">
                 {activity.coach_avatar_url ? (
                   <Image
                     src={activity.coach_avatar_url}
@@ -388,17 +388,17 @@ const ActivityCard: React.FC<ActivityCardProps> = ({
                     className="object-cover"
                   />
                 ) : (
-                  <span className="text-[10px] font-black text-zinc-400 capitalize">{activity.coach_name?.[0] || 'C'}</span>
+                  <span className="text-[clamp(8px,1.5vw,10px)] font-black text-zinc-400 capitalize">{activity.coach_name?.[0] || 'C'}</span>
                 )}
               </div>
-              <div className="flex items-center gap-1.5 min-w-0">
-                <span className="text-[10px] md:text-[11px] font-bold text-zinc-100 tracking-tight whitespace-nowrap opacity-95">
+              <div className="flex items-center gap-1 min-w-0">
+                <span className="text-[clamp(9px,1.8vw,11px)] font-bold text-zinc-100 tracking-tight whitespace-nowrap opacity-95">
                   {(activity.coach_name || 'Coach').substring(0, 14)}
                 </span>
                 {activity.coach_rating && activity.coach_rating > 0 && (
-                  <div className="flex items-center gap-0.5 shrink-0 ml-0.5">
-                    <Star className="h-2.5 w-2.5 fill-yellow-400 text-yellow-400" />
-                    <span className="text-[9px] font-black text-zinc-300">{activity.coach_rating.toFixed(1)}</span>
+                  <div className="flex items-center gap-0.5 shrink-0 ml-0.5 bg-black/20 px-1 rounded-full">
+                    <Star className="h-[clamp(8px,1.5vw,10px)] w-[clamp(8px,1.5vw,10px)] fill-yellow-400 text-yellow-400" />
+                    <span className="text-[clamp(8px,1.5vw,9px)] font-black text-zinc-300">{activity.coach_rating.toFixed(1)}</span>
                   </div>
                 )}
               </div>

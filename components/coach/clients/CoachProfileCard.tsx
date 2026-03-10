@@ -77,8 +77,8 @@ export default function CoachProfileCard({ coach, onClick, size = 'small', varia
               </div>
             )}
             <div className="flex items-center gap-1">
-              <Star className="h-2.5 w-2.5 fill-[#E9B24A] text-[#E9B24A]" />
-              <span className="text-[10px] font-bold text-white/80">{showRating ? ratingValue.toFixed(1) : '—'}</span>
+              <Star className="h-[clamp(8px,1.5vw,10px)] w-[clamp(8px,1.5vw,10px)] fill-[#E9B24A] text-[#E9B24A]" />
+              <span className="text-[clamp(9px,1.5vw,10px)] font-bold text-white/80">{showRating ? ratingValue.toFixed(1) : '—'}</span>
             </div>
           </div>
         </div>
@@ -125,10 +125,10 @@ export default function CoachProfileCard({ coach, onClick, size = 'small', varia
         </div>
 
         {/* Rating Badge - Top Left */}
-        <div className="absolute top-2.5 left-2.5 z-20">
-          <div className="flex items-center gap-1 bg-black/40 backdrop-blur-md px-1.5 py-0.5 rounded-full border border-white/10">
-            <Star className="h-2 w-2 fill-yellow-400 text-yellow-400" />
-            <span className="text-[9px] font-black text-white">{showRating ? ratingValue.toFixed(1) : '—'}</span>
+        <div className="absolute top-[clamp(6px,2vh,12px)] left-[clamp(6px,2vh,12px)] z-20">
+          <div className="flex items-center gap-1 bg-black/40 backdrop-blur-md px-[clamp(4px,1.5vw,8px)] py-0.5 rounded-full border border-white/10">
+            <Star className="h-[clamp(7px,1.5vw,9px)] w-[clamp(7px,1.5vw,9px)] fill-yellow-400 text-yellow-400" />
+            <span className="text-[clamp(8px,1.5vw,10px)] font-black text-white">{showRating ? ratingValue.toFixed(1) : '—'}</span>
           </div>
         </div>
 
