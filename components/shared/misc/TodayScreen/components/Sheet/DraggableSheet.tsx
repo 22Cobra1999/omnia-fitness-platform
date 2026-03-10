@@ -70,8 +70,8 @@ export function DraggableSheet({
     meetCreditsAvailable, onScheduleMeet
 }: DraggableSheetProps) {
 
-    const TOP_SNAP = 64;
-    const COLLAPSED_H = 135; // Unified with ScreenLayout: better peek height
+    const TOP_SNAP = 56; // Exactly matches header height (h-14)
+    const COLLAPSED_H = 110; // Optimized peek: shows stats but doesn't cover hero
     const collapsedY = vh - COLLAPSED_H;
 
     // Snapshot logic for drag end - Binary (Snap to Top or Bottom)

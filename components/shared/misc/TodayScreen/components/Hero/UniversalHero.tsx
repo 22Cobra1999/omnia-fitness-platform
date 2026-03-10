@@ -54,8 +54,8 @@ export function UniversalHero({
             borderTopRightRadius: 0,
             borderBottomLeftRadius: 24,
             borderBottomRightRadius: 24,
-            padding: '32px 24px 24px',
-            minHeight: '34vh',
+            padding: '24px 24px 24px',
+            minHeight: '28vh',
             marginBottom: 24,
             marginTop: 0,
             marginLeft: '-24px',
@@ -64,7 +64,7 @@ export function UniversalHero({
             position: 'relative',
             display: 'flex',
             flexDirection: 'column',
-            justifyContent: 'center',
+            justifyContent: 'flex-start',
             boxShadow: '0 12px 40px rgba(0, 0, 0, 0.4), inset 0 1px 0 rgba(255, 255, 255, 0.05)',
             filter: isExpired ? 'grayscale(1) opacity(0.8)' : 'none'
         }}>

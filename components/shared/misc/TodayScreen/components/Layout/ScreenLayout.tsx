@@ -23,8 +23,9 @@ export function ScreenLayout({
     isSpecialView
 }: ScreenLayoutProps) {
     // Unified collapsed height logic
-    const COLLAPSED_H = 135; // Better peek height, shows handle and stats but fits more hero
+    const COLLAPSED_H = 110;
     const collapsedY = vh - COLLAPSED_H;
+    const TOP_SNAP = 56;
 
     // Motion Values
     const y = useMotionValue(0); // Initial value will be set in useEffect
@@ -32,10 +33,10 @@ export function ScreenLayout({
 
     // Transforms
     // Map y from [collapsedY, 0] to [0, 1]
-    const openness = useTransform(y, [collapsedY, 0], [0, 1]);
-    const heroScale = useTransform(openness, [0, 1], [1, 0.95]);
-    const heroOpacity = useTransform(openness, [0, 0.4], [1, 0]); // Fade out slightly later
-    const heroBlur = useTransform(openness, [0.1, 0.4], ["blur(0px)", "blur(10px)"]); // Increased buffer to 0.1 for safety
+    const openness = useTransform(y, [collapsedY, TOP_SNAP], [0, 1]);
+    const heroScale = useTransform(openness, [0, 1], [1, 0.96]);
+    const heroOpacity = useTransform(openness, [0, 0.5], [1, 0]);
+    const heroBlur = useTransform(openness, [0.1, 0.5], ["blur(0px)", "blur(12px)"]);
 
     // We need to initialize y to collapsedY on mount
     useEffect(() => {
