@@ -126,7 +126,12 @@ export function DraggableSheet({
             onDragEnd={onDragEnd}
             style={{
                 y,
-                position: 'fixed', left: 0, right: 0, bottom: 0,
+                position: 'fixed',
+                left: '50%',
+                x: '-50%',
+                width: '100%',
+                maxWidth: '500px',
+                bottom: 0,
                 height: 'calc(100vh - 40px)', // Tall enough to cover the whole drag range
                 background: 'rgba(15, 16, 18, 0.98)',
                 backdropFilter: 'blur(20px) saturate(180%)',

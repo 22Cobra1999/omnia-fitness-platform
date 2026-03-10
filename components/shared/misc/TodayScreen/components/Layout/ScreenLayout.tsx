@@ -74,9 +74,9 @@ export function ScreenLayout({
                 </div>
             )}
 
-            {/* Header */}
+            {/* Header - Centered for desktop */}
             <div
-                className="fixed top-0 left-0 right-0 z-[9999] bg-black px-4 h-14 flex items-center justify-between"
+                className="fixed top-0 left-1/2 -translate-x-1/2 w-full max-w-[500px] z-[9999] bg-black px-4 h-14 flex items-center justify-between"
                 style={{ zIndex: 9999 }}
             >
                 <div style={{ opacity: 1 }}>
@@ -103,7 +103,9 @@ export function ScreenLayout({
                     paddingBottom: '240px',
                     WebkitOverflowScrolling: 'touch',
                     position: 'relative',
-                    background: 'transparent'
+                    background: 'transparent',
+                    maxWidth: '500px',
+                    margin: '0 auto'
                 }}>
 
                 {/* Hero Wrapper */}
