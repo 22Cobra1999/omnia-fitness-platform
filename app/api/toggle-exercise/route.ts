@@ -142,13 +142,30 @@ async function refreshDailyProgress(opts: {
 export async function POST(request: NextRequest) {
   try {
     const body = await request.json()
-    const { executionId, bloque, orden, fecha, categoria, activityId, enrollmentId } = body
+    const { executionId, bloque, orden, fecha, categoria, activityId, enrollmentId: rawEnrollmentId } = body
 
-    console.log('🚀 [API toggle-exercise] Incoming:', { executionId, activityId, fecha, categoria })
+    // Optimized parsing for IDs: DB expects BIGINT for enrollment_id
+    const enrollmentId = rawEnrollmentId !== undefined && rawEnrollmentId !== null
+      ? (typeof rawEnrollmentId === 'number' ? rawEnrollmentId : (typeof rawEnrollmentId === 'string' && /^\d+$/.test(rawEnrollmentId) ? Number(rawEnrollmentId) : null))
+      : null
 
-    if (!executionId || !activityId) {
-      console.warn('❌ [API toggle-exercise] Missing params:', { executionId, activityId })
-      return NextResponse.json({ error: 'Faltan parámetros básicos', received: { executionId, activityId } }, { status: 400 })
+    console.log('🚀 [API toggle-exercise] STARTING toggle for:', {
+      executionId,
+      bloque,
+      orden,
+      fecha,
+      categoria,
+      activityId,
+      enrollmentId,
+      rawEnrollmentId: typeof rawEnrollmentId === 'string' && rawEnrollmentId.length > 20 ? 'UUID' : rawEnrollmentId
+    })
+
+    if (!activityId || (!executionId && !body.exercises)) {
+      console.warn('❌ [API toggle-exercise] Missing required params', { activityId, executionId, hasExercises: !!body.exercises })
+      return NextResponse.json({
+        error: 'Faltan parámetros básicos',
+        received: { executionId, activityId, hasExercises: !!body.exercises }
+      }, { status: 400 })
     }
 
     const supabase = await createRouteHandlerClient()
@@ -183,27 +200,65 @@ export async function POST(request: NextRequest) {
     let progressRecord: any = null
 
     for (const table of candidateTables) {
-      let query = supabase.from(table).select(selectFields(table)).eq('cliente_id', user.id).eq('fecha', targetDate)
-      if (enrollmentId) query = query.eq('enrollment_id', enrollmentId)
-      else query = query.eq('actividad_id', activityId)
+      try {
+        console.log(`🔍 [API toggle-exercise] Searching in ${table}...`)
+        let query = supabase.from(table).select(selectFields(table)).eq('cliente_id', user.id).eq('fecha', targetDate)
 
-      const { data } = await query.order('id', { ascending: false }).limit(1)
-      if (data?.[0]) {
-        progressTable = table
-        progressRecord = data[0]
-        break
+        if (enrollmentId) {
+          // If it's a number, use numeric eq. If it's a UUID string, use text eq.
+          query = query.eq('enrollment_id', enrollmentId)
+        } else {
+          query = query.eq('actividad_id', activityId)
+        }
+
+        const { data, error } = await query.order('id', { ascending: false }).limit(1)
+
+        if (error) {
+          console.error(`❌ [API toggle-exercise] Error querying ${table}:`, {
+            message: error.message,
+            code: error.code,
+            hint: error.hint,
+            details: error.details,
+            table,
+            enrollmentId
+          })
+
+          // If the error is a type mismatch (P0001 or 22P02), try the fallback without enrollmentId
+          if (error.code === '22P02' || error.code === 'P0001') {
+            console.log(`⚠️ [API toggle-exercise] Type mismatch detected for enrollment_id on ${table}. Falling back to activity_id.`)
+            const { data: fallbackData, error: fallbackError } = await supabase.from(table).select(selectFields(table)).eq('cliente_id', user.id).eq('actividad_id', activityId).eq('fecha', targetDate).limit(1)
+            if (!fallbackError && fallbackData?.[0]) {
+              progressTable = table
+              progressRecord = fallbackData[0]
+              break
+            }
+          }
+          continue
+        }
+
+        if (data?.[0]) {
+          progressTable = table
+          progressRecord = data[0]
+          console.log(`✅ [API toggle-exercise] Found record in ${table}, ID: ${progressRecord.id}`)
+          break
+        }
+      } catch (err: any) {
+        console.error(`💥 [API toggle-exercise] Crash querying ${table}:`, err.message)
       }
     }
 
     if (!progressTable || !progressRecord) {
       // Fallback extremo: intentar por actividad_id sin importar enrollment
       for (const table of candidateTables) {
-        const { data } = await supabase.from(table).select(selectFields(table)).eq('cliente_id', user.id).eq('actividad_id', activityId).eq('fecha', targetDate).limit(1)
-        if (data?.[0]) {
-          progressTable = table
-          progressRecord = data[0]
-          break
-        }
+        try {
+          const { data, error } = await supabase.from(table).select(selectFields(table)).eq('cliente_id', user.id).eq('actividad_id', activityId).eq('fecha', targetDate).limit(1)
+          if (error) continue
+          if (data?.[0]) {
+            progressTable = table
+            progressRecord = data[0]
+            break
+          }
+        } catch (err) { continue }
       }
     }
 
@@ -226,9 +281,13 @@ export async function POST(request: NextRequest) {
 
       // Calcular semana ciclo
       const start = new Date(enrollment.start_date)
+      if (isNaN(start.getTime())) {
+        console.error('❌ [API toggle-exercise] Invalid enrollment.start_date:', enrollment.start_date)
+        return NextResponse.json({ error: 'La inscripción no tiene una fecha de inicio válida' }, { status: 400 })
+      }
       const current = new Date(targetDate)
       const diffDays = Math.floor((current.getTime() - start.getTime()) / (1000 * 60 * 60 * 24))
-      const totalWeekNumber = Math.floor(diffDays / 7) + 1
+      const totalWeekNumber = Math.max(1, Math.floor(diffDays / 7) + 1)
 
       const { data: allPlan } = await supabase.from('planificacion_ejercicios').select('numero_semana').eq('actividad_id', activityId).order('numero_semana', { ascending: false }).limit(1)
       const maxSemanas = allPlan?.[0]?.numero_semana || 1
@@ -286,10 +345,11 @@ export async function POST(request: NextRequest) {
     }
 
     // 2. Parsear y normalizar estructuras (pueden ser Map o Array)
-    const rawComp = safeJsonParse(progressRecord.ejercicios_completados)
-    const rawPend = safeJsonParse(progressRecord.ejercicios_pendientes)
+    const rawComp = safeJsonParse(progressRecord.ejercicios_completados) || {}
+    const rawPend = safeJsonParse(progressRecord.ejercicios_pendientes) || {}
     const rawDetalles = safeJsonParse(progressRecord.detalles_series) || {}
 
+    // Función universal para buscar/remover
     // Función universal para buscar/remover
     const removeFromRef = (ref: any, ejId: number, b: number, o: number, key: string) => {
       if (!ref) return null
@@ -297,10 +357,15 @@ export async function POST(request: NextRequest) {
       const _internal = (target: any) => {
         if (Array.isArray(target)) {
           const idx = target.findIndex((e: any) => {
+            if (!e) return false
+            // Check if it's a string key like "110_1_1"
             if (typeof e === 'string') return e === key || e === String(ejId)
-            const itemID = Number(e.id ?? e.ejercicio_id)
-            const itemB = Number(e.bloque ?? 1)
-            const itemO = Number(e.orden ?? 1)
+            // Check if it's a primitive number
+            if (typeof e === 'number') return e === ejId
+            // Check if it's an object {ejercicio_id: 110, ...}
+            const itemID = Number(e.id ?? e.ejercicio_id ?? (typeof e === 'number' ? e : NaN))
+            const itemB = Number(e.bloque ?? (typeof e === 'string' && e.includes('_') ? e.split('_')[1] : 1))
+            const itemO = Number(e.orden ?? (typeof e === 'string' && e.includes('_') ? e.split('_')[2] : 1))
             return itemID === ejId && itemB === b && itemO === o
           })
           if (idx !== -1) return target.splice(idx, 1)[0]
@@ -313,7 +378,10 @@ export async function POST(request: NextRequest) {
           const foundKey = Object.keys(target).find(k => {
             if (k === 'ejercicios' || k === 'blockCount' || k === 'blockNames') return false
             const d = target[k]
-            return d && Number(d.ejercicio_id ?? k.split('_')[0]) === ejId && Number(d.bloque ?? k.split('_')[1] ?? 1) === b && Number(d.orden ?? k.split('_')[2] ?? 1) === o
+            const dId = Number(d?.ejercicio_id ?? d?.id ?? (typeof d === 'number' ? d : k.split('_')[0]))
+            const dB = Number(d?.bloque ?? k.split('_')[1] ?? 1)
+            const dO = Number(d?.orden ?? k.split('_')[2] ?? 1)
+            return dId === ejId && dB === b && dO === o
           })
           if (foundKey) {
             const val = target[foundKey]
@@ -344,31 +412,36 @@ export async function POST(request: NextRequest) {
 
       if (Array.isArray(target)) {
         target.push(ejId)
-      } else if (typeof target === 'object') {
+      } else if (typeof target === 'object' && target !== null) {
         target[key] = ejId
       }
     }
 
-    const exerciseKey = `${ejercicioId}_${bloqueNum}_${ordenNum}`
-    console.log(`🔄 [API toggle-exercise] Toggling key ${exerciseKey}`, {
-      in_completados: Object.keys(rawComp),
-      in_pendientes: Object.keys(rawPend)
-    })
+    // 2. TOGGLE LOGIC (Supports single exercise or bulk array)
+    const exercisesToToggle = body.exercises && Array.isArray(body.exercises)
+      ? body.exercises
+      : [{ id: ejercicioId, bloque: bloqueNum, orden: ordenNum }]
+
+    console.log(`🔄 [API toggle-exercise] Toggling ${exercisesToToggle.length} exercises...`)
 
     let toggledToCompleted = false
 
-    // Intentar mover de completado a pendiente
-    const removedFromComp = removeFromRef(rawComp, ejercicioId, bloqueNum, ordenNum, exerciseKey)
-    if (removedFromComp) {
-      console.log(`✅ [API toggle-exercise] Removed from COMPLETADOS, adding to PENDIENTES`)
-      addToRef(rawPend, ejercicioId, bloqueNum, ordenNum, exerciseKey, removedFromComp)
-      toggledToCompleted = false
-    } else {
-      // No estaba en completados, buscar en pendientes o simplemente agregarlo a completados
-      console.log(`✅ [API toggle-exercise] Not in COMPLETADOS, moving from PENDIENTES to COMPLETADOS`)
-      const removedFromPend = removeFromRef(rawPend, ejercicioId, bloqueNum, ordenNum, exerciseKey)
-      addToRef(rawComp, ejercicioId, bloqueNum, ordenNum, exerciseKey, removedFromPend || {})
-      toggledToCompleted = true
+    for (const ex of exercisesToToggle) {
+      const exId = Number(ex.id)
+      const exB = Number(ex.bloque || 1)
+      const exO = Number(ex.orden || 1)
+      const exKey = `${exId}_${exB}_${exO}`
+
+      // Intentar mover de completado a pendiente
+      const removedFromComp = removeFromRef(rawComp, exId, exB, exO, exKey)
+      if (removedFromComp) {
+        addToRef(rawPend, exId, exB, exO, exKey, removedFromComp)
+        toggledToCompleted = false
+      } else {
+        const removedFromPend = removeFromRef(rawPend, exId, exB, exO, exKey)
+        addToRef(rawComp, exId, exB, exO, exKey, removedFromPend || exId)
+        toggledToCompleted = true
+      }
     }
 
     console.log(`📊 [API toggle-exercise] AFTER:`, {
@@ -380,57 +453,52 @@ export async function POST(request: NextRequest) {
     // 3. Persistir conservando el tipo original (string vs objeto)
     const persist = (orig: any, next: any) => typeof orig === 'string' ? JSON.stringify(next) : next
 
-    const { error: updErr } = await supabase.from(progressTable).update({
+    console.log(`💾 [API toggle-exercise] Persisting to ${progressTable} ID ${progressRecord.id}...`, {
+      toggledToCompleted,
+      compKeys: Object.keys(rawComp),
+      pendKeys: Object.keys(rawPend)
+    })
+
+    const updatePayload = {
       ejercicios_completados: persist(progressRecord.ejercicios_completados, rawComp),
       ejercicios_pendientes: persist(progressRecord.ejercicios_pendientes, rawPend)
-    }).eq('id', progressRecord.id)
-
-    if (updErr) throw updErr
-
-    // 4. Update Streak Logic
-    // If all tasks for today are completed, we might need to increment or update the streak in the enrollment
-    if (toggledToCompleted && Object.keys(rawPend).length === 0) {
-      try {
-        // Fetch current enrollment data to check streak
-        const { data: enrollment } = await supabase
-          .from('activity_enrollments')
-          .select('current_streak, last_streak_date')
-          .eq('id', progressRecord.enrollment_id)
-          .single()
-
-        const currentStreak = enrollment?.current_streak || 0
-        const lastStreakDate = enrollment?.last_streak_date
-        const today = targetDate
-
-        let newStreak = currentStreak
-
-        if (!lastStreakDate || lastStreakDate !== today) {
-          // Check if it's a consecutive day or a reset
-          const yesterday = new Date(new Date(today).getTime() - 86400000).toISOString().split('T')[0]
-
-          if (lastStreakDate === yesterday) {
-            newStreak = currentStreak + 1
-          } else {
-            newStreak = 1
-          }
-
-          await supabase
-            .from('activity_enrollments')
-            .update({
-              current_streak: newStreak,
-              last_streak_date: today
-            })
-            .eq('id', progressRecord.enrollment_id)
-        }
-      } catch (streakErr) {
-        console.error('⚠️ Error updating streak:', streakErr)
-      }
     }
 
-    return NextResponse.json({ success: true, isCompleted: toggledToCompleted })
+    const { error: updErr } = await supabase
+      .from(progressTable)
+      .update(updatePayload)
+      .eq('id', progressRecord.id)
+
+    if (updErr) {
+      console.error('❌ [API toggle-exercise] DB UPDATE ERROR:', {
+        message: updErr.message,
+        code: updErr.code,
+        hint: updErr.hint,
+        details: updErr.details
+      })
+      return NextResponse.json({
+        error: 'Error al actualizar base de datos',
+        details: updErr.message,
+        code: updErr.code,
+        hint: updErr.hint
+      }, { status: 500 })
+    }
+
+    console.log('✅ [API toggle-exercise] Update successful for ID:', progressRecord.id)
+
+    return NextResponse.json({
+      success: true,
+      isCompleted: toggledToCompleted,
+      recordId: progressRecord.id
+    })
 
   } catch (error: any) {
-    console.error('❌ POST error:', error)
-    return NextResponse.json({ error: 'Error interno del servidor', details: error?.message || String(error) }, { status: 500 })
+    console.error('❌ [API toggle-exercise] UNHANDLED EXCEPTION:', error)
+    return NextResponse.json({
+      error: 'Error interno del servidor',
+      message: error?.message || 'Unknown error',
+      stack: process.env.NODE_ENV === 'development' ? error?.stack : undefined,
+      details: String(error)
+    }, { status: 500 })
   }
 }

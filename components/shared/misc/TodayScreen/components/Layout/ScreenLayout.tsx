@@ -1,6 +1,6 @@
 import { format } from 'date-fns';
 import { useRouter } from 'next/navigation';
-import * as React from 'react';
+import React, { useEffect } from 'react';
 import { motion, useMotionValue, useTransform, DragControls, useDragControls } from 'framer-motion';
 import { SettingsIcon } from '@/components/shared/ui/settings-icon';
 import { MessagesIcon } from '@/components/shared/ui/messages-icon';
@@ -23,7 +23,7 @@ export function ScreenLayout({
     isSpecialView
 }: ScreenLayoutProps) {
     // Unified collapsed height logic
-    const COLLAPSED_H = 210;
+    const COLLAPSED_H = 220; // Correctly clears the bottom tab bar and shows the header
     const collapsedY = vh - COLLAPSED_H;
 
     // Motion Values
@@ -38,7 +38,7 @@ export function ScreenLayout({
     const heroBlur = useTransform(openness, [0.1, 0.4], ["blur(0px)", "blur(10px)"]); // Increased buffer to 0.1 for safety
 
     // We need to initialize y to collapsedY on mount
-    React.useEffect(() => {
+    useEffect(() => {
         y.set(collapsedY);
     }, [vh, y, collapsedY]);
 

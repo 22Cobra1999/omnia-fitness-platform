@@ -56,23 +56,48 @@ export function useTodayActions({
 
             console.log('🔄 [toggleExerciseSimple] Toggling exercise:', payload);
 
-            // Optimistic Update
+            // 1. INSTANT OPTIMISTIC UPDATE
             setActivities((prev: any) => prev.map((a: any) => a.id === activityKey ? { ...a, done: !a.done } : a));
 
-            const response = await fetch('/api/toggle-exercise', {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify(payload)
-            });
+            // 2. BACKGROUND SYNC (Optimized for speed)
+            const syncRemote = async () => {
+                try {
+                    let response;
+                    let retryCount = 0;
+                    const maxRetries = 2;
 
-            const result = await response.json();
-            console.log('✅ [toggleExerciseSimple] Response:', result);
+                    while (retryCount < maxRetries) {
+                        try {
+                            response = await fetch(`/api/toggle-exercise`, {
+                                method: 'POST',
+                                headers: { 'Content-Type': 'application/json' },
+                                body: JSON.stringify(payload)
+                            });
+                            if (response.ok) break;
+                        } catch (e) {
+                            console.warn(`[toggleExerciseSimple] Background sync fail`);
+                        }
+                        retryCount++;
+                        if (retryCount < maxRetries) await new Promise(r => setTimeout(r, 800));
+                    }
 
-            // Refresh data silently
-            refreshDayStatuses();
-            if (fetchActivities) {
-                await fetchActivities({ silent: true });
-            }
+                    if (!response || !response.ok) {
+                        // 4. REVERT: If it truly failed after retries, show truth
+                        setActivities((prev: any) => prev.map((a: any) => a.id === activityKey ? { ...a, done: !a.done } : a));
+                        console.error('❌ Sync failed definitively - reverting UI');
+                    } else {
+                        // 3. LOW-PRIORITY REFRESH
+                        refreshDayStatuses();
+                        if (fetchActivities) fetchActivities({ silent: true });
+                    }
+                } catch (e) {
+                    setActivities((prev: any) => prev.map((a: any) => a.id === activityKey ? { ...a, done: !a.done } : a));
+                    console.error('❌ Sync network crash - reverting UI:', e);
+                }
+            };
+
+            syncRemote();
+            return;
         } catch (e) {
             console.error('❌ [toggleExerciseSimple] Error:', e);
             // Revert on error if needed
@@ -81,15 +106,63 @@ export function useTodayActions({
 
     const toggleBlockCompletion = React.useCallback(async (blockNumber: number, selectedDate: Date) => {
         const blockActivities = activities.filter((a: any) => a.bloque === blockNumber);
-        const isCurrentlyCompleted = blockActivities.length > 0 && blockActivities.every((a: any) => a.done);
+        if (blockActivities.length === 0) return;
 
-        // Toggle all in this block
-        for (const act of blockActivities) {
-            if (act.done === isCurrentlyCompleted) {
-                await toggleExerciseSimple(act.id, selectedDate);
+        const isCurrentlyCompleted = blockActivities.every((a: any) => a.done);
+
+        // 1. OPTIMISTIC BULK UPDATE
+        setActivities((prev: any) => prev.map((a: any) =>
+            a.bloque === blockNumber ? { ...a, done: !isCurrentlyCompleted } : a
+        ));
+
+        // 2. BACKGROUND BULK SYNC
+        const syncBulk = async () => {
+            try {
+                const { getBuenos_AiresDateString } = require('@/utils/date-utils'); // Fixed typo if any, should match project date utils
+                const getBADate = (d: Date) => {
+                    try { return require('@/utils/date-utils').getBuenosAiresDateString(d); } catch { return d.toISOString().split('T')[0]; }
+                };
+                const currentDate = getBADate(selectedDate);
+
+                const exercises = blockActivities.map(a => ({
+                    id: a.ejercicio_id || a.exercise_id,
+                    bloque: a.bloque || 1,
+                    orden: a.orden || 1
+                }));
+
+                const payload = {
+                    exercises,
+                    fecha: currentDate,
+                    categoria: programInfo?.categoria || enrollment?.activity?.categoria,
+                    activityId: Number(activityId),
+                    enrollmentId: enrollment?.id
+                };
+
+                const response = await fetch(`/api/toggle-exercise`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(payload)
+                });
+
+                if (!response.ok) {
+                    // Revert if failed
+                    setActivities((prev: any) => prev.map((a: any) =>
+                        a.bloque === blockNumber ? { ...a, done: isCurrentlyCompleted } : a
+                    ));
+                } else {
+                    refreshDayStatuses();
+                    if (fetchActivities) fetchActivities({ silent: true });
+                }
+            } catch (e) {
+                console.error('❌ Bulk sync failed:', e);
+                setActivities((prev: any) => prev.map((a: any) =>
+                    a.bloque === blockNumber ? { ...a, done: isCurrentlyCompleted } : a
+                ));
             }
-        }
-    }, [activities, toggleExerciseSimple]);
+        };
+
+        syncBulk();
+    }, [activities, user, enrollment, programInfo, setActivities, refreshDayStatuses, fetchActivities]);
 
     const handlePrevDay = React.useCallback((currentDate: Date) => {
         const d = new Date(currentDate);

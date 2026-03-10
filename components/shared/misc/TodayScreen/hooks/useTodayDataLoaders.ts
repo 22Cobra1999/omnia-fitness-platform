@@ -141,7 +141,12 @@ export function useTodayDataLoaders(user: { id: string; level: string } | null, 
 
         try {
             console.log(`🔍 [TodayDataLoaders] Fetching activities: dia=${exerciseDay}, date=${selectedDateString}, enrollmentId=${enrollment.id}`);
-            const response = await fetch(`/api/activities/today?dia=${exerciseDay}&fecha=${selectedDateString}&activityId=${activityId}&enrollmentId=${enrollment.id}`);
+            const response = await fetch(`/api/activities/today?dia=${exerciseDay}&fecha=${selectedDateString}&activityId=${activityId}&enrollmentId=${enrollment.id}&t=${Date.now()}`);
+
+            if (!response.ok) {
+                const text = await response.text();
+                throw new Error(`HTTP ${response.status}: ${text.substring(0, 100)}`);
+            }
             const result = await response.json();
 
             if (result.success && result.data.activities) {
@@ -184,14 +189,23 @@ export function useTodayDataLoaders(user: { id: string; level: string } | null, 
         if (!user || !programInfo?.coach_id) return;
         try {
             const { data, error } = await supabase
-                .from('coach_clients')
-                .select('meet_credits')
+                .from('client_meet_credits_ledger')
+                .select('meet_credits_available')
                 .eq('client_id', user.id)
                 .eq('coach_id', programInfo.coach_id)
                 .maybeSingle();
-            if (!error && data) setMeetCreditsAvailable(data.meet_credits || 0);
-        } catch {
-            // Table might not exist or no relationship — not a breaking error
+
+            if (error) {
+                // If it's a 404 or 22P02, the table might be missing or schema mismatch
+                console.warn('⚠️ [loadMeetCredits] Non-critical error:', error.message);
+                setMeetCreditsAvailable(0);
+                return;
+            }
+            if (data) setMeetCreditsAvailable(data.meet_credits_available || 0);
+            else setMeetCreditsAvailable(0);
+        } catch (err) {
+            console.warn('⚠️ [loadMeetCredits] Silent fail (table might not exist):', err);
+            setMeetCreditsAvailable(0);
         }
     }, [user, programInfo]);
 

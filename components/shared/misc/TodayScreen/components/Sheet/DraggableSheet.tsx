@@ -1,4 +1,4 @@
-import * as React from 'react';
+import React, { useState, useEffect } from 'react';
 import { motion, DragControls, useMotionValue, animate } from 'framer-motion';
 import { SheetHeader } from './SheetHeader';
 import { TodayActivityList } from './TodayActivityList';
@@ -70,8 +70,8 @@ export function DraggableSheet({
     meetCreditsAvailable, onScheduleMeet
 }: DraggableSheetProps) {
 
-    const TOP_SNAP = 60; // Just below the 56px header
-    const COLLAPSED_H = 210;
+    const TOP_SNAP = 64;
+    const COLLAPSED_H = 220; // Unified with ScreenLayout to ensure visibility
     const collapsedY = vh - COLLAPSED_H;
 
     // Snapshot logic for drag end - Binary (Snap to Top or Bottom)
@@ -105,9 +105,9 @@ export function DraggableSheet({
     };
 
     // Derived
-    const [expandedState, setExpandedState] = React.useState(false);
+    const [expandedState, setExpandedState] = useState(false);
 
-    React.useEffect(() => {
+    useEffect(() => {
         const unsub = y.on("change", (latest: number) => {
             setExpandedState(latest < (collapsedY * 0.7));
         });

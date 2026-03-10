@@ -1,6 +1,6 @@
 'use client';
 
-import * as React from 'react';
+import React from 'react';
 import { useAuth } from "@/contexts/auth-context";
 import { ActivitySurveyModal } from "../../activities/activity-survey-modal";
 import { StartActivityModal } from "../../activities/StartActivityModal";

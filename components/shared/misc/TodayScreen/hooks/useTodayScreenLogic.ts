@@ -1,4 +1,4 @@
-import * as React from 'react';
+import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import { useAuth } from "@/contexts/auth-context";
 import { createClient } from '@/lib/supabase/supabase-client';
 import {
@@ -22,9 +22,9 @@ export function useTodayScreenLogic({ activityId, enrollmentId, onBack }: { acti
     const supabase = createClient();
 
     // 1. Centralized States
-    const [selectedDate, setSelectedDate] = React.useState<Date>(new Date());
+    const [selectedDate, setSelectedDate] = useState<Date>(new Date());
 
-    React.useEffect(() => {
+    useEffect(() => {
         if (typeof window !== 'undefined') {
             const saved = localStorage.getItem('selectedActivityDate');
             if (saved) {
@@ -36,8 +36,8 @@ export function useTodayScreenLogic({ activityId, enrollmentId, onBack }: { acti
             }
         }
     }, []);
-    const [selectedVideo, setSelectedVideo] = React.useState<any>(null);
-    const [currentMonth, setCurrentMonth] = React.useState(selectedDate);
+    const [selectedVideo, setSelectedVideo] = useState<any>(null);
+    const [currentMonth, setCurrentMonth] = useState(selectedDate);
 
     // 2. Initialize Sub-hooks
     const ui = useTodayUiState();
@@ -46,7 +46,7 @@ export function useTodayScreenLogic({ activityId, enrollmentId, onBack }: { acti
     const editing = useExerciseEditing();
 
     // Define fetchActivities before actions
-    const fetchActivities = React.useCallback(async (options?: { silent?: boolean }) => {
+    const fetchActivities = useCallback(async (options?: { silent?: boolean }) => {
         if (!options?.silent) ui.setIsDayLoading(true);
         const result = await data.loadTodayActivities(selectedDate);
         data.setActivities(result.activities);
@@ -81,29 +81,29 @@ export function useTodayScreenLogic({ activityId, enrollmentId, onBack }: { acti
     // 3. Effects & Coordination
 
     // Sync enrollment on back or external changes
-    React.useEffect(() => {
+    useEffect(() => {
         data.loadProgramInfo();
     }, [user?.id, activityId, data.loadProgramInfo]);
 
     // Load Today Activities
-    React.useEffect(() => {
+    useEffect(() => {
         fetchActivities();
     }, [fetchActivities]);
 
     // Workshop Loaders
-    React.useEffect(() => {
+    useEffect(() => {
         if (data.enrollment) {
             workshop.loadWorkshopData();
         }
     }, [data.enrollment, workshop.loadWorkshopData]);
 
     // Day Statuses
-    React.useEffect(() => {
+    useEffect(() => {
         data.refreshDayStatuses();
     }, [currentMonth, data.enrollment, data.refreshDayStatuses]);
 
     // Check if start modal should be shown
-    React.useEffect(() => {
+    useEffect(() => {
         if (!data.enrollment) return;
 
         // Si no tiene start_date, mostrar modales de inicio
@@ -118,13 +118,13 @@ export function useTodayScreenLogic({ activityId, enrollmentId, onBack }: { acti
     }, [data.enrollment, ui.setShowStartInfoModal]);
 
     // Credits
-    React.useEffect(() => {
+    useEffect(() => {
         data.loadMeetCredits();
     }, [data.programInfo, data.loadMeetCredits]);
 
     // --- Specific Actions (Coordinators) ---
 
-    const openVideo = React.useCallback((videoUrl: string, activity: any) => {
+    const openVideo = useCallback((videoUrl: string, activity: any) => {
         console.log('🎬 [useTodayScreenLogic] openVideo:', activity);
 
         // Robust numeric exercise ID extraction
@@ -175,7 +175,7 @@ export function useTodayScreenLogic({ activityId, enrollmentId, onBack }: { acti
         ui.setIsVideoExpanded(true);
     }, [selectedDate, activityId, data.backgroundImage, ui.setIsVideoExpanded]);
 
-    const navigateActivity = React.useCallback((direction: number) => {
+    const navigateActivity = useCallback((direction: number) => {
         if (!selectedVideo || !data.activities || data.activities.length === 0) return;
 
         const targetExId = Number(selectedVideo.exerciseId);
@@ -211,13 +211,13 @@ export function useTodayScreenLogic({ activityId, enrollmentId, onBack }: { acti
         }
     }, [selectedVideo, data.activities, openVideo]);
 
-    const collapseVideo = React.useCallback(() => {
+    const collapseVideo = useCallback(() => {
         ui.setIsVideoExpanded(false);
         setSelectedVideo(null);
         ui.videoExpandY.set(0);
     }, [ui.setIsVideoExpanded, ui.videoExpandY]);
 
-    const handleConfirmAsistencia = React.useCallback(async () => {
+    const handleConfirmAsistencia = useCallback(async () => {
         if (!ui.showConfirmModal || !user || !data.enrollment || !workshop.ejecucionId || !ui.selectedHorario) return;
         // Logic for confirming workshop attendance...
         try {
@@ -238,7 +238,7 @@ export function useTodayScreenLogic({ activityId, enrollmentId, onBack }: { acti
         } catch (e) { console.error(e); }
     }, [ui.showConfirmModal, user, data.enrollment, workshop.ejecucionId, ui.selectedHorario, ui.setShowConfirmModal, workshop.loadWorkshopData, data.refreshDayStatuses]);
 
-    const handleEditarReservacion = React.useCallback(async (temaId: number) => {
+    const handleEditarReservacion = useCallback(async (temaId: number) => {
         if (!workshop.ejecucionId) return;
         try {
             await supabase.from('taller_progreso_temas')
@@ -250,7 +250,7 @@ export function useTodayScreenLogic({ activityId, enrollmentId, onBack }: { acti
         } catch (e) { console.error(e); }
     }, [workshop.ejecucionId, workshop.loadWorkshopData, data.refreshDayStatuses]);
 
-    const handleConfirmUpdate = React.useCallback(async () => {
+    const handleConfirmUpdate = useCallback(async () => {
         ui.setIsUpdating(true);
         setTimeout(() => {
             ui.setIsUpdating(false);
@@ -261,7 +261,7 @@ export function useTodayScreenLogic({ activityId, enrollmentId, onBack }: { acti
     }, [ui.setIsUpdating, ui.setShowConfirmModal, ui.setCalendarMessage]);
 
     // Helpers
-    const isTemaFinalizado = React.useCallback((temaId: number) => {
+    const isTemaFinalizado = useCallback((temaId: number) => {
         const today = getCurrentBuenosAiresDate();
         today.setHours(0, 0, 0, 0);
 
@@ -285,13 +285,13 @@ export function useTodayScreenLogic({ activityId, enrollmentId, onBack }: { acti
         return false;
     }, [workshop.temasCubiertos, workshop.temasPendientes]);
 
-    const isWorkshopExpired = React.useCallback(() => {
+    const isWorkshopExpired = useCallback(() => {
         if (!data.enrollment?.expiration_date) return false;
         const expDate = new Date(data.enrollment.expiration_date);
         return expDate < new Date();
     }, [data.enrollment]);
 
-    const isProgramExpired = React.useMemo(() => {
+    const isProgramExpired = useMemo(() => {
         if (!data.enrollment?.expiration_date) return false;
         if (data.enrollment?.status === 'activa') return false; // Si está activa, no la damos por finalizada por fecha
         const expDateStr = data.enrollment.expiration_date; // YYYY-MM-DD
@@ -299,7 +299,7 @@ export function useTodayScreenLogic({ activityId, enrollmentId, onBack }: { acti
         return todayStr > expDateStr;
     }, [data.enrollment?.expiration_date, data.enrollment?.status]);
 
-    const finalActions = React.useMemo(() => ({
+    const finalActions = useMemo(() => ({
         ...actions,
         setSelectedDate,
         setCurrentMonth,
@@ -510,7 +510,7 @@ export function useTodayScreenLogic({ activityId, enrollmentId, onBack }: { acti
         enrollmentId
     ]);
 
-    const nextAvailableActivity = React.useMemo(() => {
+    const nextAvailableActivity = useMemo(() => {
         if (!data.dayStatuses) return null;
         const dates = Object.keys(data.dayStatuses).sort();
         const todayStr = selectedDate.toISOString().split('T')[0];
@@ -536,7 +536,7 @@ export function useTodayScreenLogic({ activityId, enrollmentId, onBack }: { acti
         return null;
     }, [data.dayStatuses, selectedDate, isProgramExpired]);
 
-    const state = React.useMemo(() => ({
+    const state = useMemo(() => ({
         vh: ui.vh,
         loading: ui.loading,
         isDayLoading: ui.isDayLoading,
@@ -588,7 +588,7 @@ export function useTodayScreenLogic({ activityId, enrollmentId, onBack }: { acti
         nextAvailableActivity
     ]);
 
-    const helpers = React.useMemo(() => ({
+    const helpers = useMemo(() => ({
         getWeekNumber: (d: Date) => getWeekNumber(d, data.enrollment?.start_date),
         getDayName,
         calculateExerciseDayForDate: (d: Date) => calculateExerciseDayForDate(d, data.enrollment?.start_date || new Date()),
@@ -600,7 +600,7 @@ export function useTodayScreenLogic({ activityId, enrollmentId, onBack }: { acti
         })
     }), [data.enrollment, isTemaFinalizado, isWorkshopExpired, workshop.workshopTemas, workshop.temasCubiertos]);
 
-    return React.useMemo(() => ({
+    return useMemo(() => ({
         state,
         actions: finalActions,
         helpers

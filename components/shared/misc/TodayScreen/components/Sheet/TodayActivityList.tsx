@@ -1,4 +1,4 @@
-import * as React from 'react';
+import React, { useMemo, useState } from 'react';
 import { Flame, ChevronDown, ChevronUp, MessageSquare, Check, Play, Clock, ArrowRight, CalendarClock } from 'lucide-react';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog"
 import { parseSeries } from '../../utils/parsers';
@@ -96,7 +96,7 @@ export function TodayActivityList({
     onScheduleMeet
 }: TodayActivityListProps) {
 
-    const groupedActivities = React.useMemo(() => {
+    const groupedActivities = useMemo(() => {
         return activities.map(activity => {
             const seriesData = activity.detalle_series || activity.series;
             let parsed: any[] = [];
@@ -105,6 +105,7 @@ export function TodayActivityList({
                 parsed = parseSeries(seriesData);
             } else if (Array.isArray(seriesData)) {
                 parsed = seriesData.map(s => ({
+                    id: activity.id, // Use activity ID as default for sets
                     peso: s.peso ?? s.kg ?? 0,
                     series: s.series ?? s.sets ?? 1,
                     reps: s.reps ?? s.repeticiones ?? 0,
@@ -114,13 +115,14 @@ export function TodayActivityList({
 
             if (parsed.length === 0) {
                 parsed = [{
+                    id: activity.id,
                     peso: activity.peso ?? activity.kg ?? 0,
                     series: activity.sets ?? activity.qty ?? activity.series ?? 1,
                     reps: activity.reps ?? activity.repeticiones ?? 0,
                     done: activity.done
                 }];
             } else {
-                parsed = parsed.map(s => ({ ...s, done: activity.done }));
+                parsed = parsed.map(s => ({ ...s, id: s.id || activity.id, done: activity.done }));
             }
 
             return {
@@ -133,7 +135,7 @@ export function TodayActivityList({
     const blocks = getActivitiesByBlocks(groupedActivities);
     const activeBlock = getActiveBlock(groupedActivities);
 
-    const [showFeedback, setShowFeedback] = React.useState(false);
+    const [showFeedback, setShowFeedback] = useState(false);
     const survey = enrollment?.activity_surveys?.[0] || enrollment?.activity_surveys;
     const rating = survey?.coach_method_rating || 0;
     const feedback = survey?.comments || '';
@@ -141,33 +143,7 @@ export function TodayActivityList({
 
     return (
         <div style={{ paddingBottom: 100 }}>
-            {/* Tus Coaches Section */}
-            {meetCreditsAvailable !== null && onScheduleMeet && (
-                <div className="mb-8 px-1">
-                    <h3 className="text-[10px] font-black text-white/20 uppercase tracking-[0.2em] mb-4 ml-1">Tus Coaches</h3>
-                    <div className="bg-white/[0.03] border border-white/5 rounded-[32px] p-5 flex items-center justify-between transition-all hover:bg-white/[0.05] group">
-                        <div className="flex items-center gap-4">
-                            <div className="w-14 h-14 rounded-[22px] bg-gradient-to-br from-[#FF7939] to-[#FF6A00] flex items-center justify-center text-white font-black text-xl shadow-[0_8px_20px_rgba(255,121,57,0.2)]">
-                                {programInfo?.coach_name?.charAt(0) || 'C'}
-                            </div>
-                            <div className="flex flex-col">
-                                <span className="text-base font-bold text-white leading-none mb-1.5">{programInfo?.coach_name || 'Tu Coach'}</span>
-                                <div className="flex items-center gap-2">
-                                    <span className="text-[10px] font-bold text-white/30 uppercase tracking-[0.15em]">Especialista OMNIA</span>
-                                    <div className="w-1 h-1 rounded-full bg-[#FF7939]/40" />
-                                    <span className="text-[10px] font-black text-[#FF7939] uppercase tracking-widest">{meetCreditsAvailable} disponibles</span>
-                                </div>
-                            </div>
-                        </div>
-                        <button
-                            onClick={onScheduleMeet}
-                            className="bg-[#FF7939] text-white w-12 h-12 rounded-2xl flex items-center justify-center shadow-[0_8px_20px_rgba(255,121,57,0.3)] transition-all hover:scale-105 active:scale-95"
-                        >
-                            <CalendarClock size={20} />
-                        </button>
-                    </div>
-                </div>
-            )}
+            {/* Coaches section removed by user request */}
 
             {Object.entries(blocks).map(([blockNum, blockActivities]) => {
                 const blockNumber = parseInt(blockNum);
@@ -184,8 +160,8 @@ export function TodayActivityList({
                         className={cn(
                             "rounded-[32px] overflow-hidden transition-all duration-500 mb-6",
                             isActiveBlock
-                                ? "bg-transparent border-2 border-[#FF7939]/30 shadow-[0_10px_40px_rgba(0,0,0,0.3)]"
-                                : "bg-transparent border border-white/5"
+                                ? "bg-[#0F1012] border-2 border-[#FF7939]/30 shadow-[0_10px_40px_rgba(0,0,0,0.3)]"
+                                : "bg-[#0F1012] border border-white/5"
                         )}
                     >
                         {/* Simplified Block Header - No background fill */}
@@ -194,7 +170,7 @@ export function TodayActivityList({
                             className={cn(
                                 "flex items-center justify-between p-5 rounded-[24px] transition-all duration-300 cursor-pointer m-1",
                                 isActiveBlock && !allDone
-                                    ? "bg-white/[0.04] border border-white/5"
+                                    ? "bg-black/40 border border-white/10"
                                     : "bg-transparent hover:bg-white/[0.02]"
                             )}
                             style={{ filter: isExpired ? 'grayscale(1) opacity(0.8)' : 'none' }}
@@ -271,7 +247,7 @@ export function TodayActivityList({
                                                 <div
                                                     onClick={(e) => {
                                                         e.stopPropagation();
-                                                        group.sets_data.forEach((s: any) => toggleExerciseSimple(s.id));
+                                                        toggleExerciseSimple(group.id);
                                                     }}
                                                     className={cn(
                                                         "w-12 h-12 rounded-2xl flex items-center justify-center shrink-0 border transition-all duration-500 active:scale-90",
@@ -321,6 +297,13 @@ export function TodayActivityList({
                                                                             </div>
                                                                         );
                                                                     })}
+                                                                    {/* Rest time indicator */}
+                                                                    {group.descanso && (
+                                                                        <div className="flex items-center gap-1 px-2 py-0.5 rounded-md text-[10px] font-bold tracking-tight bg-white/5 text-white/35">
+                                                                            <Clock size={10} className="text-white/20" />
+                                                                            {typeof group.descanso === 'number' ? `${Math.floor(group.descanso / 60)} min` : group.descanso}
+                                                                        </div>
+                                                                    )}
                                                                 </div>
 
                                                                 {/* Muscles & Equipment NOT shown here — see detail tabs */}

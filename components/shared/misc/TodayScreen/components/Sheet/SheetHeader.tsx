@@ -34,12 +34,13 @@ export function SheetHeader({
             }}>
                 <div style={{ flexShrink: 0 }}>
                     <div style={{
-                        fontSize: 'clamp(16px, 4.5vw, 20px)',
-                        fontWeight: 800,
-                        color: '#FFFFFF',
-                        letterSpacing: '-0.02em'
+                        fontSize: 'clamp(11px, 3.5vw, 13px)',
+                        fontWeight: 900,
+                        color: 'rgba(255,255,255,0.7)',
+                        textTransform: 'uppercase',
+                        letterSpacing: '0.1em'
                     }}>
-                        {title || 'Actividades de hoy'}
+                        ACTIVIDADES
                     </div>
                 </div>
 
@@ -50,39 +51,27 @@ export function SheetHeader({
                         gap: 'clamp(6px, 2vw, 12px)',
                         flexShrink: 0
                     }}>
-                        {activities.every(a => a.done) ? (
-                            <div style={{
-                                color: '#22C55E',
-                                fontSize: 11,
-                                fontWeight: 900,
-                                textTransform: 'uppercase',
-                                letterSpacing: '0.05em'
-                            }}>
-                                Completado
-                            </div>
-                        ) : (
-                            <>
-                                <div style={{ display: 'flex', alignItems: 'center', gap: 3 }}>
-                                    <Zap size={15} color="#FF7939" fill="#FF7939" />
-                                    <span style={{ fontSize: 'clamp(12px, 3.5vw, 15px)', fontWeight: 900, color: '#FFFFFF' }}>
-                                        {activities.filter(a => !a.done).length}
-                                    </span>
-                                </div>
-                                <div style={{ display: 'flex', alignItems: 'center', gap: 3 }}>
-                                    <Flame size={15} color="#FF7939" fill="none" />
-                                    <span style={{ fontSize: 'clamp(12px, 3.5vw, 15px)', fontWeight: 800, color: '#FFFFFF' }}>
-                                        {activities.filter(a => !a.done).reduce((acc: number, curr: any) => acc + (curr.calorias || 0), 0)}
-                                        <span style={{ fontSize: '0.85em', opacity: 0.8, marginLeft: 1 }}>kcal</span>
-                                    </span>
-                                </div>
-                                <div style={{ display: 'flex', alignItems: 'center', gap: 3 }}>
-                                    <Clock size={15} color="#9CA3AF" />
-                                    <span style={{ fontSize: 'clamp(12px, 3.5vw, 15px)', fontWeight: 800, color: '#FFFFFF' }}>
-                                        {activities.filter(a => !a.done).reduce((acc: number, curr: any) => acc + (curr.minutos || 0), 0)}'
-                                    </span>
-                                </div>
-                            </>
-                        )}
+                        <div style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
+                            <Flame size={14} color="#FF7939" fill="#FF7939" />
+                            <span style={{ fontSize: 'clamp(13px, 4vw, 15px)', fontWeight: 900, color: '#FFFFFF' }}>
+                                {activities.reduce((acc: number, curr: any) => acc + Number(curr.calorias || 0), 0) - activities.filter(a => a.done).reduce((acc: number, curr: any) => acc + Number(curr.calorias || 0), 0)}
+                                <span style={{ fontSize: '9px', fontWeight: 600, color: 'rgba(255,255,255,0.4)', marginLeft: 2, textTransform: 'uppercase' }}>KCAL</span>
+                            </span>
+                        </div>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
+                            <Clock size={14} color="#FFFFFF" strokeWidth={2.5} />
+                            <span style={{ fontSize: 'clamp(13px, 4vw, 15px)', fontWeight: 900, color: '#FFFFFF' }}>
+                                {activities.reduce((acc: number, curr: any) => acc + Number(curr.minutos || 0), 0) - activities.filter(a => a.done).reduce((acc: number, curr: any) => acc + Number(curr.minutos || 0), 0)}
+                                <span style={{ fontSize: '9px', fontWeight: 600, color: 'rgba(255,255,255,0.4)', marginLeft: 2, textTransform: 'uppercase' }}>MIN</span>
+                            </span>
+                        </div>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
+                            <Zap size={14} color="#FF7939" fill="#FF7939" />
+                            <span style={{ fontSize: 'clamp(13px, 4vw, 15px)', fontWeight: 900, color: '#FFFFFF' }}>
+                                {activities.length - activities.filter(a => a.done).length}
+                                <span style={{ fontSize: '9px', fontWeight: 600, color: 'rgba(255,255,255,0.4)', marginLeft: 2, textTransform: 'uppercase' }}>EJS</span>
+                            </span>
+                        </div>
                     </div>
                 )}
             </div>

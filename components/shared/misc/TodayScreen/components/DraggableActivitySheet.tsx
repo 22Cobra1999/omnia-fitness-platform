@@ -3,9 +3,23 @@ import { motion, useDragControls, useMotionValue, useTransform, animate, PanInfo
 
 interface DraggableActivitySheetProps {
     children: React.ReactNode;
+    totalKcal: number;
+    totalMins: number;
+    completedItems: number;
+    totalItems: number;
+    kcalTotal?: number;
+    minsTotal?: number;
 }
 
-export const DraggableActivitySheet: React.FC<DraggableActivitySheetProps> = ({ children }) => {
+export const DraggableActivitySheet: React.FC<DraggableActivitySheetProps> = ({
+    children,
+    totalKcal,
+    totalMins,
+    completedItems,
+    totalItems,
+    kcalTotal,
+    minsTotal
+}) => {
     // Initial large value to push it down significantly before calculation
     const [collapsedY, setCollapsedY] = useState(600);
     const [expandedHeight, setExpandedHeight] = useState(800);
@@ -61,8 +75,9 @@ export const DraggableActivitySheet: React.FC<DraggableActivitySheetProps> = ({ 
 
         animate(y, target, {
             type: "spring",
-            damping: 30, // Less bounce for UI
-            stiffness: 300
+            damping: 40,
+            stiffness: 450,
+            restDelta: 0.1
         });
     };
 
@@ -119,15 +134,38 @@ export const DraggableActivitySheet: React.FC<DraggableActivitySheetProps> = ({ 
             >
                 {/* Visual Handle Bar (Orange pill) */}
                 <div style={{
-                    width: 56,
+                    width: 48,
                     height: 5,
                     borderRadius: 999,
-                    background: 'rgba(255, 121, 57, 0.6)',
+                    background: 'rgba(255, 121, 57, 0.4)',
+                    marginBottom: 12
                 }} />
 
-                {/* Optional Title or metadata could go here */}
-                <div style={{ marginTop: 8, fontSize: 12, color: 'rgba(255,255,255,0.5)', fontWeight: 500 }}>
-                    ACTIVIDADES DE HOY
+                {/* Compact Stats Line */}
+                <div style={{
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: 16,
+                    width: '100%',
+                    justifyContent: 'center',
+                    padding: '0 20px'
+                }}>
+                    <span style={{ fontSize: '11px', fontWeight: 900, color: 'rgba(255,255,255,0.7)', letterSpacing: '0.05em', marginRight: 4 }}>ACTIVIDADES</span>
+
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
+                        <span style={{ fontSize: '15px', fontWeight: 900, color: '#FF7939' }}>{totalKcal}</span>
+                        <span style={{ fontSize: '10px', fontWeight: 900, color: 'rgba(255,255,255,0.4)', textTransform: 'uppercase' }}>/ {kcalTotal || 0} kcal</span>
+                    </div>
+
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
+                        <span style={{ fontSize: '15px', fontWeight: 900, color: '#4488FF' }}>{totalMins}</span>
+                        <span style={{ fontSize: '10px', fontWeight: 900, color: 'rgba(255,255,255,0.4)', textTransform: 'uppercase' }}>/ {minsTotal || 0} min</span>
+                    </div>
+
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
+                        <span style={{ fontSize: '15px', fontWeight: 900, color: '#4ADE80' }}>{completedItems}/{totalItems}</span>
+                        <span style={{ fontSize: '10px', fontWeight: 900, color: 'rgba(255,255,255,0.4)', textTransform: 'uppercase' }}>Ejs</span>
+                    </div>
                 </div>
             </div>
 

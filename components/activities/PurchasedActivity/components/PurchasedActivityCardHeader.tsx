@@ -25,13 +25,13 @@ export function PurchasedActivityCardHeader({ imageUrl, title, coachName, coachA
             `relative w-full h-[280px] flex-shrink-0 transition-all overflow-hidden bg-black rounded-t-[2.8rem]`,
             isExpired && "grayscale opacity-50"
         )}>
-            {imageUrl ? (
+            {imageUrl && imageUrl.startsWith('http') ? (
                 <Image
                     src={imageUrl}
                     alt={title || 'Actividad'}
                     fill
                     className="object-cover transition-transform duration-700 group-hover:scale-103 z-0"
-                    priority
+                    priority={size === 'large'}
                     sizes="(max-width: 768px) 50vw, 33vw"
                 />
             ) : (

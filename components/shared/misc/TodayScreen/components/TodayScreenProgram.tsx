@@ -55,7 +55,33 @@ export const TodayScreenProgram: React.FC<TodayScreenProgramProps> = ({
         }
     };
 
-    // Handlers
+    const stats = React.useMemo(() => {
+        let kcalTarget = 0;
+        let minsTarget = 0;
+        let kcalBurned = 0;
+        let minsBurned = 0;
+
+        activities.forEach(a => {
+            const k = Number(a.calorias || 0);
+            const m = Number(a.minutos || a.duration || 0);
+            kcalTarget += k;
+            minsTarget += m;
+            if (a.done) {
+                kcalBurned += k;
+                minsBurned += m;
+            }
+        });
+
+        return {
+            kcal: kcalBurned,
+            kcalTotal: kcalTarget,
+            mins: minsBurned,
+            minsTotal: minsTarget,
+            completed: activities.filter(a => a.done).length,
+            total: activities.length
+        };
+    }, [activities]);
+
     const handleActivityClick = (activity: any) => {
         setSelectedActivity(activity);
     };
@@ -75,18 +101,21 @@ export const TodayScreenProgram: React.FC<TodayScreenProgramProps> = ({
             <div className="relative z-10 flex flex-col min-h-screen">
                 <ProgramHeader
                     programInfo={programInfo}
+                    enrollment={enrollment}
                     onBack={onBack}
-                    meetCreditsAvailable={meetCreditsAvailable}
-                    hasUserSubmittedSurvey={hasUserSubmittedSurvey}
+                    meetCreditsAvailable={meetCreditsAvailable ?? 0}
+                    hasUserSubmittedSurvey={!!hasUserSubmittedSurvey}
+                    onScheduleMeet={() => console.log('Schedule meet')}
+                    onOpenSurvey={() => console.log('Open survey')}
                 />
 
                 {/* Calendar Component */}
                 <ProgramProgress
                     currentWeek={getCurrentWeekOfProgram()}
-                    selectedDate={selectedDate}
+                    selectedDate={selectedDate || new Date()}
                     onSelectDate={onDateSelect}
 
-                    currentMonth={currentMonth}
+                    currentMonth={currentMonth || new Date()}
                     onMonthChange={onMonthChange}
 
                     // Status logic passed down
@@ -94,14 +123,21 @@ export const TodayScreenProgram: React.FC<TodayScreenProgramProps> = ({
                     getDayStatus={getDayStatus}
 
                     // Expansion Logic
-                    isExpanded={calendarExpanded}
+                    isExpanded={calendarExpanded || false}
                     onToggleExpanded={() => setCalendarExpanded(!calendarExpanded)}
 
-                    isDayLoading={isDayLoading}
+                    isDayLoading={!!isDayLoading}
                 />
 
                 {/* Draggable Sheet containing the Activity List */}
-                <DraggableActivitySheet>
+                <DraggableActivitySheet
+                    totalKcal={stats.kcal}
+                    totalMins={stats.mins}
+                    completedItems={stats.completed}
+                    totalItems={stats.total}
+                    kcalTotal={stats.kcalTotal}
+                    minsTotal={stats.minsTotal}
+                >
                     <TodayActivityList
                         activities={activities}
                         isLoading={!!isDayLoading}
@@ -115,7 +151,7 @@ export const TodayScreenProgram: React.FC<TodayScreenProgramProps> = ({
                 <ActivityDetailView
                     activity={selectedActivity}
                     onClose={() => setSelectedActivity(null)}
-                    onComplete={() => console.log('Complete')}
+                    programInfo={programInfo}
                 />
             )}
         </div>

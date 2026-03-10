@@ -1,4 +1,4 @@
-import * as React from 'react';
+import React from 'react';
 import { motion } from 'framer-motion';
 import { Flame } from 'lucide-react';
 import { useActivityDetailLogic } from '../../hooks/useActivityDetailLogic';
