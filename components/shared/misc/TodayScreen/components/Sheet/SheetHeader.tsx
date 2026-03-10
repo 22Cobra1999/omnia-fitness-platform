@@ -22,51 +22,62 @@ export function SheetHeader({
     title
 }: SheetHeaderProps) {
     return (
-        <div style={{ padding: '12px 20px 10px' }}>
-            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 24, marginTop: 0 }}>
-                <div style={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
-                    <div style={{ fontSize: 18, fontWeight: 700, color: 'rgba(255, 255, 255, 0.6)' }}>
+        <div style={{ padding: '8px 20px 0px' }}>
+            <div style={{
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'space-between',
+                marginBottom: isSheetExpanded ? 16 : 8,
+                marginTop: 0,
+                flexWrap: 'nowrap',
+                gap: 8
+            }}>
+                <div style={{ flexShrink: 0 }}>
+                    <div style={{
+                        fontSize: 'clamp(14px, 4vw, 17px)',
+                        fontWeight: 800,
+                        color: '#FFFFFF',
+                        letterSpacing: '-0.02em'
+                    }}>
                         {title || 'Actividades de hoy'}
                     </div>
                 </div>
+
                 {activities.length > 0 && (
-                    <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+                    <div style={{
+                        display: 'flex',
+                        alignItems: 'center',
+                        gap: 'clamp(6px, 2vw, 12px)',
+                        flexShrink: 0
+                    }}>
                         {activities.every(a => a.done) ? (
                             <div style={{
-                                background: 'rgba(34, 197, 94, 0.1)',
-                                padding: '6px 16px',
-                                borderRadius: 20,
-                                border: '1px solid rgba(34, 197, 94, 0.3)',
                                 color: '#22C55E',
                                 fontSize: 10,
                                 fontWeight: 900,
                                 textTransform: 'uppercase',
-                                letterSpacing: '0.1em'
+                                letterSpacing: '0.05em'
                             }}>
-                                Completado por hoy
+                                Completado
                             </div>
                         ) : (
                             <>
-                                <div style={{ display: 'flex', alignItems: 'center', gap: 6, background: 'rgba(255, 255, 255, 0.03)', padding: '6px 12px', borderRadius: 20, border: '1px solid #FF7939', backdropFilter: 'blur(10px)' }}>
-                                    <Zap size={14} color="#FF7939" />
-                                    <span style={{ fontSize: 13, fontWeight: 900, color: '#FFFFFF' }}>
+                                <div style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
+                                    <Zap size={14} color="#FF7939" fill="#FF7939" />
+                                    <span style={{ fontSize: 'clamp(11px, 3vw, 13px)', fontWeight: 900, color: '#FFFFFF' }}>
                                         {activities.filter(a => !a.done).length}
                                     </span>
                                 </div>
-                                <div style={{ display: 'flex', alignItems: 'center', gap: 6, background: 'rgba(255, 121, 57, 0.05)', padding: '6px 12px', borderRadius: 20, border: '1px solid #FF7939', backdropFilter: 'blur(10px)' }}>
-                                    <Flame
-                                        size={14}
-                                        color="#FF7939"
-                                        fill="none"
-                                    />
-                                    <span style={{ fontSize: 12, fontWeight: 800, color: '#FFFFFF' }}>
+                                <div style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
+                                    <Flame size={14} color="#FF7939" fill="none" />
+                                    <span style={{ fontSize: 'clamp(11px, 3vw, 12px)', fontWeight: 800, color: '#FFFFFF' }}>
                                         {activities.filter(a => !a.done).reduce((acc: number, curr: any) => acc + (curr.calorias || 0), 0)} kcal
                                     </span>
                                 </div>
-                                <div style={{ display: 'flex', alignItems: 'center', gap: 6, background: 'rgba(255, 255, 255, 0.05)', padding: '6px 12px', borderRadius: 20, border: '1px solid rgba(255, 255, 255, 0.1)', backdropFilter: 'blur(10px)' }}>
-                                    <Clock size={15} color="#9CA3AF" />
-                                    <span style={{ fontSize: 12, fontWeight: 800, color: '#FFFFFF' }}>
-                                        {activities.filter(a => !a.done).reduce((acc: number, curr: any) => acc + (curr.minutos || 0), 0)}' restante
+                                <div style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
+                                    <Clock size={14} color="#9CA3AF" />
+                                    <span style={{ fontSize: 'clamp(11px, 3vw, 12px)', fontWeight: 800, color: '#FFFFFF' }}>
+                                        {activities.filter(a => !a.done).reduce((acc: number, curr: any) => acc + (curr.minutos || 0), 0)}'
                                     </span>
                                 </div>
                             </>

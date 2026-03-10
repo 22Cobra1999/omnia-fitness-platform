@@ -71,24 +71,22 @@ export function DraggableSheet({
 }: DraggableSheetProps) {
 
     const EXPANDED_H = Math.max(Math.round(vh * 0.95), 620);
-    const MID_H = Math.max(Math.round(vh * 0.70), 500);
     const COLLAPSED_H = 210;
 
     const collapsedY = EXPANDED_H - COLLAPSED_H;
-    const midY = EXPANDED_H - MID_H;
 
-    // Snapshot logic for drag end
+    // Snapshot logic for drag end - Only Open or Closed
     const onDragEnd = (_: any, info: { velocity: { y: number }; offset: { y: number } }) => {
         const current = y.get();
         const projected = current + info.velocity.y * 0.25;
 
-        // Points
-        const points = [40, midY, collapsedY]; // 40 top offset
+        // Points: Just Top (40) or Bottom (collapsedY)
+        const points = [40, collapsedY];
         const nearest = points.reduce((best, p) => {
             return Math.abs(p - projected) < Math.abs(best - projected) ? p : best;
         }, points[0]);
 
-        y.set(nearest); // Ideally animate
+        y.set(nearest);
     };
 
     const snapTo = (val: number) => y.set(val);
@@ -98,12 +96,11 @@ export function DraggableSheet({
 
     React.useEffect(() => {
         const unsub = y.on("change", (latest: number) => {
-            // Original logic: openness > 0.3. Openness = map(y, [40, collapsedY], [1, 0]) approx
             // If y is small (near 40), it's expanded.
-            setExpandedState(latest < midY);
+            setExpandedState(latest < (collapsedY * 0.5));
         });
         return unsub;
-    }, [y, midY]);
+    }, [y, collapsedY]);
 
 
     return (
