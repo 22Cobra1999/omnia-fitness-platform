@@ -1,6 +1,6 @@
 import { useState } from 'react'
 import Image from 'next/image'
-import { Star, Award, Calendar, Package, TrendingUp, MapPin, Flame, User, Clock, Video } from 'lucide-react'
+import { Star, Award, Calendar, Package, TrendingUp, MapPin, Flame, User, Clock, Video, CheckCircle2, BadgeCheck, ShoppingCart, ChevronDown, Users, DollarSign } from 'lucide-react'
 
 interface CoachProfileCardProps {
   coach: {
@@ -16,9 +16,8 @@ interface CoachProfileCardProps {
     total_products?: number
     total_sessions?: number
     total_clients?: number
-    bio?: string
-    location?: string
     available_meets?: number
+    total_sales?: number
   }
   onClick?: () => void
   size?: 'small' | 'medium'
@@ -28,16 +27,19 @@ interface CoachProfileCardProps {
 
 export default function CoachProfileCard({ coach, onClick, size = 'small', variant = 'default', priority = false }: CoachProfileCardProps) {
   const cardClasses = (() => {
-    const base = 'group relative overflow-hidden cursor-pointer transition-all duration-300'
+    const base = 'group relative overflow-hidden cursor-pointer transition-all duration-500'
 
     if (variant === 'compact') {
       return `${base} w-full h-[70px] rounded-[16px] border border-white/5 bg-white/5 hover:bg-white/10`
     }
 
-    const standardBase = 'rounded-[20px] border border-[#2A2A2A] bg-[#0F0F0F]/85 backdrop-blur-[12px]'
-    // If variant is 'meet', allow auto height to fit all rows
-    const heightClass = variant === 'meet' ? 'w-[280px] sm:w-[300px] md:w-[350px] h-auto min-h-[105px] md:min-h-[125px]' : (size === 'medium' ? 'w-full h-[105px] md:h-[125px]' : 'w-[280px] sm:w-[300px] md:w-[350px] h-[105px] md:h-[125px]')
-    return `${base} ${standardBase} ${heightClass}`
+    if (variant === 'meet') {
+      const heightClass = size === 'medium' ? 'w-[200px] h-[280px]' : 'w-[160px] h-[230px]'
+      return `${base} ${heightClass} rounded-[2rem]`
+    }
+
+    const heightClass = size === 'medium' ? 'w-[240px] h-[340px]' : 'w-[200px] h-[280px]'
+    return `${base} ${heightClass} rounded-[2.5rem]`
   })()
 
   // Debug logging - Removed for performance in production
@@ -96,91 +98,111 @@ export default function CoachProfileCard({ coach, onClick, size = 'small', varia
       onClick={onClick}
       className={cardClasses}
     >
-      <div
-        className="absolute inset-0"
-        style={{
-          background:
-            'radial-gradient(130% 130% at 50% 10%, rgba(255,140,60,0.05) 0%, rgba(0,0,0,0) 60%)',
-        }}
-      />
-
-      <div className="relative z-10 flex flex-col h-full">
-        <div className="flex items-center gap-3.5 px-3.5 py-2.5">
-          {/* Avatar Section */}
-          <div className="flex flex-col items-center gap-1.5 flex-shrink-0">
-            {/* Rating Badge */}
-            <div className="inline-flex items-center gap-0.5 rounded-full bg-white/5 px-1.5 py-0.5 md:px-2 md:py-1 border border-white/10">
-              <Star className="h-2.5 w-2.5 md:h-3 md:w-3 fill-[#E9B24A] text-[#E9B24A]" />
-              <span className="text-[10px] md:text-xs font-bold text-white/80">{showRating ? ratingValue.toFixed(1) : '—'}</span>
-              {coach.total_clients && coach.total_clients > 0 && (
-                <span className="text-[9px] md:text-[10px] font-medium text-white/50">({coach.total_clients})</span>
-              )}
+      <div className="relative h-full w-full bg-[#121212] rounded-[2rem] overflow-hidden border border-white/10 flex flex-col">
+        {/* Background Image */}
+        <div className="absolute inset-0 z-0">
+          {coach.avatar_url ? (
+            <Image
+              src={coach.avatar_url}
+              alt={displayName}
+              fill
+              className="object-cover transition-transform duration-700 group-hover:scale-105"
+              priority={priority}
+              sizes="200px"
+            />
+          ) : (
+            <div className="w-full h-full bg-zinc-900 flex items-center justify-center">
+              <User className="w-10 h-10 text-white/10" />
             </div>
+          )}
+          {/* Defined Shading Gradient: Less intense but ensures legibility */}
+          <div
+            className="absolute inset-0 pointer-events-none z-10"
+            style={{
+              background: 'linear-gradient(to top, #000000 0%, rgba(0,0,0,0.85) 35%, rgba(0,0,0,0.4) 65%, transparent 100%)'
+            }}
+          />
+        </div>
 
-            <div className="h-[54px] w-[54px] md:h-[64px] md:w-[64px] rounded-full overflow-hidden bg-[#141414]">
-              {coach.avatar_url ? (
-                <Image src={coach.avatar_url} alt={displayName} width={64} height={64} className="h-full w-full object-cover" priority={priority} />
-              ) : (
-                <div className="flex h-full w-full items-center justify-center">
-                  <User className="h-6 w-6 md:h-8 md:w-8 text-[#B0B0B0]" />
-                </div>
-              )}
-            </div>
-          </div>
-
-          {/* Info Section */}
-          <div className="min-w-0 flex-1 flex flex-col justify-center">
-            <div className="flex items-center justify-between gap-1.5 mb-1 pr-1">
-              <div className="flex-1 min-w-0 text-base md:text-lg font-bold text-white/95 tracking-tight leading-tight whitespace-nowrap overflow-hidden text-ellipsis">
-                {displayName}
-              </div>
-              <div className="flex-shrink-0 text-[8px] md:text-[10px] font-bold text-[#FF7939]/70 uppercase tracking-widest">{specialization.split(',')[0]}</div>
-            </div>
-
-            <div className="flex items-center gap-2.5 min-h-[20px]">
-              {variant === 'meet' ? (
-                <div className="flex items-center gap-2">
-                  {(Number(coach.available_meets) || 0) > 0 && (
-                    <>
-                      <div className="relative flex items-center justify-center">
-                        <Video className="w-5 h-5 md:w-6 md:h-6 text-[#FF7939]" />
-                        <div className="absolute -top-1.5 -right-2 bg-[#FF7939] text-black text-[9px] md:text-[10px] font-black w-3.5 h-3.5 md:w-4 md:h-4 rounded-full flex items-center justify-center border border-[#1A1A1A]">
-                          {coach.available_meets}
-                        </div>
-                      </div>
-                      <span className="text-[10px] md:text-xs font-bold text-white/60 tracking-wider uppercase">
-                        Meets
-                      </span>
-                    </>
-                  )}
-                </div>
-              ) : (
-                <div className="flex items-center gap-3 text-xs md:text-sm text-white/40">
-                  <div className="flex items-center gap-1 font-medium">
-                    <Flame className="h-3.5 w-3.5 md:h-4 md:w-4 text-[#FF7939]" />
-                    <span>{coach.total_products || 0} prod.</span>
-                  </div>
-                  <div className="flex items-center gap-1 font-medium">
-                    <Award className="h-3.5 w-3.5 md:h-4 md:w-4 text-[#FF7939]" />
-                    <span>{coach.experience_years || 0} años</span>
-                  </div>
-                </div>
-              )}
-            </div>
-
-            <div className="mt-2 flex items-center gap-1.5 overflow-x-auto no-scrollbar w-full pr-2">
-              {specialization.split(',').slice(1, 10).map((spec, index) => (
-                <div
-                  key={index}
-                  className={specialtyClass}
-                >
-                  {spec.trim()}
-                </div>
-              ))}
-            </div>
+        {/* Rating Badge - Top Left */}
+        <div className="absolute top-2.5 left-2.5 z-20">
+          <div className="flex items-center gap-1 bg-black/40 backdrop-blur-md px-1.5 py-0.5 rounded-full border border-white/10">
+            <Star className="h-2 w-2 fill-yellow-400 text-yellow-400" />
+            <span className="text-[9px] font-black text-white">{showRating ? ratingValue.toFixed(1) : '—'}</span>
           </div>
         </div>
 
+        {/* Content Section - Defined Layout Sections */}
+        <div className="relative z-20 mt-auto p-2 pb-1 flex flex-col items-center text-center">
+          {/* Section 1: Name & Specialization (Fixed Height) */}
+          <div className="flex flex-col items-center justify-center h-[36px] w-full mb-1">
+            <h3 className="text-[12.5px] md:text-[13.5px] font-black text-white tracking-tight leading-none truncate w-[90%] drop-shadow-md">
+              {displayName}
+            </h3>
+            <span className="text-[10px] font-black text-[#FF7939] uppercase tracking-[0.15em] leading-none mt-1 opacity-90">
+              {specialization.split(',')[0]}
+            </span>
+          </div>
+
+          {/* Section 2: Stats Row / Meet Row */}
+          {variant === 'meet' ? (
+            <div className="flex items-center justify-center gap-2 w-full h-[40px] mb-2">
+              <div className="flex items-center gap-1.5 bg-[#FF7939]/10 px-3 py-1.5 rounded-full border border-[#FF7939]/20">
+                <Video className="w-3.5 h-3.5 text-[#FF7939]" />
+                <span className="text-xs font-black text-white">{coach.available_meets || 0} MEETS</span>
+              </div>
+            </div>
+          ) : (
+            <div className="flex items-center justify-center gap-6 w-full h-[50px] mb-3">
+              <div className="flex flex-col items-center justify-center">
+                <Flame className="w-4 h-4 text-[#FF7939] mb-1" />
+                <div className="flex flex-col items-center">
+                  <span className="text-[15.5px] md:text-[16.5px] font-black text-white leading-none">{coach.total_products || 0}</span>
+                  <span className="text-[10px] md:text-[10.5px] uppercase font-bold text-white/40 tracking-tighter leading-none mt-1">Prod</span>
+                </div>
+              </div>
+              <div className="flex flex-col items-center justify-center">
+                <DollarSign className="w-4 h-4 text-[#FF7939] mb-1" />
+                <div className="flex flex-col items-center">
+                  <span className="text-[15.5px] md:text-[16.5px] font-black text-white leading-none">
+                    {coach.total_sales ?? coach.total_clients ?? coach.total_sessions ?? 0}
+                  </span>
+                  <span className="text-[10px] md:text-[10.5px] uppercase font-bold text-white/40 tracking-tighter leading-none mt-1">Vtas</span>
+                </div>
+              </div>
+              <div className="flex flex-col items-center justify-center">
+                <Award className="w-4 h-4 text-[#FF7939] mb-1" />
+                <div className="flex flex-col items-center">
+                  <span className="text-[15.5px] md:text-[16.5px] font-black text-white leading-none">{coach.experience_years || 0}</span>
+                  <span className="text-[10px] md:text-[10.5px] uppercase font-bold text-white/40 tracking-tighter leading-none mt-1">Años</span>
+                </div>
+              </div>
+            </div>
+          )}
+
+          {/* Section 3: Specialties Horizontal Scroll (Reserved Space) */}
+          <div className="w-full h-[36px] flex items-center justify-center mb-2">
+            <div className="w-full overflow-x-auto no-scrollbar hide-scrollbar flex gap-2 justify-start px-4">
+              {(specialization.split(',').slice(1, 6).filter(s => s.trim().length > 0).length > 0) ? (
+                specialization.split(',').slice(1, 6).map((spec, index) => (
+                  <div
+                    key={index}
+                    className="shrink-0 px-3 py-1.5 bg-white/5 rounded-full border border-white/5 text-[10.5px] font-black text-white/60 uppercase tracking-tight whitespace-nowrap"
+                  >
+                    {spec.trim()}
+                  </div>
+                ))
+              ) : (
+                <div className="h-[1px] w-4 opacity-0" />
+              )}
+            </div>
+          </div>
+
+          {/* Section 4: Down Indicator "v" - Stable */}
+          <div className="flex justify-center h-[12px] opacity-40">
+            <ChevronDown className="w-3 h-3 text-[#FF7939]" />
+          </div>
+        </div>
       </div>
     </div>
   )

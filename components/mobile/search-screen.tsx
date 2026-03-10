@@ -81,7 +81,7 @@ export function SearchScreen({ onTabChange, initialActivityData }: SearchScreenP
   ]
 
   return (
-    <main className="flex flex-col h-full bg-[#121212] text-white overflow-y-auto pt-4 pb-12 overscroll-auto touch-pan-y selection:bg-[#FF7939]/30">
+    <main className="flex flex-col h-full bg-black text-white overflow-y-auto pt-4 pb-12 overscroll-auto touch-pan-y selection:bg-[#FF7939]/30">
       <SearchHeader
         expandedSection={expandedSection}
         searchTerm={searchTerm}

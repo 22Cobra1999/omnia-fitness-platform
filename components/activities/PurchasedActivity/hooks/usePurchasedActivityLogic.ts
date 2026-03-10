@@ -23,10 +23,22 @@ export function usePurchasedActivityLogic({
     const [isNavigating, setIsNavigating] = useState(false)
     const [pendingCount, setPendingCount] = useState<number | null>(overridePendingCount !== undefined ? overridePendingCount : null)
     const [nextSessionDate, setNextSessionDate] = useState<string | null>(overrideNextSessionDate !== undefined ? overrideNextSessionDate : null)
-    const [isFinished, setIsFinished] = useState(false)
-
+    const [streak, setStreak] = useState((enrollment as any).current_streak || 0)
     const progress = realProgress !== undefined ? realProgress : 0
-    const hasStarted = !!enrollment.start_date
+
+    // Improved start detection
+    const today = useMemo(() => {
+        const d = new Date()
+        d.setHours(0, 0, 0, 0)
+        return d
+    }, [])
+
+    const startDate = useMemo(() => {
+        if (!enrollment.start_date) return null
+        const d = new Date(enrollment.start_date)
+        d.setHours(0, 0, 0, 0)
+        return d
+    }, [enrollment.start_date])
 
     const daysInfo = useMemo(() => {
         const purchaseDate = new Date(enrollment.created_at)
@@ -42,20 +54,48 @@ export function usePurchasedActivityLogic({
         }
         expirationDate.setHours(0, 0, 0, 0)
 
-        const today = new Date()
-        today.setHours(0, 0, 0, 0)
-
         const daysRemaining = Math.ceil((expirationDate.getTime() - today.getTime()) / (1000 * 60 * 60 * 24))
         const isExpired = daysRemaining < 0
 
         return { daysRemaining, isExpired, totalAccessDays: diasAcceso, expirationDate }
-    }, [enrollment.created_at, enrollment.expiration_date, activity.dias_acceso])
+    }, [enrollment.created_at, enrollment.expiration_date, activity.dias_acceso, today])
+
+    const isFinished = useMemo(() => {
+        if (progress >= 100) return true
+        if (daysInfo.isExpired) return true
+
+        // Finalizada si ya pasó el deadline de inicio y no empezó
+        const startDeadline = (enrollment as any).start_deadline
+        if (startDeadline && !enrollment.start_date) {
+            const deadline = new Date(startDeadline)
+            deadline.setHours(0, 0, 0, 0)
+            if (today > deadline) return true
+        }
+
+        if (enrollment.program_end_date) {
+            const end = new Date(enrollment.program_end_date)
+            end.setHours(0, 0, 0, 0)
+            if (today > end) return true
+        }
+        return false
+    }, [progress, enrollment.program_end_date, (enrollment as any).start_deadline, enrollment.start_date, today, daysInfo.isExpired])
+
+    const isFuture = useMemo(() => {
+        if (isFinished) return false
+        if (!enrollment.start_date) return true
+        return startDate ? startDate > today : false
+    }, [startDate, today, enrollment.start_date, isFinished])
+
+    const hasStarted = useMemo(() => !!enrollment.start_date && !isFuture, [enrollment.start_date, isFuture])
+    const daysToStart = useMemo(() => startDate ? Math.ceil((startDate.getTime() - today.getTime()) / (1000 * 60 * 60 * 24)) : 0, [startDate, today])
 
     useEffect(() => {
         if (overridePendingCount !== undefined || overrideNextSessionDate !== undefined) {
             if (overridePendingCount !== undefined) setPendingCount(overridePendingCount)
             if (overrideNextSessionDate !== undefined) setNextSessionDate(overrideNextSessionDate)
-            if (progress >= 100 && overridePendingCount === 0) setIsFinished(true)
+            if (progress >= 100 && overridePendingCount === 0) {
+                // Was setting isFinished, now handled by useMemo
+            }
             return
         }
 
@@ -63,6 +103,7 @@ export function usePurchasedActivityLogic({
             if (!hasStarted) {
                 setPendingCount(null)
                 setNextSessionDate(null)
+                setStreak((enrollment as any).current_streak || 0)
                 return
             }
 
@@ -73,22 +114,50 @@ export function usePurchasedActivityLogic({
 
                 const today = new Date().toISOString().split('T')[0]
 
-                // 1. Pendientes hoy
-                const { data: record, error: pendingError } = await supabase
+                // 1. Progress and Streak
+                const { data: records, error: streakError } = await supabase
                     .from('progreso_diario_actividad')
-                    .select('items_objetivo, items_completados')
+                    .select('fecha, items_objetivo, items_completados')
                     .eq('cliente_id', enrollment.client_id)
                     .eq('enrollment_id', enrollment.id)
-                    .eq('fecha', today)
-                    .maybeSingle()
+                    .order('fecha', { ascending: false })
 
-                if (!pendingError && record) {
-                    const r = record as any
-                    const total = r.items_objetivo || 0
-                    const done = r.items_completados || 0
-                    setPendingCount(Math.max(0, total - done))
-                } else {
-                    setPendingCount(null)
+                if (!streakError && records) {
+                    // Current Today Record
+                    const todayRecord = records.find((r: any) => r.fecha === today)
+                    if (todayRecord) {
+                        const total = todayRecord.items_objetivo || 0
+                        const done = todayRecord.items_completados || 0
+                        setPendingCount(Math.max(0, total - done))
+                    } else {
+                        setPendingCount(null)
+                    }
+
+                    // Streak Strategy:
+                    // 1. If enrollment has a pre-calculated current_streak, use it.
+                    // 2. Fallback to manual calculation if missing (migration not run yet).
+                    const enrollmentStreak = (enrollment as any).current_streak || 0
+
+                    if (enrollmentStreak > 0) {
+                        setStreak(enrollmentStreak)
+                    } else {
+                        // Manual Fallback Calculation
+                        let currentStreak = 0
+                        const sortedRecords = records.filter((r: any) => (r.items_objetivo || 0) > 0)
+
+                        if (sortedRecords.length > 0) {
+                            for (const rec of (sortedRecords as any[])) {
+                                const isCompleted = (rec.items_completados || 0) >= (rec.items_objetivo || 0)
+                                if (isCompleted) {
+                                    currentStreak++
+                                } else {
+                                    if (rec.fecha === today) continue
+                                    break
+                                }
+                            }
+                        }
+                        setStreak(currentStreak)
+                    }
                 }
 
                 // 2. Próxima sesión
@@ -107,10 +176,8 @@ export function usePurchasedActivityLogic({
                     const u = upcoming as any
                     if (u?.fecha_seleccionada) {
                         setNextSessionDate(u.fecha_seleccionada)
-                        setIsFinished(false)
                     } else {
                         setNextSessionDate(null)
-                        setIsFinished(true)
                     }
                 } else if (activityType === 'program' || activityType === 'programa') {
                     const { data: upcoming } = await supabase
@@ -127,10 +194,8 @@ export function usePurchasedActivityLogic({
                     const u = upcoming as any
                     if (u?.fecha) {
                         setNextSessionDate(u.fecha)
-                        setIsFinished(false)
                     } else {
                         setNextSessionDate(null)
-                        setIsFinished(progress >= 100)
                     }
                 }
             } catch (error) {
@@ -139,7 +204,7 @@ export function usePurchasedActivityLogic({
         }
 
         fetchProgressData()
-    }, [hasStarted, enrollment.client_id, activity.id, activity.type, progress, overridePendingCount, overrideNextSessionDate])
+    }, [hasStarted, enrollment, activity.id, activity.type, progress, overridePendingCount, overrideNextSessionDate])
 
     const handleCardClick = useCallback(async (e: React.MouseEvent) => {
         e.preventDefault()
@@ -179,7 +244,10 @@ export function usePurchasedActivityLogic({
         progress,
         hasStarted,
         daysInfo,
+        streak,
         handleCardClick,
-        isNavigating
+        isNavigating,
+        isFuture,
+        daysToStart
     }
 }

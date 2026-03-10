@@ -40,7 +40,7 @@ export async function GET(request: NextRequest) {
     // 2. Verificar enrollment
     let enrollmentQuery = supabase
       .from('activity_enrollments')
-      .select('id, activity_id, start_date, status, expiration_date')
+      .select('id, activity_id, start_date, status, expiration_date, current_streak, last_streak_date')
       .eq('client_id', clientId);
 
     if (enrollmentId) {

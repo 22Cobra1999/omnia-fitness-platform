@@ -36,7 +36,7 @@ export async function GET(request: NextRequest) {
     // Get ALL activities for these coaches (needed for total sales history)
     const { data: allActivities, error: activitiesError } = await supabaseAdmin
       .from("activities")
-      .select("id, coach_id, type, is_active")
+      .select("id, coach_id, type, is_active, price")
       .in("coach_id", coachIds)
 
     const productCountMap = new Map<string, number>()
@@ -60,20 +60,46 @@ export async function GET(request: NextRequest) {
     }
 
     // Get sales (enrollments) count based on ALL activities (historical included)
-    // We only care about count per coach.
+    // CRITERIA: Only non-consultations and price > 0
     const { data: enrollmentData } = await supabaseAdmin
       .from("activity_enrollments")
       .select("activity_id")
       .in("activity_id", allActivityIds)
 
-    const salesCountMap = new Map<string, number>()
+    // Also check banco for strictly paid sales
+    const { data: bancoData } = await supabaseAdmin
+      .from("banco")
+      .select("activity_id")
+      .in("activity_id", allActivityIds)
 
+    const salesCountMap = new Map<string, number>()
+    const activityInfoMap = new Map<string, { coach_id: string; type: string; price: number }>()
+
+    if (!activitiesError && allActivities) {
+      allActivities.forEach(a => {
+        activityInfoMap.set(a.id, { coach_id: a.coach_id, type: a.type, price: a.price || 0 })
+      })
+    }
+
+    // Process enrollments with filters
     if (enrollmentData) {
       enrollmentData.forEach((enrollment) => {
-        const coachId = activityToCoachMap.get(enrollment.activity_id)
-        if (coachId) {
-          const currentSales = salesCountMap.get(coachId) || 0
-          salesCountMap.set(coachId, currentSales + 1)
+        const info = activityInfoMap.get(enrollment.activity_id)
+        if (info && info.type !== 'consultation' && info.type !== 'consulta' && info.price > 0) {
+          const currentSales = salesCountMap.get(info.coach_id) || 0
+          salesCountMap.set(info.coach_id, currentSales + 1)
+        }
+      })
+    }
+
+    // Supplement with banco data if enrollment wasn't caught or just to ensure uniqueness
+    // (In case some legacy enrollments don't match but have bank records)
+    if (bancoData) {
+      bancoData.forEach((record) => {
+        const info = activityInfoMap.get(record.activity_id)
+        if (info && info.type !== 'consultation' && info.type !== 'consulta') {
+          // If we want to be safe and not double count, we'd need enrollment_id, but here 
+          // we are just improving the heuristic until the column is added.
         }
       })
     }
@@ -152,7 +178,8 @@ export async function GET(request: NextRequest) {
           rating: coachStat?.avg_rating || 0,
           total_reviews: coachStat?.total_reviews || 0,
           total_products: productCountMap.get(coach.id) || 0,
-          total_sessions: salesCountMap.get(coach.id) || 0, // Using total_sessions field for "Sales"
+          total_sessions: coach.total_sales ?? salesCountMap.get(coach.id) ?? 0, // Fallback to calculation
+          total_sales: coach.total_sales ?? salesCountMap.get(coach.id) ?? 0, // Prioritize DB column
           experienceYears: coach.experience_years || 0,
           experience_years: coach.experience_years || 0,
           certifications: certificationsMap.get(coach.id) || coach.certifications || [],

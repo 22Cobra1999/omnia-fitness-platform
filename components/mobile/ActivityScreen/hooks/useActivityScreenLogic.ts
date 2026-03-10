@@ -182,7 +182,7 @@ export function useActivityScreenLogic({ initialTab = "purchased" }: UseActivity
             const { data, error: enrollmentsError } = await supabase
                 .from("activity_enrollments")
                 .select(`
-          id, activity_id, client_id, status, created_at, start_date, expiration_date, program_end_date, start_deadline,
+          id, activity_id, client_id, status, created_at, start_date, expiration_date, program_end_date, start_deadline, current_streak, last_streak_date,
           activity:activities!activity_enrollments_activity_id_fkey (
             id, title, description, type, difficulty, price, coach_id, categoria, dias_acceso,
             media:activity_media!activity_media_activity_id_fkey (image_url, video_url),
@@ -211,6 +211,8 @@ export function useActivityScreenLogic({ initialTab = "purchased" }: UseActivity
                         media: enrollment.activity.media ? enrollment.activity.media[0] : null,
                         program_info: null,
                         coach_name: enrollment.activity.coaches?.full_name || "Coach",
+                        coach_avatar_url: enrollment.activity.coaches?.avatar_url || null,
+                        coach_rating: enrollment.activity.coaches?.rating || null,
                         // Preservar categoria directamente de la base de datos
                         categoria: enrollment.activity.categoria || getCategoryFromType(enrollment.activity.type || ""),
                         category: enrollment.activity.categoria || getCategoryFromType(enrollment.activity.type || ""),
@@ -498,6 +500,41 @@ export function useActivityScreenLogic({ initialTab = "purchased" }: UseActivity
             localStorage.setItem("current_activity_tab", activeTab)
         } catch (e) { }
     }, [activeTab])
+
+    // Enrich Enrollments with Coach Avatar and Rating
+    useEffect(() => {
+        if (enrollments.length > 0 && coaches.length > 0) {
+            // Check if any enrollment is missing coach photo/rating but we have that coach in the list
+            const needsUpdate = enrollments.some(enr => {
+                if (!enr.activity) return false;
+                const coach = coaches.find(c => String(c.id) === String(enr.activity?.coach_id));
+                // Only update if we have a coach match AND the current activity is missing either photo or rating that the coach HAS
+                return coach && (
+                    (!enr.activity.coach_avatar_url && coach.avatar_url) ||
+                    (!enr.activity.coach_rating && coach.rating)
+                );
+            });
+
+            if (needsUpdate) {
+                console.log("🔄 [useActivityScreenLogic] Enriching enrollments with coach data...");
+                const updated = enrollments.map(enr => {
+                    const coach = coaches.find(c => String(c.id) === String(enr.activity?.coach_id));
+                    if (coach && enr.activity) {
+                        return {
+                            ...enr,
+                            activity: {
+                                ...enr.activity,
+                                coach_avatar_url: coach.avatar_url || enr.activity.coach_avatar_url,
+                                coach_rating: Number(coach.rating) || enr.activity.coach_rating
+                            }
+                        }
+                    }
+                    return enr
+                });
+                setEnrollments(updated);
+            }
+        }
+    }, [coaches, enrollments]);
 
 
     // --- EXPORT ---

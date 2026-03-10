@@ -9,12 +9,15 @@ interface PurchasedActivityCardContentProps {
     size: "small" | "medium" | "large"
     isCoachView: boolean
     daysInfo: any
+    streak: number
     pendingCount: number | null
     nextSessionDate: string | null
     nextActivity: any
     isFinished: boolean
     progress: number
     hasStarted: boolean
+    isFuture?: boolean
+    daysToStart?: number
     // Coach View Overrides
     daysCompleted?: number
     daysPassed?: number
@@ -29,7 +32,8 @@ const formatDM = (date: string) => {
     if (!date) return '';
     try {
         const d = new Date(date);
-        return `${d.getDate()}/${d.getMonth() + 1}`;
+        const months = ['ene', 'feb', 'mar', 'abr', 'may', 'jun', 'jul', 'ago', 'sep', 'oct', 'nov', 'dic'];
+        return `${d.getDate()} ${months[d.getMonth()]}`;
     } catch {
         return '';
     }
@@ -41,12 +45,15 @@ export function PurchasedActivityCardContent({
     size,
     isCoachView,
     daysInfo,
+    streak,
     pendingCount,
     nextSessionDate,
     nextActivity,
     isFinished,
     progress,
     hasStarted,
+    isFuture,
+    daysToStart,
     daysCompleted,
     daysPassed,
     daysMissed,
@@ -58,86 +65,135 @@ export function PurchasedActivityCardContent({
 
     return (
         <div className={cn(
-            "flex-1 flex flex-col h-full min-h-0 relative z-30 px-4",
-            size === "small" ? "pb-3" : "pb-4"
+            "flex-1 flex flex-col h-full min-h-0 relative z-30 px-2 rounded-b-[2.8rem]",
+            size === "small" ? "pb-2" : "pb-2"
         )}>
-            {/* Horizontal Divider - extremely subtle */}
-            <div className="w-full h-px bg-white/5 mb-5 opacity-40" />
+            {/* Removed solid background and divider to allow header gradient to merge smoothly */}
 
-            <div className={cn("flex-1 flex flex-col gap-6", daysInfo.isExpired && "grayscale opacity-60")}>
+            <div className={cn("flex-1 flex flex-col gap-5 px-1 pt-6", daysInfo.isExpired && "grayscale opacity-60")}>
 
-                {/* 1. HOY pill and PROXIMA row */}
-                <div className="flex items-center justify-between gap-2 px-1">
-                    {/* HOY Pill - Translucent (glassmorphism like flame) */}
-                    <div className="flex items-center gap-2 bg-[#FF7939]/30 backdrop-blur-xl border border-[#FF7939]/20 px-3.5 py-1.5 rounded-full shadow-lg shrink-0">
-                        <Zap className="w-3 h-3 text-[#FF7939] fill-[#FF7939]" />
-                        <span className="text-[10px] font-black text-white tracking-widest uppercase whitespace-nowrap">
-                            HOY {pendingCount ?? 0}
-                        </span>
-                    </div>
+                {/* 1. Dynamic Pill (EMPEZAR, HOY or PRÓXIMA) */}
+                <div className="flex items-center justify-between gap-1 px-1">
+                    {isFinished ? (
+                        /* FINALIZADAS Pill */
+                        <div className="flex items-center gap-1 bg-white/10 backdrop-blur-xl border border-white/10 px-1.5 py-0.5 rounded-full shadow-lg shrink-0 mr-auto scale-[0.8] origin-left">
+                            <CheckCircle2 className="w-3 h-3 text-white" />
+                            <span className="text-[9px] font-black text-white tracking-widest uppercase whitespace-nowrap">
+                                {(() => {
+                                    if (daysInfo.isExpired) return 'VENCIDA';
+                                    const startDeadline = (enrollment as any).start_deadline;
+                                    if (startDeadline && !enrollment.start_date) {
+                                        const deadline = new Date(startDeadline);
+                                        deadline.setHours(0, 0, 0, 0);
+                                        const todayObj = new Date();
+                                        todayObj.setHours(0, 0, 0, 0);
+                                        if (todayObj > deadline) return 'VENCIDA';
+                                    }
+                                    const expDate = (enrollment as any).expiration_date;
+                                    return expDate ? `VENCE EL: ${formatDM(expDate)}` : `VENCE EL: ${formatDM(enrollment.program_end_date)}`;
+                                })()}
+                            </span>
+                        </div>
+                    ) : isFuture ? (
+                        /* EMPEZAR Pill - Centered and compact */
+                        <div className="flex items-center bg-[#FF7939]/30 backdrop-blur-xl border border-[#FF7939]/40 px-2 py-0.5 rounded-full shadow-lg shrink-0 mx-auto scale-[0.8]">
+                            <span className="text-[9px] font-black text-white tracking-widest uppercase whitespace-nowrap">
+                                EMPEZAR ANTES DE: {(enrollment as any).start_deadline ? formatDM((enrollment as any).start_deadline) : '--/--'}
+                            </span>
+                        </div>
+                    ) : pendingCount && pendingCount > 0 ? (
+                        /* HOY Pill */
+                        <div className="flex items-center gap-1 bg-[#FF7939]/30 backdrop-blur-xl border border-[#FF7939]/40 px-1.5 py-0.5 rounded-full shadow-lg shrink-0 mr-auto scale-[0.8] origin-left">
+                            <Zap className="w-3 h-3 text-white fill-white" />
+                            <span className="text-[9px] font-black text-white tracking-widest uppercase whitespace-nowrap">
+                                HOY {pendingCount}
+                            </span>
+                        </div>
+                    ) : (
+                        /* PRÓXIMA / ÚLTIMA Pill - Replaces HOY when no activities today */
+                        <div className="flex items-center gap-1 bg-[#FF7939]/30 backdrop-blur-xl border border-[#FF7939]/40 px-1.5 py-0.5 rounded-full shadow-lg shrink-0 mr-auto scale-[0.8] origin-left">
+                            <Calendar className="w-3 h-3 text-white" />
+                            <span className="text-[9px] font-black text-white tracking-widest uppercase whitespace-nowrap">
+                                {nextSessionDate ? `PRÓXIMA: ${formatDM(nextSessionDate)}` : 'ÚLTIMA SESIÓN'}
+                            </span>
+                        </div>
+                    )}
 
-                    {/* PROXIMA info - Shifted text sizes */}
-                    <div className="flex items-center gap-1 opacity-60 flex-shrink-0">
-                        <span className="text-[8px] font-black text-zinc-500 uppercase tracking-widest">PRÓXIMA:</span>
-                        <span className="text-[10px] font-black text-zinc-300 tracking-tighter whitespace-nowrap">
-                            {nextSessionDate ? formatDM(nextSessionDate) : '--/--'}
-                        </span>
-                        <span className="text-zinc-500 font-black text-xs ml-0.5 leading-none">{'>'}</span>
-                    </div>
+                    {/* Proxima context (Right side) - Only if not showing in pill */
+                        (!isFuture && !isFinished && pendingCount && pendingCount > 0) && (
+                            <div className="flex items-center gap-1.5 opacity-60 scale-[0.75] origin-right">
+                                <span className="text-[8px] font-black text-zinc-500 uppercase tracking-widest">
+                                    {nextSessionDate ? 'PRÓXIMA:' : 'ÚLTIMA:'}
+                                </span>
+                                <span className="text-[9px] font-black text-white tracking-tighter whitespace-nowrap">
+                                    {nextSessionDate ? formatDM(nextSessionDate) : 'HOY'}
+                                </span>
+                            </div>
+                        )}
                 </div>
 
-                {/* 2. Timeline with Orange Track (representing next 7 days) */}
-                <div className="relative h-[2px] mt-2 px-1">
-                    {/* Background Track (Gray) */}
-                    <div className="absolute inset-x-1 top-1/2 -translate-y-1/2 h-full bg-zinc-800 rounded-full" />
+                {/* 2. Dates Row - No frame, lighter labels */}
+                <div className="flex flex-col gap-1 px-1 -mt-3.5">
+                    <div className="flex justify-between items-center px-1">
+                        <div className="flex flex-col">
+                            <span className="text-zinc-500 font-bold uppercase text-[6px] tracking-[0.2em] opacity-40">
+                                {isFuture ? 'Compra' : 'Inicio'}
+                            </span>
+                            <span className="text-zinc-400 font-extrabold text-[11px]">
+                                {isFuture ? formatDM(enrollment.created_at) : formatDM(enrollment.start_date)}
+                            </span>
+                        </div>
 
-                    {/* Progress Track (Orange) */}
-                    <div
-                        className="absolute left-1 top-1/2 -translate-y-1/2 h-full bg-[#FF7939] rounded-full shadow-[0_0_10px_rgba(255,121,57,0.4)]"
-                        style={{ width: `${Math.min(progress, 100)}%` }}
-                    />
-
-                    {/* Dots representing 7 days grid */}
-                    <div className="absolute inset-x-1 top-1/2 -translate-y-1/2 flex justify-between">
-                        {[...Array(7)].map((_, i) => {
-                            const dotPercent = (i / 6) * 100;
-                            const isPastOrCurrent = dotPercent <= progress;
-
-                            return (
-                                <div
-                                    key={i}
-                                    className={cn(
-                                        "w-[7px] h-[7px] rounded-full transition-all duration-300 ring-2 ring-zinc-950",
-                                        isPastOrCurrent ? "bg-[#FF7939] scale-110 shadow-[0_0_8px_rgba(255,121,57,0.3)]" : "bg-zinc-700 scale-90"
-                                    )}
-                                />
-                            );
-                        })}
+                        <div className="flex flex-col items-end">
+                            <span className="text-zinc-500 font-bold uppercase text-[6px] tracking-[0.2em] opacity-40">Fin</span>
+                            <span className="text-zinc-400 font-extrabold text-[11px]">{formatDM(enrollment.program_end_date)}</span>
+                        </div>
                     </div>
+
+                    {/* Larger Progress Percent below dates - Only for "Finalizadas" with progress */}
+                    {isFinished && progress > 0 && typeof progress === 'number' && (
+                        <div className="flex items-center justify-center -mt-1">
+                            <span className="text-xl font-black text-orange-400 drop-shadow-md">
+                                {Math.round(progress)}%
+                            </span>
+                        </div>
+                    )}
                 </div>
 
-                {/* 3. Dates below timeline */}
-                <div className="flex justify-between items-center text-[10px] px-1">
-                    <div className="flex items-center gap-2">
-                        <span className="text-zinc-600 font-bold uppercase text-[7px] tracking-widest">Inicio</span>
-                        <span className="text-zinc-300 font-black text-[11px]">{formatDM(enrollment.start_date)}</span>
+                {/* 3. Streak Counter (Racha) - Side-by-side design + RACHA label below */}
+                {(streak > 0 || (pendingCount === 0 && hasStarted)) && (
+                    <div className="flex flex-col items-center justify-center -mt-4">
+                        <div className="relative group transition-all duration-500 active:scale-95 flex flex-col items-center">
+                            {/* Premium dark squircle frame */}
+                            <div className={cn(
+                                "bg-[#1A0F0A]/90 backdrop-blur-2xl rounded-2xl shadow-2xl transition-all duration-500 border border-[#FF7939]/20 shadow-black/80 flex items-center gap-2.5 px-3 py-1.5",
+                            )}>
+                                <Flame className="h-5 w-5 text-[#FF7939] fill-[#FF7939]" strokeWidth={2.5} />
+
+                                {streak > 1 && (
+                                    <span className="text-[#FF7939] font-black text-base leading-none translate-y-[0.5px]">
+                                        {streak}
+                                    </span>
+                                )}
+                            </div>
+                            {/* RACHA Label outside frame */}
+                            <span className="text-[#FF7939] font-black text-[8px] uppercase tracking-[0.25em] mt-1 opacity-90">
+                                RACHA
+                            </span>
+                        </div>
                     </div>
-                    <div className="flex items-center gap-2">
-                        <span className="text-zinc-600 font-bold uppercase text-[7px] tracking-widest">Fin</span>
-                        <span className="text-zinc-300 font-black text-[11px]">{formatDM(enrollment.program_end_date)}</span>
-                    </div>
-                </div>
+                )}
 
                 {/* Extra View states (Coach View / Finished) if applicable */}
                 {isCoachView && (
                     <div className="pt-2 border-t border-white/5 grid grid-cols-2 gap-3 mt-auto">
-                        <div className="bg-white/5 rounded-2xl p-2.5 text-center border border-white/5">
-                            <span className="text-[7.5px] text-zinc-500 font-extrabold uppercase tracking-widest block mb-0.5">Días OK</span>
-                            <span className="text-xs font-black text-orange-400">{daysCompleted ?? 0}</span>
+                        <div className="bg-white/5 rounded-2xl p-2 text-center border border-white/5">
+                            <span className="text-[7px] text-zinc-500 font-extrabold uppercase tracking-widest block mb-1">Días OK</span>
+                            <span className="text-[10px] font-black text-orange-400">{daysCompleted ?? 0}</span>
                         </div>
-                        <div className="bg-white/5 rounded-2xl p-2.5 text-center border border-white/5 opacity-50">
-                            <span className="text-[7.5px] text-zinc-500 font-extrabold uppercase tracking-widest block mb-0.5">Items</span>
-                            <span className="text-xs font-black text-zinc-400">{itemsCompletedTotal ?? 0}</span>
+                        <div className="bg-white/5 rounded-2xl p-2 text-center border border-white/5 opacity-50">
+                            <span className="text-[7px] text-zinc-500 font-extrabold uppercase tracking-widest block mb-1">Items</span>
+                            <span className="text-[10px] font-black text-zinc-400">{itemsCompletedTotal ?? 0}</span>
                         </div>
                     </div>
                 )}
@@ -151,10 +207,10 @@ export function PurchasedActivityCardContent({
 function PurchasedActivityCardFooter({ isFinished, progress }: any) {
     if (isFinished || progress >= 100) {
         return (
-            <div className="mt-4 flex justify-center opacity-30">
+            <div className="mt-2 flex justify-center opacity-30">
                 <CheckCircle2 className="w-3.5 h-3.5 text-orange-400" />
             </div>
         );
     }
-    return <div className="mt-4 h-3.5" />;
+    return <div className="mt-2 h-3" />;
 }

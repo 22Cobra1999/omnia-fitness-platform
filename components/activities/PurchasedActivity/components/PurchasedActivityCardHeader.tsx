@@ -1,5 +1,5 @@
 import Image from "next/image"
-import { Flame } from "lucide-react"
+import { Flame, Star } from "lucide-react"
 import { cn } from "@/lib/utils/utils"
 import { getImageHeightClass } from "../utils"
 
@@ -8,18 +8,21 @@ interface PurchasedActivityCardHeaderProps {
     title: string
     coachName: string
     coachAvatarUrl?: string | null
+    coachRating?: number | null
     size: "small" | "medium" | "large"
     isCoachView: boolean
     isExpired?: boolean
     progress?: number
+    isFinished?: boolean
+    isFuture?: boolean
 }
 
-export function PurchasedActivityCardHeader({ imageUrl, title, coachName, coachAvatarUrl, size, isCoachView, isExpired, progress }: PurchasedActivityCardHeaderProps) {
+export function PurchasedActivityCardHeader({ imageUrl, title, coachName, coachAvatarUrl, coachRating, size, isCoachView, isExpired, progress, isFinished, isFuture }: PurchasedActivityCardHeaderProps) {
     if (isCoachView) return null
 
     return (
         <div className={cn(
-            `relative w-full h-[280px] flex-shrink-0 transition-all overflow-hidden`,
+            `relative w-full h-[280px] flex-shrink-0 transition-all overflow-hidden bg-black rounded-t-[2.8rem]`,
             isExpired && "grayscale opacity-50"
         )}>
             {imageUrl ? (
@@ -27,7 +30,7 @@ export function PurchasedActivityCardHeader({ imageUrl, title, coachName, coachA
                     src={imageUrl}
                     alt={title || 'Actividad'}
                     fill
-                    className="object-cover transition-transform duration-700 group-hover:scale-110"
+                    className="object-cover transition-transform duration-700 group-hover:scale-103 z-0"
                     priority
                     sizes="(max-width: 768px) 50vw, 33vw"
                 />
@@ -44,11 +47,16 @@ export function PurchasedActivityCardHeader({ imageUrl, title, coachName, coachA
                 </div>
             )}
 
-            {/* Deeper Gradient for better text separation */}
-            <div className="absolute inset-x-0 bottom-0 h-48 bg-gradient-to-t from-[#0A0A0A] via-[#0A0A0A]/70 to-transparent z-10" />
+            {/* Hardcoded Multi-Stop Gradient Overlay: Fades photo into the black sections (Adjusted intensity) */}
+            <div
+                className="absolute inset-0 pointer-events-none z-10"
+                style={{
+                    background: 'linear-gradient(to top, #000000 0%, #000000 10%, rgba(0,0,0,0.8) 30%, rgba(0,0,0,0.4) 60%, rgba(0,0,0,0.2) 100%)'
+                }}
+            />
 
-            {/* Floating Circle Badge - Progress */}
-            {typeof progress === 'number' && progress > 0 && (
+            {/* Floating Circle Badge - Progress - Only for "En curso" */}
+            {(!isFinished && !isFuture) && typeof progress === 'number' && progress > 0 && (
                 <div className="absolute top-4 right-4 z-20">
                     <div className="w-10 h-10 flex items-center justify-center bg-black/50 backdrop-blur-md border border-white/10 rounded-full shadow-2xl">
                         <span className="text-[10px] font-[900] text-orange-400 leading-none">
@@ -59,16 +67,18 @@ export function PurchasedActivityCardHeader({ imageUrl, title, coachName, coachA
             )}
 
             {/* Centered Title and Coach Info Overlay */}
-            <div className="absolute inset-x-0 bottom-4 z-20 flex flex-col items-center text-center px-5">
-                <h3 className={cn(
-                    "text-white font-bold leading-tight mb-3 drop-shadow-[0_2px_10px_rgba(0,0,0,0.5)] tracking-tight opacity-90",
-                    size === "small" ? "text-sm" : "text-base md:text-lg"
-                )}>
-                    {title}
-                </h3>
+            <div className="absolute inset-x-0 bottom-0 z-20 flex flex-col items-center text-center px-4 pb-0">
+                <div className="h-16 flex items-start justify-center mb-10">
+                    <h3 className={cn(
+                        "text-white font-bold leading-[1.2] drop-shadow-[0_2px_10px_rgba(0,0,0,0.5)] tracking-tight opacity-95",
+                        size === "small" ? "text-xs" : "text-sm md:text-base px-2"
+                    )}>
+                        {title || 'Sin título'}
+                    </h3>
+                </div>
 
-                <div className="flex items-center gap-2.5 px-3 py-1.5 bg-zinc-950/40 backdrop-blur-sm rounded-full border border-white/5 shadow-lg">
-                    <div className="w-6 h-6 rounded-full bg-zinc-800 border border-white/10 flex items-center justify-center overflow-hidden shrink-0 relative">
+                <div className="flex items-center gap-2 pl-1.5 pr-4 py-1 bg-white/15 backdrop-blur-md rounded-full border border-white/20 shadow-2xl relative w-fit max-w-[90%]">
+                    <div className="w-6 h-6 rounded-full bg-zinc-800/50 border border-white/10 flex items-center justify-center overflow-hidden shrink-0 relative">
                         {coachAvatarUrl ? (
                             <Image
                                 src={coachAvatarUrl}
@@ -80,7 +90,17 @@ export function PurchasedActivityCardHeader({ imageUrl, title, coachName, coachA
                             <span className="text-[10px] font-black text-zinc-400 capitalize">{coachName?.[0] || 'C'}</span>
                         )}
                     </div>
-                    <span className="text-[10px] font-bold text-zinc-200 tracking-tight whitespace-nowrap opacity-80">{coachName || 'Coach'}</span>
+                    <div className="flex items-center gap-1.5 min-w-0">
+                        <span className="text-[9px] md:text-[10px] font-bold text-zinc-200 tracking-tight whitespace-nowrap opacity-90">
+                            {(coachName || 'Coach').substring(0, 13)}
+                        </span>
+                        {coachRating && coachRating > 0 && (
+                            <div className="flex items-center gap-0.5 shrink-0 ml-0.5">
+                                <Star className="h-2.5 w-2.5 fill-yellow-400 text-yellow-400" />
+                                <span className="text-[10px] font-black text-zinc-400">{coachRating.toFixed(1)}</span>
+                            </div>
+                        )}
+                    </div>
                 </div>
             </div>
         </div>

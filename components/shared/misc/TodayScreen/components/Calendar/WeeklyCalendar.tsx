@@ -270,24 +270,24 @@ export function WeeklyCalendar({
                                         transition: 'all 0.2s ease',
                                         // Copying glassmorphism styles from original 3253+
                                         ...(dayStatus === 'completed' && !isSelected && {
-                                            background: 'rgba(255, 106, 0, 0.15)', color: '#FF6A00', boxShadow: '0 2px 8px rgba(255, 106, 0, 0.2)'
+                                            background: 'rgba(255, 106, 0, 0.4)', color: '#FFFFFF', boxShadow: '0 2px 12px rgba(255, 106, 0, 0.3)'
                                         }),
                                         ...(dayStatus === 'started' && !isSelected && {
-                                            background: 'rgba(255, 201, 51, 0.15)', color: '#FFC933', boxShadow: '0 2px 8px rgba(255, 201, 51, 0.2)'
+                                            background: 'rgba(255, 180, 0, 0.4)', color: '#FFFFFF', boxShadow: '0 2px 12px rgba(255, 180, 0, 0.3)'
                                         }),
                                         ...(dayStatus === 'not-started' && !isSelected && {
-                                            background: 'rgba(255, 68, 68, 0.15)', color: '#FF4444', boxShadow: '0 2px 8px rgba(255, 68, 68, 0.2)'
+                                            background: 'rgba(255, 68, 68, 0.4)', color: '#FFFFFF', boxShadow: '0 2px 12px rgba(255, 68, 68, 0.3)'
                                         }),
                                         ...(isSelected && {
-                                            background: 'rgba(255, 255, 255, 0.1)',
-                                            border: dayStatus === 'completed' ? '1px solid rgba(255, 106, 0, 0.6)' :
-                                                dayStatus === 'started' ? '1px solid rgba(255, 201, 51, 0.6)' :
-                                                    dayStatus === 'not-started' ? '1px solid rgba(255, 68, 68, 0.6)' : '1px solid rgba(255, 255, 255, 0.2)',
-                                            color: '#FFFFFF'
+                                            background: 'rgba(255, 255, 255, 0.15)',
+                                            border: dayStatus === 'completed' ? '2px solid rgb(255, 106, 0)' :
+                                                dayStatus === 'started' ? '2px solid rgb(255, 180, 0)' :
+                                                    dayStatus === 'not-started' ? '2px solid rgb(255, 68, 68)' : '1px solid rgba(255, 255, 255, 0.3)',
+                                            color: '#FFFFFF',
+                                            transform: 'scale(1.05)'
                                         }),
                                         ...(!isSelected && !['completed', 'started', 'not-started'].includes(dayStatus) && {
-                                            // Empty day styling?
-                                            color: 'rgba(255,255,255,0.3)'
+                                            color: 'rgba(255,255,255,0.2)'
                                         })
                                     }}
                                 >
@@ -300,7 +300,7 @@ export function WeeklyCalendar({
                 </div>
             ) : (
                 // --- VISTA MENSUAL (Expanded) ---
-                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(7, 1fr)', gap: 6, width: '100%', marginBottom: 8 }}>
+                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(7, 1fr)', gap: 4, width: '100%', marginBottom: 8, padding: '0 4px' }}>
                     {/* Headers */}
                     {['D', 'L', 'M', 'M', 'J', 'V', 'S'].map((d, i) => <div key={i} style={{ textAlign: 'center', fontSize: 10, color: 'rgba(255,255,255,0.4)', paddingBottom: 4 }}>{d}</div>)}
 
@@ -349,29 +349,22 @@ export function WeeklyCalendar({
                                     opacity: isLocked ? 0.3 : 1,
 
                                     // Visuals
-                                    background: isSelected ? 'rgba(255, 255, 255, 0.1)' : (dayInfo.isCurrentMonth ?
-                                        (dayStatus === 'completed' ? 'rgba(255, 106, 0, 0.15)' :
-                                            dayStatus === 'started' ? 'rgba(255, 201, 51, 0.15)' :
-                                                dayStatus === 'not-started' ? 'rgba(255, 68, 68, 0.15)' :
+                                    background: isSelected ? 'rgba(255, 255, 255, 0.15)' : (dayInfo.isCurrentMonth ?
+                                        (dayStatus === 'completed' ? 'rgba(255, 106, 0, 0.5)' :
+                                            dayStatus === 'started' ? 'rgba(255, 180, 0, 0.5)' :
+                                                dayStatus === 'not-started' ? 'rgba(255, 68, 68, 0.5)' :
                                                     'rgba(42, 45, 49, 0.3)') : 'transparent'),
 
                                     border: isSelected ? (
-                                        dayStatus === 'completed' ? '1px solid rgba(255, 106, 0, 0.6)' :
-                                            dayStatus === 'started' ? '1px solid rgba(255, 201, 51, 0.6)' :
-                                                dayStatus === 'not-started' ? '1px solid rgba(255, 68, 68, 0.6)' :
-                                                    '1px solid rgba(255, 255, 255, 0.2)'
-                                    ) : (dayInfo.isCurrentMonth && isToday ? '2px solid rgba(255, 255, 255, 0.3)' : 'transparent'),
+                                        dayStatus === 'completed' ? '2px solid rgb(255, 106, 0)' :
+                                            dayStatus === 'started' ? '2px solid rgb(255, 180, 0)' :
+                                                dayStatus === 'not-started' ? '2px solid rgb(255, 68, 68)' :
+                                                    '1px solid rgba(255, 255, 255, 0.4)'
+                                    ) : (dayInfo.isCurrentMonth && isToday ? '2px solid rgba(255, 255, 255, 0.4)' : 'transparent'),
 
-                                    color: isSelected ? (
-                                        dayStatus === 'completed' ? '#FF6A00' :
-                                            dayStatus === 'started' ? '#FFC933' :
-                                                dayStatus === 'not-started' ? '#FF4444' :
-                                                    '#FFFFFF'
-                                    ) : (dayInfo.isCurrentMonth ?
-                                        (dayStatus === 'completed' ? '#FF6A00' :
-                                            dayStatus === 'started' ? '#FFC933' :
-                                                dayStatus === 'not-started' ? '#FF4444' :
-                                                    '#FFFFFF') : 'rgba(255, 255, 255, 0.3)'),
+                                    color: '#FFFFFF',
+                                    transform: isSelected ? 'scale(1.1)' : 'scale(0.9)',
+                                    boxShadow: isSelected ? '0 4px 15px rgba(0,0,0,0.4)' : 'none',
 
                                     // Source Date Highlight
                                     ...(isEditing && sourceDate && dayInfo.date.toDateString() === sourceDate.toDateString() ? {
@@ -400,23 +393,23 @@ export function WeeklyCalendar({
 
             {/* Legend */}
             <div style={{ marginTop: 8, paddingTop: 12, borderTop: '1px solid rgba(255, 255, 255, 0.1)', width: '100%' }}>
-                <div style={{ display: 'flex', justifyContent: 'space-around', gap: 20, flexWrap: 'wrap' }}>
+                <div style={{ display: 'flex', justifyContent: 'space-around', gap: 10, flexWrap: 'wrap' }}>
                     {dayCounts.pending > 0 && (
-                        <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-                            <div style={{ width: 10, height: 10, borderRadius: '50%', background: 'rgba(255, 68, 68, 0.25)', border: '1px solid rgba(255, 68, 68, 0.5)' }}></div>
-                            <span style={{ fontSize: 11, color: 'rgba(255,255,255,0.8)' }}>Pendiente ({dayCounts.pending})</span>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                            <div style={{ width: 10, height: 10, borderRadius: '50%', background: 'rgb(255, 40, 40)', border: '1px solid rgba(255, 255, 255, 0.4)' }}></div>
+                            <span style={{ fontSize: 10, fontWeight: 700, color: '#FF4444' }}>Por hacer ({dayCounts.pending})</span>
                         </div>
                     )}
                     {dayCounts.started > 0 && (
-                        <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-                            <div style={{ width: 10, height: 10, borderRadius: '50%', background: 'rgba(255, 201, 51, 0.25)', border: '1px solid rgba(255, 201, 51, 0.5)' }}></div>
-                            <span style={{ fontSize: 11, color: 'rgba(255,255,255,0.8)' }}>En curso ({dayCounts.started})</span>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                            <div style={{ width: 10, height: 10, borderRadius: '50%', background: 'rgb(255, 180, 0)', border: '1px solid rgba(255, 255, 255, 0.5)' }}></div>
+                            <span style={{ fontSize: 10, fontWeight: 700, color: '#FFB400' }}>Incompletos ({dayCounts.started})</span>
                         </div>
                     )}
                     {dayCounts.completed > 0 && (
-                        <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-                            <div style={{ width: 10, height: 10, borderRadius: '50%', background: 'rgba(255, 106, 0, 0.25)', border: '1px solid rgba(255, 106, 0, 0.5)' }}></div>
-                            <span style={{ fontSize: 11, color: 'rgba(255,255,255,0.8)' }}>Completado ({dayCounts.completed})</span>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                            <div style={{ width: 10, height: 10, borderRadius: '50%', background: 'rgb(255, 106, 0)', border: '1px solid rgba(255, 255, 255, 0.6)' }}></div>
+                            <span style={{ fontSize: 10, fontWeight: 700, color: '#FF6A00' }}>Completos ({dayCounts.completed})</span>
                         </div>
                     )}
                 </div>

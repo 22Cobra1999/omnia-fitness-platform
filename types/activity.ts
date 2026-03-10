@@ -188,6 +188,8 @@ export interface Enrollment {
   calificacion_omnia?: number | null
   comentarios_omnia?: string | null
   workshop_version?: string | null
+  current_streak?: number
+  last_streak_date?: string | null
   activity: Activity // Nested activity object
 }
 

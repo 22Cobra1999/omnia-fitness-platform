@@ -1,7 +1,8 @@
 "use client"
 
 import React from "react"
-import { Flame } from "lucide-react"
+import Image from "next/image"
+import { Flame, Star } from "lucide-react"
 import { cn } from "@/lib/utils/utils"
 
 
@@ -43,7 +44,10 @@ export function PurchasedActivityCard(props: PurchasedActivityCardProps) {
         progress,
         hasStarted,
         daysInfo,
-        handleCardClick
+        streak,
+        handleCardClick,
+        isFuture,
+        daysToStart
     } = usePurchasedActivityLogic({
         enrollment,
         realProgress,
@@ -60,26 +64,31 @@ export function PurchasedActivityCard(props: PurchasedActivityCardProps) {
             <div
                 className={cn(
                     getSizeClasses(size),
-                    "cursor-pointer group relative mx-auto flex-shrink-0"
+                    "cursor-pointer group relative mx-auto flex-shrink-0 bg-[#121212] overflow-hidden rounded-[2.8rem]"
                 )}
                 onClick={handleCardClick}
             >
                 <div
                     className={cn(
-                        "bg-[#090909] rounded-[2.8rem] overflow-hidden border border-white/5 transition-all duration-500 h-[460px] flex flex-col relative shadow-2xl shrink-0",
-                        "hover:border-white/10 hover:shadow-white/5 hover:shadow-2xl hover:-translate-y-1.5",
+                        "bg-black rounded-[2.8rem] overflow-hidden border border-white/5 transition-all duration-500 h-[460px] flex flex-col relative shrink-0",
+                        "hover:border-white/10 hover:-translate-y-1.5",
                         daysInfo.isExpired && "opacity-80"
                     )}
                 >
+                    {/* Full Card background is handled by Header (Image) and Content (Solid Black) */}
+
                     <PurchasedActivityCardHeader
                         imageUrl={imageUrl}
                         title={activity.title}
                         coachName={activity.coach_name || 'Coach'}
                         coachAvatarUrl={activity.coach_avatar_url}
+                        coachRating={activity.coach_rating}
                         size={size}
                         isCoachView={isCoachView}
                         isExpired={daysInfo.isExpired}
                         progress={progress}
+                        isFinished={isFinished}
+                        isFuture={isFuture}
                     />
 
                     <PurchasedActivityCardContent
@@ -88,6 +97,7 @@ export function PurchasedActivityCard(props: PurchasedActivityCardProps) {
                         size={size}
                         isCoachView={isCoachView}
                         daysInfo={daysInfo}
+                        streak={streak}
                         pendingCount={pendingCount}
                         nextSessionDate={nextSessionDate}
                         nextActivity={nextActivity}
@@ -101,14 +111,16 @@ export function PurchasedActivityCard(props: PurchasedActivityCardProps) {
                         itemsCompletedTotal={itemsCompletedTotal}
                         itemsDebtPast={itemsDebtPast}
                         itemsPendingToday={itemsPendingToday}
+                        isFuture={isFuture}
+                        daysToStart={daysToStart}
                     />
                 </div>
 
                 {/* Ratings and Feedback - Below the card */}
                 {(enrollment.rating_coach || enrollment.feedback_text) && (
                     <div className="mt-3 flex flex-col items-center gap-1">
-                        <div className="flex items-center gap-1.5 px-3 py-1 bg-orange-500/10 rounded-full border border-orange-500/20">
-                            <Flame className="w-3.5 h-3.5 text-orange-500 fill-orange-500" />
+                        <div className="flex items-center gap-1.5 px-3 py-1 bg-black rounded-full border border-white/5">
+                            <Star className="w-3.5 h-3.5 text-orange-500 fill-orange-500" />
                             <span className="text-xs font-bold text-orange-500">
                                 {enrollment.rating_coach}
                             </span>

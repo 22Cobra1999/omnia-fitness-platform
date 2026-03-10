@@ -3,6 +3,7 @@
 import React from 'react'
 import Image from 'next/image'
 import { Star, Calendar, Users, User, Globe, Dumbbell, Zap, Lock, Unlock, UtensilsCrossed, Flame, MapPin, RotateCcw, Pause, MonitorSmartphone, Video, FileText, Scale } from 'lucide-react'
+import { cn } from '@/lib/utils/utils'
 import type { Activity } from '@/types/activity'
 
 interface ActivityCardProps {
@@ -306,21 +307,27 @@ const ActivityCard: React.FC<ActivityCardProps> = ({
   const shouldShowAsInactive = isPaused || isWorkshopInactive
 
   return (
-    <div className={`${getSizeClasses()} cursor-pointer group relative`} onClick={() => onClick?.(activity)}>
-      <div className={`rounded-2xl overflow-hidden border transition-all duration-200 hover:scale-[1.02] h-full flex flex-col relative 
+    <div
+      className={cn(
+        getSizeClasses(),
+        "cursor-pointer group relative mx-auto flex-shrink-0 bg-[#121212] overflow-hidden rounded-[2.8rem]"
+      )}
+      onClick={() => onClick?.(activity)}
+    >
+      <div className={`rounded-[2.8rem] overflow-hidden border transition-all duration-500 hover:scale-[1.02] h-full flex flex-col relative
         ${variant === 'blurred'
           ? 'bg-white/5 backdrop-blur-md border-white/10 hover:border-[#FF7939]/50'
-          : 'bg-[#1A1A1A] border-gray-800 hover:border-[#FF7939]/30'
+          : 'bg-black border-white/5 hover:border-[#FF7939]/30'
         }
         ${shouldShowAsInactive ? 'opacity-50 grayscale' : ''}`}>
 
-        <div className="relative w-full h-56 md:h-64 flex-shrink-0 overflow-hidden rounded-t-2xl">
+        <div className="relative w-full h-[280px] flex-shrink-0 overflow-hidden rounded-t-[2.8rem] bg-black">
           {getValidImageUrl(activity) ? (
             <Image
               src={getValidImageUrl(activity)!}
               alt={activity.title || 'Imagen de actividad'}
               fill
-              className="object-cover"
+              className="object-cover transition-transform duration-700 group-hover:scale-103 z-0"
               sizes="(max-width: 768px) 30vw, (max-width: 1200px) 20vw, 15vw"
               priority={priority}
             />
@@ -332,122 +339,160 @@ const ActivityCard: React.FC<ActivityCardProps> = ({
               <h1 className="text-gray-400 text-xl font-bold">OMNIA</h1>
             </div>
           )}
-          <div className="absolute bottom-3 left-3">
-            <span className="bg-black/80 text-white text-xs px-2 py-1 rounded-full flex items-center gap-1">
+
+          {/* Hardcoded Multi-Stop Gradient Overlay: Guaranteed visibility for shading behind coach/title */}
+          <div
+            className="absolute inset-0 pointer-events-none z-10"
+            style={{
+              background: 'linear-gradient(to top, #000000 0%, #000000 10%, rgba(0,0,0,0.8) 30%, rgba(0,0,0,0.4) 60%, rgba(0,0,0,0.2) 100%)'
+            }}
+          />
+
+          {/* Rating Badge */}
+          <div className="absolute top-4 left-4 z-20">
+            <span className="bg-black/60 backdrop-blur-md text-white text-[10px] px-2.5 py-1 rounded-full flex items-center gap-1.5 border border-white/10 shadow-xl">
               {activity.program_rating && activity.program_rating > 0 ? (
-                <Star className="w-3 h-3 fill-yellow-400 text-yellow-400" />
+                <Star className="w-2.5 h-2.5 fill-yellow-400 text-yellow-400" />
               ) : null}
-              {getRatingDisplay(activity.program_rating, activity.total_program_reviews)}
+              <span className="font-bold tracking-tight">
+                {getRatingDisplay(activity.program_rating, activity.total_program_reviews)}
+              </span>
             </span>
           </div>
-          <div className="absolute top-3 right-3">
-            <div className="bg-black/80 rounded-full p-1.5">{getVisibilityIcon(activity.is_public)}</div>
+
+          {/* Visibility Icon */}
+          <div className="absolute top-4 right-4 z-20">
+            <div className="bg-black/60 backdrop-blur-md rounded-full p-2 border border-white/10 shadow-xl">
+              {getVisibilityIcon(activity.is_public)}
+            </div>
+          </div>
+
+          {/* Centered Title and Coach Info Overlay */}
+          <div className="absolute inset-x-0 bottom-0 z-20 flex flex-col items-center text-center px-4 pb-0">
+            <div className="h-16 flex items-start justify-center mb-10">
+              <h3 className={cn(
+                "text-white font-bold leading-[1.2] drop-shadow-[0_2px_10px_rgba(0,0,0,0.8)] tracking-tight opacity-95 text-center px-4",
+                size === "small" ? "text-base" : "text-lg md:text-xl"
+              )}>
+                {activity.title && activity.title.length > 55 ? `${activity.title.substring(0, 55)}...` : activity.title || 'Sin título'}
+              </h3>
+            </div>
+
+            <div className="flex items-center gap-2 pl-1.5 pr-4 py-1 bg-white/10 backdrop-blur-md rounded-full border border-white/10 shadow-2xl relative w-fit max-w-[95%]">
+              <div className="w-6 h-6 rounded-full bg-zinc-800/50 border border-white/20 flex items-center justify-center overflow-hidden shrink-0 relative">
+                {activity.coach_avatar_url ? (
+                  <Image
+                    src={activity.coach_avatar_url}
+                    alt={activity.coach_name || 'Coach'}
+                    fill
+                    className="object-cover"
+                  />
+                ) : (
+                  <span className="text-[10px] font-black text-zinc-400 capitalize">{activity.coach_name?.[0] || 'C'}</span>
+                )}
+              </div>
+              <div className="flex items-center gap-1.5 min-w-0">
+                <span className="text-[10px] md:text-[11px] font-bold text-zinc-100 tracking-tight whitespace-nowrap opacity-95">
+                  {(activity.coach_name || 'Coach').substring(0, 14)}
+                </span>
+                {activity.coach_rating && activity.coach_rating > 0 && (
+                  <div className="flex items-center gap-0.5 shrink-0 ml-0.5">
+                    <Star className="h-2.5 w-2.5 fill-yellow-400 text-yellow-400" />
+                    <span className="text-[9px] font-black text-zinc-300">{activity.coach_rating.toFixed(1)}</span>
+                  </div>
+                )}
+              </div>
+            </div>
           </div>
         </div>
 
-        <div className="p-4 flex-1 flex flex-col h-full min-h-0">
-          <div className="mb-3">
-            <h3 className="text-white font-bold leading-tight text-sm sm:text-base md:text-lg overflow-hidden"
-              style={{ display: '-webkit-box', WebkitLineClamp: 2, WebkitBoxOrient: 'vertical', lineHeight: '1.2em', height: '2.4em' }}>
-              {activity.title || 'Sin título'}
-            </h3>
-          </div>
-
-          {(activity.coach_name || (activity.coach_rating && activity.coach_rating > 0)) && (
-            <div className="border-t border-b border-gray-700/30 py-2 mb-3">
-              <div className="flex items-center gap-2">
-                <div className="flex-1 min-w-0 flex items-center gap-2">
-                  <p className="text-xs font-medium text-gray-300 truncate">{activity.coach_name || 'Coach'}</p>
-                  <div className="flex items-center gap-1 text-[10px] text-gray-400">
-                    {activity.coach_rating && activity.coach_rating > 0 ? (
-                      <Star className="h-2.5 w-2.5 fill-yellow-400 text-yellow-400" />
-                    ) : null}
-                    <span>{activity.coach_rating && activity.coach_rating > 0 ? activity.coach_rating.toFixed(1) : '-'}</span>
-                  </div>
-                </div>
-              </div>
-            </div>
-          )}
-
-          <div className="flex flex-wrap gap-1.5 justify-center items-center mb-4">
-            <span className={`flex items-center justify-center w-6 h-6 md:w-7 md:h-7 bg-white/10 backdrop-blur-md ${getCategoryColor(activity.categoria || 'fitness')} rounded-full border border-white/20`} title={getCategoryBadge(activity.categoria || 'fitness')}>
-              {activity.categoria === 'nutricion' || activity.categoria === 'nutrition' ? <UtensilsCrossed className="w-3 h-3 md:w-3.5 md:h-3.5" /> : <Zap className="w-3 h-3 md:w-3.5 md:h-3.5" />}
+        <div className="py-2 px-4 flex-1 flex flex-col h-full min-h-0 bg-black rounded-b-[2.8rem]">
+          {/* Badge row pulled from the side-by-side style */}
+          <div className="flex flex-wrap gap-2 justify-center items-center mb-4 pt-2">
+            <span className={`flex items-center justify-center w-7 h-7 bg-white/5 backdrop-blur-md ${getCategoryColor(activity.categoria || 'fitness')} rounded-full border border-white/10 shadow-lg`} title={getCategoryBadge(activity.categoria || 'fitness')}>
+              {activity.categoria === 'nutricion' || activity.categoria === 'nutrition' ? <UtensilsCrossed className="w-3.5 h-3.5" /> : <Zap className="w-3.5 h-3.5" />}
             </span>
-            <span className={`bg-white/10 backdrop-blur-md ${getTypeColor(activity.type || 'program')} text-[8px] md:text-[9px] px-2 py-1 md:py-1.5 rounded-full font-extrabold border border-white/20 uppercase tracking-wider text-center`}>
+            <span className={`bg-white/5 backdrop-blur-md ${getTypeColor(activity.type || 'program')} text-[9px] px-3 py-1.5 rounded-full font-black border border-white/10 uppercase tracking-widest shadow-lg`}>
               {getTypeBadge(activity.type || 'program')}
             </span>
           </div>
 
           <div className="mt-auto flex flex-col justify-end">
-            <div className="flex items-center justify-between mb-4">
+            <div className="flex items-center justify-between mb-4 px-1">
               <div className="flex items-center gap-2 text-[#FF7939]">
                 {activity.categoria === 'nutricion' || activity.categoria === 'nutrition' ? (
-                  <div className="flex items-center gap-0.5 opacity-80 md:scale-125">{getDifficultyUtensils(activity.difficulty || undefined)}</div>
+                  <div className="flex items-center gap-0.5 opacity-80 scale-110">{getDifficultyUtensils(activity.difficulty || undefined)}</div>
                 ) : (
-                  <div className="flex items-center gap-0.5 opacity-80 md:scale-125">{getDifficultyFires(activity.difficulty || undefined)}</div>
+                  <div className="flex items-center gap-0.5 opacity-80 scale-110">{getDifficultyFires(activity.difficulty || undefined)}</div>
                 )}
               </div>
               <div className="flex items-center justify-center flex-1">
                 {activity.type === 'workshop' && (() => {
                   const workshopMode = (activity as any).workshop_mode || 'grupal'
                   return workshopMode === 'individual' ? (
-                    <div className="flex items-center gap-1.5 text-[#FF7939] md:scale-125">
-                      <User className="h-4 w-4 md:h-5 md:w-5" />
-                      <span className="text-[9px] md:text-[10px] font-black uppercase">1:1</span>
+                    <div className="flex items-center gap-1.5 text-[#FF7939] scale-110">
+                      <User className="h-4 w-4" />
+                      <span className="text-[9px] font-black uppercase">1:1</span>
                     </div>
                   ) : (
-                    <div className="flex items-center gap-1.5 text-red-500 md:scale-125">
-                      <Users className="h-4 w-4 md:h-5 md:w-5" />
+                    <div className="flex items-center gap-1.5 text-red-500 scale-110">
+                      <Users className="h-4 w-4" />
                     </div>
                   )
                 })()}
                 {activity.type !== 'workshop' && includedMeetCredits > 0 && (
-                  <div className="flex items-center justify-center md:scale-125">
-                    <Video className="h-4 w-4 md:h-5 md:w-5 text-white/90" />
+                  <div className="flex items-center justify-center scale-110">
+                    <Video className="h-4 w-4 text-white/90" />
                   </div>
                 )}
               </div>
-              <div className="flex items-center gap-1.5 opacity-80 min-w-[20px] justify-end md:scale-125">
+              <div className="flex items-center gap-1.5 opacity-80 min-w-[20px] justify-end scale-110">
                 {getModalityIcon(activity.modality || 'online')}
               </div>
             </div>
 
-            <div className="flex items-center justify-between text-gray-300 mb-2">
-              <div className="flex items-center gap-1 md:gap-2">
-                <Calendar className="w-4 h-4 md:w-5 md:h-5 text-[#FF7939]" />
-                <span className="text-sm md:text-base font-medium">
-                  {sessionsToShow}
+            <div className="flex items-center justify-between text-zinc-400 mb-3 px-1 border-t border-white/5 pt-3">
+              <div className="flex items-center gap-1.5">
+                <Calendar className="w-5 h-5 text-[#FF7939]/80" />
+                <span className="text-sm font-black text-zinc-300 tracking-tight">
+                  {typeof sessionsToShow === 'string' && sessionsToShow.includes('m') ? (
+                    <>
+                      {sessionsToShow.split('m')[0]}
+                      <span className="text-red-500">m</span>
+                      {sessionsToShow.split('m')[1]}
+                    </>
+                  ) : sessionsToShow}
                   {activity.type !== 'document' && (
-                    <span className="text-[#FF7939] text-[10px] md:text-xs"> d</span>
+                    <span className="text-[#FF7939]/80 text-[10px]"> d</span>
                   )}
                 </span>
               </div>
-              <div className="flex items-center gap-1 md:gap-2">
+              <div className="flex items-center gap-1.5">
                 {activity.type === 'workshop' ? (
-                  <Zap className="w-4 h-4 md:w-5 md:h-5 text-[#FF7939]" />
+                  <Zap className="w-5 h-5 text-[#FF7939]/80" />
                 ) : (
-                  activity.categoria === 'nutricion' ? <UtensilsCrossed className="w-4 h-4 md:w-5 md:h-5 text-[#FF7939]" /> : <Zap className="w-4 h-4 md:w-5 md:h-5 text-[#FF7939]" />
+                  activity.categoria === 'nutricion' ? <UtensilsCrossed className="w-5 h-5 text-[#FF7939]/80" /> : <Zap className="w-5 h-5 text-[#FF7939]/80" />
                 )}
-                <span className="text-sm md:text-base font-medium">
+                <span className="text-sm font-black text-zinc-300 tracking-tight">
                   {activity.items_unicos ?? uniqueExercises}
                 </span>
               </div>
-              <div className="flex items-center gap-1 md:gap-2">
-                <Users className="w-4 h-4 md:w-5 md:h-5 text-[#FF7939]" />
-                <span className="text-sm md:text-base font-medium">{capacityDisplay || '-'}</span>
+              <div className="flex items-center gap-1.5">
+                <Users className="w-5 h-5 text-[#FF7939]/80" />
+                <span className="text-sm font-black text-zinc-300 tracking-tight">{capacityDisplay || '-'}</span>
               </div>
             </div>
 
-            <div className="flex flex-nowrap gap-1 mb-1 justify-start overflow-x-auto hide-scrollbar min-h-[1.5rem] md:min-h-[1.75rem] pb-1">
+            <div className="flex flex-nowrap gap-1.5 mb-0.5 justify-start overflow-x-auto hide-scrollbar min-h-[1.25rem] pb-0.5">
               {objetivos && Array.isArray(objetivos) && objetivos.length > 0 ? (
                 objetivos.slice(0, 3).map((obj, i) => (
-                  <span key={i} className="bg-gray-600/20 text-gray-400 text-[9px] md:text-[10px] px-1.5 py-0.5 rounded-full font-medium border border-gray-600/30 whitespace-nowrap">{obj}</span>
+                  <span key={i} className="bg-gray-600/20 text-gray-400 text-[10px] px-2 py-0.5 rounded-full font-bold border border-gray-600/30 whitespace-nowrap">{obj}</span>
                 ))
-              ) : <div className="h-6 md:h-7"></div>}
+              ) : <div className="h-6"></div>}
             </div>
 
-            <div className="border-t border-gray-700/30 text-center pt-2 md:pt-3 pb-3 mt-3">
-              <span className="text-white/85 font-bold text-xl md:text-2xl tracking-tight">
+            <div className="border-t border-white/5 text-center pt-1 pb-2 mt-0">
+              <span className="text-white font-black text-[1.75rem] tracking-tighter">
                 {formatPrice(activity.price)}
               </span>
             </div>
@@ -455,13 +500,13 @@ const ActivityCard: React.FC<ActivityCardProps> = ({
         </div>
 
         {isWorkshopInactive && (
-          <div className="absolute inset-0 bg-black/80 rounded-2xl flex items-center justify-center z-10 text-center p-4">
+          <div className="absolute inset-0 bg-black/80 rounded-[2.8rem] flex items-center justify-center z-10 text-center p-4">
             <RotateCcw className="w-8 h-8 text-[#FF7939] mx-auto mb-2" />
             <p className="text-white font-bold text-base">Taller Finalizado</p>
           </div>
         )}
         {isPaused && !isWorkshopInactive && (
-          <div className="absolute inset-0 bg-black/60 rounded-2xl flex items-center justify-center z-10 text-center p-4">
+          <div className="absolute inset-0 bg-black/60 rounded-[2.8rem] flex items-center justify-center z-10 text-center p-4">
             <Lock className="w-8 h-8 text-yellow-400 mx-auto mb-2" />
             <p className="text-white font-bold text-base">Pausado</p>
           </div>

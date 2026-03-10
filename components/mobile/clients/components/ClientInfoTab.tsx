@@ -1,5 +1,5 @@
 import React from "react"
-import { Ruler, Plus, Target, AlertTriangle, Phone, UserPlus, ClipboardList, ChevronRight, ArrowUp, ArrowDown } from "lucide-react"
+import { Ruler, Plus, Target, AlertTriangle, Phone, UserPlus, ClipboardList, ChevronRight, ArrowUp, ArrowDown, Star } from "lucide-react"
 import { ExerciseProgressList } from '@/components/mobile/exercise-progress-list'
 import { QuickExerciseAdd } from "@/components/mobile/quick-exercise-add"
 
@@ -237,11 +237,11 @@ export function ClientInfoTab({
 
                 <button
                     onClick={() => setShowSurveyModal(true)}
-                    className="w-full bg-gradient-to-r from-zinc-900 to-[#121212] border border-white/10 rounded-2xl p-4 flex items-center justify-between hover:from-zinc-800 hover:to-zinc-900 transition-all group active:scale-[0.98]"
+                    className="w-full bg-black border border-white/5 rounded-2xl p-4 flex items-center justify-between hover:bg-white/5 transition-all group active:scale-[0.98]"
                 >
                     <div className="flex items-center gap-3">
                         <div className="h-10 w-10 bg-[#FF6A00]/10 rounded-xl flex items-center justify-center group-hover:bg-[#FF6A00]/20 transition-colors">
-                            <ClipboardList className="h-5 w-5 text-[#FF6A00]" />
+                            <Star className="h-5 w-5 text-[#FF6A00] fill-[#FF6A00]" />
                         </div>
                         <div className="text-left">
                             <p className="text-sm font-bold text-white">Respuestas de la Encuesta</p>

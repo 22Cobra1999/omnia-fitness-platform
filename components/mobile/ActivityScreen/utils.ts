@@ -46,6 +46,13 @@ export function calculateEnrollmentStatus(enrollment: Enrollment, progress: numb
         // Future start date
         if (startDate > now) return 'pendiente'
     } else {
+        // Check for start deadline
+        const startDeadline = (enrollment as any).start_deadline
+        if (startDeadline) {
+            const deadline = new Date(startDeadline)
+            deadline.setHours(0, 0, 0, 0)
+            if (now > deadline) return 'finalizada'
+        }
         // No start date = hasn't started
         return 'pendiente'
     }

@@ -61,6 +61,8 @@ export interface Enrollment {
         categoria: 'fitness' | 'nutricion';
     };
     activity_surveys?: any;
+    current_streak?: number;
+    last_streak_date?: string | null;
     // Enriched fields from survey
     rating_coach?: number | null;
     feedback_text?: string | null;

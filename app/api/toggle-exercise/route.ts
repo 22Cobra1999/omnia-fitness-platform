@@ -387,9 +387,45 @@ export async function POST(request: NextRequest) {
 
     if (updErr) throw updErr
 
-    try {
-      await refreshDailyProgress({ supabase, clienteId: user.id, fecha: targetDate, enrollmentId: enrollmentId || progressRecord.enrollment_id })
-    } catch (e) { console.error('Summary error:', e) }
+    // 4. Update Streak Logic
+    // If all tasks for today are completed, we might need to increment or update the streak in the enrollment
+    if (toggledToCompleted && Object.keys(rawPend).length === 0) {
+      try {
+        // Fetch current enrollment data to check streak
+        const { data: enrollment } = await supabase
+          .from('activity_enrollments')
+          .select('current_streak, last_streak_date')
+          .eq('id', progressRecord.enrollment_id)
+          .single()
+
+        const currentStreak = enrollment?.current_streak || 0
+        const lastStreakDate = enrollment?.last_streak_date
+        const today = targetDate
+
+        let newStreak = currentStreak
+
+        if (!lastStreakDate || lastStreakDate !== today) {
+          // Check if it's a consecutive day or a reset
+          const yesterday = new Date(new Date(today).getTime() - 86400000).toISOString().split('T')[0]
+
+          if (lastStreakDate === yesterday) {
+            newStreak = currentStreak + 1
+          } else {
+            newStreak = 1
+          }
+
+          await supabase
+            .from('activity_enrollments')
+            .update({
+              current_streak: newStreak,
+              last_streak_date: today
+            })
+            .eq('id', progressRecord.enrollment_id)
+        }
+      } catch (streakErr) {
+        console.error('⚠️ Error updating streak:', streakErr)
+      }
+    }
 
     return NextResponse.json({ success: true, isCompleted: toggledToCompleted })
 
