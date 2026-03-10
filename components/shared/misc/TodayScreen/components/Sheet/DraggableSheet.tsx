@@ -130,9 +130,9 @@ export function DraggableSheet({
                 left: '50%',
                 x: '-50%',
                 width: '100%',
-                maxWidth: '500px',
+                maxWidth: '800px', // Matches content max-width
                 bottom: 0,
-                height: 'calc(100vh - 40px)', // Tall enough to cover the whole drag range
+                height: '100vh',
                 background: 'rgba(15, 16, 18, 0.98)',
                 backdropFilter: 'blur(20px) saturate(180%)',
                 WebkitBackdropFilter: 'blur(20px) saturate(180%)',

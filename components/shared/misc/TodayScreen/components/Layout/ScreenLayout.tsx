@@ -25,7 +25,7 @@ export function ScreenLayout({
     // Unified collapsed height logic
     const COLLAPSED_H = 110;
     const collapsedY = vh - COLLAPSED_H;
-    const TOP_SNAP = 56;
+    const TOP_SNAP = 56; // Global header height to prevent overlap
 
     // Motion Values
     const y = useMotionValue(0); // Initial value will be set in useEffect
@@ -46,7 +46,7 @@ export function ScreenLayout({
 
     return (
         <div style={{ height: '100vh', background: 'transparent', color: '#fff', position: 'relative', overflow: 'hidden', zIndex: 1 }}>
-            {/* Fondo blureado con contraste premium */}
+            {/* Background */}
             {backgroundImage && backgroundImage.trim() !== '' && (
                 <div style={{
                     position: 'fixed',
@@ -74,61 +74,43 @@ export function ScreenLayout({
                 </div>
             )}
 
-            {/* Header - Centered for desktop */}
-            <div
-                className="fixed top-0 left-1/2 -translate-x-1/2 w-full max-w-[500px] z-[9999] bg-black px-4 h-14 flex items-center justify-between"
-                style={{ zIndex: 9999 }}
-            >
-                <div style={{ opacity: 1 }}>
-                    <SettingsIcon />
-                </div>
-
-                <div style={{ position: 'absolute', left: '50%', transform: 'translateX(-50%)' }}>
-                    <OmniaLogoText />
-                </div>
-
-                <div style={{ opacity: 1 }}>
-                    <MessagesIcon />
-                </div>
-            </div>
-
-            {/* Scrollable Container for Hero */}
+            {/* Main Scrollable Area */}
             <div
                 className="orange-glass-scrollbar"
                 style={{
-                    height: 'calc(100vh - 56px)',
+                    height: '100vh',
                     overflowY: 'auto',
                     overflowX: 'hidden',
-                    paddingTop: '56px', // Offset for the fixed header (h-14)
+                    paddingTop: '56px', // Matches global header height
                     paddingBottom: '240px',
                     WebkitOverflowScrolling: 'touch',
                     position: 'relative',
-                    background: 'transparent',
-                    maxWidth: '500px',
-                    margin: '0 auto'
+                    background: 'transparent'
                 }}>
 
-                {/* Hero Wrapper */}
-                <motion.div
-                    style={{
-                        padding: '0px 24px 20px',
-                        minHeight: 'calc(100vh - 120px)',
-                        background: 'transparent',
-                        borderBottom: '1px solid #1f2328',
-                        scale: heroScale,
-                        opacity: heroOpacity,
-                        filter: heroBlur,
-                        transformOrigin: 'center top',
-                        position: 'relative',
-                        zIndex: 1
-                    }}
-                >
-                    {hero}
-                </motion.div>
+                {/* Content Container - Responsive width */}
+                <div className="max-w-[800px] mx-auto px-4">
+                    {/* Hero Wrapper */}
+                    <motion.div
+                        style={{
+                            padding: '0px 0px 20px',
+                            minHeight: '20vh',
+                            background: 'transparent',
+                            borderBottom: '1px solid #1f2328',
+                            scale: heroScale,
+                            opacity: heroOpacity,
+                            filter: heroBlur,
+                            transformOrigin: 'center top',
+                            position: 'relative',
+                            zIndex: 1
+                        }}
+                    >
+                        {hero}
+                    </motion.div>
+                </div>
 
                 {/* Sheet Injection */}
                 {sheetContent({ y, dragControls })}
-
             </div>
         </div>
     );
