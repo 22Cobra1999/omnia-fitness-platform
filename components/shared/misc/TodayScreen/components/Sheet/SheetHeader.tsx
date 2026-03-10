@@ -34,7 +34,7 @@ export function SheetHeader({
             }}>
                 <div style={{ flexShrink: 0 }}>
                     <div style={{
-                        fontSize: 'clamp(14px, 4vw, 17px)',
+                        fontSize: 'clamp(16px, 4.5vw, 20px)',
                         fontWeight: 800,
                         color: '#FFFFFF',
                         letterSpacing: '-0.02em'
@@ -47,13 +47,13 @@ export function SheetHeader({
                     <div style={{
                         display: 'flex',
                         alignItems: 'center',
-                        gap: 'clamp(4px, 1.5vw, 8px)',
+                        gap: 'clamp(6px, 2vw, 12px)',
                         flexShrink: 0
                     }}>
                         {activities.every(a => a.done) ? (
                             <div style={{
                                 color: '#22C55E',
-                                fontSize: 10,
+                                fontSize: 11,
                                 fontWeight: 900,
                                 textTransform: 'uppercase',
                                 letterSpacing: '0.05em'
@@ -62,22 +62,22 @@ export function SheetHeader({
                             </div>
                         ) : (
                             <>
-                                <div style={{ display: 'flex', alignItems: 'center', gap: 2 }}>
-                                    <Zap size={13} color="#FF7939" fill="#FF7939" />
-                                    <span style={{ fontSize: 'clamp(11px, 3vw, 13px)', fontWeight: 900, color: '#FFFFFF' }}>
+                                <div style={{ display: 'flex', alignItems: 'center', gap: 3 }}>
+                                    <Zap size={15} color="#FF7939" fill="#FF7939" />
+                                    <span style={{ fontSize: 'clamp(12px, 3.5vw, 15px)', fontWeight: 900, color: '#FFFFFF' }}>
                                         {activities.filter(a => !a.done).length}
                                     </span>
                                 </div>
-                                <div style={{ display: 'flex', alignItems: 'center', gap: 2 }}>
-                                    <Flame size={13} color="#FF7939" fill="none" />
-                                    <span style={{ fontSize: 'clamp(11px, 3vw, 12px)', fontWeight: 800, color: '#FFFFFF' }}>
+                                <div style={{ display: 'flex', alignItems: 'center', gap: 3 }}>
+                                    <Flame size={15} color="#FF7939" fill="none" />
+                                    <span style={{ fontSize: 'clamp(12px, 3.5vw, 15px)', fontWeight: 800, color: '#FFFFFF' }}>
                                         {activities.filter(a => !a.done).reduce((acc: number, curr: any) => acc + (curr.calorias || 0), 0)}
-                                        <span style={{ fontSize: '0.8em', opacity: 0.8, marginLeft: 1 }}>kcal</span>
+                                        <span style={{ fontSize: '0.85em', opacity: 0.8, marginLeft: 1 }}>kcal</span>
                                     </span>
                                 </div>
-                                <div style={{ display: 'flex', alignItems: 'center', gap: 2 }}>
-                                    <Clock size={13} color="#9CA3AF" />
-                                    <span style={{ fontSize: 'clamp(11px, 3vw, 12px)', fontWeight: 800, color: '#FFFFFF' }}>
+                                <div style={{ display: 'flex', alignItems: 'center', gap: 3 }}>
+                                    <Clock size={15} color="#9CA3AF" />
+                                    <span style={{ fontSize: 'clamp(12px, 3.5vw, 15px)', fontWeight: 800, color: '#FFFFFF' }}>
                                         {activities.filter(a => !a.done).reduce((acc: number, curr: any) => acc + (curr.minutos || 0), 0)}'
                                     </span>
                                 </div>
