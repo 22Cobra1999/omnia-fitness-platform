@@ -47,7 +47,7 @@ export function SheetHeader({
                     <div style={{
                         display: 'flex',
                         alignItems: 'center',
-                        gap: 'clamp(6px, 2vw, 12px)',
+                        gap: 'clamp(4px, 1.5vw, 8px)',
                         flexShrink: 0
                     }}>
                         {activities.every(a => a.done) ? (
@@ -62,20 +62,21 @@ export function SheetHeader({
                             </div>
                         ) : (
                             <>
-                                <div style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
-                                    <Zap size={14} color="#FF7939" fill="#FF7939" />
+                                <div style={{ display: 'flex', alignItems: 'center', gap: 2 }}>
+                                    <Zap size={13} color="#FF7939" fill="#FF7939" />
                                     <span style={{ fontSize: 'clamp(11px, 3vw, 13px)', fontWeight: 900, color: '#FFFFFF' }}>
                                         {activities.filter(a => !a.done).length}
                                     </span>
                                 </div>
-                                <div style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
-                                    <Flame size={14} color="#FF7939" fill="none" />
+                                <div style={{ display: 'flex', alignItems: 'center', gap: 2 }}>
+                                    <Flame size={13} color="#FF7939" fill="none" />
                                     <span style={{ fontSize: 'clamp(11px, 3vw, 12px)', fontWeight: 800, color: '#FFFFFF' }}>
-                                        {activities.filter(a => !a.done).reduce((acc: number, curr: any) => acc + (curr.calorias || 0), 0)} kcal
+                                        {activities.filter(a => !a.done).reduce((acc: number, curr: any) => acc + (curr.calorias || 0), 0)}
+                                        <span style={{ fontSize: '0.8em', opacity: 0.8, marginLeft: 1 }}>kcal</span>
                                     </span>
                                 </div>
-                                <div style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
-                                    <Clock size={14} color="#9CA3AF" />
+                                <div style={{ display: 'flex', alignItems: 'center', gap: 2 }}>
+                                    <Clock size={13} color="#9CA3AF" />
                                     <span style={{ fontSize: 'clamp(11px, 3vw, 12px)', fontWeight: 800, color: '#FFFFFF' }}>
                                         {activities.filter(a => !a.done).reduce((acc: number, curr: any) => acc + (curr.minutos || 0), 0)}'
                                     </span>

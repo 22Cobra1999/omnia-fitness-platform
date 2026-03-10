@@ -23,7 +23,7 @@ export function ScreenLayout({
     isSpecialView
 }: ScreenLayoutProps) {
     // Unified collapsed height logic
-    const COLLAPSED_H = 160; // Increased peeking as requested
+    const COLLAPSED_H = 210;
     const collapsedY = vh - COLLAPSED_H;
 
     // Motion Values

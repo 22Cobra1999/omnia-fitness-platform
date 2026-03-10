@@ -1,5 +1,5 @@
 import * as React from 'react';
-import { motion, DragControls, useMotionValue } from 'framer-motion';
+import { motion, DragControls, useMotionValue, animate } from 'framer-motion';
 import { SheetHeader } from './SheetHeader';
 import { TodayActivityList } from './TodayActivityList';
 import { EmptyState } from './EmptyState';
@@ -70,34 +70,46 @@ export function DraggableSheet({
     meetCreditsAvailable, onScheduleMeet
 }: DraggableSheetProps) {
 
-    const EXPANDED_H = Math.max(Math.round(vh * 0.95), 620);
+    const TOP_SNAP = 60; // Just below the 56px header
     const COLLAPSED_H = 210;
+    const collapsedY = vh - COLLAPSED_H;
 
-    const collapsedY = EXPANDED_H - COLLAPSED_H;
-
-    // Snapshot logic for drag end - Only Open or Closed
+    // Snapshot logic for drag end - Binary (Snap to Top or Bottom)
     const onDragEnd = (_: any, info: { velocity: { y: number }; offset: { y: number } }) => {
         const current = y.get();
-        const projected = current + info.velocity.y * 0.25;
+        const velocity = info.velocity.y;
 
-        // Points: Just Top (40) or Bottom (collapsedY)
-        const points = [40, collapsedY];
-        const nearest = points.reduce((best, p) => {
-            return Math.abs(p - projected) < Math.abs(best - projected) ? p : best;
-        }, points[0]);
+        // Use velocity + current position to determine intent
+        let target = collapsedY;
+        if (velocity < -200) {
+            target = TOP_SNAP;
+        } else if (velocity > 200) {
+            target = collapsedY;
+        } else {
+            // No strong velocity, snap to nearest
+            target = current < (collapsedY * 0.6) ? TOP_SNAP : collapsedY;
+        }
 
-        y.set(nearest);
+        animate(y, target, {
+            type: "spring",
+            stiffness: 300,
+            damping: 30,
+            velocity: velocity
+        });
     };
 
-    const snapTo = (val: number) => y.set(val);
+    const toggleSheet = () => {
+        const current = y.get();
+        const target = current < (collapsedY * 0.8) ? collapsedY : TOP_SNAP;
+        animate(y, target, { type: "spring", stiffness: 300, damping: 30 });
+    };
 
     // Derived
     const [expandedState, setExpandedState] = React.useState(false);
 
     React.useEffect(() => {
         const unsub = y.on("change", (latest: number) => {
-            // If y is small (near 40), it's expanded.
-            setExpandedState(latest < (collapsedY * 0.5));
+            setExpandedState(latest < (collapsedY * 0.7));
         });
         return unsub;
     }, [y, collapsedY]);
@@ -108,13 +120,14 @@ export function DraggableSheet({
             drag="y"
             dragListener={false}
             dragControls={dragControls}
-            dragConstraints={{ top: 40, bottom: collapsedY }}
-            dragElastic={0.08}
+            dragConstraints={{ top: TOP_SNAP, bottom: collapsedY }}
+            dragElastic={0.05}
+            dragMomentum={false}
             onDragEnd={onDragEnd}
             style={{
                 y,
                 position: 'fixed', left: 0, right: 0, bottom: 0,
-                height: '95vh', maxHeight: '100vh', minHeight: collapsedY, // Or just tall enough
+                height: 'calc(100vh - 40px)', // Tall enough to cover the whole drag range
                 background: 'rgba(15, 16, 18, 0.98)',
                 backdropFilter: 'blur(20px) saturate(180%)',
                 WebkitBackdropFilter: 'blur(20px) saturate(180%)',
@@ -125,7 +138,7 @@ export function DraggableSheet({
             }}
         >
             {/* Handle */}
-            <div onPointerDown={(e) => { dragControls.start(e) }} onClick={() => snapTo(expandedState ? collapsedY : 40)}
+            <div onPointerDown={(e) => { dragControls.start(e) }} onClick={toggleSheet}
                 style={{ display: 'grid', placeItems: 'center', paddingTop: 10, paddingBottom: 2, flexShrink: 0, touchAction: 'none', cursor: 'grab', width: '100%', height: 30 }}>
                 <div style={{ width: 56, height: 5, borderRadius: 999, background: 'rgba(255, 121, 57, 0.6)' }}></div >
             </div>
@@ -148,7 +161,7 @@ export function DraggableSheet({
                             <>
                                 <EmptyState
                                     isDayLoading={isDayLoading} activities={activities} nextAvailableActivity={nextAvailableActivity}
-                                    goToNextActivity={goToNextActivity || (() => { })} snapToCollapsed={() => snapTo(collapsedY)} handleOpenSurveyModal={handleOpenSurveyModal || (() => { })}
+                                    goToNextActivity={goToNextActivity || (() => { })} snapToCollapsed={() => animate(y, collapsedY, { type: "spring", stiffness: 300, damping: 30 })} handleOpenSurveyModal={handleOpenSurveyModal || (() => { })}
                                     isExpired={isExpired}
                                 />
 
