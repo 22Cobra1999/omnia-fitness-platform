@@ -22,8 +22,8 @@ export function SheetHeader({
     title
 }: SheetHeaderProps) {
     return (
-        <div style={{ padding: '0px 20px 0px' }}>
-            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 16, marginTop: 0 }}>
+        <div style={{ padding: '12px 20px 10px' }}>
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 24, marginTop: 0 }}>
                 <div style={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
                     <div style={{ fontSize: 18, fontWeight: 700, color: 'rgba(255, 255, 255, 0.6)' }}>
                         {title || 'Actividades de hoy'}

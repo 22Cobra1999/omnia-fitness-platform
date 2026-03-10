@@ -7,7 +7,7 @@ import { ActivityDetailOverlay } from './ActivityDetailOverlay';
 
 // Constants
 const EXPANDED = '95vh'; // Approx
-const COLLAPSED_HEIGHT_OFFSET = 160; // Needs to match Logic Vh - collapsedY
+const COLLAPSED_HEIGHT_OFFSET = 210; // Needs to match Logic Vh - collapsedY
 
 interface DraggableSheetProps {
     // Motion
@@ -72,7 +72,7 @@ export function DraggableSheet({
 
     const EXPANDED_H = Math.max(Math.round(vh * 0.95), 620);
     const MID_H = Math.max(Math.round(vh * 0.70), 500);
-    const COLLAPSED_H = 160;
+    const COLLAPSED_H = 210;
 
     const collapsedY = EXPANDED_H - COLLAPSED_H;
     const midY = EXPANDED_H - MID_H;

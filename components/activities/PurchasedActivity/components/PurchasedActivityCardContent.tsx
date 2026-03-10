@@ -95,9 +95,9 @@ export function PurchasedActivityCardContent({
                             </span>
                         </div>
                     ) : isFuture ? (
-                        /* EMPEZAR Pill - Centered and compact */
-                        <div className="flex items-center bg-[#FF7939]/30 backdrop-blur-xl border border-[#FF7939]/40 px-2 py-0.5 rounded-full shadow-lg shrink-0 mx-auto scale-[0.8]">
-                            <span className="text-[9px] font-black text-white tracking-widest uppercase whitespace-nowrap">
+                        /* EMPEZAR Pill - Extra compact to fit desktop card width */
+                        <div className="flex items-center bg-[#FF7939]/30 backdrop-blur-xl border border-[#FF7939]/40 px-2 py-0.5 rounded-full shadow-lg shrink-0 mx-auto scale-[0.78] max-w-[95%]">
+                            <span className="text-[8.5px] font-black text-white tracking-wider uppercase whitespace-nowrap">
                                 EMPEZAR ANTES DE: {(enrollment as any).start_deadline ? formatDM((enrollment as any).start_deadline) : '--/--'}
                             </span>
                         </div>
@@ -150,8 +150,8 @@ export function PurchasedActivityCardContent({
                         </div>
                     </div>
 
-                    {/* Larger Progress Percent below dates - Only for "Finalizadas" with progress */}
-                    {isFinished && progress > 0 && typeof progress === 'number' && (
+                    {/* Larger Progress Percent below dates - Only for "Finalizadas" */}
+                    {isFinished && typeof progress === 'number' && (
                         <div className="flex items-center justify-center -mt-1">
                             <span className="text-xl font-black text-orange-400 drop-shadow-md">
                                 {Math.round(progress)}%
