@@ -1,6 +1,7 @@
 import * as React from 'react';
 import { Flame, Clock, Zap } from 'lucide-react';
 import { getWeekNumber } from '../../utils/calendar-utils';
+import { parseSeries } from '../../utils/parsers';
 
 interface SheetHeaderProps {
     activities?: any[];
@@ -48,28 +49,35 @@ export function SheetHeader({
                     <div style={{
                         display: 'flex',
                         alignItems: 'center',
-                        gap: 'clamp(6px, 2vw, 12px)',
+                        gap: 'clamp(6px, 1.5vw, 12px)',
                         flexShrink: 0
                     }}>
-                        <div style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
-                            <Flame size={14} color="#FF7939" fill="#FF7939" />
-                            <span style={{ fontSize: 'clamp(13px, 4vw, 15px)', fontWeight: 900, color: '#FFFFFF' }}>
-                                {activities.reduce((acc: number, curr: any) => acc + Number(curr.calorias || 0), 0) - activities.filter(a => a.done).reduce((acc: number, curr: any) => acc + Number(curr.calorias || 0), 0)}
-                                <span style={{ fontSize: '9px', fontWeight: 600, color: 'rgba(255,255,255,0.4)', marginLeft: 2, textTransform: 'uppercase' }}>KCAL</span>
+                        {/* KCAL Stat - TOTAL for the day */}
+                        <div style={{ display: 'flex', alignItems: 'center', gap: 3 }}>
+                            <Flame size={12} color="#FF7939" fill="#FF7939" />
+                            <span style={{ fontSize: '13px', fontWeight: 900, color: '#FFFFFF' }}>
+                                {activities.reduce((acc: number, curr: any) => acc + Number(curr.calorias || 0), 0)}
+                                <span style={{ fontSize: '8px', fontWeight: 600, color: 'rgba(255,255,255,0.4)', marginLeft: 1, textTransform: 'uppercase' }}>KCAL</span>
                             </span>
                         </div>
-                        <div style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
-                            <Clock size={14} color="#FFFFFF" strokeWidth={2.5} />
-                            <span style={{ fontSize: 'clamp(13px, 4vw, 15px)', fontWeight: 900, color: '#FFFFFF' }}>
-                                {activities.reduce((acc: number, curr: any) => acc + Number(curr.minutos || 0), 0) - activities.filter(a => a.done).reduce((acc: number, curr: any) => acc + Number(curr.minutos || 0), 0)}
-                                <span style={{ fontSize: '9px', fontWeight: 600, color: 'rgba(255,255,255,0.4)', marginLeft: 2, textTransform: 'uppercase' }}>MIN</span>
+                        {/* PRS Stat (Total Series for the day) */}
+                        <div style={{ display: 'flex', alignItems: 'center', gap: 3 }}>
+                            <Zap size={12} color="#FF7939" fill="#FF7939" />
+                            <span style={{ fontSize: '13px', fontWeight: 900, color: '#FFFFFF' }}>
+                                {activities.reduce((acc: number, curr: any) => {
+                                    const parsed = parseSeries(curr.detalle_series || curr.series);
+                                    const seriesCount = parsed.reduce((as: number, cs: any) => as + (Number(cs.sets) || 1), 0);
+                                    return acc + seriesCount;
+                                }, 0)}
+                                <span style={{ fontSize: '8px', fontWeight: 600, color: 'rgba(255,255,255,0.4)', marginLeft: 1, textTransform: 'uppercase' }}>PRS</span>
                             </span>
                         </div>
-                        <div style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
-                            <Zap size={14} color="#FF7939" fill="#FF7939" />
-                            <span style={{ fontSize: 'clamp(13px, 4vw, 15px)', fontWeight: 900, color: '#FFFFFF' }}>
-                                {activities.length - activities.filter(a => a.done).length}
-                                <span style={{ fontSize: '9px', fontWeight: 600, color: 'rgba(255,255,255,0.4)', marginLeft: 2, textTransform: 'uppercase' }}>EJS</span>
+                        {/* MIN Stat */}
+                        <div style={{ display: 'flex', alignItems: 'center', gap: 3 }}>
+                            <Clock size={12} color="#FFFFFF" strokeWidth={2.5} />
+                            <span style={{ fontSize: '13px', fontWeight: 900, color: '#FFFFFF' }}>
+                                {activities.reduce((acc: number, curr: any) => acc + Number(curr.minutos || 0), 0)}
+                                <span style={{ fontSize: '8px', fontWeight: 600, color: 'rgba(255,255,255,0.4)', marginLeft: 1, textTransform: 'uppercase' }}>MIN</span>
                             </span>
                         </div>
                     </div>

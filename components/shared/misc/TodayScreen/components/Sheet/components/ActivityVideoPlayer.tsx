@@ -45,20 +45,20 @@ export function ActivityVideoPlayer({
             {/* Expanded Video Panel - Forced Visibility */}
             {isVideoPanelExpanded && (
                 <motion.div
-                    initial={{ opacity: 0, scale: 0.95 }}
-                    animate={{ opacity: 1, scale: 1 }}
+                    initial={{ opacity: 0, y: -20 }}
+                    animate={{ opacity: 1, y: 0 }}
                     style={{
-                        width: '100%',
+                        width: 'calc(100% + 40px)',
+                        marginLeft: -20,
                         aspectRatio: '16/9',
-                        minHeight: '280px',
-                        marginTop: 12,
-                        borderRadius: 18,
+                        minHeight: '220px',
                         background: '#000',
                         position: 'relative',
                         overflow: 'hidden',
                         zIndex: 10,
-                        border: '1px solid rgba(255, 255, 255, 0.2)',
-                        boxShadow: '0 12px 40px rgba(0,0,0,0.6)'
+                        borderTop: '1px solid rgba(255, 255, 255, 0.1)',
+                        borderBottom: '1px solid rgba(255, 255, 255, 0.1)',
+                        boxShadow: '0 8px 32px rgba(0,0,0,0.5)'
                     }}
                 >
                     <UniversalVideoPlayer videoUrl={selectedVideo.url} autoPlay={true} controls={true} className="w-full h-full" disableDownload={true} />
