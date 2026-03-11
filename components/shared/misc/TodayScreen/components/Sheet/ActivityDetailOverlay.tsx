@@ -114,35 +114,33 @@ export function ActivityDetailOverlay({
                     onClick={isExpired ? undefined : handleToggleStatus}
                     className="group active:scale-95 transition-all duration-200"
                     style={{
-                        display: 'flex', alignItems: 'center', gap: 12,
-                        cursor: (isToggling || isExpired) ? 'default' : 'pointer', padding: '6px 12px', zIndex: 100,
+                        display: 'flex', alignItems: 'center',
+                        cursor: (isToggling || isExpired) ? 'default' : 'pointer', padding: '4px', zIndex: 100,
                         opacity: (isToggling || isExpired) ? 0.7 : 1,
-                        background: 'rgba(255, 255, 255, 0.05)', borderRadius: '16px', border: '1px solid rgba(255,255,255,0.08)'
+                        background: 'transparent', borderRadius: '16px', border: 'none' // Removed frame/background
                     }}
                 >
                     <div style={{
-                        width: 44, height: 44, borderRadius: '16px', display: 'flex', alignItems: 'center', justifyContent: 'center',
+                        width: 40, height: 40, borderRadius: '14px', display: 'flex', alignItems: 'center', justifyContent: 'center',
                         background: (selectedVideo.done || selectedVideo.completed) ? '#FF7939' : 'rgba(255,255,255,0.05)',
-                        boxShadow: (selectedVideo.done || selectedVideo.completed) ? '0 8px 25px rgba(255,121,57,0.5)' : 'none',
+                        boxShadow: (selectedVideo.done || selectedVideo.completed) ? '0 8px 25px rgba(255,121,57,0.4)' : 'none',
                         border: (selectedVideo.done || selectedVideo.completed) ? 'none' : '1px solid rgba(255,255,255,0.1)',
                         transition: 'all 0.4s cubic-bezier(0.175, 0.885, 0.32, 1.275)'
                     }}>
                         <Flame
-                            size={24}
+                            size={22}
                             fill={(selectedVideo.done || selectedVideo.completed) ? "white" : "none"}
                             color={(selectedVideo.done || selectedVideo.completed) ? "white" : "rgba(255,255,255,0.2)"}
                             strokeWidth={2.5}
                         />
                     </div>
-                    <span style={{ color: 'white', fontSize: 13, fontWeight: 900, textTransform: 'uppercase', letterSpacing: '0.06em' }}>
-                        {isExpired ? 'Expirado' : ((selectedVideo.done || selectedVideo.completed) ? 'Completado' : 'Marcar')}
-                    </span>
+                    {/* Text "COMPLETADO" removed as requested */}
                 </div>
             </div>
 
             {/* Title */}
-            <div style={{ padding: '8px 20px 0', flexShrink: 0, position: 'relative', zIndex: 10, textAlign: 'center' }}>
-                <h1 style={{ color: 'rgba(255, 255, 255, 1)', fontSize: 24, fontWeight: 800, margin: 0, letterSpacing: '-0.02em', lineHeight: 1.2 }}>
+            <div style={{ padding: '4px 24px 0', flexShrink: 0, position: 'relative', zIndex: 10, textAlign: 'center' }}>
+                <h1 style={{ color: 'rgba(255, 255, 255, 1)', fontSize: 20, fontWeight: 800, margin: 0, letterSpacing: '-0.02em', lineHeight: 1.2 }}>
                     {selectedVideo.exerciseName || selectedVideo.title || selectedVideo.nombre_ejercicio}
                 </h1>
             </div>
@@ -194,7 +192,7 @@ export function ActivityDetailOverlay({
                 onClick={(e) => { e.stopPropagation(); onPrev(); }}
                 style={{
                     position: 'fixed', bottom: 120, left: 24, zIndex: 10000,
-                    width: 58, height: 58, borderRadius: '50%',
+                    width: 48, height: 48, borderRadius: '50%',
                     background: 'rgba(255, 255, 255, 0.08)',
                     backdropFilter: 'blur(25px)',
                     border: '1.5px solid #FF7939',
@@ -203,14 +201,14 @@ export function ActivityDetailOverlay({
                     boxShadow: '0 8px 32px rgba(0,0,0,0.6)', transition: 'all 0.2s ease'
                 }}
             >
-                <span style={{ fontSize: 28, fontWeight: 700 }}>←</span>
+                <span style={{ fontSize: 22, fontWeight: 700 }}>←</span>
             </button>
 
             <button
                 onClick={(e) => { e.stopPropagation(); onNext(); }}
                 style={{
                     position: 'fixed', bottom: 120, right: 24, zIndex: 10000,
-                    width: 58, height: 58, borderRadius: '50%',
+                    width: 48, height: 48, borderRadius: '50%',
                     background: 'rgba(255, 255, 255, 0.08)',
                     backdropFilter: 'blur(25px)',
                     border: '1.5px solid #FF7939',
@@ -219,7 +217,7 @@ export function ActivityDetailOverlay({
                     boxShadow: '0 8px 32px rgba(0,0,0,0.6)', transition: 'all 0.2s ease'
                 }}
             >
-                <span style={{ fontSize: 28, fontWeight: 700 }}>→</span>
+                <span style={{ fontSize: 22, fontWeight: 700 }}>→</span>
             </button>
         </motion.div>
     );
