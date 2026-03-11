@@ -24,11 +24,11 @@ export function ActivityVideoPlayer({
         <>
             {/* Play Button Icon - RE-ADDED */}
             {!isVideoPanelExpanded && (
-                <div style={{ display: 'flex', justifyContent: 'center', marginTop: 30, marginBottom: 10 }}>
+                <div style={{ display: 'flex', justifyContent: 'center', marginTop: 10, marginBottom: 10 }}>
                     <button
                         onClick={() => setIsVideoPanelExpanded(true)}
                         style={{
-                            width: 76, height: 76, borderRadius: '50%',
+                            width: 60, height: 60, borderRadius: '50%',
                             background: 'rgba(255, 121, 57, 0.15)',
                             border: '2px solid #FF7939',
                             backdropFilter: 'blur(20px)',

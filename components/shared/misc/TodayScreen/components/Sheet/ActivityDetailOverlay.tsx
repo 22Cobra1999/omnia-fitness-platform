@@ -139,8 +139,8 @@ export function ActivityDetailOverlay({
             </div>
 
             {/* Title */}
-            <div style={{ padding: '4px 24px 0', flexShrink: 0, position: 'relative', zIndex: 10, textAlign: 'center' }}>
-                <h1 style={{ color: 'rgba(255, 255, 255, 1)', fontSize: 20, fontWeight: 800, margin: 0, letterSpacing: '-0.02em', lineHeight: 1.2 }}>
+            <div style={{ padding: '0px 24px 0', flexShrink: 0, position: 'relative', zIndex: 10, textAlign: 'center' }}>
+                <h1 style={{ color: 'rgba(255, 255, 255, 1)', fontSize: 18, fontWeight: 800, margin: 0, letterSpacing: '-0.02em', lineHeight: 1.2 }}>
                     {selectedVideo.exerciseName || selectedVideo.title || selectedVideo.nombre_ejercicio}
                 </h1>
             </div>
@@ -191,8 +191,8 @@ export function ActivityDetailOverlay({
             <button
                 onClick={(e) => { e.stopPropagation(); onPrev(); }}
                 style={{
-                    position: 'fixed', bottom: 120, left: 24, zIndex: 10000,
-                    width: 48, height: 48, borderRadius: '50%',
+                    position: 'fixed', bottom: 120, left: 16, zIndex: 10000,
+                    width: 42, height: 42, borderRadius: '50%',
                     background: 'rgba(255, 255, 255, 0.08)',
                     backdropFilter: 'blur(25px)',
                     border: '1.5px solid #FF7939',
@@ -201,14 +201,14 @@ export function ActivityDetailOverlay({
                     boxShadow: '0 8px 32px rgba(0,0,0,0.6)', transition: 'all 0.2s ease'
                 }}
             >
-                <span style={{ fontSize: 22, fontWeight: 700 }}>←</span>
+                <span style={{ fontSize: 20, fontWeight: 700 }}>←</span>
             </button>
 
             <button
                 onClick={(e) => { e.stopPropagation(); onNext(); }}
                 style={{
-                    position: 'fixed', bottom: 120, right: 24, zIndex: 10000,
-                    width: 48, height: 48, borderRadius: '50%',
+                    position: 'fixed', bottom: 120, right: 16, zIndex: 10000,
+                    width: 42, height: 42, borderRadius: '50%',
                     background: 'rgba(255, 255, 255, 0.08)',
                     backdropFilter: 'blur(25px)',
                     border: '1.5px solid #FF7939',
@@ -217,7 +217,7 @@ export function ActivityDetailOverlay({
                     boxShadow: '0 8px 32px rgba(0,0,0,0.6)', transition: 'all 0.2s ease'
                 }}
             >
-                <span style={{ fontSize: 22, fontWeight: 700 }}>→</span>
+                <span style={{ fontSize: 20, fontWeight: 700 }}>→</span>
             </button>
         </motion.div>
     );

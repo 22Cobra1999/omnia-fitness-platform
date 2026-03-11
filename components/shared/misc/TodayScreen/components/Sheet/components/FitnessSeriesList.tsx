@@ -95,12 +95,12 @@ export function FitnessSeriesList({
                     display: 'flex',
                     alignItems: 'center',
                     justifyContent: 'space-between',
-                    padding: '18px 24px',
+                    padding: '12px 18px', // Reduced from 18px 24px
                     background: 'rgba(255, 255, 255, 0.04)',
-                    borderRadius: 24,
+                    borderRadius: 20, // Slightly smaller radius
                     border: '1px solid rgba(255, 255, 255, 0.1)',
                     width: '100%',
-                    boxShadow: '0 10px 30px rgba(0,0,0,0.2)',
+                    boxShadow: '0 8px 24px rgba(0,0,0,0.2)',
                     transition: 'all 0.3s ease'
                 }}>
                     <div style={{ display: 'flex', alignItems: 'center', gap: 16, flex: 1 }}>
@@ -135,12 +135,12 @@ export function FitnessSeriesList({
                                         copy[idx].sets = e.target.value;
                                         setEditedSeries(copy);
                                     }}
-                                    style={{ width: 44, background: 'rgba(255,255,255,0.08)', border: '1px solid rgba(255,255,255,0.1)', borderRadius: 8, color: '#fff', fontSize: 18, fontWeight: 800, textAlign: 'center', padding: '6px 0' }}
+                                    style={{ width: 44, background: 'rgba(255,255,255,0.08)', border: '1px solid rgba(255,255,255,0.1)', borderRadius: 8, color: '#fff', fontSize: 16, fontWeight: 800, textAlign: 'center', padding: '6px 0' }}
                                 />
                             ) : (
-                                <span style={{ color: '#FFFFFF', fontSize: 20, fontWeight: 900 }}>{s.sets}</span>
+                                <span style={{ color: '#FFFFFF', fontSize: 18, fontWeight: 900 }}>{s.sets}</span>
                             )}
-                            <div style={{ color: 'rgba(255, 255, 255, 0.3)', fontSize: 10, fontWeight: 900, textTransform: 'uppercase', marginTop: 4, letterSpacing: '0.1em' }}>Series</div>
+                            <div style={{ color: 'rgba(255, 255, 255, 0.3)', fontSize: 9, fontWeight: 900, textTransform: 'uppercase', marginTop: 2, letterSpacing: '0.1em' }}>Series</div>
                         </div>
 
                         {/* Reps Column */}
@@ -154,12 +154,12 @@ export function FitnessSeriesList({
                                         copy[idx].reps = e.target.value;
                                         setEditedSeries(copy);
                                     }}
-                                    style={{ width: 54, background: 'rgba(255,255,255,0.08)', border: '1px solid rgba(255,255,255,0.1)', borderRadius: 8, color: '#fff', fontSize: 18, fontWeight: 800, textAlign: 'center', padding: '6px 0' }}
+                                    style={{ width: 54, background: 'rgba(255,255,255,0.08)', border: '1px solid rgba(255,255,255,0.1)', borderRadius: 8, color: '#fff', fontSize: 16, fontWeight: 800, textAlign: 'center', padding: '6px 0' }}
                                 />
                             ) : (
-                                <div style={{ color: '#FFFFFF', fontSize: 20, fontWeight: 900 }}>{s.reps || '-'}</div>
+                                <div style={{ color: '#FFFFFF', fontSize: 18, fontWeight: 900 }}>{s.reps || '-'}</div>
                             )}
-                            <div style={{ color: 'rgba(255, 255, 255, 0.3)', fontSize: 10, fontWeight: 900, textTransform: 'uppercase', marginTop: 4, letterSpacing: '0.1em' }}>Reps</div>
+                            <div style={{ color: 'rgba(255, 255, 255, 0.3)', fontSize: 9, fontWeight: 900, textTransform: 'uppercase', marginTop: 2, letterSpacing: '0.1em' }}>Reps</div>
                         </div>
                     </div>
 
@@ -175,14 +175,14 @@ export function FitnessSeriesList({
                                         copy[idx].kg = e.target.value;
                                         setEditedSeries(copy);
                                     }}
-                                    style={{ width: 60, background: 'rgba(255,121,57,0.15)', border: '1.5px solid rgba(255,121,57,0.3)', borderRadius: 10, color: '#FF7939', fontSize: 20, fontWeight: 900, textAlign: 'center', padding: '8px 4px' }}
+                                    style={{ width: 54, background: 'rgba(255,121,57,0.15)', border: '1.5px solid rgba(255,121,57,0.3)', borderRadius: 10, color: '#FF7939', fontSize: 18, fontWeight: 900, textAlign: 'center', padding: '6px 4px' }}
                                 />
-                                <span style={{ color: '#FF7939', fontSize: 16, fontWeight: 900 }}>kg</span>
+                                <span style={{ color: '#FF7939', fontSize: 14, fontWeight: 900 }}>kg</span>
                             </div>
                         ) : (
-                            <div style={{ color: '#FF7939', fontSize: 24, fontWeight: 900 }}>{s.kg ? `${s.kg}kg` : '-'}</div>
+                            <div style={{ color: '#FF7939', fontSize: 20, fontWeight: 900 }}>{s.kg ? `${s.kg}kg` : '-'}</div>
                         )}
-                        <div style={{ color: 'rgba(255, 255, 255, 0.3)', fontSize: 11, fontWeight: 900, textTransform: 'uppercase', letterSpacing: '0.1em' }}>Peso Máximo</div>
+                        <div style={{ color: 'rgba(255, 255, 255, 0.3)', fontSize: 10, fontWeight: 900, textTransform: 'uppercase', letterSpacing: '0.1em' }}>Peso Máximo</div>
                     </div>
 
                     {/* Actions Column */}

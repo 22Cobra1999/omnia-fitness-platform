@@ -40,35 +40,35 @@ export function FitnessInfo({
                 display: 'flex',
                 alignItems: 'center',
                 justifyContent: 'center',
-                gap: 20,
-                padding: '20px',
+                gap: 12,
+                padding: '12px 16px',
                 background: 'rgba(255, 255, 255, 0.03)',
-                borderRadius: 24,
+                borderRadius: 20,
                 border: '1px solid rgba(255, 255, 255, 0.08)',
                 boxShadow: '0 4px 20px rgba(0,0,0,0.1)'
             }}>
                 {(selectedVideo.duration != null || selectedVideo.minutos != null) && (
                     <>
-                        <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-                            <Clock size={20} color="rgba(255, 255, 255, 0.7)" />
-                            <span style={{ color: 'rgba(255, 255, 255, 1)', fontSize: 17, fontWeight: 800, letterSpacing: '-0.02em' }}>{selectedVideo.duration || selectedVideo.minutos} min</span>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                            <Clock size={16} color="rgba(255, 255, 255, 0.7)" />
+                            <span style={{ color: 'rgba(255, 255, 255, 1)', fontSize: 14, fontWeight: 800, letterSpacing: '-0.02em' }}>{selectedVideo.duration || selectedVideo.minutos} min</span>
                         </div>
-                        {(selectedVideo.calorias != null || selectedVideo.type || selectedVideo.tipo) && <div style={{ width: 1, height: 28, background: 'rgba(255, 255, 255, 0.15)' }}></div>}
+                        {(selectedVideo.calorias != null || selectedVideo.type || selectedVideo.tipo) && <div style={{ width: 1, height: 20, background: 'rgba(255, 255, 255, 0.15)' }}></div>}
                     </>
                 )}
                 {selectedVideo.calorias != null && (
                     <>
-                        <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-                            <Flame size={20} color="#FF7939" fill="#FF7939" />
-                            <span style={{ color: 'rgba(255, 255, 255, 1)', fontSize: 17, fontWeight: 800, letterSpacing: '-0.02em' }}>~{selectedVideo.calorias} kcal</span>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                            <Flame size={16} color="#FF7939" fill="#FF7939" />
+                            <span style={{ color: 'rgba(255, 255, 255, 1)', fontSize: 14, fontWeight: 800, letterSpacing: '-0.02em' }}>~{selectedVideo.calorias} kcal</span>
                         </div>
-                        {(selectedVideo.type || selectedVideo.tipo) && <div style={{ width: 1, height: 28, background: 'rgba(255, 255, 255, 0.15)' }}></div>}
+                        {(selectedVideo.type || selectedVideo.tipo) && <div style={{ width: 1, height: 20, background: 'rgba(255, 255, 255, 0.15)' }}></div>}
                     </>
                 )}
                 {(selectedVideo.type || selectedVideo.tipo) && (
-                    <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-                        <Zap size={20} color="#FF7939" />
-                        <span style={{ color: 'rgba(255, 255, 255, 1)', fontSize: 17, fontWeight: 800, textTransform: 'uppercase', letterSpacing: '0.04em' }}>{selectedVideo.type || selectedVideo.tipo}</span>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                        <Zap size={16} color="#FF7939" />
+                        <span style={{ color: 'rgba(255, 255, 255, 1)', fontSize: 14, fontWeight: 800, textTransform: 'uppercase', letterSpacing: '0.04em' }}>{selectedVideo.type || selectedVideo.tipo}</span>
                     </div>
                 )}
             </div>
@@ -86,10 +86,10 @@ export function FitnessInfo({
                             key={tab}
                             onClick={() => setActiveExerciseTab(tab)}
                             style={{
-                                flexShrink: 0, padding: '16px 24px', background: 'transparent', border: 'none',
-                                borderBottom: activeExerciseTab === tab ? '4px solid #FF7939' : '4px solid transparent',
+                                flexShrink: 0, padding: '10px 16px', background: 'transparent', border: 'none',
+                                borderBottom: activeExerciseTab === tab ? '3px solid #FF7939' : '3px solid transparent',
                                 color: activeExerciseTab === tab ? '#FFFFFF' : 'rgba(255, 255, 255, 0.4)',
-                                fontSize: 18, fontWeight: activeExerciseTab === tab ? 900 : 600,
+                                fontSize: 15, fontWeight: activeExerciseTab === tab ? 900 : 600,
                                 cursor: 'pointer', transition: 'all 0.3s cubic-bezier(0.4, 0, 0.2, 1)', whiteSpace: 'nowrap',
                                 letterSpacing: '0.04em', textTransform: 'uppercase'
                             }}
