@@ -57,7 +57,7 @@ export function UniversalHero({
             padding: '0px 24px 24px',
             minHeight: 'clamp(160px, 20vh, 240px)',
             marginBottom: 20,
-            marginTop: -32,
+            marginTop: -44,
             marginLeft: '-24px',
             marginRight: '-24px',
             width: 'calc(100% + 48px)',
