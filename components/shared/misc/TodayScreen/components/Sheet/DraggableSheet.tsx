@@ -70,8 +70,8 @@ export function DraggableSheet({
     meetCreditsAvailable, onScheduleMeet
 }: DraggableSheetProps) {
 
-    const TOP_SNAP = 56; // Exactly matches header height (h-14)
-    const COLLAPSED_H = 150; // Increased peek to show more activities
+    const TOP_SNAP = 60; // Slightly more than header to ensure clear separation or coverage
+    const COLLAPSED_H = vh * 0.20; // 20% peek as requested
     const collapsedY = vh - COLLAPSED_H;
 
     // Snapshot logic for drag end - Binary (Snap to Top or Bottom)
@@ -139,7 +139,7 @@ export function DraggableSheet({
                 borderTopLeftRadius: 32, borderTopRightRadius: 32,
                 border: '1px solid rgba(255, 255, 255, 0.12)',
                 boxShadow: '0 -8px 32px rgba(0, 0, 0, 0.4)',
-                display: 'flex', flexDirection: 'column', zIndex: 200, overflow: 'hidden'
+                display: 'flex', flexDirection: 'column', zIndex: 1100, overflow: 'hidden'
             }}
         >
             {/* Handle */}

@@ -111,10 +111,15 @@ export function WeeklyCalendar({
             WebkitBackdropFilter: 'blur(10px) saturate(150%)',
             border: '1px solid rgba(255, 255, 255, 0.12)',
             borderRadius: 24,
-            padding: '12px 20px',
-            paddingTop: '12px',
-            paddingBottom: calendarExpanded ? 52 : 16,
+            padding: '4px 20px', // Further reduced top padding
+            paddingTop: '4px',
+            paddingBottom: calendarExpanded ? 52 : 12,
+            minHeight: calendarExpanded ? '40vh' : '25vh', 
+            display: 'flex',
+            flexDirection: 'column',
+            justifyContent: 'center', 
             marginBottom: 0,
+            marginTop: -6, // Negative margin to pull it closer to the title section
             marginLeft: '-24px',
             marginRight: '-24px',
             width: 'calc(100% + 48px)',

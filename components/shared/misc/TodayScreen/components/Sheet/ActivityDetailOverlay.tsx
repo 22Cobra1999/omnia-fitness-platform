@@ -71,7 +71,7 @@ export function ActivityDetailOverlay({
             transition={{ type: 'spring', damping: 25, stiffness: 200 }}
             className="activity-detail-overlay-container"
             style={{
-                position: 'fixed', top: 56, left: 0, right: 0, bottom: 64, zIndex: 45,
+                position: 'fixed', top: 56, left: 0, right: 0, bottom: 64, zIndex: 1200,
                 backgroundColor: '#000000', display: 'flex', flexDirection: 'column',
                 boxShadow: '0 -10px 40px rgba(0,0,0,0.5)',
                 borderTopLeftRadius: 32, borderTopRightRadius: 32, overflow: 'hidden'

@@ -23,9 +23,9 @@ export function ScreenLayout({
     isSpecialView
 }: ScreenLayoutProps) {
     // Unified collapsed height logic
-    const COLLAPSED_H = 150;
+    const COLLAPSED_H = vh * 0.20; // Increased to 20% to make it "higher" as requested
     const collapsedY = vh - COLLAPSED_H;
-    const TOP_SNAP = 56; // Global header height to prevent overlap
+    const TOP_SNAP = 60; // Adjusted to be safely below/above header depending on z-index
 
     // Motion Values
     const y = useMotionValue(0); // Initial value will be set in useEffect
@@ -81,7 +81,7 @@ export function ScreenLayout({
                     height: '100vh',
                     overflowY: 'auto',
                     overflowX: 'hidden',
-                    paddingTop: '56px', // Matches global header height
+                    paddingTop: '48px', // Compacted from 56px
                     paddingBottom: '240px',
                     WebkitOverflowScrolling: 'touch',
                     position: 'relative',

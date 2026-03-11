@@ -54,9 +54,9 @@ export function UniversalHero({
             borderTopRightRadius: 0,
             borderBottomLeftRadius: 24,
             borderBottomRightRadius: 24,
-            padding: '0px 24px 24px',
-            minHeight: 'clamp(160px, 20vh, 240px)',
-            marginBottom: 20,
+            padding: '12px 24px 8px', // Added top padding to lower icons from header
+            minHeight: '22vh', 
+            marginBottom: 6, // Reduced from 12 to bring calendar closer
             marginTop: -44,
             marginLeft: '-24px',
             marginRight: '-24px',
@@ -64,7 +64,7 @@ export function UniversalHero({
             position: 'relative',
             display: 'flex',
             flexDirection: 'column',
-            justifyContent: 'flex-start',
+            justifyContent: 'center',
             boxShadow: '0 12px 40px rgba(0, 0, 0, 0.4), inset 0 1px 0 rgba(255, 255, 255, 0.05)',
             filter: isExpired ? 'grayscale(1) opacity(0.8)' : 'none'
         }}>
@@ -177,8 +177,8 @@ export function UniversalHero({
             }}>
                 <h1 style={{
                     margin: '0',
-                    fontSize: 28,
-                    lineHeight: 1.2,
+                    fontSize: 22, // Reduced from 24
+                    lineHeight: 1.1,
                     fontWeight: 900,
                     color: '#fff',
                     textAlign: 'center',
@@ -317,11 +317,11 @@ export function UniversalHero({
             </div>
 
             {programInfo?.description && (
-                <div style={{ marginTop: 12, marginBottom: 8 }}>
+                <div style={{ marginTop: 8, marginBottom: 4 }}>
                     <p style={{
                         margin: 0,
-                        fontSize: 14,
-                        lineHeight: 1.5,
+                        fontSize: 13, // Slightly smaller description
+                        lineHeight: 1.4,
                         color: 'rgba(255, 255, 255, 0.9)',
                         display: '-webkit-box',
                         WebkitLineClamp: descriptionExpanded ? 999 : 2,
