@@ -1,6 +1,6 @@
 
 import * as React from 'react';
-import { Clock, Flame, Zap, Pencil } from 'lucide-react';
+import { Clock, Flame, Zap, Pencil, Check } from 'lucide-react';
 import { FitnessSeriesList } from './FitnessSeriesList';
 import { parseTags } from '../../../utils/parsers';
 
@@ -99,20 +99,55 @@ export function FitnessInfo({
                     ))}
                 </div>
 
-                {/* Edit Button Area - Compact and positioned below tabs */}
-                {activeExerciseTab === 'Series' && !selectedVideo.isPast && !isEditingSeries && (
-                    <div style={{ display: 'flex', justifyContent: 'flex-end', padding: '0 8px', marginBottom: 8 }}>
-                        <button
-                            onClick={(e) => { e.stopPropagation(); handleStartEditing(); }}
-                            style={{
-                                padding: '6px 12px', borderRadius: 10,
-                                background: 'rgba(255, 121, 57, 0.12)', border: '1px solid rgba(255, 121, 57, 0.2)',
-                                color: '#FF7939', fontSize: 11, fontWeight: 800, textTransform: 'uppercase',
-                                display: 'flex', alignItems: 'center', gap: 6, cursor: 'pointer'
-                            }}
-                        >
-                            <Pencil size={14} /> Editar
-                        </button>
+                {/* Edit / Save / Cancel Area */}
+                {activeExerciseTab === 'Series' && !selectedVideo.isPast && (
+                    <div style={{ display: 'flex', justifyContent: 'flex-end', padding: '0 8px', marginBottom: 8, gap: 8 }}>
+                        {!isEditingSeries ? (
+                            <button
+                                onClick={(e) => { e.stopPropagation(); handleStartEditing(); }}
+                                style={{
+                                    padding: '6px 14px', borderRadius: 12,
+                                    background: 'rgba(255, 121, 57, 0.12)', border: '1px solid rgba(255, 121, 57, 0.2)',
+                                    color: '#FF7939', fontSize: 12, fontWeight: 900, textTransform: 'uppercase',
+                                    display: 'flex', alignItems: 'center', gap: 6, cursor: 'pointer',
+                                    transition: 'all 0.2s ease'
+                                }}
+                            >
+                                <Pencil size={14} /> Editar
+                            </button>
+                        ) : (
+                            <>
+                                <button
+                                    onClick={() => setIsEditingSeries(false)}
+                                    style={{
+                                        padding: '6px 14px', borderRadius: 12,
+                                        background: 'rgba(255, 255, 255, 0.05)', border: '1px solid rgba(255, 255, 255, 0.1)',
+                                        color: 'rgba(255, 255, 255, 0.6)', fontSize: 12, fontWeight: 800, textTransform: 'uppercase',
+                                        cursor: 'pointer', transition: 'all 0.2s ease'
+                                    }}
+                                >
+                                    Cancelar
+                                </button>
+                                <button
+                                    onClick={handleSaveSeries}
+                                    disabled={isSaving}
+                                    style={{
+                                        padding: '6px 18px', borderRadius: 12,
+                                        background: '#FF7939', border: 'none',
+                                        color: '#fff', fontSize: 12, fontWeight: 900, textTransform: 'uppercase',
+                                        display: 'flex', alignItems: 'center', gap: 6, cursor: isSaving ? 'default' : 'pointer',
+                                        boxShadow: '0 4px 15px rgba(255, 121, 57, 0.3)',
+                                        opacity: isSaving ? 0.7 : 1, transition: 'all 0.2s ease'
+                                    }}
+                                >
+                                    {isSaving ? 'Guardando...' : (
+                                        <>
+                                            <Check size={14} strokeWidth={3} /> Guardar
+                                        </>
+                                    )}
+                                </button>
+                            </>
+                        )}
                     </div>
                 )}
 

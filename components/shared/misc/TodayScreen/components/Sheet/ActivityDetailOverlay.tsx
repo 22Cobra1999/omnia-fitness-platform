@@ -99,6 +99,13 @@ export function ActivityDetailOverlay({
                         width: 100%;
                     }
                 }
+                .hide-scrollbar {
+                    -ms-overflow-style: none;
+                    scrollbar-width: none;
+                }
+                .hide-scrollbar::-webkit-scrollbar {
+                    display: none;
+                }
             `}</style>
 
             {/* Background and Overlay styles */}
@@ -152,7 +159,7 @@ export function ActivityDetailOverlay({
             <div style={{ flex: 1, display: 'flex', flexDirection: 'column', position: 'relative', overflow: 'hidden', zIndex: 5 }}>
                 <div
                     ref={scrollRef}
-                    className={isNutrition ? 'hide-scrollbar' : 'orange-glass-scrollbar'}
+                    className="hide-scrollbar"
                     style={{ flex: 1, overflowY: 'auto', padding: '20px 20px 250px', display: 'flex', flexDirection: 'column', gap: 20, position: 'relative' }}
                 >
                     <div className="desktop-content-wrapper">

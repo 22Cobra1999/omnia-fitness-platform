@@ -148,6 +148,11 @@ export function useActivityDetailLogic({
                     peso: s.kg,
                     series: s.sets
                 }));
+                if (adjustedKcal !== null) selectedVideo.calorias = adjustedKcal;
+                if (adjustedMin !== null) {
+                    selectedVideo.minutos = adjustedMin;
+                    selectedVideo.duration = adjustedMin;
+                }
                 setIsEditingSeries(false);
             } else {
                 alert(result.error || 'Error al guardar');
