@@ -1,6 +1,6 @@
 
 import * as React from 'react';
-import { Clock, Flame, Zap } from 'lucide-react';
+import { Clock, Flame, Zap, Pencil } from 'lucide-react';
 import { FitnessSeriesList } from './FitnessSeriesList';
 import { parseTags } from '../../../utils/parsers';
 
@@ -75,7 +75,7 @@ export function FitnessInfo({
 
             {/* TABS: Series | Técnica | Músculos | Equipamiento */}
             <div style={{ display: 'flex', flexDirection: 'column', gap: 0 }}>
-                <div style={{ display: 'flex', borderBottom: '1px solid rgba(255, 255, 255, 0.1)', marginBottom: 16, overflowX: 'auto', gap: 8, justifyContent: 'center' }} className="hide-scrollbar">
+                <div style={{ display: 'flex', borderBottom: '1px solid rgba(255, 255, 255, 0.1)', marginBottom: 8, overflowX: 'auto', gap: 4, justifyContent: 'center' }} className="hide-scrollbar">
                     {[
                         (selectedVideo.detalle_series || selectedVideo.series) && selectedVideo.detalle_series !== 'Sin especificar' ? 'Series' : null,
                         'Técnica',
@@ -86,10 +86,10 @@ export function FitnessInfo({
                             key={tab}
                             onClick={() => setActiveExerciseTab(tab)}
                             style={{
-                                flexShrink: 0, padding: '10px 16px', background: 'transparent', border: 'none',
+                                flexShrink: 0, padding: '8px 12px', background: 'transparent', border: 'none',
                                 borderBottom: activeExerciseTab === tab ? '3px solid #FF7939' : '3px solid transparent',
                                 color: activeExerciseTab === tab ? '#FFFFFF' : 'rgba(255, 255, 255, 0.4)',
-                                fontSize: 15, fontWeight: activeExerciseTab === tab ? 900 : 600,
+                                fontSize: 13, fontWeight: activeExerciseTab === tab ? 900 : 600,
                                 cursor: 'pointer', transition: 'all 0.3s cubic-bezier(0.4, 0, 0.2, 1)', whiteSpace: 'nowrap',
                                 letterSpacing: '0.04em', textTransform: 'uppercase'
                             }}
@@ -98,6 +98,23 @@ export function FitnessInfo({
                         </button>
                     ))}
                 </div>
+
+                {/* Edit Button Area - Compact and positioned below tabs */}
+                {activeExerciseTab === 'Series' && !selectedVideo.isPast && !isEditingSeries && (
+                    <div style={{ display: 'flex', justifyContent: 'flex-end', padding: '0 8px', marginBottom: 8 }}>
+                        <button
+                            onClick={(e) => { e.stopPropagation(); handleStartEditing(); }}
+                            style={{
+                                padding: '6px 12px', borderRadius: 10,
+                                background: 'rgba(255, 121, 57, 0.12)', border: '1px solid rgba(255, 121, 57, 0.2)',
+                                color: '#FF7939', fontSize: 11, fontWeight: 800, textTransform: 'uppercase',
+                                display: 'flex', alignItems: 'center', gap: 6, cursor: 'pointer'
+                            }}
+                        >
+                            <Pencil size={14} /> Editar
+                        </button>
+                    </div>
+                )}
 
                 <div style={{ padding: '0 8px' }}>
                     {activeExerciseTab === 'Series' && (

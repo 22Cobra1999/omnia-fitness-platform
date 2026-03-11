@@ -61,7 +61,7 @@ export const parseTags = (data: any): string[] => {
         if (data.startsWith('[') && data.endsWith(']')) {
             try { return JSON.parse(data); } catch { }
         }
-        return data.split(',').map(s => s.trim()).filter(Boolean);
+        return data.split(/[;,]/).map(s => s.trim()).filter(Boolean);
     }
     return [];
 };

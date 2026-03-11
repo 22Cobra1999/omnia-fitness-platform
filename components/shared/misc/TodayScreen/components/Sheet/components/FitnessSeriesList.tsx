@@ -25,60 +25,13 @@ export function FitnessSeriesList({
     isSaving
 }: FitnessSeriesListProps) {
 
-    // Determine which series array to use
-    // If not editing, parse from video. If editing, use local state.
     const displaySeries = isEditingSeries
         ? editedSeries
         : parseSeries(selectedVideo.detalle_series || selectedVideo.series);
 
     return (
         <div style={{ display: 'flex', flexDirection: 'column', gap: 12, width: '100%', position: 'relative' }}>
-            {/* Edit Button - Fixed in corner */}
-            {!selectedVideo.isPast && (
-                <div style={{ position: 'absolute', top: -55, right: 0, zIndex: 20 }}>
-                    {!isEditingSeries ? (
-                        <button
-                            onClick={(e) => { e.stopPropagation(); handleStartEditing(); }}
-                            style={{
-                                width: 44, height: 44, borderRadius: 14,
-                                background: 'rgba(255, 121, 57, 0.15)', backdropFilter: 'blur(10px)',
-                                border: '1px solid rgba(255, 121, 57, 0.25)', color: '#FF7939',
-                                display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer',
-                                transition: 'all 0.2s ease', boxShadow: '0 8px 20px rgba(0,0,0,0.3)'
-                            }}
-                        >
-                            <Pencil size={20} />
-                        </button>
-                    ) : (
-                        <div style={{ display: 'flex', gap: 10 }}>
-                            <button
-                                onClick={() => setIsEditingSeries(false)}
-                                style={{
-                                    width: 44, height: 44, borderRadius: 14,
-                                    background: 'rgba(255, 255, 255, 0.08)', border: '1px solid rgba(255,255,255,0.1)',
-                                    display: 'flex', alignItems: 'center', justifyContent: 'center',
-                                    color: '#fff', cursor: 'pointer', backdropFilter: 'blur(10px)'
-                                }}
-                            >
-                                <X size={20} />
-                            </button>
-                            <button
-                                onClick={handleSaveSeries}
-                                disabled={isSaving}
-                                style={{
-                                    width: 44, height: 44, borderRadius: 14,
-                                    background: '#FF7939', border: 'none',
-                                    display: 'flex', alignItems: 'center', justifyContent: 'center',
-                                    color: '#fff', cursor: 'pointer', opacity: isSaving ? 0.7 : 1,
-                                    boxShadow: '0 8px 20px rgba(255,121,57,0.3)'
-                                }}
-                            >
-                                {isSaving ? <div className="animate-spin w-5 h-5 border-2 border-white/30 border-t-white rounded-full" /> : <Check size={20} strokeWidth={3} />}
-                            </button>
-                        </div>
-                    )}
-                </div>
-            )}
+            {/* Edit Button moved to FitnessInfo.tsx */}
 
             {/* Explanatory Phrase for Apply Always */}
             {isEditingSeries && (
@@ -94,38 +47,41 @@ export function FitnessSeriesList({
                 <div key={idx} style={{
                     display: 'flex',
                     alignItems: 'center',
-                    justifyContent: 'space-between',
-                    padding: '12px 18px', // Reduced from 18px 24px
+                    padding: '16px 8px',
                     background: 'rgba(255, 255, 255, 0.04)',
-                    borderRadius: 20, // Slightly smaller radius
+                    borderRadius: 20,
                     border: '1px solid rgba(255, 255, 255, 0.1)',
                     width: '100%',
                     boxShadow: '0 8px 24px rgba(0,0,0,0.2)',
-                    transition: 'all 0.3s ease'
+                    position: 'relative',
+                    overflow: 'hidden'
                 }}>
-                    <div style={{ display: 'flex', alignItems: 'center', gap: 16, flex: 1 }}>
-                        {/* Lightning Toggle */}
-                        {isEditingSeries && (
-                            <button
-                                onClick={() => {
-                                    const copy = [...editedSeries];
-                                    copy[idx].propagate = !copy[idx].propagate;
-                                    setEditedSeries(copy);
-                                }}
-                                style={{
-                                    width: 32, height: 32, borderRadius: 10,
-                                    background: s.propagate ? 'rgba(255, 121, 57, 0.2)' : 'rgba(255,255,255,0.05)',
-                                    border: s.propagate ? '1.5px solid #FF7939' : '1px solid rgba(255,255,255,0.1)',
-                                    display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer',
-                                    transition: 'all 0.2s ease', color: s.propagate ? '#FF7939' : 'rgba(255,255,255,0.2)'
-                                }}
-                            >
-                                <Zap size={16} fill={s.propagate ? "currentColor" : "none"} />
-                            </button>
-                        )}
+                    {/* Lightning Toggle (Absolute left when editing) */}
+                    {isEditingSeries && (
+                        <button
+                            onClick={() => {
+                                const copy = [...editedSeries];
+                                copy[idx].propagate = !copy[idx].propagate;
+                                setEditedSeries(copy);
+                            }}
+                            style={{
+                                position: 'absolute', left: 12,
+                                width: 28, height: 28, borderRadius: 8,
+                                background: s.propagate ? 'rgba(255, 121, 57, 0.2)' : 'rgba(255,255,255,0.05)',
+                                border: s.propagate ? '1px solid #FF7939' : '1px solid rgba(255,255,255,0.1)',
+                                display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer',
+                                color: s.propagate ? '#FF7939' : 'rgba(255,255,255,0.2)'
+                            }}
+                        >
+                            <Zap size={14} fill={s.propagate ? "currentColor" : "none"} />
+                        </button>
+                    )}
 
+                    {/* Centered Columns Container */}
+                    <div style={{ display: 'flex', flex: 1, justifyContent: 'space-evenly', alignItems: 'center', padding: isEditingSeries ? '0 40px' : '0 10px' }}>
+                        
                         {/* Series Column */}
-                        <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-start' }}>
+                        <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', flex: 1 }}>
                             {isEditingSeries ? (
                                 <input
                                     type="number"
@@ -135,16 +91,16 @@ export function FitnessSeriesList({
                                         copy[idx].sets = e.target.value;
                                         setEditedSeries(copy);
                                     }}
-                                    style={{ width: 44, background: 'rgba(255,255,255,0.08)', border: '1px solid rgba(255,255,255,0.1)', borderRadius: 8, color: '#fff', fontSize: 16, fontWeight: 800, textAlign: 'center', padding: '6px 0' }}
+                                    style={{ width: 36, background: 'rgba(255,255,255,0.08)', border: '1px solid rgba(255,255,255,0.1)', borderRadius: 6, color: '#fff', fontSize: 15, fontWeight: 800, textAlign: 'center', padding: '4px 0' }}
                                 />
                             ) : (
                                 <span style={{ color: '#FFFFFF', fontSize: 18, fontWeight: 900 }}>{s.sets}</span>
                             )}
-                            <div style={{ color: 'rgba(255, 255, 255, 0.3)', fontSize: 9, fontWeight: 900, textTransform: 'uppercase', marginTop: 2, letterSpacing: '0.1em' }}>Series</div>
+                            <div style={{ color: 'rgba(255, 255, 255, 0.3)', fontSize: 9, fontWeight: 900, textTransform: 'uppercase', marginTop: 4, letterSpacing: '0.1em' }}>Series</div>
                         </div>
 
                         {/* Reps Column */}
-                        <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-start', marginLeft: 8 }}>
+                        <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', flex: 1 }}>
                             {isEditingSeries ? (
                                 <input
                                     type="text"
@@ -154,53 +110,55 @@ export function FitnessSeriesList({
                                         copy[idx].reps = e.target.value;
                                         setEditedSeries(copy);
                                     }}
-                                    style={{ width: 54, background: 'rgba(255,255,255,0.08)', border: '1px solid rgba(255,255,255,0.1)', borderRadius: 8, color: '#fff', fontSize: 16, fontWeight: 800, textAlign: 'center', padding: '6px 0' }}
+                                    style={{ width: 40, background: 'rgba(255,255,255,0.08)', border: '1px solid rgba(255,255,255,0.1)', borderRadius: 6, color: '#fff', fontSize: 15, fontWeight: 800, textAlign: 'center', padding: '4px 0' }}
                                 />
                             ) : (
                                 <div style={{ color: '#FFFFFF', fontSize: 18, fontWeight: 900 }}>{s.reps || '-'}</div>
                             )}
-                            <div style={{ color: 'rgba(255, 255, 255, 0.3)', fontSize: 9, fontWeight: 900, textTransform: 'uppercase', marginTop: 2, letterSpacing: '0.1em' }}>Reps</div>
+                            <div style={{ color: 'rgba(255, 255, 255, 0.3)', fontSize: 9, fontWeight: 900, textTransform: 'uppercase', marginTop: 4, letterSpacing: '0.1em' }}>Reps</div>
+                        </div>
+
+                        {/* Peso Column */}
+                        <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', flex: 1 }}>
+                            {isEditingSeries ? (
+                                <div style={{ display: 'flex', alignItems: 'center', gap: 2 }}>
+                                    <input
+                                        type="text"
+                                        value={s.kg}
+                                        onChange={(e) => {
+                                            const copy = [...editedSeries];
+                                            copy[idx].kg = e.target.value;
+                                            setEditedSeries(copy);
+                                        }}
+                                        style={{ width: 44, background: 'rgba(255,121,57,0.15)', border: '1.5px solid rgba(255,121,57,0.3)', borderRadius: 8, color: '#FF7939', fontSize: 16, fontWeight: 900, textAlign: 'center', padding: '4px 2px' }}
+                                    />
+                                    <span style={{ color: '#FF7939', fontSize: 12, fontWeight: 900 }}>kg</span>
+                                </div>
+                            ) : (
+                                <div style={{ color: '#FF7939', fontSize: 18, fontWeight: 900 }}>{s.kg ? `${s.kg}kg` : '-'}</div>
+                            )}
+                            <div style={{ color: 'rgba(255, 255, 255, 0.3)', fontSize: 9, fontWeight: 900, textTransform: 'uppercase', letterSpacing: '0.1em', marginTop: 4 }}>Peso</div>
                         </div>
                     </div>
 
-                    {/* Peso Column (Right Aligned) */}
-                    <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: 4 }}>
-                        {isEditingSeries ? (
-                            <div style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
-                                <input
-                                    type="text"
-                                    value={s.kg}
-                                    onChange={(e) => {
-                                        const copy = [...editedSeries];
-                                        copy[idx].kg = e.target.value;
-                                        setEditedSeries(copy);
-                                    }}
-                                    style={{ width: 54, background: 'rgba(255,121,57,0.15)', border: '1.5px solid rgba(255,121,57,0.3)', borderRadius: 10, color: '#FF7939', fontSize: 18, fontWeight: 900, textAlign: 'center', padding: '6px 4px' }}
-                                />
-                                <span style={{ color: '#FF7939', fontSize: 14, fontWeight: 900 }}>kg</span>
-                            </div>
-                        ) : (
-                            <div style={{ color: '#FF7939', fontSize: 20, fontWeight: 900 }}>{s.kg ? `${s.kg}kg` : '-'}</div>
-                        )}
-                        <div style={{ color: 'rgba(255, 255, 255, 0.3)', fontSize: 10, fontWeight: 900, textTransform: 'uppercase', letterSpacing: '0.1em' }}>Peso Máximo</div>
-                    </div>
-
-                    {/* Actions Column */}
+                    {/* Delete Button (Absolute right) */}
                     {isEditingSeries && (
-                        <div style={{ display: 'flex', flexDirection: 'column', gap: 8, marginLeft: 20 }}>
-                            <button
-                                onClick={() => {
-                                    if (confirm('¿Eliminar este bloque de series?')) {
-                                        const copy = [...editedSeries];
-                                        copy.splice(idx, 1);
-                                        setEditedSeries(copy);
-                                    }
-                                }}
-                                style={{ background: 'rgba(255,0,0,0.1)', border: 'none', color: '#ff4444', padding: '8px', borderRadius: 10, cursor: 'pointer' }}
-                            >
-                                <Trash2 size={18} />
-                            </button>
-                        </div>
+                        <button
+                            onClick={() => {
+                                if (confirm('¿Eliminar este bloque de series?')) {
+                                    const copy = [...editedSeries];
+                                    copy.splice(idx, 1);
+                                    setEditedSeries(copy);
+                                }
+                            }}
+                            style={{ 
+                                position: 'absolute', right: 12,
+                                background: 'rgba(255,0,0,0.1)', border: 'none', color: '#ff4444', 
+                                padding: '6px', borderRadius: 8, cursor: 'pointer' 
+                            }}
+                        >
+                            <Trash2 size={16} />
+                        </button>
                     )}
                 </div>
             ))}
@@ -211,9 +169,10 @@ export function FitnessSeriesList({
                     onClick={() => setEditedSeries([...editedSeries, { id: editedSeries.length + 1, reps: '10', kg: '0', sets: '1', propagate: true }])}
                     style={{
                         marginTop: 12, display: 'flex', alignItems: 'center', gap: 8,
-                        color: '#FF7939', fontSize: 14, fontWeight: 800, textTransform: 'uppercase', letterSpacing: '0.05em',
-                        background: 'rgba(255,121,57,0.1)', padding: '12px 20px', borderRadius: 16,
-                        border: '1px dashed rgba(255,121,57,0.4)', cursor: 'pointer', transition: 'all 0.2s ease'
+                        color: '#FF7939', fontSize: 13, fontWeight: 800, textTransform: 'uppercase', letterSpacing: '0.05em',
+                        background: 'rgba(255,121,57,0.1)', padding: '10px 16px', borderRadius: 12,
+                        border: '1px dashed rgba(255,121,57,0.4)', cursor: 'pointer', transition: 'all 0.2s ease',
+                        justifyContent: 'center'
                     }}
                 >
                     + Añadir bloque de series

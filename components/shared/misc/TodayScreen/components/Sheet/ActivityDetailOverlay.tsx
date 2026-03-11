@@ -106,44 +106,47 @@ export function ActivityDetailOverlay({
             <div style={{ position: 'absolute', top: 0, left: 0, right: 0, bottom: 0, background: isVideoPanelExpanded ? 'linear-gradient(180deg, rgba(0, 0, 0, 0.8) 0%, rgba(0, 0, 0, 0.95) 100%)' : 'linear-gradient(180deg, rgba(0, 0, 0, 0.3) 0%, rgba(0, 0, 0, 0.6) 40%, rgba(0, 0, 0, 0.9) 100%)', zIndex: 1, pointerEvents: 'none' }} />
 
             {/* Header */}
-            <div style={{ padding: '16px 20px 0', flexShrink: 0, position: 'relative', zIndex: 10, display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-                <button onClick={onClose} style={{ width: 44, height: 44, display: 'flex', alignItems: 'center', justifyContent: 'center', background: 'transparent', border: 'none', borderRadius: 12, color: '#FF7939', fontSize: 24, cursor: 'pointer' }}>←</button>
+            <div style={{ padding: '12px 20px 8px', flexShrink: 0, position: 'relative', zIndex: 10, display: 'flex', alignItems: 'center', gap: 12 }}>
+                <button onClick={onClose} style={{ width: 40, height: 40, display: 'flex', alignItems: 'center', justifyContent: 'center', background: 'transparent', border: 'none', borderRadius: 12, color: '#FF7939', fontSize: 24, cursor: 'pointer', flexShrink: 0 }}>←</button>
 
-                {/* Completion Status (Top Right) - Replicating TodayActivityList style */}
+                {/* Title in Header - Max 2 lines */}
+                <h1 style={{ 
+                    flex: 1, color: '#FFFFFF', fontSize: 16, fontWeight: 800, margin: 0, 
+                    textAlign: 'center', lineHeight: 1.2, display: '-webkit-box', 
+                    WebkitLineClamp: 2, WebkitBoxOrient: 'vertical', overflow: 'hidden' 
+                }}>
+                    {selectedVideo.exerciseName || selectedVideo.title || selectedVideo.nombre_ejercicio}
+                </h1>
+
+                {/* Completion Status */}
                 <div
                     onClick={isExpired ? undefined : handleToggleStatus}
                     className="group active:scale-95 transition-all duration-200"
                     style={{
-                        display: 'flex', alignItems: 'center',
+                        display: 'flex', alignItems: 'center', flexShrink: 0,
                         cursor: (isToggling || isExpired) ? 'default' : 'pointer', padding: '4px', zIndex: 100,
                         opacity: (isToggling || isExpired) ? 0.7 : 1,
-                        background: 'transparent', borderRadius: '16px', border: 'none' // Removed frame/background
+                        background: 'transparent'
                     }}
                 >
                     <div style={{
-                        width: 40, height: 40, borderRadius: '14px', display: 'flex', alignItems: 'center', justifyContent: 'center',
+                        width: 38, height: 38, borderRadius: '12px', display: 'flex', alignItems: 'center', justifyContent: 'center',
                         background: (selectedVideo.done || selectedVideo.completed) ? '#FF7939' : 'rgba(255,255,255,0.05)',
                         boxShadow: (selectedVideo.done || selectedVideo.completed) ? '0 8px 25px rgba(255,121,57,0.4)' : 'none',
                         border: (selectedVideo.done || selectedVideo.completed) ? 'none' : '1px solid rgba(255,255,255,0.1)',
                         transition: 'all 0.4s cubic-bezier(0.175, 0.885, 0.32, 1.275)'
                     }}>
                         <Flame
-                            size={22}
+                            size={20}
                             fill={(selectedVideo.done || selectedVideo.completed) ? "white" : "none"}
                             color={(selectedVideo.done || selectedVideo.completed) ? "white" : "rgba(255,255,255,0.2)"}
                             strokeWidth={2.5}
                         />
                     </div>
-                    {/* Text "COMPLETADO" removed as requested */}
                 </div>
             </div>
 
-            {/* Title */}
-            <div style={{ padding: '0px 24px 0', flexShrink: 0, position: 'relative', zIndex: 10, textAlign: 'center' }}>
-                <h1 style={{ color: 'rgba(255, 255, 255, 1)', fontSize: 18, fontWeight: 800, margin: 0, letterSpacing: '-0.02em', lineHeight: 1.2 }}>
-                    {selectedVideo.exerciseName || selectedVideo.title || selectedVideo.nombre_ejercicio}
-                </h1>
-            </div>
+            {/* Standalone Title removed - now in header */}
 
             {/* Content Container */}
             <div style={{ flex: 1, display: 'flex', flexDirection: 'column', position: 'relative', overflow: 'hidden', zIndex: 5 }}>
