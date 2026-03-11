@@ -23,7 +23,7 @@ export function ScreenLayout({
     isSpecialView
 }: ScreenLayoutProps) {
     // Unified collapsed height logic
-    const COLLAPSED_H = 110;
+    const COLLAPSED_H = 150;
     const collapsedY = vh - COLLAPSED_H;
     const TOP_SNAP = 56; // Global header height to prevent overlap
 
@@ -89,7 +89,7 @@ export function ScreenLayout({
                 }}>
 
                 {/* Content Container - Responsive width */}
-                <div className="max-w-[800px] mx-auto px-4">
+                <div className="w-full px-6">
                     {/* Hero Wrapper */}
                     <motion.div
                         style={{

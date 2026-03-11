@@ -71,7 +71,7 @@ export function DraggableSheet({
 }: DraggableSheetProps) {
 
     const TOP_SNAP = 56; // Exactly matches header height (h-14)
-    const COLLAPSED_H = 110; // Optimized peek: shows stats but doesn't cover hero
+    const COLLAPSED_H = 150; // Increased peek to show more activities
     const collapsedY = vh - COLLAPSED_H;
 
     // Snapshot logic for drag end - Binary (Snap to Top or Bottom)
@@ -130,7 +130,7 @@ export function DraggableSheet({
                 left: '50%',
                 x: '-50%',
                 width: '100%',
-                maxWidth: '800px', // Matches content max-width
+                maxWidth: 'none',
                 bottom: 0,
                 height: '100vh',
                 background: 'rgba(15, 16, 18, 0.98)',
