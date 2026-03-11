@@ -97,7 +97,7 @@ export function TodayActivityList({
 }: TodayActivityListProps) {
 
     const groupedActivities = useMemo(() => {
-        return activities.map(activity => {
+        return (activities || []).map(activity => {
             const seriesData = activity.detalle_series || activity.series;
             let parsed: any[] = [];
 
@@ -307,7 +307,7 @@ export function TodayActivityList({
                                                                     {/* Rest time indicator */}
                                                                     {group.descanso && (
                                                                         <div className="flex items-center gap-1 px-2 py-0.5 rounded-md text-[10px] font-bold tracking-tight bg-white/5 text-white/35">
-                                                                            <CalendarClock size={10} className="text-white/20" />
+                                                                            <Clock size={10} className="text-white/20" />
                                                                             {typeof group.descanso === 'number' ? `${Math.floor(group.descanso / 60)} min` : group.descanso}
                                                                         </div>
                                                                     )}

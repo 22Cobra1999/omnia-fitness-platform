@@ -86,10 +86,10 @@ export function FitnessInfo({
                             key={tab}
                             onClick={() => setActiveExerciseTab(tab)}
                             style={{
-                                flexShrink: 0, padding: '8px 12px', background: 'transparent', border: 'none',
+                                flexShrink: 0, padding: '8px 8px', background: 'transparent', border: 'none',
                                 borderBottom: activeExerciseTab === tab ? '3px solid #FF7939' : '3px solid transparent',
                                 color: activeExerciseTab === tab ? '#FFFFFF' : 'rgba(255, 255, 255, 0.4)',
-                                fontSize: 13, fontWeight: activeExerciseTab === tab ? 900 : 600,
+                                fontSize: 10, fontWeight: activeExerciseTab === tab ? 900 : 700,
                                 cursor: 'pointer', transition: 'all 0.3s cubic-bezier(0.4, 0, 0.2, 1)', whiteSpace: 'nowrap',
                                 letterSpacing: '0.04em', textTransform: 'uppercase'
                             }}
