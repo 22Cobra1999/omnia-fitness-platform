@@ -13,6 +13,7 @@ interface ActivityDetailOverlayProps {
     programInfo: any;
     enrollment: any;
     activityId?: string;
+    onRefresh?: () => void;
     // Navigation
     onNext: () => void;
     onPrev: () => void;
@@ -26,6 +27,7 @@ export function ActivityDetailOverlay({
     programInfo,
     enrollment,
     activityId,
+    onRefresh,
     onNext,
     onPrev,
     isExpired = false
@@ -58,7 +60,8 @@ export function ActivityDetailOverlay({
         onNext,
         programInfo,
         enrollment,
-        activityId
+        activityId,
+        onRefresh
     });
 
     if (!selectedVideo) return null;
@@ -84,6 +87,13 @@ export function ActivityDetailOverlay({
                     width: 100%;
                     transition: all 0.3s ease;
                 }
+                .hide-scrollbars, .hide-scrollbars * {
+                    -ms-overflow-style: none !important;
+                    scrollbar-width: none !important;
+                }
+                .hide-scrollbars::-webkit-scrollbar, .hide-scrollbars *::-webkit-scrollbar {
+                    display: none !important;
+                }
                 @media (min-width: 1024px) {
                     .activity-detail-overlay-container {
                         max-width: 850px;
@@ -98,13 +108,6 @@ export function ActivityDetailOverlay({
                         margin: 0 auto;
                         width: 100%;
                     }
-                }
-                .hide-scrollbar {
-                    -ms-overflow-style: none;
-                    scrollbar-width: none;
-                }
-                .hide-scrollbar::-webkit-scrollbar {
-                    display: none;
                 }
             `}</style>
 
@@ -159,7 +162,7 @@ export function ActivityDetailOverlay({
             <div style={{ flex: 1, display: 'flex', flexDirection: 'column', position: 'relative', overflow: 'hidden', zIndex: 5 }}>
                 <div
                     ref={scrollRef}
-                    className="hide-scrollbar"
+                    className="hide-scrollbars"
                     style={{ flex: 1, overflowY: 'auto', padding: '20px 20px 250px', display: 'flex', flexDirection: 'column', gap: 20, position: 'relative' }}
                 >
                     <div className="desktop-content-wrapper">

@@ -489,24 +489,24 @@ export const ShowcaseCalendarDetail = ({ day, activities = [] }: { day: number, 
             animate={{ opacity: 1, y: 0 }}
             className="mt-6 w-full text-left"
         >
-            <div className="mb-6">
-                <div className="flex items-center gap-2 mb-3">
-                    <h3 className="text-sm font-black text-white/95 uppercase tracking-tighter italic">
+            <div className="mb-4">
+                <div className="flex items-center gap-2 mb-2">
+                    <h3 className="text-xs font-[1000] text-white uppercase tracking-tighter italic">
                         {dateLabel}
                     </h3>
                 </div>
 
-                <div className="flex flex-wrap gap-2">
+                <div className="flex flex-wrap gap-1.5">
                     {activities.map((act, i) => {
                         if (act.type === 'fitness') return (
-                            <div key={i} className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full border border-[#FF7939]/40 bg-[#FF7939]/10 text-[#FFB366] text-[10px] font-black uppercase italic">
-                                <Zap className="h-3 w-3" />
+                            <div key={i} className="inline-flex items-center gap-1.5 px-2 py-0.5 rounded-full border border-[#FF7939]/30 bg-[#FF7939]/10 text-[#FF7939] text-[8.5px] font-black uppercase italic">
+                                <Zap className="h-2.5 w-2.5" />
                                 Fitness {act.duration || '45m'}
                             </div>
                         )
                         if (act.type === 'nutrition') return (
-                            <div key={i} className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full border border-[#FFB366]/40 bg-[#FFB366]/10 text-[#FFB366] text-[10px] font-black uppercase italic">
-                                <Utensils className="h-3 w-3" />
+                            <div key={i} className="inline-flex items-center gap-1.5 px-2 py-0.5 rounded-full border border-[#FFB366]/30 bg-[#FFB366]/10 text-[#FFB366] text-[8.5px] font-black uppercase italic">
+                                <Utensils className="h-2.5 w-2.5" />
                                 Nutrición {act.count || '5'}
                             </div>
                         )
@@ -515,69 +515,49 @@ export const ShowcaseCalendarDetail = ({ day, activities = [] }: { day: number, 
                 </div>
             </div>
 
-            <div className="mb-4">
-                <div className="text-[10px] font-black tracking-widest text-white/30 mb-3 uppercase italic">Actividades</div>
-                <div className="space-y-3">
+            <div className="mb-2">
+                <div className="text-[9px] font-[1000] tracking-[0.2em] text-white/20 mb-3 uppercase italic">ACTIVIDADES</div>
+                <div className="space-y-2">
                     {activities.map((act, i) => (
                         <div key={i} className={cn(
-                            "w-full bg-white/5 rounded-2xl border border-white/10 p-4 flex items-center justify-between gap-4 backdrop-blur-xl group transition-all cursor-pointer",
-                            act.type === 'fitness' ? "hover:border-[#FF7939]/30" :
-                                "hover:border-[#FF7939]/30"
+                            "w-full bg-white/[0.02] rounded-xl border border-white/5 p-2 px-3 flex items-center justify-between gap-3 backdrop-blur-xl group transition-all cursor-pointer",
+                            act.type === 'fitness' ? "hover:border-[#FF7939]/20" : "hover:border-[#FF7939]/20"
                         )}>
-                            <div className="flex items-center gap-4">
+                            <div className="flex items-center gap-3 min-w-0 flex-1">
                                 <div className={cn(
-                                    "w-10 h-10 rounded-full flex items-center justify-center border",
+                                    "w-7 h-7 rounded-full flex items-center justify-center border shrink-0",
                                     act.type === 'fitness' ? "bg-[#FF7939]/10 text-[#FF7939] border-[#FF7939]/20" :
                                         act.type === 'nutrition' ? "bg-[#FACC15]/10 text-[#FACC15] border-[#FACC15]/20" :
                                             act.type === 'workshop' ? "bg-pink-500/10 text-pink-400 border-pink-500/20" :
                                                 "bg-orange-500/10 text-orange-400 border-orange-500/20"
                                 )}>
-                                    {act.type === 'fitness' ? <Zap size={18} /> :
-                                        act.type === 'nutrition' ? <Utensils size={18} /> :
-                                            act.type === 'workshop' ? <GraduationCap size={18} /> :
-                                                <Video size={18} />}
+                                    {act.type === 'fitness' ? <Zap size={14} /> :
+                                        act.type === 'nutrition' ? <Utensils size={14} /> :
+                                            act.type === 'workshop' ? <GraduationCap size={14} /> :
+                                                <Video size={14} />}
                                 </div>
-                                <div className="flex flex-col">
-                                    <div className="flex items-center gap-2">
-                                        <span className="text-sm font-black text-white tracking-tighter uppercase italic">{act.title}</span>
-                                        <span className="text-[8px] font-black text-[#FF7939] bg-[#FF7939]/10 px-1.5 py-0.5 rounded uppercase tracking-widest border border-[#FF7939]/20">
-                                            {act.subtitle || 'Programa'}
+                                <div className="flex flex-col min-w-0 flex-1 gap-0.5">
+                                    <span className="text-[10.5px] font-[1000] text-white tracking-tighter uppercase italic truncate block leading-tight">{act.title}</span>
+                                    <div className="flex items-center gap-1.5">
+                                        <span className="text-[7px] font-black text-[#FF7939] bg-[#FF7939]/10 px-1.5 py-0.5 rounded uppercase tracking-[0.1em] border border-[#FF7939]/20 whitespace-nowrap leading-none">
+                                            {act.subtitle || 'PROGR'}
                                         </span>
-                                    </div>
-                                    <div className="flex items-center gap-1.5 mt-1">
-                                        {(act.type === 'workshop' || act.type === 'meet') ? (
-                                            <div className="flex flex-col gap-0.5">
-                                                <span className="text-[9px] font-bold text-white/40 uppercase tracking-widest leading-none">
-                                                    {act.status || 'Confirmado'} con <span className="text-white/60">{act.coach || 'Coach'}</span>
-                                                </span>
-                                                <span className="text-[8px] font-black text-[#FF7939] uppercase tracking-widest mt-1">
-                                                    Horario: {act.time || '10:00 a 11:30'}
-                                                </span>
-                                            </div>
-                                        ) : (
-                                            <div className="flex items-center gap-1.5">
-                                                <Clock size={10} className="text-white/30" />
-                                                <span className="text-[9px] font-black text-white/30 uppercase tracking-widest leading-none">
-                                                    {act.duration || '45m'}
-                                                </span>
+                                        {act.duration && (
+                                            <div className="flex items-center gap-0.5 text-white/20">
+                                                <Clock size={8} />
+                                                <span className="text-[8px] font-black uppercase italic">{act.duration}</span>
                                             </div>
                                         )}
                                     </div>
                                 </div>
                             </div>
-                            <div className="flex items-center gap-0.5">
-                                {act.type === 'fitness' ? <Flame size={14} className="text-[#FF7939]" /> :
-                                    act.type === 'nutrition' ? <UtensilsCrossed size={14} className="text-[#FACC15]" /> :
-                                        act.type === 'workshop' ? <Star size={14} className="text-pink-400" /> :
-                                            <Video size={14} className="text-orange-500" />}
-                                <span className={cn(
-                                    "text-[11px] font-black",
-                                    act.type === 'fitness' ? "text-[#FF7939]" :
-                                        act.type === 'nutrition' ? "text-[#FACC15]" :
-                                            act.type === 'workshop' ? "text-pink-400" : "text-orange-500"
-                                )}>
-                                    {act.metric || '1'}
-                                </span>
+                            <div className="flex items-center gap-0.5 flex-shrink-0">
+                                {act.metric && (
+                                    <>
+                                        <Flame size={10} className="text-[#FF7939]/40" />
+                                        <span className="text-[9px] font-black text-[#FF7939]/40">{act.metric}</span>
+                                    </>
+                                )}
                             </div>
                         </div>
                     ))}
@@ -663,121 +643,127 @@ export const MockCalendar = () => {
     }
 
     return (
-        <div className="flex flex-col gap-4 w-full">
-            <div className="w-full bg-[#121212] rounded-[32px] p-6 border border-white/5 shadow-2xl overflow-hidden relative">
+        <div className="flex flex-col gap-3 w-full max-w-5xl mx-auto">
+            <div className="w-full bg-black rounded-[32px] p-5 border border-white/5 shadow-2xl overflow-hidden relative">
                 <div className="absolute top-0 right-0 w-32 h-32 bg-[#FF7939]/5 blur-[80px] -z-10" />
 
-                {/* 1. Synced Header Icons with Production */}
-                <div className="flex items-center justify-between mb-8 px-1">
-                    {/* Notification Icon (Bell with Badge) */}
-                    <div className="h-10 w-10 relative bg-zinc-800 border border-[#FF7939]/30 rounded-full flex items-center justify-center">
-                        <Bell className="h-5 w-5 text-[#FF7939]" />
-                        <span className="absolute top-0 right-0 transform translate-x-1 -translate-y-1 bg-[#FF7939] text-black text-[10px] font-bold px-1.5 py-0.5 rounded-full min-w-[18px] h-[18px] flex items-center justify-center border border-zinc-900 shadow-lg z-10">
-                            2
-                        </span>
-                    </div>
-
-                    {/* Month Selection */}
-                    <div className="flex items-center gap-4 bg-white/5 rounded-full px-6 py-2.5 border border-white/5">
-                        <span className="text-white/40 text-xs">‹</span>
-                        <span className="text-white font-black uppercase text-[10px] tracking-widest italic">Enero 2026</span>
-                        <span className="text-white/40 text-xs">›</span>
-                    </div>
-
-                    {/* Create Meet Button (Plus + Video) */}
-                    <div className="h-10 px-3 flex items-center gap-2 rounded-full border bg-zinc-900 border-[#FF7939]/40 text-[#FF7939]">
-                        <Video className="h-4 w-4 text-[#FF7939]" />
-                        <Plus className="h-5 w-5" />
-                    </div>
-                </div>
-
-                {/* 2. Calendar Grid */}
-                <div className="grid grid-cols-7 gap-y-6 text-center">
-                    {days.map(d => (
-                        <span key={d} className="text-[10px] font-black text-white/20 uppercase tracking-widest mb-2 italic">{d}</span>
-                    ))}
-                    {Array.from({ length: 31 }, (_, i) => i + 1).map(day => {
-                        const activities = activityData[day] || []
-                        const isSelected = selectedDay === day
-                        const isToday = day === today
-
-                        return (
-                            <div
-                                key={day}
-                                onClick={() => setSelectedDay(day)}
-                                className="relative flex flex-col items-center justify-start h-14 cursor-pointer group"
-                            >
-                                <div className={cn(
-                                    "w-9 h-9 flex items-center justify-center rounded-full text-sm font-black transition-all mb-1",
-                                    isSelected ? "bg-white text-black scale-110 shadow-lg" : "text-white/60 group-hover:bg-white/5 group-hover:text-white",
-                                    isToday && !isSelected && "border border-[#FF7939] text-[#FF7939]"
-                                )}>
-                                    {day}
-                                </div>
-
-                                {/* Activity Indicators (Bubbles) + Coach Names */}
-                                <div className="flex flex-col gap-0.5 mt-1 w-full items-center">
-                                    {(() => {
-                                        const grouped = activities.reduce((acc: Record<string, number>, act: any) => {
-                                            acc[act.type] = (acc[act.type] || 0) + 1
-                                            return acc
-                                        }, {} as Record<string, number>)
-
-                                        return (Object.entries(grouped) as [string, number][]).map(([type, count], idx) => {
-                                            if (type === 'fitness') return (
-                                                <span key={idx} className="flex items-center gap-1 text-[9px] px-1.5 py-0.5 rounded-full font-bold leading-none border shadow-sm bg-[#FF7939]/10 text-[#FF7939] border-[#FF7939]/30">
-                                                    <Zap className="w-2.5 h-2.5" />
-                                                    {(count as number) > 1 ? count : activities.find(a => a.type === 'fitness')?.duration}
-                                                </span>
-                                            )
-                                            if (type === 'nutrition') return (
-                                                <span key={idx} className="flex items-center gap-1 text-[9px] px-1.5 py-0.5 rounded-full font-bold border leading-none shadow-sm bg-[#FFB366]/10 text-[#FFB366] border-[#FFB366]/30">
-                                                    <Utensils className="w-2.5 h-2.5" />
-                                                    {(count as number) > 1 ? count : activities.find(a => a.type === 'nutrition')?.count}
-                                                </span>
-                                            )
-                                            if (type === 'workshop') return (
-                                                <div key={idx} className="flex flex-col items-center">
-                                                    <div className="flex items-center gap-1 px-1.5 py-0.5 rounded-full border leading-none bg-[#FCE4EC]/30 border-[#FCE4EC]/50 text-[#F06292] font-bold">
-                                                        <GraduationCap className="w-2.5 h-2.5" />
-                                                        {(count as number) > 1 && <span className="text-[8px] ml-0.5">{count}</span>}
-                                                    </div>
-                                                </div>
-                                            )
-                                            if (type === 'meet') return (
-                                                <div key={idx} className="flex flex-col items-center">
-                                                    <div className="flex items-center gap-1 px-1.5 py-0.5 rounded-full border leading-none bg-orange-500/10 border-orange-500/30 text-orange-400">
-                                                        <Video className="w-2.5 h-2.5" />
-                                                        {(count as number) > 1 && <span className="text-[9px] font-bold ml-0.5">{count}</span>}
-                                                    </div>
-                                                </div>
-                                            )
-                                            return null
-                                        })
-                                    })()}
-
-                                    {/* Coach Name Label - Fine Gray Text */}
-                                    {activities.length > 0 && activities.some(a => a.subtitle?.includes('con ')) && (
-                                        <span className="text-[7px] text-white/20 font-medium leading-none mt-1 truncate max-w-[40px]">
-                                            {activities.find(a => a.subtitle?.includes('con '))?.subtitle.split('con ')[1]}
-                                        </span>
-                                    )}
-                                </div>
+                <div className="grid grid-cols-1 lg:grid-cols-12 gap-8 relative z-10">
+                    <div className="lg:col-span-9">
+                        {/* 1. Synced Header Icons with Production */}
+                        <div className="flex items-center justify-between mb-8 px-1">
+                            {/* Notification Icon (Bell with Badge) */}
+                            <div className="h-10 w-10 relative bg-zinc-800 border border-[#FF7939]/30 rounded-full flex items-center justify-center">
+                                <Bell className="h-5 w-5 text-[#FF7939]" />
+                                <span className="absolute top-0 right-0 transform translate-x-1 -translate-y-1 bg-[#FF7939] text-black text-[10px] font-bold px-1.5 py-0.5 rounded-full min-w-[18px] h-[18px] flex items-center justify-center border border-zinc-900 shadow-lg z-10">
+                                    2
+                                </span>
                             </div>
-                        )
-                    })}
-                </div>
 
-                {/* 3. Detail Reveal */}
-                <AnimatePresence mode="wait">
-                    {selectedDay && (
-                        <ShowcaseCalendarDetail
-                            key={selectedDay}
-                            day={selectedDay}
-                            activities={activityData[selectedDay]}
-                        />
-                    )}
-                </AnimatePresence>
+                            {/* Month Selection */}
+                            <div className="flex items-center gap-4 bg-white/5 rounded-full px-6 py-2.5 border border-white/5">
+                                <span className="text-white/40 text-xs">‹</span>
+                                <span className="text-white font-black uppercase text-[10px] tracking-widest italic">Enero 2026</span>
+                                <span className="text-white/40 text-xs">›</span>
+                            </div>
+
+                            {/* Create Meet Button (Plus + Video) */}
+                            <div className="h-10 px-3 flex items-center gap-2 rounded-full border bg-zinc-900 border-[#FF7939]/40 text-[#FF7939]">
+                                <Video className="h-4 w-4 text-[#FF7939]" />
+                                <Plus className="h-5 w-5" />
+                            </div>
+                        </div>
+
+                        {/* 2. Calendar Grid */}
+                        <div className="grid grid-cols-7 gap-y-3 text-center">
+                            {days.map(d => (
+                                <span key={d} className="text-[10px] font-black text-white/20 uppercase tracking-widest mb-2 italic">{d}</span>
+                            ))}
+                            {Array.from({ length: 31 }, (_, i) => i + 1).map(day => {
+                                const activities = activityData[day] || []
+                                const isSelected = selectedDay === day
+                                const isToday = day === today
+
+                                return (
+                                    <div
+                                        key={day}
+                                        onClick={() => setSelectedDay(day)}
+                                        className="relative flex flex-col items-center justify-start h-12 cursor-pointer group"
+                                    >
+                                        <div className={cn(
+                                            "w-8 h-8 flex items-center justify-center rounded-full text-xs font-black transition-all mb-1",
+                                            isSelected ? "bg-white text-black scale-105 shadow-lg" : "text-white/60 group-hover:bg-white/5 group-hover:text-white",
+                                            isToday && !isSelected && "border border-[#FF7939] text-[#FF7939]"
+                                        )}>
+                                            {day}
+                                        </div>
+
+                                        {/* Activity Indicators (Bubbles) + Coach Names */}
+                                        <div className="flex flex-col gap-0.5 mt-1 w-full items-center">
+                                            {(() => {
+                                                const grouped = activities.reduce((acc: Record<string, number>, act: any) => {
+                                                    acc[act.type] = (acc[act.type] || 0) + 1
+                                                    return acc
+                                                }, {} as Record<string, number>)
+
+                                                return (Object.entries(grouped) as [string, number][]).map(([type, count], idx) => {
+                                                    if (type === 'fitness') return (
+                                                        <span key={idx} className="flex items-center gap-1 text-[9px] px-1.5 py-0.5 rounded-full font-bold leading-none border shadow-sm bg-[#FF7939]/10 text-[#FF7939] border-[#FF7939]/30">
+                                                            <Zap className="w-2.5 h-2.5" />
+                                                            {(count as number) > 1 ? count : activities.find(a => a.type === 'fitness')?.duration}
+                                                        </span>
+                                                    )
+                                                    if (type === 'nutrition') return (
+                                                        <span key={idx} className="flex items-center gap-1 text-[9px] px-1.5 py-0.5 rounded-full font-bold border leading-none shadow-sm bg-[#FFB366]/10 text-[#FFB366] border-[#FFB366]/30">
+                                                            <Utensils className="w-2.5 h-2.5" />
+                                                            {(count as number) > 1 ? count : activities.find(a => a.type === 'nutrition')?.count}
+                                                        </span>
+                                                    )
+                                                    if (type === 'workshop') return (
+                                                        <div key={idx} className="flex flex-col items-center">
+                                                            <div className="flex items-center gap-1 px-1.5 py-0.5 rounded-full border leading-none bg-rose-500/5 border-rose-500/20 text-rose-300 font-bold">
+                                                                <GraduationCap className="w-2.5 h-2.5" />
+                                                                {(count as number) > 1 && <span className="text-[8px] ml-0.5">{count}</span>}
+                                                            </div>
+                                                        </div>
+                                                    )
+                                                    if (type === 'meet') return (
+                                                        <div key={idx} className="flex flex-col items-center">
+                                                            <div className="flex items-center gap-1 px-1.5 py-0.5 rounded-full border leading-none bg-orange-500/10 border-orange-500/30 text-orange-400">
+                                                                <Video className="w-2.5 h-2.5" />
+                                                                {(count as number) > 1 && <span className="text-[9px] font-bold ml-0.5">{count}</span>}
+                                                            </div>
+                                                        </div>
+                                                    )
+                                                    return null
+                                                })
+                                            })()}
+
+                                            {/* Coach Name Label - Fine Gray Text */}
+                                            {activities.length > 0 && activities.some(a => a.subtitle?.includes('con ')) && (
+                                                <span className="text-[7px] text-white/20 font-medium leading-none mt-1 truncate max-w-[40px]">
+                                                    {activities.find(a => a.subtitle?.includes('con '))?.subtitle.split('con ')[1]}
+                                                </span>
+                                            )}
+                                        </div>
+                                    </div>
+                                )
+                            })}
+                        </div>
+                    </div>
+
+                    <div className="lg:col-span-3 lg:border-l lg:border-white/5 lg:pl-6">
+                        {/* 3. Detail Reveal */}
+                        <AnimatePresence mode="wait">
+                            {selectedDay && (
+                                <ShowcaseCalendarDetail
+                                    key={selectedDay}
+                                    day={selectedDay}
+                                    activities={activityData[selectedDay]}
+                                />
+                            )}
+                        </AnimatePresence>
+                    </div>
+                </div>
             </div>
         </div>
     )

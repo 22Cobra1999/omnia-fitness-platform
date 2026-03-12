@@ -156,20 +156,21 @@ export async function GET(request: NextRequest) {
       registros_encontrados: progressRecords?.length || 0
     });
 
-    // Si hay error o no hay registros, devolver vacío para clientes (evitar fallback a planificación que "miente")
+    // Si hay error o no hay registros, intentar fallback a la planificación (PROXIMAMENTE: crear registro auto)
     if (progressError || !progressRecords || progressRecords.length === 0) {
-      console.log('ℹ️ No existe registro de progreso real para fecha:', today, 'en tabla:', tablaProgreso);
+      console.log('ℹ️ No existe registro de progreso real para fecha:', today, '. Intentando fallback a planificación...');
+      
+      if (dia) {
+        return await getActivitiesFromPlanning(supabase, activityId, dia, actividadInfo);
+      }
 
-      // Si el cliente no tiene registro, devolvemos vacío. 
-      // La visualización de planificación solo debe ocurrir si el usuario es el coach (ya manejado arriba)
-      // o en una vista de preview específica.
       return NextResponse.json({
         success: true,
         data: {
           activities: [],
           count: 0,
           date: today,
-          message: 'Día sin actividad registrada'
+          message: 'Día sin actividad registrada y sin planificación disponible'
         }
       });
     }

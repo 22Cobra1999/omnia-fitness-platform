@@ -42,7 +42,7 @@ export function CoachCalendarHeader({
             <button
                 type="button"
                 onClick={onShowNotifications}
-                className="w-10 h-10 rounded-full border border-white/10 bg-zinc-800 flex items-center justify-center relative hover:bg-zinc-700 transition-colors"
+                className="w-10 h-10 rounded-full border border-white/10 bg-black flex items-center justify-center relative hover:bg-white/5 transition-colors"
                 aria-label="Notificaciones"
             >
                 <Bell className="h-5 w-5 text-[#FF7939]" />
@@ -55,7 +55,7 @@ export function CoachCalendarHeader({
 
             {/* Center: Month Navigation (New) */}
             {currentDateLabel && onPrevMonth && onNextMonth && (
-                <div className="flex items-center gap-2 sm:gap-4 bg-zinc-900/80 backdrop-blur-md px-3 py-1.5 rounded-full border border-white/5 shadow-2xl shadow-black/50">
+                <div className="flex items-center gap-2 sm:gap-4 bg-black/80 backdrop-blur-md px-3 py-1.5 rounded-full border border-white/5 shadow-2xl shadow-black/50">
                     <Button
                         variant="ghost"
                         onClick={onPrevMonth}
@@ -100,7 +100,7 @@ export function CoachCalendarHeader({
                                 ? 'bg-transparent border-[#FF7939] text-[#FF7939] hover:bg-[#FF7939]/10'
                                 : (showAddMenu
                                     ? 'bg-[#FF7939] border-[#FF7939] text-black shadow-[#FF7939]/20 scale-105'
-                                    : 'bg-zinc-800 border-white/10 text-[#FF7939] hover:bg-zinc-700 hover:border-white/20')
+                                    : 'bg-black border-white/10 text-[#FF7939] hover:bg-white/5 hover:border-white/20')
                             }
                         `}
                         title={isCreating ? 'Cancelar' : (showAddMenu ? 'Cerrar' : 'Acciones')}
@@ -117,7 +117,7 @@ export function CoachCalendarHeader({
 
                     {/* Dropdown Menu */}
                     {showAddMenu && !isCreating && (
-                        <div className="absolute top-full right-0 mt-2 w-48 bg-[#1A1A1A] border border-white/10 rounded-2xl shadow-2xl overflow-hidden animate-in fade-in zoom-in-95 duration-200 z-50 origin-top-right">
+                        <div className="absolute top-full right-0 mt-2 w-48 bg-black border border-white/10 rounded-2xl shadow-2xl overflow-hidden animate-in fade-in zoom-in-95 duration-200 z-50 origin-top-right">
                             <div className="p-1.5 space-y-1">
                                 <button
                                     onClick={onCreateMeet}

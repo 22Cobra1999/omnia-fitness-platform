@@ -95,7 +95,7 @@ export const CalendarGrid: React.FC<CalendarGridProps> = ({
                     return (
                         <button key={index} onClick={() => handleDayClick(date)} className={`relative p-2 text-sm rounded-lg transition-all duration-300 min-h-[50px] flex flex-col items-center justify-start group ${!isCurrentMonth ? 'opacity-20' : ''} ${isSelectedForEdit ? 'bg-[#FF7939]/30 border-2 border-[#FF7939] text-white' : (isTargetForEdit ? 'bg-white text-black border-2 border-white' : `${bgClass} ${selectionClass}`)}`}>
                             {isToday && (
-                                <div className={`absolute top-1 right-1 w-5 h-5 rounded-full text-[10px] font-bold flex items-center justify-center ${isAllCompleted ? 'bg-white text-[#FF7939]' : (hasOwned && !isAbsent && !isAllCompleted) ? 'bg-yellow-500 text-black' : 'bg-[#FF7939] text-white'}`}>H</div>
+                                <div className="absolute top-1 right-1 w-1.5 h-1.5 rounded-full bg-[#FF7939]" />
                             )}
                             <div className="text-center font-semibold text-sm leading-none pt-1">{date.getDate()}</div>
                             <div className="mt-1 min-h-[20px] w-full flex flex-col items-center justify-start gap-px">

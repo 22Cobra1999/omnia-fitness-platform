@@ -54,7 +54,6 @@ export const getSizeClasses = (size: string) => {
 }
 
 export const getImageHeightClass = (size: string, isCoachView: boolean) => {
-    if (isCoachView) return "h-24"
     switch (size) {
         case "small": return "h-48 md:h-56"
         case "large": return "h-64 md:h-72"

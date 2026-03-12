@@ -82,53 +82,53 @@ export const CoachCalendarViews: React.FC<CoachCalendarViewsProps> = ({
 }) => {
     if (calendarMode === 'events') {
         return (
-            <>
-                <MonthView
-                    currentDate={currentDate}
-                    selectedDate={selectedDate}
-                    eventsByDate={eventsByDate}
-                    onDateClick={(date) => handleDayClickForScheduler(date)}
-                    onPrevMonth={goToPreviousMonth}
-                    onNextMonth={goToNextMonth}
-                    onMonthClick={() => setShowMonthSelector(true)}
-                    availableSlotsCountByDay={availableSlotsCountByDay}
-                    showAvailability={showAvailability}
-                    hideHeader={true}
-                />
+            <div className="grid grid-cols-1 lg:grid-cols-12 gap-4 items-start">
+                <div className="lg:col-span-9">
+                    <MonthView
+                        currentDate={currentDate}
+                        selectedDate={selectedDate}
+                        eventsByDate={eventsByDate}
+                        onDateClick={(date) => handleDayClickForScheduler(date)}
+                        onPrevMonth={goToPreviousMonth}
+                        onNextMonth={goToNextMonth}
+                        onMonthClick={() => setShowMonthSelector(true)}
+                        availableSlotsCountByDay={availableSlotsCountByDay}
+                        showAvailability={showAvailability}
+                        hideHeader={true}
+                    />
+                </div>
 
                 {selectedDate && (
-                    <div className="mt-4">
-                        <div className="mb-3">
-                            {showQuickScheduler && quickSchedulerDate && !isSelectingClient && (
-                                <div className="mb-4">
-                                    <InlineMeetScheduler
-                                        selectedDate={quickSchedulerDate}
-                                        existingEvents={[...dayEvents, ...clientDayEvents]}
-                                        onConfirm={handleQuickSchedulerConfirm}
-                                        onCancel={handleQuickSchedulerCancel}
-                                        checkOverlap={checkOverlap}
-                                        meetTitle={meetToReschedule?.title || 'Meet nueva'}
-                                        isRescheduling={isRescheduling}
-                                        previewClientName={selectedClientForQuickMeet?.full_name}
-                                    />
-                                </div>
-                            )}
-
-                            {!showQuickScheduler && !isSelectingClient && (
-                                <CoachCalendarEventList
-                                    dateLabel={dateLabel}
-                                    showAvailability={showAvailability}
-                                    meetEvents={meetEvents}
-                                    otherEvents={otherEvents}
-                                    clientSelectedDateEvents={clientSelectedDateEvents}
-                                    coachId={coachId}
-                                    setSelectedMeetEvent={setSelectedMeetEvent}
+                    <div className="lg:col-span-3">
+                        {showQuickScheduler && quickSchedulerDate && !isSelectingClient && (
+                            <div className="mb-4">
+                                <InlineMeetScheduler
+                                    selectedDate={quickSchedulerDate}
+                                    existingEvents={[...dayEvents, ...clientDayEvents]}
+                                    onConfirm={handleQuickSchedulerConfirm}
+                                    onCancel={handleQuickSchedulerCancel}
+                                    checkOverlap={checkOverlap}
+                                    meetTitle={meetToReschedule?.title || 'Meet nueva'}
+                                    isRescheduling={isRescheduling}
+                                    previewClientName={selectedClientForQuickMeet?.full_name}
                                 />
-                            )}
-                        </div>
+                            </div>
+                        )}
+
+                        {!showQuickScheduler && !isSelectingClient && (
+                            <CoachCalendarEventList
+                                dateLabel={dateLabel}
+                                showAvailability={showAvailability}
+                                meetEvents={meetEvents}
+                                otherEvents={otherEvents}
+                                clientSelectedDateEvents={clientSelectedDateEvents}
+                                coachId={coachId}
+                                setSelectedMeetEvent={setSelectedMeetEvent}
+                            />
+                        )}
                     </div>
                 )}
-            </>
+            </div>
         )
     }
 

@@ -62,6 +62,8 @@ export function PurchasedActivityCardContent({
     itemsDebtPast,
     itemsPendingToday
 }: PurchasedActivityCardContentProps) {
+    const daysIncomplete = Math.max(0, (daysPassed || 0) - (daysCompleted || 0) - (daysMissed || 0))
+    const isNutrition = activity.type?.toLowerCase() === 'nutrition' || activity.type?.toLowerCase() === 'nutricion' || activity.category?.toLowerCase() === 'nutrition'
 
     return (
         <div className={cn(
@@ -70,66 +72,61 @@ export function PurchasedActivityCardContent({
         )}>
             {/* Removed solid background and divider to allow header gradient to merge smoothly */}
 
-            <div className={cn("flex-1 flex flex-col gap-5 px-1 pt-6", daysInfo.isExpired && "grayscale opacity-60")}>
+            <div className={cn("flex-1 flex flex-col gap-3 px-1 pt-6", daysInfo.isExpired && "grayscale opacity-60")}>
+
+                {/* Progress for Coach View - Below title */}
+                {isCoachView && (
+                    <div className="flex flex-col items-center gap-0.5 -mt-3 mb-4">
+                        <span className="text-3xl font-[1000] text-orange-400 drop-shadow-2xl">
+                            {Math.round(progress)}%
+                        </span>
+                        <span className="text-[7px] font-black text-white/20 tracking-[0.3em] uppercase">Progreso Real</span>
+                    </div>
+                )}
 
                 {/* 1. Dynamic Pill (EMPEZAR, HOY or PRÓXIMA) */}
                 <div className="flex items-center justify-between gap-1 px-1">
-                    {isFinished ? (
-                        /* FINALIZADAS Pill */
-                        <div className="flex items-center gap-1 bg-white/10 backdrop-blur-xl border border-white/10 px-1.5 py-0.5 rounded-full shadow-lg shrink-0 mr-auto scale-[0.8] origin-left">
+                    {daysInfo.isExpired ? (
+                        <div className="flex items-center gap-1 bg-white/10 backdrop-blur-xl border border-white/10 px-2 py-0.5 rounded-full shadow-lg shrink-0 mr-auto scale-[0.8] origin-left opacity-90">
                             <CheckCircle2 className="w-3 h-3 text-white" />
-                            <span className="text-[9px] font-black text-white tracking-widest uppercase whitespace-nowrap">
-                                {(() => {
-                                    if (daysInfo.isExpired) return 'VENCIDA';
-                                    const startDeadline = (enrollment as any).start_deadline;
-                                    if (startDeadline && !enrollment.start_date) {
-                                        const deadline = new Date(startDeadline);
-                                        deadline.setHours(0, 0, 0, 0);
-                                        const todayObj = new Date();
-                                        todayObj.setHours(0, 0, 0, 0);
-                                        if (todayObj > deadline) return 'VENCIDA';
-                                    }
-                                    const expDate = (enrollment as any).expiration_date;
-                                    return expDate ? `VENCE EL: ${formatDM(expDate)}` : `VENCE EL: ${formatDM(enrollment.program_end_date)}`;
-                                })()}
+                            <span className="text-[9px] font-black text-white tracking-widest uppercase whitespace-nowrap">VENCIDA</span>
+                        </div>
+                    ) : isFuture && (enrollment as any).start_deadline ? (
+                        <div className="flex items-center bg-[#FF7939]/30 backdrop-blur-xl border border-[#FF7939]/40 px-2.5 py-0.5 rounded-full shadow-lg shrink-0 mx-auto scale-[0.78] max-w-[95%]">
+                            <span className="text-[8.5px] font-black text-white tracking-wider uppercase whitespace-nowrap">
+                                EMPEZAR ANTES DE: {formatDM((enrollment as any).start_deadline)}
                             </span>
                         </div>
-                    ) : isFuture ? (
-                        /* EMPEZAR Pill - Extra compact to fit desktop card width */
-                        <div className="flex items-center bg-[#FF7939]/30 backdrop-blur-xl border border-[#FF7939]/40 px-2 py-0.5 rounded-full shadow-lg shrink-0 mx-auto scale-[0.78] max-w-[95%]">
-                            <span className="text-[8.5px] font-black text-white tracking-wider uppercase whitespace-nowrap">
-                                EMPEZAR ANTES DE: {(enrollment as any).start_deadline ? formatDM((enrollment as any).start_deadline) : '--/--'}
-                            </span>
+                    ) : isFinished ? (
+                        <div className="flex items-center gap-1 bg-white/10 backdrop-blur-xl border border-white/10 px-2 py-0.5 rounded-full shadow-lg shrink-0 mr-auto scale-[0.8] origin-left">
+                            <CheckCircle2 className="w-3 h-3 text-white" />
+                            <span className="text-[9px] font-black text-white tracking-widest uppercase whitespace-nowrap">FINALIZADA</span>
                         </div>
                     ) : pendingCount && pendingCount > 0 ? (
-                        /* HOY Pill */
-                        <div className="flex items-center gap-1 bg-[#FF7939]/30 backdrop-blur-xl border border-[#FF7939]/40 px-1.5 py-0.5 rounded-full shadow-lg shrink-0 mr-auto scale-[0.8] origin-left">
+                        <div className="flex items-center gap-1.5 bg-[#FF7939]/40 backdrop-blur-xl border border-[#FF7939]/50 px-2 py-0.5 rounded-full shadow-lg shrink-0 mr-auto scale-[0.8] origin-left">
                             <Zap className="w-3 h-3 text-white fill-white" />
                             <span className="text-[9px] font-black text-white tracking-widest uppercase whitespace-nowrap">
                                 HOY {pendingCount}
                             </span>
                         </div>
                     ) : (
-                        /* PRÓXIMA / ÚLTIMA Pill - Replaces HOY when no activities today */
-                        <div className="flex items-center gap-1 bg-[#FF7939]/30 backdrop-blur-xl border border-[#FF7939]/40 px-1.5 py-0.5 rounded-full shadow-lg shrink-0 mr-auto scale-[0.8] origin-left">
+                        <div className="flex items-center gap-1.5 bg-white/10 backdrop-blur-xl border border-white/20 px-2 py-0.5 rounded-full shadow-lg shrink-0 mr-auto scale-[0.8] origin-left">
                             <Calendar className="w-3 h-3 text-white" />
                             <span className="text-[9px] font-black text-white tracking-widest uppercase whitespace-nowrap">
-                                {nextSessionDate ? `PROX: ${formatDM(nextSessionDate)}` : 'ÚLTIMA SESIÓN'}
+                                {nextSessionDate ? `PROX: ${formatDM(nextSessionDate)}` : 'PROGRAMADO'}
                             </span>
                         </div>
                     )}
 
-                    {/* Proxima context (Right side) - Only if not showing in pill */
-                        (!isFuture && !isFinished && pendingCount && pendingCount > 0) && (
-                            <div className="flex items-center gap-1.5 opacity-60 scale-[0.75] origin-right">
-                                <span className="text-[8px] font-black text-zinc-500 uppercase tracking-widest">
-                                    {nextSessionDate ? 'PROX:' : 'ÚLTIMA:'}
-                                </span>
-                                <span className="text-[9px] font-black text-white tracking-tighter whitespace-nowrap">
-                                    {nextSessionDate ? formatDM(nextSessionDate) : 'HOY'}
-                                </span>
-                            </div>
-                        )}
+                    {/* Proxima context (Right side) */}
+                    {(!isFuture && !isFinished && !daysInfo.isExpired && pendingCount && pendingCount > 0) && (
+                        <div className="flex items-center gap-1.5 opacity-40 scale-[0.75] origin-right">
+                            <span className="text-[8px] font-black text-zinc-500 uppercase tracking-widest">PROX:</span>
+                            <span className="text-[9px] font-black text-white tracking-tighter whitespace-nowrap">
+                                {nextSessionDate ? formatDM(nextSessionDate) : '...'}
+                            </span>
+                        </div>
+                    )}
                 </div>
 
                 {/* 2. Dates Row - No frame, lighter labels */}
@@ -186,20 +183,48 @@ export function PurchasedActivityCardContent({
 
                 {/* Extra View states (Coach View / Finished) if applicable */}
                 {isCoachView && (
-                    <div className="pt-2 border-t border-white/5 grid grid-cols-2 gap-3 mt-auto">
-                        <div className="bg-white/5 rounded-2xl p-2 text-center border border-white/5">
-                            <span className="text-[7px] text-zinc-500 font-extrabold uppercase tracking-widest block mb-1">Días OK</span>
-                            <span className="text-[10px] font-black text-orange-400">{daysCompleted ?? 0}</span>
+                    <div className="flex flex-col gap-4 mt-auto pt-4 border-t border-white/5 mx-1">
+                        {/* Days Section */}
+                        <div className="flex flex-col gap-1.5 px-0.5">
+                            <h4 className="text-[8px] font-[1000] text-white/20 uppercase tracking-[0.2em]">Días</h4>
+                            <div className="flex items-center justify-between border-l border-white/10 pl-3 py-0.5">
+                                <StatItem label="OK" value={daysCompleted} color="text-[#FF7939]" />
+                                <div className="h-4 w-[1px] bg-white/5" />
+                                <StatItem label="INC" value={daysIncomplete} color="text-yellow-200/90" />
+                                <div className="h-4 w-[1px] bg-white/5" />
+                                <StatItem label="AUS" value={daysMissed} color="text-red-500" />
+                                <div className="h-4 w-[1px] bg-white/5" />
+                                <StatItem label="PEN" value={daysRemainingFuture} color="text-white" />
+                            </div>
                         </div>
-                        <div className="bg-white/5 rounded-2xl p-2 text-center border border-white/5 opacity-50">
-                            <span className="text-[7px] text-zinc-500 font-extrabold uppercase tracking-widest block mb-1">Items</span>
-                            <span className="text-[10px] font-black text-zinc-400">{itemsCompletedTotal ?? 0}</span>
+
+                        {/* Items Section */}
+                        <div className="flex flex-col gap-1.5 px-0.5">
+                            <h4 className="text-[8px] font-[1000] text-white/20 uppercase tracking-[0.2em]">
+                                {isNutrition ? 'Platos' : 'Ejercicios'}
+                            </h4>
+                            <div className="flex items-center justify-between border-l border-white/10 pl-3 py-0.5">
+                                <StatItem label="OK" value={itemsCompletedTotal} color="text-[#FF7939]" />
+                                <div className="h-4 w-[1px] bg-white/5" />
+                                <StatItem label="NO" value={itemsDebtPast} color="text-red-500" />
+                                <div className="h-4 w-[1px] bg-white/5" />
+                                <StatItem label="PEN" value={itemsPendingToday} color="text-white" />
+                            </div>
                         </div>
                     </div>
                 )}
             </div>
 
             <PurchasedActivityCardFooter isFinished={isFinished} progress={progress} />
+        </div>
+    )
+}
+
+function StatItem({ label, value, color }: { label: string, value: number | undefined, color: string }) {
+    return (
+        <div className="flex flex-col items-center gap-0.5">
+            <span className="text-[7.5px] text-white/20 font-black uppercase tracking-tight">{label}</span>
+            <span className={cn("text-sm font-[1000] leading-none", color)}>{value ?? 0}</span>
         </div>
     )
 }

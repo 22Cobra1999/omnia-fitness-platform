@@ -1,5 +1,5 @@
 import React from 'react'
-import { Clock, RotateCcw } from 'lucide-react'
+import { RotateCcw, CalendarDays, Flame, Video, Clock2 } from 'lucide-react'
 import { DaySummaryRow } from './DaySummaryRow'
 import { ExerciseExecution, ClientDaySummaryRow } from '../types'
 import { formatDate, formatMinutesCompact } from '../utils/date-helpers'
@@ -13,7 +13,7 @@ interface DayDetailsPanelProps {
     handleEditDate: (date: Date) => void
     expandedActivityKeys: Record<string, boolean>
     setExpandedActivityKeys: React.Dispatch<React.SetStateAction<Record<string, boolean>>>
-    loadDayActivityDetails: (day: string, id: number) => Promise<void>
+    loadDayActivityDetails: (day: string, id: number, forceRefresh?: boolean) => Promise<void>
     loadEventDetails: (id: string) => Promise<void>
     eventDetailsByKey: Record<string, any>
     activityDetailsByKey: Record<string, ExerciseExecution[]>
@@ -39,6 +39,12 @@ interface DayDetailsPanelProps {
     handleCancelNutrition: () => void
     setConfirmDeleteNutritionId: (id: string | null) => void
     router: any
+    handleEditFitness: (ex: ExerciseExecution, knownExerciseIds?: string[]) => void
+    handleSaveFitness: () => Promise<void>
+    handleCancelFitness: () => void
+    editingFitnessValues: any
+    setEditingFitnessValues: (values: any) => void
+    loading: boolean
 }
 
 export const DayDetailsPanel: React.FC<DayDetailsPanelProps> = (props) => {
@@ -46,27 +52,18 @@ export const DayDetailsPanel: React.FC<DayDetailsPanelProps> = (props) => {
     const dayStr = selectedDate.toISOString().split('T')[0]
     const rows = summaryRowsByDate[dayStr] || []
 
-    const totalMins = rows.reduce((acc, r) => acc + (Number(r.total_mins ?? 0) || 0), 0)
-    const ownedMins = rows.reduce((acc, r) => {
-        if (r.activity_id === null || r.activity_id === undefined) return acc
-        // rows with null coach_id come from progreso_diario_actividad — always owned by this coach
-        if (r.coach_id === null || r.coach_id === undefined) return acc + (Number(r.total_mins ?? 0) || 0)
-        if (!currentCoachId) return acc + (Number(r.total_mins ?? 0) || 0)
-        return String(r.coach_id) === String(currentCoachId) ? acc + (Number(r.total_mins ?? 0) || 0) : acc
-    }, 0)
-    const otherMinsTotal = Math.max(0, totalMins - ownedMins)
-
-    if (rows.length === 0) return <div className="text-sm text-gray-500">Sin actividades para este día</div>
-
-    const ownedActivityRows = rows.filter(r => {
-        if (r.calendar_event_id) {
-            if (!currentCoachId) return true
-            return String(r.coach_id) === String(currentCoachId) || String(r.coach_id) === String(clientId)
-        }
+    // Classify rows
+    const ownedProgramRows = rows.filter(r => {
+        if (r.calendar_event_id) return false // meets handled separately
         if (r.activity_id === null || r.activity_id === undefined) return false
-        // rows from progreso_diario_actividad have coach_id null — always owned
         if (r.coach_id === null || r.coach_id === undefined) return true
         return !currentCoachId || String(r.coach_id) === String(currentCoachId)
+    })
+
+    const myMeetRows = rows.filter(r => {
+        if (!r.calendar_event_id) return false
+        if (!currentCoachId) return true
+        return String(r.coach_id) === String(currentCoachId) || String(r.coach_id) === String(clientId)
     })
 
     const otherRows = rows.filter(r => {
@@ -75,51 +72,109 @@ export const DayDetailsPanel: React.FC<DayDetailsPanelProps> = (props) => {
             return String(r.coach_id) !== String(currentCoachId) && String(r.coach_id) !== String(clientId)
         }
         if (r.activity_id === null || r.activity_id === undefined) return true
-        // null coach_id = owned, not other
         if (r.coach_id === null || r.coach_id === undefined) return false
         return currentCoachId && String(r.coach_id) !== String(currentCoachId)
     })
 
-    const otherMeetRows = otherRows.filter(r => r.calendar_event_id)
+    // Summary stats
+    const programMins = ownedProgramRows.reduce((a, r) => a + (Number(r.total_mins ?? 0) || 0), 0)
+    const meetMins = myMeetRows.reduce((a, r) => a + (Number(r.total_mins ?? 0) || 0), 0)
+    const otherMins = otherRows.reduce((a, r) => a + (Number(r.total_mins ?? 0) || 0), 0)
+    const totalMins = programMins + meetMins + otherMins
+
+    const allExpandable = [...ownedProgramRows, ...myMeetRows]
 
     return (
-        <div className="w-full">
-            <div className="flex items-center justify-between mb-4">
-                <div className="flex items-center gap-2">
-                    <Clock className="h-4 w-4 text-[#FF7939]" />
-                    <h4 className="font-semibold text-sm text-white">{formatDate(selectedDate)}</h4>
+        <div className="w-full h-full flex flex-col">
+            {/* ── Panel header ── */}
+            <div className="flex items-start justify-between mb-4 pb-3 border-b border-zinc-800/60">
+                <div className="flex items-start gap-2 min-w-0">
+                    <CalendarDays className="h-4 w-4 text-[#FF7939] mt-0.5 flex-shrink-0" />
+                    <div className="min-w-0">
+                        <h4 className="text-sm font-bold text-white leading-snug">{formatDate(selectedDate)}</h4>
+                        {totalMins > 0 && (
+                            <p className="text-[11px] text-zinc-500 mt-0.5">{formatMinutesCompact(totalMins)} en total</p>
+                        )}
+                    </div>
                 </div>
-                <button onClick={() => { if (selectedDate < new Date(new Date().setHours(0, 0, 0, 0))) { alert('No puedes modificar la fecha de días pasados.'); return }; handleEditDate(selectedDate) }} className={`flex items-center gap-1 px-2 py-1 text-sm font-medium rounded-lg transition-colors ${selectedDate < new Date(new Date().setHours(0, 0, 0, 0)) ? 'text-gray-500 cursor-not-allowed opacity-50' : isSelectingNewDate ? 'bg-[#FF7939] text-white' : 'text-[#FF7939] hover:bg-[#FF7939]/10'}`}>
-                    <RotateCcw className="h-4 w-4" />
+                <button
+                    onClick={() => handleEditDate(selectedDate)}
+                    className={`flex-shrink-0 flex items-center gap-1 px-2.5 py-1 text-[11px] font-bold rounded-lg transition-colors ml-2 ${
+                        isSelectingNewDate
+                            ? 'bg-[#FF7939] text-black'
+                            : 'text-[#FF7939] hover:bg-[#FF7939]/10 border border-[#FF7939]/20'
+                    }`}
+                >
+                    <RotateCcw className="h-3 w-3" />
                     {isSelectingNewDate ? 'Cancelar' : 'Fecha'}
                 </button>
             </div>
 
-            <div className="space-y-3">
-                <div className="bg-zinc-800/30 rounded-lg p-3 border border-zinc-700/30">
-                    <div className="flex items-center justify-between text-xs">
-                        <span className="text-[#FF7939] font-medium">Tus programas</span>
-                        <span className="text-[#FF7939] font-semibold">{formatMinutesCompact(ownedMins) || '0m'}</span>
-                    </div>
-                    <div className="flex items-center justify-between text-xs mt-1">
-                        <span className="text-gray-400">Otras actividades</span>
-                        <span className="text-gray-200 font-semibold">{formatMinutesCompact(otherMinsTotal) || '0m'}</span>
-                    </div>
+            {rows.length === 0 ? (
+                <div className="flex-1 flex items-center justify-center py-8">
+                    <p className="text-sm text-zinc-600 italic">Sin actividades</p>
                 </div>
-
-                {ownedActivityRows.length > 0 && (
-                    <div className="space-y-3">
-                        {ownedActivityRows.map((r) => <DaySummaryRow key={r.id} {...props} row={r} dayStr={dayStr} allowExpand={true} />)}
+            ) : (
+                <>
+                    {/* ── Summary totals ── */}
+                    <div className="flex items-center gap-4 mb-5 pb-4 border-b border-zinc-900">
+                        <div className="flex flex-col">
+                            <span className="text-[8px] text-zinc-600 uppercase font-black tracking-widest mb-1">Tus programas</span>
+                            <div className="flex items-center gap-1.5">
+                                <Flame className="h-3 w-3 text-[#FF7939]" />
+                                <span className="text-sm font-black text-white">{formatMinutesCompact(programMins) || '0m'}</span>
+                            </div>
+                        </div>
+                        <div className="flex flex-col">
+                            <span className="text-[8px] text-zinc-600 uppercase font-black tracking-widest mb-1">Meets con vos</span>
+                            <div className="flex items-center gap-1.5">
+                                <Video className="h-3 w-3 text-[#FF7939]" />
+                                <span className="text-sm font-black text-white">{formatMinutesCompact(meetMins) || '0m'}</span>
+                            </div>
+                        </div>
+                        <div className="flex flex-col">
+                            <span className="text-[8px] text-zinc-600 uppercase font-black tracking-widest mb-1">Otros del cliente</span>
+                            <div className="flex items-center gap-1.5">
+                                <Clock2 className="h-3 w-3 text-zinc-500" />
+                                <span className="text-sm font-black text-zinc-500">{formatMinutesCompact(otherMins) || '0m'}</span>
+                            </div>
+                        </div>
                     </div>
-                )}
 
-                {otherMeetRows.length > 0 && (
-                    <div className="space-y-3">
-                        <div className="text-xs font-semibold text-gray-400 uppercase tracking-wide">Otras actividades</div>
-                        {otherMeetRows.map((r) => <DaySummaryRow key={r.id} {...props} row={r} dayStr={dayStr} allowExpand={false} />)}
+                    <div className="w-full h-px bg-zinc-800/40 mb-3" />
+
+                    {/* ── Activities ── */}
+                    <div className="flex-1 overflow-y-auto space-y-0 min-h-0">
+                        {ownedProgramRows.length > 0 && (
+                            <div className="mb-1">
+                                <p className="text-[9px] text-zinc-600 uppercase tracking-widest font-black mb-1 px-0.5">Tus programas</p>
+                                {ownedProgramRows.map(r => (
+                                    <DaySummaryRow key={r.id} {...props} row={r} dayStr={dayStr} allowExpand={true} />
+                                ))}
+                            </div>
+                        )}
+
+                        {myMeetRows.length > 0 && (
+                            <div className="mb-1 pt-2">
+                                <p className="text-[9px] text-zinc-600 uppercase tracking-widest font-black mb-1 px-0.5">Meets con vos</p>
+                                {myMeetRows.map(r => (
+                                    <DaySummaryRow key={r.id} {...props} row={r} dayStr={dayStr} allowExpand={true} />
+                                ))}
+                            </div>
+                        )}
+
+                        {otherRows.length > 0 && (
+                            <div className="mb-1 pt-2">
+                                <p className="text-[9px] text-zinc-600 uppercase tracking-widest font-black mb-1 px-0.5">Otros del cliente</p>
+                                <div className="flex items-center gap-2 py-2 px-0.5">
+                                    <Clock2 className="h-3 w-3 text-zinc-600 flex-shrink-0" />
+                                    <span className="text-xs text-zinc-500">{formatMinutesCompact(otherMins)}</span>
+                                </div>
+                            </div>
+                        )}
                     </div>
-                )}
-            </div>
+                </>
+            )}
         </div>
     )
 }

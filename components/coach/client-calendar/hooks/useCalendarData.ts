@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from 'react'
+import { useState, useEffect, useCallback, useMemo } from 'react'
 import { DayData, ClientDaySummaryRow, ExerciseExecution, ActivityFilterOption } from '../types'
 import { getMonthRange } from '../utils/date-helpers'
 
@@ -46,23 +46,21 @@ export function useCalendarData(supabase: any, clientId: string, currentDate: Da
                 .lte('fecha', monthEndStr)
                 .not('actividad_id', 'is', null)
 
-            // 2. Fetch Fitness Progress (legacy — for old enrollments without daily rows)
+            // 2. Fetch Fitness Progress (legacy)
             const { data: fitnessRows } = await supabase
                 .from('progreso_cliente')
-                .select('id, actividad_id, fecha, minutos_json, enrollment_id')
+                .select('id, actividad_id, fecha')
                 .eq('cliente_id', clientId)
                 .gte('fecha', monthStartStr)
                 .lte('fecha', monthEndStr)
-                .not('actividad_id', 'is', null)
 
             // 3. Fetch Nutrition Progress (legacy)
             const { data: nutriRows } = await supabase
                 .from('progreso_cliente_nutricion')
-                .select('id, actividad_id, fecha, macros, enrollment_id')
+                .select('id, actividad_id, fecha')
                 .eq('cliente_id', clientId)
                 .gte('fecha', monthStartStr)
                 .lte('fecha', monthEndStr)
-                .not('actividad_id', 'is', null)
 
             // Fetch activity titles for all sources
             const activityIds = [
@@ -81,13 +79,19 @@ export function useCalendarData(supabase: any, clientId: string, currentDate: Da
                 if (acts) acts.forEach((a: any) => { activityTitleMap[a.id] = a.title })
             }
 
-            // 4. Fetch Workshop Progress (left join to avoid 400)
-            const { data: workshopRows } = await supabase
-                .from('taller_progreso_temas')
-                .select('id, actividad_id, fecha_seleccionada, horario_seleccionado')
-                .eq('cliente_id', clientId)
-                .gte('fecha_seleccionada', monthStartStr)
-                .lte('fecha_seleccionada', monthEndStr)
+            // 4. Fetch Workshop Progress (wrapped separately — this table may not have all rows)
+            let workshopRows: any[] = []
+            try {
+                const { data: wsData } = await supabase
+                    .from('taller_progreso_temas')
+                    .select('id, actividad_id, fecha_seleccionada, horario_seleccionado')
+                    .eq('cliente_id', clientId)
+                    .gte('fecha_seleccionada', monthStartStr)
+                    .lte('fecha_seleccionada', monthEndStr)
+                workshopRows = wsData || []
+            } catch (wsErr) {
+                console.warn('[Calendar] taller_progreso_temas query failed, skipping workshops:', wsErr)
+            }
 
             // 5. Fetch Calendar Events (Meets)
             const { data: participants } = await supabase
@@ -223,8 +227,8 @@ export function useCalendarData(supabase: any, clientId: string, currentDate: Da
                     client_id: clientId,
                     day,
                     activity_id: r.actividad_id,
-                    activity_title: r.activities?.title || 'Taller',
-                    coach_id: r.activities?.coach_id,
+                    activity_title: activityTitleMap[r.actividad_id] || 'Taller',
+                    coach_id: null, // We'll fetch if needed, but for now summary is fine
                     total_mins: mins,
                     fitness_mins: 0,
                     nutri_mins: 0,
@@ -256,6 +260,19 @@ export function useCalendarData(supabase: any, clientId: string, currentDate: Da
             setSummaryRowsByDate(byDate)
             setDayData(processed)
 
+            // Build activity filter options from all unique activities seen this month
+            const filterMap = new Map<number, ActivityFilterOption>()
+            ;[...dailyList, ...fitnessList].forEach((r: any) => {
+                if (!r.actividad_id || filterMap.has(Number(r.actividad_id))) return
+                filterMap.set(Number(r.actividad_id), {
+                    enrollment_id: r.enrollment_id ?? r.actividad_id,
+                    activity_id: Number(r.actividad_id),
+                    title: activityTitleMap[r.actividad_id] || `Actividad ${r.actividad_id}`,
+                    version: 1
+                })
+            })
+            setActivityFilterOptions(Array.from(filterMap.values()))
+
             // Calculate last workout 
             let lastDate: string | null = null
             const sortedDates = Object.keys(processed).sort((a, b) => b.localeCompare(a))
@@ -276,9 +293,9 @@ export function useCalendarData(supabase: any, clientId: string, currentDate: Da
         }
     }, [clientId, currentDate, supabase, onLastWorkoutUpdate, fetchMonthlyProgress])
 
-    const loadDayActivityDetails = useCallback(async (dayStr: string, activityId: number) => {
+    const loadDayActivityDetails = useCallback(async (dayStr: string, activityId: number, forceRefresh = false) => {
         const cacheKey = `${dayStr}::${activityId}`
-        if (activityDetailsByKey[cacheKey]) return
+        if (!forceRefresh && activityDetailsByKey[cacheKey]) return
 
         try {
             const { data: actRow } = await supabase.from('activities').select('id, title, coach_id, type').eq('id', activityId).single()
@@ -319,31 +336,54 @@ export function useCalendarData(supabase: any, clientId: string, currentDate: Da
                     if (exData) exData.forEach((e: any) => { exMap[String(e.id)] = e })
                 }
 
-                // Fetch prescriptions from informacion column (merged fitness details)
-                const informacion = fit.informacion || fit.detalles_series || {}
-                const infoObj = typeof informacion === 'string' ? JSON.parse(informacion || '{}') : informacion
+                // Helper to parse a JSONB column that may be stored as string
+                const parseCol = (col: any) => {
+                    if (!col) return {}
+                    if (typeof col === 'string') { try { return JSON.parse(col) } catch { return {} } }
+                    return col
+                }
+
+                // Fetch prescriptions from all possible columns
+                const infoObj = parseCol(fit.informacion)
+                const detallesObj = parseCol(fit.detalles_series)
+                // New dedicated columns (one value per exercise key)
+                const repsMap = parseCol(fit.reps)
+                const seriesMap = parseCol(fit.series)
+                const pesoMap = parseCol(fit.peso)
+                const minutosMap = parseCol(fit.minutos)
+                const caloriasMap = parseCol(fit.calorias)
 
                 allIds.forEach((rawId: any) => {
                     const realId = parseEjercicioId(rawId)
                     const ex = exMap[realId]
                     const fullKey = String(rawId)
-                    const seriesData = infoObj?.[fullKey] || infoObj?.[realId] || fit.detalles_series?.[fullKey] || fit.detalles_series?.[realId] || null
-                    const seriesObj = typeof seriesData === 'string' ? (() => { try { return JSON.parse(seriesData) } catch { return seriesData } })() : seriesData
-                    const sets = seriesObj?.sets ?? seriesObj?.series ?? seriesObj?.series_num ?? null
-                    const reps = seriesObj?.reps ?? seriesObj?.repeticiones ?? seriesObj?.reps_num ?? null
-                    const kg = seriesObj?.kg ?? seriesObj?.peso ?? null
-                    const mins = seriesObj?.minutos ?? seriesObj?.duracion ?? ex?.duracion_min ?? null
-                    const cals = seriesObj?.calorias ?? ex?.calorias ?? null
+
+                    // Try informacion first, then detalles_series
+                    const seriesData = infoObj?.[fullKey] || infoObj?.[realId] || detallesObj?.[fullKey] || detallesObj?.[realId] || null
+                    const seriesObj = typeof seriesData === 'string' ? (() => { try { return JSON.parse(seriesData) } catch { return null } })() : seriesData
+
+                    // Read values from seriesObj first, then fall back to dedicated columns
+                    const sets = seriesObj?.sets ?? seriesObj?.series ?? seriesObj?.series_num ?? seriesMap?.[fullKey] ?? seriesMap?.[realId] ?? null
+                    const reps = seriesObj?.reps ?? seriesObj?.repeticiones ?? seriesObj?.reps_num ?? repsMap?.[fullKey] ?? repsMap?.[realId] ?? null
+                    const kg = seriesObj?.kg ?? seriesObj?.peso ?? pesoMap?.[fullKey] ?? pesoMap?.[realId] ?? null
+                    const mins = seriesObj?.minutos ?? seriesObj?.duracion ?? minutosMap?.[fullKey] ?? minutosMap?.[realId] ?? ex?.duracion_min ?? null
+                    const cals = seriesObj?.calorias ?? caloriasMap?.[fullKey] ?? caloriasMap?.[realId] ?? ex?.calorias ?? null
+
+                    // Build a clean seriesData object if we have at least sets+reps
+                    const effectiveSeriesData = (sets != null && reps != null)
+                        ? { sets: Number(sets), reps: Number(reps), kg: Number(kg ?? 0), minutos: mins, calorias: cals }
+                        : seriesData
 
                     details.push({
                         id: `fit-${fit.id}-${fullKey}`,
+                        exercise_key: fullKey,
                         ejercicio_id: realId,
                         ejercicio_nombre: ex?.nombre_ejercicio || (ex ? `Ejercicio ${realId}` : `Ejercicio ${rawId}`),
                         completado: Array.isArray(comp) ? comp.map(String).includes(String(rawId)) : !!comp[rawId],
                         fecha_ejercicio: dayStr,
                         actividad_id: activityId,
                         actividad_titulo: activityTitle,
-                        detalle_series: sets ? `${sets} series × ${reps ?? '?'} reps${kg ? ` · ${kg}kg` : ''}` : (seriesData ? String(seriesData) : null),
+                        detalle_series: effectiveSeriesData,
                         sets, reps, kg,
                         duracion: mins,
                         calorias_estimadas: cals,
@@ -378,30 +418,35 @@ export function useCalendarData(supabase: any, clientId: string, currentDate: Da
                 })
             }
 
-            // --- Talleres ---
-            const { data: wsList } = await supabase
-                .from('taller_progreso_temas')
-                .select('*, taller_detalles(nombre, descripcion)')
-                .eq('cliente_id', clientId)
-                .eq('fecha_seleccionada', dayStr)
-                .eq('actividad_id', activityId)
+            // --- Talleres (safe - may fail with 400) ---
+            try {
+                const { data: wsList } = await supabase
+                    .from('taller_progreso_temas')
+                    .select('id, actividad_id, fecha_seleccionada, tema_id, asistio, estado')
+                    .eq('cliente_id', clientId)
+                    .eq('fecha_seleccionada', dayStr)
+                    .eq('actividad_id', activityId)
 
-            if (wsList && wsList.length > 0) {
-                wsList.forEach((ws: any) => {
-                    details.push({
-                        id: `ws-${ws.id}`,
-                        ejercicio_id: String(ws.tema_id),
-                        ejercicio_nombre: ws.taller_detalles?.nombre || `Tema de taller`,
-                        completado: ws.asistio || ws.estado === 'completado',
-                        fecha_ejercicio: dayStr,
-                        actividad_id: activityId,
-                        actividad_titulo: activityTitle,
-                        is_workshop: true,
-                        workshop_details: ws.taller_detalles
+                if (wsList && wsList.length > 0) {
+                    wsList.forEach((ws: any) => {
+                        details.push({
+                            id: `ws-${ws.id}`,
+                            ejercicio_id: String(ws.tema_id),
+                            ejercicio_nombre: ws.tema_nombre || `Tema de taller`,
+                            completado: ws.asistio || ws.estado === 'completado',
+                            fecha_ejercicio: dayStr,
+                            actividad_id: activityId,
+                            actividad_titulo: activityTitle,
+                            is_workshop: true,
+                            workshop_details: ws
+                        })
                     })
-                })
+                }
+            } catch (wsErr) {
+                console.warn('[Calendar] taller_progreso_temas detail query failed:', wsErr)
             }
 
+            console.log(`[Calendar] Loaded details for ${cacheKey}:`, details.length, 'items', details.map(d => d.exercise_key))
             setActivityDetailsByKey(prev => ({ ...prev, [cacheKey]: details }))
         } catch (e) { console.warn(e) }
     }, [clientId, supabase, activityDetailsByKey])
@@ -416,6 +461,18 @@ export function useCalendarData(supabase: any, clientId: string, currentDate: Da
         if (data) setEventDetailsByKey(prev => ({ ...prev, [eventId]: data }))
     }, [supabase, eventDetailsByKey])
 
+    const filteredSummaryRows = useMemo(() => {
+        if (!activeEnrollmentFilterId) return summaryRowsByDate
+        const filtered: Record<string, ClientDaySummaryRow[]> = {}
+        Object.keys(summaryRowsByDate).forEach(date => {
+            const rows = summaryRowsByDate[date].filter(r => 
+                r.enrollment_id === activeEnrollmentFilterId || r.activity_id === activeEnrollmentFilterId
+            )
+            if (rows.length > 0) filtered[date] = rows
+        })
+        return filtered
+    }, [summaryRowsByDate, activeEnrollmentFilterId])
+
     const getDayData = useCallback((date: Date) => {
         return dayData[date.toISOString().split('T')[0]]
     }, [dayData])
@@ -425,7 +482,7 @@ export function useCalendarData(supabase: any, clientId: string, currentDate: Da
     }, [fetchClientCalendarSummary])
 
     return {
-        dayData, summaryRowsByDate, activityDetailsByKey, setActivityDetailsByKey,
+        dayData, summaryRowsByDate, filteredSummaryRows, activityDetailsByKey, setActivityDetailsByKey,
         monthlyProgress, eventDetailsByKey, activityFilterOptions,
         activeEnrollmentFilterId, setActiveEnrollmentFilterId,
         loading,

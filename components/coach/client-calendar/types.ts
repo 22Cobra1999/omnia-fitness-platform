@@ -8,6 +8,7 @@ export interface ClientCalendarProps {
 export interface ExerciseExecution {
     id: string
     ejercicio_id: string
+    exercise_key?: string
     completado: boolean
     fecha_ejercicio: string
     duracion?: number
@@ -43,6 +44,9 @@ export interface ExerciseExecution {
         nombre: string
         descripcion: string | null
     } | null
+    sets?: number | string | null
+    reps?: number | string | null
+    kg?: number | string | null
 }
 
 export interface DayData {
@@ -71,6 +75,7 @@ export interface ClientDaySummaryRow {
     nutri_items_planned?: number | null
     nutri_items_done?: number | null
     is_workshop?: boolean
+    enrollment_id?: number | null
 }
 
 export interface ActivityFilterOption {

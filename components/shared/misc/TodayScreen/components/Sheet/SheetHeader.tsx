@@ -56,7 +56,7 @@ export function SheetHeader({
                         <div style={{ display: 'flex', alignItems: 'center', gap: 3 }}>
                             <Flame size={12} color="#FF7939" fill="#FF7939" />
                             <span style={{ fontSize: '13px', fontWeight: 900, color: '#FFFFFF' }}>
-                                {(activities || []).reduce((acc: number, curr: any) => acc + Number(curr.calorias || 0), 0)}
+                                {activities.reduce((acc: number, curr: any) => acc + Number(curr.calorias || 0), 0)}
                                 <span style={{ fontSize: '8px', fontWeight: 600, color: 'rgba(255,255,255,0.4)', marginLeft: 1, textTransform: 'uppercase' }}>KCAL</span>
                             </span>
                         </div>
@@ -64,7 +64,7 @@ export function SheetHeader({
                         <div style={{ display: 'flex', alignItems: 'center', gap: 3 }}>
                             <Zap size={12} color="#FF7939" fill="#FF7939" />
                             <span style={{ fontSize: '13px', fontWeight: 900, color: '#FFFFFF' }}>
-                                {(activities || []).reduce((acc: number, curr: any) => {
+                                {activities.reduce((acc: number, curr: any) => {
                                     const parsed = parseSeries(curr.detalle_series || curr.series);
                                     const seriesCount = parsed.reduce((as: number, cs: any) => as + (Number(cs.sets) || 1), 0);
                                     return acc + seriesCount;
@@ -76,7 +76,7 @@ export function SheetHeader({
                         <div style={{ display: 'flex', alignItems: 'center', gap: 3 }}>
                             <Clock size={12} color="#FFFFFF" strokeWidth={2.5} />
                             <span style={{ fontSize: '13px', fontWeight: 900, color: '#FFFFFF' }}>
-                                {(activities || []).reduce((acc: number, curr: any) => acc + Number(curr.minutos || 0), 0)}
+                                {activities.reduce((acc: number, curr: any) => acc + Number(curr.minutos || 0), 0)}
                                 <span style={{ fontSize: '8px', fontWeight: 600, color: 'rgba(255,255,255,0.4)', marginLeft: 1, textTransform: 'uppercase' }}>MIN</span>
                             </span>
                         </div>

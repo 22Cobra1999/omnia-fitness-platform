@@ -18,11 +18,20 @@ interface PurchasedActivityCardHeaderProps {
 }
 
 export function PurchasedActivityCardHeader({ imageUrl, title, coachName, coachAvatarUrl, coachRating, size, isCoachView, isExpired, progress, isFinished, isFuture }: PurchasedActivityCardHeaderProps) {
-    if (isCoachView) return null
+    if (isCoachView) {
+        return (
+            <div className="pt-5 px-6 text-center">
+                <h3 className="text-white font-[1000] text-base leading-tight tracking-tight px-2">
+                    {title || 'Sin título'}
+                </h3>
+            </div>
+        )
+    }
 
     return (
         <div className={cn(
-            `relative w-full h-[280px] flex-shrink-0 transition-all overflow-hidden bg-black rounded-t-[2.8rem]`,
+            "relative w-full flex-shrink-0 transition-all overflow-hidden bg-black rounded-t-[2.8rem]",
+            getImageHeightClass(size, !!isCoachView),
             isExpired && "grayscale opacity-50"
         )}>
             {imageUrl && imageUrl.startsWith('http') ? (

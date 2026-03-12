@@ -10,6 +10,7 @@ interface UseActivityDetailLogicProps {
     programInfo: any;
     enrollment: any;
     activityId?: string;
+    onRefresh?: () => void;
 }
 
 export function useActivityDetailLogic({
@@ -18,7 +19,8 @@ export function useActivityDetailLogic({
     onNext,
     programInfo,
     enrollment,
-    activityId
+    activityId,
+    onRefresh
 }: UseActivityDetailLogicProps) {
     // Local state for tabs & UI
     const [isVideoPanelExpanded, setIsVideoPanelExpanded] = useState(false);
@@ -148,12 +150,8 @@ export function useActivityDetailLogic({
                     peso: s.kg,
                     series: s.sets
                 }));
-                if (adjustedKcal !== null) selectedVideo.calorias = adjustedKcal;
-                if (adjustedMin !== null) {
-                    selectedVideo.minutos = adjustedMin;
-                    selectedVideo.duration = adjustedMin;
-                }
                 setIsEditingSeries(false);
+                if (onRefresh) onRefresh();
             } else {
                 alert(result.error || 'Error al guardar');
             }

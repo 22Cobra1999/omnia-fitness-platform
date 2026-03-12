@@ -14,6 +14,7 @@ import { es } from 'date-fns/locale'
 import { Video, ChevronDown, GraduationCap, ChevronLeft, ChevronRight } from 'lucide-react'
 import { Card, CardContent, CardHeader } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
+import { cn } from '@/lib/utils/utils'
 
 interface MonthViewProps {
     currentDate: Date
@@ -56,7 +57,7 @@ export function MonthView({
     const weekDays = ['Dom', 'Lun', 'Mar', 'Mié', 'Jue', 'Vie', 'Sáb']
 
     return (
-        <Card className="bg-zinc-900 border-zinc-800 w-full sm:max-w-none">
+        <Card className="bg-black border-white/5 w-full sm:max-w-none shadow-none">
             {!hideHeader && (
                 <CardHeader className="px-4 pt-4 pb-2">
                     <div className="flex items-center justify-between relative">
@@ -93,11 +94,11 @@ export function MonthView({
                 </CardHeader>
             )}
 
-            <CardContent className="px-4 pb-4 pt-6">
+            <CardContent className="p-2 sm:p-4">
                 {/* Week Days Headers */}
                 <div className="grid grid-cols-7 gap-1 sm:gap-2 mb-3">
                     {weekDays.map((day) => (
-                        <div key={day} className="text-center text-sm font-semibold text-gray-400">
+                        <div key={day} className="text-center text-xs font-semibold text-gray-400 uppercase tracking-wider">
                             {day}
                         </div>
                     ))}
@@ -140,19 +141,19 @@ export function MonthView({
                                 type="button"
                                 onClick={() => onDateClick(day)}
                                 className={
-                                    `min-h-[64px] sm:min-h-[120px] p-1.5 sm:p-2 rounded-xl text-sm font-medium transition-all flex flex-col items-center justify-start relative overflow-hidden ` +
+                                    `min-h-[64px] sm:min-h-[94px] p-1.5 sm:p-2 rounded-xl text-xs font-medium transition-all flex flex-col items-center justify-start relative overflow-hidden ` +
                                     `${!isCurrentMonth ? 'opacity-20' : ''} ` +
                                     `${isSelected ? 'backdrop-blur-md bg-white/10 border border-[#FF7939]/40 shadow-[0_8px_24px_rgba(0,0,0,0.35)] text-white' : 'border border-transparent'} ` +
-                                    `${isTodayDate && !isSelected ? 'bg-zinc-800 text-white' : ''} ` +
-                                    `${!isSelected && !isTodayDate ? 'text-gray-400 hover:bg-zinc-800/50 hover:border-white/5' : ''}`
+                                    `${isTodayDate && !isSelected ? 'bg-white/5 text-white' : ''} ` +
+                                    `${!isSelected && !isTodayDate ? 'text-gray-400 hover:bg-white/[0.03] hover:border-white/5' : ''}`
                                 }
                             >
                                 {hasSlots && !isSelected && !isTodayDate ? (
-                                    <div className={`w-6 h-6 rounded-full flex items-center justify-center ring-1 text-[11px] sm:text-sm font-bold ${slotsCount >= 120 ? 'ring-[#FF7939] text-[#FF7939] bg-[#FF7939]/10' : 'ring-red-500 text-red-500 bg-red-500/10'}`}>
+                                    <div className={`w-5 h-5 rounded-full flex items-center justify-center ring-1 text-[10px] sm:text-xs font-bold ${slotsCount >= 120 ? 'ring-[#FF7939] text-[#FF7939] bg-[#FF7939]/10' : 'ring-red-500 text-red-500 bg-red-500/10'}`}>
                                         {format(day, 'd')}
                                     </div>
                                 ) : (
-                                    <span className={`text-[11px] sm:text-sm ${isTodayDate ? 'text-[#FF7939] font-bold' : (hasUrgentEvent ? 'text-red-500 font-bold' : '')}`}>
+                                    <span className={`text-[10px] sm:text-xs ${isTodayDate ? 'text-[#FF7939] font-bold' : (hasUrgentEvent ? 'text-red-500 font-bold' : '')}`}>
                                         {format(day, 'd')}
                                     </span>
                                 )}
@@ -174,13 +175,18 @@ export function MonthView({
                                         return (
                                             <div
                                                 key={ev.id}
-                                                className={`text-[10px] truncate px-1.5 py-0.5 rounded flex items-center gap-1 border
-                                                    ${isRed ? 'bg-red-500/10 border-red-500/30 text-red-500 font-bold' :
-                                                        (isPending ? 'bg-[#FF7939]/10 border-[#FF7939]/30 text-[#FFB366]' : 'bg-white/5 border-white/10 text-white/70')}
-                                                `}
+                                                className={cn(
+                                                    "text-[10px] truncate px-1.5 py-0.5 rounded flex items-center gap-1 border",
+                                                    isRed ? "bg-red-500/10 border-red-500/30 text-red-500 font-bold" :
+                                                        isPending ? "bg-[#FF7939]/10 border-[#FF7939]/30 text-[#FFB366]" :
+                                                            isWorkshop ? "bg-rose-500/5 border-rose-500/20 text-rose-300/90" :
+                                                                "bg-white/5 border-white/10 text-white/70"
+                                                )}
                                             >
-                                                {isWorkshop ? <GraduationCap className={`w-3.5 h-3.5 ${isRed ? 'text-red-500' : 'text-[#FF7939]'}`} /> : <Video className="w-2.5 h-2.5" />}
-                                                <span className="truncate">{ev.title || (isWorkshop ? 'Taller' : 'Meet')}</span>
+                                                {isWorkshop ? <GraduationCap className={cn("w-3.5 h-3.5", isRed ? "text-red-500" : "text-rose-300")} /> : <Video className="w-2.5 h-2.5" />}
+                                                <span className="truncate">
+                                                    {(ev.title ? String(ev.title).replace(/^Taller:\s*/i, '') : (isWorkshop ? 'Taller' : 'Meet'))}
+                                                </span>
                                             </div>
                                         );
                                     })}
@@ -215,7 +221,7 @@ export function MonthView({
                                                 <span key="red" className="inline-flex items-center justify-center px-1 h-5 rounded-full border border-red-500/50 bg-red-500/20 gap-0.5 scale-90">
                                                     {hasWorkshop && <GraduationCap className="w-2.5 h-2.5 text-red-500" />}
                                                     {hasMeet && <Video className="w-2.5 h-2.5 text-red-500" />}
-                                                    {redMeets.length > 1 && (
+                                                    {redMeets.length > 0 && ( // Always show icon, only show count if > 0
                                                         <span className="text-[8px] font-bold text-red-500">
                                                             {redMeets.length}
                                                         </span>
@@ -236,7 +242,7 @@ export function MonthView({
                                                 <span key="orange" className="inline-flex items-center justify-center px-1 h-5 rounded-full border border-[#FF7939]/60 bg-[#FF7939]/20 gap-0.5 scale-90">
                                                     {hasWorkshop && <GraduationCap className="w-2.5 h-2.5 text-[#FF7939]" />}
                                                     {hasMeet && <Video className="w-2.5 h-2.5 text-[#FF7939]" />}
-                                                    {orangeMeets.length > 1 && (
+                                                    {orangeMeets.length > 0 && ( // Always show icon, only show count if > 0
                                                         <span className="text-[8px] font-bold text-[#FF7939]">
                                                             {orangeMeets.length}
                                                         </span>
@@ -258,7 +264,7 @@ export function MonthView({
                                                 <span key="normal" className="inline-flex items-center justify-center px-1 h-5 rounded-full border border-white/20 bg-white/10 gap-0.5 scale-90">
                                                     {hasWorkshop && <GraduationCap className="w-2.5 h-2.5 text-[#FF7939]" />}
                                                     {hasMeet && <Video className="w-2.5 h-2.5 text-white" />}
-                                                    {normalMeets.length > 1 && (
+                                                    {normalMeets.length > 0 && ( // Always show icon, only show count if > 0
                                                         <span className="text-[8px] font-bold text-white">
                                                             {normalMeets.length}
                                                         </span>

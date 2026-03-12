@@ -110,7 +110,7 @@ function CoachCalendarContent() {
 
   if (loading && !events.length) {
     return (
-      <div className="flex flex-col items-center justify-center min-h-screen bg-[#0F1012] gap-4">
+      <div className="flex flex-col items-center justify-center min-h-screen bg-black gap-4">
         <div className="relative flex items-center justify-center w-[120px] h-[120px]">
           <Flame size={80} className="absolute opacity-60 blur-[20px] text-[#FF7939] fill-[#FF7939]" />
           <Flame size={80} className="relative z-10 animate-pulse text-[#FF7939] fill-[#FF7939]" />
@@ -121,8 +121,8 @@ function CoachCalendarContent() {
   }
 
   return (
-    <div className="min-h-screen bg-[#0A0A0B] text-white pb-32">
-      <div className="w-full mx-auto p-4 sm:p-8 space-y-6">
+    <div className="min-h-screen bg-black text-white pb-32">
+      <div className="w-full mx-auto p-4 sm:p-8 space-y-4">
         <CoachCalendarTopSection
           showQuickScheduler={showQuickScheduler}
           isRescheduling={isRescheduling}

@@ -174,26 +174,37 @@ export function useActivityScreenLogic({ initialTab = "purchased" }: UseActivity
             }
 
             if (!user) {
+                console.warn("⚠️ [useActivityScreenLogic] No user found in session")
                 if (!silentUpdate) setIsLoading(false)
                 return
             }
 
-            // Fetch Enrollments
+            console.log(`🔍 [useActivityScreenLogic] Fetching enrollments for user: ${user.id}`)
+
+            // Fetch Enrollments with explicit fkey hint to resolve ambiguity (PGRST201)
             const { data, error: enrollmentsError } = await supabase
                 .from("activity_enrollments")
                 .select(`
-          id, activity_id, client_id, status, created_at, start_date, expiration_date, program_end_date, start_deadline, current_streak, last_streak_date,
-          activity:activities!activity_enrollments_activity_id_fkey (
-            id, title, description, type, difficulty, price, coach_id, categoria, dias_acceso,
-            media:activity_media!activity_media_activity_id_fkey (image_url, video_url),
-            coaches:coaches!activities_coach_id_fkey (id, full_name, specialization)
-          )
-        `)
+                    *,
+                    activity:activities!activity_enrollments_activity_id_fkey (
+                        *,
+                        media:activity_media!activity_media_activity_id_fkey (image_url, video_url),
+                        coaches:coaches!activities_coach_id_fkey (id, full_name, specialization)
+                    )
+                `)
                 .eq("client_id", user.id)
                 .order("created_at", { ascending: false })
-                .limit(20)
+                .limit(50)
 
-            if (enrollmentsError) throw enrollmentsError
+            if (enrollmentsError) {
+                console.error("❌ [useActivityScreenLogic] Supabase fetch error:", enrollmentsError)
+                throw enrollmentsError
+            }
+
+            console.log(`📊 [useActivityScreenLogic] Raw data received: ${data?.length || 0} items`)
+            if (data && data.length > 0) {
+                console.log("📊 [useActivityScreenLogic] First item activity field:", data[0].activity ? "Found" : "Missing")
+            }
 
             if (!data || data.length === 0) {
                 setEnrollments([])
@@ -203,23 +214,36 @@ export function useActivityScreenLogic({ initialTab = "purchased" }: UseActivity
 
             // Format Data
             const formattedEnrollments = data.map((enrollment: any) => {
-                if (!enrollment.activity) return null
+                // Robust check for activity object (handle array vs object)
+                let activityData = enrollment.activity;
+                if (Array.isArray(activityData)) activityData = activityData[0];
+
+                if (!activityData) {
+                    console.warn(`⚠️ [useActivityScreenLogic] Enrollment ${enrollment.id} is missing activity data.`)
+                    // Return a placeholder instead of null to debug visibility
+                    activityData = { 
+                        id: enrollment.activity_id, 
+                        title: "Cargando...", 
+                        type: "fitness",
+                        categoria: "fitness" 
+                    };
+                }
+
                 return {
                     ...enrollment,
                     activity: {
-                        ...enrollment.activity,
-                        media: enrollment.activity.media ? enrollment.activity.media[0] : null,
-                        program_info: null,
-                        coach_name: enrollment.activity.coaches?.full_name || "Coach",
-                        coach_avatar_url: enrollment.activity.coaches?.avatar_url || null,
-                        coach_rating: enrollment.activity.coaches?.rating || null,
-                        // Preservar categoria directamente de la base de datos
-                        categoria: enrollment.activity.categoria || getCategoryFromType(enrollment.activity.type || ""),
-                        category: enrollment.activity.categoria || getCategoryFromType(enrollment.activity.type || ""),
+                        ...activityData,
+                        media: activityData.media ? (Array.isArray(activityData.media) ? activityData.media[0] : activityData.media) : null,
+                        coach_name: activityData.coaches?.full_name || "Coach",
+                        coach_avatar_url: activityData.coaches?.avatar_url || null,
+                        coach_rating: activityData.coaches?.rating || null,
+                        categoria: activityData.categoria || getCategoryFromType(activityData.type || ""),
+                        category: activityData.categoria || getCategoryFromType(activityData.type || ""),
                     },
                 }
-            }).filter(Boolean) as Enrollment[]
+            }) as Enrollment[]
 
+            console.log(`✅ [useActivityScreenLogic] Formatted ${formattedEnrollments.length} enrollments`)
             setEnrollments(formattedEnrollments)
 
             // 1.5 Fetch Surveys for these enrollments

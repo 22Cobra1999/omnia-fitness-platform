@@ -48,9 +48,17 @@ export function ClientActivitiesTab({
                         today.setHours(0, 0, 0, 0) // Compare strictly by day
 
                         const endDate = act.end_date ? new Date(act.end_date) : null
+                        const programEndDate = act.program_end_date ? new Date(act.program_end_date) : null
+                        const expirationDate = act.expiration_date ? new Date(act.expiration_date) : null
+                        
                         if (endDate) endDate.setHours(0, 0, 0, 0)
+                        if (programEndDate) programEndDate.setHours(0, 0, 0, 0)
+                        if (expirationDate) expirationDate.setHours(0, 0, 0, 0)
 
-                        const isPast = endDate && endDate < today
+                        const isPast = (endDate && endDate < today) || 
+                                       (programEndDate && programEndDate < today) || 
+                                       (expirationDate && expirationDate < today)
+
                         const isFinishedByStatus = ['finalizada', 'finished', 'expirada', 'expired', 'completed'].includes(status)
                         const is100Percent = (act.progressPercent || 0) >= 100
 
@@ -82,7 +90,7 @@ export function ClientActivitiesTab({
                                     ...activity,
                                     activity: activity
                                 }}
-                                size="small"
+                                size="medium"
                                 isCoachView={true}
                                 daysCompleted={activity.daysCompleted}
                                 daysPassed={activity.daysPassed}
@@ -91,6 +99,7 @@ export function ClientActivitiesTab({
                                 itemsCompletedTotal={activity.itemsCompletedTotal}
                                 itemsDebtPast={activity.itemsDebtPast}
                                 itemsPendingToday={activity.itemsPendingToday}
+                                overrideNextSessionDate={activity.nextSessionDate}
                                 amountPaid={activity.amount_paid}
                                 realProgress={activity.progressPercent}
                             />

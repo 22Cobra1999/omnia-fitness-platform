@@ -167,6 +167,7 @@ export default function TodayScreen({ activityId, enrollmentId, onBack }: { acti
                     activityId={state.activityId}
                     programInfo={state.programInfo}
                     enrollment={state.enrollment}
+                    onRefresh={() => actions.fetchActivities?.({ silent: true })}
                     onNext={actions.onNext}
                     onPrev={actions.onPrev}
                     isExpired={state.isExpired}

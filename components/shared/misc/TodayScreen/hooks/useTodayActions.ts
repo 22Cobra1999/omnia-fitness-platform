@@ -191,13 +191,15 @@ export function useTodayActions({
         isBlockCompleted,
         handlePrevDay,
         handleNextDay,
-        goToToday
+        goToToday,
+        fetchActivities
     }), [
         toggleExerciseSimple,
         toggleBlockCompletion,
         isBlockCompleted,
         handlePrevDay,
         handleNextDay,
-        goToToday
+        goToToday,
+        fetchActivities
     ]);
 }

@@ -51,7 +51,7 @@ export function PurchasedActivityCard(props: PurchasedActivityCardProps) {
     } = usePurchasedActivityLogic({
         enrollment,
         realProgress,
-        overridePendingCount,
+        overridePendingCount: overridePendingCount ?? itemsPendingToday,
         overrideNextSessionDate,
         onActivityClick,
         isCoachView
@@ -70,7 +70,7 @@ export function PurchasedActivityCard(props: PurchasedActivityCardProps) {
             >
                 <div
                     className={cn(
-                        "bg-black rounded-[2.8rem] overflow-hidden border border-white/5 transition-all duration-500 h-[460px] flex flex-col relative shrink-0",
+                        "bg-black rounded-[2.8rem] overflow-hidden border border-white/5 transition-all duration-500 h-full flex flex-col relative shrink-0",
                         "hover:border-white/10 hover:-translate-y-1.5",
                         daysInfo.isExpired && "opacity-80"
                     )}

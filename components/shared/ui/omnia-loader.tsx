@@ -11,23 +11,15 @@ export function OmniaLoader({
 }: OmniaLoaderProps) {
     return (
         <div className={`flex flex-col items-center justify-center min-h-screen bg-[#0F1012] ${className}`}>
-            {/* Fuego difuminado naranja */}
+            {/* Fuego (logo animado) */}
             <div className="relative flex items-center justify-center w-[120px] h-[120px]">
-                {/* Fuego con blur/difuminado */}
-                <div className="absolute blur-[20px] opacity-60 scale-[1.5]">
-                    <Flame
-                        size={80}
-                        color="#FF7939"
-                        fill="#FF7939"
-                    />
-                </div>
                 {/* Fuego principal (más nítido) */}
-                <div className="relative z-10">
+                <div className="relative z-10 transition-all duration-700">
                     <Flame
-                        size={120}
+                        size={100}
                         color="#FF7939"
                         fill="#FF7939"
-                        className="animate-soft-pulse"
+                        className="animate-soft-pulse drop-shadow-[0_0_15px_rgba(255,121,57,0.4)]"
                     />
                 </div>
             </div>

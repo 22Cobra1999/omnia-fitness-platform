@@ -39,21 +39,19 @@ export function calculateEnrollmentStatus(enrollment: Enrollment, progress: numb
     }
 
     // 4. Start Date (Pending vs Active)
-    if (enrollment.start_date) {
-        const startDate = new Date(enrollment.start_date)
+    const effectiveStartDate = enrollment.start_date || enrollment.created_at;
+
+    if (effectiveStartDate) {
+        const startDate = new Date(effectiveStartDate)
         startDate.setHours(0, 0, 0, 0)
 
         // Future start date
         if (startDate > now) return 'pendiente'
+        
+        // If it's today or past but progress is 0, it's still pending
+        if (progress === 0) return 'pendiente'
     } else {
-        // Check for start deadline
-        const startDeadline = (enrollment as any).start_deadline
-        if (startDeadline) {
-            const deadline = new Date(startDeadline)
-            deadline.setHours(0, 0, 0, 0)
-            if (now > deadline) return 'finalizada'
-        }
-        // No start date = hasn't started
+        // No dates at all = shouldn't happen but fallback to pending
         return 'pendiente'
     }
 

@@ -127,6 +127,12 @@ export const parseDetalleSeries = (detalleSeriesStr: string): any[] => {
 export const getSeriesBlocks = (detalleSeries: any, duracion?: number, ejercicioId?: string, minutosJson?: any): Array<{ bloque: number, peso: number, reps: number, series: number, minutos?: number }> => {
     const blocks: Array<{ bloque: number, peso: number, reps: number, series: number, minutos?: number }> = []
     if (!detalleSeries) return blocks
+    // Guard: if it's the literal string '[object Object]', bail out
+    if (typeof detalleSeries === 'string' && (detalleSeries === '[object Object]' || detalleSeries.trim() === '')) return blocks
+    // Guard: try to parse JSON strings
+    if (typeof detalleSeries === 'string' && (detalleSeries.startsWith('{') || detalleSeries.startsWith('['))) {
+        try { detalleSeries = JSON.parse(detalleSeries) } catch { return blocks }
+    }
 
     const getMinutosForBlock = (blockKey: string): number | undefined => {
         if (!minutosJson || !ejercicioId) return undefined
@@ -170,17 +176,22 @@ export const getSeriesBlocks = (detalleSeries: any, duracion?: number, ejercicio
         }
     }
 
-    if (typeof detalleSeries === 'object' && detalleSeries.series && detalleSeries.repeticiones) {
-        const peso = detalleSeries.peso || detalleSeries.descanso || 0
-        const blockKey = ejercicioId || '1'
-        const minutos = getMinutosForBlock(blockKey) || duracion
-        return [{
-            bloque: 1,
-            peso: peso,
-            reps: detalleSeries.repeticiones,
-            series: detalleSeries.series,
-            minutos: minutos
-        }]
+    if (typeof detalleSeries === 'object' && detalleSeries !== null) {
+        const reps = detalleSeries.reps ?? detalleSeries.repeticiones ?? detalleSeries.reps_num ?? null
+        const series = detalleSeries.series ?? detalleSeries.sets ?? detalleSeries.series_num ?? null
+        const peso = detalleSeries.peso ?? detalleSeries.kg ?? detalleSeries.weight ?? 0
+        
+        if (series !== null && reps !== null) {
+            const blockKey = ejercicioId || '1'
+            const minutos = getMinutosForBlock(blockKey) || duracion
+            return [{
+                bloque: 1,
+                peso: Number(peso),
+                reps: Number(reps),
+                series: Number(series),
+                minutos: minutos
+            }]
+        }
     }
 
     if (Array.isArray(detalleSeries) && detalleSeries.length > 0) {
@@ -243,7 +254,7 @@ export const getCaloriasForBlock = (blockKey: string, ejercicioId?: string, calo
 }
 
 export const formatSeries = (detalleSeries: any): string => {
-    if (!detalleSeries) return 'Sin series'
+    if (!detalleSeries || detalleSeries === '[object Object]') return 'Sin series'
     if (typeof detalleSeries === 'string' && detalleSeries.includes('(')) {
         const parsed = parseDetalleSeries(detalleSeries)
         if (parsed.length > 0) {
@@ -253,9 +264,14 @@ export const formatSeries = (detalleSeries: any): string => {
             }).join(' | ')
         }
     }
-    if (typeof detalleSeries === 'object' && detalleSeries.series && detalleSeries.repeticiones) {
-        const peso = detalleSeries.peso || detalleSeries.descanso || 0
-        return `${detalleSeries.series}s × ${detalleSeries.repeticiones}r × ${peso}kg`
+    if (typeof detalleSeries === 'object' && detalleSeries !== null) {
+        const reps = detalleSeries.reps ?? detalleSeries.repeticiones ?? detalleSeries.reps_num ?? null
+        const series = detalleSeries.series ?? detalleSeries.sets ?? detalleSeries.series_num ?? null
+        const peso = detalleSeries.peso ?? detalleSeries.kg ?? detalleSeries.weight ?? 0
+        
+        if (series !== null && reps !== null) {
+            return `${series}s × ${reps}r × ${peso}kg`
+        }
     }
     if (Array.isArray(detalleSeries) && detalleSeries.length > 0) {
         return detalleSeries.map((serie, index) => {

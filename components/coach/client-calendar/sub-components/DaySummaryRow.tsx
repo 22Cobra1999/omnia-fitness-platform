@@ -1,8 +1,9 @@
-import React from 'react'
-import { Video, ChevronRight, Clock, Calendar, Flame, ChevronDown, Edit, List, Save, X, Trash2, Utensils } from 'lucide-react'
+"use client"
+import React, { useRef, useEffect } from 'react'
+import { Video, ChevronRight, Clock, Calendar, Flame, ChevronDown, Edit2, Save, X, Trash2, Utensils, Repeat2 } from 'lucide-react'
 import { ClientDaySummaryRow as SummaryRowType, ExerciseExecution } from '../types'
 import { formatMinutesCompact } from '../utils/date-helpers'
-import { getSeriesBlocks } from '../utils/data-parsers'
+import { getSeriesBlocks, formatSeries } from '../utils/data-parsers'
 
 interface DaySummaryRowProps {
     row: SummaryRowType
@@ -12,7 +13,7 @@ interface DaySummaryRowProps {
     clientId: string
     expandedActivityKeys: Record<string, boolean>
     setExpandedActivityKeys: React.Dispatch<React.SetStateAction<Record<string, boolean>>>
-    loadDayActivityDetails: (day: string, id: number) => Promise<void>
+    loadDayActivityDetails: (day: string, id: number, forceRefresh?: boolean) => Promise<void>
     loadEventDetails: (id: string) => Promise<void>
     eventDetailsByKey: Record<string, any>
     activityDetailsByKey: Record<string, ExerciseExecution[]>
@@ -38,6 +39,12 @@ interface DaySummaryRowProps {
     handleCancelNutrition: () => void
     setConfirmDeleteNutritionId: (id: string | null) => void
     router: any
+    handleEditFitness: (ex: ExerciseExecution, knownExerciseIds?: string[]) => void
+    handleSaveFitness: () => Promise<void>
+    handleCancelFitness: () => void
+    editingFitnessValues: any
+    setEditingFitnessValues: (values: any) => void
+    loading: boolean
 }
 
 export const DaySummaryRow: React.FC<DaySummaryRowProps> = ({
@@ -54,242 +61,376 @@ export const DaySummaryRow: React.FC<DaySummaryRowProps> = ({
     editingNutritionId, editingNutritionPlateId, editingNutritionMacros,
     setEditingNutritionPlateId, setEditingNutritionMacros,
     handleOpenIngredients, handleSaveNutrition, handleCancelNutrition,
-    setConfirmDeleteNutritionId, router
+    setConfirmDeleteNutritionId, router,
+    handleEditFitness, handleSaveFitness, handleCancelFitness,
+    editingFitnessValues, setEditingFitnessValues, loading
 }) => {
-    const minutes = Number(row.total_mins ?? 0) || 0
+    const dropdownRef = useRef<HTMLDivElement>(null)
+
+    // Close dropdown on outside click
+    useEffect(() => {
+        if (!showExerciseDropdown) return
+        const handler = (e: MouseEvent) => {
+            if (dropdownRef.current && !dropdownRef.current.contains(e.target as Node)) {
+                setShowExerciseDropdown(false)
+            }
+        }
+        document.addEventListener('mousedown', handler)
+        return () => document.removeEventListener('mousedown', handler)
+    }, [showExerciseDropdown, setShowExerciseDropdown])
+
     const isDirectOwner = currentCoachId && row.coach_id && String(row.coach_id) === String(currentCoachId)
     const isClientOwner = row.coach_id && String(row.coach_id) === String(clientId)
-    // rows from progreso_diario_actividad have null coach_id — treat as owned by this coach
     const isNullCoachRow = row.coach_id === null || row.coach_id === undefined
     const isOwned = isDirectOwner || (!!row.calendar_event_id && isClientOwner) || (!row.calendar_event_id && isNullCoachRow)
     const isMeet = !!row.calendar_event_id
 
     let title = row.activity_title || (row.activity_id ? `Actividad ${row.activity_id}` : 'Evento')
     let extraLabel: string | null = null
-
-    if (!isOwned) {
-        title = isMeet ? "Otro Meet" : "Otra Actividad"
-    } else if (isMeet) {
-        extraLabel = "Meet"
-    } else if (row.is_workshop) {
-        extraLabel = "Taller"
-    } else {
-        // We could look up the type, but for now we label as "Programa" by default
-        extraLabel = "Programa"
-    }
+    if (!isOwned) { title = isMeet ? "Otro Meet" : "Otra Actividad" }
+    else if (isMeet) { extraLabel = "Meet" }
+    else if (row.is_workshop) { extraLabel = "Taller" }
+    else { extraLabel = "Programa" }
 
     const activityId = row.activity_id !== null && row.activity_id !== undefined ? Number(row.activity_id) : null
     const eventId = row.calendar_event_id
     const expandedKey = activityId ? `${dayStr}::${String(activityId)}` : (eventId ? `${dayStr}::event::${eventId}` : null)
     const expanded = expandedKey ? !!expandedActivityKeys?.[expandedKey] : false
     const canExpand = allowExpand && (!!activityId || !!eventId)
+    const minutes = Number(row.total_mins ?? 0) || 0
 
     return (
-        <div className="space-y-2 border-b border-zinc-700/30 pb-3 last:border-b-0">
+        <div className="border-b border-zinc-800/50 last:border-b-0">
+            {/* Row header */}
             <button
                 type="button"
                 onClick={async () => {
                     if (!canExpand || !expandedKey) return
                     const next = !expanded
-                    setExpandedActivityKeys((prev) => ({ ...prev, [expandedKey]: next }))
+                    setExpandedActivityKeys(prev => ({ ...prev, [expandedKey]: next }))
                     if (next) {
                         if (activityId) await loadDayActivityDetails(dayStr, activityId)
                         if (eventId) await loadEventDetails(eventId)
                     }
                 }}
-                className={`w-full flex items-center justify-between group ${canExpand ? 'cursor-pointer' : 'cursor-default'}`}
+                className={`w-full flex items-center justify-between py-3 group ${canExpand ? 'cursor-pointer' : 'cursor-default'}`}
             >
-                <div className="flex items-center gap-3">
-                    <div className={`w-1 h-8 rounded-full transition-colors ${expanded ? 'bg-[#FF7939]' : 'bg-zinc-700 group-hover:bg-[#FF7939]/50'}`}></div>
-                    <div className="text-sm font-semibold text-gray-200 text-left flex flex-col">
-                        <div className="flex items-center gap-1.5">
-                            {isMeet ? (
-                                <Video className={`h-3.5 w-3.5 ${isOwned ? 'text-[#FF7939]' : 'text-zinc-500'}`} />
-                            ) : row.is_workshop ? (
-                                <Calendar className={`h-3.5 w-3.5 ${isOwned ? 'text-[#FF7939]' : 'text-zinc-500'}`} />
-                            ) : (
-                                <Flame className={`h-3.5 w-3.5 ${isOwned ? 'text-[#FF7939]' : 'text-zinc-500'}`} />
-                            )}
-                            <span>{title}</span>
-                        </div>
-                        {extraLabel && <span className="text-[10px] text-[#FF7939] leading-none uppercase tracking-wider font-bold opacity-80">{extraLabel}</span>}
+                <div className="flex items-center gap-2.5 min-w-0">
+                    <div className={`w-0.5 h-5 rounded-full flex-shrink-0 transition-colors ${expanded ? 'bg-[#FF7939]' : 'bg-zinc-700 group-hover:bg-[#FF7939]/50'}`} />
+                    {isMeet ? (
+                        <Video className={`h-3.5 w-3.5 flex-shrink-0 ${isOwned ? 'text-[#FF7939]' : 'text-zinc-600'}`} />
+                    ) : row.is_workshop ? (
+                        <Calendar className={`h-3.5 w-3.5 flex-shrink-0 ${isOwned ? 'text-[#FF7939]' : 'text-zinc-600'}`} />
+                    ) : (
+                        <Flame className={`h-3.5 w-3.5 flex-shrink-0 ${isOwned ? 'text-[#FF7939]' : 'text-zinc-600'}`} />
+                    )}
+                    <div className="flex flex-col items-start min-w-0">
+                        <span className="text-sm font-semibold text-gray-200 leading-snug line-clamp-2">{title}</span>
+                        {extraLabel && <span className="text-[9px] text-[#FF7939] uppercase tracking-widest font-black opacity-70 mt-0.5">{extraLabel}</span>}
                     </div>
-                    {canExpand && <ChevronRight className={`h-4 w-4 text-[#FF7939] transition-transform duration-200 ${expanded ? 'rotate-90' : ''}`} />}
                 </div>
-                <div className="flex items-center gap-3">
-                    {(() => {
-                        const planned = (row.fitness_items_planned ?? 0) + (row.nutri_items_planned ?? 0)
-                        const done = (row.fitness_items_done ?? 0) + (row.nutri_items_done ?? 0)
-                        const pending = planned - done
-                        if (pending <= 0) return null
-                        return (
-                            <div className="flex-shrink-0 min-w-[24px] h-6 px-1.5 rounded-full flex items-center justify-center bg-[#FF7939]">
-                                <div className="flex items-center gap-0.5">
-                                    <Flame size={12} fill="black" className="text-black" />
-                                    <span className="text-[10px] font-bold text-black leading-none">{pending}</span>
-                                </div>
-                            </div>
-                        )
-                    })()}
-                    <div className="text-xs text-gray-400">{formatMinutesCompact(minutes) || '0m'}</div>
+                <div className="flex items-center gap-3 flex-shrink-0">
+                    <span className="text-xs text-zinc-500">{formatMinutesCompact(minutes) || '0m'}</span>
+                    {canExpand && <ChevronRight className={`h-3.5 w-3.5 text-zinc-600 transition-transform duration-200 group-hover:text-[#FF7939] ${expanded ? 'rotate-90' : ''}`} />}
                 </div>
             </button>
 
+            {/* Expanded content */}
             {canExpand && expandedKey && expanded && (
-                <div className="space-y-2">
+                <div className="pb-3">
+                    {/* Meet details */}
                     {eventId && eventDetailsByKey[eventId] && (
-                        <div className="pl-4 pr-2 py-2 text-sm text-gray-300 space-y-1 bg-zinc-800/20 rounded-lg">
+                        <div className="ml-5 pl-3 border-l border-zinc-800 space-y-2 py-2">
                             <div className="flex items-center justify-between">
-                                <div className="flex gap-2 text-xs text-gray-500">
+                                <div className="flex items-center gap-1.5 text-[11px] text-zinc-500">
                                     <Clock className="w-3 h-3" />
                                     <span>
-                                        {new Date(eventDetailsByKey[eventId].start_time).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })} -
+                                        {new Date(eventDetailsByKey[eventId].start_time).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })} –{' '}
                                         {new Date(eventDetailsByKey[eventId].end_time).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
                                     </span>
                                 </div>
-                                <div className={`text-[10px] font-bold uppercase px-1.5 py-0.5 rounded ${eventDetailsByKey[eventId].participants?.[0]?.rsvp_status === 'confirmed' || eventDetailsByKey[eventId].participants?.[0]?.rsvp_status === 'accepted' ? 'bg-green-500/20 text-green-500' :
-                                    eventDetailsByKey[eventId].participants?.[0]?.rsvp_status === 'cancelled' || eventDetailsByKey[eventId].participants?.[0]?.rsvp_status === 'declined' ? 'bg-red-500/20 text-red-500' :
-                                        'bg-yellow-500/20 text-yellow-500'
-                                    }`}>
+                                <span className={`text-[9px] font-black uppercase px-1.5 py-0.5 rounded-full ${
+                                    ['confirmed','accepted'].includes(eventDetailsByKey[eventId].participants?.[0]?.rsvp_status)
+                                        ? 'bg-emerald-500/15 text-emerald-400'
+                                        : ['cancelled','declined'].includes(eventDetailsByKey[eventId].participants?.[0]?.rsvp_status)
+                                        ? 'bg-red-500/15 text-red-400'
+                                        : 'bg-amber-500/15 text-amber-400'
+                                }`}>
                                     {eventDetailsByKey[eventId].participants?.[0]?.rsvp_status || 'Pendiente'}
-                                </div>
+                                </span>
                             </div>
-                            {eventDetailsByKey[eventId].description && <div className="text-gray-400 text-xs italic">{eventDetailsByKey[eventId].description}</div>}
                             {eventDetailsByKey[eventId].meet_link && (
-                                <a href={eventDetailsByKey[eventId].meet_link} target="_blank" rel="noreferrer" className="text-[#FF7939] hover:underline text-xs flex items-center gap-1 mt-1">Unirse a la llamada ↗</a>
+                                <a href={eventDetailsByKey[eventId].meet_link} target="_blank" rel="noreferrer"
+                                    className="text-[11px] text-[#FF7939] hover:underline flex items-center gap-1">
+                                    Unirse ↗
+                                </a>
                             )}
-                            <button onClick={() => router.push(`/?tab=calendar&eventId=${eventId}`)} className="mt-3 text-xs bg-zinc-700 hover:bg-zinc-600 text-white px-3 py-1.5 rounded flex items-center gap-2 w-fit transition-colors">
-                                Ir al detalle <Calendar className="h-3 w-3" />
-                            </button>
                         </div>
                     )}
 
+                    {/* Exercise list */}
                     {activityId && (() => {
                         const items = activityDetailsByKey[expandedKey!] || []
-                        return items.length > 0 ? (
-                            <div className="space-y-0">
+                        if (items.length === 0) return (
+                            <div className="ml-5 pl-3 border-l border-zinc-800 py-2 text-[11px] text-zinc-600 italic">
+                                Cargando...
+                            </div>
+                        )
+                        return (
+                            <div className="ml-5 border-l border-zinc-800">
                                 {items.map((exercise) => {
-                                    const seriesBlocks = getSeriesBlocks(exercise.detalle_series, exercise.duracion, exercise.ejercicio_id, exercise.minutosJson)
+                                    const effectiveSeriesData = exercise.detalle_series
+                                        || (exercise.sets != null && exercise.reps != null
+                                            ? { sets: exercise.sets, reps: exercise.reps, kg: exercise.kg ?? 0 }
+                                            : null)
+                                    const seriesBlocks = getSeriesBlocks(effectiveSeriesData, exercise.duracion, exercise.ejercicio_id, exercise.minutosJson)
+                                    const isEditing = editingExerciseId === exercise.id
                                     const isCompleted = exercise.completado
                                     const actIdStr = exercise.actividad_id !== null ? String(exercise.actividad_id) : null
                                     const nutritionPlateOptions = actIdStr ? (nutritionPlateOptionsByActivity[actIdStr] || []) : []
-                                    const canEditN = exercise.is_nutricion ? canEditNutritionForDay(exercise) : false
+                                    // Collect all exercise IDs in this activity for the swap list
+                                    const allActivityExerciseIds = items.map(i => String(i.ejercicio_id)).filter(Boolean)
 
                                     return (
-                                        <div key={exercise.id} className="w-full flex items-start gap-3 py-3 border-b border-zinc-700/30 last:border-b-0 group">
-                                            <div className="flex items-center justify-center w-10 pt-1 shrink-0">
-                                                {exercise.is_nutricion ? (
-                                                    <Utensils className={`h-5 w-5 ${isCompleted ? 'text-[#FF7939]' : 'text-gray-600'}`} />
-                                                ) : exercise.is_workshop ? (
-                                                    <Calendar className={`h-5 w-5 ${isCompleted ? 'text-[#FF7939]' : 'text-gray-600'}`} />
-                                                ) : (
-                                                    <Flame className={`h-5 w-5 ${isCompleted ? 'text-[#FF7939]' : 'text-gray-600'}`} fill={isCompleted ? "#FF7939" : "transparent"} />
-                                                )}
-                                            </div>
-                                            <div className="flex-1 min-w-0">
-                                                {editingExerciseId === exercise.id ? (
-                                                    <div className="relative mb-1 exercise-dropdown">
-                                                        <button type="button" onClick={(e) => { e.preventDefault(); setShowExerciseDropdown(!showExerciseDropdown) }} className="flex items-center justify-between w-full px-3 py-2 text-sm font-semibold text-white bg-[#2A2A2A] border border-[#3A3A3A] rounded-lg hover:bg-[#3A3A3A] transition-colors">
-                                                            <span>{exercise.ejercicio_nombre}</span>
-                                                            <ChevronDown className={`h-4 w-4 transition-transform ${showExerciseDropdown ? 'rotate-180' : ''}`} />
-                                                        </button>
-                                                        {showExerciseDropdown && (
-                                                            <div className="absolute top-full left-0 right-0 z-50 mt-1 bg-[#1E1E1E] border border-[#3A3A3A] rounded-lg shadow-lg max-h-48 overflow-y-auto">
-                                                                {availableExercises.length > 0 ? (
-                                                                    availableExercises.map((ex) => (
-                                                                        <button type="button" key={ex.id} onClick={(e) => { e.preventDefault(); handleChangeExercise(String(ex.id)) }} className={`w-full px-3 py-2 text-left text-sm hover:bg-[#3A3A3A] transition-colors ${String(ex.id) === String(exercise.ejercicio_id) ? 'bg-[#FF7939]/20 text-[#FF7939]' : 'text-white'}`}>
-                                                                            {ex.nombre_ejercicio}
-                                                                        </button>
-                                                                    ))
-                                                                ) : <div className="px-3 py-2 text-sm text-gray-400">No hay ejercicios disponibles</div>}
-                                                            </div>
-                                                        )}
-                                                    </div>
-                                                ) : (
-                                                    <div className="flex items-center justify-between gap-2">
-                                                        <div className="text-sm font-semibold text-gray-300 truncate">
-                                                            {exercise.ejercicio_nombre}
-                                                            {exercise.completado && (
-                                                                <span className="ml-2 text-[10px] bg-green-500/20 text-green-500 px-1.5 py-0.5 rounded uppercase font-bold">
-                                                                    {exercise.is_nutricion ? 'Consumido' : (exercise.is_workshop ? 'Asistió' : 'Completado')}
-                                                                </span>
-                                                            )}
-                                                            {!exercise.completado && (
-                                                                <span className="ml-2 text-[10px] bg-zinc-700 text-gray-400 px-1.5 py-0.5 rounded uppercase font-bold">Pendiente</span>
-                                                            )}
-                                                        </div>
-                                                        {(() => {
-                                                            const canE = exercise.is_nutricion ? canEditNutritionForDay(exercise) : (exercise.is_workshop ? false : canEditFitnessForDay(exercise))
-                                                            if (!canE) return null
-                                                            return (
-                                                                <button type="button" onClick={() => {
-                                                                    if (exercise.is_nutricion) handleEditNutrition(exercise)
-                                                                    else {
-                                                                        setEditingExerciseId(exercise.id); setEditingOriginalExercise({ ...exercise })
-                                                                        if (exercise.actividad_id) loadAvailableExercises(Number(exercise.actividad_id))
-                                                                    }
-                                                                }} className="p-1 text-zinc-600 hover:text-[#FF7939] hover:bg-[#FF7939]/10 rounded transition-colors">
-                                                                    <Edit className="h-3.5 w-3.5" />
-                                                                </button>
-                                                            )
-                                                        })()}
-                                                    </div>
-                                                )}
+                                        <div key={exercise.id} className="pl-3 py-2.5 border-b border-zinc-800/40 last:border-b-0 group">
+                                            {/* Exercise name row */}
+                                            <div className="flex items-center justify-between gap-2">
+                                                <div className="flex items-center gap-2 min-w-0">
+                                                    {exercise.is_nutricion ? (
+                                                        <Utensils className={`h-3.5 w-3.5 flex-shrink-0 ${isCompleted ? 'text-[#FF7939]' : 'text-zinc-600'}`} />
+                                                    ) : exercise.is_workshop ? (
+                                                        <Calendar className={`h-3.5 w-3.5 flex-shrink-0 ${isCompleted ? 'text-[#FF7939]' : 'text-zinc-600'}`} />
+                                                    ) : (
+                                                        <Flame className={`h-3.5 w-3.5 flex-shrink-0 ${isCompleted ? 'text-[#FF7939]' : 'text-zinc-600'}`}
+                                                            fill={isCompleted ? '#FF7939' : 'transparent'} />
+                                                    )}
 
-                                                <div className="flex flex-wrap items-center gap-3 mt-1">
-                                                    {exercise.duracion && <span className="text-xs text-gray-500">{exercise.duracion} min</span>}
-                                                    {exercise.calorias_estimadas && <span className="text-xs text-gray-500">{exercise.calorias_estimadas} kcal</span>}
-                                                    {exercise.is_nutricion && exercise.nutricion_macros && (
-                                                        <div className="flex items-center gap-2 text-xs text-[#FF7939]">
-                                                            {exercise.nutricion_macros.proteinas !== undefined && <span>P {exercise.nutricion_macros.proteinas}g</span>}
-                                                            {exercise.nutricion_macros.grasas !== undefined && <span>G {exercise.nutricion_macros.grasas}g</span>}
-                                                            {exercise.nutricion_macros.carbohidratos !== undefined && <span>C {exercise.nutricion_macros.carbohidratos}g</span>}
+                                                    {/* Exercise swap dropdown */}
+                                                    {isEditing && !exercise.is_nutricion ? (
+                                                        <div ref={dropdownRef} className="relative flex-1 min-w-0 z-[110]">
+                                                            <button
+                                                                type="button"
+                                                                disabled={loading}
+                                                                onClick={(e) => { e.preventDefault(); e.stopPropagation(); setShowExerciseDropdown(!showExerciseDropdown) }}
+                                                                className="flex items-center gap-1.5 w-full text-left text-sm font-semibold text-white hover:text-[#FF7939] transition-colors disabled:opacity-50"
+                                                            >
+                                                                <span className="truncate">{exercise.ejercicio_nombre}</span>
+                                                                <div className="flex items-center gap-1 text-[#FF7939] flex-shrink-0">
+                                                                    <Repeat2 className="h-3 w-3" />
+                                                                    <ChevronDown className={`h-3 w-3 transition-transform ${showExerciseDropdown ? 'rotate-180' : ''}`} />
+                                                                </div>
+                                                            </button>
+                                                            {showExerciseDropdown && (
+                                                                <div className="absolute top-full left-0 z-[1000] mt-1.5 bg-zinc-900 border border-zinc-700/60 rounded-xl shadow-2xl overflow-hidden"
+                                                                    style={{ minWidth: '220px', maxWidth: '320px', maxHeight: '320px', overflowY: 'auto' }}>
+                                                                    {availableExercises.length > 0 ? (
+                                                                        availableExercises.map((ex) => (
+                                                                            <button
+                                                                                type="button"
+                                                                                key={ex.id}
+                                                                                onMouseDown={(e) => {
+                                                                                    // Use mousedown to beat the click-outside handler if possible
+                                                                                    e.preventDefault();
+                                                                                    e.stopPropagation();
+                                                                                    console.log('[DaySummaryRow] Mousedown select:', ex.id);
+                                                                                    handleChangeExercise(String(ex.id));
+                                                                                    setShowExerciseDropdown(false);
+                                                                                }}
+                                                                                className={`w-full px-3 py-2 text-left text-xs hover:bg-zinc-800 transition-colors flex items-center gap-2 relative z-[1001] ${String(ex.id) === String(exercise.ejercicio_id) ? 'text-[#FF7939] bg-[#FF7939]/10' : 'text-gray-300'}`}
+                                                                            >
+                                                                                <Flame className="h-3 w-3 flex-shrink-0 opacity-50" />
+                                                                                {ex.nombre_ejercicio}
+                                                                            </button>
+                                                                        ))
+                                                                    ) : (
+                                                                        <div className="px-3 py-3 text-[11px] text-zinc-500 text-center">Sin ejercicios disponibles</div>
+                                                                    )}
+                                                                </div>
+                                                            )}
                                                         </div>
+                                                    ) : (
+                                                        <span className="text-sm font-semibold text-gray-200 truncate">{exercise.ejercicio_nombre}</span>
                                                     )}
                                                 </div>
-                                                {exercise.detalle_series && <div className="text-xs text-gray-500 mt-1">{exercise.detalle_series}</div>}
 
-                                                {exercise.is_nutricion && editingNutritionId === exercise.id && editingNutritionMacros && (
-                                                    <div className="mt-2 flex flex-wrap gap-2 items-end">
-                                                        <div className="flex flex-col min-w-[180px]">
-                                                            <label className="text-[10px] text-gray-500 mb-0.5">Plato</label>
-                                                            <select value={editingNutritionPlateId || ''} onChange={(e) => {
-                                                                const nextId = e.target.value; setEditingNutritionPlateId(nextId)
-                                                                const plate = nutritionPlateOptions.find(p => String(p?.id) === String(nextId))
-                                                                if (plate) setEditingNutritionMacros((prev: any) => ({ ...prev, proteinas: String(plate.proteinas ?? ''), carbohidratos: String(plate.carbohidratos ?? ''), grasas: String(plate.grasas ?? ''), calorias: String(plate.calorias ?? plate.calorías ?? ''), minutos: String(plate.minutos ?? '') }))
-                                                            }} className="w-full px-2 py-1 text-xs bg-[#2A2A2A] border border-[#3A3A3A] rounded text-white">
-                                                                <option value="">Seleccionar</option>
-                                                                {nutritionPlateOptions.map((p: any) => <option key={String(p.id)} value={String(p.id)}>{p.nombre_plato || p.nombre || `Plato ${p.id}`}</option>)}
-                                                            </select>
+                                                <div className="flex items-center gap-1.5 flex-shrink-0">
+                                                    {/* No badge — icon fill shows status */}
+                                                    {/* Edit button */}
+                                                    {!isEditing && !exercise.is_workshop && (exercise.is_nutricion ? canEditNutritionForDay(exercise) : canEditFitnessForDay(exercise)) && (
+                                                        <button
+                                                            type="button"
+                                                            onClick={() => exercise.is_nutricion
+                                                                ? handleEditNutrition(exercise)
+                                                                : handleEditFitness(exercise, allActivityExerciseIds)
+                                                            }
+                                                            className="p-1 text-zinc-700 hover:text-[#FF7939] transition-colors opacity-0 group-hover:opacity-100"
+                                                        >
+                                                            <Edit2 className="h-3 w-3" />
+                                                        </button>
+                                                    )}
+                                                    {isEditing && (
+                                                        <button type="button" onClick={handleCancelFitness}
+                                                            className="p-1 text-zinc-500 hover:text-white transition-colors">
+                                                            <X className="h-3.5 w-3.5" />
+                                                        </button>
+                                                    )}
+                                                </div>
+                                            </div>
+
+                                            {/* Meta info */}
+                                            {(exercise.duracion || exercise.calorias_estimadas) && !isEditing && (
+                                                <div className="flex items-center gap-3 mt-1 ml-5">
+                                                    {exercise.duracion && (
+                                                        <span className="text-[10px] text-zinc-600 flex items-center gap-0.5">
+                                                            <Clock className="w-2.5 h-2.5" />{exercise.duracion}m
+                                                        </span>
+                                                    )}
+                                                    {exercise.calorias_estimadas && (
+                                                        <span className="text-[10px] text-zinc-600">{exercise.calorias_estimadas} kcal</span>
+                                                    )}
+                                                </div>
+                                            )}
+
+                                            {/* Nutrition macros */}
+                                            {exercise.is_nutricion && exercise.nutricion_macros && !isEditing && (
+                                                <div className="flex items-center gap-3 mt-1 ml-5">
+                                                    {[
+                                                        { label: 'P', val: exercise.nutricion_macros.proteinas, unit: 'g' },
+                                                        { label: 'C', val: exercise.nutricion_macros.carbohidratos, unit: 'g' },
+                                                        { label: 'G', val: exercise.nutricion_macros.grasas, unit: 'g' },
+                                                    ].map(m => (
+                                                        <span key={m.label} className="text-[10px] text-[#FF7939]/70 font-bold">
+                                                            {m.label} {m.val}{m.unit}
+                                                        </span>
+                                                    ))}
+                                                </div>
+                                            )}
+
+                                            {/* Series blocks (PRs) */}
+                                            {!exercise.is_nutricion && !exercise.is_workshop && seriesBlocks.length > 0 && !isEditing && (
+                                                <div className="flex flex-wrap gap-2 mt-2 ml-5">
+                                                    {seriesBlocks.map((block, idx) => (
+                                                        <div key={idx} className="flex items-center gap-1.5">
+                                                            <div className="text-center">
+                                                                <div className="text-[8px] text-zinc-600 uppercase font-black tracking-tight">S</div>
+                                                                <div className="text-xs font-black text-white leading-none">{block.series}</div>
+                                                            </div>
+                                                            <span className="text-zinc-700 text-[10px]">×</span>
+                                                            <div className="text-center">
+                                                                <div className="text-[8px] text-zinc-600 uppercase font-black tracking-tight">R</div>
+                                                                <div className="text-xs font-black text-white leading-none">{block.reps}</div>
+                                                            </div>
+                                                            <span className="text-zinc-700 text-[10px]">×</span>
+                                                            <div className="text-center">
+                                                                <div className="text-[8px] text-zinc-600 uppercase font-black tracking-tight">KG</div>
+                                                                <div className="text-xs font-black text-[#FF7939] leading-none">{block.peso}</div>
+                                                            </div>
+                                                            {idx < seriesBlocks.length - 1 && <span className="text-zinc-800 ml-1">|</span>}
                                                         </div>
-                                                        {['proteinas', 'carbohidratos', 'grasas', 'calorias', 'minutos'].map(field => (
-                                                            <div key={field} className="flex flex-col">
-                                                                <label className="text-[10px] text-gray-500 mb-0.5">{field.slice(0, 4)}</label>
-                                                                <input type="number" value={editingNutritionMacros[field]} onChange={(e) => setEditingNutritionMacros((prev: any) => ({ ...prev, [field]: e.target.value }))} className="w-16 px-2 py-1 text-xs bg-[#2A2A2A] border border-[#3A3A3A] rounded text-white" />
+                                                    ))}
+                                                </div>
+                                            )}
+
+                                            {/* Fallback series text */}
+                                            {!exercise.is_nutricion && seriesBlocks.length === 0 && exercise.detalle_series && !isEditing && (
+                                                <div className="text-[10px] text-zinc-600 mt-1 ml-5 italic">{formatSeries(exercise.detalle_series)}</div>
+                                            )}
+
+                                            {/* Fitness Edit Form — minimal inline */}
+                                            {isEditing && !exercise.is_nutricion && editingFitnessValues && (
+                                                <div className="mt-2 ml-5">
+                                                    <div className="flex items-center gap-3 flex-wrap">
+                                                        {[
+                                                            { label: 'S', key: 'sets' },
+                                                            { label: 'R', key: 'reps' },
+                                                            { label: 'KG', key: 'kg' },
+                                                            { label: 'MIN', key: 'duracion' },
+                                                            { label: 'KCAL', key: 'calorias' },
+                                                        ].map(field => (
+                                                            <div key={field.key} className="flex flex-col items-center gap-0.5">
+                                                                <label className="text-[8px] text-zinc-600 uppercase font-black tracking-wider">{field.label}</label>
+                                                                <input
+                                                                    type="number"
+                                                                    disabled={loading}
+                                                                    value={editingFitnessValues[field.key]}
+                                                                    onChange={(e) => setEditingFitnessValues((prev: any) => ({ ...prev, [field.key]: e.target.value }))}
+                                                                    className="w-12 bg-transparent border-b border-zinc-700 px-1 py-0.5 text-xs text-white text-center font-bold focus:outline-none focus:border-[#FF7939] transition-colors disabled:opacity-50"
+                                                                />
                                                             </div>
                                                         ))}
-                                                        <div className="flex items-center gap-1 mt-auto pb-1">
-                                                            <button onClick={() => handleOpenIngredients(exercise)} className="px-3 py-1.5 bg-[#2A2A2A] border border-[#3A3A3A] text-gray-300 hover:text-white hover:border-[#FF7939] hover:bg-[#FF7939]/10 rounded-md text-xs font-medium transition-all flex items-center gap-2">
-                                                                <List className="w-3 h-3" /> Ingredientes
-                                                            </button>
-                                                        </div>
-                                                        <div className="flex items-center gap-2 ml-auto">
-                                                            <button onClick={() => handleSaveNutrition(exercise)} disabled={!canEditN} className={`p-1 rounded transition-colors ${canEditN ? 'text-[#FF7939] hover:bg-[#FF7939]/10' : 'text-gray-600 cursor-not-allowed'}`}><Save className="h-4 w-4" /></button>
-                                                            <button onClick={handleCancelNutrition} className="p-1 rounded text-gray-400 hover:text-white hover:bg-zinc-700/40 transition-colors"><X className="h-4 w-4" /></button>
-                                                            <button onClick={() => canEditN && setConfirmDeleteNutritionId(exercise.id)} disabled={!canEditN} className={`p-1 rounded transition-colors ${canEditN ? 'text-red-500 hover:bg-red-500/10' : 'text-gray-600 cursor-not-allowed'}`}><Trash2 className="h-4 w-4" /></button>
-                                                        </div>
+                                                        <button
+                                                            disabled={loading}
+                                                            onClick={(e) => { e.preventDefault(); handleSaveFitness() }}
+                                                            className={`mt-4 px-3 py-1 bg-[#FF7939] text-black text-[10px] font-black rounded-md transition-colors uppercase ${loading ? 'opacity-50 cursor-not-allowed' : 'hover:bg-[#FF7939]/80'}`}
+                                                        >
+                                                            {loading ? 'Guardando...' : 'Guardar'}
+                                                        </button>
                                                     </div>
-                                                )}
-                                            </div>
+                                                </div>
+                                            )}
+
+                                            {/* Nutrition Edit Form */}
+                                            {exercise.is_nutricion && editingNutritionId === exercise.id && editingNutritionMacros && (
+                                                <div className="mt-2 ml-5 space-y-2">
+                                                    <select
+                                                        disabled={loading}
+                                                        value={editingNutritionPlateId || ''}
+                                                        onChange={(e) => {
+                                                            const nextId = e.target.value
+                                                            setEditingNutritionPlateId(nextId)
+                                                            const plate = nutritionPlateOptions.find((p: any) => String(p?.id) === String(nextId))
+                                                            if (plate) setEditingNutritionMacros((prev: any) => ({
+                                                                ...prev,
+                                                                proteinas: String(plate.proteinas ?? ''),
+                                                                carbohidratos: String(plate.carbohidratos ?? ''),
+                                                                grasas: String(plate.grasas ?? ''),
+                                                                calorias: String(plate.calorias ?? plate.calorías ?? ''),
+                                                                minutos: String(plate.minutos ?? '')
+                                                            }))
+                                                        }}
+                                                        className="w-full px-2 py-1 text-xs bg-zinc-900 border border-zinc-700/60 rounded-lg text-white focus:outline-none focus:border-[#FF7939]/60 disabled:opacity-50"
+                                                    >
+                                                        <option value="">Seleccionar plato</option>
+                                                        {nutritionPlateOptions.map((p: any) => (
+                                                            <option key={String(p.id)} value={String(p.id)}>{p.nombre_plato || p.nombre || `Plato ${p.id}`}</option>
+                                                        ))}
+                                                    </select>
+                                                    <div className="flex items-end gap-2 flex-wrap">
+                                                        {['proteinas', 'carbohidratos', 'grasas', 'calorias'].map(field => (
+                                                            <div key={field} className="flex flex-col gap-0.5">
+                                                                <label className="text-[9px] text-zinc-500 uppercase font-black">{field.slice(0, 4)}</label>
+                                                                <input
+                                                                    type="number"
+                                                                    disabled={loading}
+                                                                    value={editingNutritionMacros[field]}
+                                                                    onChange={(e) => setEditingNutritionMacros((prev: any) => ({ ...prev, [field]: e.target.value }))}
+                                                                    className="w-14 bg-zinc-900 border border-zinc-700/60 rounded-lg px-2 py-1.5 text-sm text-white text-center font-bold focus:outline-none focus:border-[#FF7939]/60 disabled:opacity-50"
+                                                                />
+                                                            </div>
+                                                        ))}
+                                                        <button 
+                                                            disabled={loading}
+                                                            onClick={() => handleSaveNutrition(exercise)}
+                                                            className={`mb-0.5 px-4 py-1.5 bg-[#FF7939] text-black text-xs font-black rounded-lg transition-colors uppercase ${loading ? 'opacity-50 cursor-not-allowed' : 'hover:bg-[#FF7939]/80'}`}>
+                                                            {loading ? '...' : 'Guardar'}
+                                                        </button>
+                                                        {!loading && (
+                                                            <button onClick={() => canEditNutritionForDay(exercise) && setConfirmDeleteNutritionId(exercise.id)}
+                                                                className="mb-0.5 p-1.5 text-red-500/60 hover:text-red-400 transition-colors">
+                                                                <Trash2 className="h-3.5 w-3.5" />
+                                                            </button>
+                                                        )}
+                                                    </div>
+                                                </div>
+                                            )}
                                         </div>
                                     )
                                 })}
                             </div>
-                        ) : <div className="text-xs text-gray-500">Cargando detalle...</div>
+                        )
                     })()}
                 </div>
-            )
-            }
-        </div >
+            )}
+        </div>
     )
 }

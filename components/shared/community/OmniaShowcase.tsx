@@ -172,7 +172,7 @@ export function OmniaShowcase({ scrollY }: OmniaShowcaseProps) {
 
     const safeWidth = isMounted ? containerWidth : 1440;
     const ipadScale = safeWidth < (850 + 32) ? Math.max(0.3, (safeWidth - 32) / 850) : 1;
-    const macbookScale = safeWidth < (1440 + 32) ? Math.max(0.2, (safeWidth - 32) / 1440) : 1;
+    const macbookScale = (safeWidth < (1440 + 32) ? Math.max(0.2, (safeWidth - 32) / 1440) : 1) * 0.78;
 
     // 🔄 Advanced Auto-cycle logic (TASK-004)
     useEffect(() => {
@@ -265,7 +265,7 @@ export function OmniaShowcase({ scrollY }: OmniaShowcaseProps) {
                 onClick={onClick}
                 initial={false}
                 animate={{
-                    scale: active ? 1 : 0.9,
+                    scale: active ? 0.72 : 0.62,
                     x: getX(),
                     y: 0,
                     zIndex: active ? 20 : 10,
@@ -284,17 +284,7 @@ export function OmniaShowcase({ scrollY }: OmniaShowcaseProps) {
                 </div>
 
                 <div className="h-full flex flex-col bg-[#050505] overflow-y-auto hide-scrollbar pointer-events-none pt-[12px] relative">
-                    {/* Header within Phone - Sticky to stay visible */}
-                    <div className="sticky top-0 h-10 w-full px-4 flex items-center justify-between bg-black/60 backdrop-blur-xl border-b border-white/5 z-[60]">
-                        <div className="p-1.5 text-white/20"><Settings size={14} /></div>
-                        <div className="flex flex-col items-center">
-                            <span className="text-[#FF7939] font-black tracking-[0.2em] italic text-[11px] uppercase">omnia</span>
-                        </div>
-                        <div className="p-1.5 text-white/20 relative">
-                            <MessageSquare size={14} />
-                            <div className="absolute top-1 right-1 w-2 h-2 bg-[#FF7939] rounded-full border border-black" />
-                        </div>
-                    </div>
+
 
                     <div className="flex-1 flex flex-col relative overflow-hidden">
                         <AnimatePresence mode="wait">
@@ -410,7 +400,7 @@ export function OmniaShowcase({ scrollY }: OmniaShowcaseProps) {
                         hidden: { opacity: 0, x: -30, filter: 'blur(10px)' },
                         visible: { opacity: 1, x: 0, filter: 'blur(0px)', transition: { duration: 0.8, ease: "easeOut" } }
                     }}
-                    className="text-3xl font-black text-white italic uppercase tracking-tighter leading-none"
+                    className="text-2xl font-black text-white italic uppercase tracking-tighter leading-none"
                 >
                     La plataforma de
                 </motion.h1>
@@ -420,7 +410,7 @@ export function OmniaShowcase({ scrollY }: OmniaShowcaseProps) {
                         hidden: { opacity: 0, x: -30, filter: 'blur(10px)' },
                         visible: { opacity: 1, x: 40, filter: 'blur(0px)', transition: { duration: 0.8, ease: "easeOut" } }
                     }}
-                    className="text-3xl font-black text-[#FF7939] italic uppercase tracking-tighter leading-none"
+                    className="text-2xl font-black text-[#FF7939] italic uppercase tracking-tighter leading-none"
                 >
                     los mejores coaches
                 </motion.h1>
@@ -430,7 +420,7 @@ export function OmniaShowcase({ scrollY }: OmniaShowcaseProps) {
                         hidden: { opacity: 0, x: -30, filter: 'blur(10px)' },
                         visible: { opacity: 1, x: 80, filter: 'blur(0px)', transition: { duration: 0.8, ease: "easeOut" } }
                     }}
-                    className="text-3xl font-black text-white italic uppercase tracking-tighter leading-none"
+                    className="text-2xl font-black text-white italic uppercase tracking-tighter leading-none"
                 >
                     que siempre quisiste.
                 </motion.h1>
@@ -456,7 +446,7 @@ export function OmniaShowcase({ scrollY }: OmniaShowcaseProps) {
                 {/* Filtered Products Section (Explora lo Nuevo) */}
                 <div className="space-y-6">
                     <div className="flex flex-col gap-4 px-3">
-                        <h2 className="text-[10px] font-black text-white/40 italic uppercase tracking-[0.2em] mb-1">Explora lo Nuevo</h2>
+                        <h2 className="text-[9px] font-black text-white/30 italic uppercase tracking-[0.2em] mb-1">Explora lo Nuevo</h2>
 
                         {/* Unified Filters Row (Type + Category) */}
                         <div className="flex gap-2 overflow-x-auto hide-scrollbar pb-3 px-1 -mx-1">
@@ -505,7 +495,7 @@ export function OmniaShowcase({ scrollY }: OmniaShowcaseProps) {
                     </div>
 
                     {/* Fixed 2-Column Product Display on all screen sizes - Maximized presence (+20% scale feel) */}
-                    <div className="grid grid-cols-2 gap-2 lg:gap-6 items-stretch min-h-[760px] lg:min-h-[500px] relative px-1">
+                    <div className="grid grid-cols-2 gap-2 lg:gap-6 items-stretch min-h-[640px] lg:min-h-[440px] relative px-1">
                         {/* Fake Floating Comments (Desktop only) - Positioned in the void between columns */}
                         <div className="hidden lg:block absolute top-[10%] left-[32%] w-60 h-full z-20 pointer-events-none">
                             <AnimatePresence mode="popLayout">
@@ -538,10 +528,10 @@ export function OmniaShowcase({ scrollY }: OmniaShowcaseProps) {
                                                 style={{ top: c.y }}
                                                 className="absolute bg-white/[0.07] backdrop-blur-xl rounded-3xl p-5 border border-white/10 shadow-2xl"
                                             >
-                                                <div className="flex gap-1.5 text-[#FF7939] mb-1.5">
-                                                    {[1, 2, 3, 4, 5].map(s => <Star key={s} size={16} fill="currentColor" />)}
+                                                <div className="flex gap-1 text-[#FF7939] mb-1">
+                                                    {[1, 2, 3, 4, 5].map(s => <Star key={s} size={14} fill="currentColor" />)}
                                                 </div>
-                                                <p className="text-[16px] text-white font-black italic">"{c.text}"</p>
+                                                <p className="text-[14px] text-white font-black italic">"{c.text}"</p>
                                             </motion.div>
                                         ));
                                     })()}
@@ -567,7 +557,7 @@ export function OmniaShowcase({ scrollY }: OmniaShowcaseProps) {
                                             animate={{ opacity: 1, scale: 1 }}
                                             exit={{ opacity: 0, scale: 1.05 }}
                                             transition={{ duration: 0.3, ease: "circOut" }}
-                                            className="h-full sm:scale-100 mobile:scale-[1.25] origin-top-left"
+                                            className="h-full sm:scale-100 mobile:scale-[1.1] origin-top-left"
                                         >
                                             <ActivityCard
                                                 activity={act}
@@ -707,13 +697,13 @@ export function OmniaShowcase({ scrollY }: OmniaShowcaseProps) {
                                                 className={cn(
                                                     "self-start relative",
                                                     offsets[i],
-                                                    i === 1 ? "z-[40] -translate-y-1 scale-105" : "z-[20]"
+                                                    i === 1 ? "z-[40] -translate-y-2 scale-100" : "z-[20]"
                                                 )}
                                             >
                                                 <div className="flex gap-0.5 text-[#FF7939] mb-0">
-                                                    {[1, 2, 3, 4, 5].map(s => <Star key={s} size={8} fill="currentColor" />)}
+                                                    {[1, 2, 3, 4, 5].map(s => <Star key={s} size={7} fill="currentColor" />)}
                                                 </div>
-                                                <p className="text-[11px] text-white font-black italic leading-tight drop-shadow-2xl">"{text}"</p>
+                                                <p className="text-[10px] text-white font-black italic leading-tight drop-shadow-2xl">"{text}"</p>
                                             </motion.div>
                                         ));
                                     })()}
@@ -733,7 +723,7 @@ export function OmniaShowcase({ scrollY }: OmniaShowcaseProps) {
                     </div>
 
                     {/* Calendar Preview */}
-                    <div className="space-y-4 -mt-20 lg:-mt-10">
+                    <div className="space-y-4 -mt-10 lg:-mt-5">
                         <div className="flex items-center justify-between px-2">
                             <div className="w-8 h-px bg-white/10" />
                             <h2 className="text-[10px] font-black text-white/30 uppercase tracking-[0.3em] italic">Agenda tu Progreso</h2>
@@ -778,9 +768,9 @@ export function OmniaShowcase({ scrollY }: OmniaShowcaseProps) {
                     >
                         {role === 'client' ? (
                             <>
-                                <div className="space-y-32">
+                                <div className="space-y-4">
                                     {/* 1. Integrated Mobile Experience (iPhone) */}
-                                    <div className="space-y-8">
+                                    <div className="space-y-4">
                                         <div className="flex flex-col items-center text-center space-y-4">
                                             <h3 className="text-4xl font-black text-white italic uppercase tracking-tighter leading-none">Tu Libertad <br /><span className="text-white/30 text-xl tracking-normal lowercase">en un solo lugar.</span></h3>
                                             <p className="text-sm text-white/40 max-w-xl mx-auto leading-relaxed mt-2">
@@ -788,7 +778,7 @@ export function OmniaShowcase({ scrollY }: OmniaShowcaseProps) {
                                             </p>
                                         </div>
 
-                                        <div className="flex items-center gap-12 mt-6 justify-center">
+                                        <div className="flex items-center gap-12 mt-2 justify-center">
                                             {[
                                                 { type: 'fitness', icon: Zap, label: 'Fitness' },
                                                 { type: 'nutrition', icon: Utensils, label: 'Nutri' },
@@ -810,7 +800,7 @@ export function OmniaShowcase({ scrollY }: OmniaShowcaseProps) {
                                             ))}
                                         </div>
 
-                                        <div className="flex justify-center relative h-[620px] w-full max-w-sm mx-auto perspective-[2000px] mt-12 mb-12 select-none">
+                                        <div className="flex justify-center relative h-[620px] w-full max-w-sm mx-auto perspective-[2000px] -mt-16 md:-mt-28 mb-4 select-none">
                                             {/* Glow Backgrounds */}
                                             <div className={cn(
                                                 "absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-80 h-80 rounded-full blur-[120px] transition-all duration-1000",
@@ -1315,7 +1305,7 @@ export function OmniaShowcase({ scrollY }: OmniaShowcaseProps) {
                             </>
                         ) : (
                             <div className="w-full">
-                                <div className="space-y-32 w-full">
+                                <div className="space-y-24 w-full">
                                     {/* 1. Integrated Mobile Experience (iPhone Coach) */}
                                     <div className="space-y-8 w-full">
                                         <div className="flex flex-col items-center text-center space-y-4 px-6">
@@ -1325,7 +1315,7 @@ export function OmniaShowcase({ scrollY }: OmniaShowcaseProps) {
                                             </p>
 
                                             {/* Refined Pagination Icons for Coach - Moved Above Phones */}
-                                            <div className="flex items-center gap-12 mt-6">
+                                            <div className="flex items-center gap-12 mt-2">
                                                 {[
                                                     { type: 'clients', icon: Users, label: 'Clientes' },
                                                     { type: 'profile', icon: User, label: 'Perfil' }
@@ -1348,7 +1338,7 @@ export function OmniaShowcase({ scrollY }: OmniaShowcaseProps) {
                                         </div>
 
                                         <div className="flex flex-col md:flex-row items-center justify-center gap-12 md:gap-24 w-full">
-                                            <div className="flex justify-center relative h-[620px] w-full max-w-sm mx-auto perspective-[2000px] mt-12 mb-12 select-none">
+                                            <div className="flex justify-center relative h-[620px] w-full max-w-sm mx-auto perspective-[2000px] -mt-16 md:-mt-28 mb-4 select-none">
                                                 {/* Glow Backgrounds */}
                                                 <div className={cn(
                                                     "absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-80 h-80 rounded-full blur-[120px] transition-all duration-1000",
@@ -1558,8 +1548,8 @@ export function OmniaShowcase({ scrollY }: OmniaShowcaseProps) {
 
 
                                     {/* 2. MacBook Integrated Experience (Desktop) */}
-                                    <div className="space-y-12 w-full">
-                                        <div className="text-center space-y-3 px-6">
+                                    <div className="space-y-6 w-full">
+                                        <div className="text-center space-y-2 px-6">
                                             <div className="inline-flex items-center gap-2 px-3 py-1 bg-blue-500/10 rounded-full border border-blue-500/20">
                                                 <Monitor size={12} className="text-blue-400" />
                                                 <span className="text-[10px] font-black text-blue-400 uppercase italic">Tu Centro de Operaciones</span>
@@ -1570,20 +1560,19 @@ export function OmniaShowcase({ scrollY }: OmniaShowcaseProps) {
                                             </p>
                                         </div>
 
-                                        <div className="flex justify-center relative w-full overflow-hidden pt-10 px-2 lg:px-0">
+                                        <div className="flex justify-center relative w-full overflow-hidden pt-4 px-2 lg:px-0">
                                             {/* MacBook Base Proportional Container */}
                                             <div className="w-full max-w-[1440px] px-1 md:px-10 relative z-10 flex flex-col items-center mx-auto">
-                                                <div className="w-full aspect-[16/10] relative">
-                                                    {/* MacBook Mockup - PRO COACH VIEW */}
-                                                    <div
-                                                        className="absolute top-0 left-0 w-[1440px] h-[900px] bg-[#020202] rounded-[24px] sm:rounded-[48px] border-[10px] sm:border-[16px] border-[#1a1a1a] shadow-[0_60px_120px_-20px_rgba(0,0,0,0.6),0_0_0_1px_rgba(255,255,255,0.05)] overflow-hidden origin-top-left group"
+                                                <div className="w-full relative flex flex-col items-center">
+                                                    {/* The Screen - MacBook Style */}
+                                                    <div 
+                                                        className="w-[1440px] h-[900px] bg-[#020202] rounded-[32px] border-[16px] border-[#101010] shadow-[0_40px_100px_rgba(0,0,0,0.8)] overflow-hidden relative z-10 origin-top flex flex-col"
                                                         style={{ transform: `scale(${macbookScale})` }}
                                                     >
-                                                        {/* Camera Hole - Enhanced realism */}
-                                                        <div className="absolute top-2 left-1/2 -translate-x-1/2 flex items-center justify-center z-50">
-                                                            <div className="w-2 h-2 bg-black/90 rounded-full border border-white/10 relative overflow-hidden shadow-inner">
-                                                                <div className="absolute top-[20%] left-[20%] w-[30%] h-[30%] bg-white/20 rounded-full blur-[0.5px]" />
-                                                                <div className="absolute bottom-[20%] right-[20%] w-[15%] h-[15%] bg-cyan-400/20 rounded-full blur-[0.5px]" />
+                                                        {/* Modern Notch */}
+                                                        <div className="absolute top-0 left-1/2 -translate-x-1/2 w-[180px] h-[32px] bg-[#101010] rounded-b-[18px] z-50 flex items-center justify-center">
+                                                            <div className="w-2.5 h-2.5 bg-[#050505] rounded-full border border-white/5 relative shadow-inner">
+                                                                <div className="absolute top-[20%] left-[20%] w-[30%] h-[30%] bg-blue-400/20 rounded-full blur-[0.5px]" />
                                                             </div>
                                                         </div>
 
@@ -1709,14 +1698,19 @@ export function OmniaShowcase({ scrollY }: OmniaShowcaseProps) {
                                                                 </div>
                                                             </div>
                                                         </div>
-                                                        {/* CIERRE MACBOOK */}
+                                                        {/* Bottom Case - MacBook Style */}
+                                                        <div 
+                                                            className="w-[1440px] h-10 bg-gradient-to-b from-[#1a1a1a] to-[#080808] border-x border-b border-white/5 rounded-b-[24px] -mt-[2px] relative z-20 flex justify-center origin-top"
+                                                            style={{ transform: `scale(${macbookScale})` }}
+                                                        >
+                                                            {/* Trackpad Notch */}
+                                                            <div className="absolute top-0 left-1/2 -translate-x-1/2 w-48 h-2.5 bg-black/40 rounded-b-2xl border-t border-white/5 shadow-inner" />
+                                                        </div>
                                                     </div>
+
                                                 </div>
                                             </div>
                                         </div>
-                                    </div>
-                                    <div className="relative z-10 w-full max-w-[1485px] mx-auto h-[12px] md:h-[18px] bg-gradient-to-b from-[#3f3f46] via-[#27272a] to-[#18181b] rounded-b-[16px] md:rounded-b-[28px] shadow-[0_30px_60px_rgba(0,0,0,1)] -mt-1 flex justify-center border-t border-[#111]">
-                                        <div className="w-[120px] md:w-[180px] h-[6px] md:h-[10px] bg-[#09090b] rounded-b-[6px] md:rounded-b-[10px] border-x border-b border-black/40 shadow-inner" />
                                     </div>
                                     <div className="mt-12 flex justify-center pb-20">
                                         <Button className="bg-[#FF7939] text-black hover:bg-[#FF7939]/90 rounded-full px-16 py-8 h-auto text-[13px] font-[1000] italic uppercase shadow-[0_0_50px_rgba(255,121,57,0.3)] border-none flex items-center gap-4 group">
