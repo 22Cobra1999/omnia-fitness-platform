@@ -70,7 +70,7 @@ export function DraggableSheet({
     meetCreditsAvailable, onScheduleMeet
 }: DraggableSheetProps) {
 
-    const TOP_SNAP = 60; // Slightly more than header to ensure clear separation or coverage
+    const TOP_SNAP = 100; // Match layout
     const COLLAPSED_H = vh * 0.20; // 20% peek as requested
     const collapsedY = vh - COLLAPSED_H;
 

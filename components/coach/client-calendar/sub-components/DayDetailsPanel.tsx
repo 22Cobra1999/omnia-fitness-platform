@@ -22,6 +22,7 @@ interface DayDetailsPanelProps {
     canEditFitnessForDay: (ex: ExerciseExecution) => boolean
     handleEditNutrition: (ex: ExerciseExecution) => void
     editingExerciseId: string | null
+    editingOriginalExercise: ExerciseExecution | null
     setEditingExerciseId: (id: string | null) => void
     setEditingOriginalExercise: (ex: ExerciseExecution | null) => void
     loadAvailableExercises: (id: number) => Promise<void>

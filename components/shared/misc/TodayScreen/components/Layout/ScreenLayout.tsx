@@ -25,7 +25,7 @@ export function ScreenLayout({
     // Unified collapsed height logic
     const COLLAPSED_H = vh * 0.20; // Increased to 20% to make it "higher" as requested
     const collapsedY = vh - COLLAPSED_H;
-    const TOP_SNAP = 60; // Adjusted to be safely below/above header depending on z-index
+    const TOP_SNAP = 100; // Increased to 100 to ensure it clears the dynamic header on mobile
 
     // Motion Values
     const y = useMotionValue(0); // Initial value will be set in useEffect

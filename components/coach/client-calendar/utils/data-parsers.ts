@@ -70,10 +70,10 @@ export const normalizeNutritionContainerToObject = (raw: any): Record<string, an
     return {}
 }
 
-export const updateKeyContainer = (raw: any, oldKey: string, newKey?: string): any => {
+export const updateKeyContainer = (raw: any, oldKey: string, newKey?: string, newValue?: any): any => {
     if (!raw) {
         if (!newKey) return raw
-        return [newKey]
+        return newValue !== undefined ? { [newKey]: newValue } : [newKey]
     }
     if (Array.isArray(raw)) {
         const list = raw.map((x: any) => String(x)).filter((k: string) => k !== oldKey)
@@ -84,8 +84,12 @@ export const updateKeyContainer = (raw: any, oldKey: string, newKey?: string): a
         const obj: any = { ...raw }
         delete obj[oldKey]
         if (newKey) {
-            const inferred = inferMetaFromKey(newKey)
-            obj[newKey] = obj[newKey] && typeof obj[newKey] === 'object' ? { ...inferred, ...obj[newKey] } : inferred
+            if (newValue !== undefined) {
+                obj[newKey] = newValue
+            } else {
+                const inferred = inferMetaFromKey(newKey)
+                obj[newKey] = obj[newKey] && typeof obj[newKey] === 'object' ? { ...inferred, ...obj[newKey] } : inferred
+            }
         }
         return obj
     }
@@ -255,41 +259,36 @@ export const getCaloriasForBlock = (blockKey: string, ejercicioId?: string, calo
 
 export const formatSeries = (detalleSeries: any): string => {
     if (!detalleSeries || detalleSeries === '[object Object]') return 'Sin series'
+    
+    const fmt = (p: any, r: any, s: any) => `P:${p ?? 0}\\R:${r ?? 0}\\S:${s ?? 0}`
+
     if (typeof detalleSeries === 'string' && detalleSeries.includes('(')) {
         const parsed = parseDetalleSeries(detalleSeries)
         if (parsed.length > 0) {
             return parsed.map((serie, index) => {
                 const prefix = parsed.length > 1 ? `S${index + 1}: ` : ''
-                return `${prefix}${serie.series}s × ${serie.repeticiones}r × ${serie.peso}kg`
+                return `${prefix}${fmt(serie.peso, serie.repeticiones, serie.series)}`
             }).join(' | ')
         }
     }
-    if (typeof detalleSeries === 'object' && detalleSeries !== null) {
+    if (typeof detalleSeries === 'object' && detalleSeries !== null && !Array.isArray(detalleSeries)) {
         const reps = detalleSeries.reps ?? detalleSeries.repeticiones ?? detalleSeries.reps_num ?? null
         const series = detalleSeries.series ?? detalleSeries.sets ?? detalleSeries.series_num ?? null
         const peso = detalleSeries.peso ?? detalleSeries.kg ?? detalleSeries.weight ?? 0
         
         if (series !== null && reps !== null) {
-            return `${series}s × ${reps}r × ${peso}kg`
+            return fmt(peso, reps, series)
         }
     }
     if (Array.isArray(detalleSeries) && detalleSeries.length > 0) {
         return detalleSeries.map((serie, index) => {
             const peso = serie.peso || 0
             const prefix = detalleSeries.length > 1 ? `B${index + 1}: ` : ''
-            return `${prefix}${serie.series || 0}s × ${serie.repeticiones || 0}r × ${peso}kg`
+            return `${prefix}${fmt(peso, serie.repeticiones, serie.series)}`
         }).join(' | ')
     }
-    if (typeof detalleSeries === 'object' && detalleSeries.detalle_series) {
-        if (typeof detalleSeries.detalle_series === 'string') {
-            const parsed = parseDetalleSeries(detalleSeries.detalle_series)
-            if (parsed.length > 0) {
-                return parsed.map((serie, index) => {
-                    const prefix = parsed.length > 1 ? `S${index + 1}: ` : ''
-                    return `${prefix}${serie.series}s × ${serie.repeticiones}r × ${serie.peso}kg`
-                }).join(' | ')
-            }
-        }
+    if (typeof detalleSeries === 'object' && detalleSeries !== null && detalleSeries.detalle_series) {
+        return formatSeries(detalleSeries.detalle_series)
     }
     return 'Sin series'
 }

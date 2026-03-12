@@ -73,7 +73,7 @@ export function ClientCalendar({ clientId, onLastWorkoutUpdate, onDaySelected, e
 
   // 5. Fitness Hook
   const {
-    editingExerciseId, setEditingExerciseId, setEditingOriginalExercise,
+    editingExerciseId, setEditingExerciseId, editingOriginalExercise, setEditingOriginalExercise,
     showExerciseDropdown, setShowExerciseDropdown, availableExercises,
     editingFitnessValues, setEditingFitnessValues,
     loadAvailableExercises, handleChangeExercise, canEditFitnessForDay,
@@ -240,6 +240,7 @@ export function ClientCalendar({ clientId, onLastWorkoutUpdate, onDaySelected, e
                 nutritionPlateOptionsByActivity={nutritionPlateOptionsByActivity}
                 canEditNutritionForDay={canEditNutritionForDay} canEditFitnessForDay={canEditFitnessForDay}
                 handleEditNutrition={handleEditNutrition} editingExerciseId={editingExerciseId}
+                editingOriginalExercise={editingOriginalExercise}
                 setEditingExerciseId={setEditingExerciseId} setEditingOriginalExercise={setEditingOriginalExercise}
                 loadAvailableExercises={loadAvailableExercises} showExerciseDropdown={showExerciseDropdown}
                 setShowExerciseDropdown={setShowExerciseDropdown} availableExercises={availableExercises}
@@ -271,6 +272,7 @@ export function ClientCalendar({ clientId, onLastWorkoutUpdate, onDaySelected, e
               nutritionPlateOptionsByActivity={nutritionPlateOptionsByActivity}
               canEditNutritionForDay={canEditNutritionForDay} canEditFitnessForDay={canEditFitnessForDay}
               handleEditNutrition={handleEditNutrition} editingExerciseId={editingExerciseId}
+              editingOriginalExercise={editingOriginalExercise}
               setEditingExerciseId={setEditingExerciseId} setEditingOriginalExercise={setEditingOriginalExercise}
               loadAvailableExercises={loadAvailableExercises} showExerciseDropdown={showExerciseDropdown}
               setShowExerciseDropdown={setShowExerciseDropdown} availableExercises={availableExercises}

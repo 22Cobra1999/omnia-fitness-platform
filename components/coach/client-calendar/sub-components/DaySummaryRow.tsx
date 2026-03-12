@@ -22,6 +22,7 @@ interface DaySummaryRowProps {
     canEditFitnessForDay: (ex: ExerciseExecution) => boolean
     handleEditNutrition: (ex: ExerciseExecution) => void
     editingExerciseId: string | null
+    editingOriginalExercise: ExerciseExecution | null
     setEditingExerciseId: (id: string | null) => void
     setEditingOriginalExercise: (ex: ExerciseExecution | null) => void
     loadAvailableExercises: (id: number) => Promise<void>
@@ -54,7 +55,7 @@ export const DaySummaryRow: React.FC<DaySummaryRowProps> = ({
     eventDetailsByKey, activityDetailsByKey,
     nutritionPlateOptionsByActivity,
     canEditNutritionForDay, canEditFitnessForDay,
-    handleEditNutrition, editingExerciseId, setEditingExerciseId,
+    handleEditNutrition, editingExerciseId, editingOriginalExercise, setEditingExerciseId,
     setEditingOriginalExercise, loadAvailableExercises,
     showExerciseDropdown, setShowExerciseDropdown,
     availableExercises, handleChangeExercise,
@@ -214,7 +215,7 @@ export const DaySummaryRow: React.FC<DaySummaryRowProps> = ({
                                                                 onClick={(e) => { e.preventDefault(); e.stopPropagation(); setShowExerciseDropdown(!showExerciseDropdown) }}
                                                                 className="flex items-center gap-1.5 w-full text-left text-sm font-semibold text-white hover:text-[#FF7939] transition-colors disabled:opacity-50"
                                                             >
-                                                                <span className="truncate">{exercise.ejercicio_nombre}</span>
+                                                                <span className="truncate">{editingOriginalExercise?.ejercicio_nombre || exercise.ejercicio_nombre}</span>
                                                                 <div className="flex items-center gap-1 text-[#FF7939] flex-shrink-0">
                                                                     <Repeat2 className="h-3 w-3" />
                                                                     <ChevronDown className={`h-3 w-3 transition-transform ${showExerciseDropdown ? 'rotate-180' : ''}`} />
@@ -310,22 +311,22 @@ export const DaySummaryRow: React.FC<DaySummaryRowProps> = ({
                                             {!exercise.is_nutricion && !exercise.is_workshop && seriesBlocks.length > 0 && !isEditing && (
                                                 <div className="flex flex-wrap gap-2 mt-2 ml-5">
                                                     {seriesBlocks.map((block, idx) => (
-                                                        <div key={idx} className="flex items-center gap-1.5">
+                                                        <div key={idx} className="flex items-center gap-1.5 focus:outline-none">
                                                             <div className="text-center">
-                                                                <div className="text-[8px] text-zinc-600 uppercase font-black tracking-tight">S</div>
-                                                                <div className="text-xs font-black text-white leading-none">{block.series}</div>
-                                                            </div>
-                                                            <span className="text-zinc-700 text-[10px]">×</span>
-                                                            <div className="text-center">
-                                                                <div className="text-[8px] text-zinc-600 uppercase font-black tracking-tight">R</div>
-                                                                <div className="text-xs font-black text-white leading-none">{block.reps}</div>
-                                                            </div>
-                                                            <span className="text-zinc-700 text-[10px]">×</span>
-                                                            <div className="text-center">
-                                                                <div className="text-[8px] text-zinc-600 uppercase font-black tracking-tight">KG</div>
+                                                                <div className="text-[8px] text-zinc-600 uppercase font-bold tracking-tight">P</div>
                                                                 <div className="text-xs font-black text-[#FF7939] leading-none">{block.peso}</div>
                                                             </div>
-                                                            {idx < seriesBlocks.length - 1 && <span className="text-zinc-800 ml-1">|</span>}
+                                                            <span className="text-zinc-700 text-[10px] select-none font-bold">\</span>
+                                                            <div className="text-center">
+                                                                <div className="text-[8px] text-zinc-600 uppercase font-bold tracking-tight">R</div>
+                                                                <div className="text-xs font-black text-white leading-none">{block.reps}</div>
+                                                            </div>
+                                                            <span className="text-zinc-700 text-[10px] select-none font-bold">\</span>
+                                                            <div className="text-center">
+                                                                <div className="text-[8px] text-zinc-600 uppercase font-bold tracking-tight">S</div>
+                                                                <div className="text-xs font-black text-white leading-none">{block.series}</div>
+                                                            </div>
+                                                            {idx < seriesBlocks.length - 1 && <span className="text-zinc-800 ml-1 font-bold">|</span>}
                                                         </div>
                                                     ))}
                                                 </div>
