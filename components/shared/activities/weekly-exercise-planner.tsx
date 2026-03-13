@@ -103,7 +103,7 @@ export function WeeklyExercisePlanner(props: WeeklyExercisePlannerProps) {
   })
 
   const sortedTypes = Object.keys(typeTotals).sort((a, b) => typeTotals[b] - typeTotals[a])
-  const gridCols = `calc(var(--title-w)) repeat(7, minmax(40px, 1fr))`
+  const gridCols = `repeat(7, minmax(45px, 1fr))`
 
   return (
     <div className="space-y-8">
@@ -301,25 +301,46 @@ export function WeeklyExercisePlanner(props: WeeklyExercisePlannerProps) {
           </div>
 
           <div className="py-2 md:py-4 min-w-0">
+            {/* Leyenda de categorías - Movida arriba del calendario */}
+            {sortedTypes.length > 0 && (
+              <div className="flex flex-wrap items-center gap-2 mb-4 px-1">
+                {sortedTypes.map(type => {
+                  const scheme = getTypeColorScheme(type, isNutrition)
+                  const label = isNutrition ? (type.charAt(0).toUpperCase() + type.slice(1)) : type
+                  return (
+                    <div 
+                      key={type} 
+                      className="flex items-center gap-1.5 px-2.5 py-1 rounded-full border text-[9px] font-black uppercase tracking-tighter" 
+                      style={{ 
+                        color: scheme.hex, 
+                        borderColor: scheme.hex + '44', 
+                        backgroundColor: scheme.soft 
+                      }}
+                    >
+                      <div className="w-1.5 h-1.5 rounded-full" style={{ backgroundColor: scheme.hex }}></div>
+                      {label}
+                    </div>
+                  )
+                })}
+              </div>
+            )}
+
             <div
-              className="grid gap-1 md:gap-1.5 grid-dynamic"
+              className="grid gap-0.5 md:gap-1.5 grid-dynamic"
               style={{
-                gridTemplateColumns: gridCols,
-                '--title-w': '45px'
+                gridTemplateColumns: gridCols
               } as any}
             >
               <style dangerouslySetInnerHTML={{
                 __html: `
                   @media (min-width: 768px) {
                     .grid-dynamic { 
-                      --title-w: 65px !important; 
-                      grid-template-columns: var(--title-w) repeat(7, minmax(80px, 1fr)) !important;
+                      grid-template-columns: repeat(7, minmax(100px, 1fr)) !important;
                     }
                   }
                 `}} />
 
               {/* Headers de días */}
-              <div className="h-14"></div>
               {DAYS.map(d => {
                 const exList = getExercisesForDay(currentWeek, d.key)
                 const hasEx = dayHasExercises[d.key]
@@ -353,7 +374,7 @@ export function WeeklyExercisePlanner(props: WeeklyExercisePlannerProps) {
 
               {/* Contenido de la grilla (Tipos/Bloques) */}
               {sortedTypes.length === 0 ? (
-                <div className="col-span-8 py-20 px-8 text-center flex flex-col items-center justify-center">
+                <div className="col-span-7 py-20 px-8 text-center flex flex-col items-center justify-center">
                   <div className="text-[12px] md:text-[15px] font-black uppercase tracking-[0.2em] italic max-w-lg leading-loose">
                     <span className="text-[#FF4D00]">Selecciona {isNutrition ? 'Platos' : 'Ejercicios'}</span>
                     <br />
@@ -368,9 +389,6 @@ export function WeeklyExercisePlanner(props: WeeklyExercisePlannerProps) {
                 const label = isNutrition ? (type.charAt(0).toUpperCase() + type.slice(1)) : type
                 return (
                   <React.Fragment key={type}>
-                    <div className="py-2 pr-1 flex items-center overflow-hidden">
-                      <span className="px-1 py-0.5 rounded border text-[6.5px] md:text-[9.5px] font-bold capitalize tracking-tighter w-full shadow-sm text-center leading-none md:leading-tight" style={{ color: scheme.hex, borderColor: scheme.hex + '22', backgroundColor: scheme.soft }}>{label.toLowerCase()}</span>
-                    </div>
                     {DAYS.map(d => {
                       const exercises = dayTypeExercises[d.key]?.[type] || []
                       const count = exercises.length
@@ -425,7 +443,6 @@ export function WeeklyExercisePlanner(props: WeeklyExercisePlannerProps) {
           productCategory={productCategory}
           similarDays={similarDays[`${currentWeek}-${selectedDay}`] || []}
           onApplyToSimilarDays={applyToSimilarDays}
-          onScheduleChange={onScheduleChange}
         />
       )}
     </div>

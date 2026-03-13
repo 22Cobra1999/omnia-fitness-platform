@@ -269,7 +269,7 @@ export default function CreateProductModal({ isOpen, onClose, editingProduct, in
           initial={{ opacity: 0 }}
           animate={{ opacity: 1 }}
           exit={{ opacity: 0 }}
-          className="fixed inset-0 bg-black/60 backdrop-blur-sm z-[100] flex items-center justify-center px-2 sm:px-4 pt-[90px] pb-[110px] sm:pb-[100px] sm:pt-20"
+          className="fixed inset-0 bg-black/60 backdrop-blur-sm z-[100] flex items-center justify-center px-2 sm:px-4 pt-12 pb-[90px] sm:pt-20 sm:pb-[100px]"
           onClick={(e) => {
             // Cerrar solo si se hace click en el overlay, no en el modal
             if (e.target === e.currentTarget) {
@@ -281,7 +281,7 @@ export default function CreateProductModal({ isOpen, onClose, editingProduct, in
             initial={{ scale: 0.95, opacity: 0, y: 20 }}
             animate={{ scale: 1, opacity: 1, y: 0 }}
             exit={{ scale: 0.95, opacity: 0, y: 20 }}
-            className="bg-[#0B0B0B] rounded-2xl max-w-[98vw] w-full h-auto max-h-full sm:max-h-[92vh] overflow-hidden flex flex-col border border-white/10 shadow-2xl"
+            className="bg-[#0B0B0B] rounded-2xl max-w-[98vw] w-full h-full sm:h-auto max-h-full sm:max-h-[92vh] overflow-hidden flex flex-col border border-white/10 shadow-2xl"
             onClick={(e) => e.stopPropagation()}
           >
             {/* Header del modal */}
