@@ -34,6 +34,10 @@ const nextConfig = {
         protocol: 'https',
         hostname: 'images.unsplash.com',
       },
+      {
+        protocol: 'https',
+        hostname: 'vz-37d7814d-402.b-cdn.net',
+      },
     ],
   },
   // Configuración para manejar puertos dinámicos

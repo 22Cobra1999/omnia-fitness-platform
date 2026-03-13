@@ -967,7 +967,7 @@ export async function POST(request: NextRequest) {
         targetCapacity = remainingCapacity
       }
 
-      adjustedCapacity = Math.max(Math.floor(targetCapacity), 0)
+      adjustedCapacity = targetCapacity > 0 ? Math.floor(targetCapacity) : 1
     }
 
     // Crear producto en activities (la tabla real)
@@ -987,6 +987,7 @@ export async function POST(request: NextRequest) {
           categoria: body.categoria || 'fitness',
           difficulty: body.level, // Usar difficulty en lugar de level
           is_public: body.is_public,
+          is_paused: !!body.is_paused,
           capacity: adjustedCapacity,
           restricciones: joinSemicolonList(body.restricciones),
           // stockQuantity no existe en la tabla activities
@@ -1040,28 +1041,58 @@ export async function POST(request: NextRequest) {
     // Verificar y pausar productos automáticamente si exceden el límite del plan
     await checkAndPauseProductsIfNeeded(user.id)
 
-    // ✅ MANEJAR TALLERES (WORKSHOPS)
-    if (body.modality === 'workshop') {
-      await handleWorkshopCreation(supabase, newActivity.id, body, user.id)
+    // ✅ MANEJAR MEDIA (FOTOS / VIDEOS) EN CREACIÓN
+    if (body.image_url || body.video_url) {
+      const mediaInsert: any = {
+        activity_id: newActivity.id,
+        image_url: body.image_url || null,
+        video_url: body.video_url || null
+      }
+
+      if (body.video_url) {
+        const isBunnyVideo = body.video_url.includes('b-cdn.net') || body.video_url.includes('mediadelivery.net')
+        if (isBunnyVideo) {
+          const embedMatch = body.video_url.match(/mediadelivery\.net\/embed\/([a-f0-9-]+)/)
+          const cdnMatch = body.video_url.match(/b-cdn\.net\/([a-f0-9-]+)\//)
+          const playlistMatch = body.video_url.match(/mediadelivery\.net\/([a-f0-9-]+)\//)
+          const bunnyVideoId = embedMatch?.[1] || cdnMatch?.[1] || playlistMatch?.[1]
+
+          if (bunnyVideoId) {
+            mediaInsert.bunny_video_id = bunnyVideoId
+            mediaInsert.bunny_library_id = parseInt(process.env.BUNNY_STREAM_LIBRARY_ID || '0')
+          }
+        }
+      }
+
+      const { error: insertMediaError } = await supabase
+        .from('activity_media')
+        .insert(mediaInsert)
+
+      if (insertMediaError) {
+        console.error('❌ Error insertando media en creación:', insertMediaError)
+      }
     }
 
-
+    // ✅ MANEJAR TALLERES (WORKSHOPS)
+    if (body.modality === 'workshop') {
+      await handleWorkshopCreation(supabaseService, newActivity.id, body, user.id)
+    }
 
     // ✅ MANEJAR TEMAS Y PDFs DE DOCUMENTOS (NUEVO)
     if (body.modality === 'document') {
-      await handleDocumentCreation(supabase, newActivity.id, body)
+      await handleDocumentCreation(supabaseService, newActivity.id, body)
     }
 
     // ✅ MANEJAR PLANIFICACIÓN DE EJERCICIOS (PROGRAMAS/FITNESS) EN CREACIÓN
     if (body.modality !== 'workshop' && body.modality !== 'document' && !body.modality?.includes('consultation')) {
       if (body.weeklySchedule && typeof body.weeklySchedule === 'object' && Object.keys(body.weeklySchedule).length > 0) {
-        await saveWeeklySchedule(supabase, newActivity.id, body.weeklySchedule, body.categoria)
+        await saveWeeklySchedule(supabaseService, newActivity.id, body.weeklySchedule, body.categoria)
 
         // 🔥 NUCLEAR RESYNC: Reparar estadísticas después de que el trigger potencialmente las rompiera
         const finalStats = calculateStatsFromSchedule(body.weeklySchedule, body.periods || 1);
         console.log('🔥 [POST] Nuclear Resync de estadísticas:', finalStats);
 
-        await supabase.from('activities').update({
+        await supabaseService.from('activities').update({
           semanas_totales: body.semanas_totales || finalStats.semanas_totales || 0,
           sesiones_dias_totales: body.sesiones_dias_totales || finalStats.sesiones_dias_totales || 0,
           items_totales: body.items_totales || finalStats.items_totales || 0,
@@ -1072,7 +1103,7 @@ export async function POST(request: NextRequest) {
 
       // Guardar periodos si existen
       if (body.periods) {
-        await saveProductPeriods(supabase, newActivity.id, body.periods)
+        await saveProductPeriods(supabaseService, newActivity.id, body.periods)
       }
     }
 
@@ -1302,6 +1333,7 @@ export async function PUT(request: NextRequest) {
       categoria: body.categoria || 'fitness',
       difficulty: body.level,
       is_public: body.is_public,
+      is_paused: !!body.is_paused,
       capacity: adjustedCapacity,
       restricciones: joinSemicolonList(body.restricciones),
       // ✅ GUARDAR OBJETIVOS EN workshop_type como JSON
@@ -1435,24 +1467,24 @@ export async function PUT(request: NextRequest) {
 
     // ✅ MANEJAR TALLERES (WORKSHOPS) EN ACTUALIZACIÓN
     if (body.modality === 'workshop') {
-      await handleWorkshopUpdate(supabase, body.editingProductId, body, user.id)
+      await handleWorkshopUpdate(supabaseService, body.editingProductId, body, user.id)
     }
 
     // ✅ MANEJAR TEMAS Y PDFs DE DOCUMENTOS (NUEVO)
     if (body.modality === 'document') {
-      await handleDocumentUpdate(supabase, body.editingProductId, body)
+      await handleDocumentUpdate(supabaseService, body.editingProductId, body)
     }
 
     // ✅ MANEJAR PLANIFICACIÓN DE EJERCICIOS (PROGRAMAS/FITNESS)
     if (body.modality !== 'workshop' && body.modality !== 'document' && !body.modality?.includes('consultation')) {
       if (body.weeklySchedule && typeof body.weeklySchedule === 'object' && Object.keys(body.weeklySchedule).length > 0) {
-        await saveWeeklySchedule(supabase, body.editingProductId, body.weeklySchedule, body.categoria)
+        await saveWeeklySchedule(supabaseService, body.editingProductId, body.weeklySchedule, body.categoria)
 
         // 🔥 NUCLEAR RESYNC: Reparar estadísticas después de que el trigger potencialmente las rompiera
         const finalStats = calculateStatsFromSchedule(body.weeklySchedule, body.periods || 1);
         console.log('🔥 [PUT] Nuclear Resync de estadísticas:', finalStats);
 
-        await supabase.from('activities').update({
+        await supabaseService.from('activities').update({
           semanas_totales: body.semanas_totales || finalStats.semanas_totales || 0,
           sesiones_dias_totales: body.sesiones_dias_totales || finalStats.sesiones_dias_totales || 0,
           items_totales: body.items_totales || finalStats.items_totales || 0,
@@ -1463,7 +1495,7 @@ export async function PUT(request: NextRequest) {
 
       // Guardar periodos si existen
       if (body.periods) {
-        await saveProductPeriods(supabase, body.editingProductId, body.periods)
+        await saveProductPeriods(supabaseService, body.editingProductId, body.periods)
       }
     }
 

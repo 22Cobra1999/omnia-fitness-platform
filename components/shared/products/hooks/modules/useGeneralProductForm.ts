@@ -1,4 +1,4 @@
-import { useState, useEffect, useMemo } from 'react'
+import { useState, useEffect, useMemo, useRef } from 'react'
 import { GeneralFormState, ProductType, PlanType } from '../../product-constants'
 import { getPlanLimit } from '@/lib/utils/plan-limits'
 import { toast } from 'sonner'
@@ -18,6 +18,7 @@ export function useGeneralProductForm(
         modality: 'online',
         included_meet_credits: 0,
         is_public: false,
+        is_paused: false,
         objetivos: [],
         restricciones: [],
         capacity: 'ilimitada',
@@ -38,9 +39,13 @@ export function useGeneralProductForm(
         return String(val).split(';').map(s => s.trim()).filter(Boolean)
     }
 
+    // To prevent overwriting local state if editingProduct reference changes
+    const initializedIdRef = useRef<number | null>(null)
+
     // Initialize from editingProduct
     useEffect(() => {
-        if (editingProduct) {
+        if (editingProduct && editingProduct.id !== initializedIdRef.current) {
+            initializedIdRef.current = editingProduct.id
             const stockQuantity = editingProduct.capacity?.toString() || ''
 
             setGeneralForm(prev => ({
@@ -53,6 +58,7 @@ export function useGeneralProductForm(
                 modality: (editingProduct?.type === 'program' ? 'online' : (editingProduct?.modality || 'online')),
                 included_meet_credits: editingProduct.included_meet_credits || 0,
                 is_public: editingProduct.is_public !== false,
+                is_paused: !!editingProduct.is_paused,
                 objetivos: splitSemicolonList(editingProduct.objetivos),
                 restricciones: splitSemicolonList(editingProduct.restricciones),
                 capacity: editingProduct.capacity ? 'limitada' : 'ilimitada',

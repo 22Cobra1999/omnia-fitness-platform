@@ -8,9 +8,10 @@ import { useWorkshopSchedulerLogic, type WorkshopSession, type TimeSlot } from "
 interface WorkshopSimpleSchedulerProps {
   sessions: WorkshopSession[]
   onSessionsChange: (sessions: WorkshopSession[]) => void
+  disabled?: boolean
 }
 
-export function WorkshopSimpleScheduler({ sessions, onSessionsChange }: WorkshopSimpleSchedulerProps) {
+export function WorkshopSimpleScheduler({ sessions, onSessionsChange, disabled }: WorkshopSimpleSchedulerProps) {
   const {
     currentMonth,
     setCurrentMonth,
@@ -66,9 +67,8 @@ export function WorkshopSimpleScheduler({ sessions, onSessionsChange }: Workshop
           <input
             type="text"
             value={topicTitle}
-            onChange={(e) => setTopicTitle(e.target.value)}
-            placeholder="Ej: Elongación, Meditación, Yoga..."
-            className="w-full px-4 py-2 bg-[#0A0A0A] border-b-2 border-[#3A3A3A] text-white placeholder:text-gray-500 focus:border-[#FF7939] focus:outline-none"
+            disabled={disabled}
+            className={`w-full px-4 py-2 bg-[#0A0A0A] border-b-2 border-[#3A3A3A] text-white placeholder:text-gray-500 focus:border-[#FF7939] focus:outline-none ${disabled ? 'opacity-50 cursor-not-allowed' : ''}`}
           />
         </div>
 
@@ -77,9 +77,8 @@ export function WorkshopSimpleScheduler({ sessions, onSessionsChange }: Workshop
           <input
             type="text"
             value={topicDescription}
-            onChange={(e) => setTopicDescription(e.target.value)}
-            placeholder="Describe brevemente el contenido..."
-            className="w-full px-4 py-2 bg-[#0A0A0A] border-b-2 border-[#3A3A3A] text-white placeholder:text-gray-500 focus:border-[#FF7939] focus:outline-none"
+            disabled={disabled}
+            className={`w-full px-4 py-2 bg-[#0A0A0A] border-b-2 border-[#3A3A3A] text-white placeholder:text-gray-500 focus:border-[#FF7939] focus:outline-none ${disabled ? 'opacity-50 cursor-not-allowed' : ''}`}
           />
         </div>
       </div>
@@ -109,14 +108,16 @@ export function WorkshopSimpleScheduler({ sessions, onSessionsChange }: Workshop
                       <h4 className="text-white font-bold text-sm truncate pr-2">{group.title}</h4>
                       <div className="flex gap-1 shrink-0">
                         <button
-                          onClick={() => handleEditGroupedTopic(group.title)}
-                          className="p-1 hover:bg-[#FF7939]/20 rounded transition-colors"
+                          onClick={() => !disabled && handleEditGroupedTopic(group.title)}
+                          disabled={disabled}
+                          className={`p-1 rounded transition-colors ${disabled ? 'opacity-30 cursor-not-allowed' : 'hover:bg-[#FF7939]/20'}`}
                         >
                           <Edit3 className="w-3 h-3 text-[#FF7939]" />
                         </button>
                         <button
-                          onClick={() => handleDeleteGroupedTopic(group.title)}
-                          className="p-1 hover:bg-red-500/20 rounded transition-colors"
+                          onClick={() => !disabled && handleDeleteGroupedTopic(group.title)}
+                          disabled={disabled}
+                          className={`p-1 rounded transition-colors ${disabled ? 'opacity-30 cursor-not-allowed' : 'hover:bg-red-500/20'}`}
                         >
                           <Trash className="w-3 h-3 text-red-500" />
                         </button>
@@ -148,24 +149,27 @@ export function WorkshopSimpleScheduler({ sessions, onSessionsChange }: Workshop
         {/* Columna Izquierda: Calendario */}
         <div className="space-y-4">
           {/* Header del calendario */}
-          <div className="flex items-center justify-between mb-4">
-            <h3 className="text-lg font-medium text-white">
-              {currentMonth.toLocaleDateString('es-ES', { month: 'long', year: 'numeric' })}
-            </h3>
-            <div className="flex items-center gap-2">
-              <button
-                onClick={() => navigateMonth('prev')}
-                className="p-2 hover:bg-gray-800 rounded-lg transition-colors"
-              >
-                <ChevronLeft className="w-5 h-5 text-white" />
-              </button>
-              <button
-                onClick={() => navigateMonth('next')}
-                className="p-2 hover:bg-gray-800 rounded-lg transition-colors"
-              >
-                <ChevronRight className="w-5 h-5 text-white" />
-              </button>
+          <div className="flex flex-col mb-4">
+            <div className="flex items-center justify-between mb-1">
+              <h3 className="text-lg font-medium text-white">
+                {currentMonth.toLocaleDateString('es-ES', { month: 'long', year: 'numeric' })}
+              </h3>
+              <div className="flex items-center gap-2">
+                <button
+                  onClick={() => navigateMonth('prev')}
+                  className="p-2 hover:bg-gray-800 rounded-lg transition-colors"
+                >
+                  <ChevronLeft className="w-5 h-5 text-white" />
+                </button>
+                <button
+                  onClick={() => navigateMonth('next')}
+                  className="p-2 hover:bg-gray-800 rounded-lg transition-colors"
+                >
+                  <ChevronRight className="w-5 h-5 text-white" />
+                </button>
+              </div>
             </div>
+            <p className="text-sm text-gray-400">1. Selecciona los días de este tema en el calendario</p>
           </div>
 
           {/* Días de la semana */}
@@ -182,11 +186,11 @@ export function WorkshopSimpleScheduler({ sessions, onSessionsChange }: Workshop
             {days.map((day, index) => (
               <button
                 key={index}
-                onClick={() => handleDateClick(day)}
-                disabled={!day.isCurrentMonth}
+                onClick={() => !disabled && handleDateClick(day)}
+                disabled={!day.isCurrentMonth || disabled}
                 className={`
                   p-3 text-sm rounded-lg transition-all duration-200 relative
-                  ${!day.isCurrentMonth
+                  ${!day.isCurrentMonth || disabled
                     ? 'text-gray-600 cursor-not-allowed'
                     : day.isSelected
                       ? 'bg-[#FF7939] text-white scale-105 shadow-lg'
@@ -240,7 +244,7 @@ export function WorkshopSimpleScheduler({ sessions, onSessionsChange }: Workshop
               onClick={() => setEditingTime(true)}
               className="cursor-pointer"
             >
-              <div className="flex items-center justify-between mb-3">
+              <div className="flex items-center justify-between mb-1">
                 <div className="flex items-center gap-2">
                   <div className={`w-1 h-6 rounded ${editingTime ? 'bg-[#FF7939]' : 'bg-gray-600'}`}></div>
                   <Clock className="w-5 h-5 text-[#FF7939]" />
@@ -250,27 +254,30 @@ export function WorkshopSimpleScheduler({ sessions, onSessionsChange }: Workshop
                   <span className="text-xs text-[#FF7939] font-medium">● Editando</span>
                 )}
               </div>
+              <p className="text-sm text-gray-400 mb-3">2. Elige a qué hora y presiona el botón +</p>
 
               {/* Input de horarios */}
               {editingTime && (
                 <div className="mb-3 grid grid-cols-1 sm:grid-cols-2 gap-2">
-                  <div className="flex items-center gap-2 rounded-xl border border-white/10 bg-black/20 px-2 py-1">
+                  <div className={`flex items-center gap-2 rounded-xl border border-white/10 bg-black/20 px-2 py-1 ${disabled ? 'opacity-50' : ''}`}>
                     <input
                       type="time"
                       value={currentStartTime}
                       onChange={(e) => setCurrentStartTime(e.target.value)}
-                      className="w-full px-2 py-1 bg-transparent text-white text-xs focus:outline-none"
+                      disabled={disabled}
+                      className="w-full px-2 py-1 bg-transparent text-white text-xs focus:outline-none disabled:cursor-not-allowed"
                     />
                     <span className="text-gray-500 text-xs">-</span>
                     <input
                       type="time"
                       value={currentEndTime}
                       onChange={(e) => setCurrentEndTime(e.target.value)}
-                      className="w-full px-2 py-1 bg-transparent text-white text-xs focus:outline-none"
+                      disabled={disabled}
+                      className="w-full px-2 py-1 bg-transparent text-white text-xs focus:outline-none disabled:cursor-not-allowed"
                     />
                     <button
                       onClick={handleAddTimeSlot}
-                      disabled={selectedDates.size === 0}
+                      disabled={selectedDates.size === 0 || disabled}
                       className="px-3 py-1 rounded-lg text-xs font-semibold transition-all border border-white/10 bg-white/10 hover:bg-white/15 text-white disabled:opacity-50 disabled:cursor-not-allowed"
                     >
                       <Plus className="w-3 h-3" />
@@ -280,7 +287,7 @@ export function WorkshopSimpleScheduler({ sessions, onSessionsChange }: Workshop
                   <div className="grid grid-cols-2 gap-2">
                     <button
                       onClick={handleFinishTopic}
-                      disabled={timeSlots.length === 0 || !topicTitle.trim()}
+                      disabled={timeSlots.length === 0 || !topicTitle.trim() || disabled}
                       className="w-full py-2 rounded-xl font-semibold transition-all border border-[#FF7939]/30 bg-gradient-to-r from-[#3a221b] to-[#20130f] text-[#ffb999] text-sm disabled:opacity-50 disabled:cursor-not-allowed"
                     >
                       Guardar
@@ -318,8 +325,9 @@ export function WorkshopSimpleScheduler({ sessions, onSessionsChange }: Workshop
                         </span>
                       </div>
                       <button
-                        onClick={() => handleRemoveTimeSlotDate(slot.id, date)}
-                        className="p-1 rounded hover:bg-white/5 transition-colors"
+                        onClick={() => !disabled && handleRemoveTimeSlotDate(slot.id, date)}
+                        disabled={disabled}
+                        className={`p-1 rounded transition-colors ${disabled ? 'opacity-30 cursor-not-allowed' : 'hover:bg-white/5'}`}
                         title="Eliminar"
                       >
                         <Trash2 className="w-3 h-3 text-red-400" />
@@ -333,10 +341,15 @@ export function WorkshopSimpleScheduler({ sessions, onSessionsChange }: Workshop
                     {topicTitle.trim() && (
                       <button
                         type="button"
-                        onClick={() => setEditingTime(true)}
-                        className="w-12 h-12 rounded-full bg-[#FF7939] border-4 border-[#FF7939]/20 flex items-center justify-center shadow-lg shadow-[#FF7939]/20 hover:scale-110 transition-transform active:scale-95 group"
+                        onClick={() => !disabled && setEditingTime(true)}
+                        disabled={disabled}
+                        className={`w-12 h-12 rounded-full border-4 flex items-center justify-center shadow-lg transition-transform active:scale-95 group ${
+                          disabled 
+                          ? 'bg-gray-800 border-gray-700 cursor-not-allowed opacity-50' 
+                          : 'bg-[#FF7939] border-[#FF7939]/20 shadow-[#FF7939]/20 hover:scale-110'
+                        }`}
                       >
-                        <Plus className="w-6 h-6 text-white group-hover:rotate-90 transition-transform duration-300" />
+                        <Plus className={`w-6 h-6 text-white ${!disabled && 'group-hover:rotate-90 transition-transform duration-300'}`} />
                       </button>
                     )}
                   </div>

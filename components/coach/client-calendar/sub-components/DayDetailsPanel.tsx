@@ -45,6 +45,7 @@ interface DayDetailsPanelProps {
     handleCancelFitness: () => void
     editingFitnessValues: any
     setEditingFitnessValues: (values: any) => void
+    onActivityExpanded?: (row: ClientDaySummaryRow) => void
     loading: boolean
 }
 

@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useRef } from 'react'
 import { DocumentMaterialState } from '../../product-constants'
 
 export function useDocumentLogic(editingProduct: any, selectedType: string | null) {
@@ -15,8 +15,11 @@ export function useDocumentLogic(editingProduct: any, selectedType: string | nul
     const [documentType, setDocumentType] = useState('')
     const [pages, setPages] = useState('')
 
+    const initializedIdRef = useRef<number | null>(null)
+
     useEffect(() => {
-        if (editingProduct && selectedType === 'document') {
+        if (editingProduct && editingProduct.id !== initializedIdRef.current && selectedType === 'document') {
+            initializedIdRef.current = editingProduct.id
             setDocumentMaterial({
                 pdfType: editingProduct.pdf_url ? 'general' : (editingProduct.topicPdfs ? 'by-topic' : 'general'),
                 pdfFile: null,

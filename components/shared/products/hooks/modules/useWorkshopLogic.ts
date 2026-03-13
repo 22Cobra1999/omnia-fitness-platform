@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useRef } from 'react'
 import { WorkshopMaterialState } from '../../product-constants'
 
 export function useWorkshopLogic(editingProduct: any, selectedType: string | null) {
@@ -11,18 +11,37 @@ export function useWorkshopLogic(editingProduct: any, selectedType: string | nul
 
     const [workshopSchedule, setWorkshopSchedule] = useState<any[]>([])
 
+    const initializedIdRef = useRef<number | null>(null)
+
     useEffect(() => {
-        if (editingProduct && selectedType === 'workshop') {
+        if (editingProduct && editingProduct.id !== initializedIdRef.current && selectedType === 'workshop') {
+            initializedIdRef.current = editingProduct.id
+            const details = editingProduct.workshop_details || editingProduct.taller_detalles || []
+            const reconstructedTopicPdfs: Record<string, { url: string | null; file: File | null; fileName: string | null }> = {}
+            let hasTopicPdfs = false
+
+            if (Array.isArray(details)) {
+                details.forEach((topic: any) => {
+                    if (topic.pdf_url) {
+                        reconstructedTopicPdfs[topic.nombre || 'Sin título'] = {
+                            url: topic.pdf_url,
+                            file: null,
+                            fileName: topic.pdf_file_name || 'Documento PDF'
+                        }
+                        hasTopicPdfs = true
+                    }
+                })
+            }
+
             // Populate material
             setWorkshopMaterial({
-                pdfType: editingProduct.pdf_url ? 'general' : (editingProduct.topic_pdfs ? 'by-topic' : 'none'),
+                pdfType: editingProduct.pdf_url ? 'general' : (hasTopicPdfs ? 'by-topic' : 'none'),
                 pdfFile: null,
                 pdfUrl: editingProduct.pdf_url || null,
-                topicPdfs: editingProduct.topic_pdfs || {}
+                topicPdfs: reconstructedTopicPdfs
             })
 
             // Populate schedule by flattening taller_detalles
-            const details = editingProduct.workshop_details || editingProduct.taller_detalles
             console.log('🔍 [useWorkshopLogic] Found details:', details?.length, details)
             if (details && Array.isArray(details)) {
                 const flatSchedule: any[] = []

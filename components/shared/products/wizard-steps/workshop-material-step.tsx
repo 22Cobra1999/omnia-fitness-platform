@@ -28,7 +28,7 @@ export function WorkshopMaterialStep({
     ]
 
     return (
-        <div className="space-y-5">
+        <div className="space-y-5 min-h-[400px]">
             <div className="space-y-1 px-1">
                 <h3 className="text-xl font-black text-white tracking-tight">Material de Apoyo</h3>
                 <p className="text-[10px] text-gray-500 font-bold uppercase tracking-wider">Configura los documentos del taller</p>

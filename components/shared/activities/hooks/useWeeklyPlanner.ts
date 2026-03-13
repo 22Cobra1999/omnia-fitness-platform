@@ -130,7 +130,7 @@ export function useWeeklyPlanner({
         const pool = Array.from(registry.values()).map((row, index) => {
             const isNut = productCategory === 'nutricion' || productCategory === 'nutrition'
             if (isNut) {
-                const type = normalizeNutritionType(row['Tipo'] || row.tipo || 'otro')
+                const type = normalizeNutritionType(row['Tipo'] || row.tipo || row.type || row.categoria || row.category || 'otro')
                 return {
                     id: row.id || `nutrition-${index}`,
                     name: row['Nombre'] || row.nombre || `Plato ${index + 1}`,

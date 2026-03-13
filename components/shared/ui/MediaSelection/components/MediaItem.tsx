@@ -1,6 +1,6 @@
 import { motion } from 'framer-motion'
 import Image from 'next/image'
-import { Play, Check } from 'lucide-react'
+import { Play, Check, Video, Image as ImageIcon } from 'lucide-react'
 import { UniversalVideoPlayer } from '@/components/shared/video/universal-video-player'
 import { CoachMedia, MediaType } from '../types'
 
@@ -55,10 +55,18 @@ export function MediaItem({
                 {coverSrc ? (
                     <Image src={coverSrc} alt={item.filename} fill className="object-cover" />
                 ) : (
-                    <div className="w-full h-full flex items-center justify-center text-gray-500 text-xs">
-                        {mediaType === 'video' && item.video_url ? (
-                            <video src={item.video_url} className="w-full h-full object-cover" muted playsInline preload="metadata" />
-                        ) : 'Sin preview'}
+                    <div className="w-full h-full flex flex-col items-center justify-center text-gray-600 bg-white/5 gap-2">
+                        {mediaType === 'video' && (item.video_url || item.bunny_video_id) ? (
+                            <>
+                                <Video className="w-6 h-6 opacity-30" />
+                                <span className="text-[10px] font-bold uppercase tracking-widest opacity-30">Video</span>
+                            </>
+                        ) : (
+                            <>
+                                <ImageIcon className="w-6 h-6 opacity-30" />
+                                <span className="text-[10px] font-bold uppercase tracking-widest opacity-30">Sin Portada</span>
+                            </>
+                        )}
                     </div>
                 )}
 

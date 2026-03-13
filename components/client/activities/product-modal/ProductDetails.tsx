@@ -2,7 +2,7 @@
 
 import React from 'react'
 import Image from 'next/image'
-import { Calendar, Star, ChevronRight, Zap, Clock, Dumbbell, Users, Video, MapPin, UtensilsCrossed, Flame } from 'lucide-react'
+import { Calendar, Star, ChevronRight, Zap, Clock, Dumbbell, Users, Video, MapPin, UtensilsCrossed, Flame, FileText } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 
 interface ProductDetailsProps {
@@ -58,6 +58,10 @@ export function ProductDetails({ product, logic }: ProductDetailsProps) {
         }[diet.toLowerCase()] || diet
         return <div className="flex items-center gap-1 text-[#FF7939]"><UtensilsCrossed className="w-4 h-4" /><span className="text-sm font-medium">{friendly}</span></div>
     }
+
+    const hasPdf = !!product.pdf_url || 
+        (Array.isArray(product.workshop_details || product.taller_detalles) && 
+            (product.workshop_details || product.taller_detalles).some((t: any) => !!t.pdf_url))
 
     return (
         <div className="px-6 space-y-5">
@@ -171,9 +175,18 @@ export function ProductDetails({ product, logic }: ProductDetailsProps) {
                     </div>
                 </div>
 
-                {includedMeetCredits > 0 && (
-                    <div className="col-span-3 flex justify-center mt-1 bg-[#FF7939]/5 border border-[#FF7939]/10 py-1.5 rounded-lg text-[#FF7939]">
-                        <div className="flex items-center gap-2"><Video className="h-3 w-3" /><span className="text-[9px] font-bold uppercase tracking-widest">{includedMeetCredits} meets incluidos</span></div>
+                {(includedMeetCredits > 0 || hasPdf) && (
+                    <div className="col-span-3 flex flex-col gap-1.5 mt-1">
+                        {includedMeetCredits > 0 && (
+                            <div className="w-full flex justify-center bg-[#FF7939]/5 border border-[#FF7939]/10 py-1.5 rounded-lg text-[#FF7939]">
+                                <div className="flex items-center gap-2"><Video className="h-3 w-3" /><span className="text-[9px] font-bold uppercase tracking-widest">{includedMeetCredits} meets incluidos</span></div>
+                            </div>
+                        )}
+                        {hasPdf && product.type === 'workshop' && (
+                            <div className="w-full flex justify-center bg-blue-500/5 border border-blue-500/10 py-1.5 rounded-lg text-blue-400">
+                                <div className="flex items-center gap-2"><FileText className="h-3 w-3" /><span className="text-[9px] font-bold uppercase tracking-widest">Incluye material PDF</span></div>
+                            </div>
+                        )}
                     </div>
                 )}
             </div>

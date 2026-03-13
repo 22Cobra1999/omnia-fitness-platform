@@ -1,6 +1,6 @@
 
 import React, { useState, useEffect, useRef, useMemo, useCallback } from 'react'
-import { ChevronUp, ChevronDown, Flame, Clock } from 'lucide-react'
+import { ChevronUp, ChevronDown, Flame, Clock, Minus, Plus } from 'lucide-react'
 import { Exercise, DaySchedulePayload } from './planner-types'
 import {
     DAYS,
@@ -292,6 +292,15 @@ export function DayExercisesModal({
                         <p className="text-gray-400 text-sm italic font-light">Organiza {isNutrition ? 'platos' : 'ejercicios'} en bloques</p>
                     </div>
 
+                    <div className="flex flex-col items-end gap-2 ml-auto mr-4">
+                        <button 
+                            onClick={() => setExercisesLocal([])} 
+                            className="bg-red-500/10 hover:bg-red-500/20 text-red-500 border border-red-500/30 px-3 py-1 rounded-full text-[10px] font-black uppercase tracking-tighter transition-colors"
+                        >
+                            Vaciar día
+                        </button>
+                    </div>
+
                     {/* Daily Totals Summary */}
                     <div className="flex items-center gap-3">
                         {(() => {
@@ -335,14 +344,22 @@ export function DayExercisesModal({
                         })()}
 
                         <div className="flex items-center gap-3">
-                            <button onClick={() => setExercisesLocal([])} className="text-xs text-[#FF7939] hover:text-[#FF6B35]">Vaciar</button>
                             <button onClick={onClose} className="text-gray-400 hover:text-white text-xl">✕</button>
                         </div>
                     </div>
                 </div>
                 <div className="overflow-auto flex-1 pb-[400px]">
                     <div className="flex items-center justify-between mb-4 w-full">
-                        <div className="flex items-center gap-2 flex-1"><span className="text-white text-sm">Bloques:</span><button onClick={() => distributeEvenly(blockCount - 1)} className="w-7 h-7 rounded-md border border-[#FF7939] text-[#FF7939]">-</button><span className="text-[#FF7939] text-sm w-6 text-center">{blockCount}</span><button onClick={() => distributeEvenly(isNutrition ? Math.min(blockNameOptions.length, blockCount + 1) : blockCount + 1)} className="w-7 h-7 rounded-md border border-[#FF7939] text-[#FF7939]">+</button></div>
+                        <div className="flex items-center gap-2 flex-1">
+                          <span className="text-white text-sm">Bloques:</span>
+                          <button onClick={() => distributeEvenly(blockCount - 1)} className="w-7 h-7 rounded-md border border-[#FF7939] text-[#FF7939] flex items-center justify-center">
+                            <Minus className="w-4 h-4" />
+                          </button>
+                          <span className="text-[#FF7939] text-sm w-6 text-center">{blockCount}</span>
+                          <button onClick={() => distributeEvenly(isNutrition ? Math.min(blockNameOptions.length, blockCount + 1) : blockCount + 1)} className="w-7 h-7 rounded-md border border-[#FF7939] text-[#FF7939] flex items-center justify-center">
+                            <Plus className="w-4 h-4" />
+                          </button>
+                        </div>
                     </div>
                     <hr className="border-white/10 mb-6" />
 

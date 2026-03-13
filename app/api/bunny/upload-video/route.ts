@@ -26,16 +26,16 @@ export async function POST(request: NextRequest) {
 
     const formData = await request.formData()
     const file = formData.get('file') as File
+    if (!file) {
+      return NextResponse.json({ error: 'No se proporcionó archivo' }, { status: 400 })
+    }
+
     const requestedTitleRaw = formData.get('title')
     const requestedTitle = typeof requestedTitleRaw === 'string' ? requestedTitleRaw.trim() : ''
     const title = (requestedTitle && requestedTitle.length > 0 ? requestedTitle : file.name)
     const exerciseId = formData.get('exerciseId') as string
     const activityId = formData.get('activityId') as string
     const mediaId = formData.get('mediaId') as string // Para actualizar activity_media
-
-    if (!file) {
-      return NextResponse.json({ error: 'No se proporcionó archivo' }, { status: 400 })
-    }
 
     const normalizedFileName =
       typeof title === 'string' && title.trim().length > 0

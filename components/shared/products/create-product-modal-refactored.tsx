@@ -189,6 +189,7 @@ export default function CreateProductModal({ isOpen, onClose, editingProduct, in
     coachCatalogError,
     coachCatalogExercises,
     coachCatalogLoading,
+    totalSales,
     user,
     planType
   } = useCreateProductLogic({ isOpen, onClose, editingProduct, initialStep, showDateChangeNotice })
@@ -205,11 +206,7 @@ export default function CreateProductModal({ isOpen, onClose, editingProduct, in
       setShowConfirmTypeChange(true)
     } else {
       setSelectedType(type)
-      if (type === 'program') {
-        setCurrentStep('programType')
-      } else {
-        setCurrentStep('general')
-      }
+      setCurrentStep('programType')
     }
   }
 
@@ -226,11 +223,7 @@ export default function CreateProductModal({ isOpen, onClose, editingProduct, in
   const confirmTypeChange = () => {
     if (pendingTypeChange) {
       setSelectedType(pendingTypeChange)
-      if (pendingTypeChange === 'program') {
-        setCurrentStep('programType')
-      } else {
-        setCurrentStep('general')
-      }
+      setCurrentStep('programType')
       clearPersistentState()
     }
     setShowConfirmTypeChange(false)
@@ -276,7 +269,7 @@ export default function CreateProductModal({ isOpen, onClose, editingProduct, in
           initial={{ opacity: 0 }}
           animate={{ opacity: 1 }}
           exit={{ opacity: 0 }}
-          className="fixed inset-0 bg-black/40 backdrop-blur-[2px] z-[100] flex items-center justify-center px-4 pt-16 pb-16 sm:pt-20 sm:pb-20"
+          className="fixed inset-0 bg-black/60 backdrop-blur-sm z-[100] flex items-center justify-center px-2 sm:px-4 pt-[90px] pb-[110px] sm:pb-[100px] sm:pt-20"
           onClick={(e) => {
             // Cerrar solo si se hace click en el overlay, no en el modal
             if (e.target === e.currentTarget) {
@@ -285,10 +278,10 @@ export default function CreateProductModal({ isOpen, onClose, editingProduct, in
           }}
         >
           <motion.div
-            initial={{ scale: 0.95, opacity: 0 }}
-            animate={{ scale: 1, opacity: 1 }}
-            exit={{ scale: 0.95, opacity: 0 }}
-            className="bg-[#0B0B0B] rounded-2xl max-w-[98vw] w-full h-[92vh] overflow-hidden flex flex-col border border-white/10 shadow-2xl"
+            initial={{ scale: 0.95, opacity: 0, y: 20 }}
+            animate={{ scale: 1, opacity: 1, y: 0 }}
+            exit={{ scale: 0.95, opacity: 0, y: 20 }}
+            className="bg-[#0B0B0B] rounded-2xl max-w-[98vw] w-full h-auto max-h-full sm:max-h-[92vh] overflow-hidden flex flex-col border border-white/10 shadow-2xl"
             onClick={(e) => e.stopPropagation()}
           >
             {/* Header del modal */}
@@ -348,7 +341,8 @@ export default function CreateProductModal({ isOpen, onClose, editingProduct, in
                     objectiveOptions,
                     restrictionOptions,
                     planType,
-                    planLimit: getPlanLimit(planType as any, 'stockPerProduct')
+                    planLimit: getPlanLimit(planType as any, 'stockPerProduct'),
+                    totalSales
                   }}
                   actions={{
                     setGeneralForm,
@@ -393,6 +387,8 @@ export default function CreateProductModal({ isOpen, onClose, editingProduct, in
                   workshopSchedule={workshopSchedule}
                   setWorkshopSchedule={setWorkshopSchedule}
                   setWeeklyStats={setWeeklyStats}
+                  totalSales={totalSales}
+                  editingProduct={editingProduct}
                 />
               )}
 
@@ -474,7 +470,6 @@ export default function CreateProductModal({ isOpen, onClose, editingProduct, in
         onClose={() => setIsMediaModalOpen(false)}
         onMediaSelected={handleMediaSelection}
         mediaType={mediaModalType}
-        className="z-[150]"
       />
 
       {/* Modal de selección de videos de ejercicios */}
@@ -501,7 +496,6 @@ export default function CreateProductModal({ isOpen, onClose, editingProduct, in
         onClose={() => setIsPdfModalOpen(false)}
         onMediaSelected={(url, type, file, name) => handlePdfSelected(url, type, file, name)}
         mediaType="pdf"
-        className="z-[150]"
       />
 
       {/* Modal de confirmación de cierre */}

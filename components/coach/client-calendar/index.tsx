@@ -4,6 +4,7 @@ import { useState, useEffect, useRef } from "react"
 import { useRouter } from 'next/navigation'
 import { createClient } from '@/lib/supabase/supabase-client'
 import { OmniaLoader } from "@/components/shared/ui/omnia-loader"
+import { PanelGroup, Panel, PanelResizeHandle } from "react-resizable-panels"
 
 // Types & Utils
 import { ClientCalendarProps, ExerciseExecution, DayData, ClientDaySummaryRow, ActivityFilterOption } from './types'
@@ -81,6 +82,7 @@ export function ClientCalendar({ clientId, onLastWorkoutUpdate, onDaySelected, e
   } = useFitness(supabase, clientId, fetchClientCalendarSummary, loadDayActivityDetails, setCascadeModal, setLoading)
 
   const [expandedActivityKeys, setExpandedActivityKeys] = useState<Record<string, boolean>>({})
+  const [lastExpandedEnrollmentId, setLastExpandedEnrollmentId] = useState<number | null>(null)
 
   // Date Mutation State
   const [isSelectingNewDate, setIsSelectingNewDate] = useState(false)
@@ -110,9 +112,29 @@ export function ClientCalendar({ clientId, onLastWorkoutUpdate, onDaySelected, e
       setTargetDayForEdit(date); setNewDate(date); setShowConfirmModal(true)
       return
     }
-    setSelectedDate(date); setActivityDetailsByKey({})
+
+    const dayStr = date.toISOString().split('T')[0]
+    setSelectedDate(date)
+    // We don't clear activityDetailsByKey anymore to allow smoother transitions
     setSelectedDayForEdit(null); setTargetDayForEdit(null)
     onDaySelected?.()
+
+    // Sync logic: if we have a lastExpandedEnrollmentId, try to find it on the new day
+    if (lastExpandedEnrollmentId) {
+      const dayRows = summaryRowsByDate[dayStr] || []
+      const match = dayRows.find(r => r.enrollment_id === lastExpandedEnrollmentId || r.activity_id === lastExpandedEnrollmentId)
+      if (match) {
+        const activityId = match.activity_id ? Number(match.activity_id) : null
+        const eventId = match.calendar_event_id
+        const expandedKey = activityId ? `${dayStr}::${String(activityId)}` : (eventId ? `${dayStr}::event::${eventId}` : null)
+        
+        if (expandedKey) {
+          setExpandedActivityKeys(prev => ({ ...prev, [expandedKey]: true }))
+          if (activityId) loadDayActivityDetails(dayStr, activityId)
+          if (eventId) loadEventDetails(eventId)
+        }
+      }
+    }
   }
 
   const handleEditDate = (date: Date) => {
@@ -164,77 +186,120 @@ export function ClientCalendar({ clientId, onLastWorkoutUpdate, onDaySelected, e
 
   return (
     <div className="w-full bg-black min-h-screen text-white font-sans selection:bg-[#FF7939]/30">
-      {/* Desktop: side-by-side | Mobile: stacked */}
-      <div className="flex flex-col md:flex-row md:gap-0 w-full">
-
+      <PanelGroup direction="horizontal" className="w-full">
         {/* ── LEFT: Calendar (70%) ── */}
-        <div className="flex-1 md:max-w-[70%] flex flex-col gap-4 p-4 md:p-6 md:border-r md:border-zinc-800/60">
-
-          {/* Activity filter bubbles — only in calendar column */}
-          {activityFilterOptions.length > 0 && (
-            <div className="w-full overflow-x-auto scrollbar-none">
-              <div className="flex gap-1.5 whitespace-nowrap pb-0.5">
-                <button
-                  onClick={() => setActiveEnrollmentFilterId(null)}
-                  className={`px-3 py-1 rounded-full text-[11px] font-bold transition-all ${
-                    !activeEnrollmentFilterId
-                      ? 'bg-[#FF7939] text-black shadow-sm'
-                      : 'bg-zinc-800/60 text-zinc-400 hover:bg-zinc-700/60 hover:text-zinc-200'
-                  }`}
-                >
-                  Todos
-                </button>
-                {activityFilterOptions.map(opt => (
+        <Panel defaultSize={70} minSize={30} className="flex flex-col">
+          <div className="h-full flex flex-col gap-4 p-4 md:p-6 overflow-y-auto border-r border-zinc-800/60">
+            {/* Activity filter bubbles — only in calendar column */}
+            {activityFilterOptions.length > 0 && (
+              <div className="w-full overflow-x-auto scrollbar-none">
+                <div className="flex gap-1.5 whitespace-nowrap pb-0.5">
                   <button
-                    key={opt.enrollment_id}
-                    onClick={() => setActiveEnrollmentFilterId(opt.enrollment_id)}
-                    className={`px-3 py-1 rounded-full text-[11px] font-bold transition-all max-w-[160px] ${
-                      activeEnrollmentFilterId === opt.enrollment_id
+                    onClick={() => setActiveEnrollmentFilterId(null)}
+                    className={`px-3 py-1 rounded-full text-[11px] font-bold transition-all ${
+                      !activeEnrollmentFilterId
                         ? 'bg-[#FF7939] text-black shadow-sm'
                         : 'bg-zinc-800/60 text-zinc-400 hover:bg-zinc-700/60 hover:text-zinc-200'
                     }`}
                   >
-                    <span className="block truncate">{opt.title}</span>
+                    Todos
                   </button>
-                ))}
+                  {activityFilterOptions.map(opt => (
+                    <button
+                      key={opt.enrollment_id}
+                      onClick={() => setActiveEnrollmentFilterId(opt.enrollment_id)}
+                      className={`px-3 py-1 rounded-full text-[11px] font-bold transition-all max-w-[160px] ${
+                        activeEnrollmentFilterId === opt.enrollment_id
+                          ? 'bg-[#FF7939] text-black shadow-sm'
+                          : 'bg-zinc-800/60 text-zinc-400 hover:bg-zinc-700/60 hover:text-zinc-200'
+                      }`}
+                    >
+                      <span className="block truncate">{opt.title}</span>
+                    </button>
+                  ))}
+                </div>
               </div>
-            </div>
-          )}
+            )}
 
-          <CalendarHeader
-            currentDate={currentDate} showMonthPicker={showMonthPicker} monthPickerYear={monthPickerYear}
-            setMonthPickerYear={setMonthPickerYear} goToPreviousMonth={goToPreviousMonth} goToNextMonth={goToNextMonth}
-            toggleMonthPicker={toggleMonthPicker} monthlyProgress={monthlyProgress} monthNames={monthNames}
-          />
+            <CalendarHeader
+              currentDate={currentDate} showMonthPicker={showMonthPicker} monthPickerYear={monthPickerYear}
+              setMonthPickerYear={setMonthPickerYear} goToPreviousMonth={goToPreviousMonth} goToNextMonth={goToNextMonth}
+              toggleMonthPicker={toggleMonthPicker} monthlyProgress={monthlyProgress} monthNames={monthNames}
+            />
 
-          {showMonthPicker && (
-            <div className="w-full overflow-x-auto">
-              <div className="flex gap-2 whitespace-nowrap pb-1">
-                {monthNames.map((m, idx) => (
-                  <button key={m} onClick={() => handleSelectMonth(idx)}
-                    className={`px-3 py-1 rounded-full text-xs font-semibold ${monthPickerYear === currentDate.getFullYear() && idx === currentDate.getMonth() ? 'bg-[#FF7939] text-white' : 'bg-zinc-800/60 text-gray-300'}`}>
-                    {m}
-                  </button>
-                ))}
+            {showMonthPicker && (
+              <div className="w-full overflow-x-auto">
+                <div className="flex gap-2 whitespace-nowrap pb-1">
+                  {monthNames.map((m, idx) => (
+                    <button key={m} onClick={() => handleSelectMonth(idx)}
+                      className={`px-3 py-1 rounded-full text-xs font-semibold ${monthPickerYear === currentDate.getFullYear() && idx === currentDate.getMonth() ? 'bg-[#FF7939] text-white' : 'bg-zinc-800/60 text-gray-300'}`}>
+                      {m}
+                    </button>
+                  ))}
+                </div>
               </div>
-            </div>
-          )}
+            )}
 
-          <CalendarGrid
-            days={generateCalendarDays()} currentDate={currentDate} selectedDate={selectedDate}
-            handleDayClick={handleDayClick} summaryRowsByDate={filteredSummaryRows}
-            monthlyProgress={monthlyProgress} currentCoachId={currentCoachId} clientId={clientId}
-            selectedDayForEdit={selectedDayForEdit} targetDayForEdit={targetDayForEdit}
-            dayNames={dayNames} getDayData={getDayData}
-          />
-          {/* Mobile: Day Details below calendar */}
-          <div ref={dayDetailRef} className="md:hidden">
-            {selectedDate && (
+            <CalendarGrid
+              days={generateCalendarDays()} currentDate={currentDate} selectedDate={selectedDate}
+              handleDayClick={handleDayClick} summaryRowsByDate={filteredSummaryRows}
+              monthlyProgress={monthlyProgress} currentCoachId={currentCoachId} clientId={clientId}
+              selectedDayForEdit={selectedDayForEdit} targetDayForEdit={targetDayForEdit}
+              dayNames={dayNames} getDayData={getDayData}
+            />
+            {/* Mobile: Day Details below calendar */}
+            <div ref={dayDetailRef} className="md:hidden mt-6">
+              {selectedDate && (
+                <DayDetailsPanel
+                  selectedDate={selectedDate} summaryRowsByDate={summaryRowsByDate}
+                  currentCoachId={currentCoachId} clientId={clientId}
+                  isSelectingNewDate={isSelectingNewDate} handleEditDate={handleEditDate}
+                  expandedActivityKeys={expandedActivityKeys} setExpandedActivityKeys={setExpandedActivityKeys}
+                  onActivityExpanded={(row: ClientDaySummaryRow) => {
+                    setLastExpandedEnrollmentId(row.enrollment_id ?? row.activity_id ?? null)
+                  }}
+                  loadDayActivityDetails={loadDayActivityDetails} loadEventDetails={loadEventDetails}
+                  eventDetailsByKey={eventDetailsByKey} activityDetailsByKey={activityDetailsByKey}
+                  nutritionPlateOptionsByActivity={nutritionPlateOptionsByActivity}
+                  canEditNutritionForDay={canEditNutritionForDay} canEditFitnessForDay={canEditFitnessForDay}
+                  handleEditNutrition={handleEditNutrition} editingExerciseId={editingExerciseId}
+                  editingOriginalExercise={editingOriginalExercise}
+                  setEditingExerciseId={setEditingExerciseId} setEditingOriginalExercise={setEditingOriginalExercise}
+                  loadAvailableExercises={loadAvailableExercises} showExerciseDropdown={showExerciseDropdown}
+                  setShowExerciseDropdown={setShowExerciseDropdown} availableExercises={availableExercises}
+                  handleChangeExercise={handleChangeExercise} editingNutritionId={editingNutritionId}
+                  editingNutritionPlateId={editingNutritionPlateId}
+                  editingNutritionMacros={editingNutritionMacros} setEditingNutritionPlateId={setEditingNutritionPlateId}
+                  setEditingNutritionMacros={setEditingNutritionMacros} handleOpenIngredients={handleOpenIngredients}
+                  handleSaveNutrition={handleSaveNutrition} handleCancelNutrition={handleCancelNutrition}
+                  setConfirmDeleteNutritionId={setConfirmDeleteNutritionId} router={router}
+                  handleEditFitness={handleEditFitness} handleSaveFitness={handleSaveFitness}
+                  handleCancelFitness={handleCancelFitness} editingFitnessValues={editingFitnessValues}
+                  setEditingFitnessValues={setEditingFitnessValues}
+                  loading={loading}
+                />
+              )}
+            </div>
+          </div>
+        </Panel>
+
+        <PanelResizeHandle className="hidden md:flex w-1.5 items-center justify-center bg-transparent group relative hover:bg-[#FF7939]/10 transition-colors cursor-col-resize">
+          <div className="w-[1px] h-12 bg-zinc-800/60 group-hover:bg-[#FF7939]/40 group-active:bg-[#FF7939] transition-colors" />
+        </PanelResizeHandle>
+
+        {/* ── RIGHT: Day Details Panel (desktop only) ── */}
+        <Panel defaultSize={30} minSize={20} className="hidden md:flex flex-col">
+          <div className="h-full flex flex-col p-5 overflow-y-auto">
+            {selectedDate ? (
               <DayDetailsPanel
                 selectedDate={selectedDate} summaryRowsByDate={summaryRowsByDate}
                 currentCoachId={currentCoachId} clientId={clientId}
                 isSelectingNewDate={isSelectingNewDate} handleEditDate={handleEditDate}
-                expandedActivityKeys={expandedActivityKeys} setExpandedActivityKeys={setExpandedActivityKeys}
+                expandedActivityKeys={expandedActivityKeys} 
+                setExpandedActivityKeys={setExpandedActivityKeys}
+                onActivityExpanded={(row: ClientDaySummaryRow) => {
+                  setLastExpandedEnrollmentId(row.enrollment_id ?? row.activity_id ?? null)
+                }}
                 loadDayActivityDetails={loadDayActivityDetails} loadEventDetails={loadEventDetails}
                 eventDetailsByKey={eventDetailsByKey} activityDetailsByKey={activityDetailsByKey}
                 nutritionPlateOptionsByActivity={nutritionPlateOptionsByActivity}
@@ -255,48 +320,17 @@ export function ClientCalendar({ clientId, onLastWorkoutUpdate, onDaySelected, e
                 setEditingFitnessValues={setEditingFitnessValues}
                 loading={loading}
               />
+            ) : (
+              <div className="flex flex-col items-center justify-center h-full text-center">
+                <div className="w-8 h-8 rounded-full border border-zinc-800 flex items-center justify-center mb-3">
+                  <span className="text-zinc-700 text-sm">→</span>
+                </div>
+                <p className="text-xs text-zinc-600">Seleccioná un día para ver los detalles</p>
+              </div>
             )}
           </div>
-        </div>
-
-        {/* ── RIGHT: Day Details Panel (30%, desktop only) ── */}
-        <div className="hidden md:flex md:w-[30%] flex-col p-5 sticky top-0 self-start" style={{ maxHeight: '100vh', overflowY: 'auto' }}>
-          {selectedDate ? (
-            <DayDetailsPanel
-              selectedDate={selectedDate} summaryRowsByDate={summaryRowsByDate}
-              currentCoachId={currentCoachId} clientId={clientId}
-              isSelectingNewDate={isSelectingNewDate} handleEditDate={handleEditDate}
-              expandedActivityKeys={expandedActivityKeys} setExpandedActivityKeys={setExpandedActivityKeys}
-              loadDayActivityDetails={loadDayActivityDetails} loadEventDetails={loadEventDetails}
-              eventDetailsByKey={eventDetailsByKey} activityDetailsByKey={activityDetailsByKey}
-              nutritionPlateOptionsByActivity={nutritionPlateOptionsByActivity}
-              canEditNutritionForDay={canEditNutritionForDay} canEditFitnessForDay={canEditFitnessForDay}
-              handleEditNutrition={handleEditNutrition} editingExerciseId={editingExerciseId}
-              editingOriginalExercise={editingOriginalExercise}
-              setEditingExerciseId={setEditingExerciseId} setEditingOriginalExercise={setEditingOriginalExercise}
-              loadAvailableExercises={loadAvailableExercises} showExerciseDropdown={showExerciseDropdown}
-              setShowExerciseDropdown={setShowExerciseDropdown} availableExercises={availableExercises}
-              handleChangeExercise={handleChangeExercise} editingNutritionId={editingNutritionId}
-              editingNutritionPlateId={editingNutritionPlateId}
-              editingNutritionMacros={editingNutritionMacros} setEditingNutritionPlateId={setEditingNutritionPlateId}
-              setEditingNutritionMacros={setEditingNutritionMacros} handleOpenIngredients={handleOpenIngredients}
-              handleSaveNutrition={handleSaveNutrition} handleCancelNutrition={handleCancelNutrition}
-              setConfirmDeleteNutritionId={setConfirmDeleteNutritionId} router={router}
-              handleEditFitness={handleEditFitness} handleSaveFitness={handleSaveFitness}
-              handleCancelFitness={handleCancelFitness} editingFitnessValues={editingFitnessValues}
-              setEditingFitnessValues={setEditingFitnessValues}
-              loading={loading}
-            />
-          ) : (
-            <div className="flex flex-col items-center justify-center h-48 text-center">
-              <div className="w-8 h-8 rounded-full border border-zinc-800 flex items-center justify-center mb-3">
-                <span className="text-zinc-700 text-sm">→</span>
-              </div>
-              <p className="text-xs text-zinc-600">Seleccioná un día para ver los detalles</p>
-            </div>
-          )}
-        </div>
-      </div>
+        </Panel>
+      </PanelGroup>
 
       {cascadeModal && <CascadeModal cascadeModal={cascadeModal} setCascadeModal={setCascadeModal} handleApplyCascade={handleApplyCascade} />}
       <IngredientsModal showIngredientsModal={showIngredientsModal} setShowIngredientsModal={setShowIngredientsModal} editingNutritionExercise={editingNutritionExercise} editingIngredientsList={editingIngredientsList} setEditingIngredientsList={setEditingIngredientsList} handleSaveNutrition={handleSaveNutrition} />

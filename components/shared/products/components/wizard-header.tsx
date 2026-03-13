@@ -15,7 +15,7 @@ export const WizardHeader: React.FC<WizardHeaderProps> = ({
     handleClose
 }) => {
     return (
-        <div className="flex items-center justify-between p-4 sm:p-6 border-b border-white/10 bg-[#0b0b0b]">
+        <div className="flex items-center justify-between p-3 sm:p-6 border-b border-white/10 bg-[#0b0b0b]">
             <div className="flex items-center gap-4">
                 <button
                     onClick={() => handleClose()}
@@ -23,7 +23,7 @@ export const WizardHeader: React.FC<WizardHeaderProps> = ({
                 >
                     <X className="h-6 w-6" />
                 </button>
-                <h2 className="text-xl font-bold text-white">
+                <h2 className="text-lg sm:text-xl font-bold text-white">
                     {currentStep === 'type' ? 'Tipo de producto' :
                         currentStep === 'programType' ? 'Categoría' :
                             currentStep === 'general' ? 'Información General' :

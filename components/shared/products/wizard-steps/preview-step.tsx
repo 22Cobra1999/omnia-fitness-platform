@@ -45,6 +45,8 @@ export function PreviewStep({
         description: generalForm.description || (editingProduct as any)?.description || '',
         categoria: productCategory === 'nutricion' ? 'nutricion' : 'fitness',
         difficulty: specificForm.level || (editingProduct as any)?.difficulty || 'beginner',
+        modality: generalForm.modality || (editingProduct as any)?.modality || 'online',
+        is_public: generalForm.is_public !== undefined ? generalForm.is_public : ((editingProduct as any)?.is_public ?? true),
         ...(selectedType === 'workshop'
             ? (() => {
                 const now = new Date()
@@ -63,15 +65,19 @@ export function PreviewStep({
                     semanas_totales: derivedPreviewStats.semanas,
                     // Forzar estado activo en preview si hay fechas futuras
                     taller_activo: hasFuture,
-                    is_finished: !hasFuture
+                    is_finished: !hasFuture,
+                    workshop_mode: generalForm.workshop_mode || 'grupal'
                 }
             })()
             : {}),
         // Mostrar objetivos seleccionados en el preview
         objetivos: generalForm.objetivos || [],
-        ...(generalForm.image && typeof generalForm.image === 'object' && 'url' in generalForm.image
-            ? { image_url: (generalForm.image as any).url }
-            : {}),
+        // Media Persistence for Preview
+        image_url: generalForm.image ? (
+            typeof generalForm.image === 'string' ? generalForm.image :
+            (generalForm.image as any).url || (generalForm.image as any).preview
+        ) : (editingProduct as any)?.image_url || null,
+        video_url: generalForm.videoUrl || (editingProduct as any)?.video_url || null,
         // Reflejar siempre el precio actual del formulario
         price: (() => {
             const parsed = parseFloat(String(generalForm.price ?? '').replace(',', '.'))
@@ -96,8 +102,8 @@ export function PreviewStep({
             items_totales: documentMaterial.topics.filter(t => t.saved).length,
             sesiones_dias_totales: 0,
             capacity: generalForm.capacity === 'limitada'
-                ? parseInt(generalForm.stockQuantity) || 0
-                : 999
+                ? (Math.max(0, parseInt(generalForm.stockQuantity || '0')))
+                : 999999
         } : {
             // Para programas/talleres: usar estadísticas calculadas en vivo
             items_unicos: derivedPreviewStats.ejerciciosUnicos,
@@ -110,7 +116,7 @@ export function PreviewStep({
             // If capacity is 'limitada', use stockQuantity.
             // If capacity is 'ilimitada' (or anything else), use a safe 'infinity' number (999999) consistent with backend logic.
             capacity: generalForm.capacity === 'limitada'
-                ? (parseInt(generalForm.stockQuantity) || 0)
+                ? (Math.max(0, parseInt(generalForm.stockQuantity || '0')))
                 : 999999
         }),
         previewStats: {
@@ -130,6 +136,7 @@ export function PreviewStep({
         } : {}),
         // Agregar información del coach para que se muestre en preview
         coach_name: (editingProduct as any)?.coach_name || (user as any)?.user_metadata?.full_name || (user as any)?.user_metadata?.name || user?.email?.split('@')[0] || 'Coach',
+        coach_avatar_url: (editingProduct as any)?.coach_avatar_url || (user as any)?.user_metadata?.avatar_url || (user as any)?.user_metadata?.picture || null,
         coach_rating: (editingProduct as any)?.coach_rating || 0,
         // Agregar meet credits si están configurados (desde form o desde DB)
         included_meet_credits: generalForm.included_meet_credits || (editingProduct as any)?.included_meet_credits || 0

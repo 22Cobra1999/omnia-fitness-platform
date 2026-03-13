@@ -45,6 +45,7 @@ interface DaySummaryRowProps {
     handleCancelFitness: () => void
     editingFitnessValues: any
     setEditingFitnessValues: (values: any) => void
+    onActivityExpanded?: (row: SummaryRowType) => void
     loading: boolean
 }
 
@@ -64,7 +65,7 @@ export const DaySummaryRow: React.FC<DaySummaryRowProps> = ({
     handleOpenIngredients, handleSaveNutrition, handleCancelNutrition,
     setConfirmDeleteNutritionId, router,
     handleEditFitness, handleSaveFitness, handleCancelFitness,
-    editingFitnessValues, setEditingFitnessValues, loading
+    editingFitnessValues, setEditingFitnessValues, onActivityExpanded, loading
 }) => {
     const dropdownRef = useRef<HTMLDivElement>(null)
 
@@ -110,6 +111,7 @@ export const DaySummaryRow: React.FC<DaySummaryRowProps> = ({
                     const next = !expanded
                     setExpandedActivityKeys(prev => ({ ...prev, [expandedKey]: next }))
                     if (next) {
+                        onActivityExpanded?.(row)
                         if (activityId) await loadDayActivityDetails(dayStr, activityId)
                         if (eventId) await loadEventDetails(eventId)
                     }

@@ -84,7 +84,7 @@ export function useProductMediaLogic() {
             setPendingVideoFile(file)
             setIsVideoPreviewActive(true)
 
-            if (inlineFileInputRef.current) inlineFileInputRef.current.value = ''
+            // NO CLEAR: En Safari, vaciar el input abortará la carga del archivo (Error de WebKitBlobResource 1)
 
             setIsInlineUploading(true)
             setUploadProgress(100)
@@ -98,7 +98,7 @@ export function useProductMediaLogic() {
             setPendingImageFile(file)
             setIsVideoPreviewActive(false)
 
-            if (inlineFileInputRef.current) inlineFileInputRef.current.value = ''
+            // NO CLEAR: En Safari, vaciar el input abortará la carga del archivo
 
             setIsInlineUploading(true)
             setUploadProgress(100)

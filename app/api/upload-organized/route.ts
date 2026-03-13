@@ -43,14 +43,9 @@ export async function POST(request: NextRequest) {
       }, { status: 400 })
     }
 
-    // Validar que el archivo tenga un nombre válido
-    if (!file.name || file.name.trim() === '') {
-      console.error('❌ [upload-organized] El archivo no tiene nombre válido')
-      return NextResponse.json({
-        success: false,
-        error: 'El archivo no tiene un nombre válido'
-      }, { status: 400 })
-    }
+    const fileNameSafe = file.name || 'archivo_adjunto'
+    const originalFileName = fileNameSafe
+    // Validar que el archivo tenga un nombre válido (ahora cubierto por el fallback)
 
     // Determinar la carpeta según el tipo de media
     // image  -> images
@@ -65,9 +60,8 @@ export async function POST(request: NextRequest) {
     const coachId = user.id
 
     // Crear un nombre de archivo único
-    const fileExt = file.name.split('.').pop() || 'jpg'
-    const originalFileName = file.name
-    const originalBase = originalFileName.replace(/\.[^/.]+$/, '')
+    const fileExt = fileNameSafe.split('.').pop() || 'jpg'
+    const originalBase = fileNameSafe.replace(/\.[^/.]+$/, '')
     const safeBase = originalBase
       .trim()
       .replace(/\s+/g, '-')

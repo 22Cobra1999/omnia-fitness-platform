@@ -41,8 +41,21 @@ export function MediaSelectionModal({
 
     return (
         <Dialog open={isOpen} onOpenChange={onClose}>
-            <DialogContent className={`max-w-2xl max-h-[85vh] bg-[#0A0A0A] border-[#1A1A1A] overflow-hidden flex flex-col ${className || ''}`}>
-                <DialogHeader>
+            <DialogContent 
+                className={`w-[95vw] sm:max-w-5xl max-h-[90vh] sm:max-h-[85vh] bg-[#0A0A0A] border-white/10 overflow-hidden flex flex-col p-0 shadow-2xl ${className || ''}`}
+                style={{
+                    position: 'fixed',
+                    inset: '0',
+                    margin: 'auto',
+                    zIndex: 9999,
+                    left: '0',
+                    right: '0',
+                    top: '0',
+                    bottom: '0',
+                    transform: 'none' // Disable the transform centering to avoid conflict with inset/margin
+                }}
+            >
+                <DialogHeader className="p-4 sm:p-6 pb-0">
                     <DialogTitle className="text-white text-xl font-semibold">
                         Seleccionar {getMediaTypeLabel(mediaType)} de Portada
                     </DialogTitle>
@@ -72,7 +85,7 @@ export function MediaSelectionModal({
                     )}
                 </DialogHeader>
 
-                <div className="space-y-4 flex flex-col flex-1 min-h-0 mt-4">
+                <div className="space-y-4 flex flex-col flex-1 min-h-0 mt-4 px-4 sm:px-6">
                     {uploading || loading ? (
                         <div className="flex items-center justify-center py-8">
                             <Loader2 className="h-8 w-8 animate-spin text-[#FF7939]" />

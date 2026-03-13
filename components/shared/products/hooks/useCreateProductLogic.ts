@@ -70,6 +70,20 @@ export function useCreateProductLogic({
     const [productCategory, setProductCategory] = useState<'fitness' | 'nutricion'>(
         getInitialCategory() === 'nutrition' ? 'nutricion' : 'fitness'
     )
+    const [totalSales, setTotalSales] = useState<number>(0)
+
+    useEffect(() => {
+        if (editingProduct?.id) {
+            fetch(`/api/activities/${editingProduct.id}/purchase-status`)
+                .then(res => res.json())
+                .then(result => {
+                    if (result.success && result.data) {
+                        setTotalSales(result.data.totalSales || 0)
+                    }
+                })
+                .catch(err => console.error('Error fetching sales:', err))
+        }
+    }, [editingProduct?.id])
 
     useEffect(() => {
         console.log('🔍 [useCreateProductLogic] Init:', {
@@ -300,9 +314,9 @@ export function useCreateProductLogic({
 
     // Media Handlers (bridging hook to UI)
     const handleInlineUploadChangeWrapper = (e: React.ChangeEvent<HTMLInputElement>) => {
+        const file = e.target.files?.[0]
         handleInlineUploadChange(e)
         // Also update generalForm for preview
-        const file = e.target.files?.[0]
         if (!file) return
 
         const realMediaType = file.type.startsWith('video/') ? 'video' : 'image'
@@ -443,7 +457,7 @@ export function useCreateProductLogic({
         weeklyStats, setWeeklyStats,
 
         coachCatalogError, coachCatalogExercises, coachCatalogLoading,
-
+        totalSales,
         user, planType: planType as PlanType
     }
 }

@@ -55,6 +55,7 @@ export interface GeneralFormState {
     modality: string
     included_meet_credits: number
     is_public: boolean
+    is_paused: boolean
     objetivos: string[]
     restricciones: string[]
     capacity: string

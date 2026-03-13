@@ -15,6 +15,8 @@ import {
     MapPin,
     Globe,
     X,
+    Pause,
+    Play
 } from 'lucide-react'
 import { GeneralFormState, SpecificFormState, ProductType, PLAN_COMMISSIONS, PlanType } from '../product-constants'
 import { Button } from '@/components/ui/button'
@@ -41,6 +43,7 @@ interface StepGeneralFormProps {
         isVideoPreviewActive: boolean
         objectiveOptions?: { label: string, options: string[] }[]
         restrictionOptions?: { label: string, options: string[] }[]
+        totalSales?: number
     }
     actions: {
         setGeneralForm: React.Dispatch<React.SetStateAction<GeneralFormState>>
@@ -87,10 +90,10 @@ export const StepGeneralForm: React.FC<StepGeneralFormProps> = ({ state, actions
     const hasCurrentMedia = activeMediaTab === 'image' ? !!generalForm.image : !!generalForm.videoUrl
 
     return (
-        <div className="space-y-8 max-w-xl mx-auto py-4 px-2">
+        <div className="space-y-4 sm:space-y-8 max-w-xl mx-auto py-2 sm:py-4 px-2">
 
             {/* Media Preview & Controls */}
-            <div className="space-y-6">
+            <div className="space-y-4 sm:space-y-6">
                 {/* Preview Frame */}
                 <div className={`${activeMediaTab === 'image' ? 'aspect-[4/5] max-w-[160px]' : 'aspect-video w-full'} rounded-2xl bg-[#0A0A0A] border border-white/10 overflow-hidden relative flex items-center justify-center mx-auto transition-all duration-300 shadow-xl shadow-black/50`}>
                     {activeMediaTab === 'image' ? (
@@ -132,7 +135,7 @@ export const StepGeneralForm: React.FC<StepGeneralFormProps> = ({ state, actions
                 </div>
 
                 {/* Icons Controls */}
-                <div className="flex flex-col items-center gap-4">
+                <div className="flex flex-col items-center gap-2 sm:gap-4">
                     <div className="flex items-center gap-8">
                         <button
                             onClick={() => setActiveMediaTab('image')}
@@ -175,7 +178,7 @@ export const StepGeneralForm: React.FC<StepGeneralFormProps> = ({ state, actions
             </div>
 
             {/* Inputs de Texto */}
-            <div className="space-y-6">
+            <div className="space-y-4 sm:space-y-6">
                 <div className="space-y-2">
                     <label className="text-sm font-bold text-gray-400 uppercase tracking-widest pl-1">Título</label>
                     <Input
@@ -231,7 +234,7 @@ export const StepGeneralForm: React.FC<StepGeneralFormProps> = ({ state, actions
             </div>
 
             {/* Objetivos y Restricciones (Lista Entera) */}
-            <div className="space-y-6">
+            <div className="space-y-4 sm:space-y-6">
                 <div className="space-y-4">
                     <label className="text-sm font-bold text-gray-400 uppercase tracking-widest pl-1">OBJETIVOS</label>
                     <Select onValueChange={(val) => actions.addObjetivo(val)}>
@@ -297,8 +300,44 @@ export const StepGeneralForm: React.FC<StepGeneralFormProps> = ({ state, actions
 
             {/* Planes de Precios y Cupos (Screenshot 4) */}
             <div className="space-y-4 pt-4">
-                <label className="text-sm font-bold text-gray-400 uppercase tracking-widest pl-1">PLAN DE PRECIOS Y CUPOS</label>
+                <div className="flex items-center justify-between pl-1">
+                    <label className="text-sm font-bold text-gray-400 uppercase tracking-widest">PLAN DE PRECIOS Y CUPOS</label>
+                    
+                    {/* Botón de Pausa de Ventas */}
+                    <button
+                        onClick={() => setGeneralForm(prev => ({ ...prev, is_paused: !prev.is_paused }))}
+                        className={`flex items-center gap-2 px-3 py-1.5 rounded-full border transition-all ${
+                            generalForm.is_paused 
+                            ? 'bg-orange-500/10 border-orange-500/30 text-orange-500' 
+                            : 'bg-green-500/10 border-green-500/30 text-green-500'
+                        }`}
+                    >
+                        {generalForm.is_paused ? (
+                            <>
+                                <Play className="h-3 w-3" />
+                                <span className="text-[10px] font-bold uppercase tracking-wider">Reanudar Ventas</span>
+                            </>
+                        ) : (
+                            <>
+                                <Pause className="h-3 w-3" />
+                                <span className="text-[10px] font-bold uppercase tracking-wider">Pausar Ventas</span>
+                            </>
+                        )}
+                    </button>
+                </div>
+
                 <div className="p-6 rounded-2xl border border-white/10 bg-[#0A0A0A] space-y-6">
+                    {(state.totalSales ?? 0) > 0 && (
+                        <div className="bg-orange-500/10 border border-orange-500/20 rounded-xl p-3 mb-2">
+                            <div className="flex gap-2">
+                                <Info className="h-4 w-4 text-orange-500 shrink-0 mt-0.5" />
+                                <p className="text-[10px] text-gray-300 leading-relaxed">
+                                    Este producto tiene <strong className="text-white">{state.totalSales} ventas</strong>. 
+                                    Los cambios en precio y cupos deben ser cuidadosos. Si necesitas cancelar, hazlo desde la <strong className="text-white">Agenda</strong>.
+                                </p>
+                            </div>
+                        </div>
+                    )}
                     <div className="flex items-center gap-3">
                         <div className="flex-1 bg-black/40 rounded-xl border border-white/10 p-1 flex items-center">
                             <span className="px-3 text-xs font-bold text-[#FF7939] uppercase">Cupos</span>

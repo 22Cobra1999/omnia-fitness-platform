@@ -1,6 +1,6 @@
 import { useState, useCallback } from 'react'
 import { ExerciseExecution } from '../types'
-import { parseMaybeJson, updateKeyContainer } from '../utils/data-parsers'
+import { parseMaybeJson, updateKeyContainer, inferMetaFromKey } from '../utils/data-parsers'
 import { getDayName } from '../utils/date-helpers'
 
 export function useFitness(
@@ -246,14 +246,17 @@ export function useFitness(
                 pendKeys: Array.isArray(pend) ? pend : Object.keys(pend)
             })
 
+            const meta = inferMetaFromKey(currentFullKey)
+            const finalPrescription = { ...newPrescription, ...meta, id: Number(ex.ejercicio_id) }
+
             // If a swap happened
             if (oldFullKey && currentFullKey !== oldFullKey) {
                 console.log('[useFitness] Swap detected:', oldFullKey, '->', currentFullKey)
                 
                 pend = updateKeyContainer(pend, oldFullKey, currentFullKey, Number(ex.ejercicio_id))
                 comp = updateKeyContainer(comp, oldFullKey) // Remove from completed if it was there
-                info = updateKeyContainer(info, oldFullKey, currentFullKey)
-                detalles = updateKeyContainer(detalles, oldFullKey, currentFullKey)
+                info = updateKeyContainer(info, oldFullKey, currentFullKey, finalPrescription)
+                detalles = updateKeyContainer(detalles, oldFullKey, currentFullKey, finalPrescription)
                 
                 // Manual update for numeric maps
                 const updateNumericMap = (m: any, ok: string, nk: string, nv: number) => {
@@ -271,8 +274,8 @@ export function useFitness(
                 // Just update values for existing key
                 if (typeof pend === 'object' && !Array.isArray(pend)) pend[currentFullKey] = Number(ex.ejercicio_id)
                 
-                info[currentFullKey] = { ...newPrescription, id: Number(ex.ejercicio_id), orden: 1, bloque: 1 }
-                detalles[currentFullKey] = { ...newPrescription, id: Number(ex.ejercicio_id), orden: 1, bloque: 1 }
+                info[currentFullKey] = finalPrescription
+                detalles[currentFullKey] = finalPrescription
                 seriesMap[currentFullKey] = newSets
                 repsMap[currentFullKey] = newReps
                 pesoMap[currentFullKey] = newKg

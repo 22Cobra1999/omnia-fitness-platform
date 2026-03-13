@@ -156,16 +156,20 @@ export function useClientProductLogic({
                 const userIds = [...new Set(surveys.map((s: any) => s.client_id).filter(Boolean))]
                 const { data: profiles } = await supabase
                     .from('user_profiles')
-                    .select('id, full_name, avatar_url')
+                    .select('id, full_name, avatar_url, role')
                     .in('id', userIds)
 
-                const combined = surveys.map((s: any) => ({
-                    ...s,
-                    user_profiles: profiles?.find((p: any) => p.id === s.client_id) || {
-                        full_name: 'Usuario Anónimo',
-                        avatar_url: null
-                    }
-                }))
+                const combined = surveys
+                    .map((s: any) => ({
+                        ...s,
+                        user_profiles: profiles?.find((p: any) => p.id === s.client_id) || {
+                            full_name: 'Usuario Anónimo',
+                            avatar_url: null,
+                            role: 'client'
+                        }
+                    }))
+                    .filter((s: any) => s.user_profiles.role !== 'coach')
+                
                 setComments(combined)
             }
         } catch (error) {

@@ -79,9 +79,14 @@ export function useWeeklyPlanState({
     productCategory,
     onScheduleChange
 }: UseWeeklyPlanStateProps) {
-    const [weeklySchedule, setWeeklySchedule] = useState<WeeklySchedule>(() =>
-        sanitizeScheduleHelper(initialSchedule || {}, productCategory || '')
-    )
+    const [weeklySchedule, setWeeklySchedule] = useState<WeeklySchedule>(() => {
+        const sanitized = sanitizeScheduleHelper(initialSchedule || {}, productCategory || '')
+        // If empty, ensure at least week 1 exists
+        if (Object.keys(sanitized).length === 0) {
+            return { 1: {} }
+        }
+        return sanitized
+    })
 
     const numberOfWeeks = useMemo(() => Object.keys(weeklySchedule).length, [weeklySchedule])
 

@@ -44,7 +44,7 @@ export const StepProgramType: React.FC<StepProgramTypeProps> = ({
     onSelectWorkshopMode
 }) => {
     return (
-        <div className="space-y-6 max-w-xl mx-auto py-2">
+        <div className="space-y-4 sm:space-y-6 max-w-xl mx-auto py-2">
             {/* Categoría */}
             <div className="space-y-3">
                 <h2 className="text-lg font-bold text-white px-2">¿Cuál es la categoría de tu producto?</h2>

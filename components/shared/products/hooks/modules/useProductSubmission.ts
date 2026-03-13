@@ -106,10 +106,13 @@ export function useProductSubmission() {
                 if (res.ok && data.success) finalVideoUrl = data.streamUrl
             }
 
-            if (typeof finalImageUrl === 'string' && finalImageUrl.trim() === '') finalImageUrl = null
+            if (typeof finalVideoUrl === 'string' && (finalVideoUrl.trim() === '' || finalVideoUrl.startsWith('blob:'))) finalVideoUrl = null
+            if (typeof finalImageUrl === 'string' && (finalImageUrl.trim() === '' || finalImageUrl.startsWith('blob:'))) finalImageUrl = null
 
             // 3. Prepare product data
-            const capacity = generalForm.capacity === 'ilimitada' ? 999999 : (parseInt(generalForm.stockQuantity) || null)
+            const capacityRaw = parseInt(generalForm.stockQuantity)
+            const parsedCapacity = Number.isFinite(capacityRaw) ? Math.max(1, capacityRaw) : 1
+            const capacity = generalForm.capacity === 'ilimitada' ? 999999 : parsedCapacity
 
             // Validate and map difficulty level
             const validLevels = ['beginner', 'intermediate', 'advanced']
@@ -134,6 +137,7 @@ export function useProductSubmission() {
                 type: generalForm.modality || 'online',
                 included_meet_credits: selectedType === 'workshop' ? 0 : (generalForm.included_meet_credits || 0),
                 is_public: generalForm.is_public !== false,
+                is_paused: !!generalForm.is_paused,
                 coach_id: user?.id,
                 image_url: finalImageUrl,
                 video_url: finalVideoUrl,

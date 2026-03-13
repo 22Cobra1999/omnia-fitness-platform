@@ -2,7 +2,7 @@
 
 import React from 'react'
 import Image from 'next/image'
-import { Star, Calendar, Users, User, Globe, Dumbbell, Zap, Lock, Unlock, UtensilsCrossed, Flame, MapPin, RotateCcw, Pause, MonitorSmartphone, Video, FileText, Scale } from 'lucide-react'
+import { Star, Calendar, Users, User, Globe, Dumbbell, Zap, Lock, Unlock, UtensilsCrossed, Flame, MapPin, RotateCcw, Pause, MonitorSmartphone, Video, FileText, Scale, Combine } from 'lucide-react'
 import { cn } from '@/lib/utils/utils'
 import type { Activity } from '@/types/activity'
 
@@ -200,7 +200,7 @@ const ActivityCard: React.FC<ActivityCardProps> = ({
       case 'online': return <Globe className="w-5 h-5" />
       case 'presencial': return <MapPin className="w-5 h-5" />
       case 'híbrido':
-      case 'hibrido': return <Scale className="w-5 h-5" />
+      case 'hibrido': return <Combine className="w-5 h-5" />
       default: return <Globe className="w-5 h-5" />
     }
   }
@@ -395,7 +395,7 @@ const ActivityCard: React.FC<ActivityCardProps> = ({
                 <span className="text-[clamp(9px,1.8vw,11px)] font-bold text-zinc-100 tracking-tight whitespace-nowrap opacity-95">
                   {(activity.coach_name || 'Coach').substring(0, 14)}
                 </span>
-                {activity.coach_rating && activity.coach_rating > 0 && (
+                {activity.coach_rating != null && activity.coach_rating > 0 && (
                   <div className="flex items-center gap-0.5 shrink-0 ml-0.5 bg-black/20 px-1 rounded-full">
                     <Star className="h-[clamp(8px,1.5vw,10px)] w-[clamp(8px,1.5vw,10px)] fill-yellow-400 text-yellow-400" />
                     <span className="text-[clamp(8px,1.5vw,9px)] font-black text-zinc-300">{activity.coach_rating.toFixed(1)}</span>
@@ -477,10 +477,12 @@ const ActivityCard: React.FC<ActivityCardProps> = ({
                   {activity.items_unicos ?? uniqueExercises}
                 </span>
               </div>
-              <div className="flex items-center gap-1.5">
-                <Users className="w-5 h-5 text-[#FF7939]/80" />
-                <span className="text-sm font-black text-zinc-300 tracking-tight">{capacityDisplay || '-'}</span>
-              </div>
+              {capacityDisplay !== '∞' && (
+                <div className="flex items-center gap-1.5">
+                  <Users className="w-5 h-5 text-[#FF7939]/80" />
+                  <span className="text-sm font-black text-zinc-300 tracking-tight">{capacityDisplay || '-'}</span>
+                </div>
+              )}
             </div>
 
             <div className="flex flex-nowrap gap-1.5 mb-0.5 justify-start overflow-x-auto hide-scrollbar min-h-[1.25rem] pb-0.5">
