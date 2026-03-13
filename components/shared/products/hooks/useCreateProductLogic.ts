@@ -175,6 +175,27 @@ export function useCreateProductLogic({
         loadInlineMedia, handleInlineUploadChange, handleMediaSelection,
         handlePdfSelectionChoice, handlePdfSelected: handlePdfSelectedBase
     } = useProductMediaLogic()
+    
+    // ✅ SYNC MEDIA TO GENERAL FORM FOR PREVIEW PERSISTENCE
+    useEffect(() => {
+        if (pendingImageFile) {
+            setGeneralForm(prev => {
+                if (prev.image === pendingImageFile) return prev
+                return { ...prev, image: pendingImageFile }
+            })
+        }
+    }, [pendingImageFile, setGeneralForm])
+
+    useEffect(() => {
+        if (pendingVideoFile) {
+            const tempUrl = URL.createObjectURL(pendingVideoFile)
+            setGeneralForm(prev => {
+                // Only update if it's a new blob or different video
+                if (prev.videoUrl?.startsWith('blob:')) return prev
+                return { ...prev, videoUrl: tempUrl }
+            })
+        }
+    }, [pendingVideoFile, setGeneralForm])
 
     const handlePdfSelectionChoiceWrapper = (choice: 'existing' | 'new', context?: PdfSelectionContext) => {
         const targetContext = context || pendingPdfContext
@@ -414,8 +435,18 @@ export function useCreateProductLogic({
         uploadingPdf, selectedTopics, setSelectedTopics,
 
         // Media Actions
-        handleInlineUploadChange: handleInlineUploadChangeWrapper,
-        handleMediaSelection: handleMediaSelectionWrapper,
+        handleInlineUploadChange: (e: React.ChangeEvent<HTMLInputElement>) => {
+            handleInlineUploadChangeWrapper(e)
+            // The useEffect will catch pendingImageFile/pendingVideoFile
+        },
+        handleMediaSelection: (url: string, type: 'image' | 'video' | 'pdf', file?: File) => {
+            handleMediaSelectionWrapper(url, type, file)
+            if (type === 'image') {
+                setGeneralForm(prev => ({ ...prev, image: file || { url } }))
+            } else if (type === 'video') {
+                setGeneralForm(prev => ({ ...prev, videoUrl: url }))
+            }
+        },
         openPdfGallery,
         openPdfLibrary,
         uploadNewPdf,

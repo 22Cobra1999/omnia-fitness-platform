@@ -213,10 +213,13 @@ export const StepGeneralForm: React.FC<StepGeneralFormProps> = ({ state, actions
                     {intensityOptions.map((opt) => (
                         <button
                             key={opt.id}
-                            onClick={() => setSpecificForm(prev => ({ ...prev, level: opt.id }))}
+                            onClick={() => {
+                                setSpecificForm(prev => ({ ...prev, level: opt.id }))
+                                clearFieldError('level')
+                            }}
                             className={`flex-1 p-3 rounded-xl border text-left transition-all ${specificForm.level === opt.id
                                 ? 'border-[#FF7939] bg-[#FF7939]/10'
-                                : 'border-white/10 bg-[#0A0A0A]'
+                                : (state.fieldErrors?.level ? 'border-red-500/50 bg-[#0A0A0A]' : 'border-white/10 bg-[#0A0A0A]')
                                 }`}
                         >
                             <div className="text-xs font-bold text-white mb-2">{opt.label}</div>
@@ -300,31 +303,7 @@ export const StepGeneralForm: React.FC<StepGeneralFormProps> = ({ state, actions
 
             {/* Planes de Precios y Cupos (Screenshot 4) */}
             <div className="space-y-4 pt-4">
-                <div className="flex items-center justify-between pl-1">
-                    <label className="text-sm font-bold text-gray-400 uppercase tracking-widest">PLAN DE PRECIOS Y CUPOS</label>
-                    
-                    {/* Botón de Pausa de Ventas */}
-                    <button
-                        onClick={() => setGeneralForm(prev => ({ ...prev, is_paused: !prev.is_paused }))}
-                        className={`flex items-center gap-2 px-3 py-1.5 rounded-full border transition-all ${
-                            generalForm.is_paused 
-                            ? 'bg-orange-500/10 border-orange-500/30 text-orange-500' 
-                            : 'bg-green-500/10 border-green-500/30 text-green-500'
-                        }`}
-                    >
-                        {generalForm.is_paused ? (
-                            <>
-                                <Play className="h-3 w-3" />
-                                <span className="text-[10px] font-bold uppercase tracking-wider">Reanudar Ventas</span>
-                            </>
-                        ) : (
-                            <>
-                                <Pause className="h-3 w-3" />
-                                <span className="text-[10px] font-bold uppercase tracking-wider">Pausar Ventas</span>
-                            </>
-                        )}
-                    </button>
-                </div>
+                <label className="text-sm font-bold text-gray-400 uppercase tracking-widest pl-1">PLAN DE PRECIOS Y CUPOS</label>
 
                 <div className="p-6 rounded-2xl border border-white/10 bg-[#0A0A0A] space-y-6">
                     {(state.totalSales ?? 0) > 0 && (
@@ -339,23 +318,29 @@ export const StepGeneralForm: React.FC<StepGeneralFormProps> = ({ state, actions
                         </div>
                     )}
                     <div className="flex items-center gap-3">
-                        <div className="flex-1 bg-black/40 rounded-xl border border-white/10 p-1 flex items-center">
+                        <div className={`flex-1 bg-black/40 rounded-xl border p-1 flex items-center ${fieldErrors.stockQuantity ? 'border-red-500/50' : 'border-white/10'}`}>
                             <span className="px-3 text-xs font-bold text-[#FF7939] uppercase">Cupos</span>
                             <Input
                                 type="number"
                                 value={generalForm.stockQuantity}
-                                onChange={(e) => actions.handleStockQuantityChange(e.target.value)}
+                                onChange={(e) => {
+                                    actions.handleStockQuantityChange(e.target.value)
+                                    clearFieldError('stockQuantity')
+                                }}
                                 className="bg-transparent border-none text-right font-bold focus-visible:ring-0 h-10 w-full"
                                 placeholder="0"
                             />
                         </div>
                         <span className="text-gray-500 font-bold">×</span>
-                        <div className="flex-1 bg-black/40 rounded-xl border border-white/10 p-1 flex items-center">
+                        <div className={`flex-1 bg-black/40 rounded-xl border p-1 flex items-center ${fieldErrors.price ? 'border-red-500/50' : 'border-white/10'}`}>
                             <span className="px-2 text-white"><DollarSign className="h-4 w-4" /></span>
                             <Input
                                 type="number"
                                 value={generalForm.price}
-                                onChange={(e) => setGeneralForm(prev => ({ ...prev, price: e.target.value }))}
+                                onChange={(e) => {
+                                    setGeneralForm(prev => ({ ...prev, price: e.target.value }))
+                                    clearFieldError('price')
+                                }}
                                 className="bg-transparent border-none font-bold focus-visible:ring-0 h-10 w-full"
                                 placeholder="0.00"
                             />

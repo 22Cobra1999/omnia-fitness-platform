@@ -48,18 +48,51 @@ export function useProductSubmission() {
         try {
             // Basic validation
             const errors: string[] = []
-            if (!generalForm.name) errors.push('Título es requerido')
-            if (!generalForm.description) errors.push('Descripción es requerida')
-            if (!generalForm.price) errors.push('Precio es requerido')
+            const currentFieldErrors: { [key: string]: boolean } = {}
+
+            if (!generalForm.name) {
+                errors.push('Título es requerido')
+                currentFieldErrors.name = true
+            }
+            if (!generalForm.description) {
+                errors.push('Descripción es requerida')
+                currentFieldErrors.description = true
+            }
+            if (!generalForm.price || parseFloat(generalForm.price) <= 0) {
+                errors.push('Precio válido es requerido')
+                currentFieldErrors.price = true
+            }
+            if (generalForm.capacity === 'limitada' && (!generalForm.stockQuantity || parseInt(generalForm.stockQuantity) <= 0)) {
+                errors.push('Cupos es requerido si la capacidad es limitada')
+                currentFieldErrors.stockQuantity = true
+            }
+            if (!specificForm?.level) {
+                errors.push('Dificultad es requerida')
+                currentFieldErrors.level = true
+            }
+
+            // Planning validation
+            const hasPlanning = selectedType === 'workshop' 
+                ? (workshopSchedule && workshopSchedule.length > 0)
+                : (persistentCalendarSchedule && Object.keys(persistentCalendarSchedule).length > 0)
+            
+            if (!hasPlanning && selectedType !== 'document') {
+                errors.push('Debes agregar al menos una actividad o tema en la planificación')
+            }
 
             if (errors.length > 0) {
                 setValidationErrors(errors)
-                setFieldErrors({
-                    name: !generalForm.name,
-                    description: !generalForm.description,
-                    price: !generalForm.price
-                })
-                setCurrentStep('general')
+                setFieldErrors(currentFieldErrors)
+                
+                // Only redirect to general if those fields are the ones missing
+                if (currentFieldErrors.name || currentFieldErrors.description || currentFieldErrors.price || currentFieldErrors.stockQuantity || currentFieldErrors.level) {
+                    setCurrentStep('general')
+                } else if (selectedType === 'workshop') {
+                    setCurrentStep('workshopSchedule')
+                } else if (selectedType === 'program') {
+                    setCurrentStep('weeklyPlan')
+                }
+                
                 setIsPublishing(false)
                 return
             }
