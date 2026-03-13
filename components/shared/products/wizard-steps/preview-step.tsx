@@ -74,9 +74,18 @@ export function PreviewStep({
         objetivos: generalForm.objetivos || [],
         // Media Persistence for Preview
         image_url: generalForm.image ? (
-            typeof generalForm.image === 'string' ? generalForm.image :
-            (generalForm.image as any).url || (generalForm.image as any).preview
+            generalForm.image instanceof File ? URL.createObjectURL(generalForm.image) :
+            (typeof generalForm.image === 'string' ? generalForm.image :
+            (generalForm.image as any).url || (generalForm.image as any).preview)
         ) : (editingProduct as any)?.image_url || null,
+        media: {
+            ...((editingProduct as any)?.media || {}),
+            image_url: generalForm.image ? (
+                generalForm.image instanceof File ? URL.createObjectURL(generalForm.image) :
+                (typeof generalForm.image === 'string' ? generalForm.image :
+                (generalForm.image as any).url || (generalForm.image as any).preview)
+            ) : (editingProduct as any)?.image_url || (editingProduct as any)?.media?.image_url || null
+        },
         video_url: generalForm.videoUrl || (editingProduct as any)?.video_url || null,
         // Reflejar siempre el precio actual del formulario
         price: (() => {
