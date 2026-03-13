@@ -987,7 +987,7 @@ export async function POST(request: NextRequest) {
           categoria: body.categoria || 'fitness',
           difficulty: body.level, // Usar difficulty en lugar de level
           is_public: body.is_public,
-          is_paused: !!body.is_paused,
+          // is_paused: !!body.is_paused, ⚠️ Column might not exist yet
           capacity: adjustedCapacity,
           restricciones: joinSemicolonList(body.restricciones),
           // stockQuantity no existe en la tabla activities
@@ -1333,7 +1333,7 @@ export async function PUT(request: NextRequest) {
       categoria: body.categoria || 'fitness',
       difficulty: body.level,
       is_public: body.is_public,
-      is_paused: !!body.is_paused,
+      // is_paused: !!body.is_paused, ⚠️ Column might not exist yet
       capacity: adjustedCapacity,
       restricciones: joinSemicolonList(body.restricciones),
       // ✅ GUARDAR OBJETIVOS EN workshop_type como JSON

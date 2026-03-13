@@ -170,7 +170,7 @@ export function useProductSubmission() {
                 type: generalForm.modality || 'online',
                 included_meet_credits: selectedType === 'workshop' ? 0 : (generalForm.included_meet_credits || 0),
                 is_public: generalForm.is_public !== false,
-                is_paused: !!generalForm.is_paused,
+                // is_paused: !!generalForm.is_paused, 
                 coach_id: user?.id,
                 image_url: finalImageUrl,
                 video_url: finalVideoUrl,
