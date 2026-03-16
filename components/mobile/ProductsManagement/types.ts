@@ -23,6 +23,11 @@ export type Product = {
     is_paused?: boolean
     location_name?: string | null
     location_url?: string | null
+    borrada?: boolean
+    is_active?: boolean
+    weeks?: number
+    exercises?: number
+    sales?: number
 }
 
 export type SortField = 'title' | 'type' | 'price' | 'created_at'

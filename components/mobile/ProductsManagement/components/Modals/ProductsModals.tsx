@@ -38,9 +38,9 @@ export const ProductsModals: React.FC<ProductsModalsProps> = ({ state, actions, 
                         ...helpers.convertProductToActivity(state.selectedProduct),
                         isOwnProduct: true
                     }}
-                    showEditButton={true}
+                    showEditButton={!state.selectedProduct?.borrada}
                     onEdit={() => actions.handleEditProduct(state.selectedProduct)}
-                    onDelete={actions.handleDeleteProduct}
+                    onDelete={!state.selectedProduct?.borrada ? actions.handleDeleteProduct : undefined}
                 />
             )}
 
@@ -110,20 +110,31 @@ export const ProductsModals: React.FC<ProductsModalsProps> = ({ state, actions, 
 
             {/* Delete Confirmation Modal */}
             <Dialog open={state.deleteConfirmationOpen} onOpenChange={actions.setDeleteConfirmationOpen}>
-                <DialogContent className="bg-black border-none text-white max-w-sm rounded-3xl p-8">
-                    <div className="flex flex-col items-center text-center">
-                        <div className="w-16 h-16 bg-red-500 rounded-full flex items-center justify-center mb-6">
-                            <Trash2 className="w-8 h-8 text-white" />
+                <DialogContent className="!fixed !left-1/2 !top-1/2 !-translate-x-1/2 !-translate-y-1/2 bg-black/95 backdrop-blur-2xl border border-white/10 text-white w-[90vw] sm:max-w-sm rounded-[40px] p-8 shadow-[0_0_80px_-20px_rgba(255,121,57,0.3)] z-[10000] outline-none">
+                    <div className="flex flex-col items-center text-center w-full">
+                        <div className="w-20 h-20 bg-red-500/20 rounded-full flex items-center justify-center mb-8 border border-red-500/30">
+                            <Trash2 className="w-10 h-10 text-red-500" />
                         </div>
-                        <DialogTitle className="text-2xl font-bold">¿Eliminar actividad?</DialogTitle>
-                        <DialogDescription className="text-gray-300 mb-6">
-                            Estás por eliminar <span className="text-[#FF7939] font-semibold">{state.productToDelete?.title}</span>
+                        <DialogTitle className="text-3xl font-black mb-4 tracking-tighter">¿Eliminar actividad?</DialogTitle>
+                        <DialogDescription className="text-gray-400 text-base mb-10 leading-relaxed">
+                            Estás por eliminar <span className="text-white font-bold">{state.productToDelete?.title}</span>. 
+                            <br/><span className="text-xs opacity-60">Se ocultará para nuevos clientes pero seguirá disponible para los inscritos.</span>
                         </DialogDescription>
-                        <div className="flex flex-col gap-3 w-full">
-                            <Button onClick={actions.confirmDelete} disabled={state.isDeleting} className="bg-red-500 hover:bg-red-600 h-12 rounded-xl">
-                                {state.isDeleting ? "Eliminando..." : "Eliminar"}
+                        <div className="flex flex-col gap-4 w-full">
+                            <Button 
+                                onClick={actions.confirmDelete} 
+                                disabled={state.isDeleting} 
+                                className="bg-red-500 hover:bg-red-600 h-14 rounded-2xl text-lg font-bold transition-all hover:scale-[1.02] active:scale-[0.98]"
+                            >
+                                {state.isDeleting ? "Eliminando..." : "Confirmar Eliminación"}
                             </Button>
-                            <Button onClick={actions.cancelDelete} variant="ghost" className="text-gray-400">Cancelar</Button>
+                            <Button 
+                                onClick={actions.cancelDelete} 
+                                variant="ghost" 
+                                className="text-gray-500 hover:text-white hover:bg-white/5 h-12 rounded-xl transition-all"
+                            >
+                                Cancelar
+                            </Button>
                         </div>
                     </div>
                 </DialogContent>
@@ -174,17 +185,20 @@ export const ProductsModals: React.FC<ProductsModalsProps> = ({ state, actions, 
             </Dialog>
 
             {/* Delete Success Modal */}
-            <Dialog open={state.deleteSuccessOpen} onOpenChange={actions.setDeleteSuccessOpen}>
-                <DialogContent className="bg-black border-none text-white max-w-sm rounded-3xl p-8">
-                    <div className="flex flex-col items-center text-center">
-                        <div className="w-16 h-16 bg-green-500 rounded-full flex items-center justify-center mb-6">
-                            <Flame className="w-8 h-8 text-white" />
+            <Dialog open={state.deleteSuccessOpen} onOpenChange={state.setDeleteSuccessOpen}>
+                <DialogContent className="!fixed !left-1/2 !top-1/2 !-translate-x-1/2 !-translate-y-1/2 bg-black/95 backdrop-blur-2xl border border-white/10 text-white max-w-[90vw] sm:max-w-sm rounded-[40px] p-10 shadow-[0_0_80px_-20px_rgba(255,121,57,0.3)] z-[10000] outline-none">
+                    <div className="flex flex-col items-center text-center w-full">
+                        <div className="w-20 h-20 bg-[#FF7939]/20 rounded-full flex items-center justify-center mb-8 border border-[#FF7939]/30">
+                            <Flame className="w-10 h-10 text-[#FF7939]" />
                         </div>
-                        <DialogTitle className="text-2xl font-bold">¡Eliminado!</DialogTitle>
-                        <DialogDescription className="text-gray-300 mb-6">
-                            <span className="text-white font-semibold">{state.deletedProductName}</span> ha sido eliminado correctamente.
+                        <DialogTitle className="text-3xl font-black mb-4 tracking-tighter">¡Eliminado!</DialogTitle>
+                        <DialogDescription className="text-gray-400 text-base mb-10 leading-relaxed">
+                            <span className="text-white font-bold">{state.deletedProductName}</span> ha sido eliminado correctamente.
                         </DialogDescription>
-                        <Button onClick={actions.closeDeleteSuccess} className="bg-green-500 hover:bg-green-600 h-12 rounded-xl w-full">
+                        <Button 
+                            onClick={actions.closeDeleteSuccess} 
+                            className="bg-[#CC5500] hover:bg-[#B34A00] h-14 rounded-2xl text-lg font-bold w-full transition-all hover:scale-[1.02] active:scale-[0.98]"
+                        >
                             Entendido
                         </Button>
                     </div>

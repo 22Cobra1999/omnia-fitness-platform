@@ -35,8 +35,8 @@ export function MediaItem({
     const fileName = truncate(item.filename, 15)
 
     const coverSrc = mediaType === 'image' ? item.image_url || null : item.video_thumbnail_url || null
-    const widthClass = mediaType === 'image' ? 'w-40' : 'w-56'
-    const heightClass = mediaType === 'image' ? 'h-48' : 'h-32'
+    const widthClass = 'w-full'
+    const heightClass = mediaType === 'image' ? 'aspect-[4/5]' : 'aspect-video'
 
     return (
         <motion.button

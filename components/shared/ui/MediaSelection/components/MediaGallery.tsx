@@ -47,8 +47,8 @@ export function MediaGallery({
     }
 
     return (
-        <div className="overflow-x-auto overflow-y-hidden flex-shrink-0">
-            <div className="flex gap-3 pb-2" style={{ minWidth: 'min-content' }}>
+        <div className="flex-1 overflow-y-auto pr-1 min-h-0 custom-scrollbar pb-6">
+            <div className="grid grid-cols-2 lg:grid-cols-4 gap-4 p-1">
                 {filteredMedia.map((item, index) => (
                     <MediaItem
                         key={`${item.id}-${index}`}

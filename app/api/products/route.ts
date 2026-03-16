@@ -445,6 +445,12 @@ export async function GET(request: NextRequest) {
           .eq('activity_id', product.id)
           .single()
 
+        // Obtener cantidad de ventas (enrollments)
+        const { count: salesCount } = await supabase
+          .from('activity_enrollments')
+          .select('*', { count: 'exact', head: true })
+          .eq('activity_id', product.id)
+
         // Obtener planificación y períodos una sola vez para todos los cálculos
         const { data: planificacion } = await supabase
           .from('planificacion_ejercicios')
@@ -861,7 +867,12 @@ export async function GET(request: NextRequest) {
           sesiones_dias_totales: product.sesiones_dias_totales,
           items_totales: product.items_totales,
           items_unicos: product.items_unicos,
-          periodos_configurados: product.periodos_configurados
+          periodos_configurados: product.periodos_configurados,
+          // ✅ Soft Delete & Stats
+          borrada: product.borrada || false,
+          limpieza_completada: product.limpieza_completada || false,
+          is_active: product.is_active ?? true,
+          sales: salesCount || 0
         }
 
         // Debug: Log para verificar que taller_activo se está devolviendo correctamente

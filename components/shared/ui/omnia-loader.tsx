@@ -10,7 +10,7 @@ export function OmniaLoader({
     className = ""
 }: OmniaLoaderProps) {
     return (
-        <div className={`flex flex-col items-center justify-center min-h-screen bg-[#0F1012] ${className}`}>
+        <div className={`flex flex-col items-center justify-center min-h-screen bg-black ${className}`}>
             {/* Fuego (logo animado) */}
             <div className="relative flex items-center justify-center w-[120px] h-[120px]">
                 {/* Fuego principal (más nítido) */}

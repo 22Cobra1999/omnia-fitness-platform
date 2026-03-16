@@ -369,10 +369,10 @@ const ActivityCard: React.FC<ActivityCardProps> = ({
 
           {/* Centered Title and Coach Info Overlay */}
           <div className="absolute inset-x-0 bottom-0 z-20 flex flex-col items-center text-center px-4 pb-0">
-            <div className="h-16 flex items-start justify-center mb-10">
+            <div className="h-24 flex items-start justify-center mb-6">
               <h3 className={cn(
-                "text-white font-bold leading-[1.2] drop-shadow-[0_2px_10px_rgba(0,0,0,0.8)] tracking-tight opacity-95 text-center px-4",
-                size === "small" ? "text-base" : "text-lg md:text-xl"
+                "text-white font-bold leading-[1.2] drop-shadow-[0_2px_10px_rgba(0,0,0,0.8)] tracking-tight opacity-75 text-center px-4",
+                size === "small" ? "text-sm md:text-base" : "text-base md:text-lg"
               )}>
                 {activity.title && activity.title.length > 55 ? `${activity.title.substring(0, 55)}...` : activity.title || 'Sin título'}
               </h3>
@@ -494,7 +494,7 @@ const ActivityCard: React.FC<ActivityCardProps> = ({
             </div>
 
             <div className="border-t border-white/5 text-center pt-1 pb-2 mt-0">
-              <span className="text-white font-black text-[1.75rem] tracking-tighter">
+              <span className="text-[#E66829]/80 font-bold text-[1.25rem] tracking-tight">
                 {formatPrice(activity.price)}
               </span>
             </div>

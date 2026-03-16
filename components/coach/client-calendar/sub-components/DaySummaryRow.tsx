@@ -259,7 +259,13 @@ export const DaySummaryRow: React.FC<DaySummaryRowProps> = ({
                                                 <div className="flex items-center gap-1.5 flex-shrink-0">
                                                     {/* No badge — icon fill shows status */}
                                                     {/* Edit button */}
-                                                    {!isEditing && !exercise.is_workshop && (exercise.is_nutricion ? canEditNutritionForDay(exercise) : canEditFitnessForDay(exercise)) && (
+                                                    {!isEditing && !exercise.is_workshop && (() => {
+                                                        const today = new Date()
+                                                        today.setHours(0, 0, 0, 0)
+                                                        const rowDate = new Date(dayStr + 'T12:00:00')
+                                                        if (rowDate < today) return false
+                                                        return exercise.is_nutricion ? canEditNutritionForDay(exercise) : canEditFitnessForDay(exercise)
+                                                    })() && (
                                                         <button
                                                             type="button"
                                                             onClick={() => exercise.is_nutricion

@@ -12,6 +12,8 @@ export function useCalendarData(supabase: any, clientId: string, currentDate: Da
     const [activeEnrollmentFilterId, setActiveEnrollmentFilterId] = useState<number | null>(null)
     const [loading, setLoading] = useState(true)
 
+    const [activityEndDates, setActivityEndDates] = useState<Record<number, string>>({})
+
     const fetchMonthlyProgress = useCallback(async () => {
         if (!clientId) return
         try {
@@ -35,34 +37,53 @@ export function useCalendarData(supabase: any, clientId: string, currentDate: Da
             return
         }
         try {
+            console.log('📅 [Calendar] START fetchClientCalendarSummary | Client:', clientId, 'Month:', currentDate.toISOString().split('T')[0])
             const { monthStartStr, monthEndStr } = getMonthRange(currentDate)
 
-            // 1. Fetch from progreso_diario_actividad (primary source — captures all enrollments)
-            const { data: dailyRows } = await supabase
+            // 1. Fetch from progreso_diario_actividad
+            const { data: dailyRows, error: dailyError } = await supabase
                 .from('progreso_diario_actividad')
-                .select('id, actividad_id, fecha, area, tipo, items_objetivo, items_completados, minutos, enrollment_id')
+                .select('id, actividad_id, fecha, area, tipo, items_objetivo, items_completados, minutos, minutos_objetivo, enrollment_id')
                 .eq('cliente_id', clientId)
                 .gte('fecha', monthStartStr)
                 .lte('fecha', monthEndStr)
                 .not('actividad_id', 'is', null)
+            
+            if (dailyError) {
+                console.error('❌ [Calendar:dailyRows] ERROR:', dailyError.code, dailyError.message, dailyError.details)
+            } else {
+                console.log('✅ [Calendar:dailyRows] OK | Count:', dailyRows?.length)
+            }
 
             // 2. Fetch Fitness Progress (legacy)
-            const { data: fitnessRows } = await supabase
+            const { data: fitnessRows, error: fitnessError } = await supabase
                 .from('progreso_cliente')
                 .select('id, actividad_id, fecha')
                 .eq('cliente_id', clientId)
                 .gte('fecha', monthStartStr)
                 .lte('fecha', monthEndStr)
+            
+            if (fitnessError) {
+                console.error('❌ [Calendar:fitnessRows] ERROR:', fitnessError.code, fitnessError.message, fitnessError.details)
+            } else {
+                console.log('✅ [Calendar:fitnessRows] OK | Count:', fitnessRows?.length)
+            }
 
             // 3. Fetch Nutrition Progress (legacy)
-            const { data: nutriRows } = await supabase
+            const { data: nutriRows, error: nutriError } = await supabase
                 .from('progreso_cliente_nutricion')
                 .select('id, actividad_id, fecha')
                 .eq('cliente_id', clientId)
                 .gte('fecha', monthStartStr)
                 .lte('fecha', monthEndStr)
+            
+            if (nutriError) {
+                console.error('❌ [Calendar:nutriRows] ERROR:', nutriError.code, nutriError.message, nutriError.details)
+            } else {
+                console.log('✅ [Calendar:nutriRows] OK | Count:', nutriRows?.length)
+            }
 
-            // Fetch activity titles for all sources
+            // Fetch activity titles
             const activityIds = [
                 ...new Set([
                     ...(dailyRows || []).map((r: any) => r.actividad_id),
@@ -72,44 +93,67 @@ export function useCalendarData(supabase: any, clientId: string, currentDate: Da
             ]
             const activityTitleMap: Record<number, string> = {}
             if (activityIds.length > 0) {
-                const { data: acts } = await supabase
+                const { data: acts, error: actsError } = await supabase
                     .from('activities')
                     .select('id, title, coach_id')
                     .in('id', activityIds)
+                if (actsError) console.error('❌ [Calendar:activities]', actsError)
                 if (acts) acts.forEach((a: any) => { activityTitleMap[a.id] = a.title })
             }
 
-            // 4. Fetch Workshop Progress (wrapped separately — this table may not have all rows)
+            // 4. Fetch Workshop Progress
             let workshopRows: any[] = []
             try {
-                const { data: wsData } = await supabase
+                const { data: wsData, error: wsError } = await supabase
                     .from('taller_progreso_temas')
                     .select('id, actividad_id, fecha_seleccionada, horario_seleccionado')
                     .eq('cliente_id', clientId)
                     .gte('fecha_seleccionada', monthStartStr)
                     .lte('fecha_seleccionada', monthEndStr)
+                if (wsError) console.error('❌ [Calendar:workshopRows]', wsError)
                 workshopRows = wsData || []
             } catch (wsErr) {
-                console.warn('[Calendar] taller_progreso_temas query failed, skipping workshops:', wsErr)
+                console.warn('[Calendar] taller_progreso_temas query failed:', wsErr)
             }
 
             // 5. Fetch Calendar Events (Meets)
-            const { data: participants } = await supabase
+            const { data: participants, error: partError } = await supabase
                 .from('calendar_event_participants')
                 .select('event_id')
                 .eq('user_id', clientId)
+            
+            if (partError) console.error('❌ [Calendar:participants]', partError)
 
             const myEventIds = (participants || []).map((p: any) => p.event_id)
             let meetRows: any[] = []
             if (myEventIds.length > 0) {
-                const { data: events } = await supabase
+                const { data: events, error: eventsError } = await supabase
                     .from('calendar_events')
                     .select('id, title, start_time, end_time, coach_id, activity_id')
                     .in('id', myEventIds)
                     .gte('start_time', `${monthStartStr}T00:00:00`)
                     .lte('start_time', `${monthEndStr}T23:59:59`)
+                if (eventsError) console.error('❌ [Calendar:meetRows]', eventsError)
                 meetRows = events || []
             }
+
+            // 6. Fetch Enrollment End Dates for restriction
+            const { data: enrolls, error: enrollsError } = await supabase
+                .from('activity_enrollments')
+                .select('activity_id, program_end_date')
+                .eq('client_id', clientId)
+            
+            if (enrollsError) {
+                console.error('❌ [Calendar:enrolls] Error detail:', enrollsError)
+            }
+            
+            const activityEndDates: Record<number, string> = {}
+            if (enrolls) {
+                enrolls.forEach((e: any) => {
+                    if (e.program_end_date) activityEndDates[e.activity_id] = e.program_end_date
+                })
+            }
+            setActivityEndDates(activityEndDates)
 
             const byDate: Record<string, ClientDaySummaryRow[]> = {}
             const processed: { [key: string]: DayData } = {}
@@ -141,8 +185,11 @@ export function useCalendarData(supabase: any, clientId: string, currentDate: Da
                 const day = String(r.fecha)
                 const key = `${day}::${r.actividad_id}`
                 dailyCovered.add(key)
-                const mins = Number(r.minutos) || 0
+                
+                // Use completed minutes, but fallback to target minutes if it's just a plan (0 completed)
+                const mins = Number(r.minutos) || Number(r.minutos_objetivo) || 0
                 const isNutri = r.area === 'nutricion'
+                
                 addRow(day, {
                     id: `daily-${r.id}`,
                     client_id: clientId,
@@ -485,7 +532,7 @@ export function useCalendarData(supabase: any, clientId: string, currentDate: Da
         dayData, summaryRowsByDate, filteredSummaryRows, activityDetailsByKey, setActivityDetailsByKey,
         monthlyProgress, eventDetailsByKey, activityFilterOptions,
         activeEnrollmentFilterId, setActiveEnrollmentFilterId,
-        loading,
+        loading, activityEndDates,
         fetchClientCalendarSummary, loadDayActivityDetails, loadEventDetails, getDayData
     }
 }

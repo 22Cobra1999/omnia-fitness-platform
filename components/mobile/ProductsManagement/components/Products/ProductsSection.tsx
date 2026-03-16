@@ -4,6 +4,8 @@ import { Plus, Coffee, ChevronDown, X, Zap, Check } from "lucide-react"
 import ActivityCard from '@/components/shared/activities/ActivityCard'
 import { Product } from '../../types'
 import { ConsultationSection } from '../Consultations/ConsultationSection'
+import { DeletedSummaryCard } from './DeletedSummaryCard'
+import { Trash2 } from 'lucide-react'
 
 interface ProductsSectionProps {
     products: Product[]
@@ -60,14 +62,20 @@ const ProductCard = memo(({
     }
 
     return (
-        <div className={`flex-shrink-0 w-40 md:w-52 relative transition-all ${isConditioningMode && !isProgram ? 'opacity-20 grayscale' : ''}`}>
+        <div className={`flex-shrink-0 w-40 md:w-52 relative transition-all ${isConditioningMode && !isProgram ? 'opacity-20 grayscale' : ''} ${product.borrada ? 'opacity-60' : ''}`}>
             <ActivityCard
                 activity={convertProductToActivity(product)}
                 size="small"
                 onClick={handleClick}
             />
 
-            {isConditioningMode && isProgram && (
+            {product.borrada && (
+                <div className="absolute top-2 left-2 z-10 bg-red-500/20 backdrop-blur-md border border-red-500/30 rounded-full p-1.5 shadow-lg">
+                    <Trash2 className="w-3 h-3 text-red-500" />
+                </div>
+            )}
+
+            {isConditioningMode && isProgram && !product.borrada && (
                 <div
                     className="absolute top-2 right-2 z-10"
                     onClick={(e) => { e.stopPropagation(); onToggleConditioning(product.id); }}
@@ -282,18 +290,44 @@ export const ProductsSection: React.FC<ProductsSectionProps> = ({
                 ) : (
                     <div>
                         <div className="overflow-x-auto pb-6 scrollbar-hide">
-                            <div className="flex gap-6 px-2" style={{ minWidth: 'min-content' }}>
-                                {products.slice(0, visibleProductsCount).map((product) => (
-                                    <ProductCard
-                                        key={product.id}
-                                        product={product}
-                                        onPreview={onPreviewProduct}
-                                        convertProductToActivity={convertProductToActivity}
-                                        isConditioningMode={isConditioningMode}
-                                        isSelected={selectedProductsForConditioning.includes(product.id)}
-                                        onToggleConditioning={toggleProductConditioning}
-                                    />
-                                ))}
+                            <div className="flex gap-1 px-2" style={{ minWidth: 'min-content' }}>
+                                {/* Active products first */}
+                                {products
+                                    .filter(p => !p.borrada)
+                                    .slice(0, visibleProductsCount)
+                                    .map((product) => (
+                                        <ProductCard
+                                            key={product.id}
+                                            product={product}
+                                            onPreview={onPreviewProduct}
+                                            convertProductToActivity={convertProductToActivity}
+                                            isConditioningMode={isConditioningMode}
+                                            isSelected={selectedProductsForConditioning.includes(product.id)}
+                                            onToggleConditioning={toggleProductConditioning}
+                                        />
+                                    ))}
+                                
+                                {/* Deleted products are no longer individually rendered, only summarized */}
+                                {/*
+                                {products
+                                    .filter(p => p.borrada)
+                                    .map((product) => (
+                                        <ProductCard
+                                            key={product.id}
+                                            product={product}
+                                            onPreview={onPreviewProduct}
+                                            convertProductToActivity={convertProductToActivity}
+                                            isConditioningMode={false} // No conditioning for deleted
+                                            isSelected={false}
+                                            onToggleConditioning={() => {}}
+                                        />
+                                    ))}
+                                */}
+
+                                {/* Summary Card for deleted products */}
+                                <DeletedSummaryCard 
+                                    deletedProducts={products.filter(p => p.borrada)} 
+                                />
                             </div>
                         </div>
                         {products.length > visibleProductsCount && (

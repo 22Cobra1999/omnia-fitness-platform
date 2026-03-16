@@ -188,3 +188,31 @@ CROSS JOIN LATERAL jsonb_array_elements(p.lunes->'ejercicios') plato
 JOIN public.ejercicios_detalles det ON det.id = (plato->>'id')::int
 WHERE p.actividad_id = (SELECT target_activity_id FROM config) AND p.numero_semana = 1;
 ```
+
+---
+
+## 6. Sincronización de Progreso Diario (`progreso_diario_actividad`)
+
+Para optimizar la visualización en calendarios mensuales y dashboards, el sistema sincroniza automáticamente los cambios detallados en un resumen diario acumulativo.
+
+### Flujo de Sincronización (Triggers)
+1.  **Detección**: Cualquier `INSERT` o `UPDATE` en las tablas `progreso_cliente` (Fitness) o `progreso_cliente_nutricion` dispara la función `update_daily_progress_from_program`.
+2.  **Consolidación**: Se calculan los totales del día basado en los JSONB de la fila modificada:
+    *   **Items**: Conteo de claves en `ejercicios_completados` vs `ejercicios_pendientes`.
+    *   **Minutos**: Suma de valores en `minutos_json` (Fitness) o `macros` (Nutrición).
+    *   **Objetivos**: Se capturan los planes teóricos (`minutos_objetivo`) para visualizar bloques de tiempo en el calendario incluso antes de que el cliente inicie la actividad.
+3.  **Gestión de Movimientos (Date Swap)**:
+    *   Si el Coach o Cliente cambia la `fecha` de una actividad (re-planificación), el trigger detecta que `OLD.fecha != NEW.fecha`.
+    *   **Acción**: Elimina el resumen viejo (`DELETE` en `progreso_diario_actividad` para la fecha anterior) y crea/actualiza el nuevo para la fecha destino.
+    *   **Resultado**: El calendario se actualiza instantáneamente sin dejar rastro de la actividad en el día original.
+
+### Visualización en Calendario (Móvil/Web)
+El frontend consulta la tabla `progreso_diario_actividad` aplicando estas reglas:
+-   **Lógica de Fallback**: Si `minutos` es 0 (progreso real nulo), se visualizan los `minutos_objetivo`.
+-   **Estados Visuales**: 
+    -   **Naranja**: 100% completado.
+    -   **Amarillo**: Actividad planificada para hoy o futuro (o en curso).
+    -   **Rojo/Traslúcido**: Día pasado sin actividad completada (Ausencia).
+
+---
+*Documento actualizado en la Biblia de Omnia.*

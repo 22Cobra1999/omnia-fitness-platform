@@ -1,6 +1,6 @@
 "use client"
 
-import { useState, useEffect, useRef } from "react"
+import { useState, useEffect, useRef, useMemo } from "react"
 import { useRouter } from 'next/navigation'
 import { createClient } from '@/lib/supabase/supabase-client'
 import { OmniaLoader } from "@/components/shared/ui/omnia-loader"
@@ -48,7 +48,7 @@ export function ClientCalendar({ clientId, onLastWorkoutUpdate, onDaySelected, e
     dayData, summaryRowsByDate, filteredSummaryRows, activityDetailsByKey, setActivityDetailsByKey,
     monthlyProgress, eventDetailsByKey, activityFilterOptions,
     activeEnrollmentFilterId, setActiveEnrollmentFilterId,
-    loading: dataLoading,
+    loading: dataLoading, activityEndDates,
     fetchClientCalendarSummary, loadDayActivityDetails, loadEventDetails, getDayData
   } = useCalendarData(supabase, clientId, currentDate, onLastWorkoutUpdate)
 
@@ -93,6 +93,24 @@ export function ClientCalendar({ clientId, onLastWorkoutUpdate, onDaySelected, e
   const [selectedActivityIdsForDateChange, setSelectedActivityIdsForDateChange] = useState<string[]>([])
   const [selectedDayForEdit, setSelectedDayForEdit] = useState<Date | null>(null)
   const [targetDayForEdit, setTargetDayForEdit] = useState<Date | null>(null)
+  const [isReorganizing, setIsReorganizing] = useState(false)
+
+  const maxMoveDate = useMemo(() => {
+    if (!isSelectingNewDate || !editingDate) return null
+    const dayStr = editingDate.toISOString().split('T')[0]
+    const rows = summaryRowsByDate[dayStr] || []
+    const ownedIds = rows
+      .filter(r => !r.calendar_event_id && (r.coach_id === null || String(r.coach_id) === String(currentCoachId)))
+      .map(r => r.activity_id)
+      .filter(Boolean) as number[]
+    
+    if (ownedIds.length === 0) return null
+    
+    const endDates = ownedIds.map(id => activityEndDates[id]).filter(Boolean)
+    if (endDates.length === 0) return null
+    
+    return new Date(Math.min(...endDates.map(d => new Date(d).getTime())))
+  }, [isSelectingNewDate, editingDate, summaryRowsByDate, activityEndDates, currentCoachId, summaryRowsByDate])
 
   // Initial Coach Fetch
   useEffect(() => {
@@ -138,37 +156,79 @@ export function ClientCalendar({ clientId, onLastWorkoutUpdate, onDaySelected, e
   }
 
   const handleEditDate = (date: Date) => {
+    const today = new Date()
+    today.setHours(0, 0, 0, 0)
+    if (date < today) return // Don't allow moving past dates
+    
     setIsSelectingNewDate(true); setEditingDate(date); setSelectedDayForEdit(date)
   }
 
   const confirmUpdateDate = async () => {
     if (!editingDate || !newDate || selectedActivityIdsForDateChange.length === 0) return
-    setLoading(true)
+    setIsReorganizing(true)
     try {
       const sourceDateStr = editingDate.toISOString().split('T')[0]
       const targetDateStr = newDate.toISOString().split('T')[0]
-      const daySuffix = String(editingDate.getDay())
-      const targetDaySuffix = String(newDate.getDay())
+      
+      const today = new Date()
+      today.setHours(0, 0, 0, 0)
+      const todayStr = today.toISOString().split('T')[0]
 
-      // Move Fitness
-      const { data: fitRows } = await supabase.from('progreso_cliente').select('*').eq('cliente_id', clientId)
-      const toUpdateFit = (fitRows as any[])?.filter((r: any) => {
-        if (applyToAllSameDays) return r.fecha.endsWith(daySuffix)
-        return r.fecha === sourceDateStr
-      }) || []
+      if (applyToAllSameDays) {
+        // Cascade logic for future days with same weekday
+        const weekday = editingDate.getDay()
+        
+        // Calculate the difference in days between the new date and the original date
+        // Use a safe midday calculation to avoid timezone issues
+        const sourceMidday = new Date(editingDate.toISOString().split('T')[0] + 'T12:00:00')
+        const targetMidday = new Date(newDate.toISOString().split('T')[0] + 'T12:00:00')
+        const diffDays = Math.round((targetMidday.getTime() - sourceMidday.getTime()) / (1000 * 60 * 60 * 24))
+        
+        // 1. Fetch ALL future entries for these activities
+        const { data: allFit } = await supabase
+          .from('progreso_cliente')
+          .select('id, fecha, actividad_id')
+          .eq('cliente_id', clientId)
+          .in('actividad_id', selectedActivityIdsForDateChange)
+          .gte('fecha', sourceDateStr)
 
-      for (const row of toUpdateFit) {
-        if (applyToAllSameDays) {
-          // Replace day suffix logic...
+        if (allFit) {
+          for (const row of allFit) {
+            const rowDate = new Date(row.fecha + 'T12:00:00')
+            if (rowDate.getDay() === weekday) {
+              const d = new Date(row.fecha + 'T12:00:00')
+              d.setDate(d.getDate() + diffDays)
+              const newDayStr = d.toISOString().split('T')[0]
+              
+              await supabase.from('progreso_cliente').update({ fecha: newDayStr }).eq('id', row.id)
+            }
+          }
         }
-        await supabase.from('progreso_cliente').update({ fecha: targetDateStr }).eq('id', row.id)
-      }
 
-      // Move Nutrition
-      const { data: nutRows } = await supabase.from('progreso_cliente_nutricion').select('*').eq('cliente_id', clientId).eq('fecha', sourceDateStr)
-      if (nutRows) {
-        for (const row of nutRows) {
-          await supabase.from('progreso_cliente_nutricion').update({ fecha: targetDateStr }).eq('id', row.id)
+        // Same for Nutrition
+        const { data: allNutri } = await supabase
+          .from('progreso_cliente_nutricion')
+          .select('id, fecha, actividad_id')
+          .eq('cliente_id', clientId)
+          .in('actividad_id', selectedActivityIdsForDateChange)
+          .gte('fecha', sourceDateStr)
+
+        if (allNutri) {
+          for (const row of allNutri) {
+            const rowDate = new Date(row.fecha + 'T12:00:00')
+            if (rowDate.getDay() === weekday) {
+              const d = new Date(row.fecha + 'T12:00:00')
+              d.setDate(d.getDate() + diffDays)
+              const newDayStr = d.toISOString().split('T')[0]
+              await supabase.from('progreso_cliente_nutricion').update({ fecha: newDayStr }).eq('id', row.id)
+            }
+          }
+        }
+      } else {
+        // Single day move
+        for (const actId of selectedActivityIdsForDateChange) {
+          await supabase.from('progreso_cliente').update({ fecha: targetDateStr }).eq('cliente_id', clientId).eq('fecha', sourceDateStr).eq('actividad_id', actId)
+          await supabase.from('progreso_cliente_nutricion').update({ fecha: targetDateStr }).eq('cliente_id', clientId).eq('fecha', sourceDateStr).eq('actividad_id', actId)
         }
       }
 
@@ -178,11 +238,15 @@ export function ClientCalendar({ clientId, onLastWorkoutUpdate, onDaySelected, e
     } catch (e) {
       console.error(e)
     } finally {
-      setLoading(false)
+      setIsReorganizing(false)
     }
   }
 
-  if (loading && Object.keys(dayData).length === 0) return <OmniaLoader />
+  if (loading && Object.keys(dayData).length === 0) return (
+    <div className="bg-black min-h-screen">
+      <OmniaLoader />
+    </div>
+  )
 
   return (
     <div className="w-full bg-black min-h-screen text-white font-sans selection:bg-[#FF7939]/30">
@@ -246,6 +310,7 @@ export function ClientCalendar({ clientId, onLastWorkoutUpdate, onDaySelected, e
               monthlyProgress={monthlyProgress} currentCoachId={currentCoachId} clientId={clientId}
               selectedDayForEdit={selectedDayForEdit} targetDayForEdit={targetDayForEdit}
               dayNames={dayNames} getDayData={getDayData}
+              isSelectingNewDate={isSelectingNewDate} maxMoveDate={maxMoveDate}
             />
             {/* Mobile: Day Details below calendar */}
             <div ref={dayDetailRef} className="md:hidden mt-6">
@@ -336,6 +401,15 @@ export function ClientCalendar({ clientId, onLastWorkoutUpdate, onDaySelected, e
       <IngredientsModal showIngredientsModal={showIngredientsModal} setShowIngredientsModal={setShowIngredientsModal} editingNutritionExercise={editingNutritionExercise} editingIngredientsList={editingIngredientsList} setEditingIngredientsList={setEditingIngredientsList} handleSaveNutrition={handleSaveNutrition} />
       <ConfirmationModal showConfirmModal={showConfirmModal} setShowConfirmModal={setShowConfirmModal} editingDate={editingDate} newDate={newDate} getDayData={getDayData} selectedActivityIdsForDateChange={selectedActivityIdsForDateChange} setSelectedActivityIdsForDateChange={setSelectedActivityIdsForDateChange} applyToAllSameDays={applyToAllSameDays} setApplyToAllSameDays={setApplyToAllSameDays} confirmUpdateDate={confirmUpdateDate} dayData={dayData} summaryRowsByDate={summaryRowsByDate} />
       <NutritionDeleteModal confirmDeleteNutritionId={confirmDeleteNutritionId} setConfirmDeleteNutritionId={setConfirmDeleteNutritionId} handleDeleteNutrition={handleDeleteNutrition} />
+
+      {isReorganizing && (
+        <div className="fixed inset-0 z-[9999] bg-black/80 backdrop-blur-sm flex flex-col items-center justify-center p-6">
+          <div className="scale-75 mb-[-20px]">
+            <OmniaLoader className="min-h-0 bg-transparent" />
+          </div>
+          <p className="text-[#FF7939] font-black italic uppercase tracking-widest text-lg animate-pulse">Reorganizando fecha...</p>
+        </div>
+      )}
     </div>
   )
 }

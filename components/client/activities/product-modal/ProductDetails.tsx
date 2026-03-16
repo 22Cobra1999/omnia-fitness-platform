@@ -4,6 +4,7 @@ import React from 'react'
 import Image from 'next/image'
 import { Calendar, Star, ChevronRight, Zap, Clock, Dumbbell, Users, Video, MapPin, UtensilsCrossed, Flame, FileText } from 'lucide-react'
 import { Button } from '@/components/ui/button'
+import { cn } from '@/lib/utils/utils'
 
 interface ProductDetailsProps {
     product: any
@@ -90,14 +91,26 @@ export function ProductDetails({ product, logic }: ProductDetailsProps) {
 
             {/* 3. Description - Smaller text */}
             <div>
-                <div className="text-gray-400 text-xs font-medium leading-relaxed">
+                <div className="text-gray-400 text-xs font-medium leading-relaxed flex flex-wrap gap-2 items-start">
+                    <span className={cn(
+                        "backdrop-blur-md px-2 py-0.5 rounded-full text-[9px] font-bold border flex-shrink-0 mt-0.5 uppercase tracking-tighter",
+                        product.type === 'workshop' ? "bg-yellow-500/20 text-yellow-400 border-yellow-500/30" :
+                        product.type === 'program' ? "bg-orange-500/20 text-orange-400 border-orange-500/30" :
+                        product.type === 'document' ? "bg-white/10 text-white border-white/20" :
+                        "bg-[#FF7939]/20 text-[#FF7939] border-[#FF7939]/30"
+                    )}>
+                      {product.type === 'workshop' ? 'Taller' : 
+                       product.type === 'program' ? 'Programa' : 
+                       product.type === 'document' ? 'Doc' : 
+                       product.type?.toUpperCase() || 'PRODUCTO'}
+                    </span>
                     <p className={!isDescriptionExpanded ? "line-clamp-2" : ""}>{product.description}</p>
                     {product.description?.length > 100 && (
                         <button
                             onClick={() => setIsDescriptionExpanded(!isDescriptionExpanded)}
                             aria-expanded={isDescriptionExpanded}
                             aria-label={isDescriptionExpanded ? "Ver menos descripción" : "Leer más descripción"}
-                            className="text-[#FF7939] hover:text-[#FF6B00] text-[10px] mt-1 font-bold uppercase tracking-wider"
+                            className="text-[#FF7939] hover:text-[#FF6B00] text-[10px] mt-1 font-bold uppercase tracking-wider block"
                         >
                             {isDescriptionExpanded ? 'ver menos' : 'leer más'}
                         </button>

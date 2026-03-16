@@ -42,22 +42,12 @@ export function MediaSelectionModal({
     return (
         <Dialog open={isOpen} onOpenChange={onClose}>
             <DialogContent 
-                className={`w-[95vw] sm:max-w-5xl max-h-[90vh] sm:max-h-[85vh] bg-[#0A0A0A] border-white/10 overflow-hidden flex flex-col p-0 shadow-2xl ${className || ''}`}
-                style={{
-                    position: 'fixed',
-                    inset: '0',
-                    margin: 'auto',
-                    zIndex: 9999,
-                    left: '0',
-                    right: '0',
-                    top: '0',
-                    bottom: '0',
-                    transform: 'none' // Disable the transform centering to avoid conflict with inset/margin
-                }}
+                className={`!fixed !inset-0 !w-screen !h-screen !max-w-none !bg-transparent !border-none !shadow-none !p-0 !flex !items-center !justify-center z-[10001] outline-none pointer-events-none ${className || ''}`}
             >
-                <DialogHeader className="p-4 sm:p-6 pb-0">
-                    <DialogTitle className="text-white text-xl font-semibold">
-                        Seleccionar {getMediaTypeLabel(mediaType)} de Portada
+                <div className="bg-[#0A0A0A]/95 backdrop-blur-3xl border border-white/10 overflow-hidden flex flex-col p-0 shadow-2xl rounded-none sm:rounded-3xl w-full h-full sm:w-[95vw] sm:max-w-6xl sm:h-[90vh] sm:max-h-[85vh] pointer-events-auto">
+                <DialogHeader className="p-8 sm:p-10 pb-0 pr-16 lg:pr-8">
+                    <DialogTitle className="text-white text-3xl font-black tracking-tight">
+                        Seleccionar {getMediaTypeLabel(mediaType)}
                     </DialogTitle>
                     <DialogDescription className="sr-only">
                         Galería para seleccionar media existente o subir nuevo contenido.
@@ -127,7 +117,7 @@ export function MediaSelectionModal({
                                 sourceFilter={sourceFilter}
                             />
 
-                            <div className="flex items-center justify-center gap-3 py-4 border-t border-white/5 bg-[#0A0A0A]/50 backdrop-blur-sm -mx-6 px-6">
+                            <div className="flex items-center justify-center gap-3 py-6 border-t border-white/5 bg-[#0A0A0A]/80 backdrop-blur-xl -mx-4 sm:-mx-6 px-4 sm:px-6 mt-auto">
                                 <motion.button
                                     whileHover={{ scale: 1.1 }}
                                     whileTap={{ scale: 0.9 }}
@@ -160,6 +150,7 @@ export function MediaSelectionModal({
                         id={`media-upload-${mediaType}`}
                     />
                 </div>
+            </div>
             </DialogContent>
         </Dialog>
     )

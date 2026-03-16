@@ -26,7 +26,7 @@ export const WizardFooter: React.FC<WizardFooterProps> = ({
     selectedProgramType
 }) => {
     return (
-        <div className="sticky bottom-0 z-[100] bg-[#0b0b0b] h-16 sm:h-16 flex items-center justify-between px-4 sm:px-6 pb-[env(safe-area-inset-bottom)] border-t border-white/5 shadow-[0_-10px_30px_rgba(0,0,0,0.5)]">
+        <div className="sticky bottom-0 z-[100] bg-[#0b0b0b] h-20 sm:h-16 flex items-center justify-between px-4 sm:px-6 pb-8 sm:pb-0 border-t border-white/5 shadow-[0_-10px_30px_rgba(0,0,0,0.5)]">
             <Button
                 onClick={() => {
                     const prevStepNumber = currentStepNumber - 1

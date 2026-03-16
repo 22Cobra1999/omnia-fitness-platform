@@ -15,12 +15,15 @@ interface CalendarGridProps {
     targetDayForEdit: Date | null
     dayNames: string[]
     getDayData: (date: Date) => any
+    isSelectingNewDate?: boolean
+    maxMoveDate?: Date | null
 }
 
 export const CalendarGrid: React.FC<CalendarGridProps> = ({
     days, currentDate, selectedDate, handleDayClick,
     summaryRowsByDate, monthlyProgress, currentCoachId, clientId,
-    selectedDayForEdit, targetDayForEdit, dayNames, getDayData
+    selectedDayForEdit, targetDayForEdit, dayNames, getDayData,
+    isSelectingNewDate, maxMoveDate
 }) => {
     return (
         <div className="w-full">
@@ -80,9 +83,12 @@ export const CalendarGrid: React.FC<CalendarGridProps> = ({
 
                     const isSelectedForEdit = selectedDayForEdit && date.toDateString() === selectedDayForEdit.toDateString()
                     const isTargetForEdit = targetDayForEdit && date.toDateString() === targetDayForEdit.toDateString()
+                    const isBlocked = !!(isSelectingNewDate && maxMoveDate && date > maxMoveDate)
 
                     let bgClass = "bg-transparent/5"
-                    if (hasOwned) {
+                    if (isBlocked) {
+                        bgClass = "bg-zinc-950/20 border border-zinc-800/10 text-zinc-700 opacity-30 grayscale cursor-not-allowed"
+                    } else if (hasOwned) {
                         if (isAllCompleted) bgClass = "bg-[#FF7939]/20 backdrop-blur-[2px] border border-[#FF7939]/30 text-white"
                         else if (isAbsent) bgClass = "bg-red-500/10 backdrop-blur-[2px] border border-red-500/20 text-white"
                         else bgClass = "bg-yellow-500/10 backdrop-blur-[2px] border border-yellow-500/20 text-yellow-100"
@@ -90,10 +96,15 @@ export const CalendarGrid: React.FC<CalendarGridProps> = ({
                         bgClass = "bg-zinc-900/40 border border-zinc-800 text-gray-500 opacity-70"
                     }
 
-                    const selectionClass = isSelected ? "ring-1 ring-white shadow-[0_0_10px_rgba(255,255,255,0.1)] z-10 scale-[1.02] bg-opacity-40" : ""
+                    const selectionClass = isSelected ? "ring-2 ring-[#FF7939] shadow-[0_0_20px_rgba(255,121,57,0.4)] z-10 scale-[1.05] bg-[#FF7939]/10" : "hover:bg-white/5"
 
                     return (
-                        <button key={index} onClick={() => handleDayClick(date)} className={`relative p-2 text-sm rounded-lg transition-all duration-300 min-h-[50px] flex flex-col items-center justify-start group ${!isCurrentMonth ? 'opacity-20' : ''} ${isSelectedForEdit ? 'bg-[#FF7939]/30 border-2 border-[#FF7939] text-white' : (isTargetForEdit ? 'bg-white text-black border-2 border-white' : `${bgClass} ${selectionClass}`)}`}>
+                        <button 
+                            key={index} 
+                            onClick={() => !isBlocked && handleDayClick(date)} 
+                            disabled={isBlocked}
+                            className={`relative p-2 text-sm rounded-lg transition-all duration-300 min-h-[50px] flex flex-col items-center justify-start group ${!isCurrentMonth ? 'opacity-20' : ''} ${isSelectedForEdit ? 'bg-[#FF7939]/30 border-2 border-[#FF7939] text-white' : (isTargetForEdit ? 'bg-white text-black border-2 border-white' : `${bgClass} ${selectionClass}`)}`}
+                        >
                             {isToday && (
                                 <div className="absolute top-1 right-1 w-1.5 h-1.5 rounded-full bg-[#FF7939]" />
                             )}

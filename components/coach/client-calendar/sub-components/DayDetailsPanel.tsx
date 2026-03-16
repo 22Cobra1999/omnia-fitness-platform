@@ -99,17 +99,25 @@ export const DayDetailsPanel: React.FC<DayDetailsPanelProps> = (props) => {
                         )}
                     </div>
                 </div>
-                <button
-                    onClick={() => handleEditDate(selectedDate)}
-                    className={`flex-shrink-0 flex items-center gap-1 px-2.5 py-1 text-[11px] font-bold rounded-lg transition-colors ml-2 ${
-                        isSelectingNewDate
-                            ? 'bg-[#FF7939] text-black'
-                            : 'text-[#FF7939] hover:bg-[#FF7939]/10 border border-[#FF7939]/20'
-                    }`}
-                >
-                    <RotateCcw className="h-3 w-3" />
-                    {isSelectingNewDate ? 'Cancelar' : 'Fecha'}
-                </button>
+                {(() => {
+                    const today = new Date()
+                    today.setHours(0, 0, 0, 0)
+                    if (selectedDate < today) return null
+                    
+                    return (
+                        <button
+                            onClick={() => handleEditDate(selectedDate)}
+                            className={`flex-shrink-0 flex items-center gap-1 px-2.5 py-1 text-[11px] font-bold rounded-lg transition-colors ml-2 ${
+                                isSelectingNewDate
+                                    ? 'bg-[#FF7939] text-black'
+                                    : 'text-[#FF7939] hover:bg-[#FF7939]/10 border border-[#FF7939]/20'
+                            }`}
+                        >
+                            <RotateCcw className="h-3 w-3" />
+                            {isSelectingNewDate ? 'Cancelar' : 'Fecha'}
+                        </button>
+                    )
+                })()}
             </div>
 
             {rows.length === 0 ? (

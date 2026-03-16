@@ -13,6 +13,7 @@ import { extractVimeoId } from "@/utils/vimeo-utils"
 import { useToast } from "@/components/ui/use-toast"
 import { PurchaseActivityModal } from '@/components/shared/activities/PurchaseActivityModal'
 import { getSupabaseClient } from '@/lib/supabase/supabase-client'
+import { cn } from "@/lib/utils/utils"
 import type { Activity } from "@/types/activity"
 
 interface ProductDetailViewProps {
@@ -221,9 +222,21 @@ export function ProductDetailView({ activityId }: ProductDetailViewProps) {
 
         {/* 3. Description Section - Minimalist */}
         <div className="max-w-2xl mb-10">
-          <p className="text-gray-400 text-base leading-relaxed">
-            {activity.description || ''}
-          </p>
+          <div className="text-gray-400 text-base leading-relaxed flex flex-wrap gap-2 items-start">
+            <span className={cn(
+              "backdrop-blur-md px-2 py-0.5 rounded-full text-[10px] font-bold border flex-shrink-0 mt-1 uppercase tracking-tighter",
+              activity.type === 'workshop' ? "bg-blue-500/20 text-blue-400 border-blue-500/30" :
+              activity.type === 'program' ? "bg-green-500/20 text-green-400 border-green-500/30" :
+              activity.type === 'document' ? "bg-purple-500/20 text-purple-400 border-purple-500/30" :
+              "bg-orange-500/20 text-orange-400 border-orange-500/30"
+            )}>
+              {activity.type === 'workshop' ? 'Taller' : 
+               activity.type === 'program' ? 'Programa' : 
+               activity.type === 'document' ? 'Doc' : 
+               activity.type?.toUpperCase() || 'PRODUCTO'}
+            </span>
+            <span>{activity.description || ''}</span>
+          </div>
         </div>
 
         {/* 4. Stats Grid - Minimalist approach */}

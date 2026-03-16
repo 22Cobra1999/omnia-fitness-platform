@@ -7,6 +7,7 @@ Bienvenido al repositorio central de conocimiento técnico de Omnia. Aquí docum
 ### 👨‍🏫 Panel del Coach (Coach Section)
 *   **[Clientes](coach/clients/index.md)**: Cómo consultamos y gestionamos la cartera de clientes.
 *   **[Productos](coach/products/index.md)**: Gestión de ejercicios y programas nutricionales (Creación y Carga).
+*   **[Ciclo de Vida y Borrado](technical/activity-lifecycle-and-soft-delete.md)**: Lógica de Soft Delete y cleanup de datos.
 *   **[Videos (Bunny.net)](coach/video/index.md)**: Flujo de subida y almacenamiento de videos.
 *   **[Documentos](coach/documents/index.md)**: Gestión de material de lectura y PDFs.
 *   **[Calendario](coach/calendar/index.md)**: Flujos de turnos y generación automática de Sesiones (eMeets).
