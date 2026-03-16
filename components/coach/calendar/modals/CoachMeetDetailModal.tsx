@@ -34,6 +34,7 @@ export function CoachMeetDetailModal({
                 .from('calendar_event_participants')
                 .select(`
           *,
+          attendance_status,
           user:user_id (
             id,
             full_name,
@@ -319,36 +320,53 @@ export function CoachMeetDetailModal({
                             <div className="flex-1">
                                 <div className="text-sm font-semibold text-white mb-2">Participantes</div>
                                 <div className="space-y-2">
-                                    {participants.map((p) => (
-                                        <div key={p.id} className="flex items-center justify-between">
-                                            <div className="flex items-center gap-2">
-                                                {p.user?.avatar_url ? (
-                                                    <img src={p.user.avatar_url} alt={p.user.full_name} className="w-6 h-6 rounded-full" />
-                                                ) : (
-                                                    <div className="w-6 h-6 rounded-full bg-zinc-800 flex items-center justify-center">
-                                                        <Users className="w-3 h-3 text-zinc-500" />
-                                                    </div>
-                                                )}
-                                                <span className="text-xs text-white/70">
-                                                    {p.user?.full_name || 'Usuario'}
-                                                    {String(p.user_id) === String(p.invited_by_user_id) && <span className="ml-1 text-[9px] text-zinc-500">(Organizador)</span>}
+                                    {participants.map((p) => {
+                                        const pRsvp = isCancelled ? 'cancelled' : p.rsvp_status;
+                                        const isConfirmed = pRsvp === 'accepted' || pRsvp === 'confirmed';
+                                        const isDeclined = pRsvp === 'declined' || pRsvp === 'cancelled';
+                                        
+                                        // Attendance logic for past events
+                                        const showAttendance = isPast && !isCancelled;
+                                        const attendance = p.attendance_status || 'pending';
+                                        
+                                        let badgeText = isConfirmed ? 'Confirmado' : (isDeclined ? 'Cancelado' : 'Pendiente');
+                                        let badgeStyle = isConfirmed
+                                            ? 'bg-[#FF7939]/10 text-[#FF7939] border border-[#FF7939]/20'
+                                            : (isDeclined
+                                                ? 'bg-red-500/10 text-red-500 border border-red-500/20'
+                                                : 'bg-white/5 text-white/40 border border-white/10');
+
+                                        if (showAttendance) {
+                                            if (attendance === 'present' || (attendance === 'pending' && isConfirmed)) {
+                                                badgeText = 'Presente';
+                                                badgeStyle = 'bg-green-500/10 text-green-500 border border-green-500/20';
+                                            } else {
+                                                badgeText = 'Ausente';
+                                                badgeStyle = 'bg-red-500/10 text-red-500 border border-red-500/20';
+                                            }
+                                        }
+
+                                        return (
+                                            <div key={p.id} className="flex items-center justify-between">
+                                                <div className="flex items-center gap-2">
+                                                    {p.user?.avatar_url ? (
+                                                        <img src={p.user.avatar_url} alt={p.user.full_name} className="w-6 h-6 rounded-full" />
+                                                    ) : (
+                                                        <div className="w-6 h-6 rounded-full bg-zinc-800 flex items-center justify-center">
+                                                            <Users className="w-3 h-3 text-zinc-500" />
+                                                        </div>
+                                                    )}
+                                                    <span className="text-xs text-white/70">
+                                                        {p.user?.full_name || 'Usuario'}
+                                                        {String(p.user_id) === String(p.invited_by_user_id) && <span className="ml-1 text-[9px] text-zinc-500">(Organizador)</span>}
+                                                    </span>
+                                                </div>
+                                                <span className={`text-[9px] font-bold uppercase px-2 py-0.5 rounded-full ${badgeStyle}`}>
+                                                    {badgeText}
                                                 </span>
                                             </div>
-                                            <span className={`text-[9px] font-bold uppercase px-2 py-0.5 rounded-full ${(() => {
-                                                const pRsvp = isCancelled ? 'cancelled' : p.rsvp_status;
-                                                return (pRsvp === 'accepted' || pRsvp === 'confirmed')
-                                                    ? 'bg-[#FF7939]/10 text-[#FF7939] border border-[#FF7939]/20'
-                                                    : (pRsvp === 'declined' || pRsvp === 'cancelled')
-                                                        ? 'bg-red-500/10 text-red-500 border border-red-500/20'
-                                                        : 'bg-white/5 text-white/40 border border-white/10'
-                                            })()}`}>
-                                                {(() => {
-                                                    const pRsvp = isCancelled ? 'cancelled' : p.rsvp_status;
-                                                    return (pRsvp === 'accepted' || pRsvp === 'confirmed') ? 'Confirmado' : (pRsvp === 'declined' || pRsvp === 'cancelled' ? 'Cancelado' : 'Pendiente')
-                                                })()}
-                                            </span>
-                                        </div>
-                                    ))}
+                                        );
+                                    })}
                                 </div>
                             </div>
                         </div>

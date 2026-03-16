@@ -72,6 +72,7 @@ export function useCoachEvents(currentDate: Date, googleConnected: boolean) {
                   cancelled_by_user_id, cancellation_reason, cancelled_at
                 `)
                 .eq('coach_id', currentCoachId)
+                .neq('status', 'cancelled')
                 .gte('start_time', monthStartISO)
                 .lte('start_time', monthEndISO)
 
@@ -87,6 +88,7 @@ export function useCoachEvents(currentDate: Date, googleConnected: boolean) {
                   )
                 `)
                 .eq('user_id', currentCoachId)
+                .neq('calendar_events.status', 'cancelled')
                 .gte('calendar_events.start_time', monthStartISO)
                 .lte('calendar_events.start_time', monthEndISO)
 
@@ -96,11 +98,15 @@ export function useCoachEvents(currentDate: Date, googleConnected: boolean) {
                 const merged = [...(ownedEvents || [])]
                 const existingIds = new Set(merged.map(e => e.id))
                 if (guestEventsRaw) {
-                    guestEventsRaw.forEach((row: any) => {
-                        const ev = row.calendar_events
-                        if (ev && !existingIds.has(ev.id)) {
-                            merged.push(ev)
-                            existingIds.add(ev.id)
+                    guestEventsRaw.forEach((ge: any) => {
+                        // Extra safety check: ensure the event itself is not cancelled
+                        if (ge.calendar_events && ge.calendar_events.status !== 'cancelled' && !existingIds.has(ge.calendar_events.id)) {
+                            merged.push({
+                                ...ge.calendar_events,
+                                rsvp_status: ge.rsvp_status,
+                                my_rsvp: ge.rsvp_status
+                            })
+                            existingIds.add(ge.calendar_events.id)
                         }
                     })
                 }
@@ -138,7 +144,7 @@ export function useCoachEvents(currentDate: Date, googleConnected: boolean) {
                 // Fetch participants
                 const { data: participantsData } = await supabase
                     .from('calendar_event_participants')
-                    .select('event_id, rsvp_status, user_id, role')
+                    .select('event_id, rsvp_status, user_id, role, attendance_status, attendance_minutes')
                     .in('event_id', omniaEventIds as any)
 
                 if (participantsData) {
@@ -198,6 +204,8 @@ export function useCoachEvents(currentDate: Date, googleConnected: boolean) {
                     currency: e.pricing_data?.currency,
                     is_free: e.pricing_data?.is_free ?? true,
                     client_id: clientId,
+                    attendance_status: clientParticipant?.attendance_status,
+                    attendance_minutes: clientParticipant?.attendance_minutes,
                     current_participants: count,
                     confirmed_participants: confirmedCountByEvent.get(eid) || 0,
                     total_guests: guestsCountByEvent.get(eid) || 0,
@@ -313,6 +321,7 @@ export function useCoachEvents(currentDate: Date, googleConnected: boolean) {
 
     return {
         events,
+        setEvents,
         loading,
         setLoading,
         getCoachEvents,

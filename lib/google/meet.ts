@@ -27,52 +27,27 @@ export class GoogleMeet {
     private static readonly MEET_API_BASE = 'https://meet.googleapis.com/v2';
 
     /**
-     * Obtiene la duración de asistencia por email para una conferencia dada (meetingCode)
-     * Nota: El meetingCode es el código de 10 letras (ej: "abc-defg-hij") 
-     * o el nombre del espacio ("spaces/...")
+     * Obtiene la duración de asistencia y el email para una conferencia dada
      */
-    static async getAttendanceStats(accessToken: string, meetingUri: string): Promise<Map<string, number>> {
-        const attendanceMap = new Map<string, number>();
+    static async getAttendanceStats(accessToken: string, meetingUri: string): Promise<Map<string, { minutes: number, email?: string }>> {
+        const statsMap = new Map<string, { minutes: number, email?: string }>();
 
         try {
-            // 1. Extraer meeting code
-            // El meetingUri suele ser "https://meet.google.com/abc-defg-hij"
             const meetingCode = this.extractMeetingCode(meetingUri);
-            if (!meetingCode) {
-                console.log('No valid meeting code found in URI:', meetingUri);
-                return attendanceMap;
-            }
+            if (!meetingCode) return statsMap;
 
-            // 2. Buscar records de conferencia para este espacio
-            // La API permite filtrar por espacio. Formato: spaces/CODE
             const spaceName = `spaces/${meetingCode}`;
-
-            // Listar conferenceRecords para este espacio
-            // Docs: https://developers.google.com/meet/api/reference/rest/v2/conferenceRecords/list
-            // filter: "space.name = 'spaces/XYZ'"
             const recordsResponse = await fetch(
                 `${this.MEET_API_BASE}/conferenceRecords?filter=space.name%3D'${spaceName}'`,
-                {
-                    headers: { 'Authorization': `Bearer ${accessToken}` }
-                }
+                { headers: { 'Authorization': `Bearer ${accessToken}` } }
             );
 
-            if (!recordsResponse.ok) {
-                console.error('Error fetching conference records:', await recordsResponse.text());
-                return attendanceMap;
-            }
+            if (!recordsResponse.ok) return statsMap;
 
             const recordsData = await recordsResponse.json();
             const records: MeetConferenceRecord[] = recordsData.conferenceRecords || [];
 
-            if (records.length === 0) {
-                console.log('No conference records found for space:', spaceName);
-                return attendanceMap;
-            }
-
-            // 3. Para cada record (puede haber varias sesiones para el mismo link), sumar tiempos
             for (const record of records) {
-                // Listar participantes
                 const participantsResponse = await fetch(
                     `${this.MEET_API_BASE}/${record.name}/participants`,
                     { headers: { 'Authorization': `Bearer ${accessToken}` } }
@@ -84,23 +59,26 @@ export class GoogleMeet {
                 const participants: MeetParticipant[] = participantsData.participants || [];
 
                 for (const participant of participants) {
-                    // Necesitamos el email. El objeto 'signedinUser' tiene 'user' (resource name).
-                    // La API de Meet devuelve resource names, no siempre emails directos.
-                    // Sin embargo, si es signedInUser, podríamos intentar obtener info.
-                    // A veces displayName ayuda.
+                    let email: string | undefined = undefined;
 
-                    // CRÍTICO: La API v2 de Meet no expone email directamente en 'participant' por privacidad,
-                    // salvo que tengamos scopes delegados de dominio o crucemos con Directory API.
-                    // PERO: Si el user es externo, es difícil.
-                    // Si es interno (client), quizas podamos machear por 'displayName' o asumir identidad si hay RSVP.
+                    // Si es un signedinUser, intentamos obtener el email mediante People API
+                    if (participant.signedinUser) {
+                        const personId = participant.name.split('/').pop();
+                        try {
+                            const peopleResponse = await fetch(
+                                `https://people.googleapis.com/v1/people/${personId}?personFields=emailAddresses&sources=READ_SOURCE_TYPE_PROFILE&sources=READ_SOURCE_TYPE_CONTACT`,
+                                { headers: { 'Authorization': `Bearer ${accessToken}` } }
+                            );
+                            if (peopleResponse.ok) {
+                                const personData = await peopleResponse.json();
+                                email = personData.emailAddresses?.[0]?.value;
+                            }
+                        } catch (e) {
+                            console.error('Error fetching email from People API:', e);
+                        }
+                    }
 
-                    // Workaround: Intentar machear por nombre si el email no está disponible, 
-                    // o ver si la API de Calendar nos dio el match entre Email y UserID.
-
-                    // Para este MVP: Acumulamos por 'displayName' y luego intentamos conciliar?
-                    // Ojo: signedinUser.user devuelve "users/123...".
-
-                    // Vamos a simplificar: Iterar sesiones para calcular tiempo real
+                    // Calcular sesiones
                     const sessionsResponse = await fetch(
                         `${this.MEET_API_BASE}/${participant.name}/participantSessions`,
                         { headers: { 'Authorization': `Bearer ${accessToken}` } }
@@ -114,24 +92,26 @@ export class GoogleMeet {
                     let totalMinutes = 0;
                     sessions.forEach(session => {
                         const start = new Date(session.startTime);
-                        const end = new Date(session.endTime);
-                        const diff = (end.getTime() - start.getTime()) / 1000 / 60; // minutos
+                        const end = session.endTime ? new Date(session.endTime) : new Date(); // Si no tiene endTime, sigue en la reunión
+                        const diff = (end.getTime() - start.getTime()) / 1000 / 60;
                         totalMinutes += diff;
                     });
 
-                    // Key for mapping: Intentemos displayName por ahora, o ID único.
-                    // En producción ideal esto se cruza con People API.
-                    const key = participant.signedinUser?.displayName || 'Unknown';
-                    const current = attendanceMap.get(key) || 0;
-                    attendanceMap.set(key, current + Math.round(totalMinutes));
+                    const displayName = participant.signedinUser?.displayName || 'Unknown';
+                    const key = email || displayName; // Prioridad al email para el match
+                    
+                    const existing = statsMap.get(key) || { minutes: 0, email };
+                    statsMap.set(key, { 
+                        minutes: existing.minutes + Math.round(totalMinutes), 
+                        email: email || existing.email 
+                    });
                 }
             }
-
         } catch (error) {
             console.error('Error in Meet integration:', error);
         }
 
-        return attendanceMap;
+        return statsMap;
     }
 
     private static extractMeetingCode(uri: string): string | null {

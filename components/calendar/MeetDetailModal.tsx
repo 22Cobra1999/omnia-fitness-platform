@@ -2,7 +2,7 @@ import React from 'react'
 import { format, startOfWeek } from 'date-fns'
 import { es } from 'date-fns/locale'
 import { RotateCcw, X, AlertTriangle } from 'lucide-react'
-import { createClientComponentClient } from '@supabase/auth-helpers-nextjs'
+import { createClient } from '@/lib/supabase/supabase-client'
 import { useToast } from "@/components/ui/use-toast"
 import { MeetDetailHeader } from './components/meet-detail/MeetDetailHeader'
 import { MeetDetailInfo } from './components/meet-detail/MeetDetailInfo'
@@ -65,7 +65,7 @@ export function MeetDetailModal({
     onReschedule,
     onCancelRescheduleRequest
 }: MeetDetailModalProps) {
-    const supabase = createClientComponentClient()
+    const supabase = createClient()
     const { toast } = useToast()
 
     const {

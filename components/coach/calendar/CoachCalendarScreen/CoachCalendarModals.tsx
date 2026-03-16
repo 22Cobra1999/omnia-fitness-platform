@@ -61,6 +61,7 @@ interface CoachCalendarModalsProps {
     handleConfirmMeet: (data: any) => void
     handleEditTime: () => void
     meetToReschedule: any
+    setEvents: (events: CalendarEvent[]) => void
     showMonthSelector: boolean
     setShowMonthSelector: (show: boolean) => void
     currentDate: Date
@@ -132,7 +133,14 @@ export const CoachCalendarModals: React.FC<CoachCalendarModalsProps> = ({
     setMonthPickerYear,
     changeMonth,
     goToToday,
+    setEvents,
 }) => {
+    const setMeetEventsByDate = (updater: any) => {
+        const nextMap = typeof updater === 'function' ? updater(eventsByDate) : updater;
+        const allEvents = Object.values(nextMap).flat() as CalendarEvent[];
+        setEvents(allEvents);
+    };
+
     return (
         <>
             <MeetCreateEditModal
@@ -145,15 +153,15 @@ export const CoachCalendarModals: React.FC<CoachCalendarModalsProps> = ({
                 notes={newEventNotes}
                 setNotes={setNewEventNotes}
                 date={newEventDate}
-                setDate={setNewEventDate}
+                setDate={(d: any) => setNewEventDate(d)}
                 startTime={newEventStartTime}
                 setStartTime={setNewEventStartTime}
                 endTime={newEventEndTime}
                 setEndTime={setNewEventEndTime}
                 isFree={newEventIsFree}
                 setIsFree={setNewEventIsFree}
-                price={newEventPrice}
-                setPrice={setNewEventPrice}
+                price={String(newEventPrice)}
+                setPrice={(p: string) => setNewEventPrice(p)}
                 clients={clientsForMeet}
                 selectedClientIds={selectedClientIds}
                 setSelectedClientIds={setSelectedClientIds}
@@ -202,9 +210,11 @@ export const CoachCalendarModals: React.FC<CoachCalendarModalsProps> = ({
                         })
                         setSelectedMeetEvent(null)
                     }}
-                    onCancelRescheduleRequest={handleCancelRescheduleRequest}
+                    onCancelRescheduleRequest={async (eventId) => {
+                        await handleCancelRescheduleRequest();
+                    }}
                     meetEventsByDate={eventsByDate}
-                    setMeetEventsByDate={() => { }}
+                    setMeetEventsByDate={setMeetEventsByDate}
                     selectedMeetRsvpStatus={selectedMeetRsvpStatus}
                     setSelectedMeetRsvpStatus={setSelectedMeetRsvpStatus}
                     selectedMeetRsvpLoading={selectedMeetRsvpLoading}
@@ -223,7 +233,10 @@ export const CoachCalendarModals: React.FC<CoachCalendarModalsProps> = ({
                     selectedDate={quickSchedulerDate}
                     startTime={pendingMeetData.startTime}
                     durationMinutes={pendingMeetData.durationMinutes}
-                    onConfirm={isRescheduling ? handleRescheduleConfirm : handleConfirmMeet}
+                    onConfirm={async (data: any) => {
+                        if (isRescheduling) await handleRescheduleConfirm(data);
+                        else await handleConfirmMeet(data);
+                    }}
                     availableClients={clientsForMeet}
                     isRescheduling={isRescheduling}
                     onEditTime={handleEditTime}
@@ -245,7 +258,7 @@ export const CoachCalendarModals: React.FC<CoachCalendarModalsProps> = ({
                 currentDate={currentDate}
                 monthPickerYear={monthPickerYear}
                 setMonthPickerYear={setMonthPickerYear}
-                changeMonth={changeMonth}
+                changeMonth={(m: any) => changeMonth(m instanceof Date ? m : new Date(monthPickerYear, m, 1))}
                 goToToday={goToToday}
             />
         </>

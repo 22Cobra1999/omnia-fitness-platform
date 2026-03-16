@@ -58,7 +58,7 @@ function CoachCalendarContent() {
     setShowMeetNotifications, meetNotificationsCount, eventsByDate, loading,
 
     // Logic Hooks
-    events, coachId, availabilityRules, availabilityDrafts, availabilitySaving,
+    events, setEvents, coachId, availabilityRules, availabilityDrafts, availabilitySaving,
     saveAvailability, deleteAvailabilityRule, setAvailabilityRules, setAvailabilityDrafts,
 
     // Meet Modal
@@ -205,7 +205,7 @@ function CoachCalendarContent() {
           handleCancelConfirmation, quickSchedulerDate, pendingMeetData, isRescheduling,
           handleRescheduleConfirm, handleConfirmMeet, handleEditTime, meetToReschedule,
           showMonthSelector, setShowMonthSelector, currentDate, monthPickerYear,
-          setMonthPickerYear, changeMonth, goToToday
+          setMonthPickerYear, changeMonth, goToToday, setEvents
         }}
       />
 

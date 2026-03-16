@@ -13,6 +13,7 @@ interface UseMeetPersistenceLogicProps {
     isGrupal: boolean
     start: Date
     actualEventId: string | number
+    selectedMeetParticipants: any[]
 }
 
 export function useMeetPersistenceLogic({
@@ -27,7 +28,8 @@ export function useMeetPersistenceLogic({
     isConfirmed,
     isGrupal,
     start,
-    actualEventId
+    actualEventId,
+    selectedMeetParticipants
 }: UseMeetPersistenceLogicProps) {
     const loadMeet = async () => {
         try {
@@ -164,28 +166,87 @@ export function useMeetPersistenceLogic({
             setSelectedMeetRsvpLoading(true)
 
             const dateKey = format(start, 'yyyy-MM-dd')
+            // Improved check: detect if there are any GUESTS (not the coach) who have accepted
+            // We use selectedMeetParticipants list passed from the hook which is hydrated with profiles
+            const guests = selectedMeetParticipants.filter((p: any) => String(p.user_id) !== String(authUserId))
+            const hasConfirmedGuests = guests.some((p: any) => ['accepted', 'confirmed'].includes(p.rsvp_status))
+            
+            console.log('[useMeetPersistenceLogic] Cancellation Check:', {
+                isGrupal,
+                isConfirmed,
+                participantCount: selectedMeetParticipants.length,
+                guestCount: guests.length,
+                hasConfirmedGuests,
+                eventId: actualEventId,
+                authUserId
+            })
 
-            if (!isConfirmed && !isGrupal) {
-                console.log('[useMeetPersistenceLogic] Unconfirmed meet, performing HARD DELETE')
-                const { error: deleteError } = await supabase
+            // Delete if not a workshop and (no guests at all OR no guests have confirmed yet)
+            // This ensures "coach-only" or "pending-only" meets are erased completely from DB.
+            if (!isGrupal && (!hasConfirmedGuests || guests.length === 0)) {
+                console.log('--- DIAGNÓSTICO PROFUNDO DE ELIMINACIÓN ---')
+                const { data: { session } } = await supabase.auth.getSession()
+                const { data: { user } } = await supabase.auth.getUser()
+                
+                console.log('[AUTH] Session exists:', !!session)
+                console.log('[AUTH] User ID from getUser():', user?.id)
+                console.log('[AUTH] User ID from session:', session?.user?.id)
+                console.log('[DEBUG] authUserId prop:', authUserId)
+                console.log('[DEBUG] Event ID a borrar:', actualEventId)
+                
+                const response = await supabase
                     .from('calendar_events')
-                    .delete()
+                    .delete({ count: 'exact' })
                     .eq('id', actualEventId)
 
-                if (deleteError) throw deleteError
-
-                setMeetEventsByDate((prev: any) => {
-                    const dayEvents = prev[dateKey] || []
-                    return {
-                        ...prev,
-                        [dateKey]: dayEvents.filter((e: any) => String(e.id) !== String(actualEventId))
-                    }
+                console.log('[RESPONSE] Full Supabase Response:', {
+                    status: response.status,
+                    statusText: response.statusText,
+                    count: response.count,
+                    error: response.error,
+                    body: response.data
                 })
 
-                toast({
-                    title: "Meet eliminada",
-                    description: "La invitación ha sido eliminada correctamente.",
-                })
+                if (response.error) {
+                    console.error('[ERROR] Detalle técnico:', response.error)
+                    toast({
+                        title: "Error de permisos",
+                        description: `DB Error: ${response.error.message} (Code: ${response.error.code})`,
+                        variant: "destructive"
+                    })
+                    throw response.error
+                }
+
+                if (response.count && response.count > 0) {
+                    console.log('[SUCCESS] Fila eliminada físicamente de la DB.')
+                    
+                    // Actualizar el estado local eliminando el evento
+                    setMeetEventsByDate((prev: any) => {
+                        const dateKey = format(start, 'yyyy-MM-dd')
+                        const dayEvents = prev[dateKey] || []
+                        const filtered = dayEvents.filter((e: any) => String(e.id) !== String(actualEventId))
+                        console.log(`[UI] Filtrando evento ${actualEventId} de la fecha ${dateKey}. Antes: ${dayEvents.length}, Ahora: ${filtered.length}`)
+                        return {
+                            ...prev,
+                            [dateKey]: filtered
+                        }
+                    })
+
+                    toast({
+                        title: "Meet eliminada",
+                        description: "La invitación ha sido eliminada de la base de datos.",
+                    })
+                    
+                    // IMPORTANTE: Después de 2 segundos, verificamos si "reaparece"
+                    setTimeout(async () => {
+                        const { data } = await supabase.from('calendar_events').select('id').eq('id', actualEventId).single()
+                        if (data) {
+                            console.error('[FANTASMA] ¡El evento ha reaparecido en la DB! Algún trigger lo está re-insertando.')
+                        } else {
+                            console.log('[VERIFICACIÓN] El evento sigue borrado. Todo OK.')
+                        }
+                    }, 2000)
+                }
             } else {
                 await updateMeetStatus(String(actualEventId), 'declined')
 
@@ -200,16 +261,15 @@ export function useMeetPersistenceLogic({
                         .eq('id', actualEventId)
 
                     if (eventError) {
-                        console.error('Error cancelling event:', eventError)
+                        console.error('[useMeetPersistenceLogic] Error cancelling event:', eventError)
                     } else {
+                        console.log('[useMeetPersistenceLogic] Event marked as cancelled in DB:', actualEventId)
                         setMeetEventsByDate((prev: any) => {
                             const dayEvents = prev[dateKey] || []
                             return {
                                 ...prev,
-                                [dateKey]: dayEvents.map((e: any) =>
-                                    (String(e.id) === String(actualEventId) || String(e.original_event_id) === String(actualEventId))
-                                        ? { ...e, status: 'cancelled' }
-                                        : e
+                                [dateKey]: dayEvents.filter((e: any) => 
+                                    String(e.id) !== String(actualEventId) && String(e.original_event_id) !== String(actualEventId)
                                 )
                             }
                         })
@@ -224,8 +284,13 @@ export function useMeetPersistenceLogic({
 
             setSelectedMeetEvent(null)
             setShowCancelConfirm(false)
-        } catch (e) {
-            // Error handled in updateMeetStatus
+        } catch (e: any) {
+            console.error('[useMeetPersistenceLogic] error in confirmCancel:', e)
+            toast({
+                variant: "destructive",
+                title: "Error",
+                description: e.message || "No se pudo cancelar la reunión.",
+            })
         } finally {
             setSelectedMeetRsvpLoading(false)
         }

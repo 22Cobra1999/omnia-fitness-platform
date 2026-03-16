@@ -94,25 +94,40 @@ export function CoachCalendarEventList({
                                             </div>
                                             
                                             <div className="flex-1 min-w-0 pt-0.5">
-                                                <div className="text-[11px] font-[1000] text-white/95 uppercase italic tracking-tight leading-[1.1]">
-                                                    {m.title ? String(m.title).replace(/^Taller:\s*/i, '') : (m.event_type === 'workshop' ? 'Taller' : 'Meet')}
+                                                <div className="flex items-center gap-2">
+                                                    <div className="text-[11px] font-[1000] text-white/95 uppercase italic tracking-tight leading-none truncate max-w-[60%]">
+                                                        {m.title ? String(m.title).replace(/^Taller:\s*/i, '') : (m.event_type === 'workshop' ? 'Taller' : 'Meet')}
+                                                    </div>
+                                                    <div className="flex items-center gap-1.5 shrink-0 ml-auto">
+                                                        <div className="text-[8.5px] text-white/30 font-bold uppercase tracking-widest leading-none">
+                                                            {label}
+                                                        </div>
+                                                        {m.client_name && (
+                                                            <>
+                                                                <div className="w-0.5 h-0.5 rounded-full bg-white/10 shrink-0" />
+                                                                <div className="flex items-center gap-1 min-w-0">
+                                                                    <div className="text-[8.5px] text-[#EA580C] font-[1000] uppercase leading-none truncate max-w-[80px]">
+                                                                        {m.client_name}
+                                                                    </div>
+                                                                    {new Date(m.end_time || m.start_time) < new Date() && (m as any).attendance_status === 'present' && (
+                                                                        <div className="w-1 h-1 rounded-full bg-green-500 shrink-0" title="Asistió" />
+                                                                    )}
+                                                                    {new Date(m.end_time || m.start_time) < new Date() && (m as any).attendance_status === 'absent' && (
+                                                                        <div className="w-1 h-1 rounded-full bg-red-500 shrink-0" title="Ausente" />
+                                                                    )}
+                                                                </div>
+                                                            </>
+                                                        )}
+                                                    </div>
                                                 </div>
                                             </div>
                                         </div>
 
-                                        {/* Row 2: Metadata & Actions */}
+                                        {/* Row 2: Tags & Actions */}
                                         <div className="flex items-center justify-between gap-4 pl-9">
-                                            <div className="flex flex-col gap-0.5 min-w-0">
-                                                <div className="text-[8.5px] text-white/30 font-bold uppercase tracking-widest leading-none">
-                                                    {label}
-                                                </div>
-                                                {m.client_name && (
-                                                    <div className="text-[8px] text-white/20 font-medium uppercase truncate max-w-[140px]">
-                                                        {m.client_name}
-                                                    </div>
-                                                )}
+                                            <div className="flex items-center gap-2 min-w-0">
                                                 {m.event_type === 'workshop' && (
-                                                    <span className="inline-block w-fit text-[7px] font-black uppercase text-rose-300/60 px-1 py-0.5 rounded bg-rose-500/5 border border-rose-500/20 mt-1">
+                                                    <span className="inline-block w-fit text-[7px] font-black uppercase text-rose-300/60 px-1 py-0.5 rounded bg-rose-500/5 border border-rose-500/20">
                                                         TALLER
                                                     </span>
                                                 )}

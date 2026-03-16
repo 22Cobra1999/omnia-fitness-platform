@@ -80,83 +80,74 @@ export function ClientsScreen() {
         </button>
       </div>
 
-      {/* Filter tabs */}
-      <div className="flex items-center gap-6 border-b border-white/5 pb-1 mb-8 overflow-x-auto hide-scrollbar">
-        {[
-          { id: "all", label: "Todos" },
-          { id: "active", label: "Activos" },
-          { id: "pending", label: "Pendientes" },
-          { id: "inactive", label: "Inactivos" }
-        ].map((tab) => (
-          <button
-            key={tab.id}
-            className="relative pb-3 transition-all"
-            onClick={() => setFilter(tab.id as any)}
-          >
-            <span className={cn(
-              "text-[16px] font-black uppercase tracking-tight whitespace-nowrap px-1",
-              filter === tab.id ? "text-white" : "text-white/40"
-            )}>{tab.label}</span>
-            {filter === tab.id && (
-              <div className="absolute bottom-0 left-0 right-0 h-0.5 bg-[#FF7939] rounded-full" />
-            )}
-          </button>
-        ))}
-      </div>
+      {/* Filter tabs and Ring Info */}
+      <div className="flex items-center justify-between border-b border-white/5 mb-8">
+        <div className="flex items-center gap-6 pb-1 overflow-x-auto hide-scrollbar">
+          {[
+            { id: "all", label: "Todos" },
+            { id: "active", label: "Activos" },
+            { id: "pending", label: "Pendientes" },
+            { id: "inactive", label: "Inactivos" }
+          ].map((tab) => (
+            <button
+              key={tab.id}
+              className="relative pb-3 transition-all"
+              onClick={() => setFilter(tab.id as any)}
+            >
+              <span className={cn(
+                "text-[16px] font-black uppercase tracking-tight whitespace-nowrap px-1",
+                filter === tab.id ? "text-white" : "text-white/40"
+              )}>{tab.label}</span>
+              {filter === tab.id && (
+                <div className="absolute bottom-0 left-0 right-0 h-0.5 bg-[#FF7939] rounded-full" />
+              )}
+            </button>
+          ))}
+        </div>
 
-      {/* Interactive Legend for Rings */}
-      <div className="mb-8">
         <button
           onClick={() => setIsLegendOpen(!isLegendOpen)}
           className={cn(
-            "flex items-center gap-3 px-5 py-3 rounded-full border transition-all duration-300",
-            isLegendOpen
-              ? "bg-[#111111] border-[#FF7939]/30 text-white w-full"
-              : "bg-[#111111] border-white/5 text-white/40"
+            "pb-3 px-2 transition-all flex items-center justify-center active:scale-90",
+            isLegendOpen ? "text-[#FF7939]" : "text-white/40"
           )}
         >
-          <div className={cn(
-            "w-6 h-6 rounded-lg flex items-center justify-center border",
-            isLegendOpen ? "bg-[#FF7939]/10 border-[#FF7939]/20 text-[#FF7939]" : "bg-white/5 border-white/10 text-white/20"
-          )}>
-            <Info size={14} />
-          </div>
-          <span className="text-[11px] font-black uppercase tracking-widest italic">Info de anillos</span>
-          {isLegendOpen ? <X size={14} className="ml-auto" /> : null}
+          <Info size={18} />
         </button>
+      </div>
 
-        <AnimatePresence>
-          {isLegendOpen && (
-            <motion.div
-              initial={{ opacity: 0, height: 0, marginTop: 0 }}
-              animate={{ opacity: 1, height: "auto", marginTop: 12 }}
-              exit={{ opacity: 0, height: 0, marginTop: 0 }}
-              className="overflow-hidden"
-            >
-              <div className="px-5 py-6 bg-[#111111] rounded-[24px] border border-white/5 relative shadow-2xl">
-                <div className="grid grid-cols-1 gap-y-4">
-                  <div className="flex items-center gap-4">
-                    <div className="w-3 h-3 rounded-full bg-[#FACC15] shadow-[0_0_10px_rgba(250,204,21,0.4)]" />
-                    <span className="text-[10px] font-black text-white/90 uppercase tracking-tighter italic">Amarillo marca platos completados</span>
-                  </div>
-                  <div className="flex items-center gap-4">
-                    <div className="w-3 h-3 rounded-full bg-[#FF7939] shadow-[0_0_10px_rgba(255,121,57,0.4)]" />
-                    <span className="text-[10px] font-black text-white/90 uppercase tracking-tighter italic">Naranja ejercicios completados</span>
-                  </div>
-                  <div className="flex items-center gap-4">
-                    <div className="w-3 h-3 rounded-full bg-[#ef4444]" />
-                    <span className="text-[10px] font-black text-white/90 uppercase tracking-tighter italic">Rojo marca no completados</span>
-                  </div>
-                  <div className="flex items-center gap-4">
-                    <div className="w-3 h-3 rounded-full bg-[#27272a] border border-white/5" />
-                    <span className="text-[10px] font-black text-white/90 uppercase tracking-tighter italic">Gris marca proximos</span>
-                  </div>
+      {/* Interactive Legend for Rings */}
+      <AnimatePresence>
+        {isLegendOpen && (
+          <motion.div
+            initial={{ opacity: 0, height: 0, marginTop: -20 }}
+            animate={{ opacity: 1, height: "auto", marginTop: -20 }}
+            exit={{ opacity: 0, height: 0, marginTop: -20 }}
+            className="overflow-hidden mb-8"
+          >
+            <div className="px-5 py-6 bg-[#111111] rounded-[24px] border border-white/5 relative shadow-2xl">
+              <div className="grid grid-cols-1 gap-y-4">
+                <div className="flex items-center gap-4">
+                  <div className="w-3 h-3 rounded-full bg-[#FACC15] shadow-[0_0_10px_rgba(250,204,21,0.4)]" />
+                  <span className="text-[10px] font-black text-white/90 uppercase tracking-tighter italic">Amarillo marca platos completados</span>
+                </div>
+                <div className="flex items-center gap-4">
+                  <div className="w-3 h-3 rounded-full bg-[#FF7939] shadow-[0_0_10px_rgba(255,121,57,0.4)]" />
+                  <span className="text-[10px] font-black text-white/90 uppercase tracking-tighter italic">Naranja ejercicios completados</span>
+                </div>
+                <div className="flex items-center gap-4">
+                  <div className="w-3 h-3 rounded-full bg-[#ef4444]" />
+                  <span className="text-[10px] font-black text-white/90 uppercase tracking-tighter italic">Rojo marca no completados</span>
+                </div>
+                <div className="flex items-center gap-4">
+                  <div className="w-3 h-3 rounded-full bg-[#27272a] border border-white/5" />
+                  <span className="text-[10px] font-black text-white/90 uppercase tracking-tighter italic">Gris marca proximos</span>
                 </div>
               </div>
-            </motion.div>
-          )}
-        </AnimatePresence>
-      </div>
+            </div>
+          </motion.div>
+        )}
+      </AnimatePresence>
 
       {/* Client list */}
       <div className="grid grid-cols-2 sm:grid-cols-3 gap-3 w-full pb-10 px-2 sm:px-0">

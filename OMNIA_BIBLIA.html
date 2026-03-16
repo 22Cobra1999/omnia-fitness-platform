@@ -1118,6 +1118,16 @@
       </div>
     </div>
   </div>
+  <div class="logic-container" style="border-left: 4px solid #FF7939; background: rgba(255, 121, 57, 0.05);">
+    <div class="logic-title">🛡️ REGLA DE INTEGRIDAD: ELIMINACIÓN VS CANCELACIÓN</div>
+    <p style="color: #ddd; font-style: italic;">
+      Para mantener un calendario limpio y evitar "fantasmas", el sistema aplica la siguiente lógica al cancelar:
+    </p>
+    <ul style="color: #ccc;">
+      <li><strong>ELIMINACIÓN (Hard Delete):</strong> Si una Meet (no taller) es cancelada por su creador y <strong>ningún invitado ha confirmado</strong> todavía, el evento se borra permanentemente del calendario y de la Base de Datos.</li>
+      <li><strong>CANCELACIÓN (Soft Delete):</strong> Si ya existen invitados confirmados, el evento cambia su estado a <code>cancelled</code>, pero permanece en la DB (y desaparece del front tras filtrado) para mantener el historial de cancelaciones.</li>
+    </ul>
+  </div>
   <p><strong>⚠️ Arquitectura Modular:</strong> La lógica está estrictamente separada:
     <br><code>useCoachEvents.ts</code>: Fetching y suscripción a cambios en DB (Real-time).
     <br><code>useCoachCalendarLogic.ts</code>: Manejo de interacción, validación de fechas y creación.

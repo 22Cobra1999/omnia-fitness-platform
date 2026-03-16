@@ -33,7 +33,7 @@ export function useCoachMeetDetail(selectedMeetEvent: any, coachId: string | nul
                 // Load participants with their profiles
                 const { data: participants, error: participantsError } = await supabase
                     .from('calendar_event_participants')
-                    .select('id, user_id, role, rsvp_status, is_creator, invited_by_user_id')
+                    .select('id, user_id, role, rsvp_status, is_creator, invited_by_user_id, attendance_status, attendance_minutes')
                     .eq('event_id', actualEventId)
 
                 if (participantsError) {

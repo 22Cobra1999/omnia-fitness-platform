@@ -54,7 +54,14 @@ export class GoogleOAuth {
       client_id: process.env.GOOGLE_CLIENT_ID || '',
       redirect_uri: redirectUri,
       response_type: 'code',
-      scope: 'https://www.googleapis.com/auth/calendar https://www.googleapis.com/auth/meetings.space.readonly https://www.googleapis.com/auth/meetings.space.created',
+      scope: [
+        'https://www.googleapis.com/auth/calendar',
+        'https://www.googleapis.com/auth/meetings.space.readonly',
+        'https://www.googleapis.com/auth/meetings.space.created',
+        'https://www.googleapis.com/auth/meetings.conference.readonly',
+        'https://www.googleapis.com/auth/contacts.readonly',
+        'https://www.googleapis.com/auth/userinfo.email'
+      ].join(' '),
       access_type: 'offline',
       prompt: 'consent',
       state: 'google_meet_integration'

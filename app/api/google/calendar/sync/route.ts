@@ -415,6 +415,7 @@ export async function POST(request: NextRequest) {
                 id, 
                 title, 
                 meet_link, 
+                end_time,
                 calendar_event_participants (
                     id, 
                     client_id,
@@ -432,39 +433,61 @@ export async function POST(request: NextRequest) {
         for (const event of pastEvents) {
           if (!event.meet_link) continue;
 
-          const attendanceMap = await GoogleMeet.getAttendanceStats(accessToken, event.meet_link);
+          const attendanceStats = await GoogleMeet.getAttendanceStats(accessToken, event.meet_link);
 
-          if (attendanceMap.size > 0) {
-            // Mapear stats a participantes
-            // attendanceMap key = Display Name (aprox)
+          if (attendanceStats.size > 0) {
+            console.log(`📊 Estadísticas de Meet obtenidas: ${attendanceStats.size} participantes detectados.`);
 
             for (const participant of event.calendar_event_participants) {
               const fullName = participant.user_profiles?.full_name;
               const email = participant.user_profiles?.email;
 
-              // Intentar match por nombre completo
-              let minutes = attendanceMap.get(fullName) || 0;
+              // 1. Intentar match por email (Match Perfecto)
+              let stats = attendanceStats.get(email || '___');
 
-              // Si no match, intentar match parcial o email si estuviera en map (el map actual usa displayName)
-              if (minutes === 0) {
-                // Búsqueda "fuzzy" simple
-                for (const [key, val] of attendanceMap.entries()) {
-                  if (key.toLowerCase().includes(fullName?.toLowerCase() || '___')) {
-                    minutes = val;
+              // 2. Si no match, intentar match por nombre completo
+              if (!stats && fullName) {
+                stats = attendanceStats.get(fullName);
+              }
+
+              // 3. Búsqueda fuzzy si aún no hay match
+              if (!stats && (fullName || email)) {
+                for (const [key, val] of attendanceStats.entries()) {
+                  if (
+                    (fullName && key.toLowerCase().includes(fullName.toLowerCase())) ||
+                    (email && key.toLowerCase().includes(email.toLowerCase()))
+                  ) {
+                    stats = val;
                     break;
                   }
                 }
               }
 
-              if (minutes > 0) {
+              if (stats && stats.minutes > 2) { // Consideramos presente si estuvo más de 2 minutos
                 await supabase
                   .from('calendar_event_participants')
                   .update({
-                    attendance_minutes: minutes,
-                    last_joined_at: new Date().toISOString() // Aprox, ya que record tiene session times específicos, pero simplificamos
+                    attendance_minutes: stats.minutes,
+                    attendance_status: 'present',
+                    updated_at: new Date().toISOString()
                   })
                   .eq('id', participant.id);
-                console.log(`⏱️ Asistencia registrada: ${fullName} (${minutes} min) en "${event.title}"`);
+                console.log(`✅ Presente: ${fullName || email} (${stats.minutes} min)`);
+              } else {
+                // Si el evento terminó hace más de 1 hora y no estuvo presente, marcar como ausente
+                const oneHourAgo = new Date(now.getTime() - 60 * 60 * 1000);
+                const eventEnd = new Date(event.end_time); // Necesitaríamos traer end_time en la select
+                
+                if (eventEnd < oneHourAgo) {
+                   await supabase
+                    .from('calendar_event_participants')
+                    .update({
+                      attendance_status: 'absent',
+                      updated_at: new Date().toISOString()
+                    })
+                    .eq('id', participant.id);
+                   console.log(`❌ Ausente: ${fullName || email}`);
+                }
               }
             }
           }

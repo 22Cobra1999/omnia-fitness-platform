@@ -123,7 +123,7 @@ export function MonthView({
 
                         // Filtrar todos los eventos de tipo calendario
                         const calendarEvents = dayEvents.filter(e =>
-                            (e.event_type === 'consultation' || e.event_type === 'workshop')
+                            (e.event_type === 'consultation' || e.event_type === 'workshop') && e.status !== 'cancelled'
                         )
 
                         // Eventos de Google Calendar

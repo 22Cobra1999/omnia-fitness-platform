@@ -1,5 +1,5 @@
 import React from 'react'
-import { createClientComponentClient } from '@supabase/auth-helpers-nextjs'
+import { createClient } from '@/lib/supabase/supabase-client'
 import { useToast } from "@/components/ui/use-toast"
 import { useMeetDerivedState } from './modules/useMeetDerivedState'
 import { useMeetPersistenceLogic } from './modules/useMeetPersistenceLogic'
@@ -25,7 +25,7 @@ export function useMeetDetailLogic({
     onReschedule,
     selectedStatus
 }: any) {
-    const supabase = createClientComponentClient()
+    const supabase = createClient()
     const { toast } = useToast()
     const [showCancelConfirm, setShowCancelConfirm] = React.useState(false)
     const [showWorkshopRescheduleWarning, setShowWorkshopRescheduleWarning] = React.useState(false)
@@ -61,7 +61,8 @@ export function useMeetDetailLogic({
         isConfirmed,
         isGrupal,
         start,
-        actualEventId
+        actualEventId,
+        selectedMeetParticipants
     })
 
     // RSVP Logic
