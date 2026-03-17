@@ -148,6 +148,15 @@ export function CoachCalendarEventList({
                                                             if (m.status === 'cancelled') return 'Cancelada'
                                                             if (m.rsvp_status === 'declined' || m.rsvp_status === 'cancelled') return 'Rechazada'
 
+                                                            console.log('🔴 JOIN LOGIC (CoachCalendarEventList):', {
+                                                                title: m.title,
+                                                                isPast,
+                                                                isOngoing,
+                                                                isReadyToJoin,
+                                                                meetLink: m.meet_link,
+                                                                googleMeetData: (m as any).google_meet_data
+                                                            });
+
                                                             if (isPast) return 'Finalizada'
                                                             if (isOngoing || isReadyToJoin) {
                                                                 if (m.meet_link || (m as any).google_meet_data?.meet_link) return 'Unirse'

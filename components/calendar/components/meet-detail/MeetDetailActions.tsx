@@ -80,6 +80,17 @@ export const MeetDetailActions: React.FC<MeetDetailActionsProps> = ({
                         const nowMs = Date.now();
                         const isReadyToJoin = nowMs >= (startMs - 30 * 60 * 1000);
 
+                        console.log('🔴 JOIN BUTTON LOGIC (MeetDetailActions):', {
+                            eventTitle: selectedMeetEvent.title,
+                            meetLink,
+                            isCancelled,
+                            isPast,
+                            startMs,
+                            nowMs,
+                            isReadyToJoin,
+                            rawGoogleMeetData: selectedMeetEvent.google_meet_data
+                        });
+
                         if (!isReadyToJoin) {
                             return (
                                 <div className="w-full px-4 py-2.5 rounded-xl bg-zinc-800 text-white/50 text-xs font-bold flex items-center justify-center gap-2 mb-1 border border-white/5 text-center">
