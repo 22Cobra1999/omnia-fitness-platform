@@ -26,6 +26,7 @@ interface MeetDetailActionsProps {
     onRefresh: () => void
     isCoachAccepted: boolean
     isMeetingStarted?: boolean
+    isOngoing?: boolean
     isConfirmed: boolean
     isWorkshop?: boolean
     isCoach?: boolean
@@ -56,7 +57,8 @@ export const MeetDetailActions: React.FC<MeetDetailActionsProps> = ({
     isMeetingStarted,
     isConfirmed,
     isWorkshop,
-    isCoach
+    isCoach,
+    isOngoing
 }) => {
     const start = new Date(selectedMeetEvent.start_time)
 
@@ -70,6 +72,23 @@ export const MeetDetailActions: React.FC<MeetDetailActionsProps> = ({
 
             {!(isCancelled || isPast) && (
                 <>
+                    {/* Branch 0: Join Link (Always show if available and not cancelled/finished) */}
+                    {(() => {
+                        const meetLink = selectedMeetEvent.meet_link || selectedMeetEvent.google_meet_data?.meet_link;
+                        if (!meetLink || isCancelled || isPast) return null;
+
+                        return (
+                            <button
+                                type="button"
+                                onClick={() => window.open(String(meetLink), '_blank')}
+                                className={`w-full px-4 py-2.5 rounded-xl text-black text-sm font-bold hover:opacity-90 transition-opacity flex items-center justify-center gap-2 mb-1 ${isOngoing ? 'bg-emerald-400' : 'bg-[#FF7939]'}`}
+                            >
+                                <Video size={16} />
+                                {isOngoing ? 'Entrar a la Meet ahora' : 'Unirse a la Meet'}
+                            </button>
+                        );
+                    })()}
+
                     {pendingReschedule && pendingReschedule.status === 'pending' ? (
                         <div className="flex flex-col gap-2 mt-2 p-4 rounded-2xl bg-[#FF7939]/5 border border-[#FF7939]/20 animate-in fade-in slide-in-from-bottom-2 duration-300">
                             <div className="text-[10px] font-extrabold text-[#FFB366] uppercase tracking-[0.1em] mb-2 flex items-center gap-2">
@@ -163,33 +182,6 @@ export const MeetDetailActions: React.FC<MeetDetailActionsProps> = ({
                             {/* Branch 2: Confirmed Meet (Commitment Stage) */}
                             {isConfirmed && !isCancelled && !isPast && (
                                 <div className="flex flex-col gap-2">
-                                    {(() => {
-                                        const meetLink = selectedMeetEvent.meet_link || selectedMeetEvent.google_meet_data?.meet_link;
-                                        if (!meetLink) return null;
-
-                                        if (isToday(start)) {
-                                            return (
-                                                <button
-                                                    type="button"
-                                                    onClick={() => window.open(String(meetLink), '_blank')}
-                                                    className="w-full px-4 py-2.5 rounded-xl bg-[#FF7939] text-black text-sm font-bold hover:opacity-90 transition-opacity flex items-center justify-center gap-2"
-                                                >
-                                                    <Video size={16} />
-                                                    Unirse a la Meet
-                                                </button>
-                                            );
-                                        }
-
-                                        if (!isPast) {
-                                            return (
-                                                <div className="w-full px-4 py-2 rounded-xl bg-white/5 border border-white/5 text-[11px] text-white/40 text-center font-medium">
-                                                    Link disponible el día de la meet
-                                                </div>
-                                            );
-                                        }
-
-                                        return null;
-                                    })()}
                                     {!(isWorkshop && !isCoach) && (
                                         <button
                                             type="button"

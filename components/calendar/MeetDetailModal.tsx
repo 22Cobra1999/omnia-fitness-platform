@@ -101,7 +101,8 @@ export function MeetDetailModal({
         isMyRsvpDeclined,
         loadMeet,
         actualEventId,
-        start
+        start,
+        isOngoing
     } = useMeetDetailLogic({
         selectedMeetEvent,
         setSelectedMeetEvent,
@@ -265,6 +266,7 @@ export function MeetDetailModal({
                         isConfirmed={isConfirmed}
                         isWorkshop={isWorkshop}
                         isCoach={isCoach}
+                        isOngoing={isOngoing}
                     />
                 </div>
 

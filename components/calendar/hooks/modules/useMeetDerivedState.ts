@@ -72,7 +72,9 @@ export function useMeetDerivedState({
     const isConfirmed = !hasPendingParticipants
     const nowMs = Date.now()
     const startMs = start.getTime()
-    const isPast = startMs < nowMs
+    const endMs = end ? end.getTime() : startMs + (60 * 60 * 1000)
+    const isPast = (endMs + (120 * 60 * 1000)) < nowMs
+    const isOngoing = nowMs >= startMs && nowMs <= endMs
 
     const isCancelled = selectedMeetEvent?.status === 'cancelled'
     const isRescheduled = selectedMeetEvent?.status === 'rescheduled'
@@ -104,6 +106,7 @@ export function useMeetDerivedState({
             }
         }
         if (isPast) return { label: 'Finalizada', color: 'text-gray-400 bg-white/5 border-white/10' }
+        if (isOngoing) return { label: 'En curso', color: 'text-emerald-400 bg-emerald-500/10 border-emerald-500/20 shadow-[0_0_10px_rgba(52,211,153,0.15)]' }
         if (effectivePendingReschedule?.status === 'pending') return { label: 'Cambio Solicitado', color: 'text-red-400 bg-red-500/10 border-red-500/20 shadow-[0_0_10px_rgba(239,68,68,0.1)]' }
         if (isRescheduled) return { label: 'Reprogramada', color: 'text-blue-400 bg-blue-500/10 border-blue-500/20' }
 
@@ -139,6 +142,7 @@ export function useMeetDerivedState({
         hasPendingParticipants,
         isConfirmed,
         isPast,
+        isOngoing,
         isCancelled,
         isRescheduled,
         canEditRsvp,

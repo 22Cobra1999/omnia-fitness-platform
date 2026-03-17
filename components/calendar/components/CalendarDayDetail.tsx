@@ -82,7 +82,7 @@ export function CalendarDayDetail({
 
             {meets.length > 0 && (
                 <div className="mb-4">
-                    <div className="text-[11px] tracking-widest text-white/45 mb-2">MEET</div>
+                    <div className="text-[11px] tracking-widest text-white/45 mb-2">MEET - DETAIL TEST</div>
                     <div className="space-y-2">
                         {meets.map((m) => {
                             const start = new Date(m.start_time)
@@ -152,7 +152,7 @@ export function CalendarDayDetail({
 
                             // Button Logic
                             // Only show 'Unirse' if: Today AND (Confirmed OR Accepted) AND Scheduled
-                            const canJoin = isTodayEvent && (rsvp === 'confirmed' || rsvp === 'accepted') && status === 'scheduled' && m.meet_link
+                            const canJoin = (rsvp === 'confirmed' || rsvp === 'accepted') && status === 'scheduled' && m.meet_link
 
                             const handleEnter = () => {
                                 if (canJoin && m.meet_link) {
@@ -208,6 +208,7 @@ export function CalendarDayDetail({
                             return (
                                 <div
                                     key={m.id}
+                                    onClick={handleOpenDetail}
                                     className={
                                         `w-full rounded-2xl border px-4 py-3 flex items-center justify-between gap-3 transition-all duration-200 select-none ` +
                                         (isCancelled
@@ -216,45 +217,58 @@ export function CalendarDayDetail({
                                     }
                                     role="button"
                                     tabIndex={0}
-                                    onClick={handleOpenDetail}
                                 >
                                     <div className="flex items-center gap-3 w-full">
                                         <div className={`w-10 h-10 rounded-full flex items-center justify-center flex-shrink-0 ${m.event_type === 'workshop' ? 'bg-[#FADADD]/10 text-[#FADADD] border border-[#FADADD]/30' : (isCancelled ? 'bg-red-500/10 text-red-400 border border-red-500/30' : (rsvp === 'pending' ? 'bg-yellow-500/10 text-yellow-500 border border-yellow-500/20' : 'bg-[#FF7939]/10 text-[#FF7939] border border-[#FF7939]/20'))}`}>
                                             {m.event_type === 'workshop' ? <GraduationCap className="h-5 w-5" /> : <Video className="h-5 w-5" />}
                                         </div>
                                         <div className="min-w-0 flex-1">
-                                            <div className="flex items-center gap-2">
+                                            <div className="flex flex-col gap-1 min-w-0">
+                                                {/* Row 1: Title */}
                                                 <div className="text-sm font-bold text-white truncate leading-snug">
-                                                    {m.title ? String(m.title) : (m.event_type === 'workshop' ? '' : 'Meet')}
+                                                    {m.title ? String(m.title).replace(/^(Taller|Consulta|Meet|Workshop|Consultation):\s*/i, '').replace(/^(Taller|Consulta|Meet|Workshop|Consultation)\s+/i, '') : (m.event_type === 'workshop' ? 'Taller' : 'Meet')}
                                                 </div>
-                                                {isGroup ? (
-                                                    <Users className="w-3 h-3 text-white/50" />
-                                                ) : (
-                                                    <span className="text-[10px] font-bold text-white/50 bg-white/10 px-1.5 rounded">1:1</span>
-                                                )}
-                                            </div>
-                                            <div className="flex items-center gap-2 mt-0.5">
-                                                <div className={`text-[11px] font-medium ${statusColor}`}>
-                                                    {label}{displayParticipant}
-                                                </div>
-                                            </div>
-                                        </div>
 
-                                        {/* Status Badge pushed to the right */}
-                                        <div className="ml-auto flex-shrink-0">
-                                            {!canJoin && statusLabel}
-                                            {canJoin && (
-                                                <button
-                                                    type="button"
-                                                    onClick={(e) => {
-                                                        e.stopPropagation()
-                                                        handleEnter()
-                                                    }}
-                                                    className="h-8 px-4 rounded-full text-[10px] font-bold uppercase tracking-wider border transition-all border-[#FF7939]/60 text-[#FFB366] bg-[#FF7939]/5 hover:bg-[#FF7939] hover:text-black shadow-[0_4px_12px_rgba(255,121,57,0.2)]"
-                                                >
-                                                    Unirse
-                                                </button>
-                                            )}
+                                                {/* Row 2: Info and Button */}
+                                                <div className="flex items-center justify-between gap-2">
+                                                    <div className="flex items-center gap-2 min-w-0">
+                                                        <div className={`text-[11px] font-medium ${statusColor}`}>
+                                                            {label}
+                                                        </div>
+                                                        {displayParticipant && (
+                                                            <div className="text-[11px] text-[#FF7939] font-bold truncate">
+                                                                · {displayParticipant.replace(/^ – /, '')}
+                                                            </div>
+                                                        )}
+                                                        {isGroup ? (
+                                                            <Users className="w-3 h-3 text-white/40" />
+                                                        ) : (
+                                                            <span className="text-[9px] font-bold text-white/30 bg-white/5 px-1.5 rounded uppercase leading-none py-0.5">1:1</span>
+                                                        )}
+                                                    </div>
+
+                                                    <div className="flex-shrink-0">
+                                                        {!canJoin && statusLabel}
+                                                        {canJoin && (
+                                                            <button
+                                                                type="button"
+                                                                onClick={(e) => {
+                                                                    e.stopPropagation()
+                                                                    handleEnter()
+                                                                }}
+                                                                className="h-7 px-4 rounded-full text-[10px] font-bold uppercase tracking-wider border transition-all border-[#FF7939]/60 text-[#FFB366] bg-[#FF7939]/5 hover:bg-[#FF7939] hover:text-black shadow-[0_4px_12px_rgba(255,121,57,0.2)]"
+                                                            >
+                                                                {(() => {
+                                                                    const end = m.end_time ? new Date(m.end_time) : new Date(new Date(m.start_time).getTime() + 60 * 60000);
+                                                                    const bufferTime = new Date(end.getTime() + 120 * 60000); // 2h buffer
+                                                                    if (new Date() < bufferTime) return 'Unirse';
+                                                                    return 'Finalizada';
+                                                                })()}
+                                                            </button>
+                                                        )}
+                                                    </div>
+                                                </div>
+                                            </div>
                                         </div>
                                     </div>
                                 </div>
