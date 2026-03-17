@@ -69,8 +69,9 @@ export function CoachCalendarEventList({
                             const startMs = start.getTime()
                             const endMs = end ? end.getTime() : startMs + (60 * 60 * 1000)
                             const nowMs = Date.now()
-                            const isPast = (endMs + (120 * 60 * 1000)) < nowMs
+                            const isPast = nowMs > endMs
                             const isOngoing = nowMs >= startMs && nowMs <= endMs
+                            const isReadyToJoin = nowMs >= (startMs - 30 * 60 * 1000) && !isPast
 
                             return (
                                 <div
@@ -148,8 +149,9 @@ export function CoachCalendarEventList({
                                                             if (m.rsvp_status === 'declined' || m.rsvp_status === 'cancelled') return 'Rechazada'
 
                                                             if (isPast) return 'Finalizada'
-                                                            if (isOngoing) return 'En curso'
-                                                            if (m.meet_link || (m as any).google_meet_data?.meet_link) return 'Unirse'
+                                                            if (isOngoing || isReadyToJoin) {
+                                                                if (m.meet_link || (m as any).google_meet_data?.meet_link) return 'Unirse'
+                                                            }
                                                             if (isPending) return 'Aceptar'
                                                             return 'Ver'
                                                         })()}

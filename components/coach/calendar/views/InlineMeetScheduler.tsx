@@ -117,12 +117,14 @@ export function InlineMeetScheduler({
         const end = m.end_time ? new Date(m.end_time) : new Date(start.getTime() + (60 * 60 * 1000))
         const now = new Date()
         
-        const isPast = (end.getTime() + (120 * 60 * 1000)) < now.getTime()
+        const isPast = now.getTime() > end.getTime()
         const isOngoing = now >= start && now <= end
+        const isReadyToJoin = now.getTime() >= (start.getTime() - 30 * 60 * 1000) && !isPast
 
         if (isPast) return 'Finalizada'
-        if (isOngoing) return 'En curso'
-        if (m.meet_link || m.google_meet_data?.meet_link) return 'Unirse'
+        if (isOngoing || isReadyToJoin) {
+            if (m.meet_link || m.google_meet_data?.meet_link) return 'Unirse'
+        }
         if (m.my_rsvp === 'pending') return 'Aceptar'
         
         if (m.status === 'scheduled' || m.status === 'rescheduled') {

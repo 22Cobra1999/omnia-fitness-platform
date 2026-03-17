@@ -175,10 +175,25 @@ export const DaySummaryRow: React.FC<DaySummaryRowProps> = ({
                             </div>
                             {(() => {
                                 const meetLink = eventDetailsByKey[eventId].meet_link || eventDetailsByKey[eventId].google_meet_data?.meet_link;
-                                if (!meetLink) return null;
+                                const startMs = new Date(eventDetailsByKey[eventId].start_time).getTime();
+                                const endMs = eventDetailsByKey[eventId].end_time ? new Date(eventDetailsByKey[eventId].end_time).getTime() : startMs + (60 * 60 * 1000);
+                                const nowMs = Date.now();
+                                const isPast = nowMs > endMs;
+                                
+                                if (!meetLink || isPast) return null;
+                                
+                                const isReadyToJoin = nowMs >= (startMs - 30 * 60 * 1000);
+                                if (!isReadyToJoin) {
+                                    return (
+                                        <div className="text-[10px] text-zinc-500 italic mt-1 font-medium">
+                                            Link disponible 30 min antes
+                                        </div>
+                                    );
+                                }
+
                                 return (
                                     <a href={String(meetLink)} target="_blank" rel="noreferrer"
-                                        className="text-[11px] text-[#FF7939] hover:underline flex items-center gap-1 font-bold">
+                                        className="text-[11px] text-[#FF7939] hover:underline flex items-center gap-1 font-bold mt-1">
                                         Unirse a la Meet ↗
                                     </a>
                                 );

@@ -73,7 +73,7 @@ export function useMeetDerivedState({
     const nowMs = Date.now()
     const startMs = start.getTime()
     const endMs = end ? end.getTime() : startMs + (60 * 60 * 1000)
-    const isPast = (endMs + (120 * 60 * 1000)) < nowMs
+    const isPast = nowMs > endMs
     const isOngoing = nowMs >= startMs && nowMs <= endMs
 
     const isCancelled = selectedMeetEvent?.status === 'cancelled'

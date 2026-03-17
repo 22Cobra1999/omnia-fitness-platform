@@ -72,18 +72,30 @@ export const MeetDetailActions: React.FC<MeetDetailActionsProps> = ({
 
             {!(isCancelled || isPast) && (
                 <>
-                    {/* Branch 0: Join Link (Always show if available and not cancelled/finished) */}
                     {(() => {
                         const meetLink = selectedMeetEvent.meet_link || selectedMeetEvent.google_meet_data?.meet_link;
                         if (!meetLink || isCancelled || isPast) return null;
+
+                        const startMs = new Date(selectedMeetEvent.start_time).getTime();
+                        const nowMs = Date.now();
+                        const isReadyToJoin = nowMs >= (startMs - 30 * 60 * 1000);
+
+                        if (!isReadyToJoin) {
+                            return (
+                                <div className="w-full px-4 py-2.5 rounded-xl bg-zinc-800 text-white/50 text-xs font-bold flex items-center justify-center gap-2 mb-1 border border-white/5 text-center">
+                                    <Video size={16} />
+                                    El enlace estará disponible 30 min antes
+                                </div>
+                            );
+                        }
 
                         return (
                             <button
                                 type="button"
                                 onClick={() => window.open(String(meetLink), '_blank')}
-                                className={`w-full px-4 py-2.5 rounded-xl text-black text-sm font-bold hover:opacity-90 transition-opacity flex items-center justify-center gap-2 mb-1 ${isOngoing ? 'bg-emerald-400' : 'bg-[#FF7939]'}`}
+                                className={`w-full px-4 py-3 rounded-xl text-black text-sm font-bold hover:opacity-90 transition-opacity flex items-center justify-center gap-2 mb-1 ${isOngoing ? 'bg-emerald-400 shadow-lg shadow-emerald-500/20' : 'bg-[#FF7939] shadow-lg shadow-[#FF7939]/20'}`}
                             >
-                                <Video size={16} />
+                                <Video size={18} />
                                 {isOngoing ? 'Entrar a la Meet ahora' : 'Unirse a la Meet'}
                             </button>
                         );
