@@ -2,6 +2,7 @@ import React, { useState, useMemo } from 'react'
 import { format, parse, addMinutes, isToday } from 'date-fns'
 import { es } from 'date-fns/locale'
 import { Clock, Check, Video, GraduationCap, Calendar as CalendarIcon, X } from 'lucide-react'
+import { cn } from '@/lib/utils/utils'
 
 interface InlineMeetSchedulerProps {
     selectedDate: Date
@@ -89,29 +90,13 @@ export function InlineMeetScheduler({
     }, [existingEvents, previewEvent])
 
     const isTimeValid = () => {
-        if (!startTime) return false
-
-        const now = new Date()
-        const [hours, minutes] = startTime.split(':').map(Number)
-        const targetDate = new Date(selectedDate)
-        targetDate.setHours(hours, minutes, 0, 0)
-
-        // No strict past check for simplicity/flexibility
-        // But 2 hour notice check if needed, user didn't complain about this but let's keep logic
-        if (targetDate < now) return false
-
-        const diffHours = (targetDate.getTime() - now.getTime()) / (1000 * 60 * 60)
-        return diffHours >= 2
+        return true
     }
 
     const isBookingAllowed = isTimeValid()
 
     const handleConfirm = () => {
         if (!startTime || !/^\d{2}:\d{2}$/.test(startTime)) return
-        if (!isBookingAllowed) {
-            alert('Debes reservar con al menos 2 horas de antelación.')
-            return
-        }
         onConfirm(startTime, selectedDuration)
     }
 
@@ -124,27 +109,30 @@ export function InlineMeetScheduler({
 
     // Helper for button label
     const getButtonLabel = (m: any) => {
-        if (m.isPreview) return 'Previsualización'
+        if (m.isPreview) return 'Preview'
         if (m.status === 'cancelled') return 'Cancelada'
-        if (m.rsvp_status === 'declined') return 'Rechazada'
-        if ((m as any).pending_reschedule?.status === 'pending') return 'Cambio Solicitado'
-        if (m.is_ghost) return 'Propuesta enviada'
-        if (new Date(m.end_time || m.start_time) < new Date()) return 'Finalizada'
-        if (isToday(new Date(m.start_time))) return 'Unirse'
+        if (m.rsvp_status === 'declined' || m.rsvp_status === 'cancelled') return 'Rechazada'
+        
+        const start = new Date(m.start_time)
+        const end = m.end_time ? new Date(m.end_time) : new Date(start.getTime() + (60 * 60 * 1000))
+        const now = new Date()
+        
+        const isPast = (end.getTime() + (120 * 60 * 1000)) < now.getTime()
+        const isOngoing = now >= start && now <= end
 
-        // Priority for Pending RSVP (Coach action required)
-        if (m.my_rsvp === 'pending') return 'Pendiente'
-
+        if (isPast) return 'Finalizada'
+        if (isOngoing) return 'En curso'
+        if (m.meet_link || m.google_meet_data?.meet_link) return 'Unirse'
+        if (m.my_rsvp === 'pending') return 'Aceptar'
+        
         if (m.status === 'scheduled' || m.status === 'rescheduled') {
             const confirmed = m.confirmed_participants || 0
             const total = m.total_guests || 0
-            if (total > 0 && confirmed < total) {
-                return total > 1 ? `Inv. enviada (${confirmed}/${total})` : 'Invitación enviada'
-            }
+            if (total > 1 && confirmed < total) return `Inv. (${confirmed}/${total})`
             return 'Confirmada'
         }
 
-        return 'Confirmada'
+        return 'Ver'
     }
 
     const renderMeetCard = (m: any, index: number) => {
@@ -157,45 +145,73 @@ export function InlineMeetScheduler({
         return (
             <div
                 key={m.id || `meet-${index}`}
-                className={`
-                    w-full rounded-2xl border px-4 py-3 flex items-center justify-between gap-3 transition-all duration-200 select-none
-                    ${isPreview
-                        ? 'border-[#FF7939]/50 bg-[#FF7939]/10 shadow-lg shadow-[#FF7939]/10'
+                className={cn(
+                    "w-full rounded-xl border p-2.5 flex items-center justify-between gap-3 transition-all duration-200 select-none",
+                    isPreview
+                        ? 'border-[#FF7939]/30 bg-[#FF7939]/5 shadow-md shadow-[#FF7939]/5'
                         : isUrgent
                             ? 'border-red-500/20 bg-red-500/5 opacity-80'
                             : m.is_ghost
                                 ? 'border-[#FF7939]/20 bg-[#FF7939]/5 border-dashed'
-                                : 'border-white/10 bg-white/5'
-                    }
-                `}
+                                : 'border-white/5 bg-white/[0.02]'
+                )}
             >
-                <div className="flex items-center gap-3 min-w-0">
-                    <div className={`w-10 h-10 rounded-full flex items-center justify-center flex-shrink-0 
-                        ${isPreview ? 'bg-[#FF7939]/20 text-[#FF7939]' : isUrgent ? 'bg-red-500/10 text-red-400 border border-red-500/30' : 'bg-white/5 text-white/70 border border-white/10'}`}>
-                        {m.event_type === 'workshop' ? <GraduationCap className="h-5 w-5" /> : <Video className="h-5 w-5" />}
-                    </div>
-                    <div className="min-w-0">
-                        <div className={`text-sm font-bold truncate leading-snug ${isPreview ? 'text-[#FF7939]' : 'text-white'}`}>
-                            {m.title || (m.event_type === 'workshop' ? 'Taller' : 'Meet')}
-                            {isPreview && ' (Nueva)'}
+                <div className="w-full flex flex-col gap-0.5 min-w-0">
+                    <div className="flex items-start gap-2.5 min-w-0">
+                        <div className={cn(
+                            "w-7 h-7 rounded-full flex items-center justify-center flex-shrink-0 mt-0.5",
+                            isPreview ? 'bg-[#FF7939]/20 text-[#FF7939] border border-[#FF7939]/30' :
+                                isUrgent ? 'bg-red-500/10 text-red-400 border border-red-500/30' :
+                                    (m.event_type === 'workshop' ? 'bg-rose-500/5 text-rose-300 border border-rose-500/20' :
+                                        'bg-white/5 text-white/40 border border-white/5')
+                        )}>
+                            {m.event_type === 'workshop' ? <GraduationCap className="h-4 w-4" /> : <Video className="h-4 w-4" />}
                         </div>
-                        <div className="flex items-center gap-2 mt-0.5">
-                            <div className="text-[11px] text-white/50 font-medium whitespace-nowrap">
-                                {label} {m.client_name && ` – ${m.client_name}`}
+
+                        <div className="flex-1 min-w-0 pt-0.5">
+                            <div className="flex flex-col gap-1 min-w-0">
+                                <div className={cn(
+                                    "text-[11px] font-[1000] uppercase italic tracking-tight leading-none truncate mb-1",
+                                    isPreview ? 'text-[#FF7939]' : 'text-white/95'
+                                )}>
+                                    {m.title ? String(m.title).replace(/^Taller:\s*/i, '') : (m.event_type === 'workshop' ? 'Taller' : 'Meet')}
+                                    {isPreview && ' (Nueva)'}
+                                </div>
+
+                                <div className="flex items-center justify-between gap-2">
+                                    <div className="flex items-center gap-1.5 min-w-0">
+                                        <div className="text-[8.5px] text-white/30 font-bold uppercase tracking-widest leading-none whitespace-nowrap">
+                                            {label}
+                                        </div>
+                                        {m.client_name && (
+                                            <>
+                                                <div className="w-0.5 h-0.5 rounded-full bg-white/20 shrink-0" />
+                                                <div className="text-[8.5px] text-[#FF7939] font-[1000] uppercase leading-none truncate max-w-[120px]">
+                                                    {m.client_name}
+                                                </div>
+                                            </>
+                                        )}
+                                    </div>
+
+                                    <button
+                                        type="button"
+                                        disabled
+                                        className={cn(
+                                            "h-5 px-3 rounded-full text-[8px] font-black uppercase tracking-widest border transition-all",
+                                            isPreview 
+                                                ? 'border-[#FF7939] text-[#FF7939] bg-[#FF7939]/10' 
+                                                : isUrgent
+                                                    ? 'border-red-500/30 text-red-400 bg-red-500/5'
+                                                    : 'border-white/10 text-white/50 bg-white/5'
+                                        )}
+                                    >
+                                        {getButtonLabel(m)}
+                                    </button>
+                                </div>
                             </div>
                         </div>
                     </div>
                 </div>
-                <button
-                    type="button"
-                    disabled
-                    className={`
-                        h-8 px-4 rounded-full text-[10px] font-bold uppercase tracking-wider border transition-all
-                        ${isPreview ? 'border-[#FF7939] text-[#FF7939] bg-[#FF7939]/10' : 'border-[#FF7939]/60 text-[#FFB366] bg-[#FF7939]/5'}
-                    `}
-                >
-                    {getButtonLabel(m)}
-                </button>
             </div>
         )
     }
