@@ -152,22 +152,37 @@ export const DaySummaryRow: React.FC<DaySummaryRowProps> = ({
                                         {new Date(eventDetailsByKey[eventId].end_time).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
                                     </span>
                                 </div>
-                                <span className={`text-[9px] font-black uppercase px-1.5 py-0.5 rounded-full ${
-                                    ['confirmed','accepted'].includes(eventDetailsByKey[eventId].participants?.[0]?.rsvp_status)
-                                        ? 'bg-emerald-500/15 text-emerald-400'
-                                        : ['cancelled','declined'].includes(eventDetailsByKey[eventId].participants?.[0]?.rsvp_status)
-                                        ? 'bg-red-500/15 text-red-400'
-                                        : 'bg-amber-500/15 text-amber-400'
-                                }`}>
-                                    {eventDetailsByKey[eventId].participants?.[0]?.rsvp_status || 'Pendiente'}
-                                </span>
+                                {(() => {
+                                    const startMs = new Date(eventDetailsByKey[eventId].start_time).getTime();
+                                    const endMs = eventDetailsByKey[eventId].end_time ? new Date(eventDetailsByKey[eventId].end_time).getTime() : startMs + (60 * 60 * 1000);
+                                    const nowMs = Date.now();
+                                    const isOngoing = nowMs >= startMs && nowMs <= endMs;
+                                    const rsvp = eventDetailsByKey[eventId].participants?.[0]?.rsvp_status || 'Pendiente';
+                                    
+                                    return (
+                                        <span className={`text-[9px] font-black uppercase px-1.5 py-0.5 rounded-full ${
+                                            isOngoing ? 'bg-emerald-500/20 text-emerald-400 border border-emerald-500/30' :
+                                            ['confirmed','accepted'].includes(rsvp)
+                                                ? 'bg-emerald-500/15 text-emerald-400'
+                                                : ['cancelled','declined'].includes(rsvp)
+                                                ? 'bg-red-500/15 text-red-400'
+                                                : 'bg-amber-500/15 text-amber-400'
+                                        }`}>
+                                            {isOngoing ? 'En curso' : (rsvp === 'confirmed' ? 'Aceptada' : rsvp)}
+                                        </span>
+                                    );
+                                })()}
                             </div>
-                            {eventDetailsByKey[eventId].meet_link && (
-                                <a href={eventDetailsByKey[eventId].meet_link} target="_blank" rel="noreferrer"
-                                    className="text-[11px] text-[#FF7939] hover:underline flex items-center gap-1">
-                                    Unirse ↗
-                                </a>
-                            )}
+                            {(() => {
+                                const meetLink = eventDetailsByKey[eventId].meet_link || eventDetailsByKey[eventId].google_meet_data?.meet_link;
+                                if (!meetLink) return null;
+                                return (
+                                    <a href={String(meetLink)} target="_blank" rel="noreferrer"
+                                        className="text-[11px] text-[#FF7939] hover:underline flex items-center gap-1 font-bold">
+                                        Unirse a la Meet ↗
+                                    </a>
+                                );
+                            })()}
                         </div>
                     )}
 
