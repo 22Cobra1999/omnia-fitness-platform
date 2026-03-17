@@ -75,11 +75,10 @@ export async function GET(request: NextRequest) {
         'openid',
         'email',
         'profile',
-        'https://www.googleapis.com/auth/userinfo.email',
-        'https://www.googleapis.com/auth/userinfo.profile',
         'https://www.googleapis.com/auth/calendar',
         'https://www.googleapis.com/auth/calendar.events',
-        'https://www.googleapis.com/auth/meetings.conference.readonly',
+        'https://www.googleapis.com/auth/meetings.space.readonly',
+        'https://www.googleapis.com/auth/meetings.space.created',
         'https://www.googleapis.com/auth/contacts.readonly'
       ].join(' '),
       access_type: 'offline',
