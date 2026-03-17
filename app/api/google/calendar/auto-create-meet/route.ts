@@ -29,7 +29,7 @@ export async function POST(request: NextRequest) {
     }
 
     // Solo procesar eventos de tipo 'workshop' que no tienen meet_link
-    if (event.event_type !== 'workshop' || event.meet_link || event.google_event_id) {
+    if (event.event_type !== 'workshop' || event.google_meet_data?.meet_link || event.google_meet_data?.google_event_id) {
       return NextResponse.json({ 
         success: false,
         message: 'Evento no requiere Meet o ya tiene Meet creado'
@@ -85,13 +85,18 @@ export async function POST(request: NextRequest) {
       try {
         const existingEvent = await GoogleOAuth.getCalendarEvent(accessToken, event.google_event_id);
         if (existingEvent) {
-          // Ya existe, extraer el meet_link si existe
           const meetLink = GoogleOAuth.extractMeetLink(existingEvent);
           if (meetLink) {
+            const updatedGoogleMeetData = {
+              ...(event.google_meet_data || {}),
+              meet_link: meetLink,
+              google_event_id: event.google_meet_data?.google_event_id || existingEvent.id
+            };
+
             await adminSupabase
               .from('calendar_events')
               .update({
-                meet_link: meetLink,
+                google_meet_data: updatedGoogleMeetData,
                 updated_at: new Date().toISOString(),
               })
               .eq('id', eventId);
@@ -136,11 +141,16 @@ export async function POST(request: NextRequest) {
     }
 
     // Actualizar el evento en calendar_events con el meet_link real
+    const updatedGoogleMeetDataFinal = {
+      ...(event.google_meet_data || {}),
+      meet_link: meetLink,
+      google_event_id: googleEvent.id
+    };
+
     const { error: updateError } = await adminSupabase
       .from('calendar_events')
       .update({
-        meet_link: meetLink,
-        google_event_id: googleEvent.id,
+        google_meet_data: updatedGoogleMeetDataFinal,
         updated_at: new Date().toISOString(),
       })
       .eq('id', eventId);

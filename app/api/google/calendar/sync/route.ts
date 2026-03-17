@@ -91,7 +91,7 @@ export async function POST(request: NextRequest) {
         .eq('coach_id', coachId)
         .gte('start_time', monthStart.toISOString())
         .lte('start_time', monthEnd.toISOString())
-        .is('google_event_id', null) // Solo eventos que no tienen google_event_id
+        .is('google_meet_data->google_event_id', null) // Solo eventos que no tienen google_event_id
 
       if (!omniaError && omniaEvents && omniaEvents.length > 0) {
         console.log(`📤 Sincronizando ${omniaEvents.length} eventos de OMNIA → Google Calendar`)
@@ -149,8 +149,11 @@ export async function POST(request: NextRequest) {
               await supabase
                 .from('calendar_events')
                 .update({
-                  google_event_id: duplicate.id,
-                  meet_link: meetLink || event.meet_link,
+                  google_meet_data: { 
+                    ...(event.google_meet_data || {}), 
+                    google_event_id: duplicate.id, 
+                    meet_link: meetLink || event.google_meet_data?.meet_link 
+                  },
                   updated_at: new Date().toISOString()
                 })
                 .eq('id', event.id)
@@ -180,8 +183,11 @@ export async function POST(request: NextRequest) {
             const { error: updateError } = await supabase
               .from('calendar_events')
               .update({
-                google_event_id: googleEvent.id,
-                meet_link: meetLink || event.meet_link,
+                google_meet_data: { 
+                  ...(event.google_meet_data || {}), 
+                  google_event_id: googleEvent.id, 
+                  meet_link: meetLink || event.google_meet_data?.meet_link 
+                },
                 updated_at: new Date().toISOString()
               })
               .eq('id', event.id)
@@ -226,14 +232,14 @@ export async function POST(request: NextRequest) {
       // Obtener todos los google_event_ids existentes en OMNIA de una vez para evitar múltiples queries
       const { data: existingOmniaEvents } = await supabase
         .from('calendar_events')
-        .select('id, google_event_id, title, start_time')
+        .select('id, google_meet_data, title, start_time')
         .eq('coach_id', coachId)
-        .not('google_event_id', 'is', null)
+        .not('google_meet_data->google_event_id', 'is', null)
         .gte('start_time', timeMin.toISOString())
         .lte('start_time', timeMax.toISOString())
 
       const existingGoogleEventIds = new Map(
-        (existingOmniaEvents || []).map((e: any) => [e.google_event_id, e.id])
+        (existingOmniaEvents || []).map((e: any) => [e.google_meet_data?.google_event_id, e.id])
       )
 
       // También crear un mapa de eventos por título, fecha y hora para detectar duplicados por contenido
@@ -241,7 +247,7 @@ export async function POST(request: NextRequest) {
       const eventsByTitleAndTime = new Map<string, string>() // key -> google_event_id
       const { data: allOmniaEvents } = await supabase
         .from('calendar_events')
-        .select('id, title, start_time, google_event_id')
+        .select('id, title, start_time, google_meet_data')
         .eq('coach_id', coachId)
         .gte('start_time', timeMin.toISOString())
         .lte('start_time', timeMax.toISOString())
@@ -254,7 +260,7 @@ export async function POST(request: NextRequest) {
             const hour = eventDate.getHours()
             // Clave: título_fecha_hora (ej: "Taller: Meditación_2025-12-30_10")
             const key = `${e.title}_${dateStr}_${hour}`
-            eventsByTitleAndTime.set(key, e.google_event_id || '')
+            eventsByTitleAndTime.set(key, e.google_meet_data?.google_event_id || '')
           }
         })
       }
@@ -299,8 +305,10 @@ export async function POST(request: NextRequest) {
                     end_time: new Date(endTime).toISOString(),
                     event_type: 'other',
                     status: 'scheduled',
-                    google_event_id: googleEvent.id,
-                    meet_link: googleEvent.hangoutLink || null,
+                    google_meet_data: {
+                      google_event_id: googleEvent.id,
+                      meet_link: googleEvent.hangoutLink || null,
+                    },
                     created_at: new Date().toISOString(),
                     updated_at: new Date().toISOString()
                   })
@@ -414,7 +422,7 @@ export async function POST(request: NextRequest) {
         .select(`
                 id, 
                 title, 
-                meet_link, 
+                google_meet_data, 
                 end_time,
                 calendar_event_participants (
                     id, 
@@ -423,7 +431,7 @@ export async function POST(request: NextRequest) {
                 )
             `)
         .eq('coach_id', coachId)
-        .neq('meet_link', null)
+        .not('google_meet_data->meet_link', 'is', null)
         .lt('end_time', now.toISOString())     // Ya terminaron
         .gt('end_time', twoDaysAgo.toISOString()); // Recientes
 
@@ -431,9 +439,10 @@ export async function POST(request: NextRequest) {
         console.log(`🎥 Procesando asistencia real para ${pastEvents.length} eventos pasados...`);
 
         for (const event of pastEvents) {
-          if (!event.meet_link) continue;
+          const meetLink = event.google_meet_data?.meet_link;
+          if (!meetLink) continue;
 
-          const attendanceStats = await GoogleMeet.getAttendanceStats(accessToken, event.meet_link);
+          const attendanceStats = await GoogleMeet.getAttendanceStats(accessToken, meetLink);
 
           if (attendanceStats.size > 0) {
             console.log(`📊 Estadísticas de Meet obtenidas: ${attendanceStats.size} participantes detectados.`);

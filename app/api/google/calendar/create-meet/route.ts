@@ -106,11 +106,16 @@ export async function POST(request: NextRequest) {
     }
 
     // Actualizar el evento en calendar_events con el meet_link real
+    const updatedGoogleMeetData = {
+      ...(event.google_meet_data || {}),
+      meet_link: meetLink,
+      google_event_id: googleEvent.id
+    };
+
     const { error: updateError } = await adminSupabase
       .from('calendar_events')
       .update({
-        meet_link: meetLink,
-        google_event_id: googleEvent.id,
+        google_meet_data: updatedGoogleMeetData,
         updated_at: new Date().toISOString(),
       })
       .eq('id', eventId);

@@ -36,7 +36,7 @@ export async function POST(request: NextRequest) {
     }
 
     // Si no tiene google_event_id, no hay nada que actualizar en Google Calendar
-    if (!event.google_event_id) {
+    if (!event.google_meet_data?.google_event_id) {
       return NextResponse.json({
         success: true,
         message: 'Evento no tiene google_event_id, no se actualiza en Google Calendar'
@@ -97,7 +97,7 @@ export async function POST(request: NextRequest) {
     // Actualizar evento en Google Calendar
     const updatedGoogleEvent = await GoogleOAuth.updateCalendarEvent(
       accessToken,
-      event.google_event_id,
+      event.google_meet_data?.google_event_id,
       {
         summary: newTitle,
         description: newDescription,
@@ -116,11 +116,15 @@ export async function POST(request: NextRequest) {
     const meetLink = GoogleOAuth.extractMeetLink(updatedGoogleEvent)
 
     // Actualizar el meet_link en OMNIA si cambió
-    if (meetLink && meetLink !== event.meet_link) {
+    if (meetLink && meetLink !== event.google_meet_data?.meet_link) {
       await supabase
         .from('calendar_events')
         .update({
-          meet_link: meetLink,
+          google_meet_data: { 
+            ...(event.google_meet_data || {}), 
+            meet_link: meetLink, 
+            google_event_id: event.google_meet_data?.google_event_id 
+          },
           updated_at: new Date().toISOString()
         })
         .eq('id', eventId)
@@ -129,7 +133,7 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({
       success: true,
       googleEventId: updatedGoogleEvent.id,
-      meetLink: meetLink || event.meet_link
+      meetLink: meetLink || event.google_meet_data?.meet_link
     })
 
   } catch (error: any) {
