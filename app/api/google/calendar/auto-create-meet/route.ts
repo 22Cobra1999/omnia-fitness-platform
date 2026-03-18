@@ -133,9 +133,14 @@ export async function POST(request: NextRequest) {
     const meetLink = GoogleOAuth.extractMeetLink(googleEvent);
 
     if (!meetLink) {
+      console.error('❌ [API auto-create-meet] El evento se creó en Google pero falló la generación del meetLink. Data devuelta por Google:', {
+        id: googleEvent.id,
+        status: googleEvent.status,
+        conferenceData: googleEvent.conferenceData
+      });
       return NextResponse.json({ 
         success: false,
-        error: 'No se pudo crear el link de Google Meet',
+        error: 'No se pudo crear el link de Google Meet. El evento se creó pero sin videoconferencia.',
         googleEventId: googleEvent.id
       }, { status: 500 });
     }
@@ -174,6 +179,18 @@ export async function POST(request: NextRequest) {
 
   } catch (error: any) {
     console.error('Error creando Meet automáticamente:', error);
+
+    // Detectar específicamente errores de desencriptación (clave incorrecta)
+    if (error.message?.includes('encriptado con una clave diferente') || 
+        error.message?.includes('Unsupported state')) {
+      return NextResponse.json({
+        success: false,
+        error: 'Reconexión de Google requerida',
+        details: 'Los tokens actuales no se pueden validar. Debes reconectar tu cuenta de Google en tu perfil.',
+        reconnect_required: true
+      }, { status: 401 });
+    }
+
     return NextResponse.json({
       success: false,
       error: 'Error interno del servidor',

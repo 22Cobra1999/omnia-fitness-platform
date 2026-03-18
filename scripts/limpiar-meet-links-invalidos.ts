@@ -36,11 +36,11 @@ const supabase = createClient(SUPABASE_URL, SUPABASE_SERVICE_KEY, {
 async function limpiar() {
   console.log('🧹 Limpiando meet_links inválidos...\n');
 
-  // Obtener todos los eventos con meet_link
+  // Obtener todos los eventos con meet_link dentro de google_meet_data
   const { data: eventos, error } = await supabase
     .from('calendar_events')
     .select('*')
-    .not('meet_link', 'is', null);
+    .not('google_meet_data->>meet_link', 'is', null);
 
   if (error) {
     console.error('❌ Error:', error.message);
@@ -49,14 +49,15 @@ async function limpiar() {
 
   console.log(`📋 Eventos con meet_link: ${eventos?.length || 0}\n`);
 
-  const eventosInvalidos = eventos?.filter(e => 
-    e.meet_link && (
-      e.meet_link.includes('test-') || 
-      e.meet_link.includes('xxx-') ||
-      !e.meet_link.includes('meet.google.com/') ||
-      e.meet_link.split('/').length < 4 // Formato inválido
-    )
-  ) || [];
+  const eventosInvalidos = eventos?.filter(e => {
+    const meetLink = e.google_meet_data?.meet_link;
+    return meetLink && (
+      meetLink.includes('test-') || 
+      meetLink.includes('xxx-') ||
+      !meetLink.includes('meet.google.com/') ||
+      meetLink.split('/').length < 4 // Formato inválido
+    );
+  }) || [];
 
   console.log(`⚠️  Eventos con meet_links inválidos: ${eventosInvalidos.length}\n`);
 
@@ -67,13 +68,16 @@ async function limpiar() {
 
   // Eliminar meet_links inválidos
   for (const evento of eventosInvalidos) {
-    console.log(`   Limpiando: ${evento.title} - ${evento.meet_link}`);
+    console.log(`   Limpiando: ${evento.title} - ${evento.google_meet_data.meet_link}`);
     
+    const updatedMeetData = { ...evento.google_meet_data };
+    delete updatedMeetData.meet_link;
+    delete updatedMeetData.meet_code;
+
     const { error: updateError } = await supabase
       .from('calendar_events')
       .update({
-        meet_link: null,
-        meet_code: null,
+        google_meet_data: updatedMeetData,
       })
       .eq('id', evento.id);
 

@@ -77,7 +77,7 @@ export function DayView({
             {/* Sección de Meets - IDÉNTICA AL CLIENTE */}
             {meetEvents.length > 0 && (
                 <div className="mb-4">
-                    <div className="text-[11px] tracking-widest text-white/45 mb-2">MEET</div>
+                    <div className="text-[11px] tracking-widest text-white/45 mb-2">MEET - DAY TEST</div>
                     <div className="space-y-2">
                         {meetEvents.map((m) => {
                             const start = new Date(m.start_time)
@@ -102,7 +102,7 @@ export function DayView({
                                 <div
                                     key={m.id}
                                     className={
-                                        `w-full rounded-2xl border px-4 py-3 flex items-center justify-between gap-3 transition-all duration-200 select-none ` +
+                                        `w-full rounded-2xl border px-4 py-3 transition-all duration-200 select-none ` +
                                         (isCancelled
                                             ? 'border-red-500/20 bg-red-500/5 opacity-80 backdrop-blur-md'
                                             : 'border-white/10 bg-white/5 hover:bg-white/10 backdrop-blur-md hover:border-white/20 active:scale-[0.98] cursor-pointer')
@@ -112,56 +112,77 @@ export function DayView({
                                     onClick={() => onEventClick(m)}
                                 >
                                     <div className="flex items-center gap-3 min-w-0">
-                                        <div className={`w-10 h-10 rounded-full flex items-center justify-center flex-shrink-0 ${isCancelled ? 'bg-red-500/10 text-red-500 border border-red-500/20' : (isPending ? 'bg-[#FF7939]/10 text-[#FF7939] border border-[#FF7939]/20' : 'bg-white/5 text-white/70 border border-white/10')}`}>
+                                        <div className={`w-10 h-10 rounded-full flex items-center justify-center flex-shrink-0 ${isCancelled ? 'bg-red-500/10 text-red-500 border border-red-500/20' : (isPending ? 'bg-[#FF7939]/10 text-[#FF7939] border border-[#FF7939]/20' : 'bg-white/5 text-white/50 border border-white/10')}`}>
                                             <Video className="h-5 w-5" />
                                         </div>
-                                        <div className="min-w-0">
-                                            <div className="text-sm font-bold text-white truncate leading-snug">{m.title ? String(m.title) : 'Meet'}</div>
-                                            <div className="flex items-center gap-2 mt-0.5">
-                                                <div className="text-[11px] text-white/50 font-medium whitespace-nowrap">
-                                                    {label} {m.client_name && ` – ${m.client_name}`}
+                                        <div className="min-w-0 flex-1">
+                                            <div className="flex flex-col gap-1 min-w-0">
+                                                {/* Line 1: Title */}
+                                                <div className="text-sm font-bold text-white truncate leading-snug pr-4">
+                                                    {m.title ? String(m.title).replace(/^(Taller|Consulta|Meet|Workshop|Consultation):\s*/i, '').replace(/^(Taller|Consulta|Meet|Workshop|Consultation)\s+/i, '') : 'Meet'}
                                                 </div>
-                                                {m.status === 'cancelled' ? (
-                                                    <span className="text-[9px] font-bold uppercase text-red-500 px-1.5 py-0.5 rounded bg-red-500/10 border border-red-500/20">Cancelada</span>
-                                                ) : (m.rsvp_status === 'declined' || m.rsvp_status === 'cancelled') ? (
-                                                    <span className="text-[9px] font-bold uppercase text-red-500 px-1.5 py-0.5 rounded bg-red-500/10 border border-red-500/20">Rechazada</span>
-                                                ) : null}
+
+                                                {/* Line 2: Info and Button */}
+                                                <div className="flex items-center justify-between gap-2">
+                                                    <div className="flex items-center gap-2 min-w-0">
+                                                        <div className="text-[11px] text-white/50 font-medium whitespace-nowrap">
+                                                            {label}
+                                                        </div>
+                                                        {m.client_name && (
+                                                            <div className="text-[11px] text-[#FF7939] font-bold truncate">
+                                                                · {m.client_name}
+                                                            </div>
+                                                        )}
+                                                        {m.status === 'cancelled' ? (
+                                                            <span className="text-[9px] font-bold uppercase text-red-500 px-1.5 py-0.5 rounded bg-red-500/10 border border-red-500/20">Cancelada</span>
+                                                        ) : (m.rsvp_status === 'declined' || m.rsvp_status === 'cancelled') ? (
+                                                            <span className="text-[9px] font-bold uppercase text-red-500 px-1.5 py-0.5 rounded bg-red-500/10 border border-red-500/20">Rechazada</span>
+                                                        ) : null}
+                                                    </div>
+
+                                                    <button
+                                                        type="button"
+                                                        disabled={isCancelled}
+                                                        onClick={(e) => {
+                                                            e.stopPropagation()
+                                                            handleEnter()
+                                                        }}
+                                                        className={
+                                                            `h-7 px-4 rounded-full text-[10px] font-bold uppercase tracking-wider border transition-all flex-shrink-0 ` +
+                                                            (isCancelled
+                                                                ? 'border-transparent bg-white/5 text-white/20 cursor-not-allowed'
+                                                                : 'border-[#FF7939]/60 text-[#FFB366] bg-[#FF7939]/5 hover:bg-[#FF7939] hover:text-black shadow-[0_4px_12px_rgba(255,121,57,0.2)]')
+                                                        }
+                                                    >
+                                                        {(() => {
+                                                            if (m.status === 'cancelled') return 'Cancelada'
+                                                            if (m.rsvp_status === 'declined' || m.rsvp_status === 'cancelled') return 'Rechazada'
+
+                                                            if (isToday(new Date(m.start_time))) {
+                                                                const endTime = m.end_time ? new Date(m.end_time) : new Date(new Date(m.start_time).getTime() + 60 * 60000);
+                                                                const bufferTime = new Date(endTime.getTime() + 120 * 60000); // 2h buffer
+                                                                if (new Date() < bufferTime) return 'Unirse';
+                                                                return 'Finalizada';
+                                                            }
+
+                                                            if (new Date(m.end_time || m.start_time) < new Date()) return 'Finalizada'
+                                                            if (isPending) return 'Pendiente'
+
+                                                            if (m.status === 'scheduled' || m.status === 'rescheduled') {
+                                                                const confirmed = m.confirmed_participants || 0
+                                                                const total = m.total_guests || 0
+                                                                if (total > 0 && confirmed < total) {
+                                                                    return total > 1 ? `Inv. enviada (${confirmed}/${total})` : 'Invitación enviada'
+                                                                }
+                                                                return 'Confirmada'
+                                                            }
+                                                            return 'Confirmada'
+                                                        })()}
+                                                    </button>
+                                                </div>
                                             </div>
                                         </div>
                                     </div>
-                                    <button
-                                        type="button"
-                                        disabled={isCancelled}
-                                        onClick={(e) => {
-                                            e.stopPropagation()
-                                            handleEnter()
-                                        }}
-                                        className={
-                                            `h-8 px-4 rounded-full text-[10px] font-bold uppercase tracking-wider border transition-all ` +
-                                            (isCancelled
-                                                ? 'border-transparent bg-white/5 text-white/20 cursor-not-allowed'
-                                                : 'border-[#FF7939]/60 text-[#FFB366] bg-[#FF7939]/5 hover:bg-[#FF7939] hover:text-black shadow-[0_4px_12px_rgba(255,121,57,0.2)]')
-                                        }
-                                    >
-                                        {(() => {
-                                            if (m.status === 'cancelled') return 'Cancelada'
-                                            if (m.rsvp_status === 'declined' || m.rsvp_status === 'cancelled') return 'Rechazada'
-                                            if (new Date(m.end_time || m.start_time) < new Date()) return 'Finalizada'
-                                            if (isToday(new Date(m.start_time))) return 'Unirse'
-
-                                            if (isPending) return 'Pendiente'
-
-                                            if (m.status === 'scheduled' || m.status === 'rescheduled') {
-                                                const confirmed = m.confirmed_participants || 0
-                                                const total = m.total_guests || 0
-                                                if (total > 0 && confirmed < total) {
-                                                    return total > 1 ? `Inv. enviada (${confirmed}/${total})` : 'Invitación enviada'
-                                                }
-                                                return 'Confirmada'
-                                            }
-                                            return 'Confirmada'
-                                        })()}
-                                    </button>
                                 </div>
                             )
                         })}

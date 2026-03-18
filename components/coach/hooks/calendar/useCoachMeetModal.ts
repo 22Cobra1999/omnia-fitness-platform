@@ -403,13 +403,20 @@ export function useCoachMeetModal(coachId: string | null, onEventSuccess: () => 
             toast.success('Evento creado')
 
             try {
-                await fetch('/api/google/calendar/create-meet', {
+                console.log('🔍 [Meet Modal] Intentando crear Meet para evento:', insertedEvent.id)
+                console.log('🔍 [Meet Modal] URL al que se llama: /api/google/calendar/create-meet')
+                const meetRes = await fetch('/api/google/calendar/create-meet', {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
                     credentials: 'include',
                     body: JSON.stringify({ eventId: insertedEvent.id }),
                 })
-            } catch { }
+                console.log('🔍 [Meet Modal] create-meet API Status:', meetRes.status)
+                const textRes = await meetRes.text()
+                console.log('🔍 [Meet Modal] create-meet API Body:', textRes)
+            } catch (err) { 
+                console.error('🔴 [Meet Modal] Exception calling create-meet API:', err)
+            }
 
             await onEventSuccess()
         } finally {

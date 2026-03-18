@@ -94,7 +94,7 @@ async function verificar() {
     meetToday?.forEach((m: any) => {
       console.log(`   - ${m.title}`);
       console.log(`     Hora: ${m.start_time}`);
-      console.log(`     Meet Link: ${m.meet_link || 'No tiene'}`);
+      console.log(`     Meet Link: ${m.google_meet_data?.meet_link || 'No tiene'}`);
       console.log(`     Status: ${m.coach_attendance_status || 'N/A'}`);
     });
   }

@@ -39,20 +39,9 @@ export function QuickMeetScheduler({
     const [selectedTime, setSelectedTime] = useState<string>('')
     const [selectedDuration, setSelectedDuration] = useState<number>(30)
 
-    // Validation for 2-hour minimum notice
+    // Validation for notice period (removed 2-hour restriction)
     const isTimeValid = () => {
-        if (!selectedTime) return false
-
-        const now = new Date()
-        const [hours, minutes] = selectedTime.split(':').map(Number)
-        const targetDate = new Date(selectedDate)
-        targetDate.setHours(hours, minutes, 0, 0)
-
-        // If target date is somehow in the past (e.g. yesterday selected), it's invalid
-        if (targetDate < now) return false
-
-        const diffHours = (targetDate.getTime() - now.getTime()) / (1000 * 60 * 60)
-        return diffHours >= 2
+        return true
     }
 
     const isValidSlot = isTimeValid()
@@ -95,9 +84,9 @@ export function QuickMeetScheduler({
                     <div className="w-8 h-8 rounded-full bg-red-500/10 flex items-center justify-center flex-shrink-0">
                         <Clock className="w-4 h-4 text-red-500" />
                     </div>
-                    <p className="text-xs text-red-200">
-                        <span className="font-bold block text-red-400">Antelación insuficiente</span>
-                        Las reservas deben realizarse con al menos 2 horas de anticipación.
+                    <p className="text-xs text-green-200">
+                        <span className="font-bold block text-green-400">Listo para reservar</span>
+                        Puedes crear la reunión para el horario seleccionado.
                     </p>
                 </div>
             )}

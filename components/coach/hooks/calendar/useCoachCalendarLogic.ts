@@ -79,7 +79,8 @@ export function useCoachCalendarLogic() {
         setViewMode: state.setViewMode,
         setPendingMeetData: state.setPendingMeetData,
         setShowConfirmationModal: state.setShowConfirmationModal,
-        getCoachEvents: eventsHook.getCoachEvents
+        getCoachEvents: eventsHook.getCoachEvents,
+        googleConnected: googleConnected
     })
 
     // 9. Rescheduling Module

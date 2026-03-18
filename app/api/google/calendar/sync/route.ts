@@ -91,7 +91,7 @@ export async function POST(request: NextRequest) {
         .eq('coach_id', coachId)
         .gte('start_time', monthStart.toISOString())
         .lte('start_time', monthEnd.toISOString())
-        .is('google_meet_data->google_event_id', null) // Solo eventos que no tienen google_event_id
+        .not('google_meet_data', 'is', null)
 
       if (!omniaError && omniaEvents && omniaEvents.length > 0) {
         console.log(`📤 Sincronizando ${omniaEvents.length} eventos de OMNIA → Google Calendar`)
@@ -234,7 +234,7 @@ export async function POST(request: NextRequest) {
         .from('calendar_events')
         .select('id, google_meet_data, title, start_time')
         .eq('coach_id', coachId)
-        .not('google_meet_data->google_event_id', 'is', null)
+        .not('google_meet_data', 'is', null)
         .gte('start_time', timeMin.toISOString())
         .lte('start_time', timeMax.toISOString())
 
@@ -431,7 +431,7 @@ export async function POST(request: NextRequest) {
                 )
             `)
         .eq('coach_id', coachId)
-        .not('google_meet_data->meet_link', 'is', null)
+        .not('google_meet_data', 'is', null)
         .lt('end_time', now.toISOString())     // Ya terminaron
         .gt('end_time', twoDaysAgo.toISOString()); // Recientes
 

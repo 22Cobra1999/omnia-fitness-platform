@@ -30,13 +30,30 @@ export interface GoogleCalendarEvent {
     displayName?: string;
     responseStatus?: 'needsAction' | 'declined' | 'tentative' | 'accepted';
   }>;
+  status?: string;
   conferenceData?: {
-    createRequest: {
+    createRequest?: {
       requestId: string;
       conferenceSolutionKey: {
         type: 'hangoutsMeet';
       };
     };
+    entryPoints?: Array<{
+      entryPointType: 'video' | 'phone' | 'sip' | 'more';
+      uri: string;
+      label?: string;
+      pin?: string;
+      accessCode?: string;
+      regionCode?: string;
+    }>;
+    conferenceSolution?: {
+      key: {
+        type: 'hangoutsMeet';
+      };
+      name: string;
+      iconUri: string;
+    };
+    conferenceId?: string;
   };
   conferenceDataVersion?: number;
 }
@@ -207,9 +224,21 @@ export class GoogleOAuth {
     });
 
     if (!response.ok) {
-      const error = await response.text();
-      console.error('Google Calendar API error:', error);
-      throw new Error(`Calendar event creation failed: ${error}`);
+      const errorText = await response.text();
+      let errorParsed;
+      try {
+        errorParsed = JSON.parse(errorText);
+      } catch (e) {
+        errorParsed = errorText;
+      }
+
+      console.error('❌ [GoogleOAuth] Google Calendar API error:', {
+        status: response.status,
+        statusText: response.statusText,
+        error: errorParsed,
+        requestId: eventData.conferenceData.createRequest.requestId
+      });
+      throw new Error(`Calendar event creation failed: ${response.status} ${response.statusText} - ${errorText}`);
     }
 
     const result = await response.json();
@@ -299,24 +328,33 @@ export class GoogleOAuth {
    * Extract Meet link from Google Calendar event
    */
   static extractMeetLink(event: any): string | null {
-    console.log('Extracting Meet link from event:', JSON.stringify(event, null, 2));
+    console.log('🔍 [GoogleOAuth] Extraer link de Meet de evento:', {
+      id: event.id,
+      hangoutLink: event.hangoutLink,
+      hasConferenceData: !!event.conferenceData
+    });
 
-    // Try different possible paths for the Meet link
+    // Intentar diferentes rutas posibles para el link de Meet
     const possiblePaths = [
+      event.hangoutLink, // Ruta más directa y común
+      event.conferenceData?.entryPoints?.find((ep: any) => ep.entryPointType === 'video')?.uri,
       event.conferenceData?.entryPoints?.[0]?.uri,
       event.conferenceData?.entryPoints?.[0]?.joinUrl,
-      event.hangoutLink,
       event.conferenceData?.conferenceSolution?.entryPoints?.[0]?.uri
     ];
 
     for (const path of possiblePaths) {
       if (path && typeof path === 'string' && path.includes('meet.google.com')) {
-        console.log('Found Meet link:', path);
+        console.log('✅ [GoogleOAuth] Link de Meet encontrado:', path);
         return path;
       }
     }
 
-    console.log('No Meet link found in any expected path');
+    if (event.conferenceData && !event.conferenceData.entryPoints) {
+      console.warn('⚠️ [GoogleOAuth] conferenceData presente pero sin entryPoints. Estado:', event.conferenceData.conferenceId);
+    }
+
+    console.error('❌ [GoogleOAuth] No se encontró link de Meet en ninguna ruta esperada');
     return null;
   }
 

@@ -112,10 +112,15 @@ export async function POST(request: NextRequest) {
     console.log(`🔵 [API create-meet] Respuesta de GoogleAPI: Evento ID = ${googleEvent.id}, Meet Link = ${meetLink}`);
 
     if (!meetLink) {
-      console.warn('🟠 [API create-meet] El evento se creó en Google pero falló la generación del meetLink');
+      console.error('❌ [API create-meet] El evento se creó en Google pero falló la generación del meetLink. Data devuelta por Google:', {
+        id: googleEvent.id,
+        status: googleEvent.status,
+        conferenceData: googleEvent.conferenceData
+      });
       return NextResponse.json({ 
-        error: 'No se pudo crear el link de Google Meet',
-        googleEventId: googleEvent.id
+        error: 'No se pudo crear el link de Google Meet. El evento se creó pero sin videoconferencia.',
+        googleEventId: googleEvent.id,
+        suggestion: 'Verifica que la cuenta de Google tenga Meet habilitado para eventos de calendario.'
       }, { status: 500 });
     }
 
@@ -152,6 +157,18 @@ export async function POST(request: NextRequest) {
 
   } catch (error: any) {
     console.error('🔴 [API create-meet] Uncaught Catch Error interno:', error);
+    
+    // Detectar específicamente errores de desencriptación (clave incorrecta)
+    if (error.message?.includes('encriptado con una clave diferente') || 
+        error.message?.includes('Unsupported state')) {
+      return NextResponse.json({
+        error: 'Tu conexión con Google ha caducado o es inválida.',
+        details: 'Debido a un cambio de seguridad en el servidor, debes reconectar tu cuenta de Google.',
+        action: 'Reconectar Google en Perfil',
+        reconnect_required: true
+      }, { status: 401 });
+    }
+
     return NextResponse.json({
       error: 'Error interno del servidor',
       details: error.message

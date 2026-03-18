@@ -161,12 +161,11 @@ export async function GET(request: NextRequest) {
         250
       );
 
-      // Obtener google_event_ids de eventos que ya están en Omnia para evitar duplicados
+      // Obtener google_meet_data de eventos que ya están en Omnia para evitar duplicados
       const { data: existingEvents, error: existingEventsError } = await supabase
         .from('calendar_events')
-        .select('google_event_id')
+        .select('google_meet_data')
         .eq('coach_id', coachId)
-        .not('google_event_id', 'is', null)
         .gte('start_time', timeMin)
         .lte('start_time', timeMax);
 
@@ -177,7 +176,7 @@ export async function GET(request: NextRequest) {
 
       const existingGoogleEventIds = new Set(
         (existingEvents || [])
-          .map(e => e.google_event_id)
+          .map((e: any) => e.google_meet_data?.google_event_id)
           .filter(Boolean)
       );
 

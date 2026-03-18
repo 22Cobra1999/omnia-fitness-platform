@@ -21,6 +21,7 @@ interface UseCoachCalendarEventHandlersProps {
     setPendingMeetData: (v: any) => void
     setShowConfirmationModal: (v: boolean) => void
     getCoachEvents: (force?: boolean) => Promise<void>
+    googleConnected?: boolean
 }
 
 export function useCoachCalendarEventHandlers({
@@ -39,7 +40,8 @@ export function useCoachCalendarEventHandlers({
     setViewMode,
     setPendingMeetData,
     setShowConfirmationModal,
-    getCoachEvents
+    getCoachEvents,
+    googleConnected
 }: UseCoachCalendarEventHandlersProps) {
 
     const checkOverlap = useCallback((date: Date, startTime: string, durationMinutes: number, ignoreEventId?: string) => {
@@ -192,6 +194,25 @@ export function useCoachCalendarEventHandlers({
             if (partError) {
                 await supabase.from('calendar_events').delete().eq('id', eventId)
                 throw partError
+            }
+
+            // If Google is connected, trigger the Meet link generation
+            if (googleConnected) {
+                try {
+                    console.log('🔗 [Calendar Handlers] Generating Google Meet link for event:', eventId)
+                    const response = await fetch('/api/google/calendar/create-meet', {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({ eventId })
+                    })
+                    console.log('🔗 [Calendar Handlers] /api/google/calendar/create-meet returned status:', response.status)
+                    const meetResultText = await response.text()
+                    console.log('🔗 [Calendar Handlers] result from create-meet:', meetResultText)
+                } catch (err) {
+                    console.error('❌ Error calling create-meet API:', err)
+                }
+            } else {
+                console.log('⚠️ [Calendar Handlers] googleConnected is FALSE. Skipping create-meet API call.');
             }
 
             setShowConfirmationModal(false)

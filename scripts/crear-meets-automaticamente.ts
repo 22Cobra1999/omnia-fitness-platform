@@ -36,13 +36,12 @@ const supabase = createClient(SUPABASE_URL, SUPABASE_SERVICE_KEY, {
 async function crearMeetsAutomaticamente() {
   console.log('🔗 Creando Google Meets automáticamente para talleres...\n');
 
-  // 1. Obtener todos los eventos de tipo 'workshop' que no tienen meet_link
+  // 1. Obtener todos los eventos de tipo 'workshop' que no tienen meet_link dentro de google_meet_data
   const { data: eventos, error } = await supabase
     .from('calendar_events')
-    .select('id, title, coach_id, start_time, google_event_id, meet_link')
+    .select('id, title, coach_id, start_time, google_meet_data')
     .eq('event_type', 'workshop')
-    .is('meet_link', null)
-    .is('google_event_id', null)
+    .or('google_meet_data.is.null, google_meet_data->>meet_link.is.null')
     .order('start_time', { ascending: true });
 
   if (error) {
