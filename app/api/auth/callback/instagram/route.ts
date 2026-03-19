@@ -82,6 +82,15 @@ export async function GET(request: Request) {
     const expiresAt = new Date();
     expiresAt.setSeconds(expiresAt.getSeconds() + (expiresSeconds || 5184000));
 
+    // 2.5 OBTENER EL USERNAME REAL DE INSTAGRAM (NUEVO)
+    const meResponse = await fetch(
+      `https://graph.instagram.com/v21.0/me?fields=username,id&access_token=${longLivedToken}`
+    );
+    const meData = await meResponse.json();
+    const username = meData.username || instagramUserId.toString();
+
+    console.log('Instagram @username obtenido:', username);
+
     // 3. Obtener sesión y guardar en Supabase
     const supabase = await createRouteHandlerClient();
     const { data: { user } } = await supabase.auth.getUser();
@@ -98,6 +107,7 @@ export async function GET(request: Request) {
       .update({
         instagram_access_token: encryptedToken,
         instagram_user_id: instagramUserId.toString(),
+        instagram_username: username, // AHORA GUARDAMOS EL NOMBRE REAL
         instagram_expires_at: expiresAt.toISOString(),
       })
       .eq('id', user.id);
@@ -109,12 +119,13 @@ export async function GET(request: Request) {
 
     console.log('Instagram conectado con éxito para:', user.id);
 
-    return NextResponse.redirect(`${currentDomain}/coach/profile?success=instagram_connected#_`);
+    // REDIRIGIR AL HOME CON TAB PERFIL PARA EVITAR EL 404
+    return NextResponse.redirect(`${currentDomain}/?tab=profile&success=instagram_connected#_`);
   } catch (err: any) {
     console.error('--- FALLO TOTAL EN CALLBACK INSTAGRAM ---');
     console.error(err);
     const host = request.headers.get('host');
     const protocol = host?.includes('localhost') ? 'http' : 'https';
-    return NextResponse.redirect(`${protocol}://${host}/coach/profile?error=${encodeURIComponent(err.message)}`);
+    return NextResponse.redirect(`${protocol}://${host}/?tab=profile&error=${encodeURIComponent(err.message)}`);
   }
 }
