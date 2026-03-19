@@ -4,6 +4,7 @@ import { useState, useEffect } from 'react';
 import { useAuth } from '@/contexts/auth-context';
 import { createClient } from '@/lib/supabase/supabase-client';
 import { Smartphone, Instagram, Edit2, Loader2, Check, ChevronDown, Plus, XCircle, Flame } from 'lucide-react';
+import { ConfirmationModal } from '@/components/ui/confirmation-modal';
 import { toast } from 'sonner';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '@/components/ui/dialog';
 import { Input } from '@/components/ui/input';
@@ -26,6 +27,7 @@ export function SocialConnections({ showOnlyEdit = false }: SocialConnectionsPro
     const [isModalOpen, setIsModalOpen] = useState(false);
     const [isWaExpanded, setIsWaExpanded] = useState(false);
     const [isIgExpanded, setIsIgExpanded] = useState(false);
+    const [showIgDisconnectModal, setShowIgDisconnectModal] = useState(false);
 
     useEffect(() => {
         if (user?.id) {
@@ -92,6 +94,7 @@ export function SocialConnections({ showOnlyEdit = false }: SocialConnectionsPro
             if (!response.ok) throw new Error('Falló la desconexión');
             toast.success('Instagram desvinculado');
             await loadSocialData();
+            setShowIgDisconnectModal(false);
         } catch (e: any) {
             toast.error(e.message);
         } finally {
@@ -191,15 +194,14 @@ export function SocialConnections({ showOnlyEdit = false }: SocialConnectionsPro
                                 className="overflow-hidden w-full text-center flex flex-col items-center pt-1"
                             >
                                 <span className="text-[10px] text-white/40 mb-2 truncate max-w-full px-2">
-                                    {socialData.instagram_username ? `@${socialData.instagram_username.replace('@','')}` : (socialData.has_instagram_token ? 'Configurado' : 'Sin configurar')}
+                                    {socialData.instagram_username ? `@${socialData.instagram_username.replace('@','')}` : (socialData.has_instagram_token ? 'Sincronizado' : 'Sin configurar')}
                                 </span>
                                 {socialData.has_instagram_token ? (
                                     <button 
-                                        onClick={handleDisconnectInstagram}
-                                        disabled={disconnecting}
+                                        onClick={() => setShowIgDisconnectModal(true)}
                                         className="text-[9px] text-red-500/60 font-bold uppercase"
                                     >
-                                        {disconnecting ? '...' : 'Desvincular'}
+                                        Desvincular
                                     </button>
                                 ) : (
                                     <a href="/api/auth/instagram" className="text-[9px] text-[#FF7939] font-bold uppercase">
@@ -211,6 +213,18 @@ export function SocialConnections({ showOnlyEdit = false }: SocialConnectionsPro
                     </AnimatePresence>
                 </div>
             </div>
+
+            <ConfirmationModal
+                isOpen={showIgDisconnectModal}
+                onClose={() => !disconnecting && setShowIgDisconnectModal(false)}
+                onConfirm={handleDisconnectInstagram}
+                title="Desvincular Instagram"
+                description="¿Estás seguro de que quieres desvincular tu cuenta? Dejarás de recibir notificaciones y comentarios."
+                confirmText={disconnecting ? "Desvinculando..." : "Desvincular"}
+                cancelText="Cancelar"
+                variant="destructive"
+                isLoading={disconnecting}
+            />
 
             <Dialog open={isModalOpen} onOpenChange={setIsModalOpen}>
                 <DialogContent className="max-w-md bg-black border border-white/10 text-white">
