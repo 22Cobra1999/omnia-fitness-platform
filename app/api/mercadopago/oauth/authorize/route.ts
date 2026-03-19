@@ -74,17 +74,34 @@ export async function GET(request: NextRequest) {
     authUrl.searchParams.set('session_id', `omnia_${timestamp}`);
 
     const finalAuthUrl = authUrl.toString();
-    console.log('🔗 URL de autorización limpia:', finalAuthUrl);
+    // Usar el logout de Mercado Libre (dueño de la sesión) que es más efectivo en Argentina
+    const logoutAndAuthUrl = `https://www.mercadolibre.com.ar/jms/mla/lgout?return_url=${encodeURIComponent(finalAuthUrl)}`;
+    
+    console.log('🔗 URL de Logout (ML) + Autorización:', logoutAndAuthUrl);
 
     // Si se solicita la URL (para popup), devolver JSON en lugar de redirect
     if (returnUrl === 'true') {
       return NextResponse.json({ 
-        authUrl: finalAuthUrl 
+        authUrl: logoutAndAuthUrl 
+      }, {
+        headers: {
+          'Cache-Control': 'no-cache, no-store, must-revalidate',
+          'Pragma': 'no-cache',
+          'Expires': '0',
+        }
       });
     }
 
-    // Redirigir directamente a la autorización con parámetros de force login
-    return NextResponse.redirect(finalAuthUrl);
+    // Redirigir con Logout forzado de Mercado Libre
+    return NextResponse.redirect(logoutAndAuthUrl, {
+      status: 307,
+      headers: {
+        'Cache-Control': 'no-cache, no-store, must-revalidate',
+        'Pragma': 'no-cache',
+        'Expires': '0',
+        'Location': logoutAndAuthUrl
+      }
+    });
 
   } catch (error: any) {
     console.error('Error en OAuth authorize:', error);
