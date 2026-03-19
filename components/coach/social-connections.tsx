@@ -120,7 +120,7 @@ export function SocialConnections({ showOnlyEdit = false }: SocialConnectionsPro
 
     return (
         <>
-            <div className="grid grid-cols-2 gap-2">
+            <>
                 {/* WHATSAPP */}
                 <div className="bg-black border border-white/10 rounded-xl p-3 flex flex-col items-center justify-center min-h-[110px] relative transition-all hover:border-[#FF7939]/30 group">
                     {socialData.whatsapp && (
@@ -212,7 +212,7 @@ export function SocialConnections({ showOnlyEdit = false }: SocialConnectionsPro
                         )}
                     </AnimatePresence>
                 </div>
-            </div>
+            </>
 
             <ConfirmationModal
                 isOpen={showIgDisconnectModal}

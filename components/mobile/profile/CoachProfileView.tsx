@@ -171,12 +171,10 @@ export function CoachProfileView({ logic }: CoachProfileViewProps) {
                     </div>
                 </div>
 
-                <div className="space-y-2">
+                <div className="grid grid-cols-2 lg:grid-cols-4 gap-2">
                     <SocialConnections />
-                    <div className="grid grid-cols-2 gap-2">
-                        <MercadoPagoConnection />
-                        <GoogleCalendarConnection />
-                    </div>
+                    <MercadoPagoConnection />
+                    <GoogleCalendarConnection />
                 </div>
             </div>
             </div>
