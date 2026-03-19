@@ -3,7 +3,7 @@
 import { useState, useEffect } from 'react';
 import { useAuth } from '@/contexts/auth-context';
 import { createClient } from '@/lib/supabase/supabase-client';
-import { Loader2, DollarSign, User, ExternalLink, Check, ChevronDown, Plus, XCircle, Handshake } from 'lucide-react';
+import { Loader2, DollarSign, User, ExternalLink, Check, ChevronDown, Plus, XCircle, Handshake, Flame } from 'lucide-react';
 import { ConfirmationModal } from '@/components/ui/confirmation-modal';
 import { toast } from 'sonner';
 import { motion, AnimatePresence } from 'framer-motion';
@@ -110,27 +110,27 @@ export function MercadoPagoConnection() {
 
   return (
     <>
-      <div className="bg-[#1C1C1E] border border-white/5 rounded-2xl p-4 flex flex-col items-center justify-between min-h-[140px] relative transition-all hover:border-white/10 group h-full">
-        <div className="w-12 h-12 bg-[#009EE3] rounded-full flex items-center justify-center mb-1 shadow-lg shadow-[#009EE3]/20">
-          <Handshake className="w-6 h-6 text-white" />
-        </div>
+      <div className="bg-black border border-white/10 rounded-xl p-3 flex flex-col items-center justify-center min-h-[110px] relative transition-all hover:border-[#FF7939]/30 group h-full">
+        {isConnected && (
+            <div className="absolute top-2 right-2">
+                <Flame className="w-3.5 h-3.5 text-[#FF7939] fill-[#FF7939]/20" />
+            </div>
+        )}
         
-        <div className="flex items-center gap-2">
-          <span className="text-[13px] font-semibold text-white/90">Mercado Pago</span>
-          {isConnected && <Check className="w-3.5 h-3.5 text-emerald-500 font-bold" />}
-        </div>
+        <Handshake className="w-6 h-6 text-[#FF7939] mb-1.5" />
+        <span className="text-[12px] font-medium text-white/50">Mercado Pago</span>
 
         {!isConnected && (
-          <button onClick={handleConnect} className="absolute top-3 right-3 w-6 h-6 rounded-full bg-white/5 hover:bg-white/10 flex items-center justify-center transition-colors">
-            <Plus className="w-3.5 h-3.5 text-white/60" />
+          <button onClick={handleConnect} className="absolute top-2 right-2">
+            <Plus className="w-3.5 h-3.5 text-white/20" />
           </button>
         )}
         
         <button 
           onClick={() => setIsExpanded(!isExpanded)}
-          className={`mt-2 p-1 transition-transform duration-300 ${isExpanded ? 'rotate-180' : ''}`}
+          className={`mt-1 p-1 transition-transform duration-300 ${isExpanded ? 'rotate-180' : ''}`}
         >
-          <ChevronDown className="w-5 h-5 text-[#FF7939]" />
+          <ChevronDown className="w-4 h-4 text-[#FF7939]/60" />
         </button>
 
         <AnimatePresence>
@@ -139,23 +139,23 @@ export function MercadoPagoConnection() {
               initial={{ height: 0, opacity: 0 }}
               animate={{ height: 'auto', opacity: 1 }}
               exit={{ height: 0, opacity: 0 }}
-              className="overflow-hidden w-full text-center flex flex-col items-center pt-2"
+              className="overflow-hidden w-full text-center flex flex-col items-center pt-1"
             >
-              <span className="text-[11px] text-white/60 mb-2 truncate max-w-full italic px-2">
+              <span className="text-[10px] text-white/40 mb-2 truncate max-w-full px-2">
                 {isConnected ? (userInfo?.nickname || credentials?.mercadopago_user_id) : 'No conectado'}
               </span>
               {isConnected ? (
                 <button 
                   onClick={() => setShowDisconnectModal(true)}
-                  className="text-[10px] text-red-400 font-bold uppercase tracking-wider flex items-center gap-1"
+                  className="text-[9px] text-red-500/60 font-bold uppercase"
                 >
-                  <XCircle className="w-3 h-3" /> Desvincular
+                  Desvincular
                 </button>
               ) : (
                 <button 
                   onClick={handleConnect}
                   disabled={connecting}
-                  className="text-[10px] text-[#FF7939] font-bold uppercase tracking-wider"
+                  className="text-[9px] text-[#FF7939] font-bold uppercase"
                 >
                   {connecting ? '...' : 'Conectar'}
                 </button>
@@ -169,7 +169,7 @@ export function MercadoPagoConnection() {
         isOpen={showDisconnectModal}
         onClose={() => !disconnecting && setShowDisconnectModal(false)}
         onConfirm={handleDisconnect}
-        title="Desvincular Mercado Pago"
+        title="Desvincular MP"
         description="¿Estás seguro?"
         confirmText={disconnecting ? "..." : "Desvincular"}
         cancelText="Cancelar"

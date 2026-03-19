@@ -162,23 +162,23 @@ export function CoachProfileView({ logic }: CoachProfileViewProps) {
             <div className="space-y-3">
                 <PlanManagement />
                 
-                {/* Integrations */}
-                <div className="mt-8 px-1">
-                    <div className="flex items-center justify-between mb-5 px-1">
-                        <h3 className="text-[20px] font-bold text-white tracking-tight">Integraciones</h3>
-                        <div className="w-8 h-8 rounded-full bg-white/5 flex items-center justify-center">
-                            <SocialConnections showOnlyEdit={true} />
-                        </div>
-                    </div>
-
-                    <div className="space-y-4">
-                        <SocialConnections />
-                        <div className="grid grid-cols-2 gap-3">
-                            <MercadoPagoConnection />
-                            <GoogleCalendarConnection />
-                        </div>
+            {/* Integrations */}
+            <div className="mt-6 px-1">
+                <div className="flex items-center justify-between mb-3 px-1">
+                    <h3 className="text-[18px] font-bold text-white/90 tracking-tight">Integraciones</h3>
+                    <div className="w-7 h-7 rounded-md bg-white/5 flex items-center justify-center opacity-40 hover:opacity-100 transition-opacity">
+                        <SocialConnections showOnlyEdit={true} />
                     </div>
                 </div>
+
+                <div className="space-y-2">
+                    <SocialConnections />
+                    <div className="grid grid-cols-2 gap-2">
+                        <MercadoPagoConnection />
+                        <GoogleCalendarConnection />
+                    </div>
+                </div>
+            </div>
             </div>
         </div>
     )
