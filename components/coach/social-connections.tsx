@@ -3,11 +3,12 @@
 import { useState, useEffect } from 'react';
 import { useAuth } from '@/contexts/auth-context';
 import { createClient } from '@/lib/supabase/supabase-client';
-import { Smartphone, Instagram, Edit2, Loader2, Check } from 'lucide-react';
+import { Smartphone, Instagram, Edit2, Loader2, Check, ChevronDown, Plus, XCircle } from 'lucide-react';
 import { toast } from 'sonner';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '@/components/ui/dialog';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
+import { motion, AnimatePresence } from 'framer-motion';
 
 interface SocialConnectionsProps {
     showOnlyEdit?: boolean;
@@ -19,9 +20,11 @@ export function SocialConnections({ showOnlyEdit = false }: SocialConnectionsPro
 
     const [loading, setLoading] = useState(true);
     const [saving, setSaving] = useState(false);
+    const [disconnecting, setDisconnecting] = useState(false);
     const [socialData, setSocialData] = useState({ whatsapp: '', instagram_username: '', has_instagram_token: false });
     const [draftData, setDraftData] = useState({ whatsapp: '', instagram_username: '' });
     const [isModalOpen, setIsModalOpen] = useState(false);
+    const [expandedCard, setExpandedCard] = useState<string | null>(null);
 
     useEffect(() => {
         if (user?.id) {
@@ -52,7 +55,7 @@ export function SocialConnections({ showOnlyEdit = false }: SocialConnectionsPro
                 });
             }
         } catch (e) {
-            console.error(e);
+            console.error('Error loading social data:', e);
         } finally {
             setLoading(false);
         }
@@ -65,108 +68,146 @@ export function SocialConnections({ showOnlyEdit = false }: SocialConnectionsPro
             const { error } = await supabase
                 .from('coaches')
                 .update({
-                    whatsapp: draftData.whatsapp ? Number(draftData.whatsapp) : null,
-                    instagram_username: draftData.instagram_username || null
+                    whatsapp: draftData.whatsapp,
+                    instagram_username: draftData.instagram_username
                 })
                 .eq('id', user.id);
 
             if (error) throw error;
-
-            setSocialData({
-                ...draftData,
-                has_instagram_token: socialData.has_instagram_token
-            });
+            toast.success('Cambios guardados correctamente');
+            await loadSocialData();
             setIsModalOpen(false);
-            toast.success('Redes sociales actualizadas correctamente');
-        } catch (error) {
-            toast.error('Error al guardar las redes sociales');
-            console.error(error);
+        } catch (error: any) {
+            toast.error('Error al guardar: ' + error.message);
         } finally {
             setSaving(false);
         }
     };
 
-    if (loading) {
+    const handleDisconnectInstagram = async () => {
+        setDisconnecting(true);
+        try {
+            const response = await fetch('/api/auth/instagram/disconnect', { method: 'POST' });
+            if (!response.ok) throw new Error('Falló la desconexión');
+            toast.success('Instagram desvinculado');
+            await loadSocialData();
+        } catch (e: any) {
+            toast.error(e.message);
+        } finally {
+            setDisconnecting(false);
+        }
+    };
+
+    if (loading) return null;
+
+    if (showOnlyEdit) {
         return (
-            <div className="flex items-center justify-center py-4 bg-[#1A1C1F] rounded-2xl border border-white/5">
-                <Loader2 className="w-5 h-5 animate-spin text-[#FF7939]" />
-            </div>
+            <button
+                onClick={() => {
+                    setDraftData(socialData);
+                    setIsModalOpen(true);
+                }}
+                className="w-full h-full flex items-center justify-center"
+                title="Editar perfiles sociales"
+            >
+                <Edit2 className="w-4 h-4" />
+            </button>
         );
     }
 
     return (
         <>
-            {showOnlyEdit ? (
-                <button
-                    onClick={() => {
-                        setDraftData(socialData);
-                        setIsModalOpen(true);
-                    }}
-                    className="w-full h-full flex items-center justify-center"
-                    title="Editar perfiles sociales"
-                >
-                    <Edit2 className="w-4 h-4" />
-                </button>
-            ) : (
-                <div className="grid grid-cols-2 gap-3">
-                    {/* WhatsApp */}
-                    <div className="bg-black/20 backdrop-blur-sm border border-white/5 rounded-xl p-3 flex flex-col gap-1.5 transition-all hover:border-white/10 relative">
-                        <div className="flex items-center gap-2">
-                            <Smartphone className="w-3.5 h-3.5 text-gray-400" />
-                            <span className="text-[11px] font-bold text-gray-400 uppercase tracking-tight">WhatsApp</span>
-                        </div>
-                        {socialData.whatsapp ? (
-                            <span className="text-sm font-medium text-white/90 truncate">{socialData.whatsapp}</span>
-                        ) : (
-                            <span className="text-xs text-white/20 italic">No configurado</span>
-                        )}
+            <div className="grid grid-cols-2 gap-3">
+                {/* WHATSAPP */}
+                <div className="bg-[#1C1C1E] border border-white/5 rounded-2xl p-4 flex flex-col items-center justify-between min-h-[140px] relative transition-all hover:border-white/10 group">
+                    <div className="w-12 h-12 bg-[#25D366] rounded-full flex items-center justify-center mb-1 shadow-lg shadow-[#25D366]/20">
+                        <Smartphone className="w-6 h-6 text-white" />
                     </div>
-
-                    {/* Instagram Manual */}
-                    <div className="bg-black/20 backdrop-blur-sm border border-white/5 rounded-xl p-3 flex flex-col gap-1.5 transition-all hover:border-white/10">
-                        <div className="flex items-center gap-2">
-                            <Instagram className="w-3.5 h-3.5 text-gray-400" />
-                            <span className="text-[11px] font-bold text-gray-400 uppercase tracking-tight">Instagram</span>
-                        </div>
-                        {socialData.instagram_username ? (
-                            <span className="text-sm font-medium text-white/90 truncate">@{socialData.instagram_username.replace('@', '')}</span>
-                        ) : (
-                            <span className="text-xs text-white/20 italic">No configurado</span>
-                        )}
-                    </div>
-
-                    {/* BOTÓN CONEXIÓN OFICIAL DIRECTO */}
-                    <a 
-                        href="/api/auth/instagram"
-                        className={`col-span-2 flex items-center justify-between p-3 rounded-xl border transition-all duration-300 ${
-                            socialData.has_instagram_token 
-                            ? 'bg-emerald-500/5 border-emerald-500/10 text-emerald-400' 
-                            : 'bg-white/5 border-white/5 hover:border-pink-500/20 text-white'
-                        }`}
-                        onClick={(e) => {
-                            if (socialData.has_instagram_token) e.preventDefault();
-                        }}
+                    <span className="text-[13px] font-semibold text-white/90">WhatsApp</span>
+                    
+                    <button 
+                        onClick={() => setExpandedCard(expandedCard === 'wa' ? null : 'wa')}
+                        className={`mt-2 p-1 transition-transform duration-300 ${expandedCard === 'wa' ? 'rotate-180' : ''}`}
                     >
-                        <div className="flex items-center gap-3">
-                            <Instagram className={`w-4 h-4 ${socialData.has_instagram_token ? 'text-emerald-400' : 'text-pink-500'}`} />
-                            <div className="flex flex-col items-start leading-none">
-                                <span className="text-[11px] font-bold uppercase tracking-wider">Conector API</span>
-                                <span className="text-[10px] opacity-40 mt-0.5">
-                                    {socialData.has_instagram_token ? 'Sincronizado' : 'Conexión oficial requerida'}
+                        <ChevronDown className="w-5 h-5 text-[#FF7939]" />
+                    </button>
+
+                    <AnimatePresence>
+                        {expandedCard === 'wa' && (
+                            <motion.div 
+                                initial={{ height: 0, opacity: 0 }}
+                                animate={{ height: 'auto', opacity: 1 }}
+                                exit={{ height: 0, opacity: 0 }}
+                                className="overflow-hidden w-full text-center flex flex-col items-center pt-2"
+                            >
+                                <span className="text-[11px] text-white/60 mb-2 truncate max-w-full italic px-2">
+                                    {socialData.whatsapp || 'Sin configurar'}
                                 </span>
-                            </div>
-                        </div>
-                        {socialData.has_instagram_token ? (
-                            <div className="flex items-center gap-1.5 px-2 py-0.5 rounded-full bg-emerald-500/10 border border-emerald-500/20">
-                                <Check className="w-2.5 h-2.5 text-emerald-400" />
-                                <span className="text-[9px] font-bold text-emerald-400 uppercase">OK</span>
-                            </div>
-                        ) : (
-                            <div className="px-3 py-1 rounded-lg bg-pink-500/10 text-pink-500 text-[9px] font-bold uppercase tracking-wider border border-pink-500/20">Conectar</div>
+                                <button 
+                                    onClick={() => { setDraftData(socialData); setIsModalOpen(true); }}
+                                    className="text-[10px] text-[#FF7939] font-bold uppercase tracking-wider"
+                                >
+                                    Configurar
+                                </button>
+                            </motion.div>
                         )}
-                    </a>
+                    </AnimatePresence>
                 </div>
-            )}
+
+                {/* INSTAGRAM */}
+                <div className="bg-[#1C1C1E] border border-white/5 rounded-2xl p-4 flex flex-col items-center justify-between min-h-[140px] relative transition-all hover:border-white/10 group">
+                    <div className="w-12 h-12 bg-gradient-to-tr from-[#f9ce67] via-[#e1306c] to-[#833ab4] rounded-xl flex items-center justify-center mb-1 shadow-lg shadow-pink-500/20">
+                        <Instagram className="w-6 h-6 text-white" />
+                    </div>
+                    <span className="text-[13px] font-semibold text-white/90">Instagram</span>
+
+                    {!socialData.has_instagram_token && (
+                        <a href="/api/auth/instagram" className="absolute top-3 right-3 w-6 h-6 rounded-full bg-white/5 hover:bg-white/10 flex items-center justify-center transition-colors">
+                            <Plus className="w-3.5 h-3.5 text-white/60" />
+                        </a>
+                    )}
+                    {socialData.has_instagram_token && (
+                        <div className="absolute top-3 right-3">
+                            <Check className="w-3.5 h-3.5 text-emerald-500 font-bold" />
+                        </div>
+                    )}
+                    
+                    <button 
+                        onClick={() => setExpandedCard(expandedCard === 'ig' ? null : 'ig')}
+                        className={`mt-2 p-1 transition-transform duration-300 ${expandedCard === 'ig' ? 'rotate-180' : ''}`}
+                    >
+                        <ChevronDown className="w-5 h-5 text-[#FF7939]" />
+                    </button>
+
+                    <AnimatePresence>
+                        {expandedCard === 'ig' && (
+                            <motion.div 
+                                initial={{ height: 0, opacity: 0 }}
+                                animate={{ height: 'auto', opacity: 1 }}
+                                exit={{ height: 0, opacity: 0 }}
+                                className="overflow-hidden w-full text-center flex flex-col items-center pt-2"
+                            >
+                                <span className="text-[11px] text-white/60 mb-2 truncate max-w-full italic px-2">
+                                    {socialData.instagram_username ? `@${socialData.instagram_username.replace('@','')}` : (socialData.has_instagram_token ? 'Configurado (API)' : 'Sin configurar')}
+                                </span>
+                                {socialData.has_instagram_token ? (
+                                    <button 
+                                        onClick={handleDisconnectInstagram}
+                                        disabled={disconnecting}
+                                        className="text-[10px] text-red-400 font-bold uppercase tracking-wider flex items-center gap-1"
+                                    >
+                                        {disconnecting ? '...' : <><XCircle className="w-3 h-3" /> Desvincular</>}
+                                    </button>
+                                ) : (
+                                    <a href="/api/auth/instagram" className="text-[10px] text-[#FF7939] font-bold uppercase tracking-wider">
+                                        Conectar API
+                                    </a>
+                                )}
+                            </motion.div>
+                        )}
+                    </AnimatePresence>
+                </div>
+            </div>
 
             <Dialog open={isModalOpen} onOpenChange={setIsModalOpen}>
                 <DialogContent className="max-w-md bg-[#1A1C1F] border-white/10 text-white">
@@ -184,19 +225,19 @@ export function SocialConnections({ showOnlyEdit = false }: SocialConnectionsPro
                                 placeholder="Ej: +5411..."
                                 value={draftData.whatsapp}
                                 onChange={(e) => setDraftData(prev => ({ ...prev, whatsapp: e.target.value }))}
-                                className="bg-white/5 border-white/10"
+                                className="bg-white/5 border-white/10 text-white"
                             />
                         </div>
                         <div className="space-y-2">
                             <Label htmlFor="instagram" className="text-xs uppercase text-gray-400 flex items-center gap-1">
-                                <Instagram className="w-3 h-3" /> Usuario de Instagram
+                                <Instagram className="w-3 h-3" /> Usuario de Instagram (Manual)
                             </Label>
                             <Input
                                 id="instagram"
                                 placeholder="Ej: @tu_usuario"
                                 value={draftData.instagram_username}
                                 onChange={(e) => setDraftData(prev => ({ ...prev, instagram_username: e.target.value }))}
-                                className="bg-white/5 border-white/10"
+                                className="bg-white/5 border-white/10 text-white"
                             />
                         </div>
                     </div>
