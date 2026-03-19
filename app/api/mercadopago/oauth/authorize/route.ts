@@ -74,35 +74,17 @@ export async function GET(request: NextRequest) {
     authUrl.searchParams.set('session_id', `omnia_${timestamp}`);
 
     const finalAuthUrl = authUrl.toString();
-    // Envolver la URL final dentro del logout de Mercado Pago para forzar login limpio
-    // Esto garantiza que el usuario tenga que poner credenciales sí o sí
-    const logoutAndAuthUrl = `https://www.mercadopago.com.ar/logout?continue=${encodeURIComponent(finalAuthUrl)}`;
-    
-    console.log('🔗 URL de Logout + Autorización:', logoutAndAuthUrl);
+    console.log('🔗 URL de autorización limpia:', finalAuthUrl);
 
     // Si se solicita la URL (para popup), devolver JSON en lugar de redirect
     if (returnUrl === 'true') {
       return NextResponse.json({ 
-        authUrl: logoutAndAuthUrl 
-      }, {
-        headers: {
-          'Cache-Control': 'no-cache, no-store, must-revalidate',
-          'Pragma': 'no-cache',
-          'Expires': '0',
-        }
-    });
+        authUrl: finalAuthUrl 
+      });
     }
 
-    // Redirigir con Logout forzado
-    return NextResponse.redirect(logoutAndAuthUrl, {
-      status: 307,
-      headers: {
-        'Cache-Control': 'no-cache, no-store, must-revalidate',
-        'Pragma': 'no-cache',
-        'Expires': '0',
-        'Location': logoutAndAuthUrl
-      }
-    });
+    // Redirigir directamente a la autorización con parámetros de force login
+    return NextResponse.redirect(finalAuthUrl);
 
   } catch (error: any) {
     console.error('Error en OAuth authorize:', error);
