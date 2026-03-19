@@ -82,7 +82,7 @@ export function MercadoPagoConnection() {
       const baseUrl = window.location.origin;
       const response = await fetch(`${baseUrl}/api/mercadopago/oauth/authorize?coach_id=${user.id}&return_url=true`);
       const { authUrl } = await response.json();
-      if (authUrl) window.open(`${baseUrl}/mercadopago-logout?auth_url=${encodeURIComponent(authUrl)}`, 'MPAuth', 'width=600,height=700');
+      if (authUrl) window.open(authUrl, 'MPAuth', 'width=600,height=700');
     } finally {
       setConnecting(false);
     }
