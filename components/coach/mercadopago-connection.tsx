@@ -77,15 +77,8 @@ export function MercadoPagoConnection() {
 
   const handleConnect = async () => {
     if (!user?.id) return;
-    setConnecting(true);
-    try {
-      const baseUrl = window.location.origin;
-      const response = await fetch(`${baseUrl}/api/mercadopago/oauth/authorize?coach_id=${user.id}&return_url=true`);
-      const { authUrl } = await response.json();
-      if (authUrl) window.open(authUrl, 'MPAuth', 'width=600,height=700');
-    } finally {
-      setConnecting(false);
-    }
+    // Redirección directa para evitar bloqueadores de popups (especialmente en Safari/iPhone)
+    window.location.href = `/api/mercadopago/oauth/authorize?coach_id=${user.id}`;
   };
 
   const handleDisconnect = async () => {
