@@ -15,12 +15,18 @@ const KEY_LENGTH = 32; // 32 bytes para AES-256
  * Obtiene la clave de encriptación desde las variables de entorno
  */
 function getEncryptionKey(): Buffer {
-  const key = process.env.ENCRYPTION_KEY;
+  let key = process.env.ENCRYPTION_KEY;
   
   if (!key) {
     console.error('ENCRYPTION_KEY no está configurada');
     throw new Error('ENCRYPTION_KEY no está configurada en las variables de entorno');
   }
+
+  // Limpiar posibles comillas y espacios (común en Vercel/Docker)
+  key = key.trim().replace(/^['"]|['"]$/g, '');
+  
+  // Limpiar posibles saltos de línea literales (ej. \n o \r) que a veces se cuelan en Vercel
+  key = key.replace(/\\n|\\r/g, '');
 
   try {
     // Si la clave es hexadecimal (64 caracteres = 32 bytes en hex), convertirla a Buffer

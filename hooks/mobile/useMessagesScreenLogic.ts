@@ -35,6 +35,7 @@ export function useMessagesScreenLogic() {
     const [messages, setMessages] = useState<Message[]>([])
     const [newMessage, setNewMessage] = useState('')
     const [loading, setLoading] = useState(true)
+    const [loadingMessages, setLoadingMessages] = useState(false)
     const [sending, setSending] = useState(false)
     const pollingIntervalRef = useRef<NodeJS.Timeout | null>(null)
     const isUpdatingUnreadRef = useRef(false)
@@ -147,9 +148,10 @@ export function useMessagesScreenLogic() {
     }, [user, isCoach, supabase])
 
     // Cargar mensajes
-    const loadMessages = useCallback(async (conversationId: string) => {
+    const loadMessages = useCallback(async (conversationId: string, silent = false) => {
         if (!user || isCoach === null) return
         try {
+            if (!silent) setLoadingMessages(true)
             const { data: messagesData, error: messagesError } = await supabase
                 .from('messages')
                 .select('*')
@@ -190,6 +192,8 @@ export function useMessagesScreenLogic() {
             }
         } catch (error) {
             console.error('Error cargando mensajes:', error)
+        } finally {
+            setLoadingMessages(false)
         }
     }, [user, isCoach, supabase])
 
@@ -322,7 +326,7 @@ export function useMessagesScreenLogic() {
         pollingIntervalRef.current = setInterval(() => {
             if (!isUpdatingUnreadRef.current && !isLoadingRef.current) {
                 loadConversations(true)
-                if (selectedConversationId) loadMessages(selectedConversationId)
+                if (selectedConversationId) loadMessages(selectedConversationId, true)
             }
         }, 5000)
         return () => {
@@ -342,18 +346,10 @@ export function useMessagesScreenLogic() {
         ? (isCoach ? selectedConversation.client_avatar : selectedConversation.coach_avatar)
         : null
 
-    // Daily Message Limit Logic
-    const DAILY_LIMIT = 10
-    const today = new Date().toDateString()
-
-    const sentTodayCount = messages.filter(msg =>
-        msg.sender_id === user?.id &&
-        new Date(msg.created_at).toDateString() === today
-    ).length
-
-    const remainingMessages = Math.max(0, DAILY_LIMIT - sentTodayCount)
-    const isLimitReached = remainingMessages === 0
-    const showLimitWarning = remainingMessages <= 2 && remainingMessages > 0
+    // Daily Message Limit Logic (Disabled for now as per user request to unblock)
+    const remainingMessages = 999
+    const isLimitReached = false
+    const showLimitWarning = false
 
     return {
         user,
@@ -364,6 +360,7 @@ export function useMessagesScreenLogic() {
         newMessage,
         setNewMessage,
         loading,
+        loadingMessages,
         sending,
         isCoach,
         selectedConversation,

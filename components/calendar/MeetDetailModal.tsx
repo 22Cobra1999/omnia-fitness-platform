@@ -11,6 +11,8 @@ import { MeetDetailActions } from './components/meet-detail/MeetDetailActions'
 import { MeetDetailConfirmations } from './components/meet-detail/MeetDetailConfirmations'
 import { WorkshopRescheduleWarningModal } from './components/WorkshopRescheduleWarningModal'
 import { useMeetDetailLogic } from './hooks/useMeetDetailLogic'
+import { useState } from 'react'
+import { toast as sToast } from 'sonner'
 
 // Interface for dependencies passed from parent
 interface MeetDetailModalProps {
@@ -66,6 +68,7 @@ export function MeetDetailModal({
     onCancelRescheduleRequest
 }: MeetDetailModalProps) {
     const supabase = createClient()
+    const [refreshingAttendance, setRefreshingAttendance] = useState(false)
     const { toast } = useToast()
 
     const {
@@ -122,6 +125,42 @@ export function MeetDetailModal({
         onReschedule,
         selectedStatus: selectedMeetRsvpStatus
     })
+
+    const handleRefreshAttendance = async () => {
+        try {
+            setRefreshingAttendance(true)
+            const response = await fetch('/api/google/calendar/refresh-attendance', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ eventId: actualEventId })
+            })
+
+            const data = await response.json()
+            if (data.success) {
+                sToast.success('Asistencia actualizada', {
+                    description: data.message
+                })
+                loadMeet() // Reload data from DB
+            } else {
+                sToast.error('No se pudo actualizar', {
+                    description: data.error || 'Error desconocido'
+                })
+            }
+        } catch (err) {
+            console.error('Error refreshing attendance:', err)
+            sToast.error('Error de red', {
+                description: 'No se pudo contactar con el servidor.'
+            })
+        } finally {
+            setRefreshingAttendance(false)
+        }
+    }
+
+    React.useEffect(() => {
+        if (isPast && isCoach && actualEventId) {
+            handleRefreshAttendance()
+        }
+    }, [isPast, isCoach, actualEventId])
 
     // Filter out organizer from guests list
     const guests = enrichedParticipants.map((p: any) => {
@@ -184,6 +223,8 @@ export function MeetDetailModal({
                         authUserId={authUserId}
                         organizerName={organizerName}
                         eventStatus={isCancelled ? 'cancelled' : (isPast ? 'past' : selectedMeetEvent.status)}
+                        onRefreshAttendance={isCoach ? handleRefreshAttendance : undefined}
+                        isRefreshing={refreshingAttendance}
                     />
 
                     {selectedMeetEvent.description && (

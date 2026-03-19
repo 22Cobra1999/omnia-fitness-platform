@@ -104,10 +104,20 @@ export const MeetDetailActions: React.FC<MeetDetailActionsProps> = ({
                             <button
                                 type="button"
                                 onClick={() => window.open(String(meetLink), '_blank')}
-                                className={`w-full px-4 py-3 rounded-xl text-black text-sm font-bold hover:opacity-90 transition-opacity flex items-center justify-center gap-2 mb-1 ${isOngoing ? 'bg-emerald-400 shadow-lg shadow-emerald-500/20' : 'bg-[#FF7939] shadow-lg shadow-[#FF7939]/20'}`}
+                                disabled={!isMyRsvpConfirmed}
+                                className={`w-full px-4 py-3 rounded-xl text-sm font-bold transition-all flex items-center justify-center gap-2 mb-1 ${!isMyRsvpConfirmed
+                                        ? 'bg-zinc-800 text-white/30 border border-white/5 cursor-not-allowed'
+                                        : isOngoing
+                                            ? 'bg-emerald-400 text-black shadow-lg shadow-emerald-500/20 hover:opacity-90'
+                                            : 'bg-[#FF7939] text-black shadow-lg shadow-[#FF7939]/20 hover:opacity-90'
+                                    }`}
                             >
                                 <Video size={18} />
-                                {isOngoing ? 'Entrar a la Meet ahora' : 'Unirse a la Meet'}
+                                {!isMyRsvpConfirmed
+                                    ? 'Confirma asistencia para unirte'
+                                    : isOngoing
+                                        ? 'Entrar a la Meet ahora'
+                                        : 'Unirse a la Meet'}
                             </button>
                         );
                     })()}

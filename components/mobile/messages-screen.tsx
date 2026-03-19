@@ -8,6 +8,7 @@ import { ChatList } from './messages/ChatList'
 import { ChatHeader } from './messages/ChatHeader'
 import { MessageList } from './messages/MessageList'
 import { ChatInput } from './messages/ChatInput'
+import { OmniaLoader } from "@/components/shared/ui/omnia-loader"
 
 export function MessagesScreen() {
   const {
@@ -27,12 +28,13 @@ export function MessagesScreen() {
     sendMessage,
     remainingMessages,
     isLimitReached,
-    showLimitWarning
+    showLimitWarning,
+    loadingMessages
   } = useMessagesScreenLogic()
 
   if (!user) {
     return (
-      <div className="flex items-center justify-center h-full bg-[#121212]">
+      <div className="flex items-center justify-center h-full bg-black">
         <div className="text-center text-gray-400">
           <MessageCircle className="h-12 w-12 mx-auto mb-4 opacity-50" />
           <p>Inicia sesión para ver tus mensajes</p>
@@ -43,8 +45,11 @@ export function MessagesScreen() {
 
   if (loading || isCoach === null) {
     return (
-      <div className="flex items-center justify-center h-full bg-[#121212]">
-        <div className="text-white">Cargando mensajes...</div>
+      <div className="flex items-center justify-center h-full bg-black">
+        <div className="flex flex-col items-center gap-4">
+          <OmniaLoader />
+          <div className="text-gray-400 font-bold tracking-tight uppercase text-[10px]">Cargando...</div>
+        </div>
       </div>
     )
   }
@@ -52,23 +57,32 @@ export function MessagesScreen() {
   // Vista de chat individual
   if (selectedConversationId && selectedConversation) {
     return (
-      <div className="flex flex-col h-full bg-[#121212]">
+      <div className="flex flex-col h-full bg-black">
         <ChatHeader
           contactName={contactName}
           contactAvatar={contactAvatar}
           onBack={() => setSelectedConversationId(null)}
         />
 
-        <MessageList
-          messages={messages}
-          currentUserId={user.id}
-        />
+        {loadingMessages ? (
+          <div className="flex-1 flex flex-col items-center justify-center">
+            <OmniaLoader />
+            <span className="text-[10px] text-zinc-500 font-bold tracking-widest uppercase mt-4">
+              Cargando mensajes...
+            </span>
+          </div>
+        ) : (
+          <MessageList
+            messages={messages}
+            currentUserId={user.id}
+          />
+        )}
 
         <ChatInput
           value={newMessage}
           onChange={setNewMessage}
           onSend={sendMessage}
-          disabled={!newMessage.trim()}
+          disabled={sending}
           sending={sending}
           remainingMessages={remainingMessages}
           isLimitReached={isLimitReached}
@@ -80,9 +94,9 @@ export function MessagesScreen() {
 
   // Vista de lista de conversaciones
   return (
-    <div className="flex flex-col h-full bg-[#121212]">
+    <div className="flex flex-col h-full bg-black">
       {/* Header */}
-      <div className="sticky top-0 z-10 bg-[#1E1E1E] border-b border-gray-800 px-4 py-3">
+      <div className="sticky top-0 z-10 bg-black border-b border-white/5 px-4 py-3">
         <h1 className="text-lg font-semibold text-white">Mensajes</h1>
       </div>
 

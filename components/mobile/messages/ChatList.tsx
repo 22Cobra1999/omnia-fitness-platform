@@ -24,7 +24,7 @@ export function ChatList({ conversations, isCoach, onSelectConversation }: ChatL
     }
 
     return (
-        <div className="divide-y divide-gray-800">
+        <div className="divide-y divide-white/5">
             {conversations.map((conversation) => {
                 const unreadCount = isCoach
                     ? conversation.coach_unread_count
@@ -42,7 +42,7 @@ export function ChatList({ conversations, isCoach, onSelectConversation }: ChatL
                     <button
                         key={conversation.id}
                         onClick={() => onSelectConversation(conversation.id)}
-                        className="w-full px-4 py-3 flex items-center gap-3 hover:bg-[#1E1E1E] transition-colors"
+                        className="w-full px-4 py-3 flex items-center gap-3 hover:bg-white/5 transition-colors"
                     >
                         {contactAvatar ? (
                             <img

@@ -22,10 +22,16 @@ export function CoachMeetDetailModal({
     const [loading, setLoading] = useState(false)
     const [participants, setParticipants] = useState<any[]>([])
     const [pendingReschedule, setPendingReschedule] = useState<any>(null)
+    const [refreshingAttendance, setRefreshingAttendance] = useState(false)
 
     useEffect(() => {
         loadParticipants()
         loadPendingReschedule()
+        
+        // Auto-refresh attendance for past meetings
+        if (isPast && event.id) {
+            handleRefreshAttendance()
+        }
     }, [event.id])
 
     const loadParticipants = async () => {
@@ -35,6 +41,7 @@ export function CoachMeetDetailModal({
                 .select(`
           *,
           attendance_status,
+          attendance_minutes,
           user:user_id (
             id,
             full_name,
@@ -195,6 +202,36 @@ export function CoachMeetDetailModal({
         }
     }
 
+    const handleRefreshAttendance = async () => {
+        try {
+            setRefreshingAttendance(true)
+            const response = await fetch('/api/google/calendar/refresh-attendance', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ eventId: event.id })
+            })
+
+            const data = await response.json()
+            if (data.success) {
+                toast.success('Asistencia actualizada', {
+                    description: data.message
+                })
+                loadParticipants() // Reload data into state
+            } else {
+                toast.error('No se pudo actualizar', {
+                    description: data.error || 'Error desconocido'
+                })
+            }
+        } catch (err) {
+            console.error('Error refreshing attendance:', err)
+            toast.error('Error de red', {
+                description: 'No se pudo contactar con el servidor.'
+            })
+        } finally {
+            setRefreshingAttendance(false)
+        }
+    }
+
     const start = new Date(event.start_time)
     const end = event.end_time ? new Date(event.end_time) : null
     const timeLabel = `${format(start, 'HH:mm')}${end && !Number.isNaN(end.getTime()) ? ` – ${format(end, 'HH:mm')}` : ''}`
@@ -318,16 +355,14 @@ export function CoachMeetDetailModal({
                                 <Users size={22} strokeWidth={1.5} />
                             </div>
                             <div className="flex-1">
-                                <div className="text-sm font-semibold text-white mb-2">Participantes</div>
+                                    <div className="text-sm font-semibold text-white">Participantes</div>
                                 <div className="space-y-2">
                                     {participants.map((p) => {
                                         const pRsvp = isCancelled ? 'cancelled' : p.rsvp_status;
+                                        const pAttendance = p.attendance_status;
+                                        const isFinalizada = isPast && !isCancelled;
                                         const isConfirmed = pRsvp === 'accepted' || pRsvp === 'confirmed';
                                         const isDeclined = pRsvp === 'declined' || pRsvp === 'cancelled';
-                                        
-                                        // Attendance logic for past events
-                                        const showAttendance = isPast && !isCancelled;
-                                        const attendance = p.attendance_status || 'pending';
                                         
                                         let badgeText = isConfirmed ? 'Confirmado' : (isDeclined ? 'Cancelado' : 'Pendiente');
                                         let badgeStyle = isConfirmed
@@ -336,14 +371,44 @@ export function CoachMeetDetailModal({
                                                 ? 'bg-red-500/10 text-red-500 border border-red-500/20'
                                                 : 'bg-white/5 text-white/40 border border-white/10');
 
-                                        if (showAttendance) {
-                                            if (attendance === 'present' || (attendance === 'pending' && isConfirmed)) {
-                                                badgeText = 'Presente';
-                                                badgeStyle = 'bg-green-500/10 text-green-500 border border-green-500/20';
-                                            } else {
-                                                badgeText = 'Ausente';
-                                                badgeStyle = 'bg-red-500/10 text-red-500 border border-red-500/20';
-                                            }
+                                        if (isFinalizada && isConfirmed && pAttendance) {
+                                            const attendanceText = pAttendance === 'present' ? 'Asistió' : 'No asistió';
+                                            const attendanceColor = pAttendance === 'present' ? 'text-green-500' : 'text-red-500';
+                                            const attendanceBg = pAttendance === 'present' ? 'bg-green-500/10' : 'bg-red-500/10';
+                                            const attendanceBorder = pAttendance === 'present' ? 'border-green-500/20' : 'border-red-500/20';
+
+                                            return (
+                                                <div key={p.id} className="flex items-center justify-between">
+                                                    <div className="flex items-center gap-2">
+                                                        {p.user?.avatar_url ? (
+                                                            <img src={p.user.avatar_url} alt={p.user.full_name} className="w-6 h-6 rounded-full" />
+                                                        ) : (
+                                                            <div className="w-6 h-6 rounded-full bg-zinc-800 flex items-center justify-center">
+                                                                <Users className="w-3 h-3 text-zinc-500" />
+                                                            </div>
+                                                        )}
+                                                        <span className="text-xs text-white/70">
+                                                            {p.user?.full_name || 'Usuario'}
+                                                            {String(p.user_id) === String(event.coach_id) && <span className="ml-1 text-[9px] text-zinc-500">(Organizador)</span>}
+                                                            {p.attendance_minutes > 0 && <span className="ml-1.5 text-[9px] text-green-400 font-bold tracking-tight">({p.attendance_minutes}m)</span>}
+                                                        </span>
+                                                    </div>
+                                                    <div className="flex flex-col items-end">
+                                                        <span className={`text-[9px] font-bold uppercase px-2 py-0.5 rounded-full ${attendanceBg} ${attendanceColor} border ${attendanceBorder}`}>
+                                                            {attendanceText}
+                                                        </span>
+                                                        <span className="text-[8px] font-bold text-gray-500 uppercase tracking-tight mt-0.5">Confirmado</span>
+                                                    </div>
+                                                </div>
+                                            );
+                                        }
+
+                                        if (pAttendance === 'present') {
+                                            badgeText = 'Asistió';
+                                            badgeStyle = 'bg-green-500/10 text-green-500 border border-green-500/20';
+                                        } else if (pAttendance === 'absent') {
+                                            badgeText = 'No asistió';
+                                            badgeStyle = 'bg-red-500/10 text-red-500 border border-red-500/20';
                                         }
 
                                         return (
@@ -358,7 +423,8 @@ export function CoachMeetDetailModal({
                                                     )}
                                                     <span className="text-xs text-white/70">
                                                         {p.user?.full_name || 'Usuario'}
-                                                        {String(p.user_id) === String(p.invited_by_user_id) && <span className="ml-1 text-[9px] text-zinc-500">(Organizador)</span>}
+                                                        {String(p.user_id) === String(event.coach_id) && <span className="ml-1 text-[9px] text-zinc-500">(Organizador)</span>}
+                                                        {p.attendance_minutes > 0 && <span className="ml-1.5 text-[9px] text-green-400 font-bold tracking-tight">({p.attendance_minutes}m)</span>}
                                                     </span>
                                                 </div>
                                                 <span className={`text-[9px] font-bold uppercase px-2 py-0.5 rounded-full ${badgeStyle}`}>
@@ -446,12 +512,16 @@ export function CoachMeetDetailModal({
                         )}
 
                         {/* Join Button (only show on the day of the meet and if all confirmed) */}
-                        {!isCancelled && !isPast && isConfirmed && allConfirmed && isToday && event.meet_link && (
+                        {!isCancelled && !isPast && isConfirmed && isToday && event.meet_link && (
                             <button
                                 onClick={() => window.open(event.meet_link, '_blank')}
-                                className="w-full h-12 rounded-2xl bg-[#FF7939] text-black font-bold hover:bg-[#FF7939]/90 transition-all shadow-[0_4px_12px_rgba(255,121,57,0.2)]"
+                                disabled={!['accepted', 'confirmed'].includes(myRsvp)}
+                                className={`w-full h-12 rounded-2xl font-bold transition-all shadow-lg ${['accepted', 'confirmed'].includes(myRsvp)
+                                    ? 'bg-[#FF7939] text-black hover:bg-[#FF7939]/90 shadow-[#FF7939]/20'
+                                    : 'bg-zinc-800 text-white/30 border border-white/5 cursor-not-allowed shadow-none'
+                                    }`}
                             >
-                                Unirse a la Meet
+                                {['accepted', 'confirmed'].includes(myRsvp) ? 'Unirse a la Meet' : 'Confirma asistencia para unirte'}
                             </button>
                         )}
                     </div>

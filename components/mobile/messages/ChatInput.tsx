@@ -27,16 +27,16 @@ export function ChatInput({
     showLimitWarning
 }: ChatInputProps) {
     return (
-        <div className="sticky bottom-0 bg-[#1E1E1E] border-t border-gray-800">
+        <div className="sticky bottom-0 bg-black border-t border-white/5">
             {/* Limit Warning Banner */}
             {(showLimitWarning || isLimitReached) && (
                 <div className={`
           px-4 py-2 text-xs font-semibold text-center border-b border-gray-800
-          ${isLimitReached ? 'bg-red-900/30 text-red-400' : 'bg-orange-900/30 text-orange-400'}
+          ${isLimitReached ? 'bg-red-900/10 text-red-500' : 'bg-[#FF7939]/10 text-[#FF7939]'}
         `}>
                     {isLimitReached
-                        ? "Has alcanzado el límite diario de mensajes. Podrás escribir nuevamente mañana."
-                        : `Te quedan ${remainingMessages} mensajes por hoy en este chat.`
+                        ? "Límite diario alcanzado"
+                        : `Te quedan ${remainingMessages} mensajes hoy.`
                     }
                 </div>
             )}
@@ -55,13 +55,13 @@ export function ChatInput({
                     placeholder={isLimitReached ? "Límite diario alcanzado" : "Escribe un mensaje..."}
                     disabled={isLimitReached || disabled}
                     className={`
-            flex-1 bg-[#2A2A2A] text-white rounded-lg px-4 py-2 focus:outline-none focus:ring-2 
+            flex-1 bg-white/5 text-white border border-white/10 rounded-xl px-4 py-2 focus:outline-none 
             ${isLimitReached ? 'opacity-50 cursor-not-allowed' : 'focus:ring-[#FF7939]'}
           `}
                 />
                 <Button
                     onClick={onSend}
-                    disabled={disabled || sending || isLimitReached}
+                    disabled={!value.trim() || disabled || sending || isLimitReached}
                     className={`
             px-4 text-white
             ${isLimitReached ? 'bg-gray-700 cursor-not-allowed' : 'bg-[#FF7939] hover:bg-[#FF6B35]'}

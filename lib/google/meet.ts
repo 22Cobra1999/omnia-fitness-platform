@@ -36,9 +36,23 @@ export class GoogleMeet {
             const meetingCode = this.extractMeetingCode(meetingUri);
             if (!meetingCode) return statsMap;
 
-            const spaceName = `spaces/${meetingCode}`;
+            // 1. Resolver el código de la reunión al Space Name canónico
+            // (Necesario porque la API v2 requiere el ID interno en el filtro de conferenceRecords)
+            const spaceResponse = await fetch(
+                `${this.MEET_API_BASE}/spaces/${meetingCode}`,
+                { headers: { 'Authorization': `Bearer ${accessToken}` } }
+            );
+            
+            let spaceName = `spaces/${meetingCode}`;
+            if (spaceResponse.ok) {
+                const spaceData = await spaceResponse.json();
+                spaceName = spaceData.name;
+            }
+
+            console.log(`📡 Usando Space Name: ${spaceName} para buscar asistencia.`);
+
             const recordsResponse = await fetch(
-                `${this.MEET_API_BASE}/conferenceRecords?filter=space.name%3D'${spaceName}'`,
+                `${this.MEET_API_BASE}/conferenceRecords?filter=space.name%3D%22${spaceName}%22`,
                 { headers: { 'Authorization': `Bearer ${accessToken}` } }
             );
 
@@ -62,11 +76,11 @@ export class GoogleMeet {
                     let email: string | undefined = undefined;
 
                     // Si es un signedinUser, intentamos obtener el email mediante People API
-                    if (participant.signedinUser) {
-                        const personId = participant.name.split('/').pop();
+                    if (participant.signedinUser?.user) {
+                        const userId = participant.signedinUser.user.split('/').pop();
                         try {
                             const peopleResponse = await fetch(
-                                `https://people.googleapis.com/v1/people/${personId}?personFields=emailAddresses&sources=READ_SOURCE_TYPE_PROFILE&sources=READ_SOURCE_TYPE_CONTACT`,
+                                `https://people.googleapis.com/v1/people/${userId}?personFields=emailAddresses`,
                                 { headers: { 'Authorization': `Bearer ${accessToken}` } }
                             );
                             if (peopleResponse.ok) {

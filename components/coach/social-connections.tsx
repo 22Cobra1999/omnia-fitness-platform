@@ -15,7 +15,7 @@ export function SocialConnections() {
 
     const [loading, setLoading] = useState(true);
     const [saving, setSaving] = useState(false);
-    const [socialData, setSocialData] = useState({ whatsapp: '', instagram_username: '' });
+    const [socialData, setSocialData] = useState({ whatsapp: '', instagram_username: '', has_instagram_token: false });
     const [draftData, setDraftData] = useState({ whatsapp: '', instagram_username: '' });
     const [isModalOpen, setIsModalOpen] = useState(false);
 
@@ -31,17 +31,21 @@ export function SocialConnections() {
         try {
             const { data, error } = await supabase
                 .from('coaches')
-                .select('whatsapp, instagram_username')
+                .select('whatsapp, instagram_username, instagram_access_token')
                 .eq('id', user.id)
                 .single();
 
             if (!error && data) {
                 const loadedData = {
                     whatsapp: data.whatsapp?.toString() || '',
-                    instagram_username: data.instagram_username || ''
+                    instagram_username: data.instagram_username || '',
+                    has_instagram_token: !!data.instagram_access_token
                 };
                 setSocialData(loadedData);
-                setDraftData(loadedData);
+                setDraftData({
+                    whatsapp: loadedData.whatsapp,
+                    instagram_username: loadedData.instagram_username
+                });
             }
         } catch (e) {
             console.error(e);
@@ -64,7 +68,10 @@ export function SocialConnections() {
 
             if (error) throw error;
 
-            setSocialData(draftData);
+            setSocialData({
+                ...draftData,
+                has_instagram_token: socialData.has_instagram_token
+            });
             setIsModalOpen(false);
             toast.success('Redes sociales actualizadas correctamente');
         } catch (error) {
@@ -84,46 +91,76 @@ export function SocialConnections() {
     }
 
     return (
-        <div className="bg-[#1A1C1F] rounded-2xl p-4 border border-white/5 relative">
-            <div className="flex items-center justify-between mb-4">
-                <h3 className="text-lg font-semibold text-white">Integraciones</h3>
-                <button
-                    onClick={() => {
-                        setDraftData(socialData);
-                        setIsModalOpen(true);
-                    }}
-                    className="flex justify-center items-center w-8 h-8 rounded-full bg-white/5 hover:bg-white/10 transition-colors"
-                >
-                    <Edit2 className="w-4 h-4 text-white/70" />
-                </button>
-            </div>
+        <div className="relative group/social">
+            {/* Botón de edición flotante sutil */}
+            <button
+                onClick={() => {
+                    setDraftData(socialData);
+                    setIsModalOpen(true);
+                }}
+                className="absolute -top-6 right-0 p-1 opacity-20 group-hover/social:opacity-100 transition-opacity hover:text-white"
+                title="Editar perfiles sociales"
+            >
+                <Edit2 className="w-3 h-3" />
+            </button>
 
             <div className="grid grid-cols-2 gap-3">
                 {/* WhatsApp */}
-                <div className="bg-black/40 backdrop-blur-sm border border-white/10 rounded-xl p-3 flex flex-col gap-2">
+                <div className="bg-black/20 backdrop-blur-sm border border-white/5 rounded-xl p-3 flex flex-col gap-1.5 transition-all hover:border-white/10 relative">
                     <div className="flex items-center gap-2">
-                        <Smartphone className="w-4 h-4 text-green-500" />
-                        <span className="text-sm font-medium text-white">WhatsApp</span>
+                        <Smartphone className="w-3.5 h-3.5 text-gray-400" />
+                        <span className="text-[11px] font-bold text-gray-400 uppercase tracking-tight">WhatsApp</span>
                     </div>
                     {socialData.whatsapp ? (
-                        <span className="text-xs text-white/70 truncate">{socialData.whatsapp}</span>
+                        <span className="text-sm font-medium text-white/90 truncate">{socialData.whatsapp}</span>
                     ) : (
-                        <span className="text-xs text-white/30 italic">No configurado</span>
+                        <span className="text-xs text-white/20 italic">No configurado</span>
                     )}
                 </div>
 
-                {/* Instagram */}
-                <div className="bg-black/40 backdrop-blur-sm border border-white/10 rounded-xl p-3 flex flex-col gap-2">
+                {/* Instagram Manual */}
+                <div className="bg-black/20 backdrop-blur-sm border border-white/5 rounded-xl p-3 flex flex-col gap-1.5 transition-all hover:border-white/10">
                     <div className="flex items-center gap-2">
-                        <Instagram className="w-4 h-4 text-pink-500" />
-                        <span className="text-sm font-medium text-white">Instagram</span>
+                        <Instagram className="w-3.5 h-3.5 text-gray-400" />
+                        <span className="text-[11px] font-bold text-gray-400 uppercase tracking-tight">Instagram</span>
                     </div>
                     {socialData.instagram_username ? (
-                        <span className="text-xs text-white/70 truncate">{socialData.instagram_username}</span>
+                        <span className="text-sm font-medium text-white/90 truncate">@{socialData.instagram_username.replace('@', '')}</span>
                     ) : (
-                        <span className="text-xs text-white/30 italic">No configurado</span>
+                        <span className="text-xs text-white/20 italic">No configurado</span>
                     )}
                 </div>
+
+                {/* BOTÓN CONEXIÓN OFICIAL DIRECTO */}
+                <a 
+                    href="/api/auth/instagram"
+                    className={`col-span-2 flex items-center justify-between p-3 rounded-xl border transition-all duration-300 ${
+                        socialData.has_instagram_token 
+                        ? 'bg-emerald-500/5 border-emerald-500/10 text-emerald-400' 
+                        : 'bg-white/5 border-white/5 hover:border-pink-500/20 text-white'
+                    }`}
+                    onClick={(e) => {
+                        if (socialData.has_instagram_token) e.preventDefault();
+                    }}
+                >
+                    <div className="flex items-center gap-3">
+                        <Instagram className={`w-4 h-4 ${socialData.has_instagram_token ? 'text-emerald-400' : 'text-pink-500'}`} />
+                        <div className="flex flex-col items-start leading-none">
+                            <span className="text-[11px] font-bold uppercase tracking-wider">Conector API</span>
+                            <span className="text-[10px] opacity-40 mt-0.5">
+                                {socialData.has_instagram_token ? 'Sincronizado' : 'Conexión oficial requerida'}
+                            </span>
+                        </div>
+                    </div>
+                    {socialData.has_instagram_token ? (
+                        <div className="flex items-center gap-1.5 px-2 py-0.5 rounded-full bg-emerald-500/10 border border-emerald-500/20">
+                            <Check className="w-2.5 h-2.5 text-emerald-400" />
+                            <span className="text-[9px] font-bold text-emerald-400 uppercase">OK</span>
+                        </div>
+                    ) : (
+                        <div className="px-3 py-1 rounded-lg bg-pink-500/10 text-pink-500 text-[9px] font-bold uppercase tracking-wider border border-pink-500/20">Conectar</div>
+                    )}
+                </a>
             </div>
 
             <Dialog open={isModalOpen} onOpenChange={setIsModalOpen}>
@@ -131,7 +168,6 @@ export function SocialConnections() {
                     <DialogHeader>
                         <DialogTitle>Manejar Integraciones</DialogTitle>
                     </DialogHeader>
-
                     <div className="space-y-4 py-4">
                         <div className="space-y-2">
                             <Label htmlFor="whatsapp" className="text-xs uppercase text-gray-400 flex items-center gap-1">

@@ -161,10 +161,16 @@ export function CoachProfileView({ logic }: CoachProfileViewProps) {
 
             <div className="space-y-3">
                 <PlanManagement />
-                <SocialConnections />
-                <div className="flex gap-3">
-                    <div className="flex-1 min-w-0"><MercadoPagoConnection /></div>
-                    <div className="flex-1 min-w-0"><GoogleCalendarConnection /></div>
+                
+                <div className="bg-[#1A1C1F] rounded-2xl p-4 border border-white/5 shadow-xl">
+                    <h3 className="text-lg font-semibold text-white mb-4 tracking-tight">Integraciones</h3>
+                    <div className="space-y-3">
+                        <SocialConnections />
+                        <div className="grid grid-cols-2 gap-3">
+                            <MercadoPagoConnection />
+                            <GoogleCalendarConnection />
+                        </div>
+                    </div>
                 </div>
             </div>
         </div>

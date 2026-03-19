@@ -13,12 +13,12 @@ interface ChatHeaderProps {
 
 export function ChatHeader({ contactName, contactAvatar, onBack }: ChatHeaderProps) {
     return (
-        <div className="sticky top-0 z-10 bg-[#1E1E1E] border-b border-gray-800 px-4 py-3 flex items-center gap-3">
+        <div className="sticky top-0 z-10 bg-black border-b border-white/5 px-4 py-3 flex items-center gap-3">
             <Button
                 variant="ghost"
                 size="sm"
                 onClick={onBack}
-                className="p-2 text-white hover:bg-gray-800"
+                className="p-2 text-white hover:bg-white/5"
             >
                 <ArrowLeft className="h-5 w-5" />
             </Button>

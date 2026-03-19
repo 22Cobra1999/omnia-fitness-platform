@@ -118,6 +118,7 @@ export default function CoachProfileModal(props: CoachProfileModalProps) {
               <CoachProfileStats
                 isStatsOpen={isStatsOpen}
                 setIsStatsOpen={setIsStatsOpen}
+                coachId={coach.id}
               />
             </div>
 

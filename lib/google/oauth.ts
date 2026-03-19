@@ -96,8 +96,8 @@ export class GoogleOAuth {
     code: string,
     redirectUri: string
   ): Promise<GoogleTokenResponse> {
-    const clientId = process.env.GOOGLE_CLIENT_ID?.trim() || '';
-    const clientSecret = process.env.GOOGLE_CLIENT_SECRET?.trim() || '';
+    const clientId = (process.env.GOOGLE_CLIENT_ID || '').trim().replace(/^['"]|['"]$/g, '').replace(/\n|\r/g, '');
+    const clientSecret = (process.env.GOOGLE_CLIENT_SECRET || '').trim().replace(/^['"]|['"]$/g, '').replace(/\n|\r/g, '');
 
     if (!clientId || !clientSecret) {
       throw new Error('GOOGLE_CLIENT_ID o GOOGLE_CLIENT_SECRET no configurados');
@@ -140,8 +140,8 @@ export class GoogleOAuth {
    * Refresh access token using refresh token
    */
   static async refreshAccessToken(refreshToken: string): Promise<GoogleTokenResponse> {
-    const clientId = process.env.GOOGLE_CLIENT_ID?.trim() || '';
-    const clientSecret = process.env.GOOGLE_CLIENT_SECRET?.trim() || '';
+    const clientId = (process.env.GOOGLE_CLIENT_ID || '').trim().replace(/^['"]|['"]$/g, '').replace(/\n|\r/g, '');
+    const clientSecret = (process.env.GOOGLE_CLIENT_SECRET || '').trim().replace(/^['"]|['"]$/g, '').replace(/\n|\r/g, '');
 
     if (!clientId || !clientSecret) {
       throw new Error('GOOGLE_CLIENT_ID o GOOGLE_CLIENT_SECRET no configurados');
