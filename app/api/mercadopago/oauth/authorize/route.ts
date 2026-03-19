@@ -74,19 +74,16 @@ export async function GET(request: NextRequest) {
     authUrl.searchParams.set('session_id', `omnia_${timestamp}`);
 
     const finalAuthUrl = authUrl.toString();
-    console.log('🔗 URL de autorización de Mercado Pago:', finalAuthUrl);
-    console.log('📋 Parámetros:', {
-      clientId,
-      redirectUri,
-      coachId,
-      appUrl,
-      returnUrl
-    });
+    // Envolver la URL final dentro del logout de Mercado Pago para forzar login limpio
+    // Esto garantiza que el usuario tenga que poner credenciales sí o sí
+    const logoutAndAuthUrl = `https://www.mercadopago.com.ar/logout?continue=${encodeURIComponent(finalAuthUrl)}`;
+    
+    console.log('🔗 URL de Logout + Autorización:', logoutAndAuthUrl);
 
     // Si se solicita la URL (para popup), devolver JSON en lugar de redirect
     if (returnUrl === 'true') {
       return NextResponse.json({ 
-        authUrl: finalAuthUrl 
+        authUrl: logoutAndAuthUrl 
       }, {
         headers: {
           'Cache-Control': 'no-cache, no-store, must-revalidate',
@@ -96,15 +93,14 @@ export async function GET(request: NextRequest) {
     });
     }
 
-    // Redirigir a Mercado Pago con headers explícitos
-    // Usar 307 (Temporary Redirect) para mantener el método GET
-    return NextResponse.redirect(finalAuthUrl, {
+    // Redirigir con Logout forzado
+    return NextResponse.redirect(logoutAndAuthUrl, {
       status: 307,
       headers: {
         'Cache-Control': 'no-cache, no-store, must-revalidate',
         'Pragma': 'no-cache',
         'Expires': '0',
-        'Location': finalAuthUrl
+        'Location': logoutAndAuthUrl
       }
     });
 
