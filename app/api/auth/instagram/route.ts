@@ -1,8 +1,12 @@
 import { NextResponse } from 'next/server';
 
-export async function GET() {
+export async function GET(request: Request) {
+  const host = request.headers.get('host');
+  const protocol = host?.includes('localhost') ? 'http' : 'https';
+  const currentDomain = `${protocol}://${host}`;
+
   const clientId = process.env.INSTAGRAM_CLIENT_ID;
-  const redirectUri = process.env.INSTAGRAM_REDIRECT_URI;
+  const redirectUri = process.env.INSTAGRAM_REDIRECT_URI || `${currentDomain}/api/auth/callback/instagram`;
   
   if (!clientId || !redirectUri) {
     return NextResponse.json(

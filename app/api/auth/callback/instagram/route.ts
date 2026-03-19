@@ -17,16 +17,26 @@ export async function GET(request: Request) {
   }
 
   try {
+    const host = request.headers.get('host');
+    const protocol = host?.includes('localhost') ? 'http' : 'https';
+    const currentDomain = `${protocol}://${host}`;
+    
     const clientId = process.env.INSTAGRAM_CLIENT_ID;
     const clientSecret = process.env.INSTAGRAM_CLIENT_SECRET;
-    const redirectUri = process.env.INSTAGRAM_REDIRECT_URI;
+    
+    // IMPORTANTE: El redirect_uri debe ser exactamente el mismo que se envió en el paso GET inicial
+    const redirectUri = process.env.INSTAGRAM_REDIRECT_URI || `${currentDomain}/api/auth/callback/instagram`;
+
+    console.log('--- Iniciando Intercambio de Token Instagram ---');
+    console.log('Host actual:', host);
+    console.log('Redirect URI utilizado:', redirectUri);
 
     // 1. Intercambiar el código por un Short-Lived Token
     const formData = new FormData();
     formData.append('client_id', clientId!);
     formData.append('client_secret', clientSecret!);
     formData.append('grant_type', 'authorization_code');
-    formData.append('redirect_uri', redirectUri!);
+    formData.append('redirect_uri', redirectUri);
     formData.append('code', code);
 
     const tokenResponse = await fetch('https://api.instagram.com/oauth/access_token', {
@@ -40,17 +50,20 @@ export async function GET(request: Request) {
     try {
       tokenData = JSON.parse(responseText);
     } catch (e) {
-      console.error('Error parseando respuesta de Instagram:', responseText);
-      throw new Error(`Instagram respondió con error (${tokenResponse.status}): ${responseText}`);
+      console.error('Error parseando respuesta cruda de Instagram:', responseText);
+      throw new Error(`Error de formato en respuesta de Instagram: ${responseText.substring(0, 100)}`);
     }
 
     if (tokenData.error || !tokenResponse.ok) {
-      console.error('Error obteniendo token:', tokenData.error || tokenData);
-      throw new Error(tokenData.error_message || tokenData.error?.message || 'Error al obtener token de Instagram');
+      console.error('Error de Instagram API:', tokenData.error || tokenData);
+      const msg = tokenData.error_message || tokenData.error?.message || 'Error en el intercambio de código';
+      throw new Error(msg);
     }
 
     const shortLivedToken = tokenData.access_token;
     const instagramUserId = tokenData.user_id;
+
+    console.log('Token de vida corta obtenido para el usuario:', instagramUserId);
 
     // 2. Intercambiar por un Long-Lived Token (dura 60 días)
     const longLivedResponse = await fetch(
@@ -60,26 +73,26 @@ export async function GET(request: Request) {
     const longLivedData = await longLivedResponse.json();
 
     if (longLivedData.error) {
-      console.error('Error obteniendo long-lived token:', longLivedData.error);
-      throw new Error(longLivedData.error.message || 'Error al obtener long-lived token');
+      console.error('Error de Instagram en el long-lived token:', longLivedData.error);
+      throw new Error(longLivedData.error.message || 'Error al extender el token');
     }
 
     const longLivedToken = longLivedData.access_token;
-    const expiresSeconds = longLivedData.expires_in; // Generalmente 5184000 (60 días)
+    const expiresSeconds = longLivedData.expires_in;
     const expiresAt = new Date();
-    expiresAt.setSeconds(expiresAt.getSeconds() + expiresSeconds);
+    expiresAt.setSeconds(expiresAt.getSeconds() + (expiresSeconds || 5184000));
 
-    // 3. Encriptar el token y guardarlo en Supabase
-    const encryptedToken = encrypt(longLivedToken);
+    // 3. Obtener sesión y guardar en Supabase
     const supabase = await createRouteHandlerClient();
-    
-    // Obtener el usuario actual
     const { data: { user } } = await supabase.auth.getUser();
     
     if (!user) {
-      throw new Error('No hay sesión de usuario activa');
+      console.warn('CRÍTICO: No se encontró sesión de usuario en el callback. ¿Cambio de dominio?');
+      throw new Error('Sesión perdida. Por favor, asegúrate de iniciar sesión en el mismo dominio de producción.');
     }
 
+    const encryptedToken = encrypt(longLivedToken);
+    
     const { error: updateError } = await supabase
       .from('coaches')
       .update({
@@ -90,14 +103,18 @@ export async function GET(request: Request) {
       .eq('id', user.id);
 
     if (updateError) {
-      console.error('Error actualizando coach en Supabase:', updateError);
-      throw new Error('Error al guardar en base de datos');
+      console.error('Error de base de datos guardando el token:', updateError);
+      throw new Error('No se pudo guardar la conexión en tu base de datos.');
     }
 
-    // Redirigir de vuelta al perfil del coach
-    return NextResponse.redirect(`${process.env.NEXT_PUBLIC_SITE_URL || 'http://localhost:3000'}/coach/profile?success=instagram_connected`);
+    console.log('Instagram conectado con éxito para:', user.id);
+
+    return NextResponse.redirect(`${currentDomain}/coach/profile?success=instagram_connected#_`);
   } catch (err: any) {
-    console.error('Error en callback de Instagram:', err);
-    return NextResponse.redirect(`${process.env.NEXT_PUBLIC_SITE_URL || 'http://localhost:3000'}/coach/profile?error=${encodeURIComponent(err.message)}`);
+    console.error('--- FALLO TOTAL EN CALLBACK INSTAGRAM ---');
+    console.error(err);
+    const host = request.headers.get('host');
+    const protocol = host?.includes('localhost') ? 'http' : 'https';
+    return NextResponse.redirect(`${protocol}://${host}/coach/profile?error=${encodeURIComponent(err.message)}`);
   }
 }
