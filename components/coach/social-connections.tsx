@@ -9,7 +9,11 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 
-export function SocialConnections() {
+interface SocialConnectionsProps {
+    showOnlyEdit?: boolean;
+}
+
+export function SocialConnections({ showOnlyEdit = false }: SocialConnectionsProps) {
     const { user } = useAuth();
     const supabase = createClient();
 
@@ -91,77 +95,78 @@ export function SocialConnections() {
     }
 
     return (
-        <div className="relative group/social">
-            {/* Botón de edición flotante sutil */}
-            <button
-                onClick={() => {
-                    setDraftData(socialData);
-                    setIsModalOpen(true);
-                }}
-                className="absolute -top-6 right-0 p-1 opacity-20 group-hover/social:opacity-100 transition-opacity hover:text-white"
-                title="Editar perfiles sociales"
-            >
-                <Edit2 className="w-3 h-3" />
-            </button>
-
-            <div className="grid grid-cols-2 gap-3">
-                {/* WhatsApp */}
-                <div className="bg-black/20 backdrop-blur-sm border border-white/5 rounded-xl p-3 flex flex-col gap-1.5 transition-all hover:border-white/10 relative">
-                    <div className="flex items-center gap-2">
-                        <Smartphone className="w-3.5 h-3.5 text-gray-400" />
-                        <span className="text-[11px] font-bold text-gray-400 uppercase tracking-tight">WhatsApp</span>
-                    </div>
-                    {socialData.whatsapp ? (
-                        <span className="text-sm font-medium text-white/90 truncate">{socialData.whatsapp}</span>
-                    ) : (
-                        <span className="text-xs text-white/20 italic">No configurado</span>
-                    )}
-                </div>
-
-                {/* Instagram Manual */}
-                <div className="bg-black/20 backdrop-blur-sm border border-white/5 rounded-xl p-3 flex flex-col gap-1.5 transition-all hover:border-white/10">
-                    <div className="flex items-center gap-2">
-                        <Instagram className="w-3.5 h-3.5 text-gray-400" />
-                        <span className="text-[11px] font-bold text-gray-400 uppercase tracking-tight">Instagram</span>
-                    </div>
-                    {socialData.instagram_username ? (
-                        <span className="text-sm font-medium text-white/90 truncate">@{socialData.instagram_username.replace('@', '')}</span>
-                    ) : (
-                        <span className="text-xs text-white/20 italic">No configurado</span>
-                    )}
-                </div>
-
-                {/* BOTÓN CONEXIÓN OFICIAL DIRECTO */}
-                <a 
-                    href="/api/auth/instagram"
-                    className={`col-span-2 flex items-center justify-between p-3 rounded-xl border transition-all duration-300 ${
-                        socialData.has_instagram_token 
-                        ? 'bg-emerald-500/5 border-emerald-500/10 text-emerald-400' 
-                        : 'bg-white/5 border-white/5 hover:border-pink-500/20 text-white'
-                    }`}
-                    onClick={(e) => {
-                        if (socialData.has_instagram_token) e.preventDefault();
+        <>
+            {showOnlyEdit ? (
+                <button
+                    onClick={() => {
+                        setDraftData(socialData);
+                        setIsModalOpen(true);
                     }}
+                    className="w-full h-full flex items-center justify-center"
+                    title="Editar perfiles sociales"
                 >
-                    <div className="flex items-center gap-3">
-                        <Instagram className={`w-4 h-4 ${socialData.has_instagram_token ? 'text-emerald-400' : 'text-pink-500'}`} />
-                        <div className="flex flex-col items-start leading-none">
-                            <span className="text-[11px] font-bold uppercase tracking-wider">Conector API</span>
-                            <span className="text-[10px] opacity-40 mt-0.5">
-                                {socialData.has_instagram_token ? 'Sincronizado' : 'Conexión oficial requerida'}
-                            </span>
+                    <Edit2 className="w-4 h-4" />
+                </button>
+            ) : (
+                <div className="grid grid-cols-2 gap-3">
+                    {/* WhatsApp */}
+                    <div className="bg-black/20 backdrop-blur-sm border border-white/5 rounded-xl p-3 flex flex-col gap-1.5 transition-all hover:border-white/10 relative">
+                        <div className="flex items-center gap-2">
+                            <Smartphone className="w-3.5 h-3.5 text-gray-400" />
+                            <span className="text-[11px] font-bold text-gray-400 uppercase tracking-tight">WhatsApp</span>
                         </div>
+                        {socialData.whatsapp ? (
+                            <span className="text-sm font-medium text-white/90 truncate">{socialData.whatsapp}</span>
+                        ) : (
+                            <span className="text-xs text-white/20 italic">No configurado</span>
+                        )}
                     </div>
-                    {socialData.has_instagram_token ? (
-                        <div className="flex items-center gap-1.5 px-2 py-0.5 rounded-full bg-emerald-500/10 border border-emerald-500/20">
-                            <Check className="w-2.5 h-2.5 text-emerald-400" />
-                            <span className="text-[9px] font-bold text-emerald-400 uppercase">OK</span>
+
+                    {/* Instagram Manual */}
+                    <div className="bg-black/20 backdrop-blur-sm border border-white/5 rounded-xl p-3 flex flex-col gap-1.5 transition-all hover:border-white/10">
+                        <div className="flex items-center gap-2">
+                            <Instagram className="w-3.5 h-3.5 text-gray-400" />
+                            <span className="text-[11px] font-bold text-gray-400 uppercase tracking-tight">Instagram</span>
                         </div>
-                    ) : (
-                        <div className="px-3 py-1 rounded-lg bg-pink-500/10 text-pink-500 text-[9px] font-bold uppercase tracking-wider border border-pink-500/20">Conectar</div>
-                    )}
-                </a>
-            </div>
+                        {socialData.instagram_username ? (
+                            <span className="text-sm font-medium text-white/90 truncate">@{socialData.instagram_username.replace('@', '')}</span>
+                        ) : (
+                            <span className="text-xs text-white/20 italic">No configurado</span>
+                        )}
+                    </div>
+
+                    {/* BOTÓN CONEXIÓN OFICIAL DIRECTO */}
+                    <a 
+                        href="/api/auth/instagram"
+                        className={`col-span-2 flex items-center justify-between p-3 rounded-xl border transition-all duration-300 ${
+                            socialData.has_instagram_token 
+                            ? 'bg-emerald-500/5 border-emerald-500/10 text-emerald-400' 
+                            : 'bg-white/5 border-white/5 hover:border-pink-500/20 text-white'
+                        }`}
+                        onClick={(e) => {
+                            if (socialData.has_instagram_token) e.preventDefault();
+                        }}
+                    >
+                        <div className="flex items-center gap-3">
+                            <Instagram className={`w-4 h-4 ${socialData.has_instagram_token ? 'text-emerald-400' : 'text-pink-500'}`} />
+                            <div className="flex flex-col items-start leading-none">
+                                <span className="text-[11px] font-bold uppercase tracking-wider">Conector API</span>
+                                <span className="text-[10px] opacity-40 mt-0.5">
+                                    {socialData.has_instagram_token ? 'Sincronizado' : 'Conexión oficial requerida'}
+                                </span>
+                            </div>
+                        </div>
+                        {socialData.has_instagram_token ? (
+                            <div className="flex items-center gap-1.5 px-2 py-0.5 rounded-full bg-emerald-500/10 border border-emerald-500/20">
+                                <Check className="w-2.5 h-2.5 text-emerald-400" />
+                                <span className="text-[9px] font-bold text-emerald-400 uppercase">OK</span>
+                            </div>
+                        ) : (
+                            <div className="px-3 py-1 rounded-lg bg-pink-500/10 text-pink-500 text-[9px] font-bold uppercase tracking-wider border border-pink-500/20">Conectar</div>
+                        )}
+                    </a>
+                </div>
+            )}
 
             <Dialog open={isModalOpen} onOpenChange={setIsModalOpen}>
                 <DialogContent className="max-w-md bg-[#1A1C1F] border-white/10 text-white">
@@ -215,6 +220,6 @@ export function SocialConnections() {
                     </DialogFooter>
                 </DialogContent>
             </Dialog>
-        </div>
+        </>
     );
 }

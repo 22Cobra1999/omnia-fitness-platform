@@ -162,8 +162,16 @@ export function CoachProfileView({ logic }: CoachProfileViewProps) {
             <div className="space-y-3">
                 <PlanManagement />
                 
-                <div className="bg-[#1A1C1F] rounded-2xl p-4 border border-white/5 shadow-xl">
-                    <h3 className="text-lg font-semibold text-white mb-4 tracking-tight">Integraciones</h3>
+                <div className="bg-[#1A1C1F] rounded-2xl p-4 border border-white/5 shadow-xl relative group">
+                    <div className="flex items-center justify-between mb-4">
+                        <h3 className="text-lg font-semibold text-white tracking-tight">Integraciones</h3>
+                        <div className="flex items-center gap-2">
+                            <span className="text-[10px] text-white/20 uppercase font-bold tracking-widest hidden group-hover:block transition-all">Configurar</span>
+                            <div className="w-8 h-8 rounded-full bg-white/5 flex items-center justify-center opacity-40 hover:opacity-100 transition-opacity cursor-pointer text-white">
+                                <SocialConnections showOnlyEdit={true} />
+                            </div>
+                        </div>
+                    </div>
                     <div className="space-y-3">
                         <SocialConnections />
                         <div className="grid grid-cols-2 gap-3">
