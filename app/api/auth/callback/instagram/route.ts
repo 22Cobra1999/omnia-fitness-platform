@@ -34,11 +34,19 @@ export async function GET(request: Request) {
       body: formData,
     });
 
-    const tokenData = await tokenResponse.json();
+    const responseText = await tokenResponse.text();
+    let tokenData;
+    
+    try {
+      tokenData = JSON.parse(responseText);
+    } catch (e) {
+      console.error('Error parseando respuesta de Instagram:', responseText);
+      throw new Error(`Instagram respondió con error (${tokenResponse.status}): ${responseText}`);
+    }
 
-    if (tokenData.error) {
-      console.error('Error obteniendo token:', tokenData.error);
-      throw new Error(tokenData.error_message || 'Error al obtener token');
+    if (tokenData.error || !tokenResponse.ok) {
+      console.error('Error obteniendo token:', tokenData.error || tokenData);
+      throw new Error(tokenData.error_message || tokenData.error?.message || 'Error al obtener token de Instagram');
     }
 
     const shortLivedToken = tokenData.access_token;
