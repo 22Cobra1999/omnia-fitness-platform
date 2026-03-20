@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import React, { useState, useEffect } from 'react';
 import { 
   Loader2, TrendingUp, Users, CreditCard, AlertCircle, 
   ExternalLink, Search, RefreshCw, LogOut, CheckCircle2, 
@@ -181,8 +181,8 @@ export default function AdminFinanceDashboard() {
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-white/[0.03]">
-                  {filteredSales?.map((p: any, i: number) => (
-                    <tr key={i} className="hover:bg-white/[0.03] transition-colors">
+                  {filteredSales?.map((p: any) => (
+                    <tr key={p.id} className="hover:bg-white/[0.03] transition-colors">
                       <td className="px-5 py-4">
                          <div className="text-[11px] font-black text-white italic mb-1 uppercase tracking-tighter truncate max-w-[200px]">{p.activity_title}</div>
                          <div className="text-[9px] font-mono text-white/20 whitespace-nowrap">ID: {p.mercadopago_payment_id || '---'}</div>
@@ -221,9 +221,9 @@ export default function AdminFinanceDashboard() {
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-white/[0.03]">
-                  {filteredCoaches?.map((c: any, i: number) => (
-                    <>
-                      <tr key={c.coach_id} className={`hover:bg-white/[0.03] transition-all cursor-pointer ${expandedCoach === c.coach_id ? 'bg-white/[0.04]' : ''}`} onClick={() => setExpandedCoach(expandedCoach === c.coach_id ? null : c.coach_id)}>
+                  {filteredCoaches?.map((c: any) => (
+                    <React.Fragment key={c.coach_id}>
+                      <tr className={`hover:bg-white/[0.03] transition-all cursor-pointer ${expandedCoach === c.coach_id ? 'bg-white/[0.04]' : ''}`} onClick={() => setExpandedCoach(expandedCoach === c.coach_id ? null : c.coach_id)}>
                         <td className="px-5 py-4">
                            <div className="text-[11px] font-black text-white uppercase italic tracking-tighter mb-1">{c.name}</div>
                            <div className="text-[9px] font-mono text-white/20 tracking-widest underline decoration-orange-500/40 truncate max-w-[150px]">MP: {c.current_mp}</div>
@@ -275,7 +275,7 @@ export default function AdminFinanceDashboard() {
                           </td>
                         </tr>
                       )}
-                    </>
+                    </React.Fragment>
                   ))}
                 </tbody>
               </table>
