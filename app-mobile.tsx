@@ -35,6 +35,8 @@ const UsageReportButton = dynamic(() => import('@/components/shared/admin/usage-
 const AutoUsageTracker = dynamic(() => import('@/components/shared/admin/auto-usage-tracker').then(m => m.AutoUsageTracker), { ssr: false })
 
 
+import AdminFinanceDashboard from "@/components/shared/admin/AdminFinanceDashboard"
+
 interface MobileAppProps {
   initialTab?: string
   initialCategoryId?: string
@@ -61,6 +63,12 @@ function MobileAppContent({ initialTab, initialCategoryId, initialActivityId, in
     }
   }
   const userRole = user?.level || "client"
+
+  // ✅ SMART-SWITCH: Si el usuario es ADMIN, transformamos la App en Dashboard de Finanzas
+  if (userRole === 'admin') {
+    return <AdminFinanceDashboard />
+  }
+
   const searchParams = useSearchParams()
 
   const urlTabs = ['community', 'search', 'calendar', 'activity', 'profile', 'messages', 'clients', 'products-management']
