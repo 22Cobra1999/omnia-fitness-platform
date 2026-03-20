@@ -1,11 +1,24 @@
 import { NextResponse } from 'next/server';
 import { getSupabaseAdmin } from '@/lib/config/db';
-import { createRouteHandlerClient } from '@supabase/auth-helpers-nextjs';
+import { createServerClient } from '@supabase/ssr'
 import { cookies } from 'next/headers';
 
 export async function GET() {
   try {
-    const supabase = createRouteHandlerClient({ cookies: () => cookies() });
+    const cookieStore = cookies();
+    
+    const supabase = createServerClient(
+      process.env.NEXT_PUBLIC_SUPABASE_URL!,
+      process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
+      {
+        cookies: {
+          get(name: string) {
+            return cookieStore.get(name)?.value
+          },
+        },
+      }
+    )
+
     const { data: { session } } = await supabase.auth.getSession();
 
     if (!session) return NextResponse.json({ error: 'No authenticated' }, { status: 401 });
@@ -17,7 +30,6 @@ export async function GET() {
       .eq('id', session.user.id)
       .single();
 
-    // Bypass por email de emergencia igual que en el context
     const isAdmin = profile?.role === 'admin' || session.user.email === 'cuchilloscutoff@gmail.com';
 
     if (!isAdmin) return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
