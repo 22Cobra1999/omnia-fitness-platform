@@ -1,22 +1,21 @@
 'use client';
 
 import { useState, useEffect } from 'react';
-import { createClient } from '@/lib/supabase/supabase-client';
 import { 
   Loader2, TrendingUp, Users, CreditCard, AlertCircle, 
   ExternalLink, Search, RefreshCw, LogOut, CheckCircle2, 
-  Clock, XCircle, ChevronRight, BarChart3, Wallet
+  Clock, XCircle, ChevronDown, ChevronUp, BarChart3, Wallet,
+  ShieldCheck, ArrowRightLeft, Target, Award
 } from 'lucide-react';
 import { useAuth } from '@/contexts/auth-context';
 
 export default function AdminFinanceDashboard() {
   const { signOut } = useAuth();
   const [loading, setLoading] = useState(true);
-  const [payments, setPayments] = useState<any[]>([]);
-  const [subscriptions, setSubscriptions] = useState<any[]>([]);
+  const [data, setData] = useState<any>(null);
   const [searchTerm, setSearchTerm] = useState('');
   const [activeTab, setActiveTab] = useState<'sales' | 'coaches'>('sales');
-  const supabase = createClient();
+  const [expandedCoach, setExpandedCoach] = useState<string | null>(null);
 
   useEffect(() => {
     loadData();
@@ -25,201 +24,259 @@ export default function AdminFinanceDashboard() {
   const loadData = async () => {
     setLoading(true);
     try {
-      // 1. Fetch de base de datos - Datos planos para evitar errores de relación
-      const { data: rawPayments, error: pErr } = await supabase
-        .from('banco')
-        .select('*')
-        .order('created_at', { ascending: false });
-
-      const { data: rawSubs, error: sErr } = await supabase
-        .from('planes_uso_coach')
-        .select('*')
-        .order('started_at', { ascending: false });
-
-      if (rawPayments) {
-        // Enriquecer datos de pagos (Clientes y Actividades) de forma manual e inteligente
-        const clientIds = [...new Set(rawPayments.map(p => p.client_id).filter(Boolean))];
-        const activityIds = [...new Set(rawPayments.map(p => p.activity_id).filter(Boolean))];
-
-        const [ {data: clients}, {data: activities} ] = await Promise.all([
-          supabase.from('user_profiles').select('id, full_name').in('id', clientIds),
-          supabase.from('activities').select('id, title, type').in('id', activityIds)
-        ]);
-
-        const enrichedPayments = rawPayments.map(p => ({
-          ...p,
-          client_name: clients?.find(c => c.id === p.client_id)?.full_name || 'Desconocido',
-          activity_title: activities?.find(a => a.id === p.activity_id)?.title || p.concept || 'Consulta',
-          activity_type: activities?.find(a => a.id === p.activity_id)?.type || 'No especificado'
-        }));
-        
-        setPayments(enrichedPayments);
-      }
-
-      if (rawSubs) setSubscriptions(rawSubs);
-
+      const response = await fetch('/api/admin/finance/data');
+      const json = await response.json();
+      if (json.error) throw new Error(json.error);
+      setData(json);
     } catch (err) {
-      console.error('Error cargando dashboard:', err);
+      console.error('Error cargando dashboard finance:', err);
     } finally {
       setLoading(false);
     }
   };
 
-  const totalCommissions = payments?.filter(p => p.mercadopago_status === 'approved').reduce((sum, p) => sum + (Number(p.marketplace_fee) || 0), 0) || 0;
-  
-  const delayedCoachesCount = subscriptions.filter(sub => {
-    const nextCharge = sub.mercadopago_subscription_next_payment_date ? new Date(sub.mercadopago_subscription_next_payment_date) : null;
-    return sub.status === 'active' && nextCharge && nextCharge < new Date() && sub.plan_type !== 'free';
-  }).length;
-  
-  const freeExpiringCount = subscriptions.filter(sub => {
-    const startDate = new Date(sub.started_at);
-    const threeMonthsAgo = new Date();
-    threeMonthsAgo.setMonth(threeMonthsAgo.getMonth() - 3);
-    return sub.plan_type === 'free' && startDate < threeMonthsAgo;
-  }).length;
-
-  const getProductTypeIcon = (type: string) => {
-    if (type?.includes('workshop')) return '🎓';
-    if (type?.includes('consult')) return '📞';
-    if (type?.includes('nutrition')) return '🍎';
-    return '💪';
-  };
-
-  const filteredPayments = payments.filter(p => 
-    (p.activity_title || '').toLowerCase().includes(searchTerm.toLowerCase()) ||
-    (p.client_name || '').toLowerCase().includes(searchTerm.toLowerCase()) ||
-    (p.mercadopago_payment_id || '').includes(searchTerm)
-  );
-
-  const filteredSubscriptions = subscriptions.filter(s => 
-    s.coach_id.toLowerCase().includes(searchTerm.toLowerCase()) ||
-    s.plan_type.toLowerCase().includes(searchTerm.toLowerCase())
-  );
-
-  if (loading) return (
+  if (loading || !data) return (
     <div className="min-h-screen bg-[#050505] flex flex-col items-center justify-center gap-4">
       <Loader2 className="w-8 h-8 text-[#FF7939] animate-spin" />
-      <p className="text-white/40 font-mono text-xs tracking-widest uppercase">Cargando OMNIA FINANCE...</p>
+      <p className="text-white/40 font-mono text-[10px] tracking-[0.3em] uppercase">Sincronizando Bóveda OMNIA...</p>
     </div>
+  );
+
+  const { banco, plans, profiles, activities, credentials } = data;
+
+  // 1. Enriquecer Ventas (Client + Coach)
+  const enrichedSales = banco?.map((p: any) => {
+    const client = profiles?.find((u: any) => u.id === p.client_id);
+    const coachCred = credentials?.find((c: any) => c.mercadopago_user_id === p.coach_mercadopago_user_id);
+    const coach = profiles?.find((u: any) => u.id === coachCred?.coach_id);
+    const activity = activities?.find((a: any) => a.id === p.activity_id);
+    
+    return {
+      ...p,
+      client_name: client?.full_name || 'Anónimo',
+      coach_name: coach?.full_name || 'Desconocido',
+      activity_title: activity?.title || p.concept || 'Consulta'
+    };
+  });
+
+  // 2. Agrupar Suscripciones por Coach
+  const groupedCoaches = plans?.reduce((acc: any, p: any) => {
+    if (!acc[p.coach_id]) {
+      const profile = profiles?.find((u: any) => u.id === p.coach_id);
+      const cred = credentials?.find((c: any) => c.coach_id === p.coach_id);
+      acc[p.coach_id] = {
+        coach_id: p.coach_id,
+        name: profile?.full_name || 'Coach Desconocido',
+        email: profile?.email || '',
+        current_mp: cred?.mercadopago_user_id || 'SIN VINCULAR',
+        history: [],
+        total_paid: 0,
+        active_plan: p.plan_type,
+        status: p.status,
+        last_payment: p.started_at,
+        next_payment: p.mercadopago_subscription_next_payment_date
+      };
+    }
+    
+    // Sumar montos según plan (Aproximación para historial)
+    const monto = p.plan_type === 'basico' ? 12000 : p.plan_type === 'black' ? 22000 : p.plan_type === 'premium' ? 35000 : 0;
+    if (p.status === 'active' || p.status === 'expired') acc[p.coach_id].total_paid += monto;
+    
+    acc[p.coach_id].history.push(p);
+    return acc;
+  }, {});
+
+  const coachList = Object.values(groupedCoaches || {});
+
+  const filteredSales = enrichedSales?.filter((s: any) => 
+    s.client_name.toLowerCase().includes(searchTerm.toLowerCase()) ||
+    s.coach_name.toLowerCase().includes(searchTerm.toLowerCase()) ||
+    s.activity_title.toLowerCase().includes(searchTerm.toLowerCase())
+  );
+
+  const filteredCoaches = coachList.filter((c: any) => 
+    c.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
+    c.email.toLowerCase().includes(searchTerm.toLowerCase())
   );
 
   return (
     <div className="min-h-screen bg-[#080808] text-white font-sans selection:bg-[#FF7939]/30">
-      <div className="border-b border-white/5 bg-[#0a0a0a]/80 backdrop-blur-md sticky top-0 z-50">
-        <div className="max-w-[1600px] mx-auto px-6 py-4 flex justify-between items-center">
-          <div className="flex items-center gap-6">
+      
+      {/* HEADER SLIM */}
+      <header className="border-b border-white/5 bg-[#0a0a0a]/80 backdrop-blur-md sticky top-0 z-50">
+        <div className="max-w-[1600px] mx-auto px-6 py-4 flex justify-between items-center whitespace-nowrap overflow-x-auto gap-4">
+          <div className="flex items-center gap-6 min-w-fit">
             <h1 className="text-xl font-black italic tracking-tighter flex items-center gap-2">
               <span className="text-[#FF7939]">OMNIA</span> 
-              <span className="text-white/40 font-light truncate">/ FINANCE ADMIN</span>
+              <span className="text-white/40 font-light truncate">/ BÓVEDA</span>
             </h1>
-            <nav className="hidden md:flex items-center gap-1 bg-white/5 p-1 rounded-xl border border-white/5">
-              <button onClick={() => setActiveTab('sales')} className={`px-4 py-1.5 rounded-lg text-[11px] font-bold transition-all ${activeTab === 'sales' ? 'bg-[#FF7939] text-black' : 'text-white/40 hover:text-white'}`}>Ventas Clientes</button>
-              <button onClick={() => setActiveTab('coaches')} className={`px-4 py-1.5 rounded-lg text-[11px] font-bold transition-all ${activeTab === 'coaches' ? 'bg-[#FF7939] text-black' : 'text-white/40 hover:text-white'}`}>Suscripciones Coaches</button>
+            <nav className="flex items-center gap-1 bg-white/5 p-1 rounded-xl border border-white/5">
+              <button onClick={() => setActiveTab('sales')} className={`px-4 py-1.5 rounded-lg text-[11px] font-bold transition-all ${activeTab === 'sales' ? 'bg-[#FF7939] text-black shadow-lg shadow-orange-500/20' : 'text-white/40 hover:text-white'}`}>Ventas Productos</button>
+              <button onClick={() => setActiveTab('coaches')} className={`px-4 py-1.5 rounded-lg text-[11px] font-bold transition-all ${activeTab === 'coaches' ? 'bg-[#FF7939] text-black shadow-lg shadow-orange-500/20' : 'text-white/40 hover:text-white'}`}>Suscripciones Coaches</button>
             </nav>
           </div>
 
-          <div className="flex items-center gap-4">
-            <div className="relative hidden lg:block">
-              <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-white/20" />
-              <input type="text" placeholder="Buscar ID, Cliente o Producto..." className="bg-white/5 border border-white/10 rounded-lg py-1.5 pl-10 pr-4 text-[11px] w-[300px] focus:outline-none focus:border-[#FF7939]/40 transition-all font-medium" value={searchTerm} onChange={(e) => setSearchTerm(e.target.value)} />
+          <div className="flex items-center gap-4 min-w-fit">
+            <div className="relative group">
+              <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-white/20 group-focus-within:text-[#FF7939] transition-colors" />
+              <input type="text" placeholder="Buscar Cliente, Coach, ID..." className="bg-white/5 border border-white/10 rounded-lg py-1.5 pl-10 pr-4 text-[11px] w-[300px] focus:outline-none focus:border-[#FF7939]/40 transition-all font-medium" value={searchTerm} onChange={(e) => setSearchTerm(e.target.value)} />
             </div>
-            <button onClick={loadData} className="p-2 hover:bg-white/5 rounded-lg transition-colors"><RefreshCw className="w-4 h-4 text-white/40 hover:text-[#FF7939]" /></button>
-            <button onClick={() => signOut()} className="flex items-center gap-2 px-3 py-1.5 bg-red-500/10 text-red-500/80 rounded-lg hover:bg-red-500/20 transition-all font-bold text-[10px] uppercase"><LogOut className="w-3 h-3" /> Salir</button>
+            <button onClick={loadData} className="p-2 hover:bg-white/5 rounded-lg transition-colors group"><RefreshCw className={`w-4 h-4 text-white/40 group-hover:text-[#FF7939] ${loading ? 'animate-spin' : ''}`} /></button>
+            <button onClick={() => signOut()} className="px-3 py-1.5 bg-red-500/10 text-red-500/80 rounded-lg hover:bg-red-500/20 transition-all font-black text-[10px] uppercase tracking-wider">Cerrar Sesión</button>
           </div>
         </div>
-      </div>
+      </header>
 
       <main className="max-w-[1600px] mx-auto p-6">
+        
+        {/* KPI CARDS (CON SUBDIVISIÓN POR PLAN) */}
         <div className="grid grid-cols-1 md:grid-cols-4 gap-4 mb-8">
-          <div className="bg-[#111] border border-white/5 p-4 rounded-2xl">
-            <p className="text-white/30 text-[10px] font-bold uppercase mb-0.5 tracking-wider">Caja Omnia (Comisiones)</p>
-            <p className="text-2xl font-black italic tracking-tighter">${totalCommissions.toLocaleString()}</p>
+          <div className="bg-[#111] border border-white/5 p-4 rounded-2xl relative overflow-hidden group">
+            <div className="absolute top-0 right-0 w-24 h-24 bg-orange-500/5 blur-3xl rounded-full -translate-y-12 translate-x-12"></div>
+            <p className="text-white/30 text-[10px] font-black uppercase tracking-widest mb-1">Caja Omnia Bruta</p>
+            <p className="text-3xl font-black italic tracking-tighter mb-2 text-[#FF7939]">${enrichedSales?.filter((s:any) => s.mercadopago_status === 'approved').reduce((a:any, b:any) => a + (Number(b.marketplace_fee)||0), 0).toLocaleString()}</p>
+            <p className="text-[10px] font-bold text-white/20 uppercase tracking-tighter">Mes en curso</p>
           </div>
-          <div className="bg-[#111] border border-white/5 p-4 rounded-2xl font-black text-blue-500">
-            <p className="text-white/30 text-[10px] font-bold uppercase mb-0.5 tracking-wider font-sans">Coaches ACTIVOS</p>
-            <p className="text-2xl font-black italic tracking-tighter">{subscriptions.filter(s => s.status === 'active').length}</p>
-          </div>
+
           <div className="bg-[#111] border border-white/5 p-4 rounded-2xl">
-            <p className="text-white/30 text-[10px] font-bold uppercase mb-0.5 tracking-wider">Coaches en Mora</p>
-            <p className={`text-2xl font-black italic tracking-tighter ${delayedCoachesCount > 0 ? 'text-orange-500' : 'text-white/40'}`}>{delayedCoachesCount}</p>
+            <p className="text-white/30 text-[10px] font-black uppercase tracking-widest mb-1">Distribución de Planes</p>
+            <div className="grid grid-cols-2 gap-x-4 gap-y-1">
+              <p className="text-[11px] font-bold text-white/40">BLACK: <span className="text-white font-black">{plans?.filter((p:any) => p.plan_type === 'black' && p.status === 'active').length}</span></p>
+              <p className="text-[11px] font-bold text-white/40">PREMIUM: <span className="text-white font-black">{plans?.filter((p:any) => p.plan_type === 'premium' && p.status === 'active').length}</span></p>
+              <p className="text-[11px] font-bold text-white/40">BASICO: <span className="text-white font-black">{plans?.filter((p:any) => p.plan_type === 'basico' && p.status === 'active').length}</span></p>
+              <p className="text-[11px] font-bold text-white/40">FREE: <span className="text-white font-black">{plans?.filter((p:any) => p.plan_type === 'free' && p.status === 'active').length}</span></p>
+            </div>
           </div>
-          <div className="bg-[#111] border border-white/5 p-4 rounded-2xl">
-            <p className="text-white/30 text-[10px] font-bold uppercase mb-0.5 tracking-wider">FREE Expira pronto</p>
-            <p className={`text-2xl font-black italic tracking-tighter ${freeExpiringCount > 0 ? 'text-red-500' : 'text-white/40'}`}>{freeExpiringCount}</p>
+
+          <div className="bg-[#111] border border-white/5 p-4 rounded-2xl border-l-[#FF7939] border-l-2">
+            <p className="text-white/30 text-[10px] font-black uppercase tracking-widest mb-1">Alertas en Mora</p>
+            <p className="text-3xl font-black italic tracking-tighter text-orange-500">{coachList.filter((c:any) => c.status === 'active' && c.next_payment && new Date(c.next_payment) < new Date() && c.active_plan !== 'free').length}</p>
+            <p className="text-[10px] font-bold text-orange-500/40 uppercase tracking-tighter">Pagos Pendientes</p>
+          </div>
+
+          <div className="bg-[#111] border border-white/5 p-4 rounded-2xl flex items-center gap-4">
+             <div className="w-12 h-12 rounded-xl bg-blue-500/10 flex items-center justify-center">
+               <Award className="w-6 h-6 text-blue-500" />
+             </div>
+             <div>
+                <p className="text-white/30 text-[10px] font-black uppercase tracking-widest mb-0.5">Retención Total</p>
+                <p className="text-xl font-black italic tracking-tighter">{coachList.filter((c:any) => c.status === 'active').length} <span className="text-xs text-white/20 not-italic">ACTIVOS</span></p>
+             </div>
           </div>
         </div>
 
-        <div className="bg-[#0a0a0a] border border-white/5 rounded-2xl overflow-hidden shadow-2xl">
+        {/* TABLA PRINCIPAL */}
+        <div className="bg-[#0a0a0a] border border-white/5 rounded-2xl overflow-hidden shadow-2xl relative">
           <div className="overflow-x-auto">
             {activeTab === 'sales' ? (
               <table className="w-full text-left">
                 <thead className="bg-[#111]">
                   <tr>
-                    <th className="px-4 py-3 text-[9px] font-black text-white/30 uppercase border-b border-white/5">Fecha Pago</th>
-                    <th className="px-4 py-3 text-[9px] font-black text-white/30 uppercase border-b border-white/5">Producto / ID</th>
-                    <th className="px-4 py-3 text-[9px] font-black text-white/30 uppercase border-b border-white/5">Cliente</th>
-                    <th className="px-4 py-3 text-[9px] font-black text-white/30 uppercase border-b border-white/5 text-right font-mono">TOTAL</th>
-                    <th className="px-4 py-3 text-[9px] font-black text-[#FF7939] uppercase border-b border-white/5 text-right font-mono">OMNIA FEE</th>
-                    <th className="px-4 py-3 text-[9px] font-black text-blue-400 uppercase border-b border-white/5 text-right font-mono">COACH NETO</th>
-                    <th className="px-4 py-3 text-[9px] font-black text-white/30 uppercase border-b border-white/5 text-center">Estado MP</th>
-                    <th className="px-4 py-3 text-[9px] font-black text-white/30 uppercase border-b border-white/5 text-center">Audit</th>
+                    <th className="px-5 py-4 text-[9px] font-black text-white/40 uppercase border-b border-white/5">Operación / ID</th>
+                    <th className="px-5 py-4 text-[9px] font-black text-white/40 uppercase border-b border-white/5">De (Cliente)</th>
+                    <th className="px-5 py-4 text-[9px] font-black text-white/40 uppercase border-b border-white/5 text-center">Ruta Fondos</th>
+                    <th className="px-5 py-4 text-[9px] font-black text-white/40 uppercase border-b border-white/5">A (Coach)</th>
+                    <th className="px-5 py-4 text-[9px] font-black text-orange-500 uppercase border-b border-white/5 text-right font-mono tracking-tighter"> FEE OMNIA</th>
+                    <th className="px-5 py-4 text-[9px] font-black text-white/40 uppercase border-b border-white/5 text-center">Status MP</th>
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-white/[0.03]">
-                  {filteredPayments.map((p: any, i: number) => (
-                    <tr key={i} className="hover:bg-white/[0.02] transition-colors group">
-                      <td className="px-4 py-2 font-mono text-[10px] text-white/40">{new Date(p.created_at).toLocaleDateString()}</td>
-                      <td className="px-4 py-2">
-                        <div className="flex items-center gap-2">
-                          <span className="text-xs">{getProductTypeIcon(p.activity_type)}</span>
-                          <div>
-                            <p className="text-[11px] font-bold text-white/90 leading-none mb-1">{p.activity_title}</p>
-                            <p className="text-[9px] text-white/20 font-bold tracking-tighter">{p.mercadopago_payment_id || 'ID Pendiente'}</p>
-                          </div>
-                        </div>
+                  {filteredSales?.map((p: any, i: number) => (
+                    <tr key={i} className="hover:bg-white/[0.03] transition-colors">
+                      <td className="px-5 py-4">
+                         <div className="text-[11px] font-black text-white italic mb-1 uppercase tracking-tighter truncate max-w-[200px]">{p.activity_title}</div>
+                         <div className="text-[9px] font-mono text-white/20 whitespace-nowrap">ID: {p.mercadopago_payment_id || '---'}</div>
                       </td>
-                      <td className="px-4 py-2 text-[11px] font-medium text-white/60">{p.client_name}</td>
-                      <td className="px-4 py-2 text-right font-mono text-[11px] font-bold">${p.amount_paid}</td>
-                      <td className="px-4 py-2 text-right font-mono text-[11px] font-black text-[#FF7939]">${p.marketplace_fee}</td>
-                      <td className="px-4 py-2 text-right font-mono text-[11px] font-black text-blue-400">${p.seller_amount}</td>
-                      <td className="px-4 py-2 text-center">
-                        <span className={`text-[9px] px-1.5 py-0.5 rounded font-black uppercase tracking-tighter border ${p.mercadopago_status === 'approved' ? 'bg-green-500/10 text-green-500 border-green-500/20' : 'bg-white/5 text-white/20 border-white/5'}`}>{p.mercadopago_status || 'PEND'}</span>
+                      <td className="px-5 py-4">
+                        <div className="text-[11px] font-bold text-white group-hover:text-[#FF7939] transition-colors">{p.client_name}</div>
+                        <div className="text-[9px] font-mono text-white/30">{new Date(p.created_at).toLocaleDateString()}</div>
                       </td>
-                      <td className="px-4 py-2 text-center">
-                        {p.mercadopago_payment_id && <a href={`https://www.mercadopago.com.ar/mshops/notifications-center/payment/${p.mercadopago_payment_id}`} target="_blank" className="text-white/20 hover:text-[#FF7939] transition-colors"><ExternalLink className="w-3.5 h-3.5" /></a>}
+                      <td className="px-5 py-4 text-center">
+                         <ArrowRightLeft className="w-4 h-4 text-white/10 inline-block" />
+                      </td>
+                      <td className="px-5 py-4">
+                        <div className="text-[11px] font-black text-white/70 italic uppercase">{p.coach_name}</div>
+                        <div className="text-[9px] font-mono text-blue-500/60 font-black">+${p.seller_amount}</div>
+                      </td>
+                      <td className="px-5 py-4 text-right">
+                         <div className="text-[12px] font-black text-orange-500 italic tracking-tighter">${p.marketplace_fee}</div>
+                         <div className="text-[9px] font-bold text-white/10 uppercase italic">S/ Total de ${p.amount_paid}</div>
+                      </td>
+                      <td className="px-5 py-4 text-center">
+                         <span className={`text-[9px] px-2 py-0.5 rounded-full font-black uppercase tracking-tighter ${p.mercadopago_status === 'approved' ? 'bg-green-500/10 text-green-500 border border-green-500/20' : 'bg-white/5 text-white/20'}`}>{p.mercadopago_status || 'PEND'}</span>
                       </td>
                     </tr>
                   ))}
                 </tbody>
               </table>
             ) : (
-              <table className="w-full text-left font-mono">
+              <table className="w-full text-left">
                 <thead className="bg-[#111]">
                   <tr>
-                    <th className="px-4 py-3 text-[9px] font-black text-white/30 uppercase border-b border-white/5 font-sans">Coach ID</th>
-                    <th className="px-4 py-3 text-[9px] font-black text-white/30 uppercase border-b border-white/5 text-center font-sans">U. Pago</th>
-                    <th className="px-4 py-3 text-[9px] font-black text-white/30 uppercase border-b border-white/5 font-sans">Plan</th>
-                    <th className="px-4 py-3 text-[9px] font-black text-white/30 uppercase border-b border-white/5 text-right font-sans">Próx. Cobro</th>
-                    <th className="px-4 py-3 text-[9px] font-black text-white/30 uppercase border-b border-white/5 font-sans">Diagnóstico</th>
+                    <th className="px-5 py-4 text-[9px] font-black text-white/40 uppercase border-b border-white/5">Coach / Cta actual</th>
+                    <th className="px-5 py-4 text-[9px] font-black text-white/40 uppercase border-b border-white/5 text-center">Plan</th>
+                    <th className="px-5 py-4 text-[9px] font-black text-white/40 uppercase border-b border-white/5 text-center">U. Pago / Próx</th>
+                    <th className="px-5 py-4 text-[9px] font-black text-white/40 uppercase border-b border-white/5 text-right font-mono">T. Pagado</th>
+                    <th className="px-5 py-4 text-[9px] font-black text-white/40 uppercase border-b border-white/5 text-center">Historial</th>
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-white/[0.03]">
-                  {filteredSubscriptions.map((sub: any, i: number) => {
-                    const nextDate = sub.mercadopago_subscription_next_payment_date ? new Date(sub.mercadopago_subscription_next_payment_date) : null;
-                    const isMora = nextDate && nextDate < new Date() && sub.status === 'active' && sub.plan_type !== 'free';
-                    return (
-                      <tr key={i} className="hover:bg-white/[0.02] transition-colors group">
-                        <td className="px-4 py-3 text-[11px] font-bold text-white/40">{sub.coach_id.substring(0,12)}...</td>
-                        <td className="px-4 py-3 text-center text-[10px] text-white/30">{new Date(sub.started_at).toLocaleDateString()}</td>
-                        <td className="px-4 py-3 text-[11px] font-black text-white uppercase tracking-tighter">{sub.plan_type}</td>
-                        <td className="px-4 py-3 text-right text-[10px] text-white/60 font-bold">{nextDate ? nextDate.toLocaleDateString() : 'Pendiente'}</td>
-                        <td className="px-4 py-3">
-                          {isMora ? <span className="text-[9px] font-black bg-orange-500/10 text-orange-500 px-2 py-1 rounded-md border border-orange-500/20 uppercase tracking-tighter">🚨 Mora</span> : <span className="text-[9px] font-bold text-white/20 uppercase italic opacity-20 truncate max-w-[100px]">{sub.status}</span>}
+                  {filteredCoaches?.map((c: any, i: number) => (
+                    <>
+                      <tr key={c.coach_id} className={`hover:bg-white/[0.03] transition-all cursor-pointer ${expandedCoach === c.coach_id ? 'bg-white/[0.04]' : ''}`} onClick={() => setExpandedCoach(expandedCoach === c.coach_id ? null : c.coach_id)}>
+                        <td className="px-5 py-4">
+                           <div className="text-[11px] font-black text-white uppercase italic tracking-tighter mb-1">{c.name}</div>
+                           <div className="text-[9px] font-mono text-white/20 tracking-widest underline decoration-orange-500/40 truncate max-w-[150px]">MP: {c.current_mp}</div>
+                        </td>
+                        <td className="px-5 py-4 text-center">
+                          <span className={`text-[10px] px-2 py-0.5 rounded-md font-black italic uppercase tracking-tighter ${c.status === 'active' ? 'bg-orange-500 text-black shadow-lg shadow-orange-500/20' : 'bg-red-500/20 text-red-500'}`}>{c.active_plan}</span>
+                        </td>
+                        <td className="px-5 py-4 text-center font-mono">
+                           <div className="text-[10px] text-white/60 mb-1">{new Date(c.last_payment).toLocaleDateString()}</div>
+                           <div className="text-[11px] font-black text-[#FF7939] tracking-tighter">{c.next_payment ? new Date(c.next_payment).toLocaleDateString() : 'EL DÍA 1'}</div>
+                        </td>
+                        <td className="px-5 py-4 text-right">
+                           <div className="text-sm font-black italic tracking-tighter text-blue-500">${c.total_paid.toLocaleString()}</div>
+                           <div className="text-[9px] font-mono text-white/10 uppercase">{c.history.length} Pagos Totales</div>
+                        </td>
+                        <td className="px-5 py-4 text-center">
+                           {expandedCoach === c.coach_id ? <ChevronUp className="w-4 h-4 text-[#FF7939] inline shadow-glow" /> : <ChevronDown className="w-4 h-4 text-white/20 inline" />}
                         </td>
                       </tr>
-                    );
-                  })}
+                      {expandedCoach === c.coach_id && (
+                        <tr className="bg-[#050505]">
+                          <td colSpan={5} className="p-0">
+                            <div className="px-8 py-6 border-l-2 border-[#FF7939] animate-in slide-in-from-top-4 duration-300">
+                               <p className="text-[9px] font-black text-white/30 uppercase tracking-[0.3em] mb-4">Línea de Tiempo de Suscripción</p>
+                               <div className="grid grid-cols-1 gap-2">
+                                  {c.history.map((h: any, idx: number) => (
+                                    <div key={idx} className="flex justify-between items-center bg-white/5 border border-white/5 px-4 py-2.5 rounded-xl hover:border-white/20 transition-all group">
+                                       <div className="flex items-center gap-4">
+                                          <div className="w-2 h-2 rounded-full bg-orange-500 shadow-glow"></div>
+                                          <div>
+                                             <p className="text-[10px] font-black text-white/80 uppercase tracking-tighter leading-none mb-1">Pago #{c.history.length - idx} - {h.plan_type}</p>
+                                             <p className="text-[9px] font-mono text-white/20">Registrado el {new Date(h.started_at).toLocaleDateString()}</p>
+                                          </div>
+                                       </div>
+                                       <div className="flex items-center gap-6">
+                                          <div className="text-right">
+                                             <p className="text-[10px] font-black text-white/40 uppercase mb-0.5 font-sans tracking-widest text-[8px]">CTA MP Asociada</p>
+                                             <p className="text-[11px] font-mono text-white/80 group-hover:text-[#FF7939] transition-colors">{h.id_cuenta_mp || 'Desconocida'}</p>
+                                          </div>
+                                          <div className="text-right">
+                                             <p className="text-[10px] font-black text-white/40 uppercase mb-0.5 font-sans tracking-widest text-[8px]">ESTADO</p>
+                                             <p className={`text-[10px] font-black uppercase ${h.status === 'active' ? 'text-green-500' : 'text-red-500/60'}`}>{h.status}</p>
+                                          </div>
+                                       </div>
+                                    </div>
+                                  ))}
+                               </div>
+                            </div>
+                          </td>
+                        </tr>
+                      )}
+                    </>
+                  ))}
                 </tbody>
               </table>
             )}
@@ -227,12 +284,17 @@ export default function AdminFinanceDashboard() {
         </div>
       </main>
 
-      <style jsx global>{`
-        @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;700;900&display=swap');
-        body { font-family: 'Inter', sans-serif; background-color: #080808; }
-        ::-webkit-scrollbar { width: 4px; height: 4px; }
+      <style jsx global>{\`
+        @import url('https://fonts.googleapis.com/css2?family=Inter:ital,wght@0,400;0,700;0,900;1,900&display=swap');
+        body { font-family: 'Inter', sans-serif; background-color: #080808; margin: 0; }
+        .shadow-glow { filter: drop-shadow(0 0 8px #FF7939); }
+        ::-webkit-scrollbar { width: 5px; height: 5px; }
+        ::-webkit-scrollbar-track { background: #050505; }
         ::-webkit-scrollbar-thumb { background: #222; border-radius: 10px; }
-      `}</style>
+        ::-webkit-scrollbar-thumb:hover { background: #333; }
+        .animate-in { animation: slideIn 0.3s ease-out forwards; }
+        @keyframes slideIn { from { opacity: 0; transform: translateY(-10px); } to { opacity: 1; transform: translateY(0); } }
+      \`}</style>
     </div>
   );
 }
