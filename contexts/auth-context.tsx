@@ -107,23 +107,25 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
         if (data?.session?.user) {
           const supabaseUser = data.session.user;
-          // Buscar el perfil real en la base de datos para obtener el ROL actualizado
-          const { data: profileData } = await supabase
-            .from('user_profiles')
-            .select('role, full_name, avatar_url')
-            .eq('id', supabaseUser.id)
-            .maybeSingle();
-
-          if (process.env.NODE_ENV === 'development') {
-            console.log("✅ User found in session and profile sync:", supabaseUser.email, "Role:", profileData?.role);
+          try {
+            // Buscar el perfil real pero con manejo de errores robusto
+            const { data: profileData } = await supabase
+              .from('user_profiles')
+              .select('role') // Traemos solo el rol por ahora para mayor velocidad
+              .eq('id', supabaseUser.id)
+              .maybeSingle();
+            setUser(formatUser(supabaseUser, profileData));
+          } catch (profileError) {
+            console.warn("⚠️ [auth-context] No se pudo obtener el perfil de la DB, usando sesión:", profileError);
+            setUser(formatUser(supabaseUser));
           }
-          setUser(formatUser(supabaseUser, profileData));
         } else {
           if (process.env.NODE_ENV === 'development') {
             console.log("ℹ️ No user found in session (user is probably logged out)");
           }
           setUser(null);
         }
+        setLoading(false);
         setLoading(false)
       } catch (error) {
         console.error("Error loading user:", error)
@@ -152,13 +154,18 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       }
 
       if (session?.user) {
-        const { data: profileData } = await supabase
-          .from('user_profiles')
-          .select('role, full_name, avatar_url')
-          .eq('id', session.user.id)
-          .maybeSingle()
-        setUser(formatUser(session.user, profileData))
-        setLoading(false)
+        try {
+          const { data: profileData } = await supabase
+            .from('user_profiles')
+            .select('role')
+            .eq('id', session.user.id)
+            .maybeSingle()
+          setUser(formatUser(session.user, profileData))
+        } catch (e) {
+          setUser(formatUser(session.user))
+        } finally {
+          setLoading(false)
+        }
       } else {
         setUser(null)
         setLoading(false)
