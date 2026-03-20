@@ -25,41 +25,41 @@ export default function AdminFinanceDashboard() {
   const loadData = async () => {
     setLoading(true);
     try {
-      // 1. Reconciliación Clientes con Relaciones Explícitas
-      const { data: pData, error: pErr } = await supabase
+      // 1. Fetch de base de datos - Datos planos para evitar errores de relación
+      const { data: rawPayments, error: pErr } = await supabase
         .from('banco')
-        .select(`
-          created_at,
-          amount_paid,
-          marketplace_fee,
-          seller_amount,
-          mercadopago_status,
-          mercadopago_payment_id,
-          concept,
-          activities:activity_id (title, type),
-          user_profiles:client_id (full_name)
-        `)
+        .select('*')
         .order('created_at', { ascending: false });
 
-      if (pErr) console.error('Error banco:', pErr);
-
-      // 2. Reconciliación Coaches
-      const { data: sData, error: sErr } = await supabase
+      const { data: rawSubs, error: sErr } = await supabase
         .from('planes_uso_coach')
-        .select(`
-          id,
-          coach_id,
-          started_at,
-          plan_type,
-          status,
-          mercadopago_subscription_next_payment_date
-        `)
+        .select('*')
         .order('started_at', { ascending: false });
 
-      if (sErr) console.error('Error planes:', sErr);
+      if (rawPayments) {
+        // Enriquecer datos de pagos (Clientes y Actividades) de forma manual e inteligente
+        const clientIds = [...new Set(rawPayments.map(p => p.client_id).filter(Boolean))];
+        const activityIds = [...new Set(rawPayments.map(p => p.activity_id).filter(Boolean))];
 
-      if (pData) setPayments(pData);
-      if (sData) setSubscriptions(sData);
+        const [ {data: clients}, {data: activities} ] = await Promise.all([
+          supabase.from('user_profiles').select('id, full_name').in('id', clientIds),
+          supabase.from('activities').select('id, title, type').in('id', activityIds)
+        ]);
+
+        const enrichedPayments = rawPayments.map(p => ({
+          ...p,
+          client_name: clients?.find(c => c.id === p.client_id)?.full_name || 'Desconocido',
+          activity_title: activities?.find(a => a.id === p.activity_id)?.title || p.concept || 'Consulta',
+          activity_type: activities?.find(a => a.id === p.activity_id)?.type || 'No especificado'
+        }));
+        
+        setPayments(enrichedPayments);
+      }
+
+      if (rawSubs) setSubscriptions(rawSubs);
+
+    } catch (err) {
+      console.error('Error cargando dashboard:', err);
     } finally {
       setLoading(false);
     }
@@ -87,9 +87,9 @@ export default function AdminFinanceDashboard() {
   };
 
   const filteredPayments = payments.filter(p => 
-    (p.activities?.title || p.concept || '').toLowerCase().includes(searchTerm.toLowerCase()) ||
-    p.user_profiles?.full_name?.toLowerCase().includes(searchTerm.toLowerCase()) ||
-    p.mercadopago_payment_id?.includes(searchTerm)
+    (p.activity_title || '').toLowerCase().includes(searchTerm.toLowerCase()) ||
+    (p.client_name || '').toLowerCase().includes(searchTerm.toLowerCase()) ||
+    (p.mercadopago_payment_id || '').includes(searchTerm)
   );
 
   const filteredSubscriptions = subscriptions.filter(s => 
@@ -136,17 +136,17 @@ export default function AdminFinanceDashboard() {
             <p className="text-white/30 text-[10px] font-bold uppercase mb-0.5 tracking-wider">Caja Omnia (Comisiones)</p>
             <p className="text-2xl font-black italic tracking-tighter">${totalCommissions.toLocaleString()}</p>
           </div>
-          <div className="bg-[#111] border border-white/5 p-4 rounded-2xl">
-            <p className="text-white/30 text-[10px] font-bold uppercase mb-0.5 tracking-wider">Coaches ACTIVOS</p>
+          <div className="bg-[#111] border border-white/5 p-4 rounded-2xl font-black text-blue-500">
+            <p className="text-white/30 text-[10px] font-bold uppercase mb-0.5 tracking-wider font-sans">Coaches ACTIVOS</p>
             <p className="text-2xl font-black italic tracking-tighter">{subscriptions.filter(s => s.status === 'active').length}</p>
           </div>
           <div className="bg-[#111] border border-white/5 p-4 rounded-2xl">
             <p className="text-white/30 text-[10px] font-bold uppercase mb-0.5 tracking-wider">Coaches en Mora</p>
-            <p className={`text-2xl font-black italic tracking-tighter ${delayedCoachesCount > 0 ? 'text-orange-500 font-black' : 'text-white/40'}`}>{delayedCoachesCount}</p>
+            <p className={`text-2xl font-black italic tracking-tighter ${delayedCoachesCount > 0 ? 'text-orange-500' : 'text-white/40'}`}>{delayedCoachesCount}</p>
           </div>
           <div className="bg-[#111] border border-white/5 p-4 rounded-2xl">
-            <p className="text-white/30 text-[10px] font-bold uppercase mb-0.5 tracking-wider">Planes FREE +3 meses</p>
-            <p className={`text-2xl font-black italic tracking-tighter ${freeExpiringCount > 0 ? 'text-red-500 font-black' : 'text-white/40'}`}>{freeExpiringCount}</p>
+            <p className="text-white/30 text-[10px] font-bold uppercase mb-0.5 tracking-wider">FREE Expira pronto</p>
+            <p className={`text-2xl font-black italic tracking-tighter ${freeExpiringCount > 0 ? 'text-red-500' : 'text-white/40'}`}>{freeExpiringCount}</p>
           </div>
         </div>
 
@@ -171,10 +171,15 @@ export default function AdminFinanceDashboard() {
                     <tr key={i} className="hover:bg-white/[0.02] transition-colors group">
                       <td className="px-4 py-2 font-mono text-[10px] text-white/40">{new Date(p.created_at).toLocaleDateString()}</td>
                       <td className="px-4 py-2">
-                        <p className="text-[11px] font-bold text-white/90 leading-none mb-1">{p.activities?.title || p.concept || 'Consulta'}</p>
-                        <p className="text-[9px] text-white/20 font-bold tracking-tighter">{p.mercadopago_payment_id || 'ID Pendiente'}</p>
+                        <div className="flex items-center gap-2">
+                          <span className="text-xs">{getProductTypeIcon(p.activity_type)}</span>
+                          <div>
+                            <p className="text-[11px] font-bold text-white/90 leading-none mb-1">{p.activity_title}</p>
+                            <p className="text-[9px] text-white/20 font-bold tracking-tighter">{p.mercadopago_payment_id || 'ID Pendiente'}</p>
+                          </div>
+                        </div>
                       </td>
-                      <td className="px-4 py-2 text-[11px] font-medium text-white/60">{p.user_profiles?.full_name || 'Desconocido'}</td>
+                      <td className="px-4 py-2 text-[11px] font-medium text-white/60">{p.client_name}</td>
                       <td className="px-4 py-2 text-right font-mono text-[11px] font-bold">${p.amount_paid}</td>
                       <td className="px-4 py-2 text-right font-mono text-[11px] font-black text-[#FF7939]">${p.marketplace_fee}</td>
                       <td className="px-4 py-2 text-right font-mono text-[11px] font-black text-blue-400">${p.seller_amount}</td>
@@ -210,7 +215,7 @@ export default function AdminFinanceDashboard() {
                         <td className="px-4 py-3 text-[11px] font-black text-white uppercase tracking-tighter">{sub.plan_type}</td>
                         <td className="px-4 py-3 text-right text-[10px] text-white/60 font-bold">{nextDate ? nextDate.toLocaleDateString() : 'Pendiente'}</td>
                         <td className="px-4 py-3">
-                          {isMora ? <span className="text-[9px] font-black bg-orange-500/10 text-orange-500 px-2 py-1 rounded-md border border-orange-500/20 uppercase tracking-tighter">🚨 Mora Detectada</span> : <span className="text-[9px] font-bold text-white/20 uppercase">✅ Sin Novedades</span>}
+                          {isMora ? <span className="text-[9px] font-black bg-orange-500/10 text-orange-500 px-2 py-1 rounded-md border border-orange-500/20 uppercase tracking-tighter">🚨 Mora</span> : <span className="text-[9px] font-bold text-white/20 uppercase italic opacity-20 truncate max-w-[100px]">{sub.status}</span>}
                         </td>
                       </tr>
                     );
@@ -225,9 +230,8 @@ export default function AdminFinanceDashboard() {
       <style jsx global>{`
         @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;700;900&display=swap');
         body { font-family: 'Inter', sans-serif; background-color: #080808; }
-        ::-webkit-scrollbar { width: 5px; height: 5px; }
-        ::-webkit-scrollbar-track { background: transparent; }
-        ::-webkit-scrollbar-thumb { background: #333; border-radius: 10px; }
+        ::-webkit-scrollbar { width: 4px; height: 4px; }
+        ::-webkit-scrollbar-thumb { background: #222; border-radius: 10px; }
       `}</style>
     </div>
   );
