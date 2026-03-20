@@ -37,8 +37,8 @@ export default async function ReconciliationDashboard() {
   currentMonthStart.setHours(0,0,0,0);
   
   const totalCommissions = payments
-    ?.filter(p => new Date(p.created_at) >= currentMonthStart && p.mercadopago_status === 'approved')
-    .reduce((sum, p) => sum + (Number(p.marketplace_fee) || 0), 0) || 0;
+    ?.filter((p: any) => new Date(p.created_at) >= currentMonthStart && p.mercadopago_status === 'approved')
+    .reduce((sum: number, p: any) => sum + (Number(p.marketplace_fee) || 0), 0) || 0;
 
   return (
     <div className="min-h-screen bg-[#0a0a0a] text-white p-8 font-sans">
@@ -149,10 +149,6 @@ export default async function ReconciliationDashboard() {
         </div>
       </div>
 
-      <style jsx global>{\`
-        @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;700;900&display=swap');
-        body { font-family: 'Inter', sans-serif; }
-      \`}</style>
     </div>
   );
 }

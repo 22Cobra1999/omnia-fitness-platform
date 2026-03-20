@@ -43,6 +43,7 @@ export interface ProfileEditErrors {
 export interface ProfileEditModalProps {
     isOpen: boolean
     onClose: () => void
+    onSaveSuccess?: () => void
     editingSection?: string | null
     isCoach?: boolean
 }

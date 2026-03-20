@@ -1,6 +1,6 @@
 import React, { memo } from 'react'
 import { Button } from "@/components/ui/button"
-import { Plus, Coffee, ChevronDown, X, Zap, Check } from "lucide-react"
+import { Plus, Coffee, ChevronDown, X, Zap, Check, Handshake, User as UserIcon } from "lucide-react"
 import ActivityCard from '@/components/shared/activities/ActivityCard'
 import { Product } from '../../types'
 import { ConsultationSection } from '../Consultations/ConsultationSection'
@@ -34,6 +34,8 @@ interface ProductsSectionProps {
     resetConditioning: () => void
     handleApplyConditioning: () => void
     handleSaveConditioning: (rules: any) => void
+    onboarding: any
+    userId: string | undefined
 }
 
 const ProductCard = memo(({
@@ -119,6 +121,8 @@ export const ProductsSection: React.FC<ProductsSectionProps> = ({
     toggleProductConditioning,
     resetConditioning,
     handleApplyConditioning,
+    onboarding,
+    userId
 }) => {
     return (
         <div className="bg-[#0F0F0F] rounded-2xl border border-[#1A1A1A] overflow-hidden">
@@ -223,6 +227,14 @@ export const ProductsSection: React.FC<ProductsSectionProps> = ({
                                     disabled={selectedProductsForConditioning.length === 0}
                                 >
                                     Aplicar {selectedProductsForConditioning.length}
+                                </Button>
+                            ) : (onboarding?.needsProfile || onboarding?.needsMP) ? (
+                                <Button
+                                    className="bg-[#00B1EA] hover:bg-[#009ED2] text-white px-2.5 py-1 rounded-lg font-bold text-[10px] shadow-md flex items-center gap-1 uppercase tracking-tight"
+                                    onClick={() => window.dispatchEvent(new CustomEvent('openMPOnboarding'))}
+                                >
+                                    <Handshake className="h-3 w-3" />
+                                    Conectar MP
                                 </Button>
                             ) : (
                                 <Button

@@ -47,25 +47,29 @@ export function AccountCreatedPopup({ isOpen, onClose, onAction }: AccountCreate
                         <div className="space-y-4">
                             <Button
                                 onClick={() => onAction("profile")}
-                                className="w-full h-14 bg-white/5 hover:bg-white/10 border border-white/10 text-white rounded-2xl flex items-center justify-between px-6 group transition-all"
+                                className={`w-full h-14 border border-white/10 text-white rounded-2xl flex items-center justify-between px-6 group transition-all ${
+                                    isCoach 
+                                    ? "bg-[#FF7939] hover:bg-[#E66829] shadow-lg shadow-[#FF7939]/20" 
+                                    : "bg-white/5 hover:bg-white/10"
+                                }`}
                             >
                                 <div className="flex items-center gap-3">
-                                    <User className="w-5 h-5 text-[#FF7939]" />
+                                    <User className={`w-5 h-5 ${isCoach ? "text-white" : "text-[#FF7939]"}`} />
                                     <span className="font-bold">Completar mi perfil</span>
                                 </div>
-                                <ArrowRight className="w-4 h-4 text-white/20 group-hover:text-white group-hover:translate-x-1 transition-all" />
+                                <ArrowRight className={`w-4 h-4 group-hover:translate-x-1 transition-all ${isCoach ? "text-white/50" : "text-white/20 group-hover:text-white"}`} />
                             </Button>
 
-                            {isCoach && (
+                            {!isCoach && (
                                 <Button
                                     onClick={() => onAction("products")}
-                                    className="w-full h-14 bg-[#FF7939] hover:bg-[#E66829] text-white rounded-2xl flex items-center justify-between px-6 group shadow-lg shadow-[#FF7939]/20 transition-all font-black"
+                                    className="w-full h-14 bg-white/5 hover:bg-white/10 border border-white/10 text-white rounded-2xl flex items-center justify-between px-6 group transition-all"
                                 >
                                     <div className="flex items-center gap-3">
-                                        <PlusCircle className="w-5 h-5" />
-                                        <span>Crear mi primer producto</span>
+                                        <PlusCircle className="w-5 h-5 text-[#FF7939]" />
+                                        <span>Explorar productos</span>
                                     </div>
-                                    <ArrowRight className="w-4 h-4 text-white/50 group-hover:translate-x-1 transition-all" />
+                                    <ArrowRight className="w-4 h-4 text-white/20 group-hover:text-white group-hover:translate-x-1 transition-all" />
                                 </Button>
                             )}
 

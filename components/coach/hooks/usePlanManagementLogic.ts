@@ -187,10 +187,11 @@ export function usePlanManagementLogic() {
         return levels[planType] || 0
     }
 
-    const formatDate = (dateString: string | null | undefined): string => {
-        if (!dateString) return ''
-        const date = new Date(dateString)
-        return date.toLocaleDateString('es-AR', {
+    const formatDate = (date: string | Date | null | undefined): string => {
+        if (!date) return ''
+        const d = date instanceof Date ? date : new Date(date)
+        if (isNaN(d.getTime())) return ''
+        return d.toLocaleDateString('es-AR', {
             day: 'numeric',
             month: 'long',
             year: 'numeric'

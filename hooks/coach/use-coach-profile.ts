@@ -150,7 +150,7 @@ export function useCoachProfile() {
           full_name: userProfile?.full_name || coach.full_name || 'Coach',
           bio: coach.bio || null,
           specialization: coach.specialization || null,
-          experience_years: coach.experience_years || null,
+          experience_years: (coach.experience_years !== null && coach.experience_years !== undefined) ? coach.experience_years : null,
           avatar_url: resolvedAvatar,
           rating: stats?.avg_rating || 0,
           total_reviews: stats?.total_reviews || 0,

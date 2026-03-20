@@ -13,11 +13,11 @@ import {
 import { useAuth } from '@/contexts/auth-context';
 
 interface CoachStats {
-  responseRate: number;
-  avgResponseTimeHours: number;
+  responseRate: number | null;
+  avgResponseTimeHours: number | null;
   cancellations: number;
   lateReschedules: number;
-  attendanceRate: number;
+  attendanceRate: number | null;
   incidents: number;
   period: string;
 }
@@ -130,8 +130,8 @@ export function CoachStats() {
         {/* 1. Tasa de respuesta */}
         <StatCard
           title="Tasa de respuesta"
-          value={`${stats.responseRate}%`}
-          subtitle={stats.responseRate >= 80 ? 'Excelente' : stats.responseRate >= 60 ? 'Mejorable' : 'Crítico'}
+          value={stats.responseRate !== null ? `${stats.responseRate}%` : '-'}
+          subtitle={stats.responseRate === null ? 'Sin datos' : stats.responseRate >= 80 ? 'Excelente' : stats.responseRate >= 60 ? 'Mejorable' : 'Crítico'}
           icon={<MessageCircle className="w-4 h-4" />}
           colorIndex={0}
         />
@@ -139,8 +139,8 @@ export function CoachStats() {
         {/* 2. Tiempo promedio de respuesta */}
         <StatCard
           title="Tiempo de respuesta"
-          value={stats.avgResponseTimeHours > 0 ? `${stats.avgResponseTimeHours}h` : 'N/A'}
-          subtitle={stats.avgResponseTimeHours <= 12 ? 'Rápido' : stats.avgResponseTimeHours <= 24 ? 'Aceptable' : 'Lento'}
+          value={stats.avgResponseTimeHours !== null ? (stats.avgResponseTimeHours > 0 ? `${stats.avgResponseTimeHours}h` : '0h') : '-'}
+          subtitle={stats.avgResponseTimeHours === null ? 'Sin datos' : stats.avgResponseTimeHours <= 12 ? 'Rápido' : stats.avgResponseTimeHours <= 24 ? 'Aceptable' : 'Lento'}
           icon={<Clock className="w-4 h-4" />}
           colorIndex={1}
         />
@@ -166,8 +166,8 @@ export function CoachStats() {
         {/* 5. Asistencia / puntualidad */}
         <StatCard
           title="Asistencia"
-          value={`${stats.attendanceRate}%`}
-          subtitle={stats.attendanceRate >= 95 ? 'Excelente' : stats.attendanceRate >= 85 ? 'Buena' : 'Mejorar'}
+          value={stats.attendanceRate !== null ? `${stats.attendanceRate}%` : '-'}
+          subtitle={stats.attendanceRate === null ? 'Sin datos' : stats.attendanceRate >= 95 ? 'Excelente' : stats.attendanceRate >= 85 ? 'Buena' : 'Mejorar'}
           icon={<CheckCircle className="w-4 h-4" />}
           colorIndex={4}
         />

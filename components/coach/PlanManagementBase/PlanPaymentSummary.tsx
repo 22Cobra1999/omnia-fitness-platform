@@ -33,7 +33,15 @@ export const PlanPaymentSummary = ({
 
     return (
         <Dialog open={showPaymentSummary} onOpenChange={setShowPaymentSummary}>
-            <DialogContent className="max-w-md bg-black border-white/10">
+            <DialogContent 
+                className="max-w-md w-[95vw] sm:w-full bg-black border-white/10"
+                style={{
+                    position: 'fixed',
+                    left: '50%',
+                    top: '50%',
+                    transform: 'translate(-50%, -50%)',
+                }}
+            >
                 <DialogHeader>
                     <DialogTitle className="text-lg font-semibold text-white">Resumen del cambio de plan</DialogTitle>
                 </DialogHeader>

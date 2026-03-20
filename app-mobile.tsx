@@ -33,6 +33,9 @@ const MessagesScreen = dynamic(() => import("@/components/mobile/messages-screen
 const ProductsManagement = dynamic(() => import("@/components/mobile/ProductsManagement"), { ssr: false })
 const UsageReportButton = dynamic(() => import('@/components/shared/admin/usage-report-button').then(m => m.UsageReportButton), { ssr: false })
 const AutoUsageTracker = dynamic(() => import('@/components/shared/admin/auto-usage-tracker').then(m => m.AutoUsageTracker), { ssr: false })
+const ProfileEditModal = dynamic(() => import("@/components/mobile/profile-edit-modal").then(m => m.ProfileEditModal), { ssr: false })
+import { MercadoPagoOnboardingModal } from "@/components/coach/MercadoPagoOnboardingModal"
+import { useCoachOnboarding } from "@/hooks/coach/useCoachOnboarding"
 
 
 import AdminFinanceDashboard from "@/components/shared/admin/AdminFinanceDashboard"
@@ -53,16 +56,56 @@ function MobileAppContent({ initialTab, initialCategoryId, initialActivityId, in
   const { isAuthenticated, user, loading, showWelcomeMessage, setShowWelcomeMessage } = useAuth()
   const { isAuthPopupOpen, authPopupDefaultTab, hideAuthPopup, showAuthPopup, isAccountCreatedPopupOpen, hideAccountCreatedPopup } = usePopup()
   const [activeTab, setActiveTab] = useState(initialTab || "community")
+  const userRole = user?.level || "client"
 
   const handleAccountAction = (action: "profile" | "products" | "close") => {
     hideAccountCreatedPopup()
     if (action === "profile") {
-      setActiveTab("profile")
+      if (userRole === "coach") {
+        setForcedProfileModal(true)
+      } else {
+        setActiveTab("profile")
+      }
     } else if (action === "products") {
       setActiveTab("products-management")
     }
   }
-  const userRole = user?.level || "client"
+
+  // Coach Onboarding Flow
+  const { needsProfile, needsMP, loading: onboardingLoading, refetch: refetchOnboarding } = useCoachOnboarding(user?.id)
+  const [forcedProfileModal, setForcedProfileModal] = useState(false)
+  const [showMPOnboarding, setShowMPOnboarding] = useState(false)
+
+  useEffect(() => {
+    if (userRole === "coach" && !onboardingLoading) {
+      if (needsProfile) {
+        // En lugar de forzarlo inmediatamente, esperamos a que el usuario quiera hacer algo
+        // O si viene de AccountCreatedPopup con action "profile"
+      } else if (needsMP) {
+        // Si el perfil está ok pero falta MP, y no lo hemos mostrado aún esta sesión
+        const hasSeenMP = sessionStorage.getItem('has_seen_mp_onboarding')
+        if (!hasSeenMP) {
+          setShowMPOnboarding(true)
+          sessionStorage.setItem('has_seen_mp_onboarding', 'true')
+        }
+      }
+    }
+  }, [userRole, needsProfile, needsMP, onboardingLoading])
+
+  const handleProfileSaveSuccess = () => {
+    refetchOnboarding().then((newStatus: any) => {
+      // Si después de guardar el perfil ahora falta MP, lo mostramos
+      if (newStatus?.needsMP) {
+        setShowMPOnboarding(true)
+      }
+    })
+  }
+
+  const handleMPConnect = () => {
+    if (!user?.id) return
+    window.location.href = `/api/mercadopago/oauth/authorize?coach_id=${user.id}`
+  }
+
   const searchParams = useSearchParams()
 
   const urlTabs = ['community', 'search', 'calendar', 'activity', 'profile', 'messages', 'clients', 'products-management']
@@ -320,8 +363,12 @@ function MobileAppContent({ initialTab, initialCategoryId, initialActivityId, in
     }
 
     window.addEventListener('navigateToTab', handleNavigateToTab as EventListener)
+    window.addEventListener('openProfileModal', () => setForcedProfileModal(true))
+    window.addEventListener('openMPOnboarding', () => setShowMPOnboarding(true))
     return () => {
       window.removeEventListener('navigateToTab', handleNavigateToTab as EventListener)
+      window.removeEventListener('openProfileModal', () => setForcedProfileModal(true))
+      window.removeEventListener('openMPOnboarding', () => setShowMPOnboarding(true))
     }
   }, [])
 
@@ -484,6 +531,24 @@ function MobileAppContent({ initialTab, initialCategoryId, initialActivityId, in
           onClose={hideAccountCreatedPopup}
           onAction={handleAccountAction}
         />
+
+        {/* Coach Onboarding Modals */}
+        {userRole === "coach" && (
+          <>
+            <ProfileEditModal 
+              isOpen={forcedProfileModal}
+              onClose={() => setForcedProfileModal(false)}
+              onSaveSuccess={handleProfileSaveSuccess}
+              isCoach={true}
+              editingSection="profile"
+            />
+            <MercadoPagoOnboardingModal 
+              isOpen={showMPOnboarding}
+              onClose={() => setShowMPOnboarding(false)}
+              onConnect={user?.id}
+            />
+          </>
+        )}
 
         {/* Welcome Popup */}
         {/* Welcome Popup Eliminado */}

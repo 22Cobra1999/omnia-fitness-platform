@@ -3,7 +3,7 @@ import { useProfileManagement } from '@/hooks/client/use-profile-management'
 import { useToast } from "@/components/ui/use-toast"
 import { ProfileData, ProfileEditErrors } from '../types'
 
-export function useProfileEditLogic(isOpen: boolean, onClose: () => void) {
+export function useProfileEditLogic(isOpen: boolean, onClose: () => void, onSaveSuccess?: () => void) {
     const { profile, updateProfile, loading, loadProfile } = useProfileManagement()
     const { toast } = useToast()
     const isInitialized = useRef<boolean>(false);
@@ -227,6 +227,7 @@ export function useProfileEditLogic(isOpen: boolean, onClose: () => void) {
 
             // @ts-ignore
             await updateProfile(payload, imageToUpload === null ? undefined : imageToUpload)
+            if (onSaveSuccess) onSaveSuccess()
             onClose()
         } catch (error) {
             toast({ title: "Error", description: "No se pudo guardar el perfil.", variant: "destructive" })

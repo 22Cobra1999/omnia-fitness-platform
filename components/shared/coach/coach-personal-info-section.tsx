@@ -15,6 +15,7 @@ interface CoachPersonalInfoSectionProps {
     certifications_count?: number
     rating?: number
     total_sales?: number | null
+    experience_years?: number | string | null
   }
   variant?: 'profile' | 'modal'
   showEditButton?: boolean
@@ -109,6 +110,15 @@ export function CoachPersonalInfoSection({
               <div className="flex items-center text-gray-400">
                 <Star className="w-4 h-4 mr-1" />
                 <span className="text-xs">Sin reseñas</span>
+              </div>
+            )}
+
+            {/* Años de Experiencia */}
+            {coach.experience_years !== null && coach.experience_years !== undefined && (
+              <div className="flex items-center text-gray-300">
+                <span className="text-sm font-semibold">
+                  {coach.experience_years} {Number(coach.experience_years) === 1 ? 'año' : 'años'}
+                </span>
               </div>
             )}
 
@@ -257,10 +267,15 @@ export function CoachPersonalInfoSection({
             </div>
           )}
 
-          <div className="flex items-center text-gray-300">
-            <Award className="h-4 w-4 text-gray-400 mr-1" />
-            <span className="text-sm">{certificationsCount} cert.</span>
-          </div>
+          {((coach.experience_years !== null && coach.experience_years !== undefined) || certificationsCount > 0) && (
+            <div className="flex items-center text-gray-300">
+              <Award className="h-4 w-4 text-[#FF7939] mr-1" />
+              <span className="text-sm font-bold tracking-tight">
+                {(coach.experience_years !== null && coach.experience_years !== undefined) ? `${coach.experience_years} ${Number(coach.experience_years) === 1 ? 'año' : 'años'}` : ''}
+                {certificationsCount > 0 ? ` ${coach.experience_years ? '• ' : ''}${certificationsCount} cert.` : ''}
+              </span>
+            </div>
+          )}
         </div>
 
         {/* Ubicación + Edad */}

@@ -51,6 +51,8 @@ export default function ProductsManagement() {
                         resetConditioning={actions.resetConditioning}
                         handleApplyConditioning={actions.handleApplyConditioning}
                         handleSaveConditioning={actions.handleSaveConditioning}
+                        onboarding={state.onboarding}
+                        userId={state.user?.id}
                         renderConsultationSection={(type) => (
                             <ConsultationSection
                                 type={type}

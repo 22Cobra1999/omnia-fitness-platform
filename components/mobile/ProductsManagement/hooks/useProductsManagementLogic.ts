@@ -8,6 +8,7 @@ import { Product } from "../types"
 import { useConsultationLogic } from "../tabs/ProductsTab/hooks/useConsultationLogic"
 import { useProductsFiltering } from "../tabs/ProductsTab/hooks/useProductsFiltering"
 import { useProductActions } from "../tabs/ProductsTab/hooks/useProductActions"
+import { useCoachOnboarding } from "@/hooks/coach/useCoachOnboarding"
 
 export function useProductsManagementLogic() {
     const { user, loading: authLoading } = useAuth()
@@ -23,6 +24,9 @@ export function useProductsManagementLogic() {
     const [isConditioningMode, setIsConditioningMode] = useState(false)
     const [selectedProductsForConditioning, setSelectedProductsForConditioning] = useState<number[]>([])
     const [isConditionalRulesPanelOpen, setIsConditionalRulesPanelOpen] = useState(false)
+
+// Hook 0: Onboarding Status
+    const onboarding = useCoachOnboarding(user?.id)
 
     // Hook 1: Consultation Logic
     const consultation = useConsultationLogic(user?.id)
@@ -152,7 +156,8 @@ export function useProductsManagementLogic() {
             user,
             isConditioningMode,
             selectedProductsForConditioning,
-            isConditionalRulesPanelOpen
+            isConditionalRulesPanelOpen,
+            onboarding
         },
         actions: {
             ...consultation.actions,

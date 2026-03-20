@@ -173,14 +173,23 @@ function PlanManagement() {
 
       {/* Dialog de Planes */}
       <Dialog open={showPlansDialog} onOpenChange={setShowPlansDialog}>
-        <DialogContent className="max-w-4xl max-h-[90vh] overflow-y-auto bg-black border-white/10">
-          <DialogHeader>
-            <DialogTitle className="text-xl font-semibold text-white">Planes Disponibles</DialogTitle>
-          </DialogHeader>
+        <DialogContent 
+          className="max-w-4xl w-[95vw] md:w-full max-h-[90vh] overflow-y-auto bg-black border-white/10 p-0 sm:p-6 shadow-2xl"
+          style={{
+            position: 'fixed',
+            left: '50%',
+            top: '50%',
+            transform: 'translate(-50%, -50%)',
+          }}
+        >
+          <div className="p-6">
+            <DialogHeader className="mb-6">
+              <DialogTitle className="text-2xl font-bold text-white text-center sm:text-left">Planes Disponibles</DialogTitle>
+            </DialogHeader>
 
-          <div className="space-y-4">
-            {/* Lista de planes */}
-            <div className="space-y-3">
+            <div className="space-y-6">
+              {/* Lista de planes */}
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
               {(['free', 'basico', 'black', 'premium'] as const)
                 .filter(planType => !confirmingPlan || planType === confirmingPlan)
                 .map((planType) => (
@@ -202,6 +211,7 @@ function PlanManagement() {
 
             <PlanFeaturesTable />
           </div>
+        </div>
         </DialogContent>
       </Dialog>
 

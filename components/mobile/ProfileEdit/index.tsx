@@ -12,7 +12,7 @@ import { CoachDataSection } from './components/CoachDataSection'
 import { useProfileEditLogic } from './hooks/useProfileEditLogic'
 import { ProfileEditModalProps } from './types'
 
-export function ProfileEditModal({ isOpen, onClose, editingSection, isCoach }: ProfileEditModalProps) {
+export function ProfileEditModal({ isOpen, onClose, onSaveSuccess, editingSection, isCoach }: ProfileEditModalProps) {
     const {
         loading,
         profileData,
@@ -33,19 +33,19 @@ export function ProfileEditModal({ isOpen, onClose, editingSection, isCoach }: P
         setIsGoalsPopoverOpen,
         isSportsPopoverOpen,
         setIsSportsPopoverOpen
-    } = useProfileEditLogic(isOpen, onClose)
+    } = useProfileEditLogic(isOpen, onClose, onSaveSuccess)
 
     return (
         <>
             <Dialog open={isOpen} onOpenChange={handleCloseAttempt}>
                 <DialogContent 
-                    className="p-0 border-none bg-black/95 backdrop-blur-xl max-w-lg w-full h-[90vh] md:h-[85vh] rounded-[2.5rem] shadow-[0_0_50px_rgba(0,0,0,0.5)] overflow-hidden"
+                    className="p-0 border-none bg-black/95 backdrop-blur-xl max-w-lg w-full h-[90vh] md:h-[85vh] rounded-[2.5rem] shadow-[0_0_50px_rgba(0,0,0,0.5)] overflow-hidden [&>button:last-child]:hidden"
                     style={{
                         position: 'fixed',
                         left: '50%',
                         top: '50%',
                         transform: 'translate(-50%, -50%)',
-                        zIndex: 9999
+                        zIndex: 9500
                     }}
                 >
                     {/* CUSTOM HEADER SIMÉTRICA - OMNIA STYLE */}
@@ -126,7 +126,16 @@ export function ProfileEditModal({ isOpen, onClose, editingSection, isCoach }: P
             </Dialog>
 
             <Dialog open={showDiscardConfirmation} onOpenChange={setShowDiscardConfirmation}>
-                <DialogContent className="bg-[#1A1C1F] border-white/10 text-white rounded-2xl w-[90vw] max-w-sm">
+                <DialogContent 
+                    className="bg-[#1A1C1F] border-white/10 text-white rounded-2xl w-[90vw] max-w-sm"
+                    style={{ 
+                        position: 'fixed',
+                        left: '50%',
+                        top: '50%',
+                        transform: 'translate(-50%, -50%)',
+                        zIndex: 10000 
+                    }}
+                >
                     <DialogHeader>
                         <DialogTitle>¿Perder cambios?</DialogTitle>
                         <DialogDescription className="text-gray-400">

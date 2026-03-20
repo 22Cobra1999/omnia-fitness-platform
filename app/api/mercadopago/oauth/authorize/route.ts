@@ -28,12 +28,12 @@ export async function GET(request: NextRequest) {
     }
 
     const clientId = process.env.MERCADOPAGO_CLIENT_ID?.trim();
-    const appUrl = process.env.NEXT_PUBLIC_APP_URL?.trim();
+    const appUrl = (process.env.NEXT_PUBLIC_APP_URL || 'http://localhost:3000').trim();
     const redirectUri = process.env.NEXT_PUBLIC_MERCADOPAGO_REDIRECT_URI?.trim() || 
                        `${appUrl}/api/mercadopago/oauth/callback`;
 
     if (!clientId) {
-      return NextResponse.json({ error: 'MERCADOPAGO_CLIENT_ID no configurado' }, { status: 500 });
+        return NextResponse.json({ error: 'MERCADOPAGO_CLIENT_ID no configurado' }, { status: 500 });
     }
 
     if (!redirectUri) {

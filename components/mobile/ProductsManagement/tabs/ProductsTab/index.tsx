@@ -29,6 +29,8 @@ interface ProductsTabProps {
     resetConditioning: () => void
     handleApplyConditioning: () => void
     handleSaveConditioning: (rules: any) => void
+    onboarding: any
+    userId: string | undefined
 }
 
 export const ProductsTab: React.FC<ProductsTabProps> = memo((props) => {
@@ -36,6 +38,7 @@ export const ProductsTab: React.FC<ProductsTabProps> = memo((props) => {
         <div className="space-y-6">
             <ProductsSection
                 {...props}
+                userId={props.userId}
                 convertProductToActivity={convertProductToActivity}
             />
 

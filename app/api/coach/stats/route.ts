@@ -36,16 +36,16 @@ export async function GET(request: NextRequest) {
     }
 
     // Default values if no stats found yet
-    const responseRate = stats?.response_rate ?? 0;
-    const avgResponseTimeMinutes = stats?.avg_response_time_minutes ?? 0;
+    const responseRate = stats ? stats.response_rate : null;
+    const avgResponseTimeMinutes = stats ? stats.avg_response_time_minutes : null;
     // Round to 1 decimal place for hours
-    const avgResponseTimeHours = avgResponseTimeMinutes > 0
+    const avgResponseTimeHours = (avgResponseTimeMinutes !== null && avgResponseTimeMinutes > 0)
       ? Number((avgResponseTimeMinutes / 60).toFixed(1))
-      : 0;
-    const cancellations = stats?.cancellations_count ?? 0;
-    const lateReschedules = stats?.late_reschedules_count ?? 0;
-    const attendanceRate = stats?.attendance_rate ?? 0;
-    const incidents = stats?.incidents_count ?? 0;
+      : (avgResponseTimeMinutes === 0 ? 0 : null);
+    const cancellations = stats ? stats.cancellations_count : 0;
+    const lateReschedules = stats ? stats.late_reschedules_count : 0;
+    const attendanceRate = stats ? stats.attendance_rate : null;
+    const incidents = stats ? stats.incidents_count : 0;
 
     return NextResponse.json({
       responseRate,

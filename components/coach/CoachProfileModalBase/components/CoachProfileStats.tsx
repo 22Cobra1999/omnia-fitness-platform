@@ -105,10 +105,10 @@ export const CoachProfileStats: React.FC<CoachProfileStatsProps> = ({
                                     </div>
                                     <div className="flex items-baseline gap-2">
                                         <span className="text-base font-bold text-white leading-none">
-                                            {stats ? `${Math.round(stats.response_rate)}%` : '0%'}
+                                            {stats ? `${Math.round(stats.response_rate)}%` : '-'}
                                         </span>
-                                        <span className={`text-[9px] font-bold uppercase tracking-tight ${stats ? getResponseRateLabel(stats.response_rate).color : 'text-red-400'}`}>
-                                            {stats ? getResponseRateLabel(stats.response_rate).text : 'Crítico'}
+                                        <span className={`text-[9px] font-bold uppercase tracking-tight ${stats ? getResponseRateLabel(stats.response_rate).color : 'text-zinc-500'}`}>
+                                            {stats ? getResponseRateLabel(stats.response_rate).text : 'Sin datos'}
                                         </span>
                                     </div>
                                 </div>
@@ -167,10 +167,10 @@ export const CoachProfileStats: React.FC<CoachProfileStatsProps> = ({
                                     </div>
                                     <div className="flex items-baseline gap-1.5">
                                         <span className="text-base font-bold text-white leading-none">
-                                            {stats ? `${Math.round(stats.attendance_rate)}%` : '0%'}
+                                            {stats ? `${Math.round(stats.attendance_rate)}%` : '-'}
                                         </span>
-                                        <span className={`text-[9px] font-bold uppercase tracking-tight ${(!stats || stats.attendance_rate < 80) ? 'text-[#FF7939]' : 'text-emerald-400'}`}>
-                                            {(!stats || stats.attendance_rate < 80) ? 'Mejorar' : 'Excelente'}
+                                        <span className={`text-[9px] font-bold uppercase tracking-tight ${(stats && stats.attendance_rate >= 80) ? 'text-emerald-400' : (stats ? 'text-[#FF7939]' : 'text-zinc-500')}`}>
+                                            {!stats ? 'Sin datos' : stats.attendance_rate < 80 ? 'Mejorar' : 'Excelente'}
                                         </span>
                                     </div>
                                 </div>

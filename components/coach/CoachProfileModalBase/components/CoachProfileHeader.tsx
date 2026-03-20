@@ -13,6 +13,7 @@ interface CoachProfileHeaderProps {
         specialization?: string
         certifications?: string[]
         rating?: number
+        experience_years?: number
     }
     totalSales: number | null
     onClose: () => void
@@ -47,6 +48,7 @@ export const CoachProfileHeader: React.FC<CoachProfileHeaderProps> = ({
                         certifications_count: coach.certifications?.length,
                         rating: coach.rating,
                         total_sales: totalSales,
+                        experience_years: coach.experience_years
                     }}
                     variant="modal"
                     showStreak={true}
