@@ -23,6 +23,15 @@ export interface ProfileData {
     meet_1_enabled?: boolean
     meet_30_enabled?: boolean
     category?: string
+    experience_history?: {
+        title: string
+        start_date: string
+        end_date: string | null
+        is_current?: boolean
+    }[]
+    country?: string
+    city?: string
+    neighborhood?: string
 }
 
 export interface ProfileEditErrors {

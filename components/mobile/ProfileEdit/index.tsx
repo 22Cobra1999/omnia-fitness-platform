@@ -23,6 +23,7 @@ export function ProfileEditModal({ isOpen, onClose, editingSection, isCoach }: P
         handleToggleSport,
         previewImage,
         handleImageChange,
+        handleRemoveImage,
         handleCloseAttempt,
         handleSaveProfile,
         errors,
@@ -37,19 +38,44 @@ export function ProfileEditModal({ isOpen, onClose, editingSection, isCoach }: P
     return (
         <>
             <Dialog open={isOpen} onOpenChange={handleCloseAttempt}>
-                <DialogContent className="w-[95vw] max-w-[480px] p-0 overflow-hidden bg-[#0F1012] border-white/10 text-white shadow-2xl rounded-3xl">
-                    <div className="absolute top-0 left-0 right-0 z-20 px-6 py-4 flex items-center justify-between bg-gradient-to-b from-black/80 to-transparent">
-                        <DialogTitle className="text-lg font-black text-white italic uppercase tracking-tighter">Editar Perfil</DialogTitle>
-                        <div className="flex items-center gap-2">
+                <DialogContent 
+                    className="p-0 border-none bg-black/95 backdrop-blur-xl max-w-lg w-full h-[90vh] md:h-[85vh] rounded-[2.5rem] shadow-[0_0_50px_rgba(0,0,0,0.5)] overflow-hidden"
+                    style={{
+                        position: 'fixed',
+                        left: '50%',
+                        top: '50%',
+                        transform: 'translate(-50%, -50%)',
+                        zIndex: 9999
+                    }}
+                >
+                    {/* CUSTOM HEADER SIMÉTRICA - OMNIA STYLE */}
+                    <div className="absolute top-0 left-0 right-0 z-20 px-6 py-6 flex items-center bg-gradient-to-b from-black via-black/80 to-transparent">
+                        {/* IZQUIERDA: GUARDAR */}
+                        <div className="flex-1 flex justify-start">
                             <Button
                                 onClick={handleSaveProfile}
                                 disabled={loading}
-                                className="bg-[#FF7939] hover:bg-[#FF7939]/90 text-white font-black text-xs rounded-full px-6 h-10 transition-all shadow-[0_10px_20px_rgba(255,121,57,0.2)]"
+                                className="bg-[#FF7939] hover:bg-[#FF6A00] text-black font-black text-[10px] italic h-9 px-6 rounded-full shadow-[0_4px_25px_rgba(255,121,57,0.4)] transition-all hover:scale-110 active:scale-95 uppercase tracking-widest disabled:opacity-30 border-2 border-black/20"
                             >
                                 {loading ? "..." : "GUARDAR"}
                             </Button>
-                            <button onClick={handleCloseAttempt} className="p-2 hover:bg-white/10 rounded-full transition-colors">
-                                <X className="h-5 w-5 text-gray-400" />
+                        </div>
+
+                        {/* CENTRO: TÍTULO RADICAL */}
+                        <div className="flex-[2] flex justify-center">
+                            <DialogTitle className="text-xl font-black text-white italic uppercase tracking-[0.2em] whitespace-nowrap drop-shadow-[0_2px_10px_rgba(0,0,0,0.8)]">
+                                Editar Perfil
+                            </DialogTitle>
+                        </div>
+
+                        {/* DERECHA: CRUZ DE CIERRE */}
+                        <div className="flex-1 flex justify-end">
+                            <button 
+                                type="button"
+                                onClick={handleCloseAttempt}
+                                className="p-2 text-white/40 hover:text-white transition-all transform hover:scale-125 active:scale-90"
+                            >
+                                <X className="h-6 w-6" />
                             </button>
                         </div>
                     </div>
@@ -57,7 +83,11 @@ export function ProfileEditModal({ isOpen, onClose, editingSection, isCoach }: P
                     <DialogDescription className="sr-only">Formulario para editar la información personal y profesional.</DialogDescription>
 
                     <div className="max-h-[85vh] overflow-y-auto px-6 pt-24 pb-12 space-y-8 scrollbar-hide">
-                        <ProfileImageSection previewImage={previewImage} onImageChange={handleImageChange} />
+                        <ProfileImageSection 
+                            previewImage={previewImage} 
+                            onImageChange={handleImageChange} 
+                            onRemoveImage={handleRemoveImage}
+                        />
 
                         <BasicInfoSection
                             data={profileData}

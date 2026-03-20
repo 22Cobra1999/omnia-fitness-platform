@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from 'react'
+import { useState, useEffect, useCallback, useRef } from 'react'
 import { useProfileManagement } from '@/hooks/client/use-profile-management'
 import { useToast } from "@/components/ui/use-toast"
 import { ProfileData, ProfileEditErrors } from '../types'
@@ -6,6 +6,7 @@ import { ProfileData, ProfileEditErrors } from '../types'
 export function useProfileEditLogic(isOpen: boolean, onClose: () => void) {
     const { profile, updateProfile, loading, loadProfile } = useProfileManagement()
     const { toast } = useToast()
+    const isInitialized = useRef<boolean>(false);
 
     const [profileData, setProfileData] = useState<ProfileData>({
         full_name: "",
@@ -17,7 +18,8 @@ export function useProfileEditLogic(isOpen: boolean, onClose: () => void) {
         weight: "",
         height: "",
         gender: "",
-        level: "Principiante"
+        level: "Principiante",
+        experience_history: []
     })
 
     const [goals, setGoals] = useState<string[]>([])
@@ -38,11 +40,14 @@ export function useProfileEditLogic(isOpen: boolean, onClose: () => void) {
     useEffect(() => {
         if (isOpen) {
             loadProfile(false)
+        } else {
+            isInitialized.current = false;
         }
     }, [isOpen, loadProfile])
 
+    // Solo cargar los datos iniciales UNA VEZ cuando el perfil llega
     useEffect(() => {
-        if (profile) {
+        if (isOpen && profile && !isInitialized.current) {
             let formattedBirthDate = ""
             if (profile.birth_date) {
                 const date = new Date(profile.birth_date)
@@ -56,11 +61,17 @@ export function useProfileEditLogic(isOpen: boolean, onClose: () => void) {
                     ? profile.gender
                     : ""
 
+            // Desglosar ubicación: "País, Ciudad, Barrio"
+            const parts = (profile.location || "").split(',').map(s => s.trim())
+            
             const data: ProfileData = {
                 full_name: profile.full_name || "",
                 email: profile.email || "",
                 phone: profile.phone || "",
                 location: profile.location || "",
+                country: parts[0] || "",
+                city: parts[1] || "",
+                neighborhood: parts[2] || "",
                 emergency_contact: profile.emergency_contact || "",
                 birth_date: formattedBirthDate,
                 weight: profile.weight?.toString() || "",
@@ -80,32 +91,43 @@ export function useProfileEditLogic(isOpen: boolean, onClose: () => void) {
                 meet_30: (profile as any).meet_30?.toString() || "",
                 meet_1_enabled: (profile as any).meet_1_enabled || false,
                 meet_30_enabled: (profile as any).meet_30_enabled || false,
-                category: (profile as any).category || "general"
+                category: (profile as any).category || "general",
+                experience_history: (profile as any).experience_history || []
             }
+
             setProfileData(data)
-            setPreviewImage(profile.avatar_url || null)
+            
+            // Solo sobreescribir la previsualización si el usuario NO ha elegido una imagen nueva todavía
+            if (!profileImage) {
+                setPreviewImage(profile.avatar_url || null)
+            }
 
             const profileGoals = (profile as any).fitness_goals || []
             const profileSports = (profile as any).sports || []
-
+            
             setGoals(profileGoals)
             setSports(profileSports)
 
             setInitialData({
                 ...data,
                 goals: profileGoals,
-                sports: profileSports
+                sports: profileSports,
+                avatar_url: profile.avatar_url // Guardar para referencia de borrado
             })
+
+            isInitialized.current = true;
         }
-    }, [profile])
+    }, [isOpen, profile, profileImage])
 
     const handleImageChange = (file: File) => {
         setProfileImage(file)
-        const reader = new FileReader()
-        reader.onload = (e) => {
-            setPreviewImage(e.target?.result as string)
-        }
-        reader.readAsDataURL(file)
+        const previewUrl = URL.createObjectURL(file)
+        setPreviewImage(previewUrl)
+    }
+
+    const handleRemoveImage = () => {
+        setProfileImage(null)
+        setPreviewImage(null)
     }
 
     const handleToggleGoal = (goal: string) => {
@@ -132,12 +154,15 @@ export function useProfileEditLogic(isOpen: boolean, onClose: () => void) {
 
         if (goals.length !== initialData.goals.length) return true
         if (sports.length !== initialData.sports.length) return true
-        if (goals.some(g => !initialData.goals.includes(g))) return true
-        if (sports.some(s => !initialData.sports.includes(s))) return true
         if (profileImage) return true
+        if (previewImage === null && initialData?.avatar_url !== null) return true
+
+        const historyLength = profileData.experience_history?.length || 0
+        const initialHistoryLength = initialData?.experience_history?.length || 0
+        if (historyLength !== initialHistoryLength) return true
 
         return false
-    }, [profileData, goals, sports, profileImage, initialData])
+    }, [profileData, goals, sports, profileImage, previewImage, initialData])
 
     const handleCloseAttempt = () => {
         if (hasChanges()) {
@@ -149,28 +174,40 @@ export function useProfileEditLogic(isOpen: boolean, onClose: () => void) {
 
     const handleSaveProfile = async () => {
         try {
+            const isCoach = profileData.category !== undefined
+
             const newErrors = {
                 weight: false,
                 height: false,
                 emergency_contact: false,
             }
 
-            const weightNumber = profileData.weight !== "" ? Number(profileData.weight) : NaN
-            const heightNumber = profileData.height !== "" ? Number(profileData.height) : NaN
-            const emergencyDigits = (profileData.emergency_contact || "").replace(/\D/g, "")
+            // Solo validar si NO es coach (Los coaches no ven estos campos)
+            if (!isCoach) {
+                const weightNumber = profileData.weight !== "" ? Number(profileData.weight) : NaN
+                const heightNumber = profileData.height !== "" ? Number(profileData.height) : NaN
+                const emergencyDigits = (profileData.emergency_contact || "").replace(/\D/g, "")
 
-            if (Number.isNaN(weightNumber) || weightNumber <= 0) newErrors.weight = true
-            if (Number.isNaN(heightNumber) || heightNumber <= 0) newErrors.height = true
-            if (emergencyDigits.length < 7) newErrors.emergency_contact = true
+                if (Number.isNaN(weightNumber) || weightNumber <= 0) newErrors.weight = true
+                if (Number.isNaN(heightNumber) || heightNumber <= 0) newErrors.height = true
+                if (emergencyDigits.length < 7) newErrors.emergency_contact = true
 
-            if (newErrors.weight || newErrors.height || newErrors.emergency_contact) {
-                setErrors(newErrors)
-                toast({ title: "Datos inválidos", description: "Revisa los campos marcados en rojo.", variant: "destructive" })
-                return
+                if (newErrors.weight || newErrors.height || newErrors.emergency_contact) {
+                    setErrors(newErrors)
+                    toast({ title: "Datos inválidos", description: "Revisa los campos marcados en rojo.", variant: "destructive" })
+                    return
+                }
             }
+
+            const combinedLocation = [
+                profileData.country?.trim(),
+                profileData.city?.trim(),
+                profileData.neighborhood?.trim()
+            ].filter(Boolean).join(', ')
 
             const payload = {
                 ...profileData,
+                location: combinedLocation,
                 weight: profileData.weight ? Number(profileData.weight) : 0,
                 height: profileData.height ? Number(profileData.height) : 0,
                 fitness_goals: goals,
@@ -180,11 +217,16 @@ export function useProfileEditLogic(isOpen: boolean, onClose: () => void) {
                 whatsapp: profileData.whatsapp ? Number(profileData.whatsapp) : null,
                 cafe: profileData.cafe ? Number(profileData.cafe) : null,
                 meet_1: profileData.meet_1 ? Number(profileData.meet_1) : 0,
-                meet_30: profileData.meet_30 ? Number(profileData.meet_30) : 0
+                meet_30: profileData.meet_30 ? Number(profileData.meet_30) : 0,
+                experience_history: profileData.experience_history || []
             }
 
+            // Si se eliminó la imagen (estaba antes y ahora no hay ni preview ni image nueva)
+            // Se puede enviar una señal al API si fuera necesario, por ahora lo dejamos como undefined
+            const imageToUpload = profileImage || (previewImage === null ? null : undefined)
+
             // @ts-ignore
-            await updateProfile(payload, profileImage || undefined)
+            await updateProfile(payload, imageToUpload === null ? undefined : imageToUpload)
             onClose()
         } catch (error) {
             toast({ title: "Error", description: "No se pudo guardar el perfil.", variant: "destructive" })
@@ -201,6 +243,7 @@ export function useProfileEditLogic(isOpen: boolean, onClose: () => void) {
         handleToggleSport,
         previewImage,
         handleImageChange,
+        handleRemoveImage,
         handleCloseAttempt,
         handleSaveProfile,
         errors,

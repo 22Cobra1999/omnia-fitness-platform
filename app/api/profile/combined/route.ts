@@ -104,6 +104,7 @@ export async function GET(request: NextRequest) {
       location: coachData?.location || null,
       emergency_contact: coachData?.emergency_contact || null,
       specialization: coachData?.specialization || null,
+      experience_history: coachData?.experience_history || [],
       fitness_goals: [],
       sports: []
     } : {

@@ -18,10 +18,37 @@ export async function PUT(request: NextRequest) {
 
     const full_name = formData.get('full_name') as string | null
     const email = formData.get('email') as string | null
+    const profile_image = formData.get('profile_image') as File | null
 
     const updateData: any = {}
     if (full_name !== null && full_name !== undefined) updateData.full_name = full_name
     if (email !== null && email !== undefined) updateData.email = email
+
+    // PROCESAR IMAGEN DE PERFIL SI EXISTE
+    if (profile_image && profile_image.size > 0) {
+      try {
+        const fileExt = profile_image.name.split('.').pop()
+        const fileName = `${user.id}-${Date.now()}.${fileExt}`
+        
+        // Subir al bucket 'product-media' en la subcarpeta 'avatars/'
+        const { error: uploadError } = await supabase.storage
+          .from('product-media')
+          .upload(`avatars/${fileName}`, profile_image)
+
+        if (uploadError) {
+          console.error('Error uploading image to storage:', uploadError)
+        } else {
+          // Obtener URL pública desde el bucket correcto
+          const { data: { publicUrl } } = supabase.storage
+            .from('product-media')
+            .getPublicUrl(`avatars/${fileName}`)
+          
+          updateData.avatar_url = publicUrl
+        }
+      } catch (err) {
+        console.error('Error processing profile image:', err)
+      }
+    }
 
     // Si no hay nada para actualizar, devolver el perfil actual
     if (Object.keys(updateData).length === 0) {

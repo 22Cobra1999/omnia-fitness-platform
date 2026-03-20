@@ -50,7 +50,7 @@ export function useProfileActions({
                     'specialization', 'experience_years', 'whatsapp',
                     'instagram_username', 'bio', 'cafe', 'cafe_enabled',
                     'meet_1', 'meet_30', 'meet_1_enabled',
-                    'meet_30_enabled', 'category'
+                    'meet_30_enabled', 'category', 'experience_history'
                 ]
                 coachFields.forEach(field => {
                     if ((profileData as any)[field] !== undefined) {
@@ -71,7 +71,10 @@ export function useProfileActions({
 
             const profileFormData = new FormData()
             Object.entries(profileSpecificData).forEach(([key, value]) => {
-                if (value !== undefined && value !== null) profileFormData.append(key, value.toString())
+                if (value !== undefined && value !== null) {
+                    const formattedValue = typeof value === 'object' ? JSON.stringify(value) : value.toString()
+                    profileFormData.append(key, formattedValue)
+                }
             })
 
             const profileResponse = await fetch(isCoach ? '/api/profile/coach' : '/api/profile/client', { method: 'PUT', body: profileFormData })

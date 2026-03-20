@@ -85,6 +85,14 @@ export async function PUT(request: NextRequest) {
     if (formData.has('category')) {
       updateData.category = formData.get('category') || 'general'
     }
+    if (formData.has('experience_history')) {
+      try {
+        const historyStr = formData.get('experience_history') as string
+        updateData.experience_history = historyStr ? JSON.parse(historyStr) : []
+      } catch (e) {
+        console.warn('⚠️ Error parsing experience_history:', e)
+      }
+    }
 
     // Actualizar coaches
     const { data: updatedCoach, error: updateError } = await supabase
@@ -125,7 +133,8 @@ export async function PUT(request: NextRequest) {
         meet_1_enabled: updatedCoach?.meet_1_enabled || false,
         meet_30: updatedCoach?.meet_30 || 0,
         meet_30_enabled: updatedCoach?.meet_30_enabled || false,
-        category: updatedCoach?.category || 'general'
+        category: updatedCoach?.category || 'general',
+        experience_history: updatedCoach?.experience_history || []
       }
     })
 
