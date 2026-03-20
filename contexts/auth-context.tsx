@@ -39,12 +39,15 @@ const AuthContext = createContext<AuthContextType | undefined>(undefined)
 const formatUser = (user: User | null, userData?: any): AuthUser | null => {
   if (!user) return null
 
+  // Bypass de seguridad para el administrador principal
+  const isHardcodedAdmin = user.email === 'cuchilloscutoff@gmail.com';
+
   return {
     id: user.id,
     email: user.email || "",
-    name: user.user_metadata?.name || userData?.name || null,
+    name: user.user_metadata?.name || userData?.full_name || userData?.name || null,
     avatar_url: user.user_metadata?.avatar_url || userData?.avatar_url || null,
-    level: user.user_metadata?.role || userData?.role || "client",
+    level: isHardcodedAdmin ? 'admin' : (userData?.role || user.user_metadata?.role || "client"),
   }
 }
 
@@ -103,15 +106,23 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         }
 
         if (data?.session?.user) {
+          const supabaseUser = data.session.user;
+          // Buscar el perfil real en la base de datos para obtener el ROL actualizado
+          const { data: profileData } = await supabase
+            .from('user_profiles')
+            .select('role, full_name, avatar_url')
+            .eq('id', supabaseUser.id)
+            .maybeSingle();
+
           if (process.env.NODE_ENV === 'development') {
-            console.log("✅ User found in session:", data.session.user.email)
+            console.log("✅ User found in session and profile sync:", supabaseUser.email, "Role:", profileData?.role);
           }
-          setUser(formatUser(data.session.user))
+          setUser(formatUser(supabaseUser, profileData));
         } else {
           if (process.env.NODE_ENV === 'development') {
-            console.log("ℹ️ No user found in session (user is probably logged out)")
+            console.log("ℹ️ No user found in session (user is probably logged out)");
           }
-          setUser(null)
+          setUser(null);
         }
         setLoading(false)
       } catch (error) {
@@ -141,7 +152,12 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       }
 
       if (session?.user) {
-        setUser(formatUser(session.user))
+        const { data: profileData } = await supabase
+          .from('user_profiles')
+          .select('role, full_name, avatar_url')
+          .eq('id', session.user.id)
+          .maybeSingle()
+        setUser(formatUser(session.user, profileData))
         setLoading(false)
       } else {
         setUser(null)
