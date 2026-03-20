@@ -1,24 +1,12 @@
 import { NextResponse } from 'next/server';
 import { getSupabaseAdmin } from '@/lib/config/db';
-import { createServerClient } from '@supabase/ssr'
-import { cookies } from 'next/headers';
+import { createRouteHandlerClient } from '@/lib/supabase/supabase-server';
 
 export async function GET() {
   try {
-    const cookieStore = cookies();
+    // Usar el helper oficial del proyecto que ya maneja cookies asíncronas perfectamente
+    const supabase = await createRouteHandlerClient();
     
-    const supabase = createServerClient(
-      process.env.NEXT_PUBLIC_SUPABASE_URL!,
-      process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
-      {
-        cookies: {
-          get(name: string) {
-            return cookieStore.get(name)?.value
-          },
-        },
-      }
-    )
-
     const { data: { session } } = await supabase.auth.getSession();
 
     if (!session) return NextResponse.json({ error: 'No authenticated' }, { status: 401 });
@@ -54,6 +42,7 @@ export async function GET() {
     });
 
   } catch (error: any) {
+    console.error('❌ [AdminFinanceAPI] Error crítico:', error);
     return NextResponse.json({ error: error.message }, { status: 500 });
   }
 }
