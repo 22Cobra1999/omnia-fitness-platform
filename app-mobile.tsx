@@ -63,12 +63,6 @@ function MobileAppContent({ initialTab, initialCategoryId, initialActivityId, in
     }
   }
   const userRole = user?.level || "client"
-
-  // ✅ SMART-SWITCH: Si el usuario es ADMIN, transformamos la App en Dashboard de Finanzas
-  if (userRole === 'admin') {
-    return <AdminFinanceDashboard />
-  }
-
   const searchParams = useSearchParams()
 
   const urlTabs = ['community', 'search', 'calendar', 'activity', 'profile', 'messages', 'clients', 'products-management']
@@ -428,6 +422,11 @@ function MobileAppContent({ initialTab, initialCategoryId, initialActivityId, in
         <p className="text-white">Cargando...</p>
       </div>
     )
+  }
+
+  // ✅ SMART-SWITCH: Si el usuario es ADMIN, lo detectamos aquí al final (después de todos los hooks)
+  if (userRole === 'admin') {
+    return <AdminFinanceDashboard />
   }
 
   return (
