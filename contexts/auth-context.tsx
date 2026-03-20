@@ -117,12 +117,12 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
             .select('role')
             .eq('id', supabaseUser.id)
             .maybeSingle()
-            .then(({ data: profileData }) => {
+            .then(({ data: profileData }: { data: any }) => {
               if (profileData && mounted) {
                 console.log("🔄 [auth-context] Perfil sincronizado en segundo plano:", profileData.role);
                 setUser(formatUser(supabaseUser, profileData));
               }
-            }).catch(e => console.warn("Error en background profile fetch:", e));
+            }).catch((e: any) => console.warn("Error en background profile fetch:", e));
         } else {
           if (process.env.NODE_ENV === 'development') {
             console.log("ℹ️ No user found in session (user is probably logged out)");
@@ -168,7 +168,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
           .select('role')
           .eq('id', session.user.id)
           .maybeSingle()
-          .then(({ data: profileData }) => {
+          .then(({ data: profileData }: { data: any }) => {
             if (profileData && mounted) {
               setUser(formatUser(session.user, profileData));
             }

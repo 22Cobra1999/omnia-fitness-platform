@@ -5,7 +5,7 @@ import { cookies } from 'next/headers';
 
 export async function GET() {
   try {
-    const supabase = createRouteHandlerClient({ cookies });
+    const supabase = createRouteHandlerClient({ cookies: () => cookies() });
     const { data: { session } } = await supabase.auth.getSession();
 
     if (!session) return NextResponse.json({ error: 'No authenticated' }, { status: 401 });
