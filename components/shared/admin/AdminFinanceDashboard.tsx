@@ -349,14 +349,14 @@ export default function AdminFinanceDashboard() {
         </div>
       </footer>
 
-      <style jsx global>{\`
+      <style jsx global>{`
         @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;700;900&display=swap');
         body { font-family: 'Inter', sans-serif; background-color: #080808; }
         ::-webkit-scrollbar { width: 5px; height: 5px; }
         ::-webkit-scrollbar-track { background: transparent; }
         ::-webkit-scrollbar-thumb { background: #333; border-radius: 10px; }
         ::-webkit-scrollbar-thumb:hover { background: #444; }
-      \`}</style>
+      `}</style>
     </div>
   );
 }
