@@ -284,7 +284,7 @@ export default function AdminFinanceDashboard() {
         </div>
       </main>
 
-      <style jsx global>{\`
+      <style jsx global>{`
         @import url('https://fonts.googleapis.com/css2?family=Inter:ital,wght@0,400;0,700;0,900;1,900&display=swap');
         body { font-family: 'Inter', sans-serif; background-color: #080808; margin: 0; }
         .shadow-glow { filter: drop-shadow(0 0 8px #FF7939); }
@@ -294,7 +294,7 @@ export default function AdminFinanceDashboard() {
         ::-webkit-scrollbar-thumb:hover { background: #333; }
         .animate-in { animation: slideIn 0.3s ease-out forwards; }
         @keyframes slideIn { from { opacity: 0; transform: translateY(-10px); } to { opacity: 1; transform: translateY(0); } }
-      \`}</style>
+      `}</style>
     </div>
   );
 }
