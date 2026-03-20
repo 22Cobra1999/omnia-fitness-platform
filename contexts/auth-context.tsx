@@ -107,18 +107,22 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
         if (data?.session?.user) {
           const supabaseUser = data.session.user;
-          try {
-            // Buscar el perfil real pero con manejo de errores robusto
-            const { data: profileData } = await supabase
-              .from('user_profiles')
-              .select('role') // Traemos solo el rol por ahora para mayor velocidad
-              .eq('id', supabaseUser.id)
-              .maybeSingle();
-            setUser(formatUser(supabaseUser, profileData));
-          } catch (profileError) {
-            console.warn("⚠️ [auth-context] No se pudo obtener el perfil de la DB, usando sesión:", profileError);
-            setUser(formatUser(supabaseUser));
-          }
+          // Primero seteamos el usuario con lo que tenemos para desbloquear la UI inmediatamente
+          setUser(formatUser(supabaseUser));
+          setLoading(false);
+
+          // Luego, en SEGUNDO PLANO, buscamos el perfil de la DB
+          supabase
+            .from('user_profiles')
+            .select('role')
+            .eq('id', supabaseUser.id)
+            .maybeSingle()
+            .then(({ data: profileData }) => {
+              if (profileData && mounted) {
+                console.log("🔄 [auth-context] Perfil sincronizado en segundo plano:", profileData.role);
+                setUser(formatUser(supabaseUser, profileData));
+              }
+            }).catch(e => console.warn("Error en background profile fetch:", e));
         } else {
           if (process.env.NODE_ENV === 'development') {
             console.log("ℹ️ No user found in session (user is probably logged out)");
@@ -154,18 +158,21 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       }
 
       if (session?.user) {
-        try {
-          const { data: profileData } = await supabase
-            .from('user_profiles')
-            .select('role')
-            .eq('id', session.user.id)
-            .maybeSingle()
-          setUser(formatUser(session.user, profileData))
-        } catch (e) {
-          setUser(formatUser(session.user))
-        } finally {
-          setLoading(false)
-        }
+        // Desbloquear UI inmediatamente
+        setUser(formatUser(session.user));
+        setLoading(false);
+
+        // Sincronizar en background
+        supabase
+          .from('user_profiles')
+          .select('role')
+          .eq('id', session.user.id)
+          .maybeSingle()
+          .then(({ data: profileData }) => {
+            if (profileData && mounted) {
+              setUser(formatUser(session.user, profileData));
+            }
+          });
       } else {
         setUser(null)
         setLoading(false)
@@ -174,9 +181,18 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
     loadUser()
 
+    // 🛡️ FAIL-SAFE: Seguro de vida para evitar que el usuario se quede bloqueado en "Validando"
+    const lifeInsurance = setTimeout(() => {
+      if (mounted) {
+        console.warn("🛡️ [auth-context] FAIL-SAFE: Forzando fin de carga tras 7 segundos");
+        setLoading(false);
+      }
+    }, 7000);
+
     // Clean up subscription on unmount
     return () => {
       mounted = false
+      clearTimeout(lifeInsurance);
       subscription.unsubscribe()
     }
   }, [supabase])
