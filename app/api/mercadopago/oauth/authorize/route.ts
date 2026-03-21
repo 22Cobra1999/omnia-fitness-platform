@@ -46,7 +46,7 @@ export async function GET(request: NextRequest) {
     const timestamp = Date.now();
     
     // URL de autorización con todos los parámetros para forzar login
-    // Usar auth.mercadopago.com.ar en lugar de .com para Argentina
+    // Usar auth.mercadopago.com.ar para Argentina
     const authUrl = new URL('https://auth.mercadopago.com.ar/authorization');
     authUrl.searchParams.set('client_id', clientId);
     authUrl.searchParams.set('response_type', 'code');
@@ -54,24 +54,23 @@ export async function GET(request: NextRequest) {
     authUrl.searchParams.set('redirect_uri', redirectUri);
     authUrl.searchParams.set('state', stateWithTimestamp);
     
-    // Forzar pantalla de login siempre - múltiples parámetros para asegurar
-    // prompt=login: fuerza mostrar la pantalla de login incluso si hay sesión activa
+    // Forzar pantalla de login siempre
+    // prompt=login: estándar OIDC para forzar login
     authUrl.searchParams.set('prompt', 'login');
     
-    // force_login: fuerza mostrar la pantalla de login incluso si hay sesión activa
+    // force_login=true: específico de Mercado Pago para forzar login
     authUrl.searchParams.set('force_login', 'true');
     
-    // Agregar parámetro de no-cache para evitar reutilización de sesión
-    authUrl.searchParams.set('_', timestamp.toString());
-    
-    // Agregar parámetro adicional para forzar nueva sesión
+    // approval_prompt=force: para requerir autorización incluso si ya se dio antes
     authUrl.searchParams.set('approval_prompt', 'force');
     
-    // Agregar parámetro para forzar selección de cuenta
+    // select_account=true: ayuda a que el usuario pueda elegir otra cuenta
     authUrl.searchParams.set('select_account', 'true');
     
-    // Agregar parámetro adicional para evitar reutilización de sesión
+    // Cache busting y sesión única
+    authUrl.searchParams.set('_', timestamp.toString());
     authUrl.searchParams.set('session_id', `omnia_${timestamp}`);
+    authUrl.searchParams.set('max_age', '0');
 
     const finalAuthUrl = authUrl.toString();
     console.log('🔗 URL de autorización limpia:', finalAuthUrl);
