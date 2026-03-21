@@ -18,47 +18,23 @@ export function useCoachOnboarding(userId: string | undefined) {
         if (!userId) return
         
         try {
-            const supabase = createClient()
+            console.log("🔄 [Onboarding] Checking status via API for:", userId)
+            const response = await fetch('/api/coach/onboarding-status')
             
-            // 1. Check Profile Completion
-            const { data: coach } = await supabase
-                .from('coaches')
-                .select('bio, avatar_url, specialization')
-                .eq('id', userId)
-                .single()
-            
-            const { data: userProfile } = await supabase
-                .from('user_profiles')
-                .select('avatar_url')
-                .eq('id', userId)
-                .single()
-
-            const hasAvatar = !!(coach?.avatar_url || userProfile?.avatar_url)
-            const hasBio = coach?.bio && !coach.bio.includes("Trainer entusiasta en OMNIA")
-            const hasSpecialization = !!coach?.specialization && coach.specialization !== 'General Fitness'
-            
-            // Consideramos perfil incompleto si no tiene foto O no cambió la bio/especialidad básica
-            const needsProfile = !hasAvatar || (!hasBio && !hasSpecialization)
-
-            // 2. Check Mercado Pago
-            const { data: mp, error: mpError } = await supabase
-                .from('coach_mercadopago_credentials')
-                .select('oauth_authorized')
-                .eq('coach_id', userId)
-                .maybeSingle()
-            
-            if (mpError) {
-                console.error("❌ [Onboarding] Error searching credentials:", mpError)
+            if (!response.ok) {
+                throw new Error(`Onboarding API Error: ${response.status}`)
             }
             
-            const needsMP = !mp?.oauth_authorized
-            console.log("📊 [Onboarding] Check complete for", userId, ":", { needsProfile, needsMP, hasMPData: !!mp })
-
-            setStatus({
-                needsProfile,
-                needsMP,
-                loading: false
-            })
+            const data = await response.json()
+            
+            if (data.success) {
+                console.log("📊 [Onboarding] API check result:", data)
+                setStatus({
+                    needsProfile: data.needsProfile,
+                    needsMP: data.needsMP,
+                    loading: false
+                })
+            }
         } catch (error) {
             console.error("❌ [Onboarding] Unexpected error during check:", error)
             setStatus(prev => ({ ...prev, loading: false }))
