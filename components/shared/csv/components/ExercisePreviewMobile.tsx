@@ -1,7 +1,8 @@
 import React, { useState } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
-import { Play, Clock, Flame, Dumbbell, Edit2, Info, Layout, List, Search } from 'lucide-react'
+import { Play, Clock, Flame, Dumbbell, Edit2, Info, Layout, List, Search, Plus, X, ChevronDown } from 'lucide-react'
 import { Badge } from '@/components/ui/badge'
+import { Button } from '@/components/ui/button'
 import { ManualFormState } from '../types'
 import { UniversalVideoPlayer } from '@/components/shared/video/universal-video-player'
 
@@ -14,35 +15,69 @@ interface ExercisePreviewMobileProps {
 }
 
 export function ExercisePreviewMobile({ formState, onChange, onVideoSelect, activeTab, onTabChange }: ExercisePreviewMobileProps) {
+    const [editingIndex, setEditingIndex] = useState<number | null>(null)
+    const [tempSet, setTempSet] = useState<{ p: string; r: string; s: string }>({ p: '', r: '', s: '' })
 
-    const seriesItems = formState.detalle_series?.split(';').filter(Boolean) || []
-    const bodyParts = formState.partes_cuerpo?.split(';').filter(Boolean) || []
+    const seriesArray = (formState.detalle_series || '').split(';').filter(Boolean).map(item => {
+        const parts = item.replace(/[()]/g, '').split('-')
+        return { p: parts[0] || '0', r: parts[1] || '0', s: parts[2] || '1' }
+    })
+    const bodyParts = (formState.partes_cuerpo || '').split(';').filter(Boolean)
+
+    const saveSet = (index: number) => {
+        const newArray = [...seriesArray]
+        newArray[index] = tempSet
+        const newValue = newArray.map(set => `(${set.p}-${set.r}-${set.s})`).join(';')
+        onChange('detalle_series', newValue)
+        setEditingIndex(null)
+    }
+
+    const startEditing = (index: number) => {
+        setEditingIndex(index)
+        setTempSet(seriesArray[index])
+    }
+
+    const addNewSet = () => {
+        const newSet = { p: '0', r: '12', s: '3' }
+        const newArray = [...seriesArray, newSet]
+        const newValue = newArray.map(set => `(${set.p}-${set.r}-${set.s})`).join(';')
+        onChange('detalle_series', newValue)
+        setEditingIndex(newArray.length - 1)
+        setTempSet(newSet)
+    }
+
+    const removeSet = (index: number) => {
+        const newArray = seriesArray.filter((_, i) => i !== index)
+        const newValue = newArray.map(set => `(${set.p}-${set.r}-${set.s})`).join(';')
+        onChange('detalle_series', newValue)
+        if (editingIndex === index) setEditingIndex(null)
+    }
 
     return (
-        <div className="relative w-full max-w-[380px] mx-auto bg-black rounded-[4rem] border-[10px] border-zinc-900 overflow-hidden shadow-[0_0_80px_rgba(0,0,0,0.8)] aspect-[9/19.5] flex flex-col font-sans select-none ring-1 ring-white/10">
+        <div className="relative w-full max-w-[420px] mx-auto bg-black rounded-[4.5rem] border-[12px] border-zinc-900 overflow-hidden shadow-[0_0_100px_rgba(0,0,0,0.9)] aspect-[9/19.5] flex flex-col font-sans select-none ring-1 ring-white/10">
             {/* Notch Area */}
-            <div className="absolute top-0 left-1/2 -translate-x-1/2 w-36 h-7 bg-zinc-900 rounded-b-3xl z-50 flex items-center justify-center">
-                 <div className="w-12 h-1 bg-zinc-800 rounded-full" />
+            <div className="absolute top-0 left-1/2 -translate-x-1/2 w-40 h-8 bg-zinc-900 rounded-b-[2rem] z-50 flex items-center justify-center">
+                 <div className="w-14 h-1.5 bg-zinc-800 rounded-full" />
             </div>
 
             {/* Content Area */}
-            <div className="flex-1 overflow-y-auto px-6 pt-16 pb-8 scrollbar-hide bg-black">
+            <div className="flex-1 overflow-y-auto px-7 pt-16 pb-8 scrollbar-hide bg-black">
                 
-                {/* Header Icon */}
-                <div className="flex justify-center mb-6">
-                    <div className="w-6 h-6 flex items-center justify-center">
-                        <Flame className="h-5 w-5 text-[#FF7939] fill-[#FF7939] animate-pulse" />
-                    </div>
+                {/* Header Context */}
+                <div className="flex flex-col items-center mb-8">
+                    <span className="text-[10px] font-black tracking-[0.4em] text-zinc-600 uppercase mb-2">CREAR EJERCICIO</span>
+                    <input 
+                        type="text"
+                        value={formState.nombre}
+                        onChange={(e) => onChange('nombre', e.target.value)}
+                        placeholder="NOMBRE DEL EJERCICIO..."
+                        className="w-full bg-transparent text-center text-white font-[900] text-[24px] leading-[1.1] tracking-tighter uppercase italic italic font-sans px-2 border-none focus:outline-none focus:ring-0 placeholder:text-zinc-800"
+                    />
                 </div>
-
-                {/* Title */}
-                <h2 className="text-center text-white font-[900] text-[22px] leading-[1.1] tracking-tighter uppercase mb-8 italic italic font-sans px-2">
-                    {formState.nombre || 'PRESS CON MANCUERNAS EN BANCO PLANO'}
-                </h2>
 
                 {/* Video Playback Section */}
                 <div 
-                    className="relative aspect-video bg-zinc-900 rounded-[2.5rem] overflow-hidden mb-10 group cursor-pointer border border-white/5 shadow-2xl"
+                    className="relative aspect-video bg-zinc-900 rounded-[2.5rem] overflow-hidden mb-8 group cursor-pointer border border-white/5 shadow-2xl"
                     onClick={onVideoSelect}
                 >
                     {formState.video_url || formState.bunny_video_id ? (
@@ -54,188 +89,183 @@ export function ExercisePreviewMobile({ formState, onChange, onVideoSelect, acti
                         />
                     ) : (
                         <div className="w-full h-full flex flex-col items-center justify-center bg-zinc-900/50 text-zinc-500">
-                             <Play className="h-12 w-12 mb-3 fill-[#FF7939] text-[#FF7939] opacity-80" />
-                             <span className="text-[9px] uppercase font-black tracking-[0.2em] text-[#FF7939]">SELECCIONAR VIDEO</span>
+                             <div className="w-16 h-16 rounded-full bg-[#FF7939] flex items-center justify-center shadow-[0_0_30px_rgba(255,121,57,0.4)] mb-3">
+                                <Play className="h-8 w-8 fill-white text-white ml-1" />
+                             </div>
+                             <span className="text-[10px] uppercase font-black tracking-widest text-zinc-500">SUBIR VIDEO</span>
                         </div>
                     )}
                     
-                    {/* Fake Progress Bar exactly as image */}
-                    <div className="absolute bottom-6 left-6 right-6 h-1.5 bg-white/20 rounded-full overflow-hidden backdrop-blur-md">
+                    {/* Fake Progress Bar */}
+                    <div className="absolute bottom-6 left-6 right-6 h-1 bg-white/20 rounded-full overflow-hidden">
                         <div className="h-full w-2/5 bg-[#FF7939]" />
                     </div>
-                    <div className="absolute bottom-3 left-6 text-[11px] text-white/80 font-bold tracking-tight">00:32 / 01:15</div>
                 </div>
 
                 {/* Metrics Pill (THE PILL) */}
-                <div className="flex items-center justify-between bg-zinc-900/30 rounded-[2rem] pl-6 pr-2 py-2 border border-white/10 mb-10 shadow-xl">
-                    <div className="flex items-center gap-2">
-                        <Clock className="h-4 w-4 text-zinc-500" />
-                        <span className="text-[13px] font-black text-white/90 uppercase">{formState.duracion_min || '12'} MIN</span>
+                <div className="grid grid-cols-[1fr,1fr,auto] gap-2 mb-8">
+                    <div className="flex items-center gap-2 bg-zinc-900/40 rounded-[1.5rem] px-4 py-3 border border-white/10">
+                        <Clock className="h-4 w-4 text-zinc-600" />
+                        <input 
+                            type="number"
+                            value={formState.duracion_min}
+                            onChange={(e) => onChange('duracion_min', e.target.value)}
+                            className="w-full bg-transparent text-[13px] font-black text-white/90 uppercase border-none focus:outline-none p-0"
+                            placeholder="12"
+                        />
+                        <span className="text-[10px] font-black text-zinc-600">MIN</span>
                     </div>
-                    <div className="flex items-center gap-2">
-                        <Flame className="h-4 w-4 text-zinc-500" />
-                        <span className="text-[13px] font-black text-white/90 uppercase">~{formState.calorias || '70'} KCAL</span>
+                    <div className="flex items-center gap-2 bg-zinc-900/40 rounded-[1.5rem] px-4 py-3 border border-white/10">
+                        <Flame className="h-4 w-4 text-zinc-600" />
+                        <input 
+                            type="number"
+                            value={formState.calorias}
+                            onChange={(e) => onChange('calorias', e.target.value)}
+                            className="w-full bg-transparent text-[13px] font-black text-white/90 uppercase border-none focus:outline-none p-0"
+                            placeholder="70"
+                        />
+                        <span className="text-[10px] font-black text-zinc-600">KC</span>
                     </div>
-                    <div className="bg-[#FF7939]/10 border border-[#FF7939]/30 rounded-2xl px-5 py-2">
-                        <span className="text-[#FF7939] text-[11px] font-[1000] uppercase tracking-wider italic italic">
-                            {formState.tipo_ejercicio || 'FUERZA'}
-                        </span>
-                    </div>
-                </div>
-
-                {/* Tabs Styling like image */}
-                <div className="flex justify-between border-b border-white/5 mb-8">
-                    {(['series', 'musculos', 'tecnica'] as const).map((tab) => (
-                        <button
-                            key={tab}
-                            onClick={() => onTabChange(tab)}
-                            className={`pb-3 px-2 text-[12px] font-black uppercase tracking-widest transition-all relative ${
-                                activeTab === tab ? 'text-white' : 'text-zinc-600'
-                            }`}
+                    <div className="bg-[#FF7939] rounded-[1.2rem] px-4 py-3 flex items-center justify-center shadow-[0_5px_15px_rgba(255,121,57,0.3)]">
+                        <select 
+                            value={formState.tipo_ejercicio || 'FUERZA'}
+                            onChange={(e) => onChange('tipo_ejercicio', e.target.value)}
+                            className="bg-transparent text-white text-[11px] font-black uppercase tracking-wider italic italic border-none focus:outline-none appearance-none cursor-pointer"
                         >
-                            <span className="italic italic">
-                                {tab === 'musculos' ? 'MúSCULOS' : tab === 'tecnica' ? 'TéCNICA' : tab}
-                            </span>
-                            {activeTab === tab && (
-                                <motion.div 
-                                    layoutId="activeTabMobile"
-                                    className="absolute bottom-0 left-0 right-0 h-1 bg-[#FF7939] rounded-full"
-                                />
-                            )}
-                        </button>
-                    ))}
+                            <option value="FUERZA" className="bg-zinc-900">FUERZA</option>
+                            <option value="CARDIO" className="bg-zinc-900">CARDIO</option>
+                            <option value="HIIT" className="bg-zinc-900">HIIT</option>
+                            <option value="ESTIRAM" className="bg-zinc-900">RECOVERY</option>
+                        </select>
+                    </div>
                 </div>
 
-                {/* Tab Content */}
-                <div className="min-h-[200px]">
-                    <AnimatePresence mode="wait">
-                        {activeTab === 'series' && (
-                            <motion.div
-                                key="series"
-                                initial={{ opacity: 0, y: 10 }}
-                                animate={{ opacity: 1, y: 0 }}
-                                exit={{ opacity: 0, y: -10 }}
-                                className="space-y-5"
-                            >
-                                {seriesItems.length > 0 ? (
-                                    seriesItems.map((item: string, idx: number) => {
-                                        const parts = item.replace(/[()]/g, '').split('-')
-                                        return (
-                                            <div key={idx} className="bg-[#111] rounded-[2rem] p-5 flex items-center justify-between border border-white/5 shadow-[0_10px_30px_rgba(0,0,0,0.5)] group relative overflow-hidden">
-                                                <div className="flex items-center gap-5">
-                                                    {/* Numbered Circle with glow */}
-                                                    <div className="w-12 h-12 rounded-full bg-[#FF7939] text-white flex items-center justify-center font-black text-lg shadow-[0_0_20px_rgba(255,121,57,0.4)] border border-white/20">
-                                                        {idx + 1}
-                                                    </div>
-                                                    <div className="flex gap-6">
-                                                        <div className="text-center">
-                                                            <div className="text-white font-black text-lg leading-none mb-1">{parts[2] || '3'}</div>
-                                                            <div className="text-[9px] text-zinc-500 uppercase font-black tracking-tighter opacity-70">Series</div>
-                                                        </div>
-                                                        <div className="text-center text-[#111]">
-                                                            <div className="text-white font-black text-lg leading-none mb-1">{parts[1] || '12'}</div>
-                                                            <div className="text-[9px] text-zinc-500 uppercase font-black tracking-tighter opacity-70">Reps</div>
-                                                        </div>
-                                                        <div className="text-center">
-                                                            <div className="text-white font-black text-lg leading-none mb-1">{parts[0] || '40kg'}</div>
-                                                            <div className="text-[9px] text-zinc-500 uppercase font-black tracking-tighter opacity-70">Peso</div>
-                                                        </div>
-                                                    </div>
-                                                </div>
-                                                <button 
-                                                    className="w-10 h-10 rounded-2xl bg-zinc-900 border border-white/10 flex items-center justify-center group-hover:bg-[#FF7939]/10 group-hover:border-[#FF7939]/30 transition-all shadow-inner"
-                                                >
-                                                    <Edit2 className="h-4 w-4 text-[#FF7939]" />
-                                                </button>
-                                            </div>
-                                        )
-                                    })
-                                ) : (
-                                    /* Empty state matching the card style */
-                                    <div className="bg-[#111] rounded-[2.5rem] p-10 border border-white/5 flex flex-col items-center justify-center text-center opacity-40">
-                                         <List className="h-10 w-10 text-zinc-700 mb-4" />
-                                         <p className="text-[12px] text-zinc-600 uppercase font-black italic tracking-widest">Sin Series</p>
+                {/* Inline Series Editor */}
+                <div className="space-y-4 mb-8">
+                    {seriesArray.map((set, idx) => (
+                        <div key={idx} className={`bg-[#111] rounded-[2.5rem] p-5 border border-white/5 shadow-2xl transition-all ${editingIndex === idx ? 'ring-2 ring-[#FF7939]/50 scale-[1.02]' : ''}`}>
+                            {editingIndex === idx ? (
+                                <div className="flex items-center gap-4 animate-in fade-in zoom-in-95">
+                                    <div className="w-12 h-12 rounded-full bg-[#FF7939] text-white flex items-center justify-center font-black text-lg shadow-[0_0_20px_rgba(255,121,57,0.4)]">
+                                        {idx + 1}
                                     </div>
-                                )}
-                            </motion.div>
-                        )}
-
-                        {activeTab === 'musculos' && (
-                            <motion.div
-                                key="musculos"
-                                initial={{ opacity: 0, scale: 0.95 }}
-                                animate={{ opacity: 1, scale: 1 }}
-                                exit={{ opacity: 0, scale: 1.05 }}
-                                className="flex flex-wrap gap-3 pt-2"
-                            >
-                                {bodyParts.length > 0 ? (
-                                    bodyParts.map((part: string, idx: number) => (
-                                        <div key={idx} className="bg-zinc-900/80 px-5 py-3 rounded-[1.5rem] border border-white/10 text-zinc-100 text-[12px] font-black uppercase tracking-[0.1em] italic transition-all hover:bg-[#FF7939]/20 hover:border-[#FF7939]/30">
-                                            {part}
+                                    <div className="flex gap-2 flex-1 items-center">
+                                        <div className="flex-[0.8] text-center">
+                                            <div className="text-white font-black text-lg leading-none mb-1">{tempSet.s}</div>
+                                            <div className="text-[8px] text-zinc-500 uppercase font-black tracking-widest opacity-60">SERIES</div>
                                         </div>
-                                    ))
-                                ) : (
-                                    <div className="w-full text-center py-20 opacity-30">
-                                        <p className="text-[10px] font-black uppercase italic tracking-widest text-zinc-500">Completa partes del cuerpo en el formulario</p>
+                                        <div className="flex-[0.8] text-center">
+                                            <div className="text-white font-black text-lg leading-none mb-1">{tempSet.r}</div>
+                                            <div className="text-[8px] text-zinc-500 uppercase font-black tracking-widest opacity-60">REPS</div>
+                                        </div>
+                                        
+                                        <div className="flex-1 relative">
+                                            <select 
+                                                value={tempSet.r}
+                                                onChange={(e) => setTempSet({...tempSet, r: e.target.value})}
+                                                className="w-full bg-zinc-900 border border-white/10 rounded-xl px-3 py-2 text-white font-black text-sm appearance-none focus:outline-none focus:border-[#FF7939]"
+                                            >
+                                                {[8,10,12,14,15,20].map(v => <option key={v} value={v} className="bg-zinc-900">{v}</option>)}
+                                            </select>
+                                            <ChevronDown className="absolute right-2 top-1/2 -translate-y-1/2 h-3 w-3 text-zinc-500 pointer-events-none" />
+                                        </div>
+
+                                        <div className="flex-[1.5] relative">
+                                            <input 
+                                                type="text" 
+                                                value={tempSet.p} 
+                                                onChange={(e) => setTempSet({...tempSet, p: e.target.value})}
+                                                className="w-full bg-zinc-900 border border-white/10 rounded-xl px-3 py-2 text-white font-black text-sm pr-7 focus:outline-none focus:border-[#FF7939]"
+                                                placeholder="35kg"
+                                            />
+                                            <ChevronDown className="absolute right-2 top-1/2 -translate-y-1/2 h-4 w-4 text-zinc-500 pointer-events-none" />
+                                        </div>
                                     </div>
-                                )}
-                            </motion.div>
-                        )}
-
-                        {activeTab === 'tecnica' && (
-                            <motion.div
-                                key="tecnica"
-                                initial={{ opacity: 0, y: 10 }}
-                                animate={{ opacity: 1, y: 0 }}
-                                exit={{ opacity: 0, y: -10 }}
-                                className="pt-2"
-                            >
-                                <div className="bg-zinc-900/20 p-6 rounded-[2.5rem] border border-white/5 backdrop-blur-sm">
-                                    <h4 className="text-[11px] text-[#FF7939] uppercase font-black tracking-[0.2em] mb-4 italic italic font-sans flex items-center">
-                                         TÉCNICA DE EJECUCIÓN
-                                    </h4>
-                                    <p className="text-zinc-400 text-[13px] leading-[1.6] font-medium whitespace-pre-wrap">
-                                        {formState.descripcion || 'Escribe la técnica detallada aquí...'}
-                                    </p>
+                                    <div className="flex items-center gap-1.5">
+                                        <button 
+                                            onClick={() => saveSet(idx)}
+                                            className="w-9 h-9 rounded-xl bg-green-500 border border-green-600 flex items-center justify-center text-white shadow-[0_0_15px_rgba(34,197,94,0.4)]"
+                                        >
+                                            <Plus className="h-5 w-5" />
+                                        </button>
+                                        <button 
+                                            onClick={() => removeSet(idx)}
+                                            className="w-9 h-9 rounded-xl bg-red-500/20 text-red-500 border border-red-500/30 flex items-center justify-center hover:bg-red-500 hover:text-white transition-all"
+                                        >
+                                            <X className="h-4 w-4" />
+                                        </button>
+                                    </div>
                                 </div>
-                            </motion.div>
-                        )}
-                    </AnimatePresence>
+                            ) : (
+                                <div className="flex items-center justify-between group">
+                                    <div className="flex items-center gap-5">
+                                        <div className="w-12 h-12 rounded-full bg-[#FF7939] text-white flex items-center justify-center font-[1000] text-lg shadow-[0_5px_15px_rgba(255,121,57,0.3)] border border-white/10">
+                                            {idx + 1}
+                                        </div>
+                                        <div className="flex gap-8">
+                                            <div className="text-center">
+                                                <div className="text-white font-[1000] text-xl leading-none mb-1.5">{set.s}</div>
+                                                <div className="text-[9px] text-zinc-500 uppercase font-black tracking-widest opacity-60">SERIES</div>
+                                            </div>
+                                            <div className="text-center">
+                                                <div className="text-white font-[1000] text-xl leading-none mb-1.5">{set.r}</div>
+                                                <div className="text-[9px] text-zinc-500 uppercase font-black tracking-widest opacity-60">REPS</div>
+                                            </div>
+                                            <div className="text-center">
+                                                <div className="text-zinc-400 font-[1000] text-xl leading-none mb-1.5">{set.p}</div>
+                                                <div className="text-[9px] text-zinc-500 uppercase font-black tracking-widest opacity-60">PESO</div>
+                                            </div>
+                                        </div>
+                                    </div>
+                                    <button 
+                                        onClick={() => startEditing(idx)}
+                                        className="w-11 h-11 rounded-2xl bg-zinc-900 border border-white/5 flex items-center justify-center opacity-0 group-hover:opacity-100 hover:border-[#FF7939]/30 hover:bg-[#FF7939]/5 transition-all"
+                                    >
+                                        <Edit2 className="h-4 w-4 text-[#FF7939]" />
+                                    </button>
+                                </div>
+                            )}
+                        </div>
+                    ))}
+
+                    <Button
+                        variant="outline"
+                        onClick={addNewSet}
+                        className="w-full h-16 rounded-[2.5rem] border-dashed border-zinc-800 bg-zinc-900/20 hover:bg-zinc-900 hover:border-[#FF7939]/30 text-zinc-500 font-black uppercase text-xs tracking-[0.2em] italic border-2 transition-all mt-4"
+                    >
+                        + AÑADIR SERIE
+                    </Button>
                 </div>
-            </div>
 
-            {/* Bottom Navigation Mockup - PIXEL PERFECT */}
-            <div className="h-24 bg-zinc-900/60 backdrop-blur-3xl border-t border-white/5 flex justify-around items-center px-6 pb-2">
-                 <div className="flex flex-col items-center gap-1.5 opacity-40">
-                    <Search className="h-5 w-5 text-white" />
-                    <span className="text-[10px] uppercase font-black tracking-tighter text-white">BUSCAR</span>
-                 </div>
-                 <div className="flex flex-col items-center gap-1.5 transition-all transform hover:scale-110">
-                    <Flame className="h-6 w-6 text-[#FF7939] fill-[#FF7939]" />
-                    <span className="text-[10px] uppercase font-black tracking-tighter text-[#FF7939]">ACTIVIDADES</span>
-                 </div>
-                 
-                 {/* Main Button Glow */}
-                 <div className="relative">
-                     <div className="absolute inset-0 bg-[#FF7939] blur-[25px] opacity-40 rounded-full" />
-                     <div className="relative w-14 h-14 bg-zinc-800 rounded-full flex items-center justify-center -mt-10 border-4 border-black shadow-2xl overflow-hidden group">
-                         <div className="absolute inset-0 bg-gradient-to-tr from-[#FF7939] to-[#E66829] group-hover:to-orange-400 transition-all duration-300" />
-                         <Flame className="h-7 w-7 text-white fill-white relative z-10" />
+                {/* Muscle Groups & Technique Tabs - Simplified View */}
+                <div className="grid grid-cols-2 gap-4 mb-20">
+                     <div 
+                        onClick={() => onTabChange('musculos')}
+                        className={`p-6 rounded-[2.5rem] bg-zinc-900/30 border border-white/5 flex flex-col items-center gap-2 cursor-pointer transition-all ${activeTab === 'musculos' ? 'bg-[#FF7939]/5 border-[#FF7939]/30' : ''}`}
+                     >
+                        <Dumbbell className={`h-6 w-6 ${activeTab === 'musculos' ? 'text-[#FF7939]' : 'text-zinc-600'}`} />
+                        <span className="text-[9px] font-black uppercase tracking-widest text-zinc-500">MúSCULOS</span>
                      </div>
-                 </div>
+                     <div 
+                        onClick={() => onTabChange('tecnica')}
+                        className={`p-6 rounded-[2.5rem] bg-zinc-900/30 border border-white/5 flex flex-col items-center gap-2 cursor-pointer transition-all ${activeTab === 'tecnica' ? 'bg-[#FF7939]/5 border-[#FF7939]/30' : ''}`}
+                     >
+                        <Info className={`h-6 w-6 ${activeTab === 'tecnica' ? 'text-[#FF7939]' : 'text-zinc-600'}`} />
+                        <span className="text-[9px] font-black uppercase tracking-widest text-zinc-500">TéCNICA</span>
+                     </div>
+                </div>
 
-                 <div className="flex flex-col items-center gap-1.5 opacity-40">
-                    <Clock className="h-5 w-5 text-white" />
-                    <span className="text-[10px] uppercase font-black tracking-tighter text-white">CALENDARIO</span>
-                 </div>
-                 <div className="flex flex-col items-center gap-1.5 opacity-40">
-                    <Layout className="h-5 w-5 text-white" />
-                    <span className="text-[10px] uppercase font-black tracking-tighter text-white">PERFIL</span>
-                 </div>
             </div>
 
-            {/* Indicator bar like iPhone */}
-            <div className="absolute bottom-1 left-1/2 -translate-x-1/2 w-32 h-1 bg-white/20 rounded-full mb-1" />
+            {/* Bottom Nav Mockup */}
+            <div className="h-24 bg-zinc-900/80 backdrop-blur-3xl border-t border-white/5 flex justify-around items-center px-8 pb-4">
+                 <div className="w-14 h-1.5 bg-zinc-800 rounded-full absolute bottom-2 left-1/2 -translate-x-1/2" />
+                 <Flame className="h-7 w-7 text-[#FF7939] fill-[#FF7939]" />
+                 <div className="w-1.5 h-1.5 rounded-full bg-[#FF7939] shadow-[0_0_10px_rgba(255,121,57,1)]" />
+                 <Layout className="h-6 w-6 text-zinc-700" />
+                 <Search className="h-6 w-6 text-zinc-700" />
+                 <Clock className="h-6 w-6 text-zinc-700" />
+            </div>
         </div>
     )
 }
