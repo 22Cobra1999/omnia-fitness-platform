@@ -55,21 +55,16 @@ export async function GET(request: NextRequest) {
     authUrl.searchParams.set('state', stateWithTimestamp);
     
     // Forzar pantalla de login siempre
-    // prompt=login: estándar OIDC para forzar login
+    // Intentar múltiples combinaciones de parámetros de la industria para asegurar que Mercado Pago no ignore el login
     authUrl.searchParams.set('prompt', 'login');
-    
-    // force_login=true: específico de Mercado Pago para forzar login
     authUrl.searchParams.set('force_login', 'true');
-    
-    // approval_prompt=force: para requerir autorización incluso si ya se dio antes
     authUrl.searchParams.set('approval_prompt', 'force');
-    
-    // select_account=true: ayuda a que el usuario pueda elegir otra cuenta
     authUrl.searchParams.set('select_account', 'true');
+    authUrl.searchParams.set('access_type', 'offline');
     
-    // Cache busting y sesión única
+    // Cache busting de sesión y navegador
     authUrl.searchParams.set('_', timestamp.toString());
-    authUrl.searchParams.set('session_id', `omnia_${timestamp}`);
+    authUrl.searchParams.set('session_id', `omnia_${timestamp}_${Math.random().toString(36).substring(7)}`);
     authUrl.searchParams.set('max_age', '0');
 
     const finalAuthUrl = authUrl.toString();

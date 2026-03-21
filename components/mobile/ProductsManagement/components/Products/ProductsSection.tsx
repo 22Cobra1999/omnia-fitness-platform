@@ -229,13 +229,16 @@ export const ProductsSection: React.FC<ProductsSectionProps> = ({
                                     Aplicar {selectedProductsForConditioning.length}
                                 </Button>
                             ) : (onboarding?.needsProfile || onboarding?.needsMP) ? (
-                                <Button
-                                    className="bg-[#00B1EA] hover:bg-[#009ED2] text-white px-2.5 py-1 rounded-lg font-bold text-[10px] shadow-md flex items-center gap-1 uppercase tracking-tight"
-                                    onClick={() => window.dispatchEvent(new CustomEvent('openMPOnboarding'))}
-                                >
-                                    <Handshake className="h-3 w-3" />
-                                    Conectar MP
-                                </Button>
+                                <div className="flex flex-col items-center gap-1">
+                                    <Button
+                                        className="bg-[#00B1EA] hover:bg-[#009ED2] text-white px-2.5 py-1 rounded-lg font-bold text-[10px] shadow-md flex items-center gap-1 uppercase tracking-tight"
+                                        onClick={() => window.dispatchEvent(new CustomEvent('openMPOnboarding'))}
+                                    >
+                                        <Handshake className="h-3 w-3" />
+                                        Mercado Pago
+                                    </Button>
+                                    <span className="text-[8px] text-[#00B1EA] font-black uppercase tracking-widest whitespace-nowrap">Para crear producto</span>
+                                </div>
                             ) : (
                                 <Button
                                     className="bg-[#FF7939] hover:bg-[#E66829] text-white px-2.5 py-1 rounded-lg font-bold text-xs shadow-md"

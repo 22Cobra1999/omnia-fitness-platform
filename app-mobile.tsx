@@ -207,6 +207,17 @@ function MobileAppContent({ initialTab, initialCategoryId, initialActivityId, in
     if (typeof window === 'undefined') return
     const mpAuth = searchParams.get('mp_auth')
     if (mpAuth === 'success' || mpAuth === 'error') {
+      console.log('🔄 [MobileApp] Mercado Pago Auth status detected:', mpAuth)
+      
+      // Actualizar estado de onboarding inmediatamente
+      refetchOnboarding()
+      
+      if (mpAuth === 'success') {
+        setShowMPOnboarding(false)
+        // También podemos cerrar el modal de perfil si estaba forzado
+        setForcedProfileModal(false)
+      }
+
       // Limpiar el parámetro de la URL después de procesarlo
       const newUrl = new URL(window.location.href)
       newUrl.searchParams.delete('mp_auth')
@@ -215,7 +226,7 @@ function MobileAppContent({ initialTab, initialCategoryId, initialActivityId, in
       }
       window.history.replaceState({}, '', newUrl.toString())
     }
-  }, [searchParams])
+  }, [searchParams, refetchOnboarding])
 
   // Detectar si el usuario volvió de Mercado Pago sin completar el pago
   useEffect(() => {

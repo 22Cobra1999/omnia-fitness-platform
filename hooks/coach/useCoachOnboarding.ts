@@ -41,13 +41,18 @@ export function useCoachOnboarding(userId: string | undefined) {
             const needsProfile = !hasAvatar || (!hasBio && !hasSpecialization)
 
             // 2. Check Mercado Pago
-            const { data: mp } = await supabase
+            const { data: mp, error: mpError } = await supabase
                 .from('coach_mercadopago_credentials')
                 .select('oauth_authorized')
                 .eq('coach_id', userId)
                 .maybeSingle()
             
+            if (mpError) {
+                console.error("❌ [Onboarding] Error searching credentials:", mpError)
+            }
+            
             const needsMP = !mp?.oauth_authorized
+            console.log("📊 [Onboarding] Check complete for", userId, ":", { needsProfile, needsMP, hasMPData: !!mp })
 
             setStatus({
                 needsProfile,
@@ -55,13 +60,29 @@ export function useCoachOnboarding(userId: string | undefined) {
                 loading: false
             })
         } catch (error) {
-            console.error("Error checking onboarding status:", error)
+            console.error("❌ [Onboarding] Unexpected error during check:", error)
             setStatus(prev => ({ ...prev, loading: false }))
         }
     }, [userId])
 
     useEffect(() => {
         checkStatus()
+        
+        // Refetch when window regains focus (e.g. after returning from MP login)
+        window.addEventListener('focus', checkStatus)
+        
+        // Refetch if URL changes to success
+        const handleUrlChange = () => {
+            if (window.location.search.includes('mp_auth=success')) {
+                checkStatus()
+            }
+        }
+        window.addEventListener('popstate', handleUrlChange)
+
+        return () => {
+            window.removeEventListener('focus', checkStatus)
+            window.removeEventListener('popstate', handleUrlChange)
+        }
     }, [checkStatus])
 
     return { ...status, refetch: checkStatus }
