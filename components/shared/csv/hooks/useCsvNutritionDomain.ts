@@ -56,6 +56,7 @@ export function useCsvNutritionDomain({
             ingredientes: exercise['Ingredientes'] || exercise.ingredientes || '',
             dificultad: exercise['Dificultad'] || exercise.dificultad || 'Principiante',
             calorias: exercise.Calorías || exercise.calorias || '',
+            tipo: exercise.tipo || exercise.Comida || '',
             video_url: exercise.video_url || '',
             video_file_name: exercise.video_file_name || '',
             video_source: exercise.video_source || (exercise.video_url ? 'existing' : ''),
@@ -97,10 +98,10 @@ export function useCsvNutritionDomain({
 
         let item: any = {
             'Día': 'Lunes',
-            'Comida': 'Desayuno',
+            'Comida': manualForm.tipo || 'Desayuno',
             'Nombre': manualForm.nombre,
             tipo: manualForm.tipo || 'Desayuno',
-            'Receta': manualForm.descripcion,
+            'Receta': manualForm.receta || manualForm.descripcion,
             'Calorías': manualForm.calorias,
             'Proteínas (g)': manualForm.proteinas,
             'Carbohidratos (g)': manualForm.carbohidratos,

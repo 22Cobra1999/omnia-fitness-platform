@@ -151,7 +151,8 @@ export function useCsvActions(props: UseCsvActionsProps) {
             video_source: '',
             bunny_video_id: '',
             bunny_library_id: '',
-            video_thumbnail_url: ''
+            video_thumbnail_url: '',
+            segundos: ''
         }))
         setBodyParts([])
         setEquipoList([])

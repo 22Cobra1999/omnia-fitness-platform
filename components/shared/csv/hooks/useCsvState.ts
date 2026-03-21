@@ -59,8 +59,11 @@ export function useCsvState(parentSelectedRows?: Set<number>) {
         video_source: '',
         bunny_video_id: '',
         bunny_library_id: '',
-        video_thumbnail_url: ''
+        video_thumbnail_url: '',
+        segundos: ''
     })
+
+    const [sortConfig, setSortConfig] = useState<{ key: string, direction: 'asc' | 'desc' } | null>(null)
 
     return {
         file, setFile,
@@ -90,6 +93,7 @@ export function useCsvState(parentSelectedRows?: Set<number>) {
         equipoList, setEquipoList,
         seriesList, setSeriesList,
         showAssignedVideoPreview, setShowAssignedVideoPreview,
-        manualForm, setManualForm
+        manualForm, setManualForm,
+        sortConfig, setSortConfig
     }
 }

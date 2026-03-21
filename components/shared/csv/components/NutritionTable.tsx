@@ -19,7 +19,11 @@ interface NutritionTableProps {
     duplicateNames: string[]
     loadingExisting: boolean
     bunnyVideoTitles?: Record<string, string>
+    sortConfig?: { key: string; direction: 'asc' | 'desc' } | null
+    onSort?: (key: string) => void
 }
+
+import { ChevronUp, ChevronDown } from 'lucide-react'
 
 export function NutritionTable({
     data,
@@ -35,39 +39,57 @@ export function NutritionTable({
     activityImagesMap = {},
     duplicateNames,
     loadingExisting,
-    bunnyVideoTitles = {}
+    bunnyVideoTitles = {},
+    sortConfig,
+    onSort
 }: NutritionTableProps) {
     const [previewVideo, setPreviewVideo] = React.useState<{ url: string; title: string; libraryId?: string | number } | null>(null)
 
+    const SortIcon = ({ column }: { column: string }) => {
+        if (!sortConfig || sortConfig.key !== column) return <div className="ml-1 opacity-20"><ChevronUp className="h-2.5 w-2.5" /></div>
+        return sortConfig.direction === 'asc' ? 
+            <ChevronUp className="h-2.5 w-2.5 ml-1 text-[#FF7939]" /> : 
+            <ChevronDown className="h-2.5 w-2.5 ml-1 text-[#FF7939]" />
+    }
+
+    const ThLink = ({ column, label, className = "" }: { column: string, label: string, className?: string }) => (
+        <th className={`px-2 py-3 text-left text-[10px] font-black text-white hover:text-[#FF7939] cursor-pointer transition-colors border-b border-white/10 ${className}`} onClick={() => onSort?.(column)}>
+            <div className="flex items-center">
+                <span className="uppercase tracking-widest">{label}</span>
+                <SortIcon column={column} />
+            </div>
+        </th>
+    )
+
     return (
         <>
-            <table className="min-w-max w-full text-left border-collapse">
-                <thead>
+            <table className="min-w-max w-full text-left border-collapse table-fixed">
+                <thead className="bg-zinc-950/40 backdrop-blur-md sticky top-0 z-10">
                     <tr>
-                        <th className="px-2 py-3 text-left text-xs font-medium text-white border-b border-gray-600 w-8"></th>
-                        <th className="px-3 py-3 text-left text-xs font-medium text-white border-b border-gray-600 w-16">
+                        <th className="px-2 py-3 text-left text-xs font-medium text-white border-b border-white/10 w-8"></th>
+                        <th className="px-3 py-3 text-center text-xs font-medium text-white border-b border-white/10 w-12">
                             <button
                                 onClick={toggleSelectAll}
-                                className="p-1 hover:bg-gray-700/50 rounded transition-colors mx-auto"
+                                className="p-1 hover:bg-zinc-800 rounded transition-colors mx-auto"
                             >
                                 <Flame className={`h-4 w-4 transition-colors ${isAllSelected ? 'text-[#FF7939]' : 'text-white'}`} />
                             </button>
                         </th>
-                        <th className="px-2 py-3 text-left text-xs font-medium text-white border-b border-gray-600 w-12">Editar</th>
+                        <th className="px-2 py-3 text-left text-xs font-medium text-white border-b border-white/10 w-8"></th>
                         {activityId === 0 && (
-                            <th className="px-3 py-3 text-left text-xs font-medium text-white border-b border-gray-600 w-32">Estado</th>
+                            <ThLink column="isExisting" label="Estado" className="w-12" />
                         )}
-                        <th className="px-3 py-3 text-left text-xs font-medium text-white border-b border-gray-600 w-48">Plato</th>
-                        <th className="px-3 py-3 text-left text-xs font-medium text-white border-b border-gray-600 w-32">Categoría</th>
-                        <th className="px-3 py-3 text-left text-xs font-medium text-white border-b border-gray-600 w-48">Receta</th>
-                        <th className="px-3 py-3 text-left text-xs font-medium text-white border-b border-gray-600 w-20">Calorías</th>
-                        <th className="px-3 py-3 text-left text-xs font-medium text-white border-b border-gray-600 w-24">Proteínas</th>
-                        <th className="px-3 py-3 text-left text-xs font-medium text-white border-b border-gray-600 w-24">Carbohidratos</th>
-                        <th className="px-3 py-3 text-left text-xs font-medium text-white border-b border-gray-600 w-20">Grasas</th>
-                        <th className="px-3 py-3 text-left text-xs font-medium text-white border-b border-gray-600 w-32">Ingredientes</th>
-                        <th className="px-3 py-3 text-left text-xs font-medium text-white border-b border-gray-600 w-20">Porciones</th>
-                        <th className="px-3 py-3 text-left text-xs font-medium text-white border-b border-gray-600 w-20">Minutos</th>
-                        <th className="px-3 py-3 text-left text-xs font-medium text-white border-b border-gray-600 w-32">Video File Name</th>
+                        <ThLink column="nombre" label="Plato" className="w-48" />
+                        <ThLink column="tipo" label="Categoría" className="w-28" />
+                        <th className="px-3 py-3 text-left text-[10px] font-black text-zinc-500 border-b border-white/10 w-64 uppercase tracking-widest">Receta</th>
+                        <ThLink column="calorias" label="Kcal" className="w-20" />
+                        <ThLink column="proteinas" label="Prot" className="w-20" />
+                        <ThLink column="carbohidratos" label="Carb" className="w-20" />
+                        <ThLink column="grasas" label="Gras" className="w-20" />
+                        <th className="px-3 py-3 text-left text-[10px] font-black text-zinc-500 border-b border-white/10 w-48 uppercase tracking-widest">Ingredientes</th>
+                        <ThLink column="porciones" label="Porc" className="w-20" />
+                        <ThLink column="minutos" label="Min" className="w-20" />
+                        <th className="px-3 py-3 text-left text-[10px] font-black text-zinc-500 border-b border-white/10 w-40 uppercase tracking-widest">Video</th>
                     </tr>
                 </thead>
                 <tbody>

@@ -74,7 +74,11 @@ interface FitnessTableProps {
     duplicateNames: string[]
     loadingExisting: boolean
     bunnyVideoTitles?: Record<string, string>
+    sortConfig?: { key: string; direction: 'asc' | 'desc' } | null
+    onSort?: (key: string) => void
 }
+
+import { ChevronUp, ChevronDown } from 'lucide-react'
 
 export function FitnessTable({
     data,
@@ -90,39 +94,57 @@ export function FitnessTable({
     activityImagesMap,
     duplicateNames,
     loadingExisting,
-    bunnyVideoTitles = {}
+    bunnyVideoTitles = {},
+    sortConfig,
+    onSort
 }: FitnessTableProps) {
     const [previewVideo, setPreviewVideo] = React.useState<{ url: string; title: string; libraryId?: string | number } | null>(null)
 
+    const SortIcon = ({ column }: { column: string }) => {
+        if (!sortConfig || sortConfig.key !== column) return <div className="ml-1 opacity-20"><ChevronUp className="h-2.5 w-2.5" /></div>
+        return sortConfig.direction === 'asc' ? 
+            <ChevronUp className="h-2.5 w-2.5 ml-1 text-[#FF7939]" /> : 
+            <ChevronDown className="h-2.5 w-2.5 ml-1 text-[#FF7939]" />
+    }
+
+    const ThLink = ({ column, label, className = "" }: { column: string, label: string, className?: string }) => (
+        <th className={`px-3 py-3 text-left text-[10px] font-black text-white hover:text-[#FF7939] cursor-pointer transition-colors border-b border-white/10 ${className}`} onClick={() => onSort?.(column)}>
+            <div className="flex items-center">
+                <span className="uppercase tracking-widest">{label}</span>
+                <SortIcon column={column} />
+            </div>
+        </th>
+    )
+
     return (
         <>
-            <table className="min-w-max w-full text-left border-collapse">
-                <thead>
+            <table className="min-w-max w-full text-left border-collapse table-fixed">
+                <thead className="bg-zinc-950/40 backdrop-blur-md sticky top-0 z-10">
                     <tr>
-                        <th className="px-2 py-3 text-left text-xs font-medium text-white border-b border-gray-600 w-8"></th>
-                        <th className="px-3 py-3 text-left text-xs font-medium text-white border-b border-gray-600 w-16">
+                        <th className="px-2 py-3 text-left text-xs font-medium text-white border-b border-white/10 w-8"></th>
+                        <th className="px-3 py-3 text-center text-xs font-medium text-white border-b border-white/10 w-12">
                             <button
                                 onClick={toggleSelectAll}
-                                className="p-1 hover:bg-gray-700/50 rounded transition-colors mx-auto"
-                                title="Seleccionar/deseleccionar todos de esta página"
+                                className="p-1 hover:bg-zinc-800 rounded transition-colors mx-auto"
+                                title="Seleccionar/deseleccionar todos"
                             >
                                 <Flame className={`h-4 w-4 transition-colors ${isAllSelected ? 'text-[#FF7939]' : 'text-white'}`} />
                             </button>
                         </th>
-                        <th className="px-2 py-3 text-left text-xs font-medium text-white border-b border-gray-600 w-12">Editar</th>
+                        <th className="px-2 py-3 text-left text-xs font-medium text-white border-b border-white/10 w-12"></th>
                         {activityId === 0 && (
-                            <th className="px-3 py-3 text-left text-xs font-medium text-white border-b border-gray-600 w-48">Estado</th>
+                            <ThLink column="isExisting" label="Estado" className="w-24" />
                         )}
-                        <th className="px-3 py-3 text-left text-xs font-medium text-white border-b border-gray-600 w-48">Ejercicio</th>
-                        <th className="px-3 py-3 text-left text-xs font-medium text-white border-b border-gray-600 w-48">Descripción</th>
-                        <th className="px-3 py-3 text-left text-xs font-medium text-white border-b border-gray-600 w-20">Duración</th>
-                        <th className="px-3 py-3 text-left text-xs font-medium text-white border-b border-gray-600 w-24">Tipo</th>
-                        <th className="px-3 py-3 text-left text-xs font-medium text-white border-b border-gray-600 w-32">Equipo</th>
-                        <th className="px-3 py-3 text-left text-xs font-medium text-white border-b border-gray-600 w-32">P-R-S</th>
-                        <th className="px-3 py-3 text-left text-xs font-medium text-white border-b border-gray-600 w-32">Partes</th>
-                        <th className="px-3 py-3 text-left text-xs font-medium text-white border-b border-gray-600 w-20">Calorías</th>
-                        <th className="px-3 py-3 text-left text-xs font-medium text-white border-b border-gray-600 w-24">Intensidad</th>
-                        <th className="px-3 py-3 text-left text-xs font-medium text-white border-b border-gray-600 w-32">Video File Name</th>
+                        <ThLink column="nombre" label="Ejercicio" className="w-56" />
+                        <th className="px-3 py-3 text-left text-[10px] font-black text-zinc-500 border-b border-white/10 w-64 uppercase tracking-widest">Descripción</th>
+                        <ThLink column="duracion_min" label="Duración" className="w-24" />
+                        <ThLink column="tipo" label="Tipo" className="w-28" />
+                        <ThLink column="equipo" label="Equipo" className="w-36" />
+                        <th className="px-3 py-3 text-left text-[10px] font-black text-zinc-500 border-b border-white/10 w-36 uppercase tracking-widest">P-R-S</th>
+                        <ThLink column="body_parts" label="Partes" className="w-36" />
+                        <ThLink column="calorias" label="Kcal" className="w-20" />
+                        <ThLink column="intensidad" label="Intensidad" className="w-28" />
+                        <th className="px-3 py-3 text-left text-[10px] font-black text-zinc-500 border-b border-white/10 w-40 uppercase tracking-widest">Video</th>
                     </tr>
                 </thead>
                 <tbody>

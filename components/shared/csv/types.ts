@@ -42,6 +42,7 @@ export interface ManualFormState {
     bunny_video_id: string
     bunny_library_id: string
     video_thumbnail_url: string
+    segundos: string
 }
 
 export interface CSVManagerEnhancedProps {

@@ -115,7 +115,7 @@ export function useCsvExerciseDomain({
         }
         updateErrorState(null)
 
-        const detalleSeriesStr = seriesList.length ? seriesList.map(s => `(${s.peso}-${s.repeticiones}-${s.series})`).join(';') : manualForm.detalle_series
+        const detalleSeriesStr = seriesList.length ? seriesList.map(s => `(${s.peso || 0}-${s.repeticiones || 0}-${s.series || 0}-${s.segundos || 0})`).join(';') : manualForm.detalle_series
         const partesCuerpoStr = bodyParts.length ? bodyParts.join(';') : manualForm.partes_cuerpo
         const equipoNecesarioStr = equipoList.length ? equipoList.join(', ') : manualForm.equipo_necesario
 
@@ -129,6 +129,7 @@ export function useCsvExerciseDomain({
             'Detalle de Series (peso-repeticiones-series)': detalleSeriesStr,
             'Partes del Cuerpo': partesCuerpoStr,
             'Calorías': manualForm.calorias,
+            segundos: manualForm.segundos,
             video_url: manualForm.video_url || '',
             video_file_name: manualForm.video_file_name || '',
             video_source: manualForm.video_source || '',

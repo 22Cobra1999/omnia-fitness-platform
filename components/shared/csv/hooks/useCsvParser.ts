@@ -11,7 +11,7 @@ import {
 import { ExerciseData } from '../types'
 
 interface UseCsvParserProps {
-    setCsvData: (data: any[]) => void
+    setCsvData: (updater: any) => void
     updateErrorState: (message: string | null, rows?: string[]) => void
     productCategory: 'fitness' | 'nutricion'
     setUploadedFiles: React.Dispatch<React.SetStateAction<Array<{ name: string, timestamp: number }>>>
@@ -74,10 +74,10 @@ export function useCsvParser({
         Papa.parse(file, {
             header: true,
             skipEmptyLines: 'greedy', // Skip lines that are empty or whitespace only
-            complete: async (results) => {
+            complete: async (results: any) => {
                 processParsedResults(results, 'csv', file);
             },
-            error: (error) => {
+            error: (error: any) => {
                 console.error('Error parsing CSV:', error)
                 updateErrorState(`Error al leer el archivo CSV: ${error.message}`)
                 setLoading(false)
@@ -103,10 +103,8 @@ export function useCsvParser({
         // The original logic checked `productCategory` for header validation?
         // Let's assume fitness headers validation is generic enough or add nutrition check if needed.
 
-        if (!validation.isValid && productCategory === 'fitness') {
-            // If strictly fitness, fail. If nutrition, maybe we are lenient? 
-            // Original code: line 1585 `if (!isValid && productCategory !== 'nutricion')`
-            updateErrorState(`Formato de columnas inválido. Falta: ${validation.missing.join(', ')}`)
+        if (!validation && productCategory === 'fitness') {
+            updateErrorState(`Formato de columnas inválido. Verifica que el CSV incluya las columnas requeridas (Nombre, Descripción, etc.)`)
             setLoading(false)
             return
         }
@@ -138,7 +136,7 @@ export function useCsvParser({
                 const videoUrl = getStringValue(row['Video Demo'] || row['Video URL'] || row['Link Video'] || row['video_url']);
                 const bunnyVideoId = extractBunnyVideoIdFromUrl(videoUrl);
 
-                const normalizedItem: ExerciseData = {
+                const normalizedItem: any = {
                     id: undefined, // New item
                     nombre: nombre,
                     descripcion: getStringValue(row['Descripción'] || row['Description'] || row['Notas']),
@@ -148,7 +146,7 @@ export function useCsvParser({
                     partes_cuerpo: normalizeBodyParts(row['Partes del Cuerpo'] || row['Músculos']).valid.join(', '),
                     video_url: videoUrl,
                     bunny_video_id: bunnyVideoId || undefined, // Store extracted ID
-                    // ... other fields
+                    segundos: getStringValue(row['Segundos'] || row['Time'] || row['segundos'] || '0'),
                     csvFileTimestamp: currentTimestamp, // Mark origin
                     is_active: true
                 };
@@ -185,7 +183,7 @@ export function useCsvParser({
         }
 
         if (validRows.length > 0) {
-            setCsvData(prev => [...prev, ...validRows])
+            setCsvData((prev: any) => [...prev, ...validRows])
             setUploadedFiles(prev => [...prev, { name: file.name, timestamp: currentTimestamp }])
             setResult({
                 success: true,

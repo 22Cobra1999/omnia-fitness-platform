@@ -20,6 +20,8 @@ interface CsvTableProps {
     duplicateNames?: string[]
     loadingExisting?: boolean
     bunnyVideoTitles?: Record<string, string>
+    sortConfig?: { key: string; direction: 'asc' | 'desc' } | null
+    onSort?: (key: string) => void
 }
 
 export function CsvTable({
@@ -34,6 +36,8 @@ export function CsvTable({
                     duplicateNames={props.duplicateNames || []}
                     loadingExisting={!!props.loadingExisting}
                     bunnyVideoTitles={props.bunnyVideoTitles}
+                    sortConfig={props.sortConfig}
+                    onSort={props.onSort}
                 />
             ) : (
                 <FitnessTable
@@ -44,6 +48,8 @@ export function CsvTable({
                     duplicateNames={props.duplicateNames || []}
                     loadingExisting={!!props.loadingExisting}
                     bunnyVideoTitles={props.bunnyVideoTitles}
+                    sortConfig={props.sortConfig}
+                    onSort={props.onSort}
                 />
             )}
         </div>

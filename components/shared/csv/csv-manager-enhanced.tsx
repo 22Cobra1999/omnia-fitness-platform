@@ -261,22 +261,43 @@ export function CSVManagerEnhanced({
     }
   }, [csvData, activityId])
 
+  const [sortConfig, setSortConfig] = React.useState<{ key: string; direction: 'asc' | 'desc' } | null>(null)
+
+  const handleSort = (key: string) => {
+    let direction: 'asc' | 'desc' = 'asc'
+    if (sortConfig && sortConfig.key === key && sortConfig.direction === 'asc') {
+      direction = 'desc'
+    }
+    setSortConfig({ key, direction })
+  }
+
+  const sortedData = useMemo(() => {
+    if (!sortConfig) return allData
+    return [...allData].sort((a, b) => {
+      const aValue = (a[sortConfig.key] || '').toString().toLowerCase()
+      const bValue = (b[sortConfig.key] || '').toString().toLowerCase()
+      if (aValue < bValue) return sortConfig.direction === 'asc' ? -1 : 1
+      if (aValue > bValue) return sortConfig.direction === 'asc' ? 1 : -1
+      return 0
+    })
+  }, [allData, sortConfig])
+
   // Paginación
-  const totalPages = Math.ceil(allData.length / itemsPerPage)
+  const totalPages = Math.ceil(sortedData.length / itemsPerPage)
   const startIndex = (currentPage - 1) * itemsPerPage
-  const paginatedData = allData.slice(startIndex, startIndex + itemsPerPage)
+  const paginatedData = sortedData.slice(startIndex, startIndex + itemsPerPage)
 
   useEffect(() => {
     if (currentPage > totalPages && totalPages > 0) {
       setCurrentPage(totalPages)
     }
-  }, [allData.length, totalPages, currentPage, setCurrentPage])
+  }, [sortedData.length, totalPages, currentPage, setCurrentPage])
 
   const handleDownloadTemplate = () => generateCsvTemplate({ productCategory: productCategory as any })
 
   const duplicateNames = useMemo(() => {
     const nameMap = new Map<string, string[]>()
-    allData.forEach((item) => {
+    sortedData.forEach((item) => {
       const name = normalizeName(getExerciseName(item))
       if (name) {
         if (!nameMap.has(name)) nameMap.set(name, [])
@@ -284,9 +305,9 @@ export function CSVManagerEnhanced({
       }
     })
     return Array.from(nameMap.values()).filter(list => list.length > 1).map(list => list[0])
-  }, [allData])
+  }, [sortedData])
 
-  const exceedsActivitiesLimit = planLimits?.activitiesLimit !== undefined && allData.length > planLimits.activitiesLimit
+  const exceedsActivitiesLimit = planLimits?.activitiesLimit !== undefined && sortedData.length > planLimits.activitiesLimit
 
   return (
     <div className="text-white p-2 w-full max-w-none pb-24">
@@ -336,9 +357,9 @@ export function CSVManagerEnhanced({
           onSubmit={addManualExercise}
           onCancel={cancelEdit}
           isEditing={editingExerciseIndex !== null}
+          csvData={allData}
           onVideoSelect={() => setShowMediaSourceModal(true)}
           onRemoveVideo={handleRemoveVideoFromManualForm}
-          showAssignedVideoPreview={false} // Managed in subcomponent if needed
         />
       )}
 
