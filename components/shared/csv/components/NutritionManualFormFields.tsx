@@ -7,6 +7,7 @@ import { Trash2 } from 'lucide-react'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { ManualFormState } from '../types'
 import { mealTypes } from '../constants'
+import { DictionaryAutocomplete } from '@/components/shared/ui/dictionary-autocomplete'
 
 interface NutritionManualFormFieldsProps {
     formState: ManualFormState
@@ -22,6 +23,15 @@ export function NutritionManualFormFields({ formState, onChange }: NutritionManu
                     value={formState.nombre}
                     onChange={(e) => onChange('nombre', e.target.value)}
                     placeholder="Ej: Ensalada César con Pollo"
+                />
+            </div>
+            <div className="space-y-2">
+                <DictionaryAutocomplete
+                    label="Categoría"
+                    value={formState.tipo}
+                    onChange={(val) => onChange('tipo', val)}
+                    categoria="nutricion"
+                    placeholder="Ej: Proteína Animal, Fibra..."
                 />
             </div>
             <div className="col-span-2 space-y-2">

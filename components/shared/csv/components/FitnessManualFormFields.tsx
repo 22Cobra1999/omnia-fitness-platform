@@ -7,6 +7,7 @@ import { Textarea } from '@/components/ui/textarea'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { ManualFormState } from '../types'
 import { exerciseTypeOptions, intensityLevels } from '../constants'
+import { DictionaryAutocomplete } from '@/components/shared/ui/dictionary-autocomplete'
 
 interface FitnessManualFormFieldsProps {
     formState: ManualFormState
@@ -59,57 +60,13 @@ export function FitnessManualFormFields({ formState, onChange }: FitnessManualFo
             </div>
 
             <div className="space-y-2">
-                <Label>Equipo Necesario</Label>
-                <div className="flex flex-wrap gap-2 mb-2">
-                    {formState.equipo_necesario?.split(';').filter(Boolean).map((item, idx) => (
-                        <div key={idx} className="bg-zinc-800 px-2 py-1 rounded text-[10px] text-white flex items-center gap-1 border border-zinc-700">
-                            {item}
-                            <button
-                                onClick={() => {
-                                    const items = formState.equipo_necesario?.split(';').filter(Boolean) || []
-                                    items.splice(idx, 1)
-                                    onChange('equipo_necesario', items.join(';'))
-                                }}
-                                className="hover:text-red-400"
-                            >
-                                <X className="h-2 w-2" />
-                            </button>
-                        </div>
-                    ))}
-                </div>
-                <div className="flex gap-1">
-                    <Input
-                        id="new-eq"
-                        placeholder="Mancuernas..."
-                        onKeyDown={(e) => {
-                            if (e.key === 'Enter') {
-                                e.preventDefault()
-                                const val = (e.target as HTMLInputElement).value.trim()
-                                if (val) {
-                                    const current = formState.equipo_necesario || ''
-                                    onChange('equipo_necesario', current ? `${current};${val}` : val)
-                                    ;(e.target as HTMLInputElement).value = ''
-                                }
-                            }
-                        }}
-                    />
-                    <Button
-                        size="sm"
-                        variant="outline"
-                        className="bg-zinc-800 border-zinc-700 hover:bg-zinc-700"
-                        onClick={() => {
-                            const input = document.getElementById('new-eq') as HTMLInputElement
-                            const val = input.value.trim()
-                            if (val) {
-                                const current = formState.equipo_necesario || ''
-                                onChange('equipo_necesario', current ? `${current};${val}` : val)
-                                input.value = ''
-                            }
-                        }}
-                    >
-                        <Plus className="h-3 w-3" />
-                    </Button>
-                </div>
+                <DictionaryAutocomplete
+                    label="Equipo Necesario"
+                    value={formState.equipo_necesario}
+                    onChange={(val) => onChange('equipo_necesario', val)}
+                    categoria="equipo_fitness"
+                    placeholder="Ej: Mancuernas, Barra..."
+                />
             </div>
 
             <div className="space-y-2">
@@ -133,11 +90,12 @@ export function FitnessManualFormFields({ formState, onChange }: FitnessManualFo
             </div>
 
             <div className="col-span-2 space-y-2">
-                <Label>Partes del Cuerpo</Label>
-                <Input
+                <DictionaryAutocomplete
+                    label="Partes del Cuerpo"
                     value={formState.partes_cuerpo}
-                    onChange={(e) => onChange('partes_cuerpo', e.target.value)}
-                    placeholder="Ej: Pecho; Hombros"
+                    onChange={(val) => onChange('partes_cuerpo', val)}
+                    categoria="parte_cuerpo"
+                    placeholder="Ej: Pecho, Espalda..."
                 />
             </div>
 

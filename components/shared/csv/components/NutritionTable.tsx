@@ -58,6 +58,7 @@ export function NutritionTable({
                             <th className="px-3 py-3 text-left text-xs font-medium text-white border-b border-gray-600 w-32">Estado</th>
                         )}
                         <th className="px-3 py-3 text-left text-xs font-medium text-white border-b border-gray-600 w-48">Plato</th>
+                        <th className="px-3 py-3 text-left text-xs font-medium text-white border-b border-gray-600 w-32">Categoría</th>
                         <th className="px-3 py-3 text-left text-xs font-medium text-white border-b border-gray-600 w-48">Receta</th>
                         <th className="px-3 py-3 text-left text-xs font-medium text-white border-b border-gray-600 w-20">Calorías</th>
                         <th className="px-3 py-3 text-left text-xs font-medium text-white border-b border-gray-600 w-24">Proteínas</th>
@@ -175,6 +176,22 @@ export function NutritionTable({
                                     )}
                                     <td className="px-3 py-3 text-xs font-medium whitespace-pre-wrap break-words">
                                         <span className={isDuplicate ? 'text-red-400' : 'text-white'}>{exerciseName}</span>
+                                    </td>
+                                    <td className="px-3 py-3 text-xs text-white">
+                                        {(() => {
+                                            const tipo = item['Tipo'] || item.tipo || '-'
+                                            if (tipo === '-') return '-'
+                                            const tags = tipo.split(';').map((p: string) => p.trim()).filter(Boolean)
+                                            return (
+                                                <div className="flex flex-wrap gap-1">
+                                                    {tags.map((tag: string, idx: number) => (
+                                                        <span key={idx} className="bg-zinc-800 text-zinc-300 px-1.5 py-0.5 rounded text-[10px] border border-white/5 whitespace-nowrap">
+                                                            {tag}
+                                                        </span>
+                                                    ))}
+                                                </div>
+                                            )
+                                        })()}
                                     </td>
                                     <td className="px-3 py-3 text-xs text-white">
                                         <div className="max-h-32 overflow-y-auto">
