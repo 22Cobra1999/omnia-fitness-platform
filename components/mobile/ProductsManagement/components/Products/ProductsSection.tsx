@@ -220,34 +220,52 @@ export const ProductsSection: React.FC<ProductsSectionProps> = ({
 
                         {/* Botón Crear a la derecha */}
                         <div className="ml-auto">
-                            {isConditioningMode ? (
-                                <Button
-                                    className="bg-white hover:bg-white/90 text-black px-4 py-1 rounded-lg font-black text-xs shadow-md uppercase tracking-wider"
-                                    onClick={handleApplyConditioning}
-                                    disabled={selectedProductsForConditioning.length === 0}
-                                >
-                                    Aplicar {selectedProductsForConditioning.length}
-                                </Button>
-                            ) : (onboarding?.needsProfile || onboarding?.needsMP) ? (
-                                <div className="flex flex-col items-center gap-1">
+                            {(() => {
+                                console.log('🔘 [ProductsSection] Rendering button with status:', { 
+                                    needsProfile: onboarding?.needsProfile, 
+                                    needsMP: onboarding?.needsMP,
+                                    userId: userId
+                                });
+
+                                if (isConditioningMode) {
+                                  return (
                                     <Button
-                                        className="bg-[#00B1EA] hover:bg-[#009ED2] text-white px-2.5 py-1 rounded-lg font-bold text-[10px] shadow-md flex items-center gap-1 uppercase tracking-tight"
-                                        onClick={() => window.dispatchEvent(new CustomEvent('openMPOnboarding'))}
+                                        className="bg-white hover:bg-white/90 text-black px-4 py-1 rounded-lg font-black text-xs shadow-md uppercase tracking-wider"
+                                        onClick={handleApplyConditioning}
+                                        disabled={selectedProductsForConditioning.length === 0}
                                     >
-                                        <Handshake className="h-3 w-3" />
-                                        Mercado Pago
+                                        Aplicar {selectedProductsForConditioning.length}
                                     </Button>
-                                    <span className="text-[8px] text-[#00B1EA] font-black uppercase tracking-widest whitespace-nowrap">Para crear producto</span>
-                                </div>
-                            ) : (
-                                <Button
-                                    className="bg-[#FF7939] hover:bg-[#E66829] text-white px-2.5 py-1 rounded-lg font-bold text-xs shadow-md"
-                                    onClick={onOpenCreateModal}
-                                >
-                                    <Plus className="h-3 w-3 mr-1" />
-                                    Crear
-                                </Button>
-                            )}
+                                  );
+                                }
+
+                                if (onboarding?.needsMP) {
+                                  console.log('🔘 [ProductsSection] Showing Mercado Pago Button');
+                                  return (
+                                    <div className="flex flex-col items-center gap-1">
+                                        <Button
+                                            className="bg-[#00B1EA] hover:bg-[#009ED2] text-white px-2.5 py-1 rounded-lg font-bold text-[10px] shadow-md flex items-center gap-1 uppercase tracking-tight"
+                                            onClick={() => window.dispatchEvent(new CustomEvent('openMPOnboarding'))}
+                                        >
+                                            <Handshake className="h-3 w-3" />
+                                            Mercado Pago
+                                        </Button>
+                                        <span className="text-[8px] text-[#00B1EA] font-black uppercase tracking-widest whitespace-nowrap">Para crear producto</span>
+                                    </div>
+                                  );
+                                }
+
+                                console.log('🔘 [ProductsSection] Showing CREATE Button');
+                                return (
+                                    <Button
+                                        className="bg-[#FF7939] hover:bg-[#E66829] text-white px-2.5 py-1 rounded-lg font-bold text-xs shadow-md"
+                                        onClick={onOpenCreateModal}
+                                    >
+                                        <Plus className="h-3 w-3 mr-1" />
+                                        Crear
+                                    </Button>
+                                );
+                            })()}
                         </div>
                     </div>
 
